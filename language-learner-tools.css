@@ -1,0 +1,65 @@
+/* the div element surrounding the populated content of the post */
+.vocab-item {
+    /* border: 0px solid #ddd;
+    padding: 15px;
+    margin-bottom: 20px; */
+}
+
+.vocab-item h2 {
+    color: #333;
+}
+
+.vocab-featured-image {
+    width: 300px; /* Set the width of the image */
+    height: auto; /* Keep the aspect ratio */
+}
+
+/*
+ * Styling for the word-grid shortcode (the whole grid)
+ */
+.word-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    margin-bottom: 20px;
+	gap: 0px !important;
+}
+
+/*
+ * Styling for an individual item in the words-grid
+ */
+.word-item {
+    border: 0px solid #ddd;
+    padding: 10px;
+    text-align: center;
+}
+
+/*
+ * The title of a word in the word-grid
+ */
+.word-grid h3 {
+	font-size: 18px !important;
+	margin-top: -25px !important;
+}
+
+/*
+ * The image shown for a word in the word-grid
+ */
+.word-image {
+	max-width: 100%;
+    height: auto;
+	margin-bottom: 0px;
+}
+
+/*
+ * The example sentence shown for a word in the word-grid
+ */
+.word-example {
+	margin-top: -15px !important;
+}
+
+/*
+ * The English translation of the example sentence for a word in the word-grid
+ */
+.word-translation {
+	margin-top: -20px !important;
+}
