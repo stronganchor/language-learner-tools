@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: * Language Learner Tools
+ * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
- * Version: 1.0
- * Author: Mike Mesenbring
+ * Author: Strong Anchor Tech
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -96,9 +96,11 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // WP_Query arguments
     $args = array(
-        'post_type' => 'words',
+        'post_type'      => 'words',
         'posts_per_page' => -1, // Get all posts
-        'tax_query' => array(
+        'orderby'        => 'date', // Order by date
+        'order'          => 'ASC', // Ascending order
+        'tax_query'      => array(
             array(
                 'taxonomy' => 'word-category',
                 'field'    => 'slug',
@@ -124,7 +126,7 @@ function ll_tools_word_grid_shortcode($atts) {
             echo '<div class="word-item">';
             // Featured image
             if (has_post_thumbnail()) {
-                echo get_the_post_thumbnail(get_the_ID(), 'medium', array('class' => 'word-image'));
+                echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
             }
             // Word title and meaning
             echo '<h3 class="word-title">' . get_the_title() . ' (' . esc_html($word_english_meaning) . ')</h3>';
