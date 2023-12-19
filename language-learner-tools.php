@@ -15,16 +15,35 @@ if (!defined('WPINC')) {
 }
 
 /**
- * Enqueue plugin styles.
+ * Enqueue plugin styles and scripts.
  */
-function ll_tools_enqueue_styles() {
-    // Set the version number as a variable. This should be updated each time you make changes to the CSS file.
-    $css_version = '1.0.12'; // Increment this number with every update to the CSS file
+function ll_tools_enqueue_assets() {
+    // Set the version number for the CSS file. (This needs to be incremented whenever the CSS file changes)
+    $css_version = '1.0.12'; 
 
-    // Enqueue the CSS file with the version number set
+    // Enqueue the CSS file
     wp_enqueue_style('ll-tools-style', plugins_url('language-learner-tools.css', __FILE__), array(), $css_version);
+
+    // Enqueue jQuery
+    wp_enqueue_script('jquery');
+
+    // Add inline script for managing audio playback
+    wp_add_inline_script('jquery', '
+        jQuery(document).ready(function($) {
+            var audios = $("#word-grid audio");
+
+            audios.on("play", function() {
+                var currentAudio = this;
+                audios.each(function() {
+                    if (this !== currentAudio) {
+                        this.pause();
+                    }
+                });
+            });
+        });
+    ');
 }
-add_action('wp_enqueue_scripts', 'll_tools_enqueue_styles');
+add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
 
 /**
  * Display the content of custom fields on the "words" posts.
@@ -114,7 +133,7 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Loop
     if ($query->have_posts()) {
-        echo '<div class="word-grid">'; // Grid container
+        echo '<div id="word-grid" class="word-grid">'; // Grid container
         while ($query->have_posts()) {
             $query->the_post();
             $word_audio_file = get_post_meta(get_the_ID(), 'word_audio_file', true);
