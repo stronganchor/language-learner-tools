@@ -1,0 +1,43 @@
+#ll-tools-flashcard-container {
+    text-align: center;
+    margin: 20px;
+}
+
+#ll-tools-flashcard {
+    width: 300px;
+    height: 300px;
+    margin: 20px auto;
+    position: relative;
+    border: 1px solid #ddd; /* Optional: Adds a border to the flashcard */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Optional: Adds a subtle shadow for depth */
+}
+
+.ll-tools-flashcard-cover {
+    width: 100%;
+    height: 100%;
+    background-color: grey;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white; /* Color of the text inside the cover */
+    font-size: 18px; /* Size of the text inside the cover */
+}
+
+.hidden {
+    /*display: none;*/
+}
+
+#ll-tools-start-flashcard {
+    padding: 10px 20px;
+    background-color: #0073aa;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#ll-tools-start-flashcard:hover {
+    background-color: #005177;
+}
