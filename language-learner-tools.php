@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.4
+ * Version: 1.0.5
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -428,30 +428,71 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return '';
     }
 
-    // Find the post by exact title
-    $post = ll_find_post_by_exact_title($content);
+    // Normalize the case of the content
+    $normalized_content = ll_normalize_case($content);
+
+    // Find the post by title (case-insensitive)
+    $args = [
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'title' => $normalized_content,
+        'posts_per_page' => 1,
+    ];
+
+    $posts = get_posts($args);
 
     // If no posts found, return original content
-    if (null === $post) {
+    if (empty($posts)) {
         return $content;
     }
+
+    $post = $posts[0];
 
     // Retrieve the English meaning and audio file URL from post meta
     $english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
     $audio_file = get_post_meta($post->ID, 'word_audio_file', true);
 
-    // Construct the output with Unicode play symbol and translation
+    // Generate unique ID for the audio element
+    $audio_id = uniqid('audio_');
+
+    // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
     if (!empty($audio_file)) {
-        $audio_id = uniqid('audio_'); // Generate a unique ID for the audio element
-        $output .= '<a href="javascript:void(0);" onclick="document.getElementById(\'' . $audio_id . '\').play();" style="text-decoration: none; vertical-align: middle;">&#x23F5;</a> ';
-        $output .= '<audio id="' . $audio_id . '" style="display:none;"><source src="' . esc_url($audio_file) . '" type="audio/mpeg"></audio>';
+        $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-block; cursor: pointer; font-size: 16px;' onclick='ll_toggleAudio(\"{$audio_id}\")'>&#x23F5;</div>";
+        $output .= "<audio id='{$audio_id}' onplay='ll_audioPlaying(\"{$audio_id}\")' onended='ll_audioEnded(\"{$audio_id}\")' style='display:none;'><source src='" . esc_url($audio_file) . "' type='audio/mpeg'></audio>";
     }
     $output .= esc_html($content);
     if (!empty($english_meaning)) {
         $output .= ' (' . esc_html($english_meaning) . ')';
     }
     $output .= '</span>';
+
+    // Include JavaScript for toggling play/stop
+    $output .= "
+    <script>
+    function ll_toggleAudio(audioId) {
+        var audio = document.getElementById(audioId);
+        var icon = document.getElementById(audioId + '_icon');
+        if (!audio.paused) {
+            audio.pause();
+            audio.currentTime = 0; // Stop the audio
+            icon.innerHTML = '&#x23F5;'; // Switch to play symbol
+        } else {
+            audio.play();
+        }
+    }
+
+    function ll_audioPlaying(audioId) {
+        var icon = document.getElementById(audioId + '_icon');
+        icon.innerHTML = '&#x23F9;'; // Switch to stop symbol when audio is playing
+    }
+
+    function ll_audioEnded(audioId) {
+        var icon = document.getElementById(audioId + '_icon');
+        icon.innerHTML = '&#x23F5;'; // Switch back to play symbol when audio ends
+    }
+    </script>
+    ";
 
     return $output;
 }
