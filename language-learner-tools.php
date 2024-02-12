@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.1
+ * Version: 1.0.2
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -279,11 +279,246 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">Next Word</button>';
     echo '<div id="ll-tools-flashcard" class="hidden">
-            <img src="" alt="Word Image" />
-            <audio controls></audio>
+            <img src="/wp-content/uploads/2024/02/question-mark.png" alt="" />
+            <audio controls class="hidden"></audio>
           </div>';
     echo '</div>';
     return ob_get_clean();
+}
+
+// [audio_upload_form] Shortcode - Bulk upload audio files & generate new word posts
+function ll_audio_upload_form_shortcode() {
+    if (!current_user_can('upload_files')) {
+        return 'You do not have permission to upload files.';
+    }
+
+    ob_start();
+    ?>
+    <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
+        <input type="file" name="ll_audio_files[]" multiple="multiple"><br>
+        
+        <?php
+        echo 'Select Categories:<br>';
+        ll_display_categories_checklist('word-category');
+        ?>
+        
+        <input type="hidden" name="action" value="process_audio_files">
+        <input type="submit" value="Upload Audio Files">
+    </form>
+
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        // When a category checkbox changes
+        $('input[name="ll_word_categories[]"]').on('change', function() {
+            let parentId = $(this).data('parent-id');
+            // Loop through all parents and check them
+            while (parentId) {
+                const parentCheckbox = $('input[name="ll_word_categories[]"][value="' + parentId + '"]');
+                parentCheckbox.prop('checked', true);
+                parentId = parentCheckbox.data('parent-id'); // Move to the next parent
+            }
+        });
+    });
+    </script>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('audio_upload_form', 'll_audio_upload_form_shortcode');
+
+// Function to display categories with indentation
+function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
+    $categories = get_terms([
+        'taxonomy'   => $taxonomy,
+        'hide_empty' => false,
+        'parent'     => $parent,
+    ]);
+
+    foreach ($categories as $category) {
+        $indent = str_repeat("&nbsp;&nbsp;&nbsp;", $level);
+        echo $indent . '<input type="checkbox" name="ll_word_categories[]" value="' . esc_attr($category->term_id) . '" data-parent-id="' . esc_attr($category->parent) . '"> ' . esc_html($category->name) . '<br>';
+
+        // Recursive call to get child categories
+        ll_display_categories_checklist($taxonomy, $category->term_id, $level + 1);
+    }
+}
+
+// Hook into the admin_post action for our form's submission
+add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
+
+function ll_handle_audio_file_uploads() {
+    // Security check: Ensure the current user can upload files
+    if (!current_user_can('upload_files')) {
+        wp_die('You do not have permission to upload files.');
+    }
+
+    // Prepare for file upload handling
+    $selected_categories = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
+    foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
+        if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
+            // Capture the original filename
+            $original_name = $_FILES['ll_audio_files']['name'][$key];
+
+            // Remove the file extension and sanitize
+            $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
+        
+            // Ensure the Multibyte String extension is loaded
+            if (function_exists('mb_convert_case')) {
+                // Convert the entire string to lowercase first
+                $lowercase_title = mb_strtolower(sanitize_text_field($title_without_extension), 'UTF-8');
+                // Then capitalize the first letter
+                $formatted_title = mb_convert_case($lowercase_title, MB_CASE_TITLE, 'UTF-8');
+            } else {
+                // Fallback in case the Multibyte String extension isn't available
+                $formatted_title = ucfirst(strtolower(sanitize_text_field($title_without_extension)));
+            }
+			
+			// Translate the title from Turkish to English
+			$english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
+    
+            // Sanitize the original filename for use as a post title
+            // Remove the file extension and sanitize
+            $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
+            $sanitized_title = sanitize_text_field($title_without_extension);
+    
+            // Proceed with file upload and other operations
+            $file_name = sanitize_file_name($original_name);
+            $upload_dir = wp_upload_dir();
+            $upload_path = $upload_dir['path'] . '/' . $file_name;
+    
+			
+            // Check if the file exists and append a suffix if it does
+            $counter = 1;
+            $file_info = pathinfo($file_name);
+            $original_basename = $file_info['filename']; // Filename without extension
+            $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
+        
+            // Loop to find a unique filename
+            while (file_exists($upload_path)) {
+                $new_basename = $original_basename . '-' . $counter;
+                $file_name = $new_basename . $extension;
+                $upload_path = $upload_dir['path'] . '/' . $file_name;
+                $counter++;
+            }			
+			
+            if (move_uploaded_file($tmp_name, $upload_path)) {
+                // Use the sanitized original filename as the post title
+                $post_id = wp_insert_post([
+                    'post_title'    => $formatted_title,
+                    'post_content'  => '',
+                    'post_status'   => 'publish',
+                    'post_type'     => 'words',
+                ]);
+
+                if ($post_id) {
+                    // Save the relative path of the audio file and full transcription as post meta
+                    $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
+                    update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
+
+					// Save English translation of the word in the metadata if the translation was successful
+					if (!is_null($english_title)) {
+						update_post_meta($post_id, 'word_english_meaning', $english_title);
+					}
+					
+                    // Assign selected categories to the post
+                    if (!empty($selected_categories)) {
+                        // Ensure $selected_categories contains integers
+                        $selected_categories = array_map('intval', $selected_categories);
+
+                        // Assign selected categories to the post
+                        wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
+
+                    }
+                }
+            }
+        }
+    }
+
+    // Redirect to prevent resubmissions and indicate process completion
+    wp_redirect(admin_url('edit.php?post_type=words'));
+    exit;
+}
+
+
+/*****************************
+ * DeepL API Interface
+ *****************************/
+
+// Add an admin page under Tools for entering the API key (https://www.deepl.com/pro-api)
+function ll_add_deepl_api_key_page() {
+    add_management_page(
+        'DeepL API Key',
+        'DeepL API Key',
+        'manage_options',
+        'deepl-api-key',
+        'll_deepl_api_key_page_content'
+    );
+}
+add_action('admin_menu', 'll_add_deepl_api_key_page');
+
+// Add content to the DeepL API page
+function ll_deepl_api_key_page_content() {
+    ?>
+    <div class="wrap">
+        <h1>Enter Your DeepL API Key</h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('ll-deepl-api-key-group');
+            do_settings_sections('ll-deepl-api-key-group');
+            ?>
+            <table class="form-table">
+                <tr valign="top">
+                <th scope="row">DeepL API Key</th>
+                <td><input type="text" name="ll_deepl_api_key" value="<?php echo esc_attr(get_option('ll_deepl_api_key')); ?>" /></td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+    <?php
+}
+
+// Register the DeepL API key setting
+function ll_register_deepl_api_key_setting() {
+    register_setting('ll-deepl-api-key-group', 'll_deepl_api_key');
+}
+add_action('admin_init', 'll_register_deepl_api_key_setting');
+
+// Perform translation with DeepL API
+function translate_with_deepl($text, $target_lang = 'EN', $source_lang = 'TR') {
+    $api_key = get_option('ll_deepl_api_key'); // Retrieve the API key from WordPress options
+    if (empty($api_key)) {
+        return null;
+    }
+
+    $endpoint = 'https://api-free.deepl.com/v2/translate';
+    $data = http_build_query([
+        'auth_key' => $api_key,
+        'text' => $text,
+        'target_lang' => $target_lang,
+        'source_lang' => $source_lang,
+    ]);
+
+    $options = [
+        'http' => [
+            'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+            'method'  => 'POST',
+            'content' => $data,
+        ],
+    ];
+
+    $context = stream_context_create($options);
+    $result = file_get_contents($endpoint, false, $context);
+
+    if ($result === FALSE) {
+        return null; // return null if translation failed
+    }
+
+    $json = json_decode($result, true);
+	if (!is_array($json) || !isset($json['translations'][0]['text'])) {
+        // Handle unexpected JSON structure or missing translation
+        return null; // Return null to indicate an unexpected error occurred
+    }
+    return $json['translations'][0]['text'] ?? $text; // Return the translation or original text if something goes wrong
 }
 
 ?>
