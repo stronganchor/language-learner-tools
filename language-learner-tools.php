@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.2
+ * Version: 1.0.3
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -286,7 +286,9 @@ function ll_tools_flashcard_widget($atts) {
     return ob_get_clean();
 }
 
-// [audio_upload_form] Shortcode - Bulk upload audio files & generate new word posts
+/************************************************************************************
+ * [audio_upload_form] Shortcode - Bulk upload audio files & generate new word posts
+ ***********************************************************************************/
 function ll_audio_upload_form_shortcode() {
     if (!current_user_can('upload_files')) {
         return 'You do not have permission to upload files.';
@@ -438,6 +440,52 @@ function ll_handle_audio_file_uploads() {
     exit;
 }
 
+/***************************
+ * [word_audio] Shortcode
+ **************************/
+function ll_word_audio_shortcode($atts = [], $content = null) {
+    // Ensure content is not empty
+    if (empty($content)) {
+        return '';
+    }
+
+    // Find the post by title (case-insensitive)
+    $args = [
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'title' => $content,
+        'posts_per_page' => 1,
+    ];
+
+    $posts = get_posts($args);
+
+    // If no posts found, return original content
+    if (empty($posts)) {
+        return $content;
+    }
+
+    $post = $posts[0];
+
+    // Retrieve the English meaning and audio file URL from post meta
+    $english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
+    $audio_file = get_post_meta($post->ID, 'word_audio_file', true);
+
+    // Construct the output with Unicode play symbol and translation
+    $output = '<span class="ll-word-audio">';
+    if (!empty($audio_file)) {
+        $audio_id = uniqid('audio_'); // Generate a unique ID for the audio element
+        $output .= '<a href="javascript:void(0);" onclick="document.getElementById(\'' . $audio_id . '\').play();" style="text-decoration: none; vertical-align: middle;">&#x23F5;</a> ';
+        $output .= '<audio id="' . $audio_id . '" style="display:none;"><source src="' . esc_url($audio_file) . '" type="audio/mpeg"></audio>';
+    }
+    $output .= esc_html($content);
+    if (!empty($english_meaning)) {
+        $output .= ' (' . esc_html($english_meaning) . ')';
+    }
+    $output .= '</span>';
+
+    return $output;
+}
+add_shortcode('word_audio', 'll_word_audio_shortcode');
 
 /*****************************
  * DeepL API Interface
