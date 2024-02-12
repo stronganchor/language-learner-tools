@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.3
+ * Version: 1.0.4
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -346,7 +346,6 @@ function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
 
 // Hook into the admin_post action for our form's submission
 add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
-
 function ll_handle_audio_file_uploads() {
     // Security check: Ensure the current user can upload files
     if (!current_user_can('upload_files')) {
@@ -362,48 +361,31 @@ function ll_handle_audio_file_uploads() {
 
             // Remove the file extension and sanitize
             $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-        
-            // Ensure the Multibyte String extension is loaded
-            if (function_exists('mb_convert_case')) {
-                // Convert the entire string to lowercase first
-                $lowercase_title = mb_strtolower(sanitize_text_field($title_without_extension), 'UTF-8');
-                // Then capitalize the first letter
-                $formatted_title = mb_convert_case($lowercase_title, MB_CASE_TITLE, 'UTF-8');
-            } else {
-                // Fallback in case the Multibyte String extension isn't available
-                $formatted_title = ucfirst(strtolower(sanitize_text_field($title_without_extension)));
-            }
-			
-			// Translate the title from Turkish to English
-			$english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
-    
-            // Sanitize the original filename for use as a post title
-            // Remove the file extension and sanitize
-            $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-            $sanitized_title = sanitize_text_field($title_without_extension);
-    
+
+            // Normalize the case of the title, special handling for Turkish characters
+            $formatted_title = ll_normalize_case(sanitize_text_field($title_without_extension));
+
             // Proceed with file upload and other operations
             $file_name = sanitize_file_name($original_name);
             $upload_dir = wp_upload_dir();
             $upload_path = $upload_dir['path'] . '/' . $file_name;
-    
-			
+
             // Check if the file exists and append a suffix if it does
             $counter = 1;
             $file_info = pathinfo($file_name);
             $original_basename = $file_info['filename']; // Filename without extension
             $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
-        
+
             // Loop to find a unique filename
             while (file_exists($upload_path)) {
                 $new_basename = $original_basename . '-' . $counter;
                 $file_name = $new_basename . $extension;
                 $upload_path = $upload_dir['path'] . '/' . $file_name;
                 $counter++;
-            }			
-			
+            }
+
             if (move_uploaded_file($tmp_name, $upload_path)) {
-                // Use the sanitized original filename as the post title
+                // Use the normalized title as the post title
                 $post_id = wp_insert_post([
                     'post_title'    => $formatted_title,
                     'post_content'  => '',
@@ -416,19 +398,16 @@ function ll_handle_audio_file_uploads() {
                     $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
                     update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
 
-					// Save English translation of the word in the metadata if the translation was successful
-					if (!is_null($english_title)) {
-						update_post_meta($post_id, 'word_english_meaning', $english_title);
-					}
-					
+                    // Translate the title from Turkish to English and save if successful
+                    $english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
+                    if (!is_null($english_title)) {
+                        update_post_meta($post_id, 'word_english_meaning', $english_title);
+                    }
+
                     // Assign selected categories to the post
                     if (!empty($selected_categories)) {
-                        // Ensure $selected_categories contains integers
                         $selected_categories = array_map('intval', $selected_categories);
-
-                        // Assign selected categories to the post
                         wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
-
                     }
                 }
             }
@@ -449,22 +428,13 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return '';
     }
 
-    // Find the post by title (case-insensitive)
-    $args = [
-        'post_type' => 'words',
-        'post_status' => 'publish',
-        'title' => $content,
-        'posts_per_page' => 1,
-    ];
-
-    $posts = get_posts($args);
+    // Find the post by exact title
+    $post = ll_find_post_by_exact_title($content);
 
     // If no posts found, return original content
-    if (empty($posts)) {
+    if (null === $post) {
         return $content;
     }
-
-    $post = $posts[0];
 
     // Retrieve the English meaning and audio file URL from post meta
     $english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
@@ -486,6 +456,58 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     return $output;
 }
 add_shortcode('word_audio', 'll_word_audio_shortcode');
+
+// Look up word post by the exact title, being sensitive of special characters
+function ll_find_post_by_exact_title($title, $post_type = 'words') {
+    global $wpdb;
+
+    // Sanitize the title to prevent SQL injection
+    $title = sanitize_text_field($title);
+
+	// Normalize the case of the content
+    $title = ll_normalize_case($title);
+	
+    // Prepare the SQL query using prepared statements for security
+    $query = $wpdb->prepare(
+        "SELECT * FROM $wpdb->posts WHERE post_title = BINARY %s AND post_type = %s AND post_status = 'publish' LIMIT 1",
+        $title,
+        $post_type
+    );
+
+    // Execute the query
+    $post = $wpdb->get_row($query);
+
+    // Return the post if found
+    return $post;
+}
+
+// Set a Turkish text to only have the first character capitalized.
+function ll_normalize_case($text) {
+    if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+        $text = mb_strtolower($text, 'UTF-8');
+
+        // Special handling for Turkish dotless I and dotted İ
+        $firstChar = mb_substr($text, 0, 1, 'UTF-8');
+        if ($firstChar === 'i') {
+            $firstChar = mb_strtoupper($firstChar, 'tr_TR');
+        } elseif ($firstChar === 'ı') {
+            $firstChar = 'I';
+        } else {
+            $firstChar = mb_strtoupper($firstChar, 'UTF-8');
+        }
+
+        return $firstChar . mb_substr($text, 1, null, 'UTF-8');
+    }
+
+    // Fallback if Multibyte String functions aren't available
+    $text = strtolower($text);
+    $firstChar = strtoupper(substr($text, 0, 1));
+    if ($firstChar === 'I') {
+        $firstChar = 'ı';
+    }
+    return $firstChar . substr($text, 1);
+}
+
 
 /*****************************
  * DeepL API Interface
