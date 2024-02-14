@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.7
+ * Version: 1.0.8
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -523,7 +523,7 @@ function ll_normalize_case($text) {
         // Special handling for Turkish dotless I and dotted İ
         $firstChar = mb_substr($text, 0, 1, 'UTF-8');
         if ($firstChar === 'i') {
-            $firstChar = mb_strtoupper($firstChar, 'tr_TR');
+            $firstChar = 'İ';
         } elseif ($firstChar === 'ı') {
             $firstChar = 'I';
         } else {
