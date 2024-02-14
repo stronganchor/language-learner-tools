@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.8
+ * Version: 1.0.9
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -517,29 +517,25 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
 
 // Set a Turkish text to only have the first character capitalized.
 function ll_normalize_case($text) {
-    if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
-        $text = mb_strtolower($text, 'UTF-8');
-
-        // Special handling for Turkish dotless I and dotted İ
+	if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+        // Normalize the encoding to UTF-8 if not already
+        $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
+		 
+		// Special handling for Turkish dotless I and dotted İ
         $firstChar = mb_substr($text, 0, 1, 'UTF-8');
-        if ($firstChar === 'i') {
-            $firstChar = 'İ';
-        } elseif ($firstChar === 'ı') {
-            $firstChar = 'I';
+        if ($firstChar === 'i' || $firstChar === "\xC4\xB0" || $firstChar == 'İ') {
+			return 'İ' . mb_substr($text, 1, null, 'UTF-8');
+        } elseif ($firstChar === 'ı' || $firstChar === 'I') {
+            return 'I' . mb_substr($text, 1, null, 'UTF-8');
         } else {
             $firstChar = mb_strtoupper($firstChar, 'UTF-8');
+			$text = mb_strtolower($text, 'UTF-8');
+       		return $firstChar . mb_substr($text, 1, null, 'UTF-8');
         }
-
-        return $firstChar . mb_substr($text, 1, null, 'UTF-8');
     }
 
-    // Fallback if Multibyte String functions aren't available
-    $text = strtolower($text);
-    $firstChar = strtoupper(substr($text, 0, 1));
-    if ($firstChar === 'I') {
-        $firstChar = 'ı';
-    }
-    return $firstChar . substr($text, 1);
+    // Just return the original text if Multibyte String functions aren't available
+	return $text;
 }
 
 
