@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.6
+ * Version: 1.0.7
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -428,10 +428,19 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return '';
     }
 
-    // Normalize the case of the content
-    $normalized_content = ll_normalize_case($content);
+    // Store the unmodified content for later
+    $original_content = $content;
+
+    // Strip nested shortcodes temporarily and normalize the case of the content
+    $stripped_content = preg_replace('/\[.*?\]/', '', $content);
+    $normalized_content = ll_normalize_case($stripped_content);
     $post = ll_find_post_by_exact_title($normalized_content, 'words');
 
+    // If no posts found, return the original content processed for nested shortcodes
+    if (empty($post)) {
+        return do_shortcode($original_content);
+    }
+	
     // Retrieve the English meaning and audio file URL from post meta
     $english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
     $audio_file = get_post_meta($post->ID, 'word_audio_file', true);
@@ -445,7 +454,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-block; cursor: pointer; font-size: 16px;' onclick='ll_toggleAudio(\"{$audio_id}\")'>&#x23F5;</div>";
         $output .= "<audio id='{$audio_id}' onplay='ll_audioPlaying(\"{$audio_id}\")' onended='ll_audioEnded(\"{$audio_id}\")' style='display:none;'><source src='" . esc_url($audio_file) . "' type='audio/mpeg'></audio>";
     }
-    $output .= esc_html($content);
+    $output .= do_shortcode($original_content);
     if (!empty($english_meaning)) {
         $output .= ' (' . esc_html($english_meaning) . ')';
     }
