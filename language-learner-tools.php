@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.0
+ * Version: 1.1.1
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -327,6 +327,19 @@ function ll_audio_upload_form_shortcode() {
 }
 add_shortcode('audio_upload_form', 'll_audio_upload_form_shortcode');
 
+// Add bulk audio uploading tool to the 'All Words' page in the admin dashboard
+function ll_add_bulk_audio_upload_tool_admin_page() {
+    $screen = get_current_screen();
+
+    // Check if we're on the 'edit.php' page for the 'words' custom post type
+    if ( isset($screen->id) && $screen->id === 'edit-words' ) {
+        // Directly echo the output of the shortcode function
+        echo '<h2>Bulk Audio Upload for Words</h2>';
+        echo ll_audio_upload_form_shortcode();
+    }
+}
+add_action('admin_notices', 'll_add_bulk_audio_upload_tool_admin_page');
+
 // Function to display categories with indentation
 function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
     $categories = get_terms([
@@ -427,6 +440,10 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     if (empty($content)) {
         return '';
     }
+	
+	$attributes = shortcode_atts(array(
+        'translate' => 'yes', // Default is to translate
+    ), $atts);
 
     // Store the unmodified content for later
     $original_content = $content;
@@ -453,8 +470,8 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 	
 	$english_meaning = '';
 	
-    // Retrieve the English meaning if the text didn't have any parentheses
-    if (!$has_parenthesis) {
+    // Retrieve the English meaning if needed
+    if (!$has_parenthesis && $attributes['translate'] !== 'no') {
     	$english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
 	}
 	
@@ -464,10 +481,12 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
 
+	$play_icon = '<img src="/wp-content/uploads/2024/02/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
+	
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
     if (!empty($audio_file)) {
-        $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-block; cursor: pointer; font-size: 16px;' onclick='ll_toggleAudio(\"{$audio_id}\")'>&#x23F5;</div>";
+        $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-flex; cursor: pointer;' onclick='ll_toggleAudio(\"{$audio_id}\")'>". $play_icon . "</div>";
         $output .= "<audio id='{$audio_id}' onplay='ll_audioPlaying(\"{$audio_id}\")' onended='ll_audioEnded(\"{$audio_id}\")' style='display:none;'><source src='" . esc_url($audio_file) . "' type='audio/mpeg'></audio>";
     }
     $output .= do_shortcode($original_content);
@@ -479,13 +498,16 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Include JavaScript for toggling play/stop
     $output .= "
     <script>
+	var play_icon = '<img src=\"/wp-content/uploads/2024/02/play-symbol.svg\" width=\"10\" height=\"10\" alt=\"Play\" data-no-lazy=\"1\">';
+	var stop_icon = '<img src=\"/wp-content/uploads/2024/02/stop-symbol.svg\" width=\"9\" height=\"9\" alt=\"Stop\" data-no-lazy=\"1\">';
+	
     function ll_toggleAudio(audioId) {
         var audio = document.getElementById(audioId);
         var icon = document.getElementById(audioId + '_icon');
         if (!audio.paused) {
             audio.pause();
             audio.currentTime = 0; // Stop the audio
-            icon.innerHTML = '&#x23F5;'; // Switch to play symbol
+			icon.innerHTML = play_icon;
         } else {
             audio.play();
         }
@@ -493,12 +515,12 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 
     function ll_audioPlaying(audioId) {
         var icon = document.getElementById(audioId + '_icon');
-        icon.innerHTML = '&#x23F9;'; // Switch to stop symbol when audio is playing
+        icon.innerHTML = stop_icon;
     }
 
     function ll_audioEnded(audioId) {
         var icon = document.getElementById(audioId + '_icon');
-        icon.innerHTML = '&#x23F5;'; // Switch back to play symbol when audio ends
+        icon.innerHTML = play_icon;
     }
     </script>
     ";
