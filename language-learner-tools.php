@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.0.9
+ * Version: 1.1.0
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -431,9 +431,19 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Store the unmodified content for later
     $original_content = $content;
 
-    // Strip nested shortcodes temporarily and normalize the case of the content
+    // Strip nested shortcodes temporarily
     $stripped_content = preg_replace('/\[.*?\]/', '', $content);
-    $normalized_content = ll_normalize_case($stripped_content);
+	
+	$parentheses_regex = '/\(([^)]+)\)/'; 
+
+	// Use preg_match to capture the English meaning inside parentheses
+	$has_parenthesis = preg_match($parentheses_regex, $stripped_content, $matches);
+
+	// Now remove the matched pattern from the content
+	$without_parentheses = preg_replace($parentheses_regex, '', $stripped_content);
+	
+    $normalized_content = ll_normalize_case($without_parentheses);
+	
     $post = ll_find_post_by_exact_title($normalized_content, 'words');
 
     // If no posts found, return the original content processed for nested shortcodes
@@ -441,8 +451,14 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return do_shortcode($original_content);
     }
 	
-    // Retrieve the English meaning and audio file URL from post meta
-    $english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
+	$english_meaning = '';
+	
+    // Retrieve the English meaning if the text didn't have any parentheses
+    if (!$has_parenthesis) {
+    	$english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
+	}
+	
+	// Retrieve the audio file for this word
     $audio_file = get_post_meta($post->ID, 'word_audio_file', true);
 
     // Generate unique ID for the audio element
