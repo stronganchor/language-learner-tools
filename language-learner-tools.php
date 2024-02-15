@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.1
+ * Version: 1.1.2
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -442,7 +442,8 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     }
 	
 	$attributes = shortcode_atts(array(
-        'translate' => 'yes', // Default is to translate
+        'translate' => 'yes', // Default is to provide a translation in parentheses
+		'id' => null, // If set, it will look up the word post by ID
     ), $atts);
 
     // Store the unmodified content for later
@@ -461,8 +462,13 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 	
     $normalized_content = ll_normalize_case($without_parentheses);
 	
-    $post = ll_find_post_by_exact_title($normalized_content, 'words');
-
+	if (!empty($attributes['id'])) {
+    	$post_id = intval($attributes['id']); // Ensure the ID is an integer
+    	$post = get_post($post_id); // Retrieve the post by ID
+	} else {
+		$post = ll_find_post_by_exact_title($normalized_content, 'words');
+	}
+	
     // If no posts found, return the original content processed for nested shortcodes
     if (empty($post)) {
         return do_shortcode($original_content);
