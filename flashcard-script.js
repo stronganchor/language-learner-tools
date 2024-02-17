@@ -13,7 +13,10 @@ jQuery(document).ready(function($) {
 		// Remove the 'hidden' class to show the elements
         $('#ll-tools-flashcard img')
             .attr('src', wordData.image)
+		$('#ll-tools-flashcard')
             .removeClass('hidden'); // Remove 'hidden' class to display the image
+		
+		// Set the audio for this word
         $('#ll-tools-flashcard audio')
             .attr('src', wordData.audio)
 
@@ -26,9 +29,9 @@ jQuery(document).ready(function($) {
                     // Handle any errors that occur during play
                 });
         }
-		
-        // Show the flashcard cover by default
-        $('#ll-tools-flashcard .ll-tools-flashcard-cover').show();
+
+        // Update the button text
+        $('#ll-tools-start-flashcard').text('Show Next Word');
     }
 
     // Event handler for the start button
