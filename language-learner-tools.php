@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.2
+ * Version: 1.1.3
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -202,8 +202,8 @@ register_deactivation_hook(__FILE__, 'll_tools_deactivate');
  */
 function ll_tools_flashcard_widget($atts) {
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.0.6';
-	$css_version = '1.0.2';
+	$js_version = '1.1.1';
+	$css_version = '1.0.3';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $css_version);
 
@@ -276,13 +276,20 @@ function ll_tools_flashcard_widget($atts) {
 
     // Output the initial setup and the button
     ob_start();
-    echo '<div id="ll-tools-flashcard-container">';
-    echo '<button id="ll-tools-start-flashcard">Next Word</button>';
+    echo '<div id="ll-tools-flashcard-container" style="display: none;">'; // Hide until page is loaded
+    echo '<button id="ll-tools-start-flashcard">Practice Words</button>';
     echo '<div id="ll-tools-flashcard" class="hidden">
-            <img src="/wp-content/uploads/2024/02/question-mark.png" alt="" />
+            <img src="" alt="" />
             <audio controls class="hidden"></audio>
           </div>';
     echo '</div>';
+	
+	// Run a script after the page loads to show the widget with proper CSS formatting
+	echo '<script type="text/javascript">
+jQuery(document).ready(function($) {
+    $("#ll-tools-flashcard-container").removeAttr("style");
+});
+</script>';
     return ob_get_clean();
 }
 
