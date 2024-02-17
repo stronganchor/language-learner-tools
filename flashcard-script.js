@@ -16,7 +16,6 @@ jQuery(document).ready(function($) {
             .removeClass('hidden'); // Remove 'hidden' class to display the image
         $('#ll-tools-flashcard audio')
             .attr('src', wordData.audio)
-            .removeClass('hidden'); // Remove 'hidden' class to display the audio
 
 		// Try to play the audio
         var audioElement = $('#ll-tools-flashcard audio')[0];
