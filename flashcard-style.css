@@ -1,43 +1,54 @@
 #ll-tools-flashcard-container {
-    text-align: center;
-    margin: 20px;
+    text-align: center; 
 }
 
 #ll-tools-flashcard {
-    width: 300px;
-    height: 300px;
-    margin: 20px auto;
-    position: relative;
-    border: 1px solid #ddd; /* Optional: Adds a border to the flashcard */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Optional: Adds a subtle shadow for depth */
-}
-
-.ll-tools-flashcard-cover {
-    width: 100%;
-    height: 100%;
-    background-color: grey;
     display: flex;
-    align-items: center;
     justify-content: center;
-    cursor: pointer;
-    color: white; /* Color of the text inside the cover */
-    font-size: 18px; /* Size of the text inside the cover */
+    flex-wrap: wrap; 
+    gap: 20px; /* Adjust the space between flashcards as needed */
+    padding: 10px; /* Add some padding inside the flashcard container */
 }
 
-.hidden {
+.flashcard-image-container {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Adds shadow for depth */
+    border-radius: 10px; /* Optional: for rounded corners */
+    padding: 10px; /* Spacing inside the card */
+    background: #fff; /* Assuming flashcard background is white */
+    text-align: center; /* Center-align the image inside the card */
+    width: 200px; /* Width of the flashcard, adjust as necessary */
+    height: 200px; /* Height of the flashcard, adjust as necessary */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.quiz-image {
+    max-width: 100%; /* Make sure the image doesn't overflow its container */
+    max-height: 100%; /* Maintain aspect ratio without overflow */
+    height: auto; /* Adjust height automatically */
+    cursor: pointer; 
+    transition: transform 0.3s ease;
+}
+
+.quiz-image:hover {
+    transform: scale(1.05);
+}
+
+/* Hide the audio player */
+#ll-tools-flashcard audio {
     display: none;
 }
 
-#ll-tools-start-flashcard {
-    padding: 10px 20px;
-    background-color: #0073aa;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
+/* Add responsiveness for smaller screens */
+@media (max-width: 768px) {
+    .flashcard-image-container {
+        width: calc(50% - 20px); /* Half width - gap */
+    }
 }
 
-#ll-tools-start-flashcard:hover {
-    background-color: #005177;
+@media (max-width: 480px) {
+    .flashcard-image-container {
+        width: calc(100% - 20px); /* Full width - padding */
+    }
 }
