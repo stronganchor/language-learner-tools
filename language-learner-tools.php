@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.3
+ * Version: 1.1.4
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -197,16 +197,73 @@ function ll_tools_deactivate() {
 }
 register_deactivation_hook(__FILE__, 'll_tools_deactivate');
 
+// Hook to add the meta boxes
+add_action('add_meta_boxes', 'll_tools_add_similar_words_metabox');
+
+// Function to add the meta box
+function ll_tools_add_similar_words_metabox() {
+    add_meta_box(
+        'similar_words_meta', // ID of the meta box
+        'Similar Words', // Title of the meta box
+        'll_tools_similar_words_metabox_callback', // Callback function
+        'words', // Post type
+        'side', // Context
+        'default' // Priority
+    );
+}
+
+// The callback function to display the meta box content
+function ll_tools_similar_words_metabox_callback($post) {
+    // Add a nonce field for security
+    wp_nonce_field('similar_words_meta', 'similar_words_meta_nonce');
+
+    // Retrieve the current value if it exists
+    $similar_word_id = get_post_meta($post->ID, 'similar_word_id', true);
+
+    // Display the meta box HTML
+    echo '<p>Enter the Post ID of a word that looks similar:</p>';
+    echo '<input type="text" id="similar_word_id" name="similar_word_id" value="' . esc_attr($similar_word_id) . '" class="widefat" />';
+    echo '<p>Find the Post ID in the list of words. Use numerical ID only.</p>';
+}
+
+// Hook to save the post metadata
+add_action('save_post', 'll_tools_save_similar_words_metadata');
+
+// Function to save the metadata
+function ll_tools_save_similar_words_metadata($post_id) {
+    // Check if the nonce is set and valid
+    if (!isset($_POST['similar_words_meta_nonce']) || !wp_verify_nonce($_POST['similar_words_meta_nonce'], 'similar_words_meta')) {
+        return;
+    }
+
+    // Check if the current user has permission to edit the post
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    // Check if the similar word ID is set and save it
+    if (isset($_POST['similar_word_id'])) {
+        $similar_word_id = sanitize_text_field($_POST['similar_word_id']);
+        update_post_meta($post_id, 'similar_word_id', $similar_word_id);
+    }
+}
+
 /*
  * The shortcode function that sets up the flashcard widget
  */
 function ll_tools_flashcard_widget($atts) {
+	// Default settings for the shortcode
+    $atts = shortcode_atts(array(
+        'category' => '', // Optional category
+        'mode' => 'random', // Default to practice by showing one random word at a time
+    ), $atts);
+	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.1.1';
-	$css_version = '1.0.3';
+	$js_version = '1.2.6';
+	$css_version = '1.0.6';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $css_version);
-
+	
     // Enqueue jQuery
     wp_enqueue_script('jquery');
 
@@ -234,10 +291,6 @@ function ll_tools_flashcard_widget($atts) {
         $js_version, // Version number, null to prevent version query string.
         true  // Whether to enqueue the script in the footer. (Recommended)
     );
-	
-    $atts = shortcode_atts(array(
-        'category' => '', // Optional category
-    ), $atts);
 
     // Query arguments for fetching words
     $args = array(
@@ -262,17 +315,23 @@ function ll_tools_flashcard_widget($atts) {
     if ($query->have_posts()) {
         while ($query->have_posts()) {
             $query->the_post();
+			$current_id = get_the_ID();
             $words_data[] = array(
+				'id' => $current_id,
                 'title' => get_the_title(),
-                'image' => get_the_post_thumbnail_url(get_the_ID(), 'full'),
-                'audio' => get_post_meta(get_the_ID(), 'word_audio_file', true),
+                'image' => get_the_post_thumbnail_url($current_id, 'full'),
+                'audio' => get_post_meta($current_id, 'word_audio_file', true),
+				'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
             );
         }
     }
     wp_reset_postdata();
 
-    // Preload words data to the page
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', $words_data);
+    // Preload words data to the page and include the mode
+    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
+        'words' => $words_data,
+        'mode' => $atts['mode'], // Pass the mode to JavaScript
+    ));
 
     // Output the initial setup and the button
     ob_start();
