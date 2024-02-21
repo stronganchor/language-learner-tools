@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.4
+ * Version: 1.1.5
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -730,5 +730,84 @@ function translate_with_deepl($text, $target_lang = 'EN', $source_lang = 'TR') {
     }
     return $json['translations'][0]['text'] ?? $text; // Return the translation or original text if something goes wrong
 }
+
+function ll_tools_register_words_post_type() {
+
+	/**
+	 * Post Type: Words.
+	 */
+
+	$labels = [
+		"name" => esc_html__( "Words", "astra" ),
+		"singular_name" => esc_html__( "Word", "astra" ),
+	];
+
+	$args = [
+		"label" => esc_html__( "Words", "astra" ),
+		"labels" => $labels,
+		"description" => "",
+		"public" => true,
+		"publicly_queryable" => true,
+		"show_ui" => true,
+		"show_in_rest" => true,
+		"rest_base" => "",
+		"rest_controller_class" => "WP_REST_Posts_Controller",
+		"rest_namespace" => "wp/v2",
+		"has_archive" => false,
+		"show_in_menu" => true,
+		"show_in_nav_menus" => true,
+		"delete_with_user" => false,
+		"exclude_from_search" => false,
+		"capability_type" => "post",
+		"map_meta_cap" => true,
+		"hierarchical" => false,
+		"can_export" => false,
+		"rewrite" => [ "slug" => "words", "with_front" => true ],
+		"query_var" => true,
+		"supports" => [ "title", "editor", "thumbnail", "custom-fields" ],
+		"show_in_graphql" => false,
+	];
+
+	register_post_type( "words", $args );
+}
+
+add_action( 'init', 'll_tools_register_words_post_type' );
+
+function ll_tools_register_word_category_taxonomy() {
+
+	/**
+	 * Taxonomy: Word Categories.
+	 */
+
+	$labels = [
+		"name" => esc_html__( "Word Categories", "astra" ),
+		"singular_name" => esc_html__( "Word Category", "astra" ),
+	];
+
+	
+	$args = [
+		"label" => esc_html__( "Word Categories", "astra" ),
+		"labels" => $labels,
+		"public" => true,
+		"publicly_queryable" => true,
+		"hierarchical" => true,
+		"show_ui" => true,
+		"show_in_menu" => true,
+		"show_in_nav_menus" => true,
+		"query_var" => true,
+		"rewrite" => [ 'slug' => 'word-category', 'with_front' => true, ],
+		"show_admin_column" => false,
+		"show_in_rest" => true,
+		"show_tagcloud" => false,
+		"rest_base" => "word-category",
+		"rest_controller_class" => "WP_REST_Terms_Controller",
+		"rest_namespace" => "wp/v2",
+		"show_in_quick_edit" => false,
+		"sort" => false,
+		"show_in_graphql" => false,
+	];
+	register_taxonomy( "word-category", [ "words" ], $args );
+}
+add_action( 'init', 'll_tools_register_word_category_taxonomy' );
 
 ?>
