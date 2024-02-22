@@ -314,7 +314,7 @@ function ll_tools_flashcard_widget($atts) {
 	$js_version = '1.2.6';
 	$css_version = '1.0.6';
 	
-    wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $css_version);
+    wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $css_version);
 	
     // Enqueue jQuery
     wp_enqueue_script('jquery');
