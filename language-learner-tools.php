@@ -27,6 +27,52 @@ function ll_tools_enqueue_assets() {
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
 
+function ll_register_settings_page() {
+    add_options_page(
+        'Language Learning Tools Settings', // Page title
+        'Language Learning Tools', // Menu title
+        'manage_options', // Capability required to see the page
+        'language-learning-tools-settings', // Menu slug
+        'll_render_settings_page' // Function to display the settings page
+    );
+}
+add_action('admin_menu', 'll_register_settings_page');
+
+function ll_register_settings() {
+    register_setting('language-learning-tools-options', 'll_target_language');
+    register_setting('language-learning-tools-options', 'll_translation_language');
+}
+add_action('admin_init', 'll_register_settings');
+
+function ll_render_settings_page() {
+    ?>
+    <div class="wrap">
+        <h2>Language Learning Tools Settings</h2>
+        <form action="options.php" method="post">
+            <?php settings_fields('language-learning-tools-options'); ?>
+            <?php do_settings_sections('language-learning-tools-settings'); ?>
+            
+            <table class="form-table">
+                <tr valign="top">
+                    <th scope="row">Target Language (e.g., "TR" for Turkish):</th>
+                    <td>
+                        <input type="text" name="ll_target_language" value="<?php echo esc_attr(get_option('ll_target_language')); ?>" />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Translation Language (e.g., "EN" for English):</th>
+                    <td>
+                        <input type="text" name="ll_translation_language" value="<?php echo esc_attr(get_option('ll_translation_language')); ?>" />
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(); ?>
+        </form>
+    </div>
+    <?php
+}
+
 /**
  * Display the content of custom fields on the "words" posts.
  *
@@ -516,11 +562,16 @@ function ll_handle_audio_file_uploads() {
                         // Save the relative path of the audio file and full transcription as post meta
                         $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
                         update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
+						
+						// Retrieve language settings from the WordPress database
+						$target_language = get_option('ll_target_language');
+						$translation_language = get_option('ll_translation_language');
+						
+						// Translate the title using the specified languages and save if successful
+						$translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
 
-                        // Translate the title from Turkish to English and save if successful
-                        $english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
-                        if (!is_null($english_title)) {
-                            update_post_meta($post_id, 'word_english_meaning', $english_title);
+                        if (!is_null($translated_title)) {
+                            update_post_meta($post_id, 'word_english_meaning', $translated_title);
                         }
 
                         // Assign selected categories to the post
