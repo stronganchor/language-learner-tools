@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.6
+ * Version: 1.1.7
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -450,16 +450,28 @@ function ll_handle_audio_file_uploads() {
     $upload_dir = wp_upload_dir();
     $success_matches = [];
     $failed_matches = [];
-
-    foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
-        if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
-            $original_name = $_FILES['ll_audio_files']['name'][$key];
-            $file_name = sanitize_file_name($original_name);
-            $upload_path = $upload_dir['path'] . '/' . $file_name;
-
-            if (move_uploaded_file($tmp_name, $upload_path)) {
-                // This will construct the path from /wp-content/uploads onwards
-                $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
+	
+	foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
+	    if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
+	        $original_name = $_FILES['ll_audio_files']['name'][$key];
+	        $file_name = sanitize_file_name($original_name);
+	        $upload_path = $upload_dir['path'] . '/' . $file_name;
+	
+	        // Check if the file already exists and modify the file name if it does
+	        $counter = 0; // Initialize a counter for the filename suffix
+	        $file_info = pathinfo($file_name);
+	        $original_base_name = $file_info['filename']; // Filename without extension
+	        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : ''; // Include the dot
+	        // Loop to find a new filename if the current one already exists
+	        while (file_exists($upload_path)) {
+	            $file_name = $original_base_name . '_' . $counter . $extension;
+	            $upload_path = $upload_dir['path'] . '/' . $file_name;
+	            $counter++; // Increment the counter for the next round if needed
+	        }
+	
+	        if (move_uploaded_file($tmp_name, $upload_path)) {
+	            // This will construct the path from /wp-content/uploads onwards
+	            $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
 
                 $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
 				
