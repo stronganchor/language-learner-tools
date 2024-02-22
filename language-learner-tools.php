@@ -458,7 +458,9 @@ function ll_handle_audio_file_uploads() {
             $upload_path = $upload_dir['path'] . '/' . $file_name;
 
             if (move_uploaded_file($tmp_name, $upload_path)) {
-                $relative_upload_path = str_replace($upload_dir['basedir'], '', $upload_path);
+                // This will construct the path from /wp-content/uploads onwards
+                $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
+
                 $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
 				
 			    // Remove underscores and numbers from the title
