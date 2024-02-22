@@ -311,7 +311,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.2.7';
+	$js_version = '1.2.9';
 	$css_version = '1.0.6';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $css_version);
@@ -389,6 +389,7 @@ function ll_tools_flashcard_widget($atts) {
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
         'words' => $words_data,
         'mode' => $atts['mode'], // Pass the mode to JavaScript
+	'plugin_dir' => plugin_dir_url(__FILE__),
     ));
 
     // Output the initial setup and the button
