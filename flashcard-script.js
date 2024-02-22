@@ -4,8 +4,8 @@ jQuery(document).ready(function($) {
 	var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
 
 	// Audio feedback elements
-	var correctAudio = new Audio('right-answer.mp3');
-	var wrongAudio = new Audio('wrong-answer.mp3');
+	var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
+	var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 	
 	function playFeedback(isCorrect) {
 		if (isCorrect) {
