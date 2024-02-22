@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.1.5
+ * Version: 1.1.6
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -365,10 +365,15 @@ function ll_audio_upload_form_shortcode() {
     <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
         <input type="file" name="ll_audio_files[]" multiple="multiple"><br>
         
-        <?php
-        echo 'Select Categories:<br>';
-        ll_display_categories_checklist('word-category');
-        ?>
+        <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
+        <label for="match_existing_posts">Match to existing word posts instead of creating new ones</label><br>
+        
+        <div id="categories_section">
+            <?php
+            echo 'Select Categories:<br>';
+            ll_display_categories_checklist('word-category');
+            ?>
+        </div>
         
         <input type="hidden" name="action" value="process_audio_files">
         <input type="submit" value="Upload Audio Files">
@@ -376,6 +381,12 @@ function ll_audio_upload_form_shortcode() {
 
     <script type="text/javascript">
     jQuery(document).ready(function($) {
+        // When the 'Match to existing word posts' checkbox changes
+        $('#match_existing_posts').change(function() {
+            // Toggle the visibility of the categories section
+            $('#categories_section').toggle(!this.checked);
+        });
+
         // When a category checkbox changes
         $('input[name="ll_word_categories[]"]').on('change', function() {
             let parentId = $(this).data('parent-id');
@@ -431,70 +442,86 @@ function ll_handle_audio_file_uploads() {
         wp_die('You do not have permission to upload files.');
     }
 
+    // Check if we're matching existing posts or creating new ones
+    $match_existing_posts = isset($_POST['match_existing_posts']) && $_POST['match_existing_posts'];
+
     // Prepare for file upload handling
     $selected_categories = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
+    $upload_dir = wp_upload_dir();
+    $success_matches = [];
+    $failed_matches = [];
+
     foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
         if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
-            // Capture the original filename
             $original_name = $_FILES['ll_audio_files']['name'][$key];
-
-            // Remove the file extension and sanitize
-            $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-
-            // Normalize the case of the title, special handling for Turkish characters
-            $formatted_title = ll_normalize_case(sanitize_text_field($title_without_extension));
-
-            // Proceed with file upload and other operations
             $file_name = sanitize_file_name($original_name);
-            $upload_dir = wp_upload_dir();
             $upload_path = $upload_dir['path'] . '/' . $file_name;
 
-            // Check if the file exists and append a suffix if it does
-            $counter = 1;
-            $file_info = pathinfo($file_name);
-            $original_basename = $file_info['filename']; // Filename without extension
-            $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
-
-            // Loop to find a unique filename
-            while (file_exists($upload_path)) {
-                $new_basename = $original_basename . '-' . $counter;
-                $file_name = $new_basename . $extension;
-                $upload_path = $upload_dir['path'] . '/' . $file_name;
-                $counter++;
-            }
-
             if (move_uploaded_file($tmp_name, $upload_path)) {
-                // Use the normalized title as the post title
-                $post_id = wp_insert_post([
-                    'post_title'    => $formatted_title,
-                    'post_content'  => '',
-                    'post_status'   => 'publish',
-                    'post_type'     => 'words',
-                ]);
+                $relative_upload_path = str_replace($upload_dir['basedir'], '', $upload_path);
+                $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
+				
+			    // Remove underscores and numbers from the title
+			    $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
+			    
+			    // Then apply your existing normalization and sanitization
+			    $formatted_title = ll_normalize_case(sanitize_text_field($title_cleaned));
 
-                if ($post_id) {
-                    // Save the relative path of the audio file and full transcription as post meta
-                    $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
-                    update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
-
-                    // Translate the title from Turkish to English and save if successful
-                    $english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
-                    if (!is_null($english_title)) {
-                        update_post_meta($post_id, 'word_english_meaning', $english_title);
+                if ($match_existing_posts) {
+                    // Try to find an existing post with a matching title
+                    $existing_post = ll_find_post_by_exact_title($formatted_title);
+                    if ($existing_post) {
+                        // Update the existing post's audio file metadata
+                        update_post_meta($existing_post->ID, 'word_audio_file', $relative_upload_path);
+                        $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
+                    } else {
+                        $failed_matches[] = $original_name;
                     }
+                } else {
+                    // Use the normalized title as the post title
+                    $post_id = wp_insert_post([
+                        'post_title'    => $formatted_title,
+                        'post_content'  => '',
+                        'post_status'   => 'publish',
+                        'post_type'     => 'words',
+                    ]);
 
-                    // Assign selected categories to the post
-                    if (!empty($selected_categories)) {
-                        $selected_categories = array_map('intval', $selected_categories);
-                        wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
+                    if ($post_id && !is_wp_error($post_id)) {
+                        // Save the relative path of the audio file and full transcription as post meta
+                        $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
+                        update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
+
+                        // Translate the title from Turkish to English and save if successful
+                        $english_title = translate_with_deepl($formatted_title, 'EN', 'TR');
+                        if (!is_null($english_title)) {
+                            update_post_meta($post_id, 'word_english_meaning', $english_title);
+                        }
+
+                        // Assign selected categories to the post
+                        if (!empty($selected_categories)) {
+                            $selected_categories = array_map('intval', $selected_categories);
+                            wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
+                        }
+                        
+                        // Add to success matches list for feedback
+                        $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
+                    } else {
+                        // Add to failed matches list if there was an issue creating the post
+                        $failed_matches[] = $original_name . ' (Failed to create post)';
                     }
                 }
             }
         }
     }
 
-    // Redirect to prevent resubmissions and indicate process completion
-    wp_redirect(admin_url('edit.php?post_type=words'));
+    // Redirect with success and failure messages
+    $redirect_url = add_query_arg([
+        'post_type' => 'words',
+        'success_matches' => implode(',', $success_matches),
+        'failed_matches' => implode(',', $failed_matches),
+    ], admin_url('edit.php'));
+    
+    wp_redirect($redirect_url);
     exit;
 }
 
