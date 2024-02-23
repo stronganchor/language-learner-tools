@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.2.1
+ * Version: 1.2.2
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -20,7 +20,7 @@ if (!defined('WPINC')) {
  */
 function ll_tools_enqueue_assets() {
     // Set the version numbers for the CSS file. (This needs to be incremented whenever the file changes)
-    $lltools_css_version = '1.1.3'; 
+    $lltools_css_version = '1.1.5'; 
 
     // Enqueue the CSS file
     wp_enqueue_style('ll-tools-style', plugins_url('language-learner-tools.css', __FILE__), array(), $lltools_css_version);
@@ -203,10 +203,13 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Individual item
             echo '<div class="word-item">';
-            // Featured image
-            if (has_post_thumbnail()) {
-                echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
-            }
+            // Featured image with container
+			if (has_post_thumbnail()) {
+				echo '<div class="word-image-container">'; // Start new container
+				echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
+				echo '</div>'; // Close container
+			}
+
             // Word title and meaning
             echo '<h3 class="word-title">' . get_the_title() . ' (' . esc_html($word_english_meaning) . ')</h3>';
             // Example sentences
@@ -311,7 +314,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.3.6';
+	$js_version = '1.3.7';
 	$flashcard_css_version = '1.1.5';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
