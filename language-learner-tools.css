@@ -40,14 +40,22 @@
 	font-size: 18px !important;
 	margin-top: -25px !important;
 }
-
-/*
- * The image shown for a word in the word-grid
- */
+/* The image shown for a word in the word-grid */
 .word-image {
-	max-width: 100%;
+    max-width: 100%;
     height: auto;
-	margin-bottom: 0px;
+    margin-bottom: 0px;
+    border-radius: 10px; /* Add rounded corners */
+}
+
+/* Container for the word image, to make rounded corners work */
+.word-image-container {
+    display: inline-block; /* Or flex, depending on your design */
+    padding: 5px; /* Adjust as necessary */
+    margin-bottom: 15px; /* Adjust as necessary */
+    border-radius: 10px; /* Add rounded corners */
+    overflow: hidden; /* Ensure the rounded corners clip the content */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Optional: Adds shadow for depth, similar to flashcards */
 }
 
 /*
