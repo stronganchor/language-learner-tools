@@ -6,8 +6,9 @@
     display: flex;
     justify-content: center;
     flex-wrap: wrap; 
-    gap: 30px; /* Adjust the space between flashcards as needed */
-    padding: 30px; /* Add some padding inside the flashcard container */    
+    gap: 30px;
+    padding-top: 30px;
+	padding-bottom: 30px;   
 }
 
 .flashcard-image-container {
@@ -49,15 +50,19 @@
     display: none;
 }
 
-/* Add responsiveness for smaller screens */
+/* Adjustments for smaller screens */
 @media (max-width: 768px) {
     .flashcard-image-container {
-        width: calc(50% - 20px); /* Half width - gap */
+        width: calc(50% - 30px); /* Half width - gap */
+        aspect-ratio: 1 / 1; /* Maintain square aspect ratio */
+        height: auto; /* Override fixed height */
     }
 }
 
 @media (max-width: 480px) {
     .flashcard-image-container {
-        width: calc(100% - 20px); /* Full width - padding */
+        width: calc(100% - 30px); /* Full width - padding */
+        aspect-ratio: 1 / 1; /* Maintain square aspect ratio */
+        height: auto; /* Override fixed height */
     }
 }
