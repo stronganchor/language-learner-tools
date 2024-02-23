@@ -1,29 +1,25 @@
-jQuery(document).ready(function($) {	
-	var currentIndex = 0;
-	var usedIndexes = []; // For quiz mode to track used words
-	var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
+jQuery(document).ready(function($) {
+    var usedIndexes = []; // For quiz mode to track used words
+    var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
 
-	// Audio feedback elements
-	var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
-	var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
-	
-	function playFeedback(isCorrect) {
-		if (isCorrect) {
-			// If the right answer audio is playing, pause and rewind it before playing the next audio
-			if (!correctAudio.paused) {
-				correctAudio.pause();
-				correctAudio.currentTime = 0;
-			}
-			correctAudio.play();
-		} else {
-			// If the wrong answer audio is playing, pause and rewind it before playing the next audio
-			if (!wrongAudio.paused) {
-				wrongAudio.pause();
-				wrongAudio.currentTime = 0;
-			}
-			wrongAudio.play();
-		}
-	}
+    // Audio feedback elements
+    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
+    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
+    
+    function playFeedback(isCorrect, callback) {
+        var audioToPlay = isCorrect ? correctAudio : wrongAudio;
+        // If the audio is playing, pause and rewind it before playing the next audio
+        if (!audioToPlay.paused) {
+            audioToPlay.pause();
+            audioToPlay.currentTime = 0;
+        }
+        audioToPlay.play();
+
+        if (isCorrect && typeof callback === 'function') {
+            // When the correct answer sound finishes, execute the callback
+            correctAudio.onended = callback;
+        }
+    }
 	
     function showRandomWord() {
 		if (wordsData.length === 0) {
@@ -118,42 +114,48 @@ jQuery(document).ready(function($) {
         // Clear existing content
         $('#ll-tools-flashcard').empty();
 
-		// Add images to the flashcard container
-		selectedWords.forEach(wordData => {  // Use 'wordData' directly
-			let imgContainer = $('<div>', { class: 'flashcard-image-container' });
-			let img = $('<img>', {
-				src: wordData.image,  // 'wordData' is already the word object
-				alt: wordData.title,
-				class: 'quiz-image'
-			}).appendTo(imgContainer);
+        let correctContainer; // To keep track of the correct answer's container
 
-			imgContainer.click(function() {
-				// Check if the clicked image is the correct answer
+        selectedWords.forEach(wordData => {
+            let imgContainer = $('<div>', { class: 'flashcard-image-container' }).hide().fadeIn(600); // Fade in effect when loading
+            let img = $('<img>', {
+                src: wordData.image,
+                alt: wordData.title,
+                class: 'quiz-image'
+            }).appendTo(imgContainer);
+
+            imgContainer.click(function() {
 				if(wordData.title === targetWord.title) {
-					playFeedback(true);
-					// Proceed to the next quiz question
-					showQuiz();
+					playFeedback(true, function() {
+						// Fade out the correct answer after the audio finishes
+						correctContainer.addClass('fade-out').one('transitionend', function() {
+							showQuiz(); // Load next question after fade out
+						});
+					});
+					// Fade out other answers immediately by adding 'fade-out' class
+                    $('.flashcard-image-container').not(this).addClass('fade-out');
+                    correctContainer = imgContainer; // Keep track of the correct answer's container
 				} else {
 					playFeedback(false);
 				}
 			});
 
-			$('#ll-tools-flashcard').append(imgContainer);
-		});
+            $('#ll-tools-flashcard').append(imgContainer);
+            imgContainer.fadeIn(200); // Ensure fadeIn effect for each container
+        });
+		
+        // Play the audio of the target word
+        $('<audio>', {
+            src: targetWord.audio,
+            controls: true
+        }).appendTo('#ll-tools-flashcard')[0].play()
+        .catch(function(e) {
+            console.error("Audio play failed:", e);
+        });
 
-		// Play the audio of the target word
-		$('<audio>', {
-			src: targetWord.audio,
-			controls: true
-		}).appendTo('#ll-tools-flashcard')[0].play()
-		.catch(function(e) {
-			console.error("Audio play failed:", e);
-		});
-
-		$('#ll-tools-flashcard').removeClass('hidden');
-		$('#ll-tools-start-flashcard').addClass('hidden');
+        $('#ll-tools-flashcard').removeClass('hidden');
+        $('#ll-tools-start-flashcard').addClass('hidden');
     }
-
 
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {
