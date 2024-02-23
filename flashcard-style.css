@@ -6,27 +6,29 @@
     display: flex;
     justify-content: center;
     flex-wrap: wrap; 
-    gap: 20px; /* Adjust the space between flashcards as needed */
-    padding: 10px; /* Add some padding inside the flashcard container */
+    gap: 30px; /* Adjust the space between flashcards as needed */
+    padding: 30px; /* Add some padding inside the flashcard container */    
 }
 
 .flashcard-image-container {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Adds shadow for depth */
-    border-radius: 10px; /* Optional: for rounded corners */
-    padding: 10px; /* Spacing inside the card */
-    background: #fff; /* Assuming flashcard background is white */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Adds shadow for depth */
+    padding: 0px; /* No spacing inside the card to allow image to fill */
+    background: #fff; 
     text-align: center; /* Center-align the image inside the card */
-    width: 200px; /* Width of the flashcard, adjust as necessary */
-    height: 200px; /* Height of the flashcard, adjust as necessary */
+    width: 200px; /* Width of the flashcard */
+    height: 200px; /* Height of the flashcard */
     display: flex;
     justify-content: center;
     align-items: center;
+    border-radius: 10px; /* Rounded corners for the container */
+    overflow: hidden; /* Ensures images are clipped to the container's rounded corners */
 }
 
 .quiz-image {
-    max-width: 100%; /* Make sure the image doesn't overflow its container */
-    max-height: 100%; /* Maintain aspect ratio without overflow */
-    height: auto; /* Adjust height automatically */
+    width: 100%; /* Adjusted to ensure the image fills the container */
+    height: 100%; /* Adjusted to ensure the image fills the container */
+    object-fit: cover; /* Ensures the image covers the container, maintaining its aspect ratio */
+    border-radius: 10px; /* Apply rounded corners to the image */
     cursor: pointer; 
     transition: transform 0.3s ease;
 }
