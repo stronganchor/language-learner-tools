@@ -68,8 +68,8 @@ jQuery(document).ready(function($) {
 	}
 
 	
-    // Function to show a quiz with 3 random images and play audio from one of them
-    function showQuiz() {
+    // Function to show a quiz with random images and play audio from one of them
+    function showQuiz($number_of_options = 4) {
 		if (wordsData.length < 9) {
 			alert("Not enough words for a quiz.");
 			return;
@@ -77,8 +77,8 @@ jQuery(document).ready(function($) {
 
 		let selectedWords = []; // To hold the selected words with their metadata
 		let attempts = 0;
-
-		while(selectedWords.length < 3 && attempts < 100) { // Limit attempts to avoid potential infinite loop
+		
+		while(selectedWords.length < $number_of_options && attempts < 100) { // Limit attempts to avoid potential infinite loop
 			let r = Math.floor(Math.random() * wordsData.length);
 			let candidateWord = wordsData[r];
 			
@@ -107,7 +107,7 @@ jQuery(document).ready(function($) {
 		}
 
 		// If we couldn't find enough unique words
-		if (selectedWords.length < 3) {
+		if (selectedWords.length < $number_of_options) {
 			alert("Could not find enough unique words for the quiz.");
 			return;
 		}
