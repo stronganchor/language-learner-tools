@@ -49,20 +49,3 @@
 #ll-tools-flashcard audio {
     display: none;
 }
-
-/* Adjustments for smaller screens */
-@media (max-width: 768px) {
-    .flashcard-image-container {
-        width: calc(50% - 30px); /* Half width - gap */
-        aspect-ratio: 1 / 1; /* Maintain square aspect ratio */
-        height: auto; /* Override fixed height */
-    }
-}
-
-@media (max-width: 480px) {
-    .flashcard-image-container {
-        width: calc(100% - 30px); /* Full width - padding */
-        aspect-ratio: 1 / 1; /* Maintain square aspect ratio */
-        height: auto; /* Override fixed height */
-    }
-}
