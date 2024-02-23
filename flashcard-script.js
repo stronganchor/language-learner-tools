@@ -6,16 +6,23 @@ jQuery(document).ready(function($) {
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
     
-    function playFeedback(isCorrect, callback) {
+    function playFeedback(isCorrect, targetWordAudio, callback) {
         var audioToPlay = isCorrect ? correctAudio : wrongAudio;
-        // If the audio is playing, pause and rewind it before playing the next audio
+        
         if (!audioToPlay.paused) {
             audioToPlay.pause();
             audioToPlay.currentTime = 0;
         }
+
         audioToPlay.play();
 
-        if (isCorrect && typeof callback === 'function') {
+        if (!isCorrect && targetWordAudio) {
+            // When the wrong answer sound finishes, play the target word's audio
+            wrongAudio.onended = function() {
+                var targetAudio = new Audio(targetWordAudio); // Create a new audio element for the target word
+                targetAudio.play();
+            };
+        } else if (isCorrect && typeof callback === 'function') {
             // When the correct answer sound finishes, execute the callback
             correctAudio.onended = callback;
         }
@@ -126,7 +133,7 @@ jQuery(document).ready(function($) {
 
             imgContainer.click(function() {
 				if(wordData.title === targetWord.title) {
-					playFeedback(true, function() {
+					playFeedback(true, null, function() {
 						// Fade out the correct answer after the audio finishes
 						correctContainer.addClass('fade-out').one('transitionend', function() {
 							showQuiz(); // Load next question after fade out
@@ -136,7 +143,7 @@ jQuery(document).ready(function($) {
                     $('.flashcard-image-container').not(this).addClass('fade-out');
                     correctContainer = imgContainer; // Keep track of the correct answer's container
 				} else {
-					playFeedback(false);
+					playFeedback(false, targetWord.audio, null);
 				}
 			});
 
