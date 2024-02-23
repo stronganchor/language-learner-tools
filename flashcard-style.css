@@ -6,7 +6,7 @@
     display: flex;
     justify-content: center;
     flex-wrap: wrap; 
-    gap: 30px;
+    gap: 20px;
     padding-top: 30px;
 	padding-bottom: 30px;   
 }
@@ -16,8 +16,8 @@
     padding: 0; /* No spacing inside the card to allow image to fill */
     background: #fff;
     text-align: center; /* Center-align the image inside the card */
-    width: 200px; /* Width of the flashcard */
-    height: 200px; /* Height of the flashcard */
+    width: 150px; /* Width of the flashcard */
+    height: 150px; /* Height of the flashcard */
     display: flex;
     justify-content: center;
     align-items: center;
