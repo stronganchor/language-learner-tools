@@ -12,8 +12,8 @@
 
 .flashcard-image-container {
     box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Adds shadow for depth */
-    padding: 0px; /* No spacing inside the card to allow image to fill */
-    background: #fff; 
+    padding: 0; /* No spacing inside the card to allow image to fill */
+    background: #fff;
     text-align: center; /* Center-align the image inside the card */
     width: 200px; /* Width of the flashcard */
     height: 200px; /* Height of the flashcard */
@@ -22,6 +22,13 @@
     align-items: center;
     border-radius: 10px; /* Rounded corners for the container */
     overflow: hidden; /* Ensures images are clipped to the container's rounded corners */
+}
+
+/* Class to be toggled for fading out elements */
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; /* Prevent interaction during fade-out */
 }
 
 .quiz-image {
