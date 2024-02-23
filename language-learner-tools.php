@@ -312,7 +312,7 @@ function ll_tools_flashcard_widget($atts) {
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
 	$js_version = '1.3.6';
-	$flashcard_css_version = '1.1.4';
+	$flashcard_css_version = '1.1.5';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
 	
