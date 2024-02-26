@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.2.2
+ * Version: 1.2.3
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -314,7 +314,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.3.9';
+	$js_version = '1.4.8';
 	$flashcard_css_version = '1.1.7';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
@@ -377,13 +377,33 @@ function ll_tools_flashcard_widget($atts) {
         while ($query->have_posts()) {
             $query->the_post();
 			$current_id = get_the_ID();
+
+			$deepest_category = null;
+		    $max_depth = -1;
+			$categories = get_the_terms($current_id, 'word-category');
+		
+		    foreach ($categories as $category) {
+		        $depth = 0;
+		        $current_category = $category;
+		        while ($parent_id = get_category($current_category)->parent) { // Assuming get_category() and ->parent gets the parent category
+		            $depth++;
+		            $current_category = $parent_id;
+		        }
+		
+		        if ($depth > $max_depth) {
+		            $max_depth = $depth;
+		            $deepest_category = $category;
+		        }
+		    }
+			
             $words_data[] = array(
 				'id' => $current_id,
                 'title' => get_the_title(),
                 'image' => get_the_post_thumbnail_url($current_id, 'full'),
                 'audio' => get_post_meta($current_id, 'word_audio_file', true),
 				'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
-            );
+	            'category' => $deepest_category ? $deepest_category->slug : '', // Save the deepest category slug
+	        );
         }
     }
     wp_reset_postdata();
