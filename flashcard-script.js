@@ -75,56 +75,109 @@ jQuery(document).ready(function($) {
 
 	
     // Function to show a quiz with random images and play audio from one of them
-    function showQuiz($number_of_options = 4) {
-		if (wordsData.length < 9) {
+	function showQuiz(number_of_options = 4, categories = {}) {
+		if (wordsData.length < number_of_options) {
 			alert("Not enough words for a quiz.");
 			return;
 		}
 
-		let selectedWords = []; // To hold the selected words with their metadata
-		let attempts = 0;
-		
-		while(selectedWords.length < $number_of_options && attempts < 100) { // Limit attempts to avoid potential infinite loop
-			let r = Math.floor(Math.random() * wordsData.length);
-			let candidateWord = wordsData[r];
-			
-			let isSimilarWordSelected = false;
-			selectedWords.forEach(selectedWord => {
-				// Check if the current selected word has similar_word_id set and it matches the candidate's id
-				if (selectedWord.similar_word_id && selectedWord.similar_word_id === candidateWord.id.toString()) {
-					isSimilarWordSelected = true;
-				}
+		// Reset usedIndexes if all words have been used as targets
+		if (usedIndexes.length >= wordsData.length) {
+			usedIndexes = [];
+		}
 
-				// Check if the candidate word has similar_word_id set and it matches the current selected word's id
-				if (candidateWord.similar_word_id && candidateWord.similar_word_id === selectedWord.id.toString()) {
-					isSimilarWordSelected = true;
+		// Pre-process wordsData into categories
+		if (!Array.isArray(categories) || categories.length === 0) {
+			wordsData.forEach(word => {
+				if (!categories[word.category]) {
+					categories[word.category] = [];
 				}
+				categories[word.category].push(word);
 			});
+		}
+		
+		let categoryNames = Object.keys(categories);
+		let selectedWords = [];
+		let selectedCategory = [];
+		let targetWord = null;
+		let attempts = 0;
+		let maxCategoryAttempts = categoryNames.length; // Limit attempts to the number of categories to avoid infinite loops
 
+		while (!targetWord && attempts < maxCategoryAttempts) {
+			// Select a random category
+			let randomIndex = Math.floor(Math.random() * categoryNames.length);
+			let selectedCategoryName = categoryNames[randomIndex];
+			selectedCategory = Array.from(categories[selectedCategoryName]);
 
+			// Remove the chosen category from the list to avoid repeating the same category
+			categoryNames.splice(randomIndex, 1);
 
-			// If the word doesn't have a similar_word_id or it's not already selected, we can use it
-			if (!isSimilarWordSelected && usedIndexes.indexOf(r) === -1) {
-				selectedWords.push(candidateWord);
-				usedIndexes.push(r); // Track used words to avoid repetition in future iterations
+			// Attempt to select a target word from the chosen category
+			for (let i = 0; i < selectedCategory.length; i++) {
+				if (usedIndexes.indexOf(selectedCategory[i].id) === -1) { // Ensure this word hasn't been recently used as a target
+					targetWord = selectedCategory.splice(i, 1)[0]; // Remove selected target word from category array
+					usedIndexes.push(targetWord.id); // Add to usedIndexes as it's now the target
+					selectedWords.push(targetWord);
+					break;
+				}
 			}
 
-			attempts++; // Increment the attempts counter
+			// Increment attempts after trying each category
+			attempts++;
+		}
+		
+		// Fill the rest of the quiz slots from the selected category, avoiding similar and duplicate words
+		while (selectedWords.length < number_of_options && selectedCategory.length > 0) {
+			let candidateIndex = Math.floor(Math.random() * selectedCategory.length);
+			let candidateWord = selectedCategory[candidateIndex];
+
+			// Check if the candidate word is not already selected and not similar to any selected words
+			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
+			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
+
+			if (!isDuplicate && !isSimilar) {
+				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
+			}
+			
+			// Remove the word from the category array after evaluation to prevent infinite looping
+    		selectedCategory.splice(candidateIndex, 1);
 		}
 
-		// If we couldn't find enough unique words
-		if (selectedWords.length < $number_of_options) {
-			alert("Could not find enough unique words for the quiz.");
-			return;
+		// If not enough words in the category, fill from other categories
+		let filledOptions = false; // Flag to check if enough options have been filled
+		let categoryAttempted = new Set(); // Keep track of categories already attempted
+
+		while (selectedWords.length < number_of_options && categoryAttempted.size < categoryNames.length) {
+			let otherCategoryName = categoryNames.filter(name => !categoryAttempted.has(name))[Math.floor(Math.random() * (categoryNames.length - categoryAttempted.size))];
+			let otherCategory = categories[otherCategoryName];
+			categoryAttempted.add(otherCategoryName); // Mark this category as attempted
+
+			let localAttempts = 0; // Local attempts for words in this category
+			while (localAttempts < otherCategory.length) {
+				let candidateIndex = Math.floor(Math.random() * otherCategory.length);
+				let candidateWord = otherCategory[candidateIndex]; 
+
+				let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
+				let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
+
+				if (!isDuplicate && !isSimilar) {
+					selectedWords.push(candidateWord); // Add to the selected words if it passes checks
+					filledOptions = true; // We've successfully added a word, so mark this flag as true
+					if (selectedWords.length >= number_of_options) break; // Break if we've filled the required options
+				}
+
+				// Remove this word from the array after evaluation to avoid rechecking
+				otherCategory.splice(candidateIndex, 1);
+				localAttempts++; // Increment local attempt count
+			}
+
+			if (filledOptions && selectedWords.length >= number_of_options) break; // Break the main loop if we've filled all options
 		}
 
-        // Update the usedIndexes with the new set of indexes
-        usedIndexes = usedIndexes.concat(selectedWords).slice(-9); // Keep only the last 9 indexes to avoid repeats in immediate next sets
+		// Randomize the order of selected words to ensure the target is not always first
+		selectedWords = selectedWords.sort(() => Math.random() - 0.5);
 
-        // Randomly select one of the selected words to be the target
-		let targetWord = selectedWords[Math.floor(Math.random() * selectedWords.length)];
-
-        // Clear existing content
+		// Clear existing content
         $('#ll-tools-flashcard').empty();
 
         let correctContainer; // To keep track of the correct answer's container
@@ -142,7 +195,7 @@ jQuery(document).ready(function($) {
 					playFeedback(true, null, function() {
 						// Fade out the correct answer after the audio finishes
 						correctContainer.addClass('fade-out').one('transitionend', function() {
-							showQuiz(); // Load next question after fade out
+							showQuiz(number_of_options, categories); // Load next question after fade out
 						});
 					});
 					// Fade out other answers immediately by adding 'fade-out' class
