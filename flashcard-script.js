@@ -15,9 +15,15 @@ jQuery(document).ready(function($) {
     function playFeedback(isCorrect, targetWordAudio, callback) {
         var audioToPlay = isCorrect ? correctAudio : wrongAudio;
         
-        if (!audioToPlay.paused) {
+		// Pause & restart the 'incorrect' sound
+        if (!isCorrect && !audioToPlay.paused) {
             audioToPlay.pause();
             audioToPlay.currentTime = 0;
+        }
+		
+		// Don't repeat the 'correct' sound
+        if (isCorrect && !audioToPlay.paused) {
+            return;
         }
 
         audioToPlay.play();
