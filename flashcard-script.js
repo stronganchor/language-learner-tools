@@ -3,6 +3,7 @@ jQuery(document).ready(function($) {
 	var activeAudios = [];
     var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
 	var targetAudioHasPlayed = false;
+	var currentTargetAudio = null;
 
 	var imagesToLoad = wordsData.map(word => word.image);
     imagesToLoad.forEach(function(src) {
@@ -13,12 +14,33 @@ jQuery(document).ready(function($) {
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
+	
+	// Helper function for playing audio
+	function playAudio(audio) {
+        try {
+			if (!audio.paused) {
+				audio.pause();
+            	audio.currentTime = 0;
+        	}
+		} catch(e) {
+			console.error("Audio pause failed:", e);
+		}
 		
+		activeAudios.push(audio);
+		audio.play().catch(function(e) {
+			console.error("Audio play failed:", e);
+		});
+	}
+	
 	// Pause all audio elements
 	function pauseAllAudio() {
 		activeAudios.forEach(function(audio) {
-			audio.pause();
-			audio.currentTime = 0; // Reset the playback position
+			try {
+				audio.pause();
+				audio.currentTime = 0; // Reset the playback position
+			} catch(e) {
+				console.error("Audio pause failed:", e);
+			}
 		});
 		activeAudios = [];
 	}
@@ -30,22 +52,13 @@ jQuery(document).ready(function($) {
         if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
             return;
         }
-		
-		// Pause & restart the 'incorrect' sound
-        if (!isCorrect && !audioToPlay.paused) {
-            audioToPlay.pause();
-            audioToPlay.currentTime = 0;
-        }
 
-		activeAudios.push(audioToPlay);
-        audioToPlay.play();
+        playAudio(audioToPlay);
 
         if (!isCorrect && targetWordAudio) {
             // When the wrong answer sound finishes, play the target word's audio
             wrongAudio.onended = function() {
-                var targetAudio = new Audio(targetWordAudio); // Create a new audio element for the target word
-                activeAudios.push(targetAudio);
-				targetAudio.play();
+				playAudio(currentTargetAudio);
             };
         } else if (isCorrect && typeof callback === 'function') {
             // When the correct answer sound finishes, execute the callback
@@ -198,16 +211,13 @@ jQuery(document).ready(function($) {
 			controls: true
 		}).appendTo('#ll-tools-flashcard')[0];
 
-		activeAudios.push(audio);
-		audio.play().catch(function(e) {
-			console.error("Audio play failed:", e);
-		});
-		
+		currentTargetAudio = audio;
+		playAudio(audio);
 		
 		// Add event listener to prevent clicking for the first half second of a round
 		audio.addEventListener('timeupdate', function() {
-			// Check if the audio has played past half a second
-			if (audio.currentTime > 0.5) {
+			// Check if the audio has played at least for 0.4 seconds
+			if (audio.currentTime > 0.4 || audio.ended) {
 				targetAudioHasPlayed = true;
 				// Optionally remove the event listener if it's no longer needed
 				audio.removeEventListener('timeupdate', arguments.callee);
@@ -225,19 +235,24 @@ jQuery(document).ready(function($) {
             showQuiz();
         //}
     }
-
-    // Event handler to start the widget
-    $('#ll-tools-start-flashcard').on('click', function() {
-    	// Initialize the flashcard widget
-    	initFlashcardWidget();
-    });
-
-    // Event handler for clicking the flashcard cover
-    $('#ll-tools-flashcard .ll-tools-flashcard-cover').on('click', function() {
-        $(this).hide(); // Hide the cover
-        // The image and audio should already be visible if they were not hidden again
-        if ($('#ll-tools-flashcard audio').length) {
-            $('#ll-tools-flashcard audio')[0].play();
-        }
-    });
+	
+	// Event handler to start the widget or replay audio
+	$('#ll-tools-start-flashcard').on('click', function() {
+		// Check if the button has been clicked before
+		if ($(this).hasClass('clicked')) {
+			// Button has been clicked before, so replay the audio
+			if (currentTargetAudio) {
+				currentTargetAudio.play().catch(function(e) {
+					console.error("Audio play failed:", e);
+				});
+			}
+		} else {
+			// Initialize the flashcard widget
+			initFlashcardWidget();
+			// Change the button text to "Repeat"
+			$(this).text('Repeat');
+			// Mark the button as clicked
+			$(this).addClass('clicked');
+		}
+	});
 });
