@@ -221,12 +221,9 @@ jQuery(document).ready(function($) {
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {
         var mode = llToolsFlashcardsData.mode; // Access the mode
-        if (mode === 'quiz') {
+        //if (mode === 'quiz') { // TODO: re-enable multiple modes
             showQuiz();
-        } else {
-            // Default to showRandomWord if mode is 'random' or not defined
-            showRandomWord();
-        }
+        //}
     }
 
     // Event handler to start the widget
