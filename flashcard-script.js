@@ -1,6 +1,8 @@
 jQuery(document).ready(function($) {
     var usedIndexes = []; // For quiz mode to track used words
+	var activeAudios = [];
     var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
+	var targetAudioHasPlayed = false;
 
 	var imagesToLoad = wordsData.map(word => word.image);
     imagesToLoad.forEach(function(src) {
@@ -11,77 +13,50 @@ jQuery(document).ready(function($) {
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
+		
+	// Pause all audio elements
+	function pauseAllAudio() {
+		activeAudios.forEach(function(audio) {
+			audio.pause();
+			audio.currentTime = 0; // Reset the playback position
+		});
+		activeAudios = [];
+	}
     
     function playFeedback(isCorrect, targetWordAudio, callback) {
         var audioToPlay = isCorrect ? correctAudio : wrongAudio;
         
+		// Don't register clicks for the first half second & don't repeat the 'correct' sound
+        if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
+            return;
+        }
+		
 		// Pause & restart the 'incorrect' sound
         if (!isCorrect && !audioToPlay.paused) {
             audioToPlay.pause();
             audioToPlay.currentTime = 0;
         }
-		
-		// Don't repeat the 'correct' sound
-        if (isCorrect && !audioToPlay.paused) {
-            return;
-        }
 
+		activeAudios.push(audioToPlay);
         audioToPlay.play();
 
         if (!isCorrect && targetWordAudio) {
             // When the wrong answer sound finishes, play the target word's audio
             wrongAudio.onended = function() {
                 var targetAudio = new Audio(targetWordAudio); // Create a new audio element for the target word
-                targetAudio.play();
+                activeAudios.push(targetAudio);
+				targetAudio.play();
             };
         } else if (isCorrect && typeof callback === 'function') {
             // When the correct answer sound finishes, execute the callback
             correctAudio.onended = callback;
         }
     }
-	
-    function showRandomWord() {
-		if (wordsData.length === 0) {
-			alert("No words found.");
-			return;
-		}
-
-		var randomIndex = Math.floor(Math.random() * wordsData.length);
-		var wordData = wordsData[randomIndex];
-
-		// Clear existing content and remove the 'hidden' class to show the elements
-		$('#ll-tools-flashcard').empty().removeClass('hidden');
-
-		// Create image container and image elements
-		let imgContainer = $('<div>', { class: 'flashcard-image-container' });
-		let img = $('<img>', {
-			src: wordData.image,
-			alt: wordData.title,
-			class: 'quiz-image'
-		}).appendTo(imgContainer);
-
-		// Append image container to the flashcard
-		$('#ll-tools-flashcard').append(imgContainer);
-
-		// Create an audio element and attempt to play the audio
-		let audioElement = $('<audio>', {
-			src: wordData.audio,
-			controls: true,
-			style: 'display: none;' // Hide the audio controls
-		}).appendTo('#ll-tools-flashcard');
-
-		audioElement[0].play().catch(function(e) {
-			console.error("Audio play failed:", e);
-			// Handle any errors that occur during play
-		});
-
-		// Update the button text
-		$('#ll-tools-start-flashcard').text('Show Next Word');
-	}
-
-	
+		
     // Function to show a quiz with random images and play audio from one of them
 	function showQuiz(number_of_options = 4, categories = {}) {
+		targetAudioHasPlayed = false;
+		
 		if (wordsData.length < number_of_options) {
 			alert("Not enough words for a quiz.");
 			return;
@@ -183,7 +158,8 @@ jQuery(document).ready(function($) {
 		// Randomize the order of selected words to ensure the target is not always first
 		selectedWords = selectedWords.sort(() => Math.random() - 0.5);
 
-		// Clear existing content
+		// Pause audio & clear existing content
+		pauseAllAudio();
         $('#ll-tools-flashcard').empty();
 
         let correctContainer; // To keep track of the correct answer's container
@@ -216,14 +192,27 @@ jQuery(document).ready(function($) {
             imgContainer.fadeIn(200); // Ensure fadeIn effect for each container
         });
 		
-        // Play the audio of the target word
-        $('<audio>', {
-            src: targetWord.audio,
-            controls: true
-        }).appendTo('#ll-tools-flashcard')[0].play()
-        .catch(function(e) {
-            console.error("Audio play failed:", e);
-        });
+		// Play the audio of the target word
+		var audio = $('<audio>', {
+			src: targetWord.audio,
+			controls: true
+		}).appendTo('#ll-tools-flashcard')[0];
+
+		activeAudios.push(audio);
+		audio.play().catch(function(e) {
+			console.error("Audio play failed:", e);
+		});
+		
+		
+		// Add event listener to prevent clicking for the first half second of a round
+		audio.addEventListener('timeupdate', function() {
+			// Check if the audio has played past half a second
+			if (audio.currentTime > 0.5) {
+				targetAudioHasPlayed = true;
+				// Optionally remove the event listener if it's no longer needed
+				audio.removeEventListener('timeupdate', arguments.callee);
+			}
+		});
 
         $('#ll-tools-flashcard').removeClass('hidden');
         $('#ll-tools-start-flashcard').addClass('hidden');
