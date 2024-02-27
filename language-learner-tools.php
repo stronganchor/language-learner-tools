@@ -418,7 +418,7 @@ function ll_tools_flashcard_widget($atts) {
     // Output the initial setup and the button
     ob_start();
     echo '<div id="ll-tools-flashcard-container" style="display: none;">'; // Hide until page is loaded
-    echo '<button id="ll-tools-start-flashcard">Practice Words</button>';
+    echo '<button id="ll-tools-start-flashcard">Start</button>';
     echo '<div id="ll-tools-flashcard" class="hidden">
             <img src="" alt="" />
             <audio controls class="hidden"></audio>
