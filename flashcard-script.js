@@ -2,8 +2,12 @@ jQuery(document).ready(function($) {
     var usedIndexes = []; // For quiz mode to track used words
 	var activeAudios = [];
     var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
+    var wrongIndexes = []; // To track indexes of wrong answers this turn
 	var targetAudioHasPlayed = false;
 	var currentTargetAudio = null;
+	var maxCards = null;
+	var minCards = 2;
+	var isFirstRound = true;
 
 	var imagesToLoad = wordsData.map(word => word.image);
     imagesToLoad.forEach(function(src) {
@@ -14,6 +18,41 @@ jQuery(document).ready(function($) {
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
+	
+	// Calculate the maximum number of cards that can fit in the available space for the widget
+	function calculateMaxCards() {
+		var containerWidth = $('#ll-tools-flashcard-container').width(); // Get the width of the container
+		var containerElement = document.getElementById('ll-tools-flashcard'); // Ensure this is the ID of your flex container
+		var style = window.getComputedStyle(containerElement);
+		var gap = parseInt(style.getPropertyValue('gap'), 10); // Get gap as an integer
+
+		// Check if gap is NaN (Not a Number), set to 0 if true
+		if (isNaN(gap)) {
+			gap = 0;
+		}
+
+		// Create a temporary card to measure dimensions
+		var tempCard = $('<div>', { class: 'flashcard-image-container' }).appendTo('#ll-tools-flashcard');
+		var cardWidth = tempCard.outerWidth(true); // Includes padding, border, and margin
+		var cardHeight = tempCard.outerHeight(true); // Includes padding, border, and margin
+		tempCard.remove(); // Remove the temporary card after measurement
+
+		// Calculate available height from container's top to bottom of the screen
+		var containerOffset = $('#ll-tools-flashcard').offset().top; // Get the top position of the container relative to the document
+		var screenHeight = $(window).height(); // Get the height of the screen
+		var availableHeight = screenHeight - containerOffset - gap; // Subtract gap from available height to account for vertical spacing
+
+		// Adjusting availableHeight to account for additional padding/margin at the bottom
+		var buffer = 20;
+		availableHeight -= buffer;
+
+		// Calculate how many cards can fit horizontally and vertically, accounting for the gap
+		var fitHorizontal = Math.max(1, Math.floor((containerWidth + gap) / (cardWidth + gap)));
+		var fitVertical = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
+
+		// Calculate maximum cards based on current layout
+		maxCards = Math.max(minCards, fitHorizontal * fitVertical);
+	}
 	
 	// Helper function for playing audio
 	function playAudio(audio) {
@@ -65,9 +104,31 @@ jQuery(document).ready(function($) {
             correctAudio.onended = callback;
         }
     }
+	
+	// Calculate the number of options in a quiz dynamically based on user answers
+	function calculateNumberOfOptions(lastNumberOfOptions) {
+		var number_of_options = -1;
+		if (isFirstRound) {
+			calculateMaxCards();
+			number_of_options = Math.min(Math.max(minCards, lastNumberOfOptions), maxCards);
+		} else if (wrongIndexes.length > 0) {
+			// Show fewer options if the user got it wrong last round
+			number_of_options = Math.max(minCards, lastNumberOfOptions - 1);
+		} else {
+			// Add in more options if the user got the last card right on the first try
+			number_of_options = Math.min(maxCards, lastNumberOfOptions + 1);
+		}
+		return number_of_options;
+	}
 		
     // Function to show a quiz with random images and play audio from one of them
 	function showQuiz(number_of_options = 4, categories = {}) {
+        // Adjust number of options based on previous round's answers, keeping the number between the minimum (2) and maxCards
+        var number_of_options = calculateNumberOfOptions(number_of_options);
+
+        // Reset wrongIndexes for this round
+        wrongIndexes = [];
+		
 		targetAudioHasPlayed = false;
 		
 		if (wordsData.length < number_of_options) {
@@ -177,8 +238,8 @@ jQuery(document).ready(function($) {
 
         let correctContainer; // To keep track of the correct answer's container
 
-        selectedWords.forEach(wordData => {
-            let imgContainer = $('<div>', { class: 'flashcard-image-container' }).hide().fadeIn(600); // Fade in effect when loading
+        selectedWords.forEach((wordData, index) => {
+            let imgContainer = $('<div>', { class: 'flashcard-image-container' }).hide().fadeIn(600);
             let img = $('<img>', {
                 src: wordData.image,
                 alt: wordData.title,
@@ -186,20 +247,27 @@ jQuery(document).ready(function($) {
             }).appendTo(imgContainer);
 
             imgContainer.click(function() {
-				if(wordData.title === targetWord.title) {
-					playFeedback(true, null, function() {
-						// Fade out the correct answer after the audio finishes
-						correctContainer.addClass('fade-out').one('transitionend', function() {
-							showQuiz(number_of_options, categories); // Load next question after fade out
-						});
-					});
-					// Fade out other answers immediately by adding 'fade-out' class
+                if(wordData.title === targetWord.title) {
+                    playFeedback(true, null, function() {
+                        // Fade out the correct answer after the audio finishes
+                        correctContainer.addClass('fade-out').one('transitionend', function() {
+							isFirstRound = false;
+                            showQuiz(number_of_options, categories); // Load next question after fade out
+                        });
+                    });
+                    // Fade out other answers immediately by adding 'fade-out' class
                     $('.flashcard-image-container').not(this).addClass('fade-out');
                     correctContainer = imgContainer; // Keep track of the correct answer's container
-				} else {
-					playFeedback(false, targetWord.audio, null);
-				}
-			});
+                } else {
+                    playFeedback(false, targetWord.audio, null);
+                    // Fade out and remove the wrong answer
+                    $(this).addClass('fade-out').one('transitionend', function() {
+                        $(this).remove(); // Remove the card completely after fade out
+                    });
+                    // Add index to wrongIndexes if the answer is incorrect
+                    wrongIndexes.push(index);
+                }
+            });
 
             $('#ll-tools-flashcard').append(imgContainer);
             imgContainer.fadeIn(200); // Ensure fadeIn effect for each container
@@ -231,9 +299,9 @@ jQuery(document).ready(function($) {
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {
         var mode = llToolsFlashcardsData.mode; // Access the mode
-        //if (mode === 'quiz') { // TODO: re-enable multiple modes
-            showQuiz();
-        //}
+		
+        // Until other modes are implemented, always run in the quiz mode
+		showQuiz();
     }
 	
 	// Event handler to start the widget or replay audio
