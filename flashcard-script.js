@@ -2,6 +2,7 @@ jQuery(document).ready(function($) {
     var usedIndexes = []; // For quiz mode to track used words
 	var activeAudios = [];
     var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
+	var translations = llToolsFlashcardsData.translations || [];
     var wrongIndexes = []; // To track indexes of wrong answers this turn
 	var targetAudioHasPlayed = false;
 	var currentTargetAudio = null;
@@ -318,7 +319,7 @@ jQuery(document).ready(function($) {
 			// Initialize the flashcard widget
 			initFlashcardWidget();
 			// Change the button text to "Repeat"
-			$(this).text('Repeat');
+			$(this).text(translations.repeat);
 			// Mark the button as clicked
 			$(this).addClass('clicked');
 		}
