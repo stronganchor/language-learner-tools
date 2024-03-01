@@ -49,3 +49,7 @@
 #ll-tools-flashcard audio {
     display: none;
 }
+
+#ll-tools-skip-flashcard {
+    margin-left: 20px;
+}
