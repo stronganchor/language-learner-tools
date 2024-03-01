@@ -300,6 +300,21 @@ jQuery(document).ready(function($) {
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {
         var mode = llToolsFlashcardsData.mode; // Access the mode
+
+	    // Create and insert the Skip button next to the Start/Repeat button
+	    $('<button>', {
+	        text: translations.skip, // Using the translated string for 'Skip'
+	        id: 'll-tools-skip-flashcard',
+	        class: 'flashcard-skip-button' // Add your CSS class for styling the button
+	    }).insertAfter('#ll-tools-start-flashcard');
+	
+	    // Event handler for the Skip button
+	    $('#ll-tools-skip-flashcard').on('click', function() {
+	        // Consider the skipped question as wrong
+	        wrongIndexes.push(-1);
+	        isFirstRound = false; // Update the first round flag
+	        showQuiz(); // Move to the next question
+	    });
 		
         // Until other modes are implemented, always run in the quiz mode
 		showQuiz();
