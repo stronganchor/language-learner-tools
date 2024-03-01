@@ -6,6 +6,7 @@ jQuery(document).ready(function($) {
     var wrongIndexes = []; // To track indexes of wrong answers this turn
 	var targetAudioHasPlayed = false;
 	var currentTargetAudio = null;
+	var numberOfOptionsThisRound = null;
 	var maxCards = null;
 	var minCards = 2;
 	var isFirstRound = true;
@@ -125,14 +126,14 @@ jQuery(document).ready(function($) {
     // Function to show a quiz with random images and play audio from one of them
 	function showQuiz(number_of_options = 4, categories = {}) {
         // Adjust number of options based on previous round's answers, keeping the number between the minimum (2) and maxCards
-        var number_of_options = calculateNumberOfOptions(number_of_options);
+        numberOfOptionsThisRound = calculateNumberOfOptions(number_of_options);
 
         // Reset wrongIndexes for this round
         wrongIndexes = [];
 		
 		targetAudioHasPlayed = false;
 		
-		if (wordsData.length < number_of_options) {
+		if (wordsData.length < numberOfOptionsThisRound) {
 			alert("Not enough words for a quiz.");
 			return;
 		}
@@ -183,7 +184,7 @@ jQuery(document).ready(function($) {
 		}
 		
 		// Fill the rest of the quiz slots from the selected category, avoiding similar and duplicate words
-		while (selectedWords.length < number_of_options && selectedCategory.length > 0) {
+		while (selectedWords.length < numberOfOptionsThisRound && selectedCategory.length > 0) {
 			let candidateIndex = Math.floor(Math.random() * selectedCategory.length);
 			let candidateWord = selectedCategory[candidateIndex];
 
@@ -203,7 +204,7 @@ jQuery(document).ready(function($) {
 		let filledOptions = false; // Flag to check if enough options have been filled
 		let categoryAttempted = new Set(); // Keep track of categories already attempted
 
-		while (selectedWords.length < number_of_options && categoryAttempted.size < categoryNames.length) {
+		while (selectedWords.length < numberOfOptionsThisRound && categoryAttempted.size < categoryNames.length) {
 			let otherCategoryName = categoryNames.filter(name => !categoryAttempted.has(name))[Math.floor(Math.random() * (categoryNames.length - categoryAttempted.size))];
 			let otherCategory = categories[otherCategoryName];
 			categoryAttempted.add(otherCategoryName); // Mark this category as attempted
@@ -219,7 +220,7 @@ jQuery(document).ready(function($) {
 				if (!isDuplicate && !isSimilar) {
 					selectedWords.push(candidateWord); // Add to the selected words if it passes checks
 					filledOptions = true; // We've successfully added a word, so mark this flag as true
-					if (selectedWords.length >= number_of_options) break; // Break if we've filled the required options
+					if (selectedWords.length >= numberOfOptionsThisRound) break; // Break if we've filled the required options
 				}
 
 				// Remove this word from the array after evaluation to avoid rechecking
@@ -227,7 +228,7 @@ jQuery(document).ready(function($) {
 				localAttempts++; // Increment local attempt count
 			}
 
-			if (filledOptions && selectedWords.length >= number_of_options) break; // Break the main loop if we've filled all options
+			if (filledOptions && selectedWords.length >= numberOfOptionsThisRound) break; // Break the main loop if we've filled all options
 		}
 
 		// Randomize the order of selected words to ensure the target is not always first
@@ -253,7 +254,7 @@ jQuery(document).ready(function($) {
                         // Fade out the correct answer after the audio finishes
                         correctContainer.addClass('fade-out').one('transitionend', function() {
 							isFirstRound = false;
-                            showQuiz(number_of_options, categories); // Load next question after fade out
+                            showQuiz(numberOfOptionsThisRound, categories); // Load next question after fade out
                         });
                     });
                     // Fade out other answers immediately by adding 'fade-out' class
@@ -313,7 +314,7 @@ jQuery(document).ready(function($) {
 	        // Consider the skipped question as wrong
 	        wrongIndexes.push(-1);
 	        isFirstRound = false; // Update the first round flag
-	        showQuiz(); // Move to the next question
+	        showQuiz(numberOfOptionsThisRound); // Move to the next question
 	    });
 		
         // Until other modes are implemented, always run in the quiz mode
