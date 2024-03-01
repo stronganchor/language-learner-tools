@@ -4,7 +4,9 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.2.6
+ * Version: 1.2.8
+ * Text Domain: ll-tools-text-domain
+ * Domain Path: /languages
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
@@ -14,6 +16,9 @@
 if (!defined('WPINC')) {
     die;
 }
+
+// Include the language switcher feature
+include(plugin_dir_path(__FILE__) . 'language-switcher.php');
 
 /**
  * Enqueue plugin styles and scripts.
@@ -26,6 +31,12 @@ function ll_tools_enqueue_assets() {
     wp_enqueue_style('ll-tools-style', plugins_url('language-learner-tools.css', __FILE__), array(), $lltools_css_version);
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
+
+// Load translations for internationalization
+function ll_tools_load_textdomain() {
+    load_plugin_textdomain('ll-tools-text-domain', false, basename(dirname(__FILE__)) . '/languages');
+}
+add_action('plugins_loaded', 'll_tools_load_textdomain');
 
 function ll_register_settings_page() {
     add_options_page(
@@ -314,7 +325,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '1.8.6';
+	$js_version = '1.8.7';
 	$flashcard_css_version = '1.1.8';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
@@ -408,17 +419,27 @@ function ll_tools_flashcard_widget($atts) {
     }
     wp_reset_postdata();
 
+	// Internationalized strings to use in the user interface
+    $translation_array = array(
+		'start' => esc_html__('Start', 'll-tools-text-domain'),
+        'repeat' => esc_html__('Repeat', 'll-tools-text-domain'),
+        'skip' => esc_html__('Skip', 'll-tools-text-domain'),
+        'learn' => esc_html__('Learn', 'll-tools-text-domain'),
+        'practice' => esc_html__('Practice', 'll-tools-text-domain'),
+    );
+	
     // Preload words data to the page and include the mode
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
         'words' => $words_data,
         'mode' => $atts['mode'], // Pass the mode to JavaScript
-	'plugin_dir' => plugin_dir_url(__FILE__),
+	    'plugin_dir' => plugin_dir_url(__FILE__),
+		'translations' => $translation_array,
     ));
 
     // Output the initial setup and the button
     ob_start();
     echo '<div id="ll-tools-flashcard-container" style="">'; // Hide until page is loaded
-    echo '<button id="ll-tools-start-flashcard">Start</button>';
+    echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard" class="hidden">
             <audio controls class="hidden"></audio>
           </div>';
