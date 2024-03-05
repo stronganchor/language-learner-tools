@@ -7,9 +7,14 @@ jQuery(document).ready(function($) {
     var targetAudioHasPlayed = false;
     var currentTargetAudio = null;
     var numberOfOptionsThisRound = null;
+	var currentCategory = null;
+	var currentCategoryName = null;
+	var categoryRoundCount = 0;
     var maxCards = null;
     var minCards = 2;
     var isFirstRound = true;
+	
+	var ROUNDS_PER_CATEGORY = 4;
 
     var imagesToLoad = wordsData.map(word => word.image);
     imagesToLoad.forEach(function(src) {
@@ -123,34 +128,57 @@ jQuery(document).ready(function($) {
         return number_of_options;
     }
     
+	function selectTargetWord(candidateCategory) {
+		let target = null;
+		
+		// Attempt to select a target word from the chosen category
+		for (let i = 0; i < candidateCategory.length; i++) {
+			if (!usedIndexes.includes(candidateCategory[i].id)) { // Ensure this word hasn't been recently used as a target
+				target = candidateCategory.splice(i, 1)[0]; // Remove selected target word from category array
+				usedIndexes.push(target.id); // Add to usedIndexes as it's now the target
+				break; // Exit the loop once the target word is selected
+			}
+		}
+		return target;
+	}	
+	
 	function selectTargetWordAndCategory(categories) {
-		let categoryNames = Object.keys(categories);
-		// Randomly reorder the list of category names
-		categoryNames.sort(() => Math.random() - 0.5);
-
 		let selectedWords = [];
 		let targetWord = null;
+		let categoryNames = Object.keys(categories);
+		
+		// Only change the category every 4 rounds
+		if (currentCategory && currentCategoryName && categoryRoundCount < ROUNDS_PER_CATEGORY && categoryNames.indexOf(currentCategoryName) >= 0) {
+			targetWord = selectTargetWord(currentCategory);
+		}
 
-		// Iterate over the shuffled category names
-		for (let selectedCategoryName of categoryNames) {
-			if (targetWord) break; // Exit the loop if we have found a target word
-
-			let selectedCategory = Array.from(categories[selectedCategoryName]);
-
-			// Attempt to select a target word from the chosen category
-			for (let i = 0; i < selectedCategory.length; i++) {
-				if (!usedIndexes.includes(selectedCategory[i].id)) { // Ensure this word hasn't been recently used as a target
-					targetWord = selectedCategory.splice(i, 1)[0]; // Remove selected target word from category array
-					usedIndexes.push(targetWord.id); // Add to usedIndexes as it's now the target
-					selectedWords.push(targetWord);
-					break; // Exit the loop once the target word is selected
+		if (targetWord) {
+			categoryRoundCount++;
+		} else { 
+			// If we haven't found a target yet, try a different category
+			categoryRoundCount = 1;			
+			categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
+			categoryNames.sort(() => Math.random() - 0.5);
+			
+			// Iterate over the shuffled category names
+			for (let selectedCategoryName of categoryNames) {
+				let selectedCategory = Array.from(categories[selectedCategoryName]);
+				targetWord = selectTargetWord(selectedCategory);
+				
+				if (targetWord) {
+					currentCategory = selectedCategory;
+					currentCategoryName = selectedCategoryName;
+					break; // Exit the loop if we have found a target word
 				}
 			}
 		}
-		return { selectedWords, targetWord };
+		return targetWord;
 	}
 	
-	function fillQuizOptions(selectedWords, selectedCategory, categories, numberOfOptionsThisRound) {
+	function fillQuizOptions(targetWord, selectedCategory, categories, numberOfOptionsThisRound) {
+		let selectedWords = [];
+		selectedWords.push(targetWord);
+		
 		// First, try to fill the quiz options from the same category as the target word
 		while (selectedWords.length < numberOfOptionsThisRound && selectedCategory.length > 0) {
 			let candidateIndex = Math.floor(Math.random() * selectedCategory.length);
@@ -176,11 +204,10 @@ jQuery(document).ready(function($) {
 			otherCategoryNames.sort(() => Math.random() - 0.5);
 
 			for (let categoryName of otherCategoryNames) {
-				if (selectedWords.length >= numberOfOptionsThisRound) break; // Break if we have enough options
-
 				let otherCategory = categories[categoryName];
 				for (let i = 0; i < otherCategory.length; i++) {
-					if (selectedWords.length >= numberOfOptionsThisRound) break; // Check again as we might have reached the number inside the loop
+					// Break if we have enough options
+					if (selectedWords.length >= numberOfOptionsThisRound) break; 
 
 					let candidateWord = otherCategory[i];
 					// Ensure this new candidate is not a duplicate or similar to the existing selections
@@ -322,9 +349,9 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        let { selectedWords, targetWord } = selectTargetWordAndCategory(categories);
-
-        selectedWords = fillQuizOptions(selectedWords, categories[selectedWords[0].category], categories, numberOfOptionsThisRound);
+        let targetWord  = selectTargetWordAndCategory(categories);
+		
+        selectedWords = fillQuizOptions(targetWord, categories[targetWord.category], categories, numberOfOptionsThisRound);
 
         shuffleAndDisplayWords(selectedWords, targetWord, categories);
 
