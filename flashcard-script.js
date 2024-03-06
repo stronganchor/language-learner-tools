@@ -1,20 +1,24 @@
 jQuery(document).ready(function($) {
-    var usedIndexes = []; // For quiz mode to track used words
+	const ROUNDS_PER_CATEGORY = 4;
+	const MINIMUM_NUMBER_OF_OPTIONS = 2;
+	
+	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
     var activeAudios = [];
+	var wordsByCategory = {}; // key: category name string => value: set of word objects corresponding to that category
+	var categoryNames = []; // all the category names
+	var categoryRoundCount = {}; // key: category name string => value: number of rounds where we used a word from this category
     var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
     var translations = llToolsFlashcardsData.translations || [];
     var wrongIndexes = []; // To track indexes of wrong answers this turn
     var targetAudioHasPlayed = false;
     var currentTargetAudio = null;
-    var numberOfOptionsThisRound = null;
+	var defaultNumberOfOptions = 4;
 	var currentCategory = null;
 	var currentCategoryName = null;
-	var categoryRoundCount = 0;
     var maxCards = null;
-    var minCards = 2;
     var isFirstRound = true;
-	
-	var ROUNDS_PER_CATEGORY = 4;
+	var categoryOptionsCount = {}; // To track the number of options for each category
+    var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 
     var imagesToLoad = wordsData.map(word => word.image);
     imagesToLoad.forEach(function(src) {
@@ -25,7 +29,13 @@ jQuery(document).ready(function($) {
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
-    
+
+	// Helper function to randomly sort an array
+	function randomlySort(inputArray) {
+	    return [...inputArray].sort(() => 0.5 - Math.random());
+	}
+
+	
     // Calculate the maximum number of cards that can fit in the available space for the widget
     function calculateMaxCards() {
         var containerWidth = $('#ll-tools-flashcard-container').width(); // Get the width of the container
@@ -58,7 +68,10 @@ jQuery(document).ready(function($) {
         var fitVertical = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
 
         // Calculate maximum cards based on current layout
-        maxCards = Math.max(minCards, fitHorizontal * fitVertical);
+        maxCards = Math.max(MINIMUM_NUMBER_OF_OPTIONS, fitHorizontal * fitVertical);
+
+		// Make sure the max is not more than the number of available words
+		maxCards = Math.min(maxCards, wordsData.length);
     }
     
     // Helper function for playing audio
@@ -111,63 +124,104 @@ jQuery(document).ready(function($) {
             correctAudio.onended = callback;
         }
     }
-    
+	
+	// Check a value against the min and max constraints and return the value or the min/max if out of bounds
+	function checkMinMax(optionsCount) {
+		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxCards)
+	}
+
+	// Set up initial values for the number of options to display for each category of words
+	function initializeOptionsCount(number_of_options) {
+		calculateMaxCards();
+		if (number_of_options) {
+			defaultNumberOfOptions = number_of_options;
+		}
+
+		categoryNames.forEach(categoryName => {
+			// Limit the number of options based on the number of words in that category as well as the min/max constraints
+			if (wordsByCategory[categoryName]) {
+				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions));
+			} else {
+				// Handle any mismatches between categoryNames and wordsByCategory arrays
+				categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions);
+			}
+		});
+	}
+	
     // Calculate the number of options in a quiz dynamically based on user answers
-    function calculateNumberOfOptions(lastNumberOfOptions) {
-        var number_of_options = -1;
-        if (isFirstRound) {
-            calculateMaxCards();
-            number_of_options = Math.min(Math.max(minCards, lastNumberOfOptions), maxCards);
-        } else if (wrongIndexes.length > 0) {
+	function calculateNumberOfOptions() {
+		let number_of_options = categoryOptionsCount[currentCategoryName] ;
+		if (wrongIndexes.length > 0) {
             // Show fewer options if the user got it wrong last round
-            number_of_options = Math.max(minCards, lastNumberOfOptions - 1);
-        } else {
+            number_of_options--;
+        } else if (!isFirstRound) {
             // Add in more options if the user got the last card right on the first try
-            number_of_options = Math.min(maxCards, lastNumberOfOptions + 1);
-        }
-        return number_of_options;
-    }
+            number_of_options++;
+        }				
+		
+        wrongIndexes = [];
+		
+	    // Update the count for the current category
+	    categoryOptionsCount[currentCategoryName] = checkMinMax(number_of_options);
+	}
     
 	function selectTargetWord(candidateCategory) {
-		let target = null;
+		if (!candidateCategory) {
+			return null;
+		}
 		
-		// Attempt to select a target word from the chosen category
-		for (let i = 0; i < candidateCategory.length; i++) {
-			if (!usedIndexes.includes(candidateCategory[i].id)) { // Ensure this word hasn't been recently used as a target
-				target = candidateCategory.splice(i, 1)[0]; // Remove selected target word from category array
-				usedIndexes.push(target.id); // Add to usedIndexes as it's now the target
-				break; // Exit the loop once the target word is selected
+		let target = null;
+		// Check if there are words due to reappear from the repetition queue
+		const repeatQueue = categoryRepetitionQueues[candidateCategory];
+		if (repeatQueue && repeatQueue.length > 0) {
+			for (let i = 0; i < repeatQueue.length; i++) {
+				if (repeatQueue[i].reappearRound <= categoryRoundCount[candidateCategory]) {
+					target = repeatQueue[i].wordData;
+					// Remove the word from the queue as it's now selected to reappear
+					repeatQueue.splice(i, 1);
+					break; // Exit the loop once the target word is selected
+				}
+			}
+		} else {
+			// Attempt to select a target word from the chosen category
+			for (let i = 0; i < candidateCategory.length; i++) {
+				if (!usedWordIDs.includes(candidateCategory[i].id)) { // Ensure this word hasn't been recently used as a target
+					target = candidateCategory[i];
+					usedWordIDs.push(target.id); // Add to usedWordIDs as it's now the target
+					break; // Exit the loop once the target word is selected
+				}
 			}
 		}
+
+		if (target) {
+			currentCategoryName = target.category;
+			currentCategory = wordsByCategory[currentCategoryName];
+			categoryRoundCount[currentCategoryName]++;
+		}
+		
 		return target;
 	}	
 	
-	function selectTargetWordAndCategory(categories) {
-		let selectedWords = [];
+	function selectTargetWordAndCategory() {
 		let targetWord = null;
-		let categoryNames = Object.keys(categories);
-		
-		// Only change the category every 4 rounds
-		if (currentCategory && currentCategoryName && categoryRoundCount < ROUNDS_PER_CATEGORY && categoryNames.indexOf(currentCategoryName) >= 0) {
-			targetWord = selectTargetWord(currentCategory);
+
+		if (!isFirstRound) {
+			let categoryIsFinished = ((categoryRoundCount[currentCategoryName] + 1) % ROUNDS_PER_CATEGORY) === 0;
+			
+			if (!categoryIsFinished) {
+				targetWord = selectTargetWord(currentCategory);
+			}
 		}
 
-		if (targetWord) {
-			categoryRoundCount++;
-		} else { 
-			// If we haven't found a target yet, try a different category
-			categoryRoundCount = 1;			
+		if (!targetWord) { 
+			// If they got all correct answers, put the current category at the end
 			categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
-			categoryNames.sort(() => Math.random() - 0.5);
+			categoryNames.push(currentCategoryName);
 			
 			// Iterate over the shuffled category names
-			for (let selectedCategoryName of categoryNames) {
-				let selectedCategory = Array.from(categories[selectedCategoryName]);
-				targetWord = selectTargetWord(selectedCategory);
-				
+			for (let categoryName of categoryNames) {
+				targetWord = selectTargetWord(wordsByCategory[categoryName]);
 				if (targetWord) {
-					currentCategory = selectedCategory;
-					currentCategoryName = selectedCategoryName;
 					break; // Exit the loop if we have found a target word
 				}
 			}
@@ -175,58 +229,31 @@ jQuery(document).ready(function($) {
 		return targetWord;
 	}
 	
-	function fillQuizOptions(targetWord, selectedCategory, categories, numberOfOptionsThisRound) {
+	function fillQuizOptions(targetWord) {
 		let selectedWords = [];
 		selectedWords.push(targetWord);
+		currentCategory = randomlySort(currentCategory);
 		
-		// First, try to fill the quiz options from the same category as the target word
-		while (selectedWords.length < numberOfOptionsThisRound && selectedCategory.length > 0) {
-			let candidateIndex = Math.floor(Math.random() * selectedCategory.length);
-			let candidateWord = selectedCategory[candidateIndex];
-
+    	for (let candidateWord of currentCategory) {
 			// Check if the candidate word is not already selected and not similar to any selected words
 			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
 			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-
-			if (!isDuplicate && !isSimilar) {
+			let hasSameImage = selectedWords.some(word => word.image === candidateWord.image);
+			
+			if (!isDuplicate && !isSimilar && !hasSameImage) {
 				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
 			}
-
-			// Remove the word from the category array after evaluation to prevent infinite looping
-			selectedCategory.splice(candidateIndex, 1);
-		}
-
-		// If there are not enough words in the same category, fill from other categories
-		if (selectedWords.length < numberOfOptionsThisRound) {
-			let otherCategoryNames = Object.keys(categories).filter(name => !selectedWords.some(word => categories[name].includes(word)));
-
-			// Shuffle other categories to randomize the selection process
-			otherCategoryNames.sort(() => Math.random() - 0.5);
-
-			for (let categoryName of otherCategoryNames) {
-				let otherCategory = categories[categoryName];
-				for (let i = 0; i < otherCategory.length; i++) {
-					// Break if we have enough options
-					if (selectedWords.length >= numberOfOptionsThisRound) break; 
-
-					let candidateWord = otherCategory[i];
-					// Ensure this new candidate is not a duplicate or similar to the existing selections
-					let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
-					let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-
-					if (!isDuplicate && !isSimilar) {
-						selectedWords.push(candidateWord);
-					}
-				}
+			
+			if (selectedWords.length === categoryOptionsCount[currentCategoryName]) {
+				break;
 			}
 		}
-
 		return selectedWords; // Return the filled options
 	}
 	
-	function shuffleAndDisplayWords(selectedWords, targetWord, categories) {
+	function shuffleAndDisplayWords(selectedWords, targetWord) {
 		// Shuffle the selected words to ensure the target is not always first
-		selectedWords.sort(() => 0.5 - Math.random());
+		selectedWords = randomlySort(selectedWords);
 
 		// Clear existing content and pause all audio
 		$('#ll-tools-flashcard').empty();
@@ -251,7 +278,7 @@ jQuery(document).ready(function($) {
 						// Fade out the correct answer after the audio finishes
 						imgContainer.addClass('fade-out').one('transitionend', function() {
 							isFirstRound = false;
-                            showQuiz(numberOfOptionsThisRound, categories); // Load next question after fade out
+                            showQuiz(); // Load next question after fade out
                         });
 					});
 					// Fade out other answers immediately by adding 'fade-out' class
@@ -262,6 +289,16 @@ jQuery(document).ready(function($) {
 					$(this).addClass('fade-out').one('transitionend', function() {
 						$(this).remove(); // Remove the card completely after fade out
 					});
+					
+				    // Add word to the repetition queue for the current category
+				    if (!categoryRepetitionQueues[currentCategoryName]) {
+				        categoryRepetitionQueues[currentCategoryName] = [];
+				    }
+				    categoryRepetitionQueues[currentCategoryName].push({
+				        wordData: wordData,
+				        reappearRound: categoryRoundCount[currentCategoryName] + Math.floor(Math.random() * 4) + 2, // Reappear in 2 to 5 rounds
+				    });
+					
 					// Add index to wrongIndexes if the answer is incorrect
                     wrongIndexes.push(index);
 				}
@@ -325,35 +362,33 @@ jQuery(document).ready(function($) {
 		// Any additional UI adjustments or state resets that typically occur at the start of a quiz should be included
 	}
 
-    // Revised showQuiz function
-    function showQuiz(number_of_options = 4, categories = {}) {
-        
-        // Adjust number of options based on previous round's answers, keeping the number between the minimum (2) and maxCards
-        numberOfOptionsThisRound = calculateNumberOfOptions(number_of_options);
-        // Reset wrongIndexes for this round
-        wrongIndexes = [];
-        targetAudioHasPlayed = false;
-        
-        // Initialize categories array
-        if (!Array.isArray(categories) || categories.length === 0) {
-			wordsData.forEach(word => {
-				if (!categories[word.category]) {
-					categories[word.category] = [];
+    function showQuiz(number_of_options) {
+		if (isFirstRound) {
+			// Initialize category arrays
+	        wordsData.forEach(word => {
+				let category = word.category;
+				if (!wordsByCategory[category]) {
+					wordsByCategory[category] = [];
+					categoryRoundCount[category] = 0;
 				}
-				categories[word.category].push(word);
+				wordsByCategory[category].push(word);
 			});
+
+			categoryNames = Object.keys(wordsByCategory);
+			categoryNames = randomlySort(categoryNames);
+			
+			initializeOptionsCount(number_of_options);
 		}
-
-        if (wordsData.length < numberOfOptionsThisRound) {
-            alert("Not enough words for a quiz.");
-            return;
-        }
-
-        let targetWord  = selectTargetWordAndCategory(categories);
 		
-        selectedWords = fillQuizOptions(targetWord, categories[targetWord.category], categories, numberOfOptionsThisRound);
+        targetAudioHasPlayed = false;
+		
+        calculateNumberOfOptions();
+             
+        let targetWord  = selectTargetWordAndCategory();
+		
+        selectedWords = fillQuizOptions(targetWord);
 
-        shuffleAndDisplayWords(selectedWords, targetWord, categories);
+        shuffleAndDisplayWords(selectedWords, targetWord);
 
         setTargetWordAudio(targetWord);
 
@@ -376,7 +411,7 @@ jQuery(document).ready(function($) {
             // Consider the skipped question as wrong
             wrongIndexes.push(-1);
             isFirstRound = false; // Update the first round flag
-            showQuiz(numberOfOptionsThisRound); // Move to the next question
+            showQuiz(); // Move to the next question
         });
         
         // Until other modes are implemented, always run in the quiz mode
