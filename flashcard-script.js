@@ -1,5 +1,5 @@
 jQuery(document).ready(function($) {
-	const ROUNDS_PER_CATEGORY = 4;
+	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
@@ -35,6 +35,10 @@ jQuery(document).ready(function($) {
 	    return [...inputArray].sort(() => 0.5 - Math.random());
 	}
 
+	// Returns a random integer between the min and max values (inclusive)
+	function randomIntFromInterval(min, max) { 
+	  return Math.floor((Math.random() * (max - min + 1)) + min)
+	}
 	
     // Calculate the maximum number of cards that can fit in the available space for the widget
     function calculateMaxCards() {
@@ -208,7 +212,7 @@ jQuery(document).ready(function($) {
 		let targetWord = null;
 
 		if (!isFirstRound) {
-			let categoryIsFinished = ((categoryRoundCount[currentCategoryName] + 1) % ROUNDS_PER_CATEGORY) === 0;
+			let categoryIsFinished = ((categoryRoundCount[currentCategoryName]) % ROUNDS_PER_CATEGORY) === 0;
 			
 			if (!categoryIsFinished) {
 				targetWord = selectTargetWord(currentCategory, currentCategoryName);
@@ -285,7 +289,7 @@ jQuery(document).ready(function($) {
 							// Add the word to the repetition queue for the current category
 							categoryRepetitionQueues[currentCategoryName].push({
 								wordData: targetWord,
-								reappearRound: categoryRoundCount[currentCategoryName] + Math.floor(Math.random() * 4) + 2, // Reappear in 2 to 5 rounds
+								reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(2, 4), // Reappear in a few rounds
 							});
 						}
 						
