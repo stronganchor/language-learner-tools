@@ -165,25 +165,27 @@ jQuery(document).ready(function($) {
 	    categoryOptionsCount[currentCategoryName] = checkMinMax(number_of_options);
 	}
     
-	function selectTargetWord(candidateCategory) {
+	function selectTargetWord(candidateCategory, candidateCategoryName) {
 		if (!candidateCategory) {
 			return null;
 		}
 		
 		let target = null;
 		// Check if there are words due to reappear from the repetition queue
-		const repeatQueue = categoryRepetitionQueues[candidateCategory];
+		const repeatQueue = categoryRepetitionQueues[candidateCategoryName];
 		if (repeatQueue && repeatQueue.length > 0) {
 			for (let i = 0; i < repeatQueue.length; i++) {
-				if (repeatQueue[i].reappearRound <= categoryRoundCount[candidateCategory]) {
+				if (repeatQueue[i].reappearRound <= categoryRoundCount[candidateCategoryName]) {
 					target = repeatQueue[i].wordData;
 					// Remove the word from the queue as it's now selected to reappear
 					repeatQueue.splice(i, 1);
 					break; // Exit the loop once the target word is selected
 				}
 			}
-		} else {
-			// Attempt to select a target word from the chosen category
+		} 
+		
+		// If we didn't select a word from the repeat queue, attempt to select from the chosen category
+		if (!target) {
 			for (let i = 0; i < candidateCategory.length; i++) {
 				if (!usedWordIDs.includes(candidateCategory[i].id)) { // Ensure this word hasn't been recently used as a target
 					target = candidateCategory[i];
@@ -194,9 +196,9 @@ jQuery(document).ready(function($) {
 		}
 
 		if (target) {
-			currentCategoryName = target.category;
-			currentCategory = wordsByCategory[currentCategoryName];
-			categoryRoundCount[currentCategoryName]++;
+			currentCategoryName = candidateCategoryName;
+			currentCategory = wordsByCategory[candidateCategoryName];
+			categoryRoundCount[candidateCategoryName]++;
 		}
 		
 		return target;
@@ -209,7 +211,7 @@ jQuery(document).ready(function($) {
 			let categoryIsFinished = ((categoryRoundCount[currentCategoryName] + 1) % ROUNDS_PER_CATEGORY) === 0;
 			
 			if (!categoryIsFinished) {
-				targetWord = selectTargetWord(currentCategory);
+				targetWord = selectTargetWord(currentCategory, currentCategoryName);
 			}
 		}
 
@@ -220,7 +222,7 @@ jQuery(document).ready(function($) {
 			
 			// Iterate over the shuffled category names
 			for (let categoryName of categoryNames) {
-				targetWord = selectTargetWord(wordsByCategory[categoryName]);
+				targetWord = selectTargetWord(wordsByCategory[categoryName], categoryName);
 				if (targetWord) {
 					break; // Exit the loop if we have found a target word
 				}
@@ -275,6 +277,18 @@ jQuery(document).ready(function($) {
 			imgContainer.click(function() {
 				if (wordData.title === targetWord.title) { // Correct answer
 					playFeedback(true, null, function() {
+						// If there were any wrong answers before the right one was selected
+						if (wrongIndexes.length > 0) {
+							if (!categoryRepetitionQueues[currentCategoryName]) {
+								categoryRepetitionQueues[currentCategoryName] = [];
+							}
+							// Add the word to the repetition queue for the current category
+							categoryRepetitionQueues[currentCategoryName].push({
+								wordData: targetWord,
+								reappearRound: categoryRoundCount[currentCategoryName] + Math.floor(Math.random() * 4) + 2, // Reappear in 2 to 5 rounds
+							});
+						}
+						
 						// Fade out the correct answer after the audio finishes
 						imgContainer.addClass('fade-out').one('transitionend', function() {
 							isFirstRound = false;
@@ -289,15 +303,6 @@ jQuery(document).ready(function($) {
 					$(this).addClass('fade-out').one('transitionend', function() {
 						$(this).remove(); // Remove the card completely after fade out
 					});
-					
-				    // Add word to the repetition queue for the current category
-				    if (!categoryRepetitionQueues[currentCategoryName]) {
-				        categoryRepetitionQueues[currentCategoryName] = [];
-				    }
-				    categoryRepetitionQueues[currentCategoryName].push({
-				        wordData: wordData,
-				        reappearRound: categoryRoundCount[currentCategoryName] + Math.floor(Math.random() * 4) + 2, // Reappear in 2 to 5 rounds
-				    });
 					
 					// Add index to wrongIndexes if the answer is incorrect
                     wrongIndexes.push(index);
