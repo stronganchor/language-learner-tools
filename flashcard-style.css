@@ -1,3 +1,8 @@
+#ll-tools-start-flashcard, #ll-tools-skip-flashcard {
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
 #ll-tools-flashcard-container {
     text-align: center; 
 }
