@@ -25,7 +25,7 @@ include(plugin_dir_path(__FILE__) . 'language-switcher.php');
  */
 function ll_tools_enqueue_assets() {
     // Set the version numbers for the CSS file. (This needs to be incremented whenever the file changes)
-    $lltools_css_version = '1.1.5'; 
+    $lltools_css_version = '1.2.0'; 
 
     // Enqueue the CSS file
     wp_enqueue_style('ll-tools-style', plugins_url('language-learner-tools.css', __FILE__), array(), $lltools_css_version);
