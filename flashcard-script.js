@@ -30,6 +30,49 @@ jQuery(document).ready(function($) {
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
+	// Save the quiz state to user metadata in WordPress
+    function saveQuizState() {
+        var quizState = {
+            usedWordIDs: usedWordIDs,
+            wordsByCategory: wordsByCategory,
+            categoryNames: categoryNames,
+            categoryRoundCount: categoryRoundCount,
+            categoryOptionsCount: categoryOptionsCount,
+            categoryRepetitionQueues: categoryRepetitionQueues,
+            isFirstRound: isFirstRound,
+            currentCategoryName: currentCategoryName
+        };
+
+        // Send an AJAX request to save the quiz state
+        $.ajax({
+            url: llToolsFlashcardsData.ajaxurl, // WordPress AJAX URL
+            method: 'POST',
+            data: {
+                action: 'll_save_quiz_state',
+                quiz_state: JSON.stringify(quizState)
+            }
+        });
+    }
+	
+	// load saved quiz state from user metadata
+	function loadQuizState() {
+        var savedQuizState = llToolsFlashcardsData.quizState;
+        if (savedQuizState) {
+            // Parse the saved quiz state from JSON
+            var quizState = JSON.parse(savedQuizState);
+
+            // Apply the saved quiz state to the relevant variables
+            usedWordIDs = quizState.usedWordIDs || [];
+            wordsByCategory = quizState.wordsByCategory || {};
+            categoryNames = quizState.categoryNames || [];
+            categoryRoundCount = quizState.categoryRoundCount || {};
+            categoryOptionsCount = quizState.categoryOptionsCount || {};
+            categoryRepetitionQueues = quizState.categoryRepetitionQueues || {};
+			isFirstRound = (quizState.isFirstRound === false) ? false : true;
+            currentCategoryName = quizState.currentCategoryName || null;
+        }
+    }
+	
 	// Helper function to randomly sort an array
 	function randomlySort(inputArray) {
 	    return [...inputArray].sort(() => 0.5 - Math.random());
@@ -402,12 +445,16 @@ jQuery(document).ready(function($) {
         setTargetWordAudio(targetWord);
 
         finalizeQuizSetup();
+
+		saveQuizState();		
     }  
         
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {
         var mode = llToolsFlashcardsData.mode; // Access the mode
 
+		loadQuizState();
+		
         // Create and insert the Skip button next to the Start/Repeat button
         $('<button>', {
             text: translations.skip, // Using the translated string for 'Skip'
