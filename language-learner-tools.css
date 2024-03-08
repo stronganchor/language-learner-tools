@@ -4,6 +4,7 @@
 
 p:has(.ll-word-audio) {
 	margin: 0;
+	display: inline;
 }
 
 /* the div element surrounding the populated content of the post */
