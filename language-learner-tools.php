@@ -314,6 +314,38 @@ function ll_tools_save_similar_words_metadata($post_id) {
     }
 }
 
+// Save user's progress on the quiz to metadata
+function ll_save_quiz_state($user_id, $quiz_state) {
+    update_user_meta($user_id, 'll_quiz_state', $quiz_state);
+}
+
+// Get user's progress on the quiz from metadata
+function ll_get_quiz_state($user_id) {
+    return get_user_meta($user_id, 'll_quiz_state', true);
+}
+
+// AJAX handler for saving the quiz state
+function ll_save_quiz_state_ajax() {
+    $user_id = get_current_user_id();
+    $quiz_state = isset($_POST['quiz_state']) ? $_POST['quiz_state'] : '';
+
+    $response = array(
+        'success' => false,
+        'message' => '',
+    );
+
+    if ($user_id && !empty($quiz_state)) {
+        ll_save_quiz_state($user_id, $quiz_state);
+        $response['success'] = true;
+        $response['message'] = 'Quiz state saved successfully';
+    } else {
+        $response['message'] = 'Invalid user ID or empty quiz state';
+    }
+
+    wp_send_json($response);
+}
+add_action('wp_ajax_ll_save_quiz_state', 'll_save_quiz_state_ajax');
+
 /*
  * The shortcode function that sets up the flashcard widget
  */
@@ -325,7 +357,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '2.2.9';
+	$js_version = '2.3.4';
 	$flashcard_css_version = '1.1.9';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
@@ -427,6 +459,12 @@ function ll_tools_flashcard_widget($atts) {
         'learn' => esc_html__('Learn', 'll-tools-text-domain'),
         'practice' => esc_html__('Practice', 'll-tools-text-domain'),
     );
+
+    // Get the current user's ID
+    $user_id = get_current_user_id();
+
+    // Retrieve the user's quiz state
+    $quiz_state = ll_get_quiz_state($user_id);
 	
     // Preload words data to the page and include the mode
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
@@ -434,6 +472,8 @@ function ll_tools_flashcard_widget($atts) {
         'mode' => $atts['mode'], // Pass the mode to JavaScript
 	    'plugin_dir' => plugin_dir_url(__FILE__),
 		'translations' => $translation_array,
+		'quizState' => $quiz_state,
+		'ajaxurl' => admin_url('admin-ajax.php'),
     ));
 
     // Output the initial setup and the button
