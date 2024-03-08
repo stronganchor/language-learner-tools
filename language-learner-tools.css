@@ -1,3 +1,7 @@
+.ll-word-audio {
+    display: inline;
+}
+
 /* the div element surrounding the populated content of the post */
 .vocab-item {
     /* border: 0px solid #ddd;
