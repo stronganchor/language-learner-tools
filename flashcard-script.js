@@ -34,13 +34,9 @@ jQuery(document).ready(function($) {
     function saveQuizState() {
         var quizState = {
             usedWordIDs: usedWordIDs,
-            wordsByCategory: wordsByCategory,
-            categoryNames: categoryNames,
             categoryRoundCount: categoryRoundCount,
             categoryOptionsCount: categoryOptionsCount,
-            categoryRepetitionQueues: categoryRepetitionQueues,
-            isFirstRound: isFirstRound,
-            currentCategoryName: currentCategoryName
+            categoryRepetitionQueues: categoryRepetitionQueues
         };
 
         // Send an AJAX request to save the quiz state
@@ -56,22 +52,27 @@ jQuery(document).ready(function($) {
 	
 	// load saved quiz state from user metadata
 	function loadQuizState() {
-        var savedQuizState = llToolsFlashcardsData.quizState;
-        if (savedQuizState) {
-            // Parse the saved quiz state from JSON
-            var quizState = JSON.parse(savedQuizState);
-
-            // Apply the saved quiz state to the relevant variables
-            usedWordIDs = quizState.usedWordIDs || [];
-            wordsByCategory = quizState.wordsByCategory || {};
-            categoryNames = quizState.categoryNames || [];
-            categoryRoundCount = quizState.categoryRoundCount || {};
-            categoryOptionsCount = quizState.categoryOptionsCount || {};
-            categoryRepetitionQueues = quizState.categoryRepetitionQueues || {};
-			isFirstRound = (quizState.isFirstRound === false) ? false : true;
-            currentCategoryName = quizState.currentCategoryName || null;
-        }
-    }
+	    var savedQuizState = llToolsFlashcardsData.quizState;
+	    if (savedQuizState) {
+	        // Parse the saved quiz state from JSON
+	        var quizState = JSON.parse(savedQuizState);
+	
+	        // Validate each property before applying it
+	        usedWordIDs = Array.isArray(quizState.usedWordIDs) ? quizState.usedWordIDs : [];
+	        categoryRoundCount = typeof quizState.categoryRoundCount === 'object' ? quizState.categoryRoundCount : {};
+	        
+	        // Validate categoryOptionsCount entries
+	        let savedOptionsCount = typeof quizState.categoryOptionsCount === 'object' ? quizState.categoryOptionsCount : {};
+	        for (let category in savedOptionsCount) {
+	            if (savedOptionsCount.hasOwnProperty(category)) {
+	                let count = parseInt(categoryOptionsCount[category]);
+	                categoryOptionsCount[category] = checkMinMax(count);
+	            }
+	        }
+	        
+	        categoryRepetitionQueues = typeof quizState.categoryRepetitionQueues === 'object' ? quizState.categoryRepetitionQueues : {};
+	    }
+	}
 	
 	// Helper function to randomly sort an array
 	function randomlySort(inputArray) {
@@ -174,6 +175,9 @@ jQuery(document).ready(function($) {
 	
 	// Check a value against the min and max constraints and return the value or the min/max if out of bounds
 	function checkMinMax(optionsCount) {
+		if(!maxCards) {
+			calculateMaxCards();
+		}
 		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxCards)
 	}
 
@@ -185,14 +189,23 @@ jQuery(document).ready(function($) {
 		}
 
 		categoryNames.forEach(categoryName => {
-			// Limit the number of options based on the number of words in that category as well as the min/max constraints
-			if (wordsByCategory[categoryName]) {
-				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions));
-			} else {
-				// Handle any mismatches between categoryNames and wordsByCategory arrays
-				categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions);
-			}
+			setInitialOptionsCount(categoryName);
 		});
+	}
+	
+	// Limit the number of options based on the number of words in that category as well as the min/max constraints
+	function setInitialOptionsCount(categoryName) {
+		let existingCount = categoryOptionsCount[categoryName];
+		if (existingCount && existingCount === checkMinMax(existingCount)) {
+			return;
+		}
+		
+		if (wordsByCategory[categoryName]) {
+				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions));
+		} else {
+			// Handle any mismatches between categoryNames and wordsByCategory arrays
+			categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions);
+		}
 	}
 	
     // Calculate the number of options in a quiz dynamically based on user answers
@@ -251,6 +264,16 @@ jQuery(document).ready(function($) {
 		return target;
 	}	
 	
+	function selectWordFromNextCategory() {
+		for (let categoryName of categoryNames) {
+			let targetWord = selectTargetWord(wordsByCategory[categoryName], categoryName);
+			if (targetWord) {
+				return targetWord; // Exit the loop if we have found a target word
+			}
+		}
+		return null;
+	}
+	
 	function selectTargetWordAndCategory() {
 		let targetWord = null;
 
@@ -259,21 +282,21 @@ jQuery(document).ready(function($) {
 			
 			if (!categoryIsFinished) {
 				targetWord = selectTargetWord(currentCategory, currentCategoryName);
+			} else {
+				// Put the current category at the end of the category names list
+				categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
+				categoryNames.push(currentCategoryName);
 			}
 		}
 
 		if (!targetWord) { 
-			// If they got all correct answers, put the current category at the end
-			categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
-			categoryNames.push(currentCategoryName);
-			
-			// Iterate over the shuffled category names
-			for (let categoryName of categoryNames) {
-				targetWord = selectTargetWord(wordsByCategory[categoryName], categoryName);
-				if (targetWord) {
-					break; // Exit the loop if we have found a target word
-				}
-			}
+			targetWord = selectWordFromNextCategory();
+		}
+		
+		// If no target word is found after going through all categories, reset usedWordIDs and try again
+		if (!targetWord) { 
+			usedWordIDs = [];
+			targetWord = selectWordFromNextCategory();
 		}
 		return targetWord;
 	}
@@ -293,7 +316,7 @@ jQuery(document).ready(function($) {
 				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
 			}
 			
-			if (selectedWords.length === categoryOptionsCount[currentCategoryName]) {
+			if (selectedWords.length >= categoryOptionsCount[currentCategoryName]) {
 				break;
 			}
 		}
@@ -426,6 +449,7 @@ jQuery(document).ready(function($) {
 				wordsByCategory[category].push(word);
 			});
 
+			// Randomize the order of the categories to begin with
 			categoryNames = Object.keys(wordsByCategory);
 			categoryNames = randomlySort(categoryNames);
 			
