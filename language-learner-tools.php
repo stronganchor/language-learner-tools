@@ -27,11 +27,10 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 	'language-learner-tools'
 );
 
-//Set the branch that contains the stable release.
-$myUpdateChecker->setBranch('stable-branch-name');
+$myUpdateChecker->setBranch('main');
 
 //Optional: If you're using a private repository, specify the access token like this:
-$myUpdateChecker->setAuthentication('your-token-here');
+//$myUpdateChecker->setAuthentication('your-token-here');
 
 // Include the language switcher feature
 include(plugin_dir_path(__FILE__) . 'language-switcher.php');
