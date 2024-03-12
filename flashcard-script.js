@@ -376,6 +376,14 @@ jQuery(document).ready(function($) {
 					
 					// Add index to wrongIndexes if the answer is incorrect
                     wrongIndexes.push(index);
+					
+					// Check if the user has selected a wrong answer twice
+					if (wrongIndexes.length === 2) {
+						// Remove all options except the correct one
+						$('.flashcard-image-container').not(function() {
+							return $(this).find('img').attr('alt') === targetWord.title;
+						}).remove();
+					}					
 				}
 			});
 
