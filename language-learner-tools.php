@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.3.0
+ * Version: 1.3.1
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -18,14 +18,20 @@ if (!defined('WPINC')) {
 }
 
 // Include the plugin update checker
-require 'plugin-update-checker/plugin-update-checker.php';
-$updateChecker = Puc_v4_Factory::buildUpdateChecker(
-    'https://github.com/stronganchor/language-learner-tools',
-    __FILE__,
-    'language-learner-tools'
+require plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+	'https://github.com/stronganchor/language-learner-tools',
+	__FILE__,
+	'language-learner-tools'
 );
 
-$updateChecker->setBranch('main');
+//Set the branch that contains the stable release.
+$myUpdateChecker->setBranch('stable-branch-name');
+
+//Optional: If you're using a private repository, specify the access token like this:
+$myUpdateChecker->setAuthentication('your-token-here');
 
 // Include the language switcher feature
 include(plugin_dir_path(__FILE__) . 'language-switcher.php');
