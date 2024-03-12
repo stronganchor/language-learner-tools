@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.3.3
+ * Version: 1.3.4
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -372,7 +372,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '2.4.1';
+	$js_version = '2.4.2';
 	$flashcard_css_version = '1.2.0';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
