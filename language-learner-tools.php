@@ -17,6 +17,16 @@ if (!defined('WPINC')) {
     die;
 }
 
+// Include the plugin update checker
+require 'plugin-update-checker/plugin-update-checker.php';
+$updateChecker = Puc_v4_Factory::buildUpdateChecker(
+    'https://github.com/stronganchor/language-learner-tools',
+    __FILE__,
+    'language-learner-tools'
+);
+
+$updateChecker->setBranch('main');
+
 // Include the language switcher feature
 include(plugin_dir_path(__FILE__) . 'language-switcher.php');
 
