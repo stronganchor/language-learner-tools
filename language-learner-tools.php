@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.3.4
+ * Version: 1.3.5
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -372,7 +372,7 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
 	// Set the version numbers for the CSS and JS files. (This needs to be incremented whenever the file changes)
-	$js_version = '2.4.2';
+	$js_version = '2.4.8';
 	$flashcard_css_version = '1.2.0';
 	
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
@@ -435,34 +435,38 @@ function ll_tools_flashcard_widget($atts) {
         while ($query->have_posts()) {
             $query->the_post();
 			$current_id = get_the_ID();
+		    // Fetch the primary category
+		    $primary_category = get_post_meta($current_id, 'primary_category', true);
+		
+		    // Fetch all categories
+		    $all_categories = wp_get_post_terms($current_id, 'word-category', array('fields' => 'slugs'));
 
+			// Inside the ll_tools_flashcard_widget function
 			$deepest_category = null;
-		    $max_depth = -1;
-			$categories = get_the_terms($current_id, 'word-category');
+			$max_depth = -1;
+			foreach ($all_categories as $category) {
+			    $depth = 0;
+			    $current_category = get_term_by('slug', $category, 'word-category');
+			    while ($current_category && $current_category->parent != 0) {
+			        $depth++;
+			        $current_category = get_term($current_category->parent, 'word-category');
+			    }
+			    if ($depth > $max_depth) {
+			        $max_depth = $depth;
+			        $deepest_category = $category;
+			    }
+			}
 		
-		    foreach ($categories as $category) {
-		        $depth = 0;
-		        $current_category = $category;
-		        while (get_category($current_category) && $parent_id = get_category($current_category)->parent) {
-		            $depth++;
-		            $current_category = $parent_id;
-		        }
-		
-		        if ($depth > $max_depth) {
-		            $max_depth = $depth;
-		            $deepest_category = $category;
-		        }
-		    }
-			
-            $words_data[] = array(
-				'id' => $current_id,
-                'title' => get_the_title(),
-                'image' => get_the_post_thumbnail_url($current_id, 'full'),
-                'audio' => get_post_meta($current_id, 'word_audio_file', true),
-				'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
-	            'category' => $deepest_category ? $deepest_category->slug : '', // Save the deepest category slug
-	        );
-        }
+		    $words_data[] = array(
+		        'id' => $current_id,
+		        'title' => get_the_title(),
+		        'image' => get_the_post_thumbnail_url($current_id, 'full'),
+		        'audio' => get_post_meta($current_id, 'word_audio_file', true),
+		        'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
+		        'category' => $primary_category ?: $deepest_category,
+		        'all_categories' => $all_categories,
+		    );
+		}
     }
     wp_reset_postdata();
 
