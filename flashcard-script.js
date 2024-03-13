@@ -66,7 +66,7 @@ jQuery(document).ready(function($) {
 	        for (let category in savedOptionsCount) {
 	            if (savedOptionsCount.hasOwnProperty(category)) {
 	                let count = parseInt(categoryOptionsCount[category]);
-	                categoryOptionsCount[category] = checkMinMax(count);
+	                categoryOptionsCount[category] = checkMinMax(count, category);
 	            }
 	        }
 	        
@@ -174,11 +174,17 @@ jQuery(document).ready(function($) {
     }
 	
 	// Check a value against the min and max constraints and return the value or the min/max if out of bounds
-	function checkMinMax(optionsCount) {
+	function checkMinMax(optionsCount, categoryName) {
 		if(!maxCards) {
 			calculateMaxCards();
 		}
-		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxCards)
+		let maxOptionsCount = maxCards;
+		if (wordsByCategory[categoryName]) {
+			// Limit the number of options to the total number of words in this category, or however many will fit on the screen
+			maxOptionsCount = Math.min(maxOptionsCount, wordsByCategory[categoryName].length);
+		}
+		maxOptionsCount = Math.max(MINIMUM_NUMBER_OF_OPTIONS, maxOptionsCount);
+		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxOptionsCount)
 	}
 
 	// Set up initial values for the number of options to display for each category of words
@@ -196,15 +202,15 @@ jQuery(document).ready(function($) {
 	// Limit the number of options based on the number of words in that category as well as the min/max constraints
 	function setInitialOptionsCount(categoryName) {
 		let existingCount = categoryOptionsCount[categoryName];
-		if (existingCount && existingCount === checkMinMax(existingCount)) {
+		if (existingCount && existingCount === checkMinMax(existingCount, categoryName)) {
 			return;
 		}
 		
 		if (wordsByCategory[categoryName]) {
-				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions));
+				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions), categoryName);
 		} else {
 			// Handle any mismatches between categoryNames and wordsByCategory arrays
-			categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions);
+			categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions, categoryName);
 		}
 	}
 	
@@ -222,7 +228,7 @@ jQuery(document).ready(function($) {
         wrongIndexes = [];
 		
 	    // Update the count for the current category
-	    categoryOptionsCount[currentCategoryName] = checkMinMax(number_of_options);
+	    categoryOptionsCount[currentCategoryName] = checkMinMax(number_of_options, currentCategoryName);
 	}
     
 	function selectTargetWord(candidateCategory, candidateCategoryName) {
@@ -301,25 +307,52 @@ jQuery(document).ready(function($) {
 		return targetWord;
 	}
 	
+	function selectWordsFromCategory(category, selectedWords) {
+		for (let candidateWord of wordsByCategory[category]) {
+			// Check if the candidate word is not already selected and not similar to any selected words
+			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
+			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
+			let hasSameImage = selectedWords.some(word => word.image === candidateWord.image);
+			if (!isDuplicate && !isSimilar && !hasSameImage) {
+				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
+				if (selectedWords.length >= categoryOptionsCount[currentCategoryName]) {
+					break;
+				}
+			}
+		}
+		return selectedWords;
+	}
+	
 	function fillQuizOptions(targetWord) {
 		let selectedWords = [];
 		selectedWords.push(targetWord);
 		currentCategory = randomlySort(currentCategory);
 		
-    	for (let candidateWord of currentCategory) {
-			// Check if the candidate word is not already selected and not similar to any selected words
-			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
-			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-			let hasSameImage = selectedWords.some(word => word.image === candidateWord.image);
-			
-			if (!isDuplicate && !isSimilar && !hasSameImage) {
-				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
-			}
-			
-			if (selectedWords.length >= categoryOptionsCount[currentCategoryName]) {
-				break;
+		tryCategories = [];
+		
+		// The first category to try will be the current category
+		tryCategories.push(currentCategoryName);
+		
+		// If we don't find enough words in the current category, look at this word's other categories
+		for (let category of targetWord.all_categories) {
+			if (!tryCategories.includes(category)) {
+				tryCategories.push(category);
 			}
 		}
+		
+		// If that still isn't enough, look at all other categories
+		categoryNames.forEach(category => {
+			if (!tryCategories.includes(category)) {
+				tryCategories.push(category);
+			}
+		});
+		
+		while (selectedWords.length < categoryOptionsCount[currentCategoryName]) {
+			if (tryCategories.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
+			let candidateCategory = tryCategories.shift();
+			selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
+		}
+		
 		return selectedWords; // Return the filled options
 	}
 	
