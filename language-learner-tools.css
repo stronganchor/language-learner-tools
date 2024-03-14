@@ -54,7 +54,7 @@ p:has(.ll-word-audio) {
 .word-image-container {
     display: inline-block; /* Or flex, depending on your design */
     padding: 0px; 
-	width: 250px;
+	width: 200px;
     margin-bottom: 30px;
     border-radius: 10px;
     overflow: hidden; /* Ensure the rounded corners clip the content */
