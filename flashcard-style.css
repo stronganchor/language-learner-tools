@@ -1,0 +1,60 @@
+#ll-tools-start-flashcard, #ll-tools-skip-flashcard {
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+#ll-tools-flashcard-container {
+    text-align: center; 
+}
+
+#ll-tools-flashcard {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap; 
+    gap: 20px;
+    padding-top: 30px;
+	padding-bottom: 30px;   
+}
+
+.flashcard-image-container {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Adds shadow for depth */
+    padding: 0; /* No spacing inside the card to allow image to fill */
+    background: #fff;
+    text-align: center; /* Center-align the image inside the card */
+    width: 150px; /* Width of the flashcard */
+    height: 150px; /* Height of the flashcard */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px; /* Rounded corners for the container */
+    overflow: hidden; /* Ensures images are clipped to the container's rounded corners */
+}
+
+/* Class to be toggled for fading out elements */
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; /* Prevent interaction during fade-out */
+}
+
+.quiz-image {
+    width: 100%; /* Adjusted to ensure the image fills the container */
+    height: 100%; /* Adjusted to ensure the image fills the container */
+    object-fit: cover; /* Ensures the image covers the container, maintaining its aspect ratio */
+    border-radius: 10px; /* Apply rounded corners to the image */
+    cursor: pointer; 
+    transition: transform 0.3s ease;
+}
+
+.quiz-image:hover {
+    transform: scale(1.05);
+}
+
+/* Hide the audio player */
+#ll-tools-flashcard audio {
+    display: none;
+}
+
+#ll-tools-skip-flashcard {
+    margin-left: 20px;
+}
