@@ -7,16 +7,6 @@ p:has(.ll-word-audio) {
 	display: inline;
 }
 
-<<<<<<< HEAD
-=======
-/* the div element surrounding the populated content of the post */
-.vocab-item {
-    /* border: 0px solid #ddd;
-    padding: 15px;
-    margin-bottom: 20px; */
-}
-
->>>>>>> origin/main
 .vocab-item h2 {
     color: #333;
 }
@@ -41,11 +31,7 @@ p:has(.ll-word-audio) {
  */
 .word-item {
     border: 0px solid #ddd;
-<<<<<<< HEAD
     padding: 10px;
-=======
-    padding: 10px;
->>>>>>> origin/main
     text-align: center;
 }
 
@@ -61,26 +47,16 @@ p:has(.ll-word-audio) {
     max-width: 100%;
     height: auto;
     margin-bottom: 0px;
-<<<<<<< HEAD
     border-radius: 0px;
-=======
-    border-radius: 10px; /* Add rounded corners */
->>>>>>> origin/main
 }
 
 /* Container for the word image, to make rounded corners work */
 .word-image-container {
     display: inline-block; /* Or flex, depending on your design */
-<<<<<<< HEAD
     padding: 0px; 
 	width: 250px;
     margin-bottom: 30px;
     border-radius: 10px;
-=======
-    padding: 5px; /* Adjust as necessary */
-    margin-bottom: 15px; /* Adjust as necessary */
-    border-radius: 10px; /* Add rounded corners */
->>>>>>> origin/main
     overflow: hidden; /* Ensure the rounded corners clip the content */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Optional: Adds shadow for depth, similar to flashcards */
 }

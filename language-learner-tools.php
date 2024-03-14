@@ -205,21 +205,14 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // WP_Query arguments
     $args = array(
-<<<<<<< HEAD
         'post_type' => 'words',
         'posts_per_page' => -1,
         'meta_query' => array(
-=======
-        'post_type'      => 'words',
-        'posts_per_page' => -1,
-		'meta_query'     => array(
->>>>>>> origin/main
             array(
                 'key' => '_thumbnail_id', // Checks if the post has a featured image.
                 'compare' => 'EXISTS'
             ),
         ),
-<<<<<<< HEAD
         'orderby' => 'date', // Order by date
         'order' => 'ASC', // Ascending order
     );
@@ -234,18 +227,6 @@ function ll_tools_word_grid_shortcode($atts) {
             ),
         );
     }
-=======
-        'orderby'        => 'date', // Order by date
-        'order'          => 'ASC', // Ascending order
-        'tax_query'      => array(
-            array(
-                'taxonomy' => 'word-category',
-                'field'    => 'slug',
-                'terms'    => $atts['category'],
-            ),
-        ),
-    );
->>>>>>> origin/main
 
     // The Query
     $query = new WP_Query($args);
