@@ -15,6 +15,7 @@ jQuery(document).ready(function($) {
 	var defaultNumberOfOptions = 4;
 	var currentCategory = null;
 	var currentCategoryName = null;
+	var currentCategoryRoundCount = 0;
     var maxCards = null;
     var isFirstRound = true;
 	var categoryOptionsCount = {}; // To track the number of options for each category
@@ -261,10 +262,36 @@ jQuery(document).ready(function($) {
 			}
 		}
 
+		// If we still didn't select a word, but there are repeatQueue words that aren't ready yet
+		if (!target && repeatQueue && repeatQueue.length > 0) {
+			target = repeatQueue[0].wordData;
+	
+			// Check if the target word is the same as the previous one
+			if (target.id === usedWordIDs[usedWordIDs.length - 1]) {
+				// If it's the same and there are other words in the category, try to select a different one
+				const otherWords = currentCategory.filter(word => word.id !== target.id);
+				if (otherWords.length > 0) {
+					target = otherWords[Math.floor(Math.random() * otherWords.length)];
+				}
+			}
+			
+			// Remove the target word from the repeat queue if applicable
+			const targetWordIndex = repeatQueue.findIndex(item => item.wordData.id === target.id);
+			if (targetWordIndex !== -1) {
+				repeatQueue.splice(targetWordIndex, 1);
+			}
+
+			usedWordIDs.push(target.id);
+		}
+
 		if (target) {
-			currentCategoryName = candidateCategoryName;
+			if (currentCategoryName !== candidateCategoryName) {
+				currentCategoryName = candidateCategoryName;
+				currentCategoryRoundCount = 0;
+			}
 			currentCategory = wordsByCategory[candidateCategoryName];
 			categoryRoundCount[candidateCategoryName]++;
+			currentCategoryRoundCount++;
 		}
 		
 		return target;
@@ -282,28 +309,28 @@ jQuery(document).ready(function($) {
 	
 	function selectTargetWordAndCategory() {
 		let targetWord = null;
-
+	
 		if (!isFirstRound) {
-			let categoryIsFinished = ((categoryRoundCount[currentCategoryName]) % ROUNDS_PER_CATEGORY) === 0;
-			
-			if (!categoryIsFinished) {
+			const repeatQueue = categoryRepetitionQueues[currentCategoryName];
+			if ((repeatQueue && repeatQueue.length > 0) || currentCategoryRoundCount < ROUNDS_PER_CATEGORY) {
 				targetWord = selectTargetWord(currentCategory, currentCategoryName);
-			} else {
+			} else {	
 				// Put the current category at the end of the category names list
 				categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
 				categoryNames.push(currentCategoryName);
 			}
 		}
-
-		if (!targetWord) { 
+	
+		if (!targetWord) {
 			targetWord = selectWordFromNextCategory();
 		}
-		
+	
 		// If no target word is found after going through all categories, reset usedWordIDs and try again
-		if (!targetWord) { 
+		if (!targetWord) {
 			usedWordIDs = [];
 			targetWord = selectWordFromNextCategory();
 		}
+	
 		return targetWord;
 	}
 	
