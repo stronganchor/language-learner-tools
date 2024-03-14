@@ -4,11 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
-<<<<<<< HEAD
  * Version: 1.3.6
-=======
- * Version: 1.3.5
->>>>>>> origin/main
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -43,17 +39,9 @@ include(plugin_dir_path(__FILE__) . 'language-switcher.php');
  * Enqueue plugin styles and scripts.
  */
 function ll_tools_enqueue_assets() {
-<<<<<<< HEAD
     $css_file = plugins_url('language-learner-tools.css', __FILE__);
     $css_version = filemtime(plugin_dir_path(__FILE__) . 'language-learner-tools.css');
     wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
-=======
-    // Set the version numbers for the CSS file. (This needs to be incremented whenever the file changes)
-    $lltools_css_version = '1.2.1'; 
-
-    // Enqueue the CSS file
-    wp_enqueue_style('ll-tools-style', plugins_url('language-learner-tools.css', __FILE__), array(), $lltools_css_version);
->>>>>>> origin/main
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
 
