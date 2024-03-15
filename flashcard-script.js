@@ -21,11 +21,42 @@ jQuery(document).ready(function($) {
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 
-    var imagesToLoad = wordsData.map(word => word.image);
-    imagesToLoad.forEach(function(src) {
-        var img = new Image();
-        img.src = src;
-    });
+	var loadedResources = {};
+
+	// Load resources for a category
+	function loadResourcesForCategory(categoryName) {
+		for (let word of wordsByCategory[categoryName]) {
+			// Load image
+			if (!loadedResources[word.image]) {
+				fetch(word.image)
+					.then(response => response.blob())
+					.then(blob => {
+						let url = URL.createObjectURL(blob);
+						let img = new Image();
+						img.onload = function() {
+							URL.revokeObjectURL(url);
+							loadedResources[word.image] = true;
+						};
+						img.src = url;
+					});
+			}
+
+			// Load audio
+			if (!loadedResources[word.audio]) {
+				fetch(word.audio)
+					.then(response => response.blob())
+					.then(blob => {
+						let url = URL.createObjectURL(blob);
+						let audio = new Audio();
+						audio.onload = function() {
+							URL.revokeObjectURL(url);
+							loadedResources[word.audio] = true;
+						};
+						audio.src = url;
+					});
+			}
+		}
+	}
     
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
@@ -292,6 +323,7 @@ jQuery(document).ready(function($) {
 			currentCategory = wordsByCategory[candidateCategoryName];
 			categoryRoundCount[candidateCategoryName]++;
 			currentCategoryRoundCount++;
+			loadResourcesForCategory(candidateCategoryName);
 		}
 		
 		return target;
@@ -511,18 +543,23 @@ jQuery(document).ready(function($) {
 		if (isFirstRound) {
 			// Initialize category arrays
 	        wordsData.forEach(word => {
-				let category = word.category;
-				if (!wordsByCategory[category]) {
-					wordsByCategory[category] = [];
-					categoryRoundCount[category] = 0;
+				let categoryName = word.category;
+				if (!wordsByCategory[categoryName]) {
+					wordsByCategory[categoryName] = [];
+					categoryRoundCount[categoryName] = 0;
 				}
-				wordsByCategory[category].push(word);
+				wordsByCategory[categoryName].push(word);
 			});
 
 			// Randomize the order of the categories to begin with
 			categoryNames = Object.keys(wordsByCategory);
 			categoryNames = randomlySort(categoryNames);
 			
+			// Asynchronously load resources for all categories
+			for (let categoryName of categoryNames) {
+				setTimeout(() => loadResourcesForCategory(categoryName), 0);
+			}
+
 			initializeOptionsCount(number_of_options);
 		}
 		
