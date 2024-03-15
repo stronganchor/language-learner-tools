@@ -18,15 +18,14 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        $.each(response.data, function(index, category_id) {
-                            categories.find('option[value="' + category_id + '"]').prop('selected', true);
-                        });
+                        categories.val(response.data);
                     }
                 }
             });
-
+            
             // Populate audio file
             var audio_file = $row.find('input[name="word_audio_file"]');
+            audio_file.val(''); // Clear the previous value
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',
@@ -44,6 +43,7 @@
 
             // Populate translation
             var translation = $row.find('input[name="word_english_meaning"]');
+            translation.val(''); // Clear the previous value
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',

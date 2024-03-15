@@ -1090,6 +1090,21 @@ function ll_apply_words_filters($query) {
     }
 }
 
+// Display the category hierarchy in a field in the Quick Edit menu
+function ll_display_category_hierarchy($parent = 0, $level = 0) {
+    $categories = get_terms(array(
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'parent' => $parent,
+    ));
+
+    foreach ($categories as $category) {
+        $indent = str_repeat('&nbsp;', $level * 3);
+        echo '<option value="' . $category->term_id . '">' . $indent . $category->name . '</option>';
+        ll_display_category_hierarchy($category->term_id, $level + 1);
+    }
+}
+
 // Add custom fields to the 'Quick Edit' menu
 function ll_add_quick_edit_fields($column_name, $post_type) {
     if ($post_type === 'words') {
@@ -1101,13 +1116,7 @@ function ll_add_quick_edit_fields($column_name, $post_type) {
                 echo '<span class="title">' . __('Categories', 'll-tools-text-domain') . '</span>';
                 echo '<span class="input-text-wrap">';
                 echo '<select name="word_categories[]" multiple="multiple" style="width:100%;">';
-                $categories = get_terms(array(
-                    'taxonomy' => 'word-category',
-                    'hide_empty' => false,
-                ));
-                foreach ($categories as $category) {
-                    echo '<option value="' . $category->term_id . '">' . $category->name . '</option>';
-                }
+                ll_display_category_hierarchy();
                 echo '</select>';
                 echo '</span>';
                 echo '</label>';
@@ -1172,7 +1181,7 @@ add_action('admin_enqueue_scripts', 'll_enqueue_quick_edit_script');
 function ll_get_word_categories_callback() {
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
     if ($post_id > 0) {
-        $categories = wp_get_object_terms($post_id, 'word-category', array('fields' => 'ids'));
+        $categories = wp_get_post_terms($post_id, 'word-category', array('fields' => 'ids'));
         wp_send_json_success($categories);
     } else {
         wp_send_json_error();
