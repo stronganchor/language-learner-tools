@@ -361,9 +361,11 @@ jQuery(document).ready(function($) {
 		tryCategories.push(currentCategoryName);
 		
 		// If we don't find enough words in the current category, look at this word's other categories
-		for (let category of targetWord.all_categories) {
-			if (!tryCategories.includes(category)) {
-				tryCategories.push(category);
+		if (targetWord.all_categories) {
+			for (let category of targetWord.all_categories) {
+				if (!tryCategories.includes(category)) {
+					tryCategories.push(category);
+				}
 			}
 		}
 		
