@@ -46,38 +46,74 @@ function ll_tools_register_words_post_type() {
 
 add_action( 'init', 'll_tools_register_words_post_type' );
 
-// Register the "word-category" custom taxonomy
-function ll_tools_register_word_category_taxonomy() {
-	$labels = [
-		"name" => esc_html__( "Word Categories", "astra" ),
-		"singular_name" => esc_html__( "Word Category", "astra" ),
-	];
+// Register the "word_images" custom post type
+function ll_tools_register_word_images_post_type() {
+    $labels = [
+        "name" => esc_html__("Word Images", "astra"),
+        "singular_name" => esc_html__("Word Image", "astra"),
+    ];
 
-	
-	$args = [
-		"label" => esc_html__( "Word Categories", "astra" ),
-		"labels" => $labels,
-		"public" => true,
-		"publicly_queryable" => true,
-		"hierarchical" => true,
-		"show_ui" => true,
-		"show_in_menu" => true,
-		"show_in_nav_menus" => true,
-		"query_var" => true,
-		"rewrite" => [ 'slug' => 'word-category', 'with_front' => true, ],
-		"show_admin_column" => false,
-		"show_in_rest" => true,
-		"show_tagcloud" => false,
-		"rest_base" => "word-category",
-		"rest_controller_class" => "WP_REST_Terms_Controller",
-		"rest_namespace" => "wp/v2",
-		"show_in_quick_edit" => false,
-		"sort" => false,
-		"show_in_graphql" => false,
-	];
-	register_taxonomy( "word-category", [ "words" ], $args );
+    $args = [
+        "label" => esc_html__("Word Images", "astra"),
+        "labels" => $labels,
+        "description" => "",
+        "public" => true,
+        "publicly_queryable" => true,
+        "show_ui" => true,
+        "show_in_rest" => true,
+        "rest_base" => "",
+        "rest_controller_class" => "WP_REST_Posts_Controller",
+        "rest_namespace" => "wp/v2",
+        "has_archive" => false,
+        "show_in_menu" => true,
+        "show_in_nav_menus" => true,
+        "delete_with_user" => false,
+        "exclude_from_search" => false,
+        "capability_type" => "post",
+        "map_meta_cap" => true,
+        "hierarchical" => false,
+        "can_export" => false,
+        "rewrite" => ["slug" => "word-images", "with_front" => true],
+        "query_var" => true,
+        "supports" => ["title", "thumbnail"],
+        "show_in_graphql" => false,
+    ];
+
+    register_post_type("word_images", $args);
 }
-add_action( 'init', 'll_tools_register_word_category_taxonomy' );
+add_action('init', 'll_tools_register_word_images_post_type');
+
+// Update the "word-category" taxonomy registration
+function ll_tools_register_word_category_taxonomy() {
+    $labels = [
+        "name" => esc_html__("Word Categories", "astra"),
+        "singular_name" => esc_html__("Word Category", "astra"),
+    ];
+
+    $args = [
+        "label" => esc_html__("Word Categories", "astra"),
+        "labels" => $labels,
+        "public" => true,
+        "publicly_queryable" => true,
+        "hierarchical" => true,
+        "show_ui" => true,
+        "show_in_menu" => true,
+        "show_in_nav_menus" => true,
+        "query_var" => true,
+        "rewrite" => ['slug' => 'word-category', 'with_front' => true,],
+        "show_admin_column" => false,
+        "show_in_rest" => true,
+        "show_tagcloud" => false,
+        "rest_base" => "word-category",
+        "rest_controller_class" => "WP_REST_Terms_Controller",
+        "rest_namespace" => "wp/v2",
+        "show_in_quick_edit" => false,
+        "sort" => false,
+        "show_in_graphql" => false,
+    ];
+    register_taxonomy("word-category", ["words", "word_images"], $args);
+}
+add_action('init', 'll_tools_register_word_category_taxonomy');
 
 /**
  *  Words metadata functions
@@ -240,7 +276,7 @@ function ll_render_words_columns($column, $post_id) {
             }
             break;
         case 'featured_image':
-            $thumbnail = get_the_post_thumbnail($post_id, array(50, 50));
+            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:50px;'));
             if ($thumbnail) {
                 echo $thumbnail;
             } else {

@@ -171,7 +171,16 @@ function ll_handle_audio_file_uploads() {
                             $selected_categories = array_map('intval', $selected_categories);
                             wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
                         }
-                        
+
+                        // Try to find a relevant image and assign it as the featured image
+                        $matching_image = ll_find_matching_image($formatted_title, $selected_categories);
+                        if ($matching_image) {
+                            $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
+                            if ($matching_image_attachment_id) {
+                                set_post_thumbnail($post_id, $matching_image_attachment_id);
+                            }
+                        }
+
                         // Add to success matches list for feedback
                         $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
                     } else {
@@ -192,5 +201,28 @@ function ll_handle_audio_file_uploads() {
     
     wp_redirect($redirect_url);
     exit;
+}
+
+// Find the best matching image for a given audio file name and category
+function ll_find_matching_image($audio_file_name, $categories) {
+    $image_posts = get_posts(array(
+        'post_type' => 'word_images',
+        'posts_per_page' => -1,
+        ),
+    );
+
+    $best_match = null;
+    $max_score = 0;
+
+    foreach ($image_posts as $image_post) {
+        $image_file_name = pathinfo($image_post->post_title, PATHINFO_FILENAME);
+        similar_text(strtolower($audio_file_name), strtolower($image_file_name), $score);
+        if ($score > $max_score || $best_match === null) {
+            $max_score = $score;
+            $best_match = $image_post;
+        }
+    }
+
+    return $best_match;
 }
 ?>
