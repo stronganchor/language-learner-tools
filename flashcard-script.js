@@ -353,7 +353,6 @@ jQuery(document).ready(function($) {
 	function fillQuizOptions(targetWord) {
 		let selectedWords = [];
 		selectedWords.push(targetWord);
-		currentCategory = randomlySort(currentCategory);
 		
 		tryCategories = [];
 		
@@ -368,7 +367,7 @@ jQuery(document).ready(function($) {
 				}
 			}
 		}
-		
+
 		// If that still isn't enough, look at all other categories
 		categoryNames.forEach(category => {
 			if (!tryCategories.includes(category)) {
@@ -379,6 +378,7 @@ jQuery(document).ready(function($) {
 		while (selectedWords.length < categoryOptionsCount[currentCategoryName]) {
 			if (tryCategories.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
 			let candidateCategory = tryCategories.shift();
+			wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
 			selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
 		}
 		
@@ -417,7 +417,7 @@ jQuery(document).ready(function($) {
 							// Add the word to the repetition queue for the current category
 							categoryRepetitionQueues[currentCategoryName].push({
 								wordData: targetWord,
-								reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(2, 4), // Reappear in a few rounds
+								reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
 							});
 						}
 						
