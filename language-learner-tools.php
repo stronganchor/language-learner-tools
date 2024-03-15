@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.4.2
+ * Version: 1.4.3
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -447,9 +447,10 @@ function ll_tools_flashcard_widget($atts) {
 		    // Fetch all categories
 		    $all_categories = wp_get_post_terms($current_id, 'word-category', array('fields' => 'slugs'));
 
-			// Inside the ll_tools_flashcard_widget function
 			$deepest_category = null;
 			$max_depth = -1;
+
+            // Find the deepest category
 			foreach ($all_categories as $category) {
 			    $depth = 0;
 			    $current_category = get_term_by('slug', $category, 'word-category');
@@ -463,6 +464,7 @@ function ll_tools_flashcard_widget($atts) {
 			    }
 			}
 		
+            // Add the word data for this word to the words_data array
 		    $words_data[] = array(
 		        'id' => $current_id,
 		        'title' => get_the_title(),
@@ -943,6 +945,264 @@ function translate_with_deepl($text, $target_lang = 'EN', $source_lang = 'TR') {
     }
     return $json['translations'][0]['text'] ?? $text; // Return the translation or original text if something goes wrong
 }
+
+/*****************************
+ * Words Custom Post Type
+ *****************************/
+
+// Modify the "Words" admin page
+function ll_modify_words_admin_page() {
+    add_filter('manage_words_posts_columns', 'll_modify_words_columns');
+    add_action('manage_words_posts_custom_column', 'll_render_words_columns', 10, 2);
+    add_filter('manage_edit-words_sortable_columns', 'll_make_words_columns_sortable');
+    add_action('restrict_manage_posts', 'll_add_words_filters');
+    add_action('pre_get_posts', 'll_apply_words_filters');
+}
+add_action('admin_init', 'll_modify_words_admin_page');
+
+// Modify the columns in the "Words" table
+function ll_modify_words_columns($columns) {
+    unset($columns['date']);
+    $columns['word_categories'] = __('Categories', 'll-tools-text-domain');
+    $columns['featured_image'] = __('Featured Image', 'll-tools-text-domain');
+    $columns['audio_file'] = __('Audio File', 'll-tools-text-domain');
+    $columns['translation'] = __('Translation', 'll-tools-text-domain');
+    $columns['date'] = __('Date', 'll-tools-text-domain');
+    return $columns;
+}
+
+// Render the content for custom columns
+function ll_render_words_columns($column, $post_id) {
+    switch ($column) {
+        case 'word_categories':
+            $categories = get_the_terms($post_id, 'word-category');
+            if ($categories) {
+                $category_names = array();
+                foreach ($categories as $category) {
+                    $category_names[] = $category->name;
+                }
+                echo implode(', ', $category_names);
+            } else {
+                echo '-';
+            }
+            break;
+        case 'featured_image':
+            $thumbnail = get_the_post_thumbnail($post_id, array(50, 50));
+            if ($thumbnail) {
+                echo $thumbnail;
+            } else {
+                echo '-';
+            }
+            break;
+        case 'audio_file':
+            $audio_file = get_post_meta($post_id, 'word_audio_file', true);
+            if ($audio_file) {
+                echo basename($audio_file);
+            } else {
+                echo '-';
+            }
+            break;
+        case 'translation':
+            $translation = get_post_meta($post_id, 'word_english_meaning', true);
+            if ($translation) {
+                echo $translation;
+            } else {
+                echo '-';
+            }
+            break;
+    }
+}
+
+// Make custom columns sortable
+function ll_make_words_columns_sortable($columns) {
+    $columns['word_categories'] = 'word_categories';
+    $columns['featured_image'] = 'featured_image';
+    $columns['audio_file'] = 'audio_file';
+    $columns['translation'] = 'translation';
+    return $columns;
+}
+
+// Add dropdown filters for categories and featured image
+function ll_add_words_filters() {
+    global $typenow;
+    if ($typenow === 'words') {
+        $selected_category = isset($_GET['word_category']) ? $_GET['word_category'] : '';
+        $selected_image = isset($_GET['has_image']) ? $_GET['has_image'] : '';
+
+        // Category filter
+        wp_dropdown_categories(array(
+            'show_option_all' => __('All Categories', 'll-tools-text-domain'),
+            'taxonomy' => 'word-category',
+            'name' => 'word_category',
+            'selected' => $selected_category,
+            'hierarchical' => true,
+            'depth' => 3,
+            'show_count' => true,
+            'hide_empty' => false,
+        ));
+
+        // Featured image filter
+        echo '<select name="has_image">';
+        echo '<option value="">' . __('Has Featured Image', 'll-tools-text-domain') . '</option>';
+        echo '<option value="yes"' . selected($selected_image, 'yes', false) . '>' . __('Yes', 'll-tools-text-domain') . '</option>';
+        echo '<option value="no"' . selected($selected_image, 'no', false) . '>' . __('No', 'll-tools-text-domain') . '</option>';
+        echo '</select>';
+    }
+}
+
+// Apply the selected filters to the query
+function ll_apply_words_filters($query) {
+    global $pagenow;
+    if (is_admin() && $pagenow === 'edit.php' && isset($_GET['post_type']) && $_GET['post_type'] === 'words') {
+        // Filter by category
+        if (isset($_GET['word_category']) && !empty($_GET['word_category'])) {
+            $query->query_vars['tax_query'] = array(
+                array(
+                    'taxonomy' => 'word-category',
+                    'field' => 'slug',
+                    'terms' => $_GET['word_category'],
+                ),
+            );
+        }
+
+        // Filter by featured image
+        if (isset($_GET['has_image']) && !empty($_GET['has_image'])) {
+            $image_query = ($_GET['has_image'] === 'yes') ? 'EXISTS' : 'NOT EXISTS';
+            $query->query_vars['meta_query'] = array(
+                array(
+                    'key' => '_thumbnail_id',
+                    'compare' => $image_query,
+                ),
+            );
+        }
+
+        // Sort by audio file
+        if (isset($_GET['orderby']) && $_GET['orderby'] === 'audio_file') {
+            $query->query_vars['meta_key'] = 'word_audio_file';
+            $query->query_vars['orderby'] = 'meta_value';
+        }
+
+        // Sort by translation
+        if (isset($_GET['orderby']) && $_GET['orderby'] === 'translation') {
+            $query->query_vars['meta_key'] = 'word_english_meaning';
+            $query->query_vars['orderby'] = 'meta_value';
+        }
+    }
+}
+
+// Add custom fields to the 'Quick Edit' menu
+function ll_add_quick_edit_fields($column_name, $post_type) {
+    if ($post_type === 'words') {
+        switch ($column_name) {
+            case 'word_categories':
+                echo '<fieldset class="inline-edit-col-right">';
+                echo '<div class="inline-edit-group wp-clearfix">';
+                echo '<label class="alignleft">';
+                echo '<span class="title">' . __('Categories', 'll-tools-text-domain') . '</span>';
+                echo '<span class="input-text-wrap">';
+                echo '<select name="word_categories[]" multiple="multiple" style="width:100%;">';
+                $categories = get_terms(array(
+                    'taxonomy' => 'word-category',
+                    'hide_empty' => false,
+                ));
+                foreach ($categories as $category) {
+                    echo '<option value="' . $category->term_id . '">' . $category->name . '</option>';
+                }
+                echo '</select>';
+                echo '</span>';
+                echo '</label>';
+                echo '</div>';
+                echo '</fieldset>';
+                break;
+            case 'audio_file':
+                echo '<fieldset class="inline-edit-col-right">';
+                echo '<div class="inline-edit-group">';
+                echo '<label>';
+                echo '<span class="title">' . __('Audio File', 'll-tools-text-domain') . '</span>';
+                echo '<span class="input-text-wrap">';
+                echo '<input type="text" name="word_audio_file" value="" />';
+                echo '</span>';
+                echo '</label>';
+                echo '</div>';
+                echo '</fieldset>';
+                break;
+            case 'translation':
+                echo '<fieldset class="inline-edit-col-right">';
+                echo '<div class="inline-edit-group">';
+                echo '<label>';
+                echo '<span class="title">' . __('Translation', 'll-tools-text-domain') . '</span>';
+                echo '<span class="input-text-wrap">';
+                echo '<input type="text" name="word_english_meaning" value="" />';
+                echo '</span>';
+                echo '</label>';
+                echo '</div>';
+                echo '</fieldset>';
+                break;
+        }
+    }
+}
+add_action('quick_edit_custom_box', 'll_add_quick_edit_fields', 10, 2);
+
+// Save the custom field values from the 'Quick Edit' menu
+function ll_save_quick_edit_fields($post_id) {
+    if (isset($_POST['post_type']) && $_POST['post_type'] === 'words') {
+        if (isset($_POST['word_categories'])) {
+            $categories = array_map('intval', $_POST['word_categories']);
+            wp_set_object_terms($post_id, $categories, 'word-category');
+        }
+        if (isset($_POST['word_audio_file'])) {
+            update_post_meta($post_id, 'word_audio_file', sanitize_text_field($_POST['word_audio_file']));
+        }
+        if (isset($_POST['word_english_meaning'])) {
+            update_post_meta($post_id, 'word_english_meaning', sanitize_text_field($_POST['word_english_meaning']));
+        }
+    }
+}
+add_action('save_post', 'll_save_quick_edit_fields');
+
+// Enqueue the JavaScript file for 'Quick Edit' functionality
+function ll_enqueue_quick_edit_script($hook) {
+    if ($hook === 'edit.php' && isset($_GET['post_type']) && $_GET['post_type'] === 'words') {
+        wp_enqueue_script('ll-quick-edit', plugin_dir_url(__FILE__) . 'js/quick-edit.js', array('jquery'), '1.0', true);
+    }
+}
+add_action('admin_enqueue_scripts', 'll_enqueue_quick_edit_script');
+
+// AJAX callback to get word categories
+function ll_get_word_categories_callback() {
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if ($post_id > 0) {
+        $categories = wp_get_object_terms($post_id, 'word-category', array('fields' => 'ids'));
+        wp_send_json_success($categories);
+    } else {
+        wp_send_json_error();
+    }
+}
+add_action('wp_ajax_ll_get_word_categories', 'll_get_word_categories_callback');
+
+// AJAX callback to get word audio file
+function ll_get_word_audio_file_callback() {
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if ($post_id > 0) {
+        $audio_file = get_post_meta($post_id, 'word_audio_file', true);
+        wp_send_json_success($audio_file);
+    } else {
+        wp_send_json_error();
+    }
+}
+add_action('wp_ajax_ll_get_word_audio_file', 'll_get_word_audio_file_callback');
+
+// AJAX callback to get word translation
+function ll_get_word_translation_callback() {
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if ($post_id > 0) {
+        $translation = get_post_meta($post_id, 'word_english_meaning', true);
+        wp_send_json_success($translation);
+    } else {
+        wp_send_json_error();
+    }
+}
+add_action('wp_ajax_ll_get_word_translation', 'll_get_word_translation_callback');
 
 function ll_tools_register_words_post_type() {
 

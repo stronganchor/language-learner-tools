@@ -1,6 +1,7 @@
 jQuery(document).ready(function($) {
 	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
+	const MINIMUM_WORDS_PER_CATEGORY = 4;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
     var activeAudios = [];
@@ -222,6 +223,49 @@ jQuery(document).ready(function($) {
 		}
 		maxOptionsCount = Math.max(MINIMUM_NUMBER_OF_OPTIONS, maxOptionsCount);
 		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxOptionsCount)
+	}
+
+	// Initialize category arrays
+	function initializeCategoryArrays() {
+		wordsData.forEach(word => {
+			let categoryName = word.category;
+			if (!wordsByCategory[categoryName]) {
+				wordsByCategory[categoryName] = [];
+				categoryRoundCount[categoryName] = 0;
+			}
+			wordsByCategory[categoryName].push(word);
+		});
+
+		// Validation step: Ensure each category has enough words
+        for (let categoryName in wordsByCategory) {
+            if (wordsByCategory[categoryName].length < MINIMUM_WORDS_PER_CATEGORY) {
+                let wordsToMove = [...wordsByCategory[categoryName]]; // Create a copy of the array
+                for (let word of wordsToMove) {
+                    for (let otherCategory of word.all_categories) {
+                        if (otherCategory !== categoryName && wordsByCategory[otherCategory] && wordsByCategory[otherCategory].length >= MINIMUM_WORDS_PER_CATEGORY) {
+                            // Move the word to the other category
+                            wordsByCategory[otherCategory].push(word);
+                            let index = wordsByCategory[categoryName].indexOf(word);
+                            if (index > -1) {
+                                wordsByCategory[categoryName].splice(index, 1);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove categories that don't have enough words
+        for (let categoryName in wordsByCategory) {
+            if (wordsByCategory[categoryName].length < MINIMUM_WORDS_PER_CATEGORY) {
+                delete wordsByCategory[categoryName];
+            }
+        }
+
+		// Randomize the order of the categories to begin with
+		categoryNames = Object.keys(wordsByCategory);
+		categoryNames = randomlySort(categoryNames);
 	}
 
 	// Set up initial values for the number of options to display for each category of words
@@ -536,19 +580,8 @@ jQuery(document).ready(function($) {
 
     function showQuiz(number_of_options) {
 		if (isFirstRound) {
-			// Initialize category arrays
-	        wordsData.forEach(word => {
-				let categoryName = word.category;
-				if (!wordsByCategory[categoryName]) {
-					wordsByCategory[categoryName] = [];
-					categoryRoundCount[categoryName] = 0;
-				}
-				wordsByCategory[categoryName].push(word);
-			});
-
-			// Randomize the order of the categories to begin with
-			categoryNames = Object.keys(wordsByCategory);
-			categoryNames = randomlySort(categoryNames);
+			// Initialize the category arrays and options count
+			initializeCategoryArrays();
 			
 			// Asynchronously load resources for all categories
 			for (let categoryName of categoryNames) {
