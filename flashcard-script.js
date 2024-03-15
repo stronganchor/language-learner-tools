@@ -23,38 +23,43 @@ jQuery(document).ready(function($) {
 
 	var loadedResources = {};
 
+	// Load resources for a word
+	function loadResourcesForWord(word) {
+		// Load image
+		if (!loadedResources[word.image]) {
+			fetch(word.image)
+				.then(response => response.blob())
+				.then(blob => {
+					let url = URL.createObjectURL(blob);
+					let img = new Image();
+					img.onload = function() {
+						URL.revokeObjectURL(url);
+						loadedResources[word.image] = true;
+					};
+					img.src = url;
+				});
+		}
+
+		// Load audio
+		if (!loadedResources[word.audio]) {
+			fetch(word.audio)
+				.then(response => response.blob())
+				.then(blob => {
+					let url = URL.createObjectURL(blob);
+					let audio = new Audio();
+					audio.onload = function() {
+						URL.revokeObjectURL(url);
+						loadedResources[word.audio] = true;
+					};
+					audio.src = url;
+				});
+		}
+	}
+
 	// Load resources for a category
 	function loadResourcesForCategory(categoryName) {
 		for (let word of wordsByCategory[categoryName]) {
-			// Load image
-			if (!loadedResources[word.image]) {
-				fetch(word.image)
-					.then(response => response.blob())
-					.then(blob => {
-						let url = URL.createObjectURL(blob);
-						let img = new Image();
-						img.onload = function() {
-							URL.revokeObjectURL(url);
-							loadedResources[word.image] = true;
-						};
-						img.src = url;
-					});
-			}
-
-			// Load audio
-			if (!loadedResources[word.audio]) {
-				fetch(word.audio)
-					.then(response => response.blob())
-					.then(blob => {
-						let url = URL.createObjectURL(blob);
-						let audio = new Audio();
-						audio.onload = function() {
-							URL.revokeObjectURL(url);
-							loadedResources[word.audio] = true;
-						};
-						audio.src = url;
-					});
-			}
+			loadResourcesForWord(word);
 		}
 	}
     
@@ -323,7 +328,6 @@ jQuery(document).ready(function($) {
 			currentCategory = wordsByCategory[candidateCategoryName];
 			categoryRoundCount[candidateCategoryName]++;
 			currentCategoryRoundCount++;
-			loadResourcesForCategory(candidateCategoryName);
 		}
 		
 		return target;
@@ -414,6 +418,9 @@ jQuery(document).ready(function($) {
 			selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
 		}
 		
+		// Load all resources for the selected words
+		selectedWords.forEach(word => loadResourcesForWord(word));
+
 		return selectedWords; // Return the filled options
 	}
 	
@@ -525,19 +532,7 @@ jQuery(document).ready(function($) {
 
 		// Show the quiz container if it was previously hidden
 		$('#ll-tools-flashcard').removeClass('hidden');
-
-		// Additionally, if there are other UI elements that need to be reset or shown, handle them here
-		// For example, resetting form fields, hiding feedback messages, etc.
-
-		// If there is logic that sets up the initial state of the quiz (like enabling buttons, resetting timers, etc.), include it here
-		// For instance, if you have a 'Submit' button or similar controls for the quiz, ensure they are in the correct state
-
-		// If the quiz involves any kind of timer or countdown, initialize or reset it here as well
-
-		// Ensure all quiz options are now clickable or interactable as needed, if there's any global disabling prior
-
-		// Any additional UI adjustments or state resets that typically occur at the start of a quiz should be included
-	}
+}
 
     function showQuiz(number_of_options) {
 		if (isFirstRound) {
