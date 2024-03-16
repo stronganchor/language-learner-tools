@@ -173,7 +173,7 @@ function ll_handle_audio_file_uploads() {
                         }
 
                         // Try to find a relevant image and assign it as the featured image
-                        $matching_image = ll_find_matching_image($formatted_title, $selected_categories);
+                        $matching_image = ll_find_matching_image($title_without_extension, $selected_categories);
                         if ($matching_image) {
                             $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
                             if ($matching_image_attachment_id) {

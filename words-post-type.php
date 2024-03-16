@@ -276,7 +276,7 @@ function ll_render_words_columns($column, $post_id) {
             }
             break;
         case 'featured_image':
-            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:50px;'));
+            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
             if ($thumbnail) {
                 echo $thumbnail;
             } else {

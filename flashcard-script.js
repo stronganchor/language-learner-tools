@@ -114,6 +114,9 @@ jQuery(document).ready(function($) {
 	
 	// Helper function to randomly sort an array
 	function randomlySort(inputArray) {
+		if (!Array.isArray(inputArray)) {
+			return inputArray;
+		}
 	    return [...inputArray].sort(() => 0.5 - Math.random());
 	}
 
@@ -487,6 +490,15 @@ jQuery(document).ready(function($) {
 				alt: wordData.title,
 				class: 'quiz-image'
 			}).appendTo(imgContainer); // Append the image to its container
+
+			// Check the image orientation and apply the appropriate class
+			img.on('load', function() {
+				if (this.naturalWidth > this.naturalHeight) {
+					imgContainer.addClass('landscape');
+				} else {
+					imgContainer.addClass('portrait');
+				}
+			});
 
 			// Add click event for the word
 			imgContainer.click(function() {
