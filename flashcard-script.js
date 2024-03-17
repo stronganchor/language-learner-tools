@@ -1,6 +1,7 @@
 jQuery(document).ready(function($) {
 	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
+	const MAXIMUM_NUMBER_OF_OPTIONS = 2;
 	const MINIMUM_WORDS_PER_CATEGORY = 4;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
@@ -161,6 +162,8 @@ jQuery(document).ready(function($) {
 
 		// Make sure the max is not more than the number of available words
 		maxCards = Math.min(maxCards, wordsData.length);
+
+		maxCards = Math.min(MAXIMUM_NUMBER_OF_OPTIONS, maxCards);
     }
     
     // Helper function for playing audio
@@ -626,42 +629,39 @@ jQuery(document).ready(function($) {
 
 		loadQuizState();
 		
-        // Create and insert the Skip button next to the Start/Repeat button
-        $('<button>', {
-            text: translations.skip, // Using the translated string for 'Skip'
-            id: 'll-tools-skip-flashcard',
-            class: 'flashcard-skip-button' // Add your CSS class for styling the button
-        }).insertAfter('#ll-tools-start-flashcard');
-    
-        // Event handler for the Skip button
-        $('#ll-tools-skip-flashcard').on('click', function() {
-            // Consider the skipped question as wrong
-            wrongIndexes.push(-1);
-            isFirstRound = false; // Update the first round flag
-            showQuiz(); // Move to the next question
-        });
-        
-        // Until other modes are implemented, always run in the quiz mode
-        showQuiz();
+		// Hide the start button and show the flashcard popup
+		$('#ll-tools-start-flashcard').hide();
+		$('#ll-tools-flashcard-popup').removeClass('hidden');
+
+		// Event handler for the close button
+		$('#ll-tools-close-flashcard').on('click', function() {
+			$('#ll-tools-flashcard-popup').addClass('hidden');
+			$('#ll-tools-start-flashcard').show(); // Show the start button when closing the popup
+		});
+
+		// Event handler for the repeat button
+		$('#ll-tools-repeat-flashcard').on('click', function() {
+			if (currentTargetAudio) {
+				currentTargetAudio.play().catch(function(e) {
+					console.error("Audio play failed:", e);
+				});
+			}
+		});
+
+		// Event handler for the skip button
+		$('#ll-tools-skip-flashcard').on('click', function() {
+			// Consider the skipped question as wrong
+			wrongIndexes.push(-1);
+			isFirstRound = false; // Update the first round flag
+			showQuiz(); // Move to the next question
+		});
     }
-    
-    // Event handler to start the widget or replay audio
-    $('#ll-tools-start-flashcard').on('click', function() {
-        // Check if the button has been clicked before
-        if ($(this).hasClass('clicked')) {
-            // Button has been clicked before, so replay the audio
-            if (currentTargetAudio) {
-                currentTargetAudio.play().catch(function(e) {
-                    console.error("Audio play failed:", e);
-                });
-            }
-        } else {
-            // Initialize the flashcard widget
-            initFlashcardWidget();
-            // Change the button text to "Repeat"
-            $(this).text(translations.repeat);
-            // Mark the button as clicked
-            $(this).addClass('clicked');
-        }
-    });
+
+    // Event handler to start the widget
+	$('#ll-tools-start-flashcard').on('click', function() {
+		initFlashcardWidget();
+		$('#ll-tools-flashcard-popup').removeClass('hidden');
+		//$(this).hide(); // Hide the start button after clicking
+		showQuiz();
+	});
 });

@@ -141,13 +141,23 @@ function ll_tools_flashcard_widget($atts) {
 		'ajaxurl' => admin_url('admin-ajax.php'),
     ));
 
-    // Output the initial setup and the button
+    // Output the initial setup and the buttons
     ob_start();
-    echo '<div id="ll-tools-flashcard-container" style="">'; // Hide until page is loaded
+    echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
-    echo '<div id="ll-tools-flashcard" class="hidden">
-            <audio controls class="hidden"></audio>
-          </div>';
+    echo '<div id="ll-tools-flashcard-popup" class="hidden">';
+    echo '<div id="ll-tools-flashcard-header">';
+    echo '<button id="ll-tools-close-flashcard">&times;</button>';
+    echo '</div>';
+    echo '<div id="ll-tools-flashcard-content">';
+    echo '<div id="ll-tools-flashcard-buttons">';
+    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
+    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
+    echo '</div>';
+    echo '<div id="ll-tools-flashcard"></div>';
+    echo '<audio controls class="hidden"></audio>';
+    echo '</div>';
+    echo '</div>';
     echo '</div>';
 	
 	// Run a script after the page loads to show the widget with proper CSS formatting
