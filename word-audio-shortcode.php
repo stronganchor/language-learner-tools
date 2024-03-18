@@ -131,7 +131,8 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
 
 // Set a Turkish text to only have the first character capitalized.
 function ll_normalize_case($text) {
-	if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+    $target_language = get_option('ll_target_language');
+	if ($target_language === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
         // Normalize the encoding to UTF-8 if not already
         $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
 		 
