@@ -4,12 +4,47 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.4.7
+ * Version: 1.4.8
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
  * This plugin is designed to enhance the display of vocabulary items in a custom
  * post type called 'words'. It adds the English meaning and an audio file to each post.
+ *
+ * The plugin includes the following main features:
+ * - Custom post types: 'words' for vocabulary items and 'word_images' for associated images
+ * - Custom taxonomy: 'word-category' for categorizing vocabulary items
+ * - Shortcodes: [word_grid], [flashcard_widget], [audio_upload_form], [image_upload_form]
+ * - Integration with the DeepL API for automatic translation
+ * - Bulk audio and image upload functionality
+ * - Flashcard quiz widget for practicing vocabulary
+ * - Audio playback and translation display using the [word_audio] shortcode
+ *
+ * The plugin is organized into multiple files for better code separation and maintainability:
+ * - language-learner-tools.php: Main plugin file, includes other files and registers activation/deactivation hooks
+ * - words-post-type.php: Registers the 'words' and 'word_images' post types and the 'word-category' taxonomy
+ * - deepl-api.php: Handles the integration with the DeepL API for automatic translation
+ * - language-switcher.php: Provides language switching functionality
+ * - audio-upload-form.php: Implements the bulk audio upload functionality and the [audio_upload_form] shortcode
+ * - image-upload-form.php: Implements the bulk image upload functionality and the [image_upload_form] shortcode
+ * - flashcard-widget.php: Implements the flashcard quiz widget and the [flashcard_widget] shortcode
+ * - word-audio-shortcode.php: Implements the [word_audio] shortcode for audio playback and translation display
+ *
+ * The plugin uses a combination of PHP, JavaScript (jQuery), and CSS to provide its functionality.
+ * It interacts with the WordPress database to store and retrieve vocabulary items, categories, and user progress.
+ *
+ * Key concepts and techniques used in the plugin:
+ * - Custom post types and taxonomies
+ * - Shortcodes for displaying vocabulary grids, flashcard quizzes, and audio playback
+ * - AJAX for saving and retrieving user progress in the flashcard quiz
+ * - Integration with external APIs (DeepL) for automatic translation
+ * - File uploads and handling for bulk audio and image uploads
+ * - Custom admin pages and settings for configuring the plugin
+ * - Enqueuing custom styles and scripts
+ * - Internationalization and localization support
+ *
+ * The plugin follows WordPress coding standards and best practices, using hooks and filters to extend functionality.
+ * It also includes error handling and security measures to ensure safe and reliable operation.
  */
 
 // If this file is called directly, abort.

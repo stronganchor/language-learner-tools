@@ -2,10 +2,15 @@
     display: none !important;
 }
 
+body.ll-tools-flashcard-open {
+    overflow: hidden;
+}
+
 #ll-tools-start-flashcard, #ll-tools-skip-flashcard, #ll-tools-repeat-flashcard {
     margin-left: 10px;
     margin-right: 10px;
 }
+
 #ll-tools-flashcard-container {
     position: relative;
 }
@@ -67,7 +72,7 @@
 }
 
 .flashcard-image-container {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Adds shadow for depth */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     padding: 0; /* No spacing inside the card to allow image to fill */
     background: #fff;
     text-align: center; /* Center-align the image inside the card */
@@ -90,8 +95,8 @@
 }
 
 .flashcard-image-container.landscape {
-    width: 250px;
-    max-width: 250px;
+    width: 200px;
+    max-width: 200px;
     height: auto;
 }
 

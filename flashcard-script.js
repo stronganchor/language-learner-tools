@@ -629,14 +629,13 @@ jQuery(document).ready(function($) {
 
 		loadQuizState();
 		
-		// Hide the start button and show the flashcard popup
-		$('#ll-tools-start-flashcard').hide();
+		// Show the flashcard popup
 		$('#ll-tools-flashcard-popup').removeClass('hidden');
 
 		// Event handler for the close button
 		$('#ll-tools-close-flashcard').on('click', function() {
 			$('#ll-tools-flashcard-popup').addClass('hidden');
-			$('#ll-tools-start-flashcard').show(); // Show the start button when closing the popup
+			$('body').removeClass('ll-tools-flashcard-open');
 		});
 
 		// Event handler for the repeat button
@@ -661,7 +660,7 @@ jQuery(document).ready(function($) {
 	$('#ll-tools-start-flashcard').on('click', function() {
 		initFlashcardWidget();
 		$('#ll-tools-flashcard-popup').removeClass('hidden');
-		//$(this).hide(); // Hide the start button after clicking
-		showQuiz();
+		showQuiz();		
+		$('body').addClass('ll-tools-flashcard-open'); 
 	});
 });
