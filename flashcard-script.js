@@ -23,45 +23,56 @@ jQuery(document).ready(function($) {
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 	var loadedResources = {};
+	var firstTargetWord = llToolsFlashcardsData.words[Math.random() * llToolsFlashcardsData.words.length | 0];
 
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
+	loadResourcesForWord(firstTargetWord);
+	loadAudio(correctAudio.src);
+	loadAudio(wrongAudio.src);
+
     // Hide the skip and repeat buttons initially
     $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
 
+	// Load an audio file so that it's cached for later use
+	function loadAudio(audioURL) {
+		if (!loadedResources[audioURL]) {
+			new Promise((resolve, reject) => {
+				let audio = new Audio(audioURL);
+				audio.oncanplaythrough = function() {
+					resolve(audio);
+				};
+				audio.onerror = function() {
+					reject(new Error('Audio load failed'));
+				};
+			});
+			loadedResources[audioURL] = true;
+		}
+	}
+
+	// Load an image so that it's cached for later use
+	function loadImage(imageURL) {
+		if (!loadedResources[imageURL]) {
+			new Promise((resolve, reject) => {
+				let img = new Image();
+				img.onload = function() {
+					resolve(img);
+				};
+				img.onerror = function() {
+					reject(new Error('Image load failed'));
+				};
+				img.src = imageURL
+			});
+			loadedResources[imageURL] = true;
+		}
+	}
+
 	// Load resources for a word
 	function loadResourcesForWord(word) {
-		// Load image
-		if (!loadedResources[word.image]) {
-			fetch(word.image)
-				.then(response => response.blob())
-				.then(blob => {
-					let url = URL.createObjectURL(blob);
-					let img = new Image();
-					img.onload = function() {
-						URL.revokeObjectURL(url);
-						loadedResources[word.image] = true;
-					};
-					img.src = url;
-				});
-		}
-
-		// Load audio
-		if (!loadedResources[word.audio]) {
-			fetch(word.audio)
-				.then(response => response.blob())
-				.then(blob => {
-					let url = URL.createObjectURL(blob);
-					let audio = new Audio();
-					audio.onload = function() {
-						URL.revokeObjectURL(url);
-						loadedResources[word.audio] = true;
-					};
-					audio.src = url;
-				});
-		}
+		loadAudio(word.audio);
+		loadImage(word.image);
 	}
 
 	// Load resources for a category
@@ -400,7 +411,11 @@ jQuery(document).ready(function($) {
 	function selectTargetWordAndCategory() {
 		let targetWord = null;
 	
-		if (!isFirstRound) {
+		if (isFirstRound) {
+			targetWord = firstTargetWord;
+			currentCategoryName = firstTargetWord.category;
+			currentCategory = wordsByCategory[currentCategoryName];
+		} else {
 			const repeatQueue = categoryRepetitionQueues[currentCategoryName];
 			if ((repeatQueue && repeatQueue.length > 0) || currentCategoryRoundCount < ROUNDS_PER_CATEGORY) {
 				targetWord = selectTargetWord(currentCategory, currentCategoryName);
