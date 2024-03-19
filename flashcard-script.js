@@ -1,6 +1,7 @@
 jQuery(document).ready(function($) {
 	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
+	const DEFAULT_NUMBER_OF_OPTIONS = 2;
 	const MAXIMUM_NUMBER_OF_OPTIONS = 9;
 	const MAX_ROWS = 3;
 	const MINIMUM_WORDS_PER_CATEGORY = 4;
@@ -15,16 +16,17 @@ jQuery(document).ready(function($) {
     var wrongIndexes = []; // To track indexes of wrong answers this turn
     var targetAudioHasPlayed = false;
     var currentTargetAudio = null;
-	var defaultNumberOfOptions = 4;
 	var currentCategory = null;
 	var currentCategoryName = null;
 	var currentCategoryRoundCount = 0;
     var isFirstRound = true;
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
-
 	var loadedResources = {};
 
+    // Audio feedback elements
+    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
+    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
     // Hide the skip and repeat buttons initially
     $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
@@ -68,10 +70,6 @@ jQuery(document).ready(function($) {
 			loadResourcesForWord(word);
 		}
 	}
-    
-    // Audio feedback elements
-    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
-    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
 	// Save the quiz state to user metadata in WordPress
     function saveQuizState() {
@@ -159,18 +157,17 @@ jQuery(document).ready(function($) {
 			return false;
 		}
 	
-		const lastRowCards = cards.slice(-cardsPerRow);
-		const lastRowWidth = lastRowCards.map(function() {
-			return $(this).outerWidth(true);
-		}).get().reduce((a, b) => a + b, 0) + (lastRowCards.length - 1) * gapValue;
-	
+		const cardsInLastRow = cards.length - (cardsPerRow * (rows - 1));
+		const lastRowWidth = cardsInLastRow * (cardWidth + gapValue) - gapValue;
 		const remainingWidth = containerWidth - lastRowWidth;
 	
 		// Calculate the remaining height considering the gap
 		const remainingHeight = containerHeight - (lastCard.offset().top + cardHeight - container.offset().top + (rows - 1) * gapValue);
 	
-		// If we're on the last row and there is not enough space for another card, return false
-		if (remainingHeight < cardHeight && remainingWidth < cardWidth) {
+		const thisIsTheLastRow = (rows === MAX_ROWS) || (remainingHeight < cardHeight);
+
+		// If there is not enough space for another card, return false
+		if (thisIsTheLastRow && remainingWidth < (cardWidth + gapValue)) {
 			return false;
 		}
 	
@@ -285,7 +282,7 @@ jQuery(document).ready(function($) {
 	// Set up initial values for the number of options to display for each category of words
 	function initializeOptionsCount(number_of_options) {
 		if (number_of_options) {
-			defaultNumberOfOptions = number_of_options;
+			DEFAULT_NUMBER_OF_OPTIONS = number_of_options;
 		}
 
 		categoryNames.forEach(categoryName => {
@@ -301,10 +298,10 @@ jQuery(document).ready(function($) {
 		}
 		
 		if (wordsByCategory[categoryName]) {
-				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions), categoryName);
+				categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, DEFAULT_NUMBER_OF_OPTIONS), categoryName);
 		} else {
 			// Handle any mismatches between categoryNames and wordsByCategory arrays
-			categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions, categoryName);
+			categoryOptionsCount[categoryName] = checkMinMax(DEFAULT_NUMBER_OF_OPTIONS, categoryName);
 		}
 	}
 	

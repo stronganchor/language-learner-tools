@@ -53,6 +53,7 @@ body.ll-tools-flashcard-open {
     border: none;
     font-size: 24px;
     cursor: pointer;
+    color: black;
 }
 
 #ll-tools-flashcard {
