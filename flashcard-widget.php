@@ -147,16 +147,13 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" class="hidden">';
     echo '<div id="ll-tools-flashcard-header">';
+    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
+    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-content">';
-    echo '<div id="ll-tools-flashcard-buttons">';
-    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
-    echo '</div>';
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
-    echo '</div>';
     echo '</div>';
     echo '</div>';
 	

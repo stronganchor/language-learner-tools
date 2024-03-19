@@ -1,7 +1,8 @@
 jQuery(document).ready(function($) {
 	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
-	const MAXIMUM_NUMBER_OF_OPTIONS = 2;
+	const MAXIMUM_NUMBER_OF_OPTIONS = 9;
+	const MAX_ROWS = 3;
 	const MINIMUM_WORDS_PER_CATEGORY = 4;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
@@ -18,12 +19,15 @@ jQuery(document).ready(function($) {
 	var currentCategory = null;
 	var currentCategoryName = null;
 	var currentCategoryRoundCount = 0;
-    var maxCards = null;
     var isFirstRound = true;
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 
 	var loadedResources = {};
+
+
+    // Hide the skip and repeat buttons initially
+    $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
 
 	// Load resources for a word
 	function loadResourcesForWord(word) {
@@ -126,45 +130,52 @@ jQuery(document).ready(function($) {
 	  return Math.floor((Math.random() * (max - min + 1)) + min)
 	}
 	
-    // Calculate the maximum number of cards that can fit in the available space for the widget
-    function calculateMaxCards() {
-        var containerWidth = $('#ll-tools-flashcard-container').width(); // Get the width of the container
-        var containerElement = document.getElementById('ll-tools-flashcard'); // Ensure this is the ID of your flex container
-        var style = window.getComputedStyle(containerElement);
-        var gap = parseInt(style.getPropertyValue('gap'), 10); // Get gap as an integer
-
-        // Check if gap is NaN (Not a Number), set to 0 if true
-        if (isNaN(gap)) {
-            gap = 0;
-        }
-
-        // Create a temporary card to measure dimensions
-        var tempCard = $('<div>', { class: 'flashcard-image-container' }).appendTo('#ll-tools-flashcard');
-        var cardWidth = tempCard.outerWidth(true); // Includes padding, border, and margin
-        var cardHeight = tempCard.outerHeight(true); // Includes padding, border, and margin
-        tempCard.remove(); // Remove the temporary card after measurement
-
-        // Calculate available height from container's top to bottom of the screen
-        var containerOffset = $('#ll-tools-flashcard').offset().top; // Get the top position of the container relative to the document
-        var screenHeight = $(window).height(); // Get the height of the screen
-        var availableHeight = screenHeight - containerOffset - gap; // Subtract gap from available height to account for vertical spacing
-
-        // Adjusting availableHeight to account for additional padding/margin at the bottom
-        var buffer = 20;
-        availableHeight -= buffer;
-
-        // Calculate how many cards can fit horizontally and vertically, accounting for the gap
-        var fitHorizontal = Math.max(1, Math.floor((containerWidth + gap) / (cardWidth + gap)));
-        var fitVertical = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
-
-        // Calculate maximum cards based on current layout
-        maxCards = Math.max(MINIMUM_NUMBER_OF_OPTIONS, fitHorizontal * fitVertical);
-
-		// Make sure the max is not more than the number of available words
-		maxCards = Math.min(maxCards, wordsData.length);
-
-		maxCards = Math.min(MAXIMUM_NUMBER_OF_OPTIONS, maxCards);
-    }
+	function canAddMoreCards() {
+		const cards = $('.flashcard-image-container');
+		
+		// If there are fewer than the minimum number of options, always try to add more
+		if (cards.length < MINIMUM_NUMBER_OF_OPTIONS) {
+			return true;
+		}
+	
+		const container = $('#ll-tools-flashcard');
+		const containerWidth = container.width();
+		const containerHeight = container.height();
+	
+		const lastCard = cards.last();
+		const cardWidth = lastCard.outerWidth(true);
+		const cardHeight = lastCard.outerHeight(true);
+	
+		// Get the computed style of the container to extract the gap value
+		const containerStyle = window.getComputedStyle(container[0]);
+		const gapValue = parseInt(containerStyle.getPropertyValue('gap'), 10);
+	
+		// Calculate the number of cards per row considering the gap
+		const cardsPerRow = Math.floor((containerWidth + gapValue) / (cardWidth + gapValue));
+	
+		const rows = Math.ceil(cards.length / cardsPerRow);
+	
+		if (rows > MAX_ROWS) {
+			return false;
+		}
+	
+		const lastRowCards = cards.slice(-cardsPerRow);
+		const lastRowWidth = lastRowCards.map(function() {
+			return $(this).outerWidth(true);
+		}).get().reduce((a, b) => a + b, 0) + (lastRowCards.length - 1) * gapValue;
+	
+		const remainingWidth = containerWidth - lastRowWidth;
+	
+		// Calculate the remaining height considering the gap
+		const remainingHeight = containerHeight - (lastCard.offset().top + cardHeight - container.offset().top + (rows - 1) * gapValue);
+	
+		// If we're on the last row and there is not enough space for another card, return false
+		if (remainingHeight < cardHeight && remainingWidth < cardWidth) {
+			return false;
+		}
+	
+		return true;
+	}
     
     // Helper function for playing audio
     function playAudio(audio) {
@@ -219,12 +230,9 @@ jQuery(document).ready(function($) {
 	
 	// Check a value against the min and max constraints and return the value or the min/max if out of bounds
 	function checkMinMax(optionsCount, categoryName) {
-		if(!maxCards) {
-			calculateMaxCards();
-		}
-		let maxOptionsCount = maxCards;
+		let maxOptionsCount = MAXIMUM_NUMBER_OF_OPTIONS;
 		if (wordsByCategory[categoryName]) {
-			// Limit the number of options to the total number of words in this category, or however many will fit on the screen
+			// Limit the number of options to the total number of words in this category, or the maximum number
 			maxOptionsCount = Math.min(maxOptionsCount, wordsByCategory[categoryName].length);
 		}
 		maxOptionsCount = Math.max(MINIMUM_NUMBER_OF_OPTIONS, maxOptionsCount);
@@ -276,7 +284,6 @@ jQuery(document).ready(function($) {
 
 	// Set up initial values for the number of options to display for each category of words
 	function initializeOptionsCount(number_of_options) {
-		calculateMaxCards();
 		if (number_of_options) {
 			defaultNumberOfOptions = number_of_options;
 		}
@@ -426,9 +433,14 @@ jQuery(document).ready(function($) {
 			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
 			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
 			let hasSameImage = selectedWords.some(word => word.image === candidateWord.image);
+			
+			// If this word passes the checks, add it to the selected words and container
 			if (!isDuplicate && !isSimilar && !hasSameImage) {
-				selectedWords.push(candidateWord); // Add to the selected words if it passes checks
-				if (selectedWords.length >= categoryOptionsCount[currentCategoryName]) {
+				selectedWords.push(candidateWord);
+				loadResourcesForWord(candidateWord);
+				appendWordToContainer(candidateWord);
+
+				if (selectedWords.length >= categoryOptionsCount[currentCategoryName] || !canAddMoreCards()) {
 					break;
 				}
 			}
@@ -439,12 +451,12 @@ jQuery(document).ready(function($) {
 	function fillQuizOptions(targetWord) {
 		let selectedWords = [];
 		selectedWords.push(targetWord);
-		
+	
 		tryCategories = [];
-		
+	
 		// The first category to try will be the current category
 		tryCategories.push(currentCategoryName);
-		
+	
 		// If we don't find enough words in the current category, look at this word's other categories
 		if (targetWord.all_categories) {
 			for (let category of targetWord.all_categories) {
@@ -453,103 +465,114 @@ jQuery(document).ready(function($) {
 				}
 			}
 		}
-
+	
 		// If that still isn't enough, look at all other categories
 		categoryNames.forEach(category => {
 			if (!tryCategories.includes(category)) {
 				tryCategories.push(category);
 			}
 		});
-		
-		while (selectedWords.length < categoryOptionsCount[currentCategoryName]) {
+
+		// Clear existing content and pause all audio
+		$('#ll-tools-flashcard').empty();
+		pauseAllAudio();
+	
+		appendWordToContainer(targetWord);
+
+		while (selectedWords.length < categoryOptionsCount[currentCategoryName] && canAddMoreCards()) {
 			if (tryCategories.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
 			let candidateCategory = tryCategories.shift();
 			wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
 			selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
 		}
 		
-		// Load all resources for the selected words
-		selectedWords.forEach(word => loadResourcesForWord(word));
+		// Add click events to the cards and insert line breaks
+		$('.flashcard-image-container').each(function(index) {
+			addClickEventToCard($(this), index, targetWord);
+		});
 
-		return selectedWords; // Return the filled options
+		// Make the cards visible
+		$('.flashcard-image-container').hide().fadeIn(600);
+
 	}
 	
-	function shuffleAndDisplayWords(selectedWords, targetWord) {
-		// Shuffle the selected words to ensure the target is not always first
-		selectedWords = randomlySort(selectedWords);
+	// Add a word to the flashcard container at a random position
+	function appendWordToContainer(wordData) {
+		let imgContainer = $('<div>', {
+			class: 'flashcard-image-container',
+			'data-word': wordData.title
+		}).hide();
 
-		// Clear existing content and pause all audio
-		$('#ll-tools-flashcard').empty();
-		pauseAllAudio();
+		let fudgePixels = 10;
 
-		// Iterate through the shuffled words and create HTML elements for them
-		selectedWords.forEach((wordData, index) => {
-			let imgContainer = $('<div>', {
-				class: 'flashcard-image-container',
-			}).hide().fadeIn(600); // Create a container for each image
-
-			let img = $('<img>', {
-				src: wordData.image,
-				alt: wordData.title,
-				class: 'quiz-image'
-			}).appendTo(imgContainer); // Append the image to its container
-
-			// Check the image orientation and apply the appropriate class
-			img.on('load', function() {
-				if (this.naturalWidth > this.naturalHeight) {
-					imgContainer.addClass('landscape');
-				} else {
-					imgContainer.addClass('portrait');
-				}
-			});
-
-			// Add click event for the word
-			imgContainer.click(function() {
-				if (wordData.title === targetWord.title) { // Correct answer
-					playFeedback(true, null, function() {
-						// If there were any wrong answers before the right one was selected
-						if (wrongIndexes.length > 0) {
-							if (!categoryRepetitionQueues[currentCategoryName]) {
-								categoryRepetitionQueues[currentCategoryName] = [];
-							}
-							// Add the word to the repetition queue for the current category
-							categoryRepetitionQueues[currentCategoryName].push({
-								wordData: targetWord,
-								reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
-							});
-						}
-						
-						// Fade out the correct answer after the audio finishes
-						imgContainer.addClass('fade-out').one('transitionend', function() {
-							isFirstRound = false;
-                            showQuiz(); // Load next question after fade out
-                        });
-					});
-					// Fade out other answers immediately by adding 'fade-out' class
-					$('.flashcard-image-container').not(this).addClass('fade-out');
-				} else { // Wrong answer
-					playFeedback(false, targetWord.audio, null);
-					// Fade out and remove the wrong answer
-					$(this).addClass('fade-out').one('transitionend', function() {
-						$(this).remove(); // Remove the card completely after fade out
-					});
-					
-					// Add index to wrongIndexes if the answer is incorrect
-                    wrongIndexes.push(index);
-					
-					// Check if the user has selected a wrong answer twice
-					if (wrongIndexes.length === 2) {
-						// Remove all options except the correct one
-						$('.flashcard-image-container').not(function() {
-							return $(this).find('img').attr('alt') === targetWord.title;
-						}).remove();
-					}					
-				}
-			});
-
-			// Append the container to the main quiz element
+		$('<img>', {
+			src: wordData.image,
+			alt: wordData.title,
+			class: 'quiz-image'
+		}).on('load', function() {
+			if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
+				imgContainer.addClass('landscape');
+			} else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
+				imgContainer.addClass('portrait');
+			}
+		}).appendTo(imgContainer);
+		
+		const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-image-container').length + 1));
+		if ($('.flashcard-image-container').length === 0 || insertAtIndex >= $('.flashcard-image-container').length) {
 			$('#ll-tools-flashcard').append(imgContainer);
-			imgContainer.fadeIn(200); // Ensure fadeIn effect for each image container
+		} else {
+			// Insert the container at the specified index
+			imgContainer.insertBefore($('.flashcard-image-container').eq(insertAtIndex));
+		}
+	}
+
+	// Add click event to the card to handle right and wrong answers
+	function addClickEventToCard(card, index, targetWord) {
+		card.click(function() {
+			const wordData = wordsData.find(word => word.title === $(this).data('word'));
+
+			if (wordData.title === targetWord.title) {
+				// Correct answer
+				playFeedback(true, null, function() {
+					// If there were any wrong answers before the right one was selected
+					if (wrongIndexes.length > 0) {
+						if (!categoryRepetitionQueues[currentCategoryName]) {
+							categoryRepetitionQueues[currentCategoryName] = [];
+						}
+						// Add the word to the repetition queue for the current category
+						categoryRepetitionQueues[currentCategoryName].push({
+							wordData: targetWord,
+							reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
+						});
+					}
+					// Fade out and remove the wrong answers
+					$('.flashcard-image-container').not(this).addClass('fade-out');
+	
+					// Wait for the transition to complete before moving to the next question
+					setTimeout(function() {
+						isFirstRound = false;
+						showQuiz(); // Load next question after fade out
+					}, 600); // Adjust the delay as needed to match the transition duration
+				});
+			} else {
+				// Wrong answer
+				playFeedback(false, targetWord.audio, null);
+				// Fade out and remove the wrong answer
+				$(this).addClass('fade-out').one('transitionend', function() {
+					$(this).remove(); // Remove the card completely after fade out
+				});
+
+				// Add index to wrongIndexes if the answer is incorrect
+				wrongIndexes.push(index);
+
+				// Check if the user has selected a wrong answer twice
+				if (wrongIndexes.length === 2) {
+					// Remove all options except the correct one
+					$('.flashcard-image-container').not(function() {
+						return $(this).find('img').attr('alt') === targetWord.title;
+					}).remove();
+				}
+			}
 		});
 	}
 
@@ -612,9 +635,7 @@ jQuery(document).ready(function($) {
              
         let targetWord  = selectTargetWordAndCategory();
 		
-        selectedWords = fillQuizOptions(targetWord);
-
-        shuffleAndDisplayWords(selectedWords, targetWord);
+        fillQuizOptions(targetWord);
 
         setTargetWordAudio(targetWord);
 
@@ -636,6 +657,7 @@ jQuery(document).ready(function($) {
 		$('#ll-tools-close-flashcard').on('click', function() {
 			$('#ll-tools-flashcard-popup').addClass('hidden');
 			$('body').removeClass('ll-tools-flashcard-open');
+			$('#ll-tools-start-flashcard').removeClass('hidden');
 		});
 
 		// Event handler for the repeat button
@@ -660,6 +682,7 @@ jQuery(document).ready(function($) {
 	$('#ll-tools-start-flashcard').on('click', function() {
 		initFlashcardWidget();
 		$('#ll-tools-flashcard-popup').removeClass('hidden');
+		$('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').show();
 		showQuiz();		
 		$('body').addClass('ll-tools-flashcard-open'); 
 	});
