@@ -447,7 +447,6 @@ jQuery(document).ready(function($) {
 	
 	function fillQuizOptions(targetWord) {
 		let selectedWords = [];
-		selectedWords.push(targetWord);
 	
 		tryCategories = [];
 	
@@ -474,6 +473,8 @@ jQuery(document).ready(function($) {
 		$('#ll-tools-flashcard').empty();
 		pauseAllAudio();
 	
+		loadResourcesForWord(targetWord);
+		selectedWords.push(targetWord);
 		appendWordToContainer(targetWord);
 
 		while (selectedWords.length < categoryOptionsCount[currentCategoryName] && canAddMoreCards()) {
