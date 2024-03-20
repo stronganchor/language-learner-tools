@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.5.4
+ * Version: 1.5.5
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -60,16 +60,6 @@ include(plugin_dir_path(__FILE__) . 'audio-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'image-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'flashcard-widget.php');
 include(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php');
-
-function ll_tools_activate() {
-    // Code to execute on plugin activation
-}
-register_activation_hook(__FILE__, 'll_tools_activate');
-
-function ll_tools_deactivate() {
-    // Code to execute on plugin deactivation
-}
-register_deactivation_hook(__FILE__, 'll_tools_deactivate');
 
 // Include the plugin update checker
 require plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';

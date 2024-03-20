@@ -101,8 +101,14 @@ function ll_handle_audio_file_uploads() {
     $success_matches = [];
     $failed_matches = [];
 	
+    $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg'];
+
 	foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
-	    if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
+	    if (!in_array($_FILES['ll_audio_files']['type'][$key], $allowed_audio_types)) {
+            $failed_matches[] = $original_name . ' (Invalid file type)';
+            continue;
+        }
+        if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
 	        $original_name = $_FILES['ll_audio_files']['name'][$key];
 	        $file_name = sanitize_file_name($original_name);
 	        $upload_path = $upload_dir['path'] . '/' . $file_name;
@@ -208,6 +214,13 @@ function ll_find_matching_image($audio_file_name, $categories) {
     $image_posts = get_posts(array(
         'post_type' => 'word_images',
         'posts_per_page' => -1,
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => $categories,
+            ),
+        )
     ));
 
     $best_match = null;

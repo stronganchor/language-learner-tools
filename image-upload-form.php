@@ -54,7 +54,13 @@ function ll_handle_image_file_uploads() {
     $success_uploads = [];
     $failed_uploads = [];
 
+    $allowed_image_types = ['image/jpeg', 'image/png', 'image/gif'];
+
     foreach ($_FILES['ll_image_files']['tmp_name'] as $key => $tmp_name) {
+        if (!in_array($_FILES['ll_image_files']['type'][$key], $allowed_image_types)) {
+            $failed_uploads[] = $original_name . ' (Invalid file type)';
+            continue;
+        }
         if ($_FILES['ll_image_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
             $original_name = $_FILES['ll_image_files']['name'][$key];
             $file_name = sanitize_file_name($original_name);

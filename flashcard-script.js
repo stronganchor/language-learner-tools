@@ -32,13 +32,14 @@ jQuery(document).ready(function($) {
 	loadResourcesForWord(firstTargetWord);
 	loadAudio(correctAudio.src);
 	loadAudio(wrongAudio.src);
+	loadResourcesForCategory(firstTargetWord.category);
 
     // Hide the skip and repeat buttons initially
     $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
 
 	// Load an audio file so that it's cached for later use
 	function loadAudio(audioURL) {
-		if (!loadedResources[audioURL]) {
+		if (!loadedResources[audioURL] && audioURL) {
 			new Promise((resolve, reject) => {
 				let audio = new Audio(audioURL);
 				audio.oncanplaythrough = function() {
@@ -54,7 +55,7 @@ jQuery(document).ready(function($) {
 
 	// Load an image so that it's cached for later use
 	function loadImage(imageURL) {
-		if (!loadedResources[imageURL]) {
+		if (!loadedResources[imageURL] && imageURL) {
 			new Promise((resolve, reject) => {
 				let img = new Image();
 				img.onload = function() {
