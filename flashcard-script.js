@@ -673,11 +673,6 @@ jQuery(document).ready(function($) {
 		// Begin playback and manage interaction based on playback status
 		playAudio(currentTargetAudio); // Play the target word's audio
 
-		// Hide the loading animation once the audio has started playing
-		currentTargetAudio.onplay = function() {
-			hideLoadingAnimation();
-		};
-
 		// Prevent clicking (interaction) before the audio has played for a certain time
 		currentTargetAudio.addEventListener('timeupdate', function() {
 
