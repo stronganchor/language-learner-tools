@@ -690,11 +690,9 @@ jQuery(document).ready(function($) {
 	}
 	
 	function finalizeQuizSetup() {
-		// Hide any elements not needed during the quiz, for example, the start button
-		$('#ll-tools-start-flashcard').addClass('hidden');
-
 		// Show the quiz container if it was previously hidden
 		$('#ll-tools-flashcard').removeClass('hidden');
+		$('#ll-tools-loading-animation').hide();
 }
 
     function showQuiz(number_of_options) {
@@ -772,6 +770,7 @@ jQuery(document).ready(function($) {
 	$('#ll-tools-start-flashcard').on('click', function() {
 		initFlashcardWidget();
 		$('#ll-tools-flashcard-popup').removeClass('hidden');
+		$('#ll-tools-loading-animation').show();
 		$('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').show();
 		showQuiz();		
 		$('body').addClass('ll-tools-flashcard-open'); 
