@@ -4,14 +4,13 @@ jQuery(document).ready(function($) {
 	const DEFAULT_NUMBER_OF_OPTIONS = 2;
 	const MAXIMUM_NUMBER_OF_OPTIONS = 9;
 	const MAX_ROWS = 3;
-	const MINIMUM_WORDS_PER_CATEGORY = 4;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
     var activeAudios = [];
 	var wordsByCategory = {}; // key: category name string => value: set of word objects corresponding to that category
 	var categoryNames = []; // all the category names
+	var loadedCategories = []; // categories that have been loaded
 	var categoryRoundCount = {}; // key: category name string => value: number of rounds where we used a word from this category
-    var wordsData = llToolsFlashcardsData.words || []; // Set globally with a fallback to an empty array
     var translations = llToolsFlashcardsData.translations || [];
     var wrongIndexes = []; // To track indexes of wrong answers this turn
     var targetAudioHasPlayed = false;
@@ -23,18 +22,20 @@ jQuery(document).ready(function($) {
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 	var loadedResources = {};
-	var firstTargetWord = llToolsFlashcardsData.words[Math.random() * llToolsFlashcardsData.words.length | 0];
+	var firstCategoryData = llToolsFlashcardsData.firstCategoryData;
+	var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
+
+	// Preload the first category
+	processFetchedWordData(firstCategoryData, firstCategoryName);
 
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
 	// Preload resources for the first target word and its category
-	loadResourcesForWord(firstTargetWord);
+	//loadResourcesForCategory(firstCategory);
 	loadAudio(correctAudio.src);
 	loadAudio(wrongAudio.src);
-	initializeCategoryArrays();
-	loadResourcesForCategory(firstTargetWord.category);
 
     // Hide the skip and repeat buttons initially
     $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
@@ -78,11 +79,77 @@ jQuery(document).ready(function($) {
 		loadImage(word.image);
 	}
 
-	// Load resources for a category
-	function loadResourcesForCategory(categoryName) {
-		for (let word of wordsByCategory[categoryName]) {
-			loadResourcesForWord(word);
+	function processFetchedWordData(wordData, categoryName) {
+		if (!wordsByCategory[categoryName]) {
+			wordsByCategory[categoryName] = [];
 		}
+		if (!categoryRoundCount[categoryName]) {
+			categoryRoundCount[categoryName] = 0;
+		}
+		
+		// For each loaded word
+		wordData.forEach(function(word) {			
+			wordsByCategory[categoryName].push(word);
+			loadResourcesForWord(word);
+		});
+
+		// Randomize the order of the words in this category
+		wordsByCategory[categoryName] = randomlySort(wordsByCategory[categoryName]);
+		// Add the category to the list of loaded categories
+		loadedCategories.push(categoryName);
+	}
+
+	// Load resources for a category
+	function loadResourcesForCategory(categoryName, callback) {
+		if (loadedCategories.includes(categoryName)) {
+			if (typeof callback === 'function') {
+				callback();
+			}
+			return;
+		}
+
+		$.ajax({
+			url: llToolsFlashcardsData.ajaxurl,
+			method: 'POST',
+			data: {
+				action: 'll_get_words_by_category',
+				category: categoryName
+			},
+			success: function(response) {
+				if (response.success) {
+					// Process the received words data
+					processFetchedWordData(response.data, categoryName);
+					
+					if (typeof callback === 'function') {
+						callback();
+					}
+				} else {
+					console.error('Failed to load words for category:', categoryName);
+				}
+			},			
+			error: function(xhr, status, error) {
+				console.error('AJAX request failed for category:', categoryName, 'Error:', error);
+				// TODO: Handle the error gracefully, e.g., show an error message to the user
+			}
+		});
+	}
+
+	// Preload the next few categories to avoid delays when switching categories
+	function preloadNextCategories() {
+		var numberToPreload = 3; // Adjust the number of categories to preload as needed
+
+		// for all category names
+		categoryNames.forEach(function(categoryName) {
+			// if the category is not loaded
+			if (!loadedCategories.includes(categoryName)) {
+				// load the resources for the category
+				loadResourcesForCategory(categoryName);
+				numberToPreload--;
+				if (numberToPreload === 0) {
+					return;
+				}
+			}
+		});
 	}
 
 	// Save the quiz state to user metadata in WordPress
@@ -252,14 +319,8 @@ jQuery(document).ready(function($) {
 
 	// Initialize category arrays
 	function initializeCategoryArrays() {
-		wordsData.forEach(word => {
-			let categoryName = word.category;
-			if (!wordsByCategory[categoryName]) {
-				wordsByCategory[categoryName] = [];
-				categoryRoundCount[categoryName] = 0;
-			}
-			wordsByCategory[categoryName].push(word);
-		});
+		
+		/* TODO: refactor this code to handle the new AJAX paradigm
 
 		// Validation step: Ensure each category has enough words
         for (let categoryName in wordsByCategory) {
@@ -286,10 +347,10 @@ jQuery(document).ready(function($) {
             if (wordsByCategory[categoryName].length < MINIMUM_WORDS_PER_CATEGORY) {
                 delete wordsByCategory[categoryName];
             }
-        }
+        }*/
 
 		// Randomize the order of the categories to begin with
-		categoryNames = Object.keys(wordsByCategory);
+		categoryNames = llToolsFlashcardsData.categories;
 		categoryNames = randomlySort(categoryNames);
 	}
 
@@ -392,6 +453,7 @@ jQuery(document).ready(function($) {
 			if (currentCategoryName !== candidateCategoryName) {
 				currentCategoryName = candidateCategoryName;
 				currentCategoryRoundCount = 0;
+				preloadNextCategories();
 			}
 			currentCategory = wordsByCategory[candidateCategoryName];
 			categoryRoundCount[candidateCategoryName]++;
@@ -415,8 +477,8 @@ jQuery(document).ready(function($) {
 		let targetWord = null;
 	
 		if (isFirstRound) {
-			targetWord = firstTargetWord;
-			currentCategoryName = firstTargetWord.category;
+			targetWord = selectTargetWord(wordsByCategory[firstCategoryName], firstCategoryName);
+			currentCategoryName = firstCategoryName;
 			currentCategory = wordsByCategory[currentCategoryName];
 		} else {
 			const repeatQueue = categoryRepetitionQueues[currentCategoryName];
@@ -498,11 +560,16 @@ jQuery(document).ready(function($) {
 		while (selectedWords.length < categoryOptionsCount[currentCategoryName] && canAddMoreCards()) {
 			if (tryCategories.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
 			let candidateCategory = tryCategories.shift();
-			wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
-			selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
+			if (wordsByCategory[candidateCategory] && loadedCategories.includes(candidateCategory)) {
+				wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
+				selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
+			} else {
+				// If the words data is not loaded, request it and continue with the next category
+				loadResourcesForCategory(candidateCategory);
+			}
 		}
 		
-		// Add click events to the cards and insert line breaks
+		// Add click events to the cards
 		$('.flashcard-image-container').each(function(index) {
 			addClickEventToCard($(this), index, targetWord);
 		});
@@ -545,9 +612,7 @@ jQuery(document).ready(function($) {
 	// Add click event to the card to handle right and wrong answers
 	function addClickEventToCard(card, index, targetWord) {
 		card.click(function() {
-			const wordData = wordsData.find(word => word.title === $(this).data('word'));
-
-			if (wordData.title === targetWord.title) {
+			if ($(this).find('img').attr("src") === targetWord.image) {
 				// Correct answer
 				playFeedback(true, null, function() {
 					// If there were any wrong answers before the right one was selected
@@ -585,7 +650,7 @@ jQuery(document).ready(function($) {
 				if (wrongIndexes.length === 2) {
 					// Remove all options except the correct one
 					$('.flashcard-image-container').not(function() {
-						return $(this).find('img').attr('alt') === targetWord.title;
+						return $(this).find('img').attr("src") === targetWord.image;
 					}).remove();
 				}
 			}
@@ -633,29 +698,41 @@ jQuery(document).ready(function($) {
 }
 
     function showQuiz(number_of_options) {
-		if (isFirstRound) {			
-			// Asynchronously load resources for all categories
-			for (let categoryName of categoryNames) {
-				setTimeout(() => loadResourcesForCategory(categoryName), 0);
-			}
-
-			initializeOptionsCount(number_of_options);
-		}
-		
-        targetAudioHasPlayed = false;
-		
-        calculateNumberOfOptions();
-             
-        let targetWord  = selectTargetWordAndCategory();
-		
-        fillQuizOptions(targetWord);
-
-        setTargetWordAudio(targetWord);
-
-        finalizeQuizSetup();
-
-		saveQuizState();		
+		if (isFirstRound) {		
+			// Set up category arrays and preload the first category
+			initializeCategoryArrays();
+			
+			// Load resources for the first few categories
+			var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
+			var categoryLoadPromises = initialCategories.map(function(categoryName) {
+				return new Promise(function(resolve) {
+					loadResourcesForCategory(categoryName, resolve);
+				});
+			});
+	
+			Promise.all(categoryLoadPromises).then(function() {
+				// All initial categories loaded, proceed with the quiz
+				initializeOptionsCount(number_of_options);
+				startQuizRound();
+			}).catch(function(error) {
+				console.error('Failed to load initial categories:', error);
+				// TODO: Handle the error gracefully, e.g., show an error message to the user
+			});
+		} else {
+			startQuizRound();
+		}	
     }  
+
+	// Start a new round of the quiz
+	function startQuizRound() {		
+		targetAudioHasPlayed = false;
+		calculateNumberOfOptions();
+		let targetWord = selectTargetWordAndCategory();
+		fillQuizOptions(targetWord);
+		setTargetWordAudio(targetWord);
+		finalizeQuizSetup();
+		saveQuizState();
+	}
         
     // Decide which function to call based on the mode passed from PHP
     function initFlashcardWidget() {

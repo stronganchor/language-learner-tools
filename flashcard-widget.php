@@ -11,6 +11,31 @@ function ll_tools_flashcard_widget($atts) {
         'mode' => 'random', // Default to practice by showing one random word at a time
     ), $atts);
 	
+    $categories = $atts['category'];
+
+    // If no category is specified, get all categories
+    if (empty($categories)) {
+        $categories = get_terms(array(
+            'taxonomy' => 'word-category',
+            'fields' => 'names',
+            'hide_empty' => false,
+        ));
+    } else {
+        $categories = explode(',', esc_attr($categories));
+    }
+
+    $words_data = array();
+    $firstCategoryName = '';
+    $categoriesToTry = $categories;
+
+    while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)){
+        // Get the word data for a random category
+        $random_category = $categoriesToTry[array_rand($categoriesToTry)];
+        $categoriesToTry = array_diff($categoriesToTry, array($random_category));
+        $words_data = ll_get_words_by_category($random_category);
+        $firstCategoryName = $random_category;
+    }
+
     // Get the file paths for the CSS and JS files
     $flashcard_css_file = plugin_dir_path(__FILE__) . 'flashcard-style.css';
     $flashcard_js_file = plugin_dir_path(__FILE__) . 'flashcard-script.js';
@@ -49,73 +74,6 @@ function ll_tools_flashcard_widget($atts) {
         true  // Whether to enqueue the script in the footer. (Recommended)
     );
 
-    // Query arguments for fetching words
-    $args = array(
-        'post_type'      => 'words',
-        'posts_per_page' => -1, // Adjust if you want to limit the total words loaded at once
-		'meta_query'     => array(
-            array(
-                'key' => '_thumbnail_id', // Checks if the post has a featured image.
-                'compare' => 'EXISTS'
-            ),
-        ),
-        'orderby'        => 'rand', // Order by random
-    );
-
-    // If a category is specified, add a tax_query
-    if (!empty($atts['category'])) {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'word-category',
-                'field'    => 'slug',
-                'terms'    => explode(',', $atts['category']),
-            ),
-        );
-    }
-
-    $query = new WP_Query($args);
-    $words_data = array();
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-			$current_id = get_the_ID();
-		    // Fetch the primary category
-		    $primary_category = get_post_meta($current_id, 'primary_category', true);
-		
-		    // Fetch all categories
-		    $all_categories = wp_get_post_terms($current_id, 'word-category', array('fields' => 'slugs'));
-
-			$deepest_category = null;
-			$max_depth = -1;
-
-            // Find the deepest category
-			foreach ($all_categories as $category) {
-			    $depth = 0;
-			    $current_category = get_term_by('slug', $category, 'word-category');
-			    while ($current_category && $current_category->parent != 0) {
-			        $depth++;
-			        $current_category = get_term($current_category->parent, 'word-category');
-			    }
-			    if ($depth > $max_depth) {
-			        $max_depth = $depth;
-			        $deepest_category = $category;
-			    }
-			}
-		
-            // Add the word data for this word to the words_data array
-		    $words_data[] = array(
-		        'id' => $current_id,
-		        'title' => get_the_title(),
-		        'image' => get_the_post_thumbnail_url($current_id, 'full'),
-		        'audio' => get_post_meta($current_id, 'word_audio_file', true),
-		        'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
-		        'category' => $primary_category ?: $deepest_category,
-		        'all_categories' => $all_categories,
-		    );
-		}
-    }
-    wp_reset_postdata();
-
 	// Internationalized strings to use in the user interface
     $translation_array = array(
 		'start' => esc_html__('Start', 'll-tools-text-domain'),
@@ -133,12 +91,14 @@ function ll_tools_flashcard_widget($atts) {
 	
     // Preload words data to the page and include the mode
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
-        'words' => $words_data,
         'mode' => $atts['mode'], // Pass the mode to JavaScript
 	    'plugin_dir' => plugin_dir_url(__FILE__),
 		'translations' => $translation_array,
 		'quizState' => $quiz_state,
 		'ajaxurl' => admin_url('admin-ajax.php'),
+        'categories' => $categories,
+        'firstCategoryData' => $words_data,
+        'firstCategoryName' => $firstCategoryName,
     ));
 
     // Output the initial setup and the buttons
@@ -164,6 +124,87 @@ jQuery(document).ready(function($) {
 });
 </script>';
     return ob_get_clean();
+}
+
+// AJAX handler for fetching words by category
+add_action('wp_ajax_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+function ll_get_words_by_category_ajax() {
+    $category = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : '';
+
+    if (!empty($category)) {
+        $words_data = ll_get_words_by_category($category);
+        wp_send_json_success($words_data);
+    } else {
+        wp_send_json_error('Invalid category.');
+    }
+}
+
+// Get words by category
+function ll_get_words_by_category ($categoryName) {
+    $args = array(
+        'post_type' => 'words',
+        'posts_per_page' => -1,
+        'meta_query' => array(
+            array(
+                'key' => '_thumbnail_id',
+                'compare' => 'EXISTS',
+            ),
+        ),
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'word-category',
+                'field' => 'name',
+                'terms' => $categoryName,
+            ),
+        ),
+    );
+
+    $query = new WP_Query($args);
+    $words_data = array();
+
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $current_id = get_the_ID();
+            $primary_category = get_post_meta($current_id, 'primary_category', true);
+            $all_categories = wp_get_post_terms($current_id, 'word-category', array('fields' => 'names'));
+
+            $max_depth = -1;
+            $deepest_category = '';
+
+            foreach ($all_categories as $wordCategory) {
+                $depth = 0;
+                $current_category = get_term_by('name', $wordCategory, 'word-category');
+                while ($current_category && $current_category->parent != 0) {
+                    $depth++;
+                    $current_category = get_term($current_category->parent, 'word-category');
+                }
+                if ($depth > $max_depth) {
+                    $max_depth = $depth;
+                    $deepest_category = $wordCategory;
+                } else if ($depth === $max_depth && $wordCategory === $primary_category) {
+                    // If the primary category is one of the deepest, use it
+                    $deepest_category = $wordCategory;
+                }
+            }
+
+            // If the primary category of this word is the same as the requested category, add the word to the data array
+            if ($deepest_category === $categoryName) {
+                $words_data[] = array(
+                    'id' => $current_id,
+                    'title' => get_the_title(),
+                    'image' => get_the_post_thumbnail_url($current_id, 'full'),
+                    'audio' => get_post_meta($current_id, 'word_audio_file', true),
+                    'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
+                    'category' => $primary_category,
+                    'all_categories' => $all_categories,
+                );
+            }
+        }
+        wp_reset_postdata();
+    }
+    return $words_data;
 }
 
 // Save user's progress on the quiz to metadata
