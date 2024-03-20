@@ -208,18 +208,40 @@ function ll_find_matching_image($audio_file_name, $categories) {
     $image_posts = get_posts(array(
         'post_type' => 'word_images',
         'posts_per_page' => -1,
-        ),
-    );
+    ));
 
     $best_match = null;
+    $max_exact_matches = 0;
     $max_score = 0;
+
+    // Split the audio file name into words
+    $audio_words = preg_split('/[\s\-.,;:!?]+/', strtolower($audio_file_name));
 
     foreach ($image_posts as $image_post) {
         $image_file_name = pathinfo($image_post->post_title, PATHINFO_FILENAME);
-        similar_text(strtolower($audio_file_name), strtolower($image_file_name), $score);
-        if ($score > $max_score || $best_match === null) {
-            $max_score = $score;
+        
+        // Split the image post name into words
+        $image_words = preg_split('/[\s\-.,;:!?]+/', strtolower($image_file_name));
+
+        // Count the number of exact word matches
+        $exact_matches = count(array_intersect($audio_words, $image_words));
+
+        if ($exact_matches > $max_exact_matches) {
+            $max_exact_matches = $exact_matches;
             $best_match = $image_post;
+        }
+    }
+
+    // If no exact matches were found, fall back to the existing logic
+    if ($max_exact_matches === 0) {
+        foreach ($image_posts as $image_post) {
+            $image_file_name = pathinfo($image_post->post_title, PATHINFO_FILENAME);
+            similar_text(strtolower($audio_file_name), strtolower($image_file_name), $score);
+
+            if ($score > $max_score || $best_match === null) {
+                $max_score = $score;
+                $best_match = $image_post;
+            }
         }
     }
 
