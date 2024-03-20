@@ -673,6 +673,11 @@ jQuery(document).ready(function($) {
 		// Begin playback and manage interaction based on playback status
 		playAudio(currentTargetAudio); // Play the target word's audio
 
+		// Hide the loading animation once the audio has started playing
+		currentTargetAudio.onplay = function() {
+			hideLoadingAnimation();
+		};
+
 		// Prevent clicking (interaction) before the audio has played for a certain time
 		currentTargetAudio.addEventListener('timeupdate', function() {
 			if (this.currentTime > 0.4 || this.ended) {
@@ -688,12 +693,19 @@ jQuery(document).ready(function($) {
 			// For example, enabling certain buttons or changing states
 		};
 	}
+
+	function showLoadingAnimation() {
+		$('#ll-tools-loading-animation').show();
+	}
+
+	function hideLoadingAnimation() {
+		$('#ll-tools-loading-animation').hide();
+	}
 	
 	function finalizeQuizSetup() {
 		// Show the quiz container if it was previously hidden
 		$('#ll-tools-flashcard').removeClass('hidden');
-		$('#ll-tools-loading-animation').hide();
-}
+	}
 
     function showQuiz(number_of_options) {
 		if (isFirstRound) {		
@@ -723,6 +735,7 @@ jQuery(document).ready(function($) {
 
 	// Start a new round of the quiz
 	function startQuizRound() {		
+		showLoadingAnimation();
 		targetAudioHasPlayed = false;
 		calculateNumberOfOptions();
 		let targetWord = selectTargetWordAndCategory();
