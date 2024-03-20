@@ -106,8 +106,8 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" class="hidden">';
-    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<div id="ll-tools-flashcard-header">';
+    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';

@@ -680,6 +680,12 @@ jQuery(document).ready(function($) {
 
 		// Prevent clicking (interaction) before the audio has played for a certain time
 		currentTargetAudio.addEventListener('timeupdate', function() {
+
+			// If the loading animation is still visible, hide it
+			if ((this.currentTime > 0.1 || this.ended) && $('#ll-tools-loading-animation').is(':visible')) {
+				hideLoadingAnimation();
+			}
+
 			if (this.currentTime > 0.4 || this.ended) {
 				targetAudioHasPlayed = true; // Allow interactions with quiz options
 				// Optionally remove the event listener if it's no longer needed to avoid memory leaks
@@ -783,7 +789,7 @@ jQuery(document).ready(function($) {
 	$('#ll-tools-start-flashcard').on('click', function() {
 		initFlashcardWidget();
 		$('#ll-tools-flashcard-popup').removeClass('hidden');
-		$('#ll-tools-loading-animation').show();
+		showLoadingAnimation();
 		$('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').show();
 		showQuiz();		
 		$('body').addClass('ll-tools-flashcard-open'); 
