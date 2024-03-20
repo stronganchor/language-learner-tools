@@ -60,6 +60,11 @@ include(plugin_dir_path(__FILE__) . 'audio-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'image-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'flashcard-widget.php');
 include(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php');
+include(plugin_dir_path(__FILE__) . 'audio-recorder.php');
+
+if (!function_exists('transcribe_audio_to_text')) {
+    include(plugin_dir_path(__FILE__) . 'openai-api.php');
+}
 
 // Include the plugin update checker
 require plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
