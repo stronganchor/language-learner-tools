@@ -29,9 +29,11 @@ jQuery(document).ready(function($) {
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
 
+	// Preload resources for the first target word and its category
 	loadResourcesForWord(firstTargetWord);
 	loadAudio(correctAudio.src);
 	loadAudio(wrongAudio.src);
+	initializeCategoryArrays();
 	loadResourcesForCategory(firstTargetWord.category);
 
     // Hide the skip and repeat buttons initially
@@ -631,10 +633,7 @@ jQuery(document).ready(function($) {
 }
 
     function showQuiz(number_of_options) {
-		if (isFirstRound) {
-			// Initialize the category arrays and options count
-			initializeCategoryArrays();
-			
+		if (isFirstRound) {			
 			// Asynchronously load resources for all categories
 			for (let categoryName of categoryNames) {
 				setTimeout(() => loadResourcesForCategory(categoryName), 0);
