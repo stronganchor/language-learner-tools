@@ -6,9 +6,12 @@ body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
-#ll-tools-start-flashcard, #ll-tools-skip-flashcard, #ll-tools-repeat-flashcard {
+#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard {
     margin-left: 10px;
     margin-right: 10px;
+    width: 150px;
+    padding-left: 0px;
+    padding-right: 0px;
 }
 
 #ll-tools-flashcard-container {
@@ -68,6 +71,9 @@ body.ll-tools-flashcard-open {
 }
 
 #ll-tools-close-flashcard {
+    position: absolute;
+    top: 30px;
+    right: 30px;
     background: none;
     border: none;
     font-size: 24px;

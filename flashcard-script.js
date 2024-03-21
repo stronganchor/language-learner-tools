@@ -1,4 +1,4 @@
-jQuery(document).ready(function($) {
+(function($) {
 	const ROUNDS_PER_CATEGORY = 6;
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
 	const DEFAULT_NUMBER_OF_OPTIONS = 2;
@@ -36,9 +36,6 @@ jQuery(document).ready(function($) {
 	//loadResourcesForCategory(firstCategory);
 	loadAudio(correctAudio.src);
 	loadAudio(wrongAudio.src);
-
-    // Hide the skip and repeat buttons initially
-    $('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').hide();
 
 	// Load an audio file so that it's cached for later use
 	function loadAudio(audioURL) {
@@ -704,8 +701,7 @@ jQuery(document).ready(function($) {
 	}
 	
 	function finalizeQuizSetup() {
-		// Show the quiz container if it was previously hidden
-		$('#ll-tools-flashcard').removeClass('hidden');
+		// TODO: consider removing this function if it's not needed
 	}
 
     function showQuiz(number_of_options) {
@@ -752,14 +748,12 @@ jQuery(document).ready(function($) {
 
 		loadQuizState();
 		
-		// Show the flashcard popup
-		$('#ll-tools-flashcard-popup').removeClass('hidden');
+		$('#ll-tools-flashcard-popup').show();
 
 		// Event handler for the close button
 		$('#ll-tools-close-flashcard').on('click', function() {
-			$('#ll-tools-flashcard-popup').addClass('hidden');
+			$('#ll-tools-flashcard-popup').hide();
 			$('body').removeClass('ll-tools-flashcard-open');
-			$('#ll-tools-start-flashcard').removeClass('hidden');
 		});
 
 		// Event handler for the repeat button
@@ -783,10 +777,9 @@ jQuery(document).ready(function($) {
     // Event handler to start the widget
 	$('#ll-tools-start-flashcard').on('click', function() {
 		initFlashcardWidget();
-		$('#ll-tools-flashcard-popup').removeClass('hidden');
 		showLoadingAnimation();
-		$('#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard').show();
 		showQuiz();		
 		$('body').addClass('ll-tools-flashcard-open'); 
 	});
-});
+
+})(jQuery);
