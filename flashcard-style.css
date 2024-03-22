@@ -9,7 +9,7 @@ body.ll-tools-flashcard-open {
 #ll-tools-skip-flashcard, #ll-tools-repeat-flashcard {
     margin-left: 10px;
     margin-right: 10px;
-    width: 150px;
+    width: 120px;
     padding-left: 0px;
     padding-right: 0px;
 }
@@ -55,7 +55,7 @@ body.ll-tools-flashcard-open {
     justify-content: center;
     align-items: center;
     padding: 10px;
-    margin-top: 30px;
+    margin-top: 20px;
 }
 
 #ll-tools-flashcard-content {
@@ -72,8 +72,12 @@ body.ll-tools-flashcard-open {
 
 #ll-tools-close-flashcard {
     position: absolute;
-    top: 30px;
-    right: 30px;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    padding: 10px;
+    line-height: 10px;
     background: none;
     border: none;
     font-size: 24px;
