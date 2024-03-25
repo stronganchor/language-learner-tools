@@ -52,10 +52,17 @@ if (!defined('WPINC')) {
     die;
 }
 
-// Include other PHP files for this plugin
-include(plugin_dir_path(__FILE__) . '/post-types/words-post-type.php');
-include(plugin_dir_path(__FILE__) . '/post-types/word-image-post-type.php');
-include(plugin_dir_path(__FILE__) . '/taxonomies/word-category-taxonomy.php');
+// Include custom post types
+include(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php');
+include(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php');
+
+// Include taxonomies
+include(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php');
+include(plugin_dir_path(__FILE__) . 'taxonomies/word-set-taxonomy.php');
+include(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php');
+include(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php');
+
+// Include other plugin files
 include(plugin_dir_path(__FILE__) . 'language-switcher.php');
 include(plugin_dir_path(__FILE__) . 'audio-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'image-upload-form.php');
@@ -64,9 +71,9 @@ include(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php');
 include(plugin_dir_path(__FILE__) . 'audio-recorder.php');
 
 // Include API files
-include(plugin_dir_path(__FILE__) . '/api/deepl-api.php');
+include(plugin_dir_path(__FILE__) . 'api/deepl-api.php');
 if (!function_exists('transcribe_audio_to_text')) {
-    include(plugin_dir_path(__FILE__) . '/api/openai-api.php');
+    include(plugin_dir_path(__FILE__) . 'api/openai-api.php');
 }
 
 // Include the plugin update checker
