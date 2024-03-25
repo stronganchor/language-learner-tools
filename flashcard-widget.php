@@ -37,14 +37,14 @@ function ll_tools_flashcard_widget($atts) {
     }
 
     // Get the file paths for the CSS and JS files
-    $flashcard_css_file = plugin_dir_path(__FILE__) . 'flashcard-style.css';
-    $flashcard_js_file = plugin_dir_path(__FILE__) . 'flashcard-script.js';
+    $flashcard_css_file = plugin_dir_path(__FILE__) . '/css/flashcard-style.css';
+    $flashcard_js_file = plugin_dir_path(__FILE__) . '/js/flashcard-script.js';
 	
     // Set the version numbers based on the file's modified timestamp
     $flashcard_css_version = filemtime($flashcard_css_file);
     $js_version = filemtime($flashcard_js_file);
 
-    wp_enqueue_style('ll-tools-flashcard-style', plugins_url('flashcard-style.css', __FILE__), array(), $flashcard_css_version);
+    wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $flashcard_css_version);
 	
     // Enqueue jQuery
     wp_enqueue_script('jquery');
@@ -68,7 +68,7 @@ function ll_tools_flashcard_widget($atts) {
 	// Enqueue the JavaScript file
     wp_enqueue_script(
         'll-tools-flashcard-script', // Handle for the script.
-        plugins_url('flashcard-script.js', __FILE__), // Path to the script file, relative to the PHP file.
+        plugins_url('/js/flashcard-script.js', __FILE__), // Path to the script file, relative to the PHP file.
         array('jquery'), // Dependencies, assuming your script depends on jQuery.
         $js_version, // Version number, null to prevent version query string.
         true  // Whether to enqueue the script in the footer. (Recommended)

@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.6.2
+ * Version: 1.6.3
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -53,8 +53,9 @@ if (!defined('WPINC')) {
 }
 
 // Include other PHP files for this plugin
-include(plugin_dir_path(__FILE__) . 'words-post-type.php');
-include(plugin_dir_path(__FILE__) . 'deepl-api.php');
+include(plugin_dir_path(__FILE__) . '/post-types/words-post-type.php');
+include(plugin_dir_path(__FILE__) . '/post-types/word-image-post-type.php');
+include(plugin_dir_path(__FILE__) . '/taxonomies/word-category-taxonomy.php');
 include(plugin_dir_path(__FILE__) . 'language-switcher.php');
 include(plugin_dir_path(__FILE__) . 'audio-upload-form.php');
 include(plugin_dir_path(__FILE__) . 'image-upload-form.php');
@@ -62,8 +63,10 @@ include(plugin_dir_path(__FILE__) . 'flashcard-widget.php');
 include(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php');
 include(plugin_dir_path(__FILE__) . 'audio-recorder.php');
 
+// Include API files
+include(plugin_dir_path(__FILE__) . '/api/deepl-api.php');
 if (!function_exists('transcribe_audio_to_text')) {
-    include(plugin_dir_path(__FILE__) . 'openai-api.php');
+    include(plugin_dir_path(__FILE__) . '/api/openai-api.php');
 }
 
 // Include the plugin update checker
@@ -78,12 +81,11 @@ $myUpdateChecker->setBranch('main');
 //Optional: If you're using a private repository, specify the access token like this:
 //$myUpdateChecker->setAuthentication('your-token-here');
 
-/**
- * Enqueue plugin styles and scripts.
- */
+
+// Enqueue plugin styles and scripts.
 function ll_tools_enqueue_assets() {
-    $css_file = plugins_url('language-learner-tools.css', __FILE__);
-    $css_version = filemtime(plugin_dir_path(__FILE__) . 'language-learner-tools.css');
+    $css_file = plugins_url('/css/language-learner-tools.css', __FILE__);
+    $css_version = filemtime(plugin_dir_path(__FILE__) . '/css/language-learner-tools.css');
     wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
