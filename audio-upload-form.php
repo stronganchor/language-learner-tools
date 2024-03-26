@@ -100,42 +100,59 @@ function ll_handle_audio_file_uploads() {
     $upload_dir = wp_upload_dir();
     $success_matches = [];
     $failed_matches = [];
-	
+    
     $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
+    $max_file_size = 10 * 1024 * 1024; // 10MB
 
-	foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
-	    if (!in_array($_FILES['ll_audio_files']['type'][$key], $allowed_audio_types)) {
+    foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
+        $original_name = $_FILES['ll_audio_files']['name'][$key];
+        $file_size = $_FILES['ll_audio_files']['size'][$key];
+
+        // Check if the file type is allowed
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $tmp_name);
+        finfo_close($finfo);
+        if (!in_array($mime_type, $allowed_audio_types)) {
             $failed_matches[] = $original_name . ' (Invalid file type)';
             continue;
         }
+
+        // Check if the file size is within the allowed limit
+        if ($file_size > $max_file_size) {
+            $failed_matches[] = $original_name . ' (File size exceeds the limit)';
+            continue;
+        }
+
+        // Perform additional audio file validation using getID3 library
+        require_once 'getid3/getid3.php';
+        $getID3 = new getID3();
+        $file_info = $getID3->analyze($tmp_name);
+        if (!isset($file_info['audio'])) {
+            $failed_matches[] = $original_name . ' (Invalid audio file)';
+            continue;
+        }
+
         if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
-	        $original_name = $_FILES['ll_audio_files']['name'][$key];
-	        $file_name = sanitize_file_name($original_name);
-	        $upload_path = $upload_dir['path'] . '/' . $file_name;
-	
-	        // Check if the file already exists and modify the file name if it does
-	        $counter = 0; // Initialize a counter for the filename suffix
-	        $file_info = pathinfo($file_name);
-	        $original_base_name = $file_info['filename']; // Filename without extension
-	        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : ''; // Include the dot
-	        // Loop to find a new filename if the current one already exists
-	        while (file_exists($upload_path)) {
-	            $file_name = $original_base_name . '_' . $counter . $extension;
-	            $upload_path = $upload_dir['path'] . '/' . $file_name;
-	            $counter++; // Increment the counter for the next round if needed
-	        }
-	
-	        if (move_uploaded_file($tmp_name, $upload_path)) {
-	            // This will construct the path from /wp-content/uploads onwards
-	            $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
+            $sanitized_name = sanitize_file_name(basename($original_name));
+            $upload_path = $upload_dir['path'] . '/' . $sanitized_name;
+
+            // Check if the file already exists and modify the file name if it does
+            $counter = 0;
+            $file_info = pathinfo($sanitized_name);
+            $original_base_name = $file_info['filename'];
+            $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
+            while (file_exists($upload_path)) {
+                $sanitized_name = $original_base_name . '_' . $counter . $extension;
+                $upload_path = $upload_dir['path'] . '/' . $sanitized_name;
+                $counter++;
+            }
+
+            if (move_uploaded_file($tmp_name, $upload_path)) {
+                $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
 
                 $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-				
-			    // Remove underscores and numbers from the title
-			    $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
-			    
-			    // Then apply your existing normalization and sanitization
-			    $formatted_title = ll_normalize_case(sanitize_text_field($title_cleaned));
+                $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
+                $formatted_title = ll_normalize_case(sanitize_text_field($title_cleaned));
 
                 if ($match_existing_posts) {
                     // Try to find an existing post with a matching title
@@ -160,13 +177,13 @@ function ll_handle_audio_file_uploads() {
                         // Save the relative path of the audio file and full transcription as post meta
                         $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
                         update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
-						
-						// Retrieve language settings from the WordPress database
-						$target_language = get_option('ll_target_language');
-						$translation_language = get_option('ll_translation_language');
-						
-						// Translate the title using the specified languages and save if successful
-						$translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
+                        
+                        // Retrieve language settings from the WordPress database
+                        $target_language = get_option('ll_target_language');
+                        $translation_language = get_option('ll_translation_language');
+                        
+                        // Translate the title using the specified languages and save if successful
+                        $translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
 
                         if (!is_null($translated_title)) {
                             update_post_meta($post_id, 'word_english_meaning', $translated_title);

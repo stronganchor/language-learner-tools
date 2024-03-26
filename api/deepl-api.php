@@ -48,7 +48,7 @@
     add_action('admin_init', 'll_register_deepl_api_key_setting');
     
     // Perform translation with DeepL API
-    function translate_with_deepl($text, $target_lang = 'EN', $source_lang = 'TR') {
+    function translate_with_deepl($text, $translate_to_lang = 'EN', $translate_from_lang = 'TR') {
         $api_key = get_option('ll_deepl_api_key'); // Retrieve the API key from WordPress options
         if (empty($api_key)) {
             return null;
@@ -58,8 +58,8 @@
         $data = http_build_query([
             'auth_key' => $api_key,
             'text' => $text,
-            'target_lang' => $target_lang,
-            'source_lang' => $source_lang,
+            'target_lang' => $translate_to_lang,
+            'source_lang' => $translate_from_lang,
         ]);
     
         $options = [
