@@ -9,6 +9,7 @@ function sendAudioToServer(audioBlob, uid) {
     var formData = new FormData();
     formData.append('action', 'process_audio_transcription'); // This corresponds to your WordPress AJAX action
     formData.append('audioFile', audioBlob, uid + '.mp3');
+    formData.append('security', my_ajax_object.audio_nonce); // Include nonce in AJAX request
 
     fetch(my_ajax_object.ajax_url, { // my_ajax_object.ajax_url should be defined in PHP and localized to your script
         method: 'POST',

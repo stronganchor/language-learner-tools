@@ -22,6 +22,12 @@ add_shortcode('audio_recorder', 'custom_audio_recorder_shortcode');
 
 // Handle AJAX request for audio transcription
 function handle_audio_transcription() {
+    // Check for nonce security
+    if (!isset($_POST['security']) || !wp_verify_nonce($_POST['security'], 'audio_nonce_security')) {
+        wp_send_json_error('Security check failed. Nonce check failed for nonce with the following content: ' . $_POST['security']);
+        return; // Stop execution if the nonce is not valid
+    }
+    
     // Ensure there's a file and it's a POST request
     if (isset($_FILES['audioFile']) && $_SERVER['REQUEST_METHOD'] == 'POST') {
         $audio_temp_path = $_FILES['audioFile']['tmp_name'];
@@ -44,8 +50,16 @@ function handle_audio_transcription() {
 add_action('wp_ajax_process_audio_transcription', 'handle_audio_transcription');
 
 function custom_enqueue_scripts() {
-    wp_enqueue_script('custom-audio-recorder', plugin_dir_url(__FILE__) . 'js/audio-recorder.js', array(), null, true);
-    wp_localize_script('custom-audio-recorder', 'my_ajax_object', array( 'ajax_url' => admin_url('admin-ajax.php') ));
+    $script_path = plugin_dir_path(__FILE__) . 'js/audio-recorder.js';
+    $script_url = plugin_dir_url(__FILE__) . 'js/audio-recorder.js';
+    $script_version = filemtime($script_path); // Get the file last modification time
+
+    wp_enqueue_script('custom-audio-recorder', $script_url, array(), $script_version, true);
+
+    wp_localize_script('custom-audio-recorder', 'my_ajax_object', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'audio_nonce' => wp_create_nonce('audio_nonce_security') // Adding nonce here
+    ));
 }
 add_action('wp_enqueue_scripts', 'custom_enqueue_scripts');
 
