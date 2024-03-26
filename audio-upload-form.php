@@ -101,7 +101,7 @@ function ll_handle_audio_file_uploads() {
     $success_matches = [];
     $failed_matches = [];
 	
-    $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg'];
+    $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a'];
 
 	foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
 	    if (!in_array($_FILES['ll_audio_files']['type'][$key], $allowed_audio_types)) {
