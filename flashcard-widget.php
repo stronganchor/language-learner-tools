@@ -208,6 +208,13 @@ function ll_get_words_by_category ($categoryName) {
     return $words_data;
 }
 
+// Register the [flashcard_widget] shortcode
+function ll_tools_register_flashcard_widget_shortcode() {
+	add_shortcode('flashcard_widget', 'll_tools_flashcard_widget');
+}
+add_action('init', 'll_tools_register_flashcard_widget_shortcode');
+
+
 // Save user's progress on the quiz to metadata
 function ll_save_quiz_state($user_id, $quiz_state) {
     update_user_meta($user_id, 'll_quiz_state', $quiz_state);
