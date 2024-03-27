@@ -86,5 +86,10 @@ jQuery(document).ready(function($) {
             // Handle form invalid scenario
             console.error('Form validation failed');
         }
+
+        var userWordSets = manageWordSetData.userWordSets;
+        if (userWordSets) {
+            $('#user-word-sets').append(userWordSets);
+        }
     });
 });

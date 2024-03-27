@@ -44,7 +44,7 @@ function ll_tools_register_words_post_type() {
 	register_post_type( "words", $args );
 }
 
-add_action( 'init', 'll_tools_register_words_post_type' );
+add_action( 'init', 'll_tools_register_words_post_type', 0 );
 
 /**
  *  Words metadata functions

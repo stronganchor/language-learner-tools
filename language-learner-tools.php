@@ -34,38 +34,38 @@ if (!defined('WPINC')) {
 }
 
 // Include custom post types
-include(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php'); // Registers the 'words' post type
-include(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php'); // Registers the 'word_images' post type to store images associated with words
+require_once(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php'); // Registers the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php'); // Registers the 'word_images' post type to store images associated with words
 
 // Include taxonomies
-include(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php'); // Registers the 'word-category' taxonomy for the 'words' post type
-include(plugin_dir_path(__FILE__) . 'taxonomies/word-set-taxonomy.php'); // Registers the 'word_set' taxonomy for the 'words' post type
-include(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php'); // Registers the 'language' taxonomy for the 'words' post type and handles language data import
-include(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php'); // Registers the 'part_of_speech' taxonomy for the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php'); // Registers the 'word-category' taxonomy for the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-set-taxonomy.php'); // Registers the 'word_set' taxonomy for the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php'); // Registers the 'language' taxonomy for the 'words' post type and handles language data import
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php'); // Registers the 'part_of_speech' taxonomy for the 'words' post type
 
 // Include user roles
-include(plugin_dir_path(__FILE__) . 'user-roles/word-set-manager.php'); // Creates the 'word_set_manager' role for managing word sets
+require_once(plugin_dir_path(__FILE__) . 'user-roles/word-set-manager.php'); // Creates the 'word_set_manager' role for managing word sets
 
 // Include pages
-include(plugin_dir_path(__FILE__) . 'pages/manage-word-sets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
+require_once(plugin_dir_path(__FILE__) . 'pages/manage-word-sets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
 
 // Include other plugin files
-include(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
-include(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a form for admins to upload audio files in bulk and generate word posts
-include(plugin_dir_path(__FILE__) . 'image-upload-form.php'); // Creates a form for admins to upload images in bulk and generate word_image posts
-include(plugin_dir_path(__FILE__) . 'flashcard-widget.php'); // Implements the [flashcard_widget] shortcode
-include(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php'); // Implements the [word_audio] shortcode for audio playback and translation display
-include(plugin_dir_path(__FILE__) . 'audio-recorder.php'); // Enables user to record audio and save it to the server along with a transcription
-include(plugin_dir_path(__FILE__) . 'word-grid-shortcode.php'); // Implements the [word_grid] shortcode for displaying words along with associated images and audio
+require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
+require_once(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a form for admins to upload audio files in bulk and generate word posts
+require_once(plugin_dir_path(__FILE__) . 'image-upload-form.php'); // Creates a form for admins to upload images in bulk and generate word_image posts
+require_once(plugin_dir_path(__FILE__) . 'flashcard-widget.php'); // Implements the [flashcard_widget] shortcode
+require_once(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php'); // Implements the [word_audio] shortcode for audio playback and translation display
+require_once(plugin_dir_path(__FILE__) . 'audio-recorder.php'); // Enables user to record audio and save it to the server along with a transcription
+require_once(plugin_dir_path(__FILE__) . 'word-grid-shortcode.php'); // Implements the [word_grid] shortcode for displaying words along with associated images and audio
 
 // Include API files
-include(plugin_dir_path(__FILE__) . 'api/deepl-api.php'); // Handles the integration with the DeepL API for automatic translation
+require_once(plugin_dir_path(__FILE__) . 'api/deepl-api.php'); // Handles the integration with the DeepL API for automatic translation
 if (!function_exists('transcribe_audio_to_text')) {
-    include(plugin_dir_path(__FILE__) . 'api/openai-api.php'); // Handles the integration with the OpenAI API
+    require_once(plugin_dir_path(__FILE__) . 'api/openai-api.php'); // Handles the integration with the OpenAI API
 }
 
 // Include the plugin update checker
-require plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
+require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
 	'https://github.com/stronganchor/language-learner-tools',

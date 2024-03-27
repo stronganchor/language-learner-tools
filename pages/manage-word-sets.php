@@ -63,9 +63,11 @@ function ll_manage_word_sets_page_content() {
         </div>
     </form>
 
+    <h2>Your Word Sets</h2>
     <?php
     $content = ob_get_clean();
-    return wpautop($content, false);
+    $content .= ll_get_user_word_sets(get_current_user_id());
+    return $content;
 }
 
 // Enqueue the script for the Manage Word Sets page
@@ -74,6 +76,7 @@ function ll_enqueue_manage_word_sets_script() {
     // Go up one level to the plugin root, then into the /js/ directory
     $js_path = plugin_dir_path(dirname(__FILE__)) . 'js/manage-word-sets.js';
     $version = filemtime($js_path); // File modification time as version
+    $userId = get_current_user_id();
 
     wp_enqueue_script('manage-word-sets-script', plugin_dir_url(dirname(__FILE__)) . 'js/manage-word-sets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
 
@@ -89,13 +92,13 @@ function ll_enqueue_manage_word_sets_script() {
         'availableLanguages' => $language_data,
 		'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('create_word_set_nonce'),
+        'userWordSets' => ll_get_user_word_sets($userId),
     ));
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_manage_word_sets_script');
 
-// Add this function to your plugin to handle the AJAX request
+// AJAX handler for creating a new word set
 add_action('wp_ajax_create_word_set', 'll_handle_create_word_set');
-
 function ll_handle_create_word_set() {
     // Make sure user has the required permissions
     if (!current_user_can('edit_word_sets')) {
@@ -108,15 +111,27 @@ function ll_handle_create_word_set() {
     // Process form data
     $wordSetName = isset($_POST['word_set_name']) ? sanitize_text_field($_POST['word_set_name']) : '';
     $languageId = isset($_POST['word_set_language_id']) ? sanitize_text_field($_POST['word_set_language_id']) : '';
+    $userId = get_current_user_id();
 
-    // Here, implement the logic to create the word set using the provided data.
-    // This is just an example response assuming the creation is successful.
-    $response = array('success' => true, 'message' => 'Word set created successfully!');
-
-    // Return the response as JSON
-    echo json_encode($response);
-
-    // Don't forget to stop execution afterward
-    wp_die();
+    // Create the word set (you might need additional arguments based on your setup)
+    $term = ll_create_new_word_set($wordSetName, $languageId, $userId);
+    if (is_wp_error($term)) {
+        wp_send_json_error(['message' => $term->get_error_message()]);
+        return;
+    } else {
+        wp_send_json_success(['message' => 'Word set created successfully!']);
+    }
 }
+
+// Don't apply wpautop filter to the content of the Manage Word Sets page
+function ll_manage_word_sets_content_filter($content) {
+    global $post;
+    // Ensure global $post is available to check against the current page's slug
+    if (isset($post) && $post->post_name == 'manage-word-sets') {
+        remove_filter('the_content', 'wpautop');
+    }
+    return $content;
+}
+add_filter('the_content', 'll_manage_word_sets_content_filter', 0);
+
 
