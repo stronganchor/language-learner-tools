@@ -1,7 +1,7 @@
 <?php
 function ll_manage_word_sets_page_template() {
     $page_slug = 'manage-word-sets';
-    $existing_page = get_page_by_path($page_slug);
+    $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
 	
     // Correct the path for the file whose version we're checking.
     $latest_page_version = filemtime(__FILE__); 
@@ -80,10 +80,21 @@ function ll_manage_word_sets_page_content() {
 
         $("#word-set-language").autocomplete({
             source: availableLanguages,
+            minLength: 1,
             select: function(event, ui) {
                 $("#word-set-language").val(ui.item.label);
                 $("#word-set-language-id").val(ui.item.value);
                 return false;
+            },
+            focus: function(event, ui) {
+                $("#word-set-language").val(ui.item.label);
+                return false;
+            },
+            change: function(event, ui) {
+                if (!ui.item) {
+                    $("#word-set-language").val("");
+                    $("#word-set-language-id").val("");
+                }
             }
         });
 

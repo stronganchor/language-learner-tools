@@ -76,6 +76,12 @@ $myUpdateChecker->setBranch('main');
 //Optional: If you're using a private repository, specify the access token like this:
 //$myUpdateChecker->setAuthentication('your-token-here');
 
+// Include jQuery UI library for autocomplete
+function ll_enqueue_scripts() {
+    wp_enqueue_script('jquery-ui-autocomplete');
+    wp_enqueue_style('jquery-ui-css', 'https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
+}
+add_action('wp_enqueue_scripts', 'll_enqueue_scripts');
 
 // Enqueue plugin styles and scripts.
 function ll_tools_enqueue_assets() {
