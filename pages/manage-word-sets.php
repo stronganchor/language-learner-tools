@@ -85,8 +85,38 @@ function ll_enqueue_manage_word_sets_script() {
         return array('label' => esc_html($language->name), 'value' => esc_attr($language->term_id));
     }, $languages);
 
-    wp_localize_script('manage-word-sets-script', 'availableLanguages', $language_data);
+    wp_localize_script('manage-word-sets-script', 'manageWordSetData', array(
+        'availableLanguages' => $language_data,
+		'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('create_word_set_nonce'),
+    ));
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_manage_word_sets_script');
 
+// Add this function to your plugin to handle the AJAX request
+add_action('wp_ajax_create_word_set', 'll_handle_create_word_set');
+
+function ll_handle_create_word_set() {
+    // Make sure user has the required permissions
+    if (!current_user_can('edit_word_sets')) {
+        wp_die();
+    }
+    
+    // Verify nonce
+    check_ajax_referer('create_word_set_nonce', 'security');
+
+    // Process form data
+    $wordSetName = isset($_POST['word_set_name']) ? sanitize_text_field($_POST['word_set_name']) : '';
+    $languageId = isset($_POST['word_set_language_id']) ? sanitize_text_field($_POST['word_set_language_id']) : '';
+
+    // Here, implement the logic to create the word set using the provided data.
+    // This is just an example response assuming the creation is successful.
+    $response = array('success' => true, 'message' => 'Word set created successfully!');
+
+    // Return the response as JSON
+    echo json_encode($response);
+
+    // Don't forget to stop execution afterward
+    wp_die();
+}
 
