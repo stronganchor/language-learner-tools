@@ -151,28 +151,30 @@
 
 	// Save the quiz state to user metadata in WordPress
     function saveQuizState() {
-        var quizState = {
-            usedWordIDs: usedWordIDs,
-            categoryRoundCount: categoryRoundCount,
-            categoryOptionsCount: categoryOptionsCount,
-            categoryRepetitionQueues: categoryRepetitionQueues
-        };
+		if (llToolsFlashcardsData.isUserLoggedIn) {	
+			var quizState = {
+				usedWordIDs: usedWordIDs,
+				categoryRoundCount: categoryRoundCount,
+				categoryOptionsCount: categoryOptionsCount,
+				categoryRepetitionQueues: categoryRepetitionQueues
+			};
 
-        // Send an AJAX request to save the quiz state
-        $.ajax({
-            url: llToolsFlashcardsData.ajaxurl, // WordPress AJAX URL
-            method: 'POST',
-            data: {
-                action: 'll_save_quiz_state',
-                quiz_state: JSON.stringify(quizState)
-            }
-        });
+        	// Send an AJAX request to save the quiz state
+			$.ajax({
+				url: llToolsFlashcardsData.ajaxurl, // WordPress AJAX URL
+				method: 'POST',
+				data: {
+					action: 'll_save_quiz_state',
+					quiz_state: JSON.stringify(quizState)
+				}
+			});
+		}
     }
 	
 	// load saved quiz state from user metadata
 	function loadQuizState() {
-	    var savedQuizState = llToolsFlashcardsData.quizState;
-	    if (savedQuizState) {
+		var savedQuizState = llToolsFlashcardsData.quizState;
+	    if (llToolsFlashcardsData.isUserLoggedIn && savedQuizState) {
 	        // Parse the saved quiz state from JSON
 	        var quizState = JSON.parse(savedQuizState);
 	
@@ -184,7 +186,7 @@
 	        let savedOptionsCount = typeof quizState.categoryOptionsCount === 'object' ? quizState.categoryOptionsCount : {};
 	        for (let category in savedOptionsCount) {
 	            if (savedOptionsCount.hasOwnProperty(category)) {
-	                let count = parseInt(categoryOptionsCount[category]);
+	                let count = parseInt(savedOptionsCount[category]);
 	                categoryOptionsCount[category] = checkMinMax(count, category);
 	            }
 	        }
@@ -379,7 +381,8 @@
 	
     // Calculate the number of options in a quiz dynamically based on user answers
 	function calculateNumberOfOptions() {
-		let number_of_options = categoryOptionsCount[currentCategoryName] ;
+		let number_of_options = categoryOptionsCount[currentCategoryName];
+		number_of_options = checkMinMax(number_of_options, currentCategoryName);
 		if (wrongIndexes.length > 0) {
             // Show fewer options if the user got it wrong last round
             number_of_options--;

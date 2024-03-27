@@ -97,6 +97,7 @@ function ll_tools_flashcard_widget($atts) {
 		'quizState' => $quiz_state,
 		'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
+        'isUserLoggedIn' => is_user_logged_in(),
         'firstCategoryData' => $words_data,
         'firstCategoryName' => $firstCategoryName,
     ));
