@@ -50,82 +50,43 @@ function ll_manage_word_sets_page_content() {
         <div>
             <label for="word-set-name">Word Set Name:</label>
             <input type="text" id="word-set-name" name="word_set_name" required>
+            <div id="word-set-name-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
         <div>
             <label for="word-set-language">Language:</label>
             <input type="text" id="word-set-language" name="word_set_language" required>
             <input type="hidden" id="word-set-language-id" name="word_set_language_id">
+            <div id="word-set-language-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
-        <div>
+        <div style="margin-top: 20px;">
             <button type="submit">Create Word Set</button>
         </div>
     </form>
 
-    <script>
-    // <![CDATA[
-    jQuery(document).ready(function($) {
-        var availableLanguages = [
-            <?php
-            $languages = get_terms([
-                'taxonomy' => 'language',
-                'hide_empty' => false,
-            ]);
-            $language_data = [];
-            foreach ($languages as $language) {
-                $language_data[] = '{label: "' . esc_js($language->name) . '", value: "' . esc_js($language->term_id) . '"}';
-            }
-            echo implode(',', $language_data);
-            ?>
-        ];
-
-        $("#word-set-language").autocomplete({
-            source: availableLanguages,
-            minLength: 1,
-            select: function(event, ui) {
-                $("#word-set-language").val(ui.item.label);
-                $("#word-set-language-id").val(ui.item.value);
-                return false;
-            },
-            focus: function(event, ui) {
-                $("#word-set-language").val(ui.item.label);
-                return false;
-            },
-            change: function(event, ui) {
-                if (!ui.item) {
-                    $("#word-set-language").val("");
-                    $("#word-set-language-id").val("");
-                }
-            }
-        });
-
-        $('#create-word-set-form').on('submit', function(event) {
-            event.preventDefault();
-
-            var form = event.target;
-            var formData = new FormData(form);
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Word set created successfully!');
-                    form.reset();
-                } else {
-                    alert('Error creating word set. Please try again.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error creating word set. Please try again.');
-            });
-        });
-    });
-    // ]]>
-    </script>
     <?php
     $content = ob_get_clean();
     return wpautop($content, false);
 }
+
+// Enqueue the script for the Manage Word Sets page
+function ll_enqueue_manage_word_sets_script() {
+    // Assuming this function is in a file located in /pages/ directory of your plugin
+    // Go up one level to the plugin root, then into the /js/ directory
+    $js_path = plugin_dir_path(dirname(__FILE__)) . 'js/manage-word-sets.js';
+    $version = filemtime($js_path); // File modification time as version
+
+    wp_enqueue_script('manage-word-sets-script', plugin_dir_url(dirname(__FILE__)) . 'js/manage-word-sets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
+
+    $languages = get_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+    ]);
+    $language_data = array_map(function($language) {
+        return array('label' => esc_html($language->name), 'value' => esc_attr($language->term_id));
+    }, $languages);
+
+    wp_localize_script('manage-word-sets-script', 'availableLanguages', $language_data);
+}
+add_action('wp_enqueue_scripts', 'll_enqueue_manage_word_sets_script');
+
+
