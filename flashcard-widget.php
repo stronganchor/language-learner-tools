@@ -157,7 +157,7 @@ function ll_get_words_by_category ($categoryName) {
             array(
                 'taxonomy' => 'word-category',
                 'field' => 'name',
-                'terms' => $categoryName,
+                'terms' => esc_sql($categoryName),
             ),
         ),
     );

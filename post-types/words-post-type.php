@@ -183,10 +183,11 @@ add_action('admin_init', 'll_modify_words_admin_page');
 // Modify the columns in the "Words" table
 function ll_modify_words_columns($columns) {
     unset($columns['date']);
+    $columns['translation'] = __('Translation', 'll-tools-text-domain');
     $columns['word_categories'] = __('Categories', 'll-tools-text-domain');
     $columns['featured_image'] = __('Featured Image', 'll-tools-text-domain');
+    $columns['word_set'] = __('Word Set', 'll-tools-text-domain');
     $columns['audio_file'] = __('Audio File', 'll-tools-text-domain');
-    $columns['translation'] = __('Translation', 'll-tools-text-domain');
     $columns['date'] = __('Date', 'll-tools-text-domain');
     return $columns;
 }
@@ -230,6 +231,14 @@ function ll_render_words_columns($column, $post_id) {
                 echo '-';
             }
             break;
+        case 'word_set':
+            $word_set = get_post_meta($post_id, 'word_set', true);
+            if ($word_set) {
+                echo $word_set;
+            } else {
+                echo '-';
+            }
+            break;
     }
 }
 
@@ -239,6 +248,7 @@ function ll_make_words_columns_sortable($columns) {
     $columns['featured_image'] = 'featured_image';
     $columns['audio_file'] = 'audio_file';
     $columns['translation'] = 'translation';
+    $columns['word_set'] = 'word_set';
     return $columns;
 }
 
@@ -261,6 +271,20 @@ function ll_add_words_filters() {
             'hide_empty' => false,
         ));
 
+        // Word set filter
+        $selected_word_set = isset($_GET['word_set']) ? $_GET['word_set'] : '';
+        $word_sets = get_terms(array(
+            'taxonomy' => 'word-set',
+            'hide_empty' => false,
+        ));
+
+        echo '<select name="word_set">';
+        echo '<option value="">' . __('All Word Sets', 'll-tools-text-domain') . '</option>';
+        foreach ($word_sets as $word_set) {
+            echo '<option value="' . $word_set->slug . '"' . selected($selected_word_set, $word_set->slug, false) . '>' . $word_set->name . '</option>';
+        }
+        echo '</select>';
+
         // Featured image filter
         echo '<select name="has_image">';
         echo '<option value="">' . __('Has Featured Image', 'll-tools-text-domain') . '</option>';
@@ -281,6 +305,16 @@ function ll_apply_words_filters($query) {
                     'taxonomy' => 'word-category',
                     'field' => 'slug',
                     'terms' => $_GET['word_category'],
+                ),
+            );
+        }
+
+        // Filter by word set
+        if (isset($_GET['word_set']) && !empty($_GET['word_set'])) {
+            $query->query_vars['meta_query'] = array(
+                array(
+                    'key' => 'word_set',
+                    'value' => $_GET['word_set'],
                 ),
             );
         }

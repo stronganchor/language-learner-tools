@@ -12,6 +12,9 @@ function ll_tools_word_grid_shortcode($atts) {
         'category' => '', // Default category to empty
     ), $atts);
 
+    // Sanitize the category attribute
+    $sanitized_category = sanitize_text_field($atts['category']);
+
     // Start output buffering
     ob_start();
 
@@ -30,12 +33,12 @@ function ll_tools_word_grid_shortcode($atts) {
     );
 
     // Check if the category attribute is not empty
-    if (!empty($atts['category'])) {
+    if (!empty($sanitized_category)) {
         $args['tax_query'] = array(
             array(
                 'taxonomy' => 'word-category',
                 'field' => 'slug',
-                'terms' => $atts['category'],
+                'terms' => $sanitized_category,
             ),
         );
     }
