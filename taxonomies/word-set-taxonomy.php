@@ -21,3 +21,17 @@ function ll_register_word_set_taxonomy() {
     register_taxonomy('word_set', array('words'), $args);
 }
 add_action('init', 'll_register_word_set_taxonomy');
+
+// Update the "word_set" taxonomy
+function ll_update_word_set_taxonomy() {
+    $args = array(
+        'capabilities' => array(
+            'manage_terms' => 'edit_word_sets',
+            'edit_terms' => 'edit_word_sets',
+            'delete_terms' => 'edit_word_sets',
+            'assign_terms' => 'edit_word_sets',
+        ),
+    );
+    register_taxonomy('word_set', array('words'), $args);
+}
+add_action('init', 'll_update_word_set_taxonomy');

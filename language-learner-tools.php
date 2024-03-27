@@ -43,6 +43,12 @@ include(plugin_dir_path(__FILE__) . 'taxonomies/word-set-taxonomy.php'); // Regi
 include(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php'); // Registers the 'language' taxonomy for the 'words' post type and handles language data import
 include(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php'); // Registers the 'part_of_speech' taxonomy for the 'words' post type
 
+// Include user roles
+include(plugin_dir_path(__FILE__) . 'user-roles/word-set-manager.php'); // Creates the 'word_set_manager' role for managing word sets
+
+// Include pages
+include(plugin_dir_path(__FILE__) . 'pages/manage-word-sets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
+
 // Include other plugin files
 include(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
 include(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a form for admins to upload audio files in bulk and generate word posts
