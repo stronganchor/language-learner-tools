@@ -1,33 +1,36 @@
 <?php
-// Register the "word_set" taxonomy for the "words" custom post type
-function ll_register_word_set_taxonomy() {
-    $labels = array(
-        'name'              => _x('Word Sets', 'taxonomy general name', 'textdomain'),
-        'singular_name'     => _x('Word Set', 'taxonomy singular name', 'textdomain'),
-        'search_items'      => __('Search Word Sets', 'textdomain'),
-        'all_items'         => __('All Word Sets', 'textdomain'),
-        'parent_item'       => __('Parent Word Set', 'textdomain'),
-        'parent_item_colon' => __('Parent Word Set:', 'textdomain'),
-        'edit_item'         => __('Edit Word Set', 'textdomain'),
-        'update_item'       => __('Update Word Set', 'textdomain'),
-        'add_new_item'      => __('Add New Word Set', 'textdomain'),
-        'new_item_name'     => __('New Word Set Name', 'textdomain'),
-        'menu_name'         => __('Word Sets', 'textdomain'),
-    );
+// Register the "word-set" taxonomy
+function ll_tools_register_word_set_taxonomy() {
+    $labels = [
+        "name" => esc_html__("Word Sets", "astra"),
+        "singular_name" => esc_html__("Word Set", "astra"),
+        "add_new_item" => esc_html__("Add New Word Set", "astra"),
+    ];
 
-    $args = array(
-        'labels' => $labels,
-        'hierarchical' => false,
-        'public' => true,
-        'show_ui' => true,
-        'show_admin_column' => true,
-        'query_var' => true,
-        'rewrite' => array('slug' => 'word-set'),
-    );
-
-    register_taxonomy('word_set', array('words'), $args);
+    $args = [
+        "label" => esc_html__("Word Sets", "astra"),
+        "labels" => $labels,
+        "public" => true,
+        "publicly_queryable" => true,
+        "hierarchical" => false,
+        "show_ui" => true,
+        "show_in_menu" => true,
+        "show_in_nav_menus" => true,
+        "query_var" => true,
+        "rewrite" => ['slug' => 'word-sets', 'with_front' => true,],
+        "show_admin_column" => false,
+        "show_in_rest" => true,
+        "show_tagcloud" => false,
+        "rest_base" => "word-sets",
+        "rest_controller_class" => "WP_REST_Terms_Controller",
+        "rest_namespace" => "wp/v2",
+        "show_in_quick_edit" => true,
+        "sort" => false,
+        "show_in_graphql" => false,
+    ];
+    register_taxonomy("word-set", ["words", "word_set"], $args);
 }
-add_action('init', 'll_register_word_set_taxonomy');
+add_action('init', 'll_tools_register_word_set_taxonomy');
 
 // Function to handle creation of a new word set
 function ll_create_new_word_set($word_set_name, $language, $user_id) {
