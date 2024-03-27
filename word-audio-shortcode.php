@@ -107,26 +107,24 @@ add_shortcode('word_audio', 'll_word_audio_shortcode');
 
 // Look up word post by the exact title, being sensitive of special characters
 function ll_find_post_by_exact_title($title, $post_type = 'words') {
-    global $wpdb;
-
-    // Sanitize the title to prevent SQL injection
-    $title = sanitize_text_field($title);
-
-	// Normalize the case of the content
-    $title = ll_normalize_case($title);
-	
-    // Prepare the SQL query using prepared statements for security
-    $query = $wpdb->prepare(
-        "SELECT * FROM $wpdb->posts WHERE post_title = BINARY %s AND post_type = %s AND post_status = 'publish' LIMIT 1",
-        $title,
-        $post_type
+    $query_args = array(
+        'post_type' => $post_type,
+        'posts_per_page' => 1,
+        'post_status' => 'publish',
+        'title' => sanitize_text_field($title),
+        'exact' => true,
     );
 
-    // Execute the query
-    $post = $wpdb->get_row($query);
+    $query = new WP_Query($query_args);
 
-    // Return the post if found
-    return $post;
+    if ($query->have_posts()) {
+        $query->the_post();
+        $post = get_post();
+        wp_reset_postdata();
+        return $post;
+    }
+
+    return null;
 }
 
 // Set a Turkish text to only have the first character capitalized.

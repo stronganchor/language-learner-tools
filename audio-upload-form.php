@@ -100,7 +100,7 @@ function ll_handle_audio_file_uploads() {
     $upload_dir = wp_upload_dir();
     $success_matches = [];
     $failed_matches = [];
-    
+
     $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
     $max_file_size = 10 * 1024 * 1024; // 10MB
 
