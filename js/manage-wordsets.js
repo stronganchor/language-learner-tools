@@ -20,7 +20,6 @@ jQuery(document).ready(function($) {
         minLength: 1,
         select: function(event, ui) {
             $("#wordset-language").val(ui.item.label);
-            $("#wordset-language-id").val(ui.item.value);
             return false;
         },
         focus: function(event, ui) {

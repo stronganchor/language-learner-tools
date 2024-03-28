@@ -21,7 +21,7 @@ add_action('init', 'll_create_wordset_manager_role');
 
 // Only allow access to certain admin menus for the "Word Set Manager" role
 function customize_admin_menu_for_wordset_manager() {
-    if (current_user_can('wordset_manager')) { // Replace with the correct capability if different
+    if (current_user_can('wordset_manager')) { 
         global $menu;
         global $submenu;
 
@@ -38,6 +38,7 @@ function customize_admin_menu_for_wordset_manager() {
 }
 add_action('admin_menu', 'customize_admin_menu_for_wordset_manager', 999);
 
+// Hide the admin bar on site pages for non-admin users
 function hide_admin_bar_for_non_admins() {
     if (!current_user_can('administrator')) {
         return false;
@@ -45,3 +46,14 @@ function hide_admin_bar_for_non_admins() {
     return true; 
 }
 add_filter('show_admin_bar', 'hide_admin_bar_for_non_admins');
+
+// Adds [manage_word_sets] shortcode to display the Word Sets page within a post or page
+function manage_word_sets_shortcode() {
+    if (!current_user_can('manage_options') && !current_user_can('manage_wordsets')) {
+        return 'You do not have permission to view this content.';
+    }
+
+    $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
+    return '<div class="custom-admin-page"><iframe src="' . $iframe_url . '" style="width:100%; height:800px; border:none;"></iframe></div>';
+}
+add_shortcode('manage_word_sets', 'manage_word_sets_shortcode');

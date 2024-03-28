@@ -2,9 +2,25 @@
 
 /* Hide unnecessary items to simplify UI for non-admins */
 #wpadminbar, /* admin bar */
+#adminmenumain, /* left sidebar */
+#wpfooter, /* footer */
 .term-slug-wrap, /* slug field */
 .term-description-wrap, /* description field */
 #screen-meta-links /* screen options */
 {
-    display: none;
+    display: none !important;
+}
+
+#wpcontent {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    background-color: transparent;
+}
+
+.wp-toolbar {
+    padding-top: 0 !important;
+}
+
+body {
+    background-color: transparent;
 }

@@ -2,13 +2,31 @@
 // Register the "wordset" taxonomy
 function ll_tools_register_wordset_taxonomy() {
     $labels = [
-        "name" => esc_html__("Word Sets", "astra"),
-        "singular_name" => esc_html__("Word Set", "astra"),
-        "add_new_item" => esc_html__("Add New Word Set", "astra"),
+        "name" => esc_html__("Word Sets"),
+        "singular_name" => esc_html__("Word Set"),
+        "add_new_item" => esc_html__("Add New Word Set"),
+        "name_field_description" => esc_html__("Enter a name for the word set."),
+        "edit_item" => esc_html__("Edit Word Set"),
+        "go_to_word_sets" => esc_html__("Go to Word Sets"),
+        "view_item" => esc_html__("View Word Set"),
+        "update_item" => esc_html__("Update Word Set"),
+        "add_or_remove_items" => esc_html__("Add or remove word sets"),
+        "choose_from_most_used" => esc_html__("Choose from the most used word sets"),
+        "popular_items" => esc_html__("Popular Word Sets"),
+        "search_items" => esc_html__("Search Word Sets"),
+        "not_found" => esc_html__("No word sets found"),
+        "no_terms" => esc_html__("No word sets"),
+        "items_list_navigation" => esc_html__("Word sets list navigation"),
+        "items_list" => esc_html__("Word sets list"),
+        "back_to_items" => esc_html__("← Back to Word Sets"),
+        "menu_name" => esc_html__("Word Sets"),
+        "all_items" => esc_html__("All Word Sets"),
+        "parent_item" => esc_html__("Parent Word Set"),
+        "parent_item_colon" => esc_html__("Parent Word Set:"),
     ];
 
     $args = [
-        "label" => esc_html__("Word Sets", "astra"),
+        "label" => esc_html__("Word Sets"),
         "labels" => $labels,
         "public" => true,
         "publicly_queryable" => true,
@@ -55,22 +73,79 @@ function ll_add_admin_caps_for_wordsets() {
 // Hook this function to run after your taxonomy has been registered
 add_action('init', 'll_add_admin_caps_for_wordsets', 11);
 
+// Edit the columns on the word set taxonomy admin page
+function modify_wordset_columns($columns) {
+    $columns['ll_language'] = __('Language', 'textdomain');
+    
+    // Don't remove columns if user is an administrator
+    if (current_user_can('manage_options')) {
+        $columns['manager_user_id'] = __('Manager', 'textdomain');
+        return $columns;
+    }
+
+    unset($columns['description']);
+    unset($columns['slug']);
+    return $columns;
+}
+add_filter('manage_edit-wordset_columns', 'modify_wordset_columns');
+
+// Display custom columns in the word set taxonomy admin page
+function display_wordset_columns($content, $column_name, $term_id) {
+    // switch case statement for column name
+    switch ($column_name) {
+        case 'll_language':
+            $language = get_term_meta($term_id, 'll_language', true);
+            if (!empty($language)) {
+                $content = esc_html($language);
+            } else {
+                $content = '—';
+            }
+            break;
+        case 'manager_user_id':
+            $user_id = get_term_meta($term_id, 'manager_user_id', true);
+            if (!empty($user_id)) {
+                $user = get_user_by('ID', $user_id);
+                $content = esc_html($user->display_name);
+            } else {
+                $content = '—';
+            }
+            break;
+    }
+    return $content;
+}
+add_filter('manage_wordset_custom_column', 'display_wordset_columns', 10, 3);
+
+// Only show the word sets that the user created or is managing
+function filter_wordset_by_user($query) {
+    // Only filter for non-admins
+    if (!current_user_can('manage_options')) {
+        $user_id = get_current_user_id();
+        $query->query_vars['meta_query'] = array(
+            'relation' => 'OR',
+            array(
+                'key' => 'manager_user_id',
+                'compare' => 'NOT EXISTS', // If the field doesn't exist, it's probably not the wordset taxonomy
+            ),
+            array(
+                'key' => 'manager_user_id',
+                'value' => $user_id,
+                'compare' => '=',
+            ),
+        );
+    }
+}
+add_action('pre_get_terms', 'filter_wordset_by_user');
+
 // Add language field to the word set taxonomy admin page
 function ll_add_wordset_language_field($term) {
     $language = '';
-    $language_id = '';
     if (!is_string($term) && $term) { // Check if we are editing an existing term
-        $language_id = get_term_meta($term->term_id, 'll_language', true);
-        $language_term = get_term($language_id, 'language');
-        if ($language_term) {
-            $language = $language_term->name;
-        }
+        $language = get_term_meta($term->term_id, 'll_language', true);
     }
     ?>
     <div class="form-field term-language-wrap">
         <label for="wordset-language"><?php _e('Language', 'll-tools-text-domain'); ?></label>
         <input type="text" id="wordset-language" name="wordset_language" value="<?php echo esc_attr($language); ?>" required>
-        <input type="hidden" id="wordset-language-id" name="wordset_language_id" value="<?php echo esc_attr($language_id); ?>">
         <p><?php _e('Enter the language for this word set.', 'll-tools-text-domain'); ?></p>
     </div>
     <?php
@@ -100,7 +175,6 @@ function ll_enqueue_wordsets_script() {
         'availableLanguages' => $language_data,
 		'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('create_wordset_nonce'),
-        'userWordSets' => ll_get_user_wordsets($userId),
     ));
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_wordsets_script');
@@ -132,55 +206,12 @@ function ll_save_wordset_language($term_id) {
         $language = sanitize_text_field($_POST['wordset_language']);
         update_term_meta($term_id, 'll_language', $language);
     }
+
+    // save the user who created the wordset
+    $user_id = get_current_user_id();
+    update_term_meta($term_id, 'manager_user_id', $user_id);
 }
 add_action('created_wordset', 'll_save_wordset_language');
 add_action('edited_wordset', 'll_save_wordset_language');
 
-// Function to handle creation of a new word set
-function ll_create_new_wordset($wordset_name, $language, $user_id) {
-    if (empty($wordset_name) || empty($language) || empty($user_id)) {
-        // return an error message understandable by is_wp_error()
-        return new WP_Error('missing_data', 'Missing required data');
-    }
-
-    // Insert new word set term
-    $term = wp_insert_term($wordset_name, 'wordset');
-
-    if (is_wp_error($term)) {
-        return new WP_Error('missing_data', 'Error creating word set: ' . $term->get_error_message());
-    }
-
-    // Store additional metadata for the term
-    add_term_meta($term['term_id'], 'll_language', $language, true);
-    add_term_meta($term['term_id'], 'll_created_by', $user_id, true);
-
-    return $term;
-}
-
-// Return HTML for displaying the names of the word sets this user has created
-function ll_get_user_wordsets($user_id) {
-    $wordsets = get_terms(array(
-        'taxonomy' => 'wordset',
-        'hide_empty' => false,
-        'meta_query' => array(
-            array(
-                'key' => 'll_created_by',
-                'value' => $user_id,
-                'compare' => '='
-            )
-        )
-    ));
-
-    if (is_wp_error($wordsets)) {
-        return '<p>You have not created any word sets yet.</p>'; // Handle the error accordingly
-    }
-
-    $return_content = '<ul>';
-    foreach ($wordsets as $wordset) {
-        $language_name = get_term_meta($wordset->term_id, 'll_language', true);
-        $return_content .= '<li>' . esc_html($wordset->name) . ' (' . esc_html($language_name) . ')</li>';
-    }
-    $return_content .= '</ul>';
-    return $return_content;
-}
 
