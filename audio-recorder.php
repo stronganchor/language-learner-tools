@@ -38,7 +38,7 @@ function handle_audio_transcription() {
         $audio_file_path = $upload_dir['path'] . '/' . $audio_file_name;
         move_uploaded_file($audio_temp_path, $audio_file_path);
 
-        $transcription = transcribe_audio_recording($audio_file_path, ''); // Assume $user_prompt not needed or manage accordingly
+        $transcription = transcribe_audio_recording($audio_file_path, '');
 
         // Send a JSON response back
         wp_send_json_success(['transcription' => $transcription]);
@@ -77,7 +77,7 @@ function transcribe_audio_recording($audio_url, $user_prompt) {
         'file' => new CURLFile($audio_url),
         'model' => 'whisper-1',
         'response_format' => 'text',
-        'prompt' => $user_prompt // Add user prompt
+        'prompt' => $user_prompt 
     ];
 
     $ch = curl_init();

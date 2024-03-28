@@ -85,7 +85,7 @@ add_action('save_post', 'll_tools_save_similar_words_metadata');
 // Function to save the metadata
 function ll_tools_save_similar_words_metadata($post_id) {
     // Check if the nonce is set and valid
-    if (!isset($_POST['similar_words_meta_nonce']) || !wp_verify_nonce($_POST['similar_words_meta_nonce'], 'similar_words_meta')) {
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'process_audio_files')) {
         return;
     }
 

@@ -75,12 +75,13 @@ jQuery(document).ready(function($) {
                     alert('Word set created successfully!');
                     form.reset();
                 } else {
-                    alert('Error creating word set. Please try again.');
+                    console.error('Error creating word set');
+                    alert('Error creating word set');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error creating word set. Please try again.');        
+                alert('Error creating word set.');        
             } );
         } else {
             // Handle form invalid scenario

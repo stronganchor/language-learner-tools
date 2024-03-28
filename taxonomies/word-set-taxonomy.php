@@ -35,14 +35,15 @@ add_action('init', 'll_tools_register_word_set_taxonomy');
 // Function to handle creation of a new word set
 function ll_create_new_word_set($word_set_name, $language, $user_id) {
     if (empty($word_set_name) || empty($language) || empty($user_id)) {
-        return false; // Ensure all information is provided
+        // return an error message understandable by is_wp_error()
+        return new WP_Error('missing_data', 'Missing required data');
     }
 
     // Insert new word set term
     $term = wp_insert_term($word_set_name, 'word_set');
 
     if (is_wp_error($term)) {
-        return false; // Handle errors in term creation
+        return new WP_Error('missing_data', 'Error creating word set: ' . $term->get_error_message());
     }
 
     // Store additional metadata for the term
@@ -86,7 +87,8 @@ function ll_get_user_word_sets($user_id) {
 
     $return_content = '<ul>';
     foreach ($word_sets as $word_set) {
-        $return_content .= '<li>' . esc_html($word_set->name) . '</li>';
+        $language_name = get_term_meta($word_set->term_id, 'll_language', true);
+        $return_content .= '<li>' . esc_html($word_set->name) . ' (' . esc_html($language_name) . ')</li>';
     }
     $return_content .= '</ul>';
     return $return_content;

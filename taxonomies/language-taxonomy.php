@@ -12,8 +12,8 @@ function ll_register_language_taxonomy() {
         'labels' => $labels,
         'hierarchical' => false,
         'public' => true,
-        'show_ui' => true,
-        'show_admin_column' => true,
+        'show_ui' => false,
+        'show_admin_column' => false,
         'query_var' => true,
         'rewrite' => array('slug' => 'language'),
     );

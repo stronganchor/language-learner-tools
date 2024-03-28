@@ -115,7 +115,7 @@ function ll_handle_create_word_set() {
 
     // Create the word set (you might need additional arguments based on your setup)
     $term = ll_create_new_word_set($wordSetName, $languageId, $userId);
-    if (is_wp_error($term)) {
+    if (!$term || is_wp_error($term)) {
         wp_send_json_error(['message' => $term->get_error_message()]);
         return;
     } else {
