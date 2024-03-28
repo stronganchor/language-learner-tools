@@ -3,8 +3,8 @@ function ll_manage_wordsets_page_template() {
     $page_slug = 'manage-word-sets';
     $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
 	
-    // Correct the path for the file whose version we're checking.
-    $latest_page_version = filemtime(__FILE__); 
+    // Update this version number when you need to update the page content
+    $latest_page_version = 9;
 
     if (!$existing_page) {
         // Page doesn't exist, so create it.
@@ -27,7 +27,8 @@ function ll_manage_wordsets_page_template() {
     } else {
         // Page exists, check if the version needs updating.
         $existing_page_version = get_post_meta($existing_page->ID, '_page_version', true);
-        if (intval($existing_page_version) < $latest_page_version) {
+
+        if (!$existing_page_version || $existing_page_version < $latest_page_version) {
             // Update the content and the version meta.
             wp_update_post(
                 array(
@@ -48,8 +49,7 @@ function ll_manage_wordsets_page_content() {
     <h2>Create a New Word Set</h2>
     <form id="create-wordset-form" method="post">
         <div style="margin-bottom: 20px;">
-            <label for="wordset-name">Word Set Name:</label>
-            <input type="text" id="wordset-name" name="wordset_name" required>
+            <label for="wordset-name">Word Set Name:</label><input type="text" id="wordset-name" name="wordset_name" required>
             <div id="wordset-name-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
         <div style="margin-bottom: 20px;">
@@ -58,7 +58,7 @@ function ll_manage_wordsets_page_content() {
             <input type="hidden" id="wordset-language-id" name="wordset_language_id">
             <div id="wordset-language-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 40px;">
             <button type="submit">Create Word Set</button>
         </div>
     </form>
@@ -69,7 +69,7 @@ function ll_manage_wordsets_page_content() {
     $content .= ll_get_user_wordsets(get_current_user_id());
     return $content;
 }
-
+/*
 // Enqueue the script for the Manage Word Sets page
 function ll_enqueue_manage_wordsets_script() {
     // Assuming this function is in a file located in /pages/ directory of your plugin
@@ -97,6 +97,7 @@ function ll_enqueue_manage_wordsets_script() {
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_manage_wordsets_script');
 
+
 // AJAX handler for creating a new word set
 add_action('wp_ajax_create_wordset', 'll_handle_create_wordset');
 function ll_handle_create_wordset() {
@@ -113,6 +114,24 @@ function ll_handle_create_wordset() {
     $languageId = isset($_POST['wordset_language_id']) ? sanitize_text_field($_POST['wordset_language_id']) : '';
     $userId = get_current_user_id();
 
+    if (empty($wordSetName)) {
+        wp_send_json_error(['message' => 'Word set name is required.']);
+        alert('Word set name is required.');
+        return;
+    }
+
+    if (empty($languageId)) {
+        wp_send_json_error(['message' => 'Language is required.']);
+        alert('Language is required.');
+        return;
+    }
+
+    if (!userId) {
+        wp_send_json_error(['message' => 'User ID is required.']);
+        alert('User ID is required.');
+        return;
+    }
+
     // Create the word set (you might need additional arguments based on your setup)
     $term = ll_create_new_wordset($wordSetName, $languageId, $userId);
     if (!$term || is_wp_error($term)) {
@@ -121,13 +140,13 @@ function ll_handle_create_wordset() {
     } else {
         wp_send_json_success(['message' => 'Word set created successfully!']);
     }
-}
+}*/
 
 // Don't apply wpautop filter to the content of the Manage Word Sets page
 function ll_manage_wordsets_content_filter($content) {
     global $post;
     // Ensure global $post is available to check against the current page's slug
-    if (isset($post) && $post->post_name == 'manage-wordsets') {
+    if (isset($post) && $post->post_name == 'manage-word-sets') {
         remove_filter('the_content', 'wpautop');
     }
     return $content;

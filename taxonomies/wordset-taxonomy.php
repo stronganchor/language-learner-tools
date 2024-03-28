@@ -58,19 +58,86 @@ add_action('init', 'll_add_admin_caps_for_wordsets', 11);
 // Add language field to the word set taxonomy admin page
 function ll_add_wordset_language_field($term) {
     $language = '';
+    $language_id = '';
     if (!is_string($term) && $term) { // Check if we are editing an existing term
-        $language = get_term_meta($term->term_id, 'll_language', true);
+        $language_id = get_term_meta($term->term_id, 'll_language', true);
+        $language_term = get_term($language_id, 'language');
+        if ($language_term) {
+            $language = $language_term->name;
+        }
     }
     ?>
     <div class="form-field term-language-wrap">
         <label for="wordset-language"><?php _e('Language', 'll-tools-text-domain'); ?></label>
         <input type="text" id="wordset-language" name="wordset_language" value="<?php echo esc_attr($language); ?>" required>
+        <input type="hidden" id="wordset-language-id" name="wordset_language_id" value="<?php echo esc_attr($language_id); ?>">
         <p><?php _e('Enter the language for this word set.', 'll-tools-text-domain'); ?></p>
     </div>
     <?php
 }
 add_action('wordset_add_form_fields', 'll_add_wordset_language_field');
 add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
+
+// Hide the slug field on the word set edit page
+function ll_hide_wordset_slug_field() {
+    ?>
+    <style>
+        .term-slug-wrap {
+            display: none;
+        }
+    </style>
+    <?php
+}
+add_action('admin_head-edit-tags.php', 'll_hide_wordset_slug_field');
+add_action('admin_head-term.php', 'll_hide_wordset_slug_field');
+
+// Enqueue the script for the wordset taxonomy
+function ll_enqueue_wordsets_script() {
+    // Assuming this function is in a file located in /pages/ directory of your plugin
+    // Go up one level to the plugin root, then into the /js/ directory
+    $js_path = plugin_dir_path(dirname(__FILE__)) . 'js/manage-wordsets.js';
+    $version = filemtime($js_path); // File modification time as version
+    $userId = get_current_user_id();
+
+    wp_enqueue_script('manage-wordsets-script', plugin_dir_url(dirname(__FILE__)) . 'js/manage-wordsets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
+
+    $languages = get_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+    ]);
+    $language_data = array_map(function($language) {
+        return array('label' => esc_html($language->name), 'value' => esc_attr($language->term_id));
+    }, $languages);
+
+    wp_localize_script('manage-wordsets-script', 'manageWordSetData', array(
+        'availableLanguages' => $language_data,
+		'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('create_wordset_nonce'),
+        'userWordSets' => ll_get_user_wordsets($userId),
+    ));
+}
+add_action('admin_enqueue_scripts', 'll_enqueue_wordsets_script');
+
+// AJAX handler for language suggestions
+function ll_suggest_languages() {
+    $search = isset($_REQUEST['q']) ? sanitize_text_field($_REQUEST['q']) : '';
+    $languages = get_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+        'search' => $search,
+    ]);
+
+    $suggestions = [];
+    foreach ($languages as $language) {
+        $suggestions[] = [
+            'label' => $language->name,
+            'value' => $language->term_id,
+        ];
+    }
+
+    wp_send_json($suggestions);
+}
+add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
