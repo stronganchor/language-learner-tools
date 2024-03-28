@@ -47,18 +47,18 @@ function ll_manage_wordsets_page_content() {
     ?>
     <h2>Create a New Word Set</h2>
     <form id="create-wordset-form" method="post">
-        <div>
+        <div style="margin-bottom: 20px;">
             <label for="wordset-name">Word Set Name:</label>
             <input type="text" id="wordset-name" name="wordset_name" required>
             <div id="wordset-name-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
-        <div>
+        <div style="margin-bottom: 20px;">
             <label for="wordset-language">Language:</label>
             <input type="text" id="wordset-language" name="wordset_language" required>
             <input type="hidden" id="wordset-language-id" name="wordset_language_id">
             <div id="wordset-language-error" class="error-message" style="display:none; color: red; margin-top: 5px;"></div>
         </div>
-        <div style="margin-top: 20px;">
+        <div style="margin-bottom: 20px;">
             <button type="submit">Create Word Set</button>
         </div>
     </form>

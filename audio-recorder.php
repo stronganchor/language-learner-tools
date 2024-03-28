@@ -29,9 +29,23 @@ function handle_audio_transcription() {
     }
     
     // Ensure there's a file and it's a POST request
-    if (isset($_FILES['audioFile']) && $_SERVER['REQUEST_METHOD'] == 'POST') {
-        $audio_temp_path = $_FILES['audioFile']['tmp_name'];
+    if (isset($_FILES['audioFile']) && $_SERVER['REQUEST_METHOD'] == 'POST') {        
+        // Validate file type
+        $file_type = $_FILES['audioFile']['type'];
+        if (strpos($file_type, 'audio/') !== 0) {
+            wp_send_json_error('Invalid file type. Only audio files are allowed.');
+            return;
+        }
+
+        // Validate file size
+        $max_size = 5 * 1024 * 1024; // 5MB
+        if ($_FILES['audioFile']['size'] > $max_size) {
+            wp_send_json_error('File size exceeds the limit of 5MB.');
+            return;
+        }
         
+        $audio_temp_path = $_FILES['audioFile']['tmp_name'];
+
         // Move the uploaded audio file to a permanent location
         $upload_dir = wp_upload_dir();
         $audio_file_name = uniqid() . '.mp3';
