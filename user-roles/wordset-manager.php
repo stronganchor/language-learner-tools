@@ -1,9 +1,9 @@
 <?php
 
 // Create the "Word Set Manager" user role
-function ll_create_word_set_manager_role() {
+function ll_create_wordset_manager_role() {
     add_role(
-        'word_set_manager',
+        'wordset_manager',
         'Word Set Manager',
         array(
             'read' => true,
@@ -12,9 +12,9 @@ function ll_create_word_set_manager_role() {
             'edit_published_posts' => true,
             'delete_posts' => true,
             'delete_published_posts' => true,
-            'edit_word_sets' => true,
-            'manage_word_sets' => true,
+            'edit_wordsets' => true,
+            'manage_wordsets' => true,
         )
     );
 }
-add_action('init', 'll_create_word_set_manager_role');
+add_action('init', 'll_create_wordset_manager_role');

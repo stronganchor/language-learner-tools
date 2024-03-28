@@ -1,5 +1,5 @@
 jQuery(document).ready(function($) {
-    $("#word-set-language").autocomplete({
+    $("#wordset-language").autocomplete({
         source: function(request, response) {
             var matcher = new RegExp($.ui.autocomplete.escapeRegex(request.term), "i");
             var sortedArray = manageWordSetData.availableLanguages.sort(function(a, b) {
@@ -19,17 +19,17 @@ jQuery(document).ready(function($) {
         },
         minLength: 1,
         select: function(event, ui) {
-            $("#word-set-language").val(ui.item.label);
-            $("#word-set-language-id").val(ui.item.value);
+            $("#wordset-language").val(ui.item.label);
+            $("#wordset-language-id").val(ui.item.value);
             return false;
         },
         focus: function(event, ui) {
-            $("#word-set-language").val(ui.item.label);
+            $("#wordset-language").val(ui.item.label);
             return false;
         }
     });
 
-    $('#create-word-set-form').on('submit', function(event) {
+    $('#create-wordset-form').on('submit', function(event) {
         event.preventDefault(); // Prevent form submission
 
         // Clear previous error messages
@@ -38,21 +38,21 @@ jQuery(document).ready(function($) {
         var isValid = true;
 
         // Validate Word Set Name
-        var wordSetName = $('#word-set-name').val().trim();
+        var wordSetName = $('#wordset-name').val().trim();
         if (wordSetName === '') {
-            $('#word-set-name-error').text('Word Set Name is required.').show();
+            $('#wordset-name-error').text('Word Set Name is required.').show();
             isValid = false;
         }
 
         // Validate Language Selection
-        var languageName = $('#word-set-language').val().trim();
-        var languageId = $('#word-set-language-id').val().trim();
+        var languageName = $('#wordset-language').val().trim();
+        var languageId = $('#wordset-language-id').val().trim();
         var languageIsValid = manageWordSetData.availableLanguages.some(function(language) {
             return language.label === languageName;
         });
 
         if (languageName === '' || !languageIsValid || languageId === '') {
-            $('#word-set-language-error').text('Please select a valid language.').show();
+            $('#wordset-language-error').text('Please select a valid language.').show();
             isValid = false;
         }
 
@@ -62,7 +62,7 @@ jQuery(document).ready(function($) {
             var formData = new FormData(form);
     
             // Append action and nonce to FormData
-            formData.append('action', 'create_word_set');
+            formData.append('action', 'create_wordset');
             formData.append('security', manageWordSetData.nonce);
 
             fetch(manageWordSetData.ajaxurl, {
@@ -90,7 +90,7 @@ jQuery(document).ready(function($) {
 
         var userWordSets = manageWordSetData.userWordSets;
         if (userWordSets) {
-            $('#user-word-sets').append(userWordSets);
+            $('#user-wordsets').append(userWordSets);
         }
     });
 });

@@ -39,15 +39,15 @@ require_once(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php');
 
 // Include taxonomies
 require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php'); // Registers the 'word-category' taxonomy for the 'words' post type
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-set-taxonomy.php'); // Registers the 'word_set' taxonomy for the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/wordset-taxonomy.php'); // Registers the 'wordset' taxonomy for the 'words' post type
 require_once(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php'); // Registers the 'language' taxonomy for the 'words' post type and handles language data import
 require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php'); // Registers the 'part_of_speech' taxonomy for the 'words' post type
 
 // Include user roles
-require_once(plugin_dir_path(__FILE__) . 'user-roles/word-set-manager.php'); // Creates the 'word_set_manager' role for managing word sets
+require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php'); // Creates the 'wordset_manager' role for managing word sets
 
 // Include pages
-require_once(plugin_dir_path(__FILE__) . 'pages/manage-word-sets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
+require_once(plugin_dir_path(__FILE__) . 'pages/manage-wordsets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
 
 // Include other plugin files
 require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
