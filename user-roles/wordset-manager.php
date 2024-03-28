@@ -45,31 +45,3 @@ function hide_admin_bar_for_non_admins() {
     return true; 
 }
 add_filter('show_admin_bar', 'hide_admin_bar_for_non_admins');
-
-function customize_admin_toolbar_for_wordset_manager($wp_admin_bar) {
-    if (current_user_can('wordset_manager')) { // Use the appropriate capability
-        // IDs of the toolbar items you want to keep, adjust as needed
-        $allowed_nodes = ['new-words', 'menu-toggle', 'site-name', 'view-site', 'new-word_images', 'new-content'];
-
-        // Remove unwanted nodes
-        foreach ($wp_admin_bar->get_nodes() as $node) {
-            if (!in_array($node->id, $allowed_nodes)) {
-                $wp_admin_bar->remove_node($node->id);
-            }
-        }
-    }
-}
-add_action('admin_bar_menu', 'customize_admin_toolbar_for_wordset_manager', 999);
-
-function hide_admin_bar_on_admin_pages() {
-    if (!current_user_can('administrator')) {
-        // add display:none to the admin bar
-        ?>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                document.getElementById('wpadminbar').hide();
-            });
-        </script>
-        <?php
-    }
-}

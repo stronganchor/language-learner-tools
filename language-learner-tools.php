@@ -83,13 +83,28 @@ function ll_enqueue_scripts() {
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_scripts');
 
-// Enqueue plugin styles and scripts.
+// Enqueue plugin styles
 function ll_tools_enqueue_assets() {
-    $css_file = plugins_url('/css/language-learner-tools.css', __FILE__);
-    $css_version = filemtime(plugin_dir_path(__FILE__) . '/css/language-learner-tools.css');
+    $relative_path = '/css/language-learner-tools.css';
+    $css_file = plugins_url($relative_path, __FILE__);
+    $css_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
     wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
+
+// Enqueue dashboard style for non-admins
+function ll_tools_enqueue_styles_for_non_admins() {
+    // Ensure the user does not have the Administrator role
+    if (current_user_can('manage_options')) {
+        return;
+    }
+    $relative_path = '/css/non-admin-style.css';
+    $css_file = plugins_url($relative_path, __FILE__);
+    $css_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
+    wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
+}
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_styles_for_non_admins');
+
 
 // Load translations for internationalization
 function ll_tools_load_textdomain() {

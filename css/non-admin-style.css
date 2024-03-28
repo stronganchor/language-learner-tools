@@ -1,0 +1,10 @@
+/* Styles for the admin dashboard for non-admin users */
+
+/* Hide unnecessary items to simplify UI for non-admins */
+#wpadminbar, /* admin bar */
+.term-slug-wrap, /* slug field */
+.term-description-wrap, /* description field */
+#screen-meta-links /* screen options */
+{
+    display: none;
+}
