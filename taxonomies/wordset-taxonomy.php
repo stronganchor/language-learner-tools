@@ -78,19 +78,6 @@ function ll_add_wordset_language_field($term) {
 add_action('wordset_add_form_fields', 'll_add_wordset_language_field');
 add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
 
-// Hide the slug field on the word set edit page
-function ll_hide_wordset_slug_field() {
-    ?>
-    <style>
-        .term-slug-wrap {
-            display: none;
-        }
-    </style>
-    <?php
-}
-add_action('admin_head-edit-tags.php', 'll_hide_wordset_slug_field');
-add_action('admin_head-term.php', 'll_hide_wordset_slug_field');
-
 // Enqueue the script for the wordset taxonomy
 function ll_enqueue_wordsets_script() {
     // Assuming this function is in a file located in /pages/ directory of your plugin
