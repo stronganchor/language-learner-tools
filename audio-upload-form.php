@@ -18,6 +18,13 @@ function ll_audio_upload_form_shortcode() {
         <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
         <label for="match_existing_posts">Match to existing word posts instead of creating new ones</label><br>
         
+        <div id="wordsets_section">
+        Select Word Set:<br>
+        <?php
+            ll_display_wordsets_dropdown();
+        ?>
+        </div>
+
         <div id="categories_section">
             <?php
             echo 'Select Categories:<br>';
@@ -66,6 +73,38 @@ function ll_add_bulk_audio_upload_tool_admin_page() {
     }
 }
 add_action('admin_notices', 'll_add_bulk_audio_upload_tool_admin_page');
+
+// Function to display a dropdown of available word sets based on user role
+function ll_display_wordsets_dropdown() {
+    $user = wp_get_current_user();
+    $wordsets = array();
+
+    if (in_array('administrator', $user->roles)) {
+        // If the user is an administrator, get all word sets
+        $wordsets = get_terms('wordset', array('hide_empty' => false));
+    } elseif (in_array('wordset_manager', $user->roles)) {
+        // If the user is a word set manager, get only the word sets they manage
+        $managed_wordsets = get_user_meta($user->ID, 'managed_wordsets', true);
+        if (!empty($managed_wordsets)) {
+            $wordsets = get_terms(array(
+                'taxonomy' => 'wordset',
+                'hide_empty' => false,
+                'include' => $managed_wordsets,
+            ));
+        }
+    }
+
+    if (!empty($wordsets)) {
+        echo '<select name="selected_wordset" required>';
+        echo '<option value="">Select a word set</option>';
+        foreach ($wordsets as $wordset) {
+            echo '<option value="' . $wordset->term_id . '">' . $wordset->name . '</option>';
+        }
+        echo '</select>';
+    } else {
+        echo '<p>No word sets available.</p>';
+    }
+}
 
 // Function to display categories with indentation
 function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
@@ -173,20 +212,28 @@ function ll_handle_audio_file_uploads() {
                         'post_type'     => 'words',
                     ]);
 
+                    $selected_wordset = isset($_POST['selected_wordset']) ? intval($_POST['selected_wordset']) : 0;
+
                     if ($post_id && !is_wp_error($post_id)) {
                         // Save the relative path of the audio file and full transcription as post meta
                         $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
                         update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
                         
                         // Retrieve language settings from the WordPress database
-                        $target_language = get_option('ll_target_language');
                         $translation_language = get_option('ll_translation_language');
                         
-                        // Translate the title using the specified languages and save if successful
-                        $translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
+                        update_post_meta($post_id, 'wordset', $selected_wordset);
+                        $target_language = ll_get_wordset_language($selected_wordset);
+                        
+                        // Retrieve the names of languages supported by DeepL
+                        $deepl_languages = get_deepl_language_names(true);
 
-                        if (!is_null($translated_title)) {
-                            update_post_meta($post_id, 'word_english_meaning', $translated_title);
+                        // If the target language is supported by DeepL, translate the title
+                        if (in_array($target_language, $deepl_languages)) {
+                            $translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
+                            if (!is_null($translated_title)) {
+                                update_post_meta($post_id, 'word_english_meaning', $translated_title);
+                            }
                         }
 
                         // Assign selected categories to the post

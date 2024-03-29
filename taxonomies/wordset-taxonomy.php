@@ -214,4 +214,7 @@ function ll_save_wordset_language($term_id) {
 add_action('created_wordset', 'll_save_wordset_language');
 add_action('edited_wordset', 'll_save_wordset_language');
 
-
+// Get the language of a word set
+function ll_get_wordset_language($term_id) {
+    return get_term_meta($term_id, 'll_language', true);
+}
