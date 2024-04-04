@@ -249,12 +249,18 @@ function ll_handle_audio_file_uploads() {
                         // if the result is not null
                         if ($deepl_language_codes) {                            
                             $target_language_name = ll_get_wordset_language($selected_wordset);
+
+                            // If the wordset language is not set, fetch the target language from settings
+                            $target_language_code = '';
+                            if (!$target_language_name) {
+                                $target_language_code = get_option('ll_target_language');
+                            } else {                      
+                                $target_language_code = array_search($target_language_name, $deepl_language_codes);
+                            }
+
                             $translation_language_code = get_option('ll_translation_language');
                         
-                            // Get target language code 
-                            $target_language_code = array_search($target_language_name, $deepl_language_codes);
-
-                            // If the target language is supported by DeepL, translate the title
+                            // If the languages are supported by DeepL, translate the title
                             if ($target_language_code && $translation_language_code) {
                                 $translated_title = translate_with_deepl($formatted_title, $translation_language_code, $target_language_code);
                                 if (!is_null($translated_title)) {
