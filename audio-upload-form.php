@@ -25,10 +25,28 @@ function ll_audio_upload_form_shortcode() {
         ?>
         </div>
 
+        <div id="parts_of_speech_section">
+            Select Part of Speech:<br>
+            <select name="ll_part_of_speech">
+                <option value="">-- Select Part of Speech --</option>
+                <?php
+                $parts_of_speech = get_terms([
+                    'taxonomy' => 'part_of_speech',
+                    'hide_empty' => false,
+                ]);
+                foreach ($parts_of_speech as $part_of_speech) {
+                    echo '<option value="' . esc_attr($part_of_speech->term_id) . '">' . esc_html($part_of_speech->name) . '</option>';
+                }
+                ?>
+            </select>
+        </div>
+
         <div id="categories_section">
             <?php
             echo 'Select Categories:<br>';
+            echo '<div style="max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;">';
             ll_display_categories_checklist('word-category');
+            echo '</div>';
             ?>
         </div>
         
@@ -42,6 +60,10 @@ function ll_audio_upload_form_shortcode() {
         $('#match_existing_posts').change(function() {
             // Toggle the visibility of the categories section
             $('#categories_section').toggle(!this.checked);
+            // Toggle the visibility of the word set section
+            $('#wordsets_section').toggle(!this.checked);
+            // Toggle the visibility of the part of speech section
+            $('#parts_of_speech_section').toggle(!this.checked);
         });
 
         // When a category checkbox changes
@@ -95,7 +117,7 @@ function ll_display_wordsets_dropdown() {
     }
 
     if (!empty($wordsets)) {
-        echo '<select name="selected_wordset" required>';
+        echo '<select name="selected_wordset">';
         echo '<option value="">Select a word set</option>';
         foreach ($wordsets as $wordset) {
             echo '<option value="' . $wordset->term_id . '">' . $wordset->name . '</option>';
@@ -229,7 +251,7 @@ function ll_handle_audio_file_uploads() {
                         $deepl_languages = get_deepl_language_names(true);
 
                         // If the target language is supported by DeepL, translate the title
-                        if (in_array($target_language, $deepl_languages)) {
+                        if ($deepl_languages && in_array($target_language, $deepl_languages)) {
                             $translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
                             if (!is_null($translated_title)) {
                                 update_post_meta($post_id, 'word_english_meaning', $translated_title);
@@ -240,6 +262,12 @@ function ll_handle_audio_file_uploads() {
                         if (!empty($selected_categories)) {
                             $selected_categories = array_map('intval', $selected_categories);
                             wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
+                        }
+                        
+                        // Assign the selected part of speech to the post
+                        if (isset($_POST['ll_part_of_speech']) && !empty($_POST['ll_part_of_speech'])) {
+                            $selected_part_of_speech = intval($_POST['ll_part_of_speech']);
+                            wp_set_object_terms($post_id, $selected_part_of_speech, 'part_of_speech', false);
                         }
 
                         // Try to find a relevant image and assign it as the featured image
@@ -261,16 +289,37 @@ function ll_handle_audio_file_uploads() {
             }
         }
     }
+    // Display success and failure messages on the same page    
+    echo '<h3>Upload Results:</h3>';
+    if (!empty($success_matches)) {
+        if($match_existing_posts){
+            echo '<h4>Updated Posts:</h4>';
+        } else {
+            echo '<h4>Created Posts:</h4>';
+        }
+        echo '<ul>';
+        foreach ($success_matches as $match) {
+            echo '<li>' . esc_html($match) . '</li>';
+        }
+        echo '</ul>';
+    }
 
-    // Redirect with success and failure messages
-    $redirect_url = add_query_arg([
-        'post_type' => 'words',
-        'success_matches' => implode(',', $success_matches),
-        'failed_matches' => implode(',', $failed_matches),
-    ], admin_url('edit.php'));
-    
-    wp_redirect($redirect_url);
-    exit;
+    if (!empty($failed_matches)) {
+        if($match_existing_posts){
+            echo '<h4>Failed Updates:</h4>';
+        } else {
+            echo '<h4>Failed Creations:</h4>';
+        }
+        echo '<ul>';
+        foreach ($failed_matches as $match) {
+            echo '<li>' . esc_html($match) . '</li>';
+        }
+        echo '</ul>';
+    }
+
+    // Add a link to go back to the previous page
+    echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
+
 }
 
 // Find the best matching image for a given audio file name and category
