@@ -24,7 +24,21 @@ function ll_register_part_of_speech_taxonomy() {
     $parts_of_speech = array(
         'noun' => 'Noun',
         'verb' => 'Verb',
-        // Add more parts of speech as needed
+        'adjective' => 'Adjective',
+        'adverb' => 'Adverb',
+        'pronoun' => 'Pronoun',
+        'preposition' => 'Preposition',
+        'conjunction' => 'Conjunction',
+        'interjection' => 'Interjection',
+        'article' => 'Article',
+        'numeral' => 'Numeral',
+        'particle' => 'Particle',
+        'classifier' => 'Classifier',
+        'determiner' => 'Determiner',
+        'affix' => 'Affix',
+        'idiom' => 'Idiom',
+        'phrase' => 'Phrase',
+        'other' => 'Other',
     );
 
     foreach ($parts_of_speech as $part_of_speech_slug => $part_of_speech_name) {
