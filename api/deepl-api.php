@@ -115,6 +115,13 @@ function get_deepl_language_codes() {
 
 // Get the full language json from the DeepL API
 function get_deepl_language_json($type = 'target') {
+    $transient_key = 'deepl_language_json_' . $type;
+    $cached_json = get_transient($transient_key);
+
+    if ($cached_json !== false) {
+        return $cached_json;
+    }
+    
     $api_key = get_option('ll_deepl_api_key');
     if (empty($api_key)) {
         return null;
@@ -141,6 +148,8 @@ function get_deepl_language_json($type = 'target') {
     if (!is_array($json) || empty($json)) {
         return null;
     }
+
+    set_transient($transient_key, $json, DAY_IN_SECONDS); // Cache the result for 24 hours
 
     return $json;
 }
