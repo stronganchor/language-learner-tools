@@ -87,6 +87,34 @@ function translate_with_deepl($text, $translate_to_lang = 'EN', $translate_from_
 
 // Get the translation languages from the DeepL API
 function get_deepl_language_names($no_parentheses = false, $type = 'target') {
+    $json = get_deepl_language_json();
+
+    // Remove parentheses and duplicate entries if no_parentheses is true
+    if ($no_parentheses) {
+        $json = array_map(function($lang) {
+            return preg_replace('/\s*\(.*\)/', '', $lang['name']);
+        }, $json);
+        $json = array_unique($json);
+    }
+
+    // Map the response to just the names of the languages
+    return array_map(function($lang) {
+        return $lang['name'];
+    }, $json);
+}
+
+// Get an array with keys as language codes and values as language names
+function get_deepl_language_codes() {
+    $json = get_deepl_language_json();
+    if ($json === null) {
+        return null;
+    }
+
+    return array_column($json, 'name', 'language');
+}
+
+// Get the full language json from the DeepL API
+function get_deepl_language_json($type = 'target') {
     $api_key = get_option('ll_deepl_api_key');
     if (empty($api_key)) {
         return null;
@@ -114,10 +142,7 @@ function get_deepl_language_names($no_parentheses = false, $type = 'target') {
         return null;
     }
 
-    // Map the response to just the names of the languages
-    return array_map(function($lang) {
-        return $lang['name'];
-    }, $json);
+    return $json;
 }
 
 // Create the [test_deepl_api] shortcode for testing the DeepL API

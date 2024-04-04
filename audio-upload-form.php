@@ -240,21 +240,30 @@ function ll_handle_audio_file_uploads() {
                         // Save the relative path of the audio file and full transcription as post meta
                         $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
                         update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
-                        
-                        // Retrieve language settings from the WordPress database
-                        $translation_language = get_option('ll_translation_language');
-                        
+                                                
                         update_post_meta($post_id, 'wordset', $selected_wordset);
-                        $target_language = ll_get_wordset_language($selected_wordset);
-                        
-                        // Retrieve the names of languages supported by DeepL
-                        $deepl_languages = get_deepl_language_names(true);
 
-                        // If the target language is supported by DeepL, translate the title
-                        if ($deepl_languages && in_array($target_language, $deepl_languages)) {
-                            $translated_title = translate_with_deepl($formatted_title, $translation_language, $target_language);
-                            if (!is_null($translated_title)) {
-                                update_post_meta($post_id, 'word_english_meaning', $translated_title);
+                        // Get language codes from deepl_languages
+                        $deepl_language_codes = get_deepl_language_codes();
+
+                        // if the result is not null
+                        if ($deepl_language_codes) {                            
+                            $target_language_name = ll_get_wordset_language($selected_wordset);
+                            $translation_language_code = get_option('ll_translation_language');
+                        
+                            // Get target language code 
+                            $target_language_code = array_search($target_language_name, $deepl_language_codes);
+
+                            // If the target language is supported by DeepL, translate the title
+                            if ($target_language_code && $translation_language_code) {
+                                $translated_title = translate_with_deepl($formatted_title, $translation_language_code, $target_language_code);
+                                if (!is_null($translated_title)) {
+                                    update_post_meta($post_id, 'word_english_meaning', $translated_title);
+                                } else {
+                                    update_post_meta($post_id, 'word_english_meaning', 'Error translating ' . $formatted_title . ' to ' . $translation_language_code . ' from ' . $target_language_code);
+                                }
+                            } else {
+                                update_post_meta($post_id, 'word_english_meaning', 'Error translating to ' . $translation_language_code . ' from ' . $target_language_code);
                             }
                         }
 
