@@ -95,7 +95,7 @@ body.ll-tools-flashcard-open {
     width: 100%;
 }
 
-.flashcard-image-container {
+.flashcard-container {
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     padding: 0; /* No spacing inside the card to allow image to fill */
     background: #fff;
@@ -114,17 +114,17 @@ body.ll-tools-flashcard-open {
     cursor: pointer;
 }
 
-.flashcard-image-container img {
+.flashcard-container img {
     object-fit: contain;
 }
 
-.flashcard-image-container.landscape {
+.flashcard-container.landscape {
     width: 200px;
     max-width: 200px;
     height: auto;
 }
 
-.flashcard-image-container.portrait {
+.flashcard-container.portrait {
     width: 100%;
     height: auto;
 }
@@ -142,6 +142,17 @@ body.ll-tools-flashcard-open {
     border-radius: 10px; /* Apply rounded corners to the image */
     cursor: pointer; 
     transition: transform 0.3s ease;
+}
+
+.quiz-translation {
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    padding-left: 10px;
+    padding-right: 10px;
+    border-radius: 5px;
 }
 
 .quiz-image:hover {

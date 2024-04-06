@@ -74,7 +74,7 @@ function ll_tools_word_grid_shortcode($atts) {
             }
             // Audio file
             if ($word_audio_file) {
-                echo '<audio controls src="' . esc_url(home_url($word_audio_file)) . '"></audio>';
+                echo '<audio controls src="' . esc_url(content_url($word_audio_file)) . '"></audio>';
             }
             echo '</div>'; // End of word-item
         }

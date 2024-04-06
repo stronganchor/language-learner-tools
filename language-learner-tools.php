@@ -60,7 +60,7 @@ require_once(plugin_dir_path(__FILE__) . 'word-grid-shortcode.php'); // Implemen
 
 // Include API files
 require_once(plugin_dir_path(__FILE__) . 'api/deepl-api.php'); // Handles the integration with the DeepL API for automatic translation
-if (!function_exists('transcribe_audio_to_text')) {
+if (!function_exists('transcribe_audio_to_text')) {  // Only include if the function does not already exist (e.g., in a separate OpenAI API plugin)
     require_once(plugin_dir_path(__FILE__) . 'api/openai-api.php'); // Handles the integration with the OpenAI API
 }
 

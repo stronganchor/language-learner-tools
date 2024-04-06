@@ -80,7 +80,7 @@ function ll_handle_image_file_uploads() {
 
             if (move_uploaded_file($tmp_name, $upload_path)) {
                 $attachment_id = wp_insert_attachment([
-                    'guid' => $upload_dir['url'] . '/' . $file_name,
+                    'guid' => $upload_dir['baseurl'] . '/' . $file_name,
                     'post_mime_type' => $_FILES['ll_image_files']['type'][$key],
                     'post_title' => preg_replace('/\.[^.]+$/', '', $file_name),
                     'post_content' => '',

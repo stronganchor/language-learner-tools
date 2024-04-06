@@ -73,7 +73,9 @@
 	// Load resources for a word
 	function loadResourcesForWord(word) {
 		loadAudio(word.audio);
-		loadImage(word.image);
+		if (llToolsFlashcardsData.displayMode === 'image') {
+			loadImage(word.image);
+		}
 	}
 
 	function processFetchedWordData(wordData, categoryName) {
@@ -110,7 +112,8 @@
 			method: 'POST',
 			data: {
 				action: 'll_get_words_by_category',
-				category: categoryName
+				category: categoryName,
+				display_mode: llToolsFlashcardsData.displayMode
 			},
 			success: function(response) {
 				if (response.success) {
@@ -209,7 +212,7 @@
 	}
 	
 	function canAddMoreCards() {
-		const cards = $('.flashcard-image-container');
+		const cards = $('.flashcard-container');
 		
 		// If there are fewer than the minimum number of options, always try to add more
 		if (cards.length < MINIMUM_NUMBER_OF_OPTIONS) {
@@ -509,7 +512,7 @@
 			// Check if the candidate word is not already selected and not similar to any selected words
 			let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
 			let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-			let hasSameImage = selectedWords.some(word => word.image === candidateWord.image);
+			let hasSameImage = llToolsFlashcardsData.displayMode === 'image' && selectedWords.some(word => word.image === candidateWord.image);
 			
 			// If this word passes the checks, add it to the selected words and container
 			if (!isDuplicate && !isSimilar && !hasSameImage) {
@@ -570,91 +573,119 @@
 		}
 		
 		// Add click events to the cards
-		$('.flashcard-image-container').each(function(index) {
+		$('.flashcard-container').each(function(index) {
 			addClickEventToCard($(this), index, targetWord);
 		});
 
 		// Make the cards visible
-		$('.flashcard-image-container').hide().fadeIn(600);
+		$('.flashcard-container').hide().fadeIn(600);
 
 	}
 	
 	// Add a word to the flashcard container at a random position
 	function appendWordToContainer(wordData) {
-		let imgContainer = $('<div>', {
-			class: 'flashcard-image-container',
+		let container = $('<div>', {
+			class: 'flashcard-container',
 			'data-word': wordData.title
 		}).hide();
 
 		let fudgePixels = 10;
 
-		$('<img>', {
-			src: wordData.image,
-			alt: wordData.title,
-			class: 'quiz-image'
-		}).on('load', function() {
-			if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
-				imgContainer.addClass('landscape');
-			} else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
-				imgContainer.addClass('portrait');
-			}
-		}).appendTo(imgContainer);
+		if (llToolsFlashcardsData.displayMode === 'image') {
+			$('<img>', {
+				src: wordData.image,
+				alt: wordData.title,
+				class: 'quiz-image'
+			}).on('load', function() {
+				if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
+					container.addClass('landscape');
+				} else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
+					container.addClass('portrait');
+				}
+			}).appendTo(container);
+		} else {
+			$('<div>', {
+				text: wordData.translation,
+				class: 'quiz-translation'
+			}).appendTo(container);
+		}
 		
-		const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-image-container').length + 1));
-		if ($('.flashcard-image-container').length === 0 || insertAtIndex >= $('.flashcard-image-container').length) {
-			$('#ll-tools-flashcard').append(imgContainer);
+		const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-container').length + 1));
+		if ($('.flashcard-container').length === 0 || insertAtIndex >= $('.flashcard-container').length) {
+			$('#ll-tools-flashcard').append(container);
 		} else {
 			// Insert the container at the specified index
-			imgContainer.insertBefore($('.flashcard-image-container').eq(insertAtIndex));
+			container.insertBefore($('.flashcard-container').eq(insertAtIndex));
 		}
 	}
 
 	// Add click event to the card to handle right and wrong answers
 	function addClickEventToCard(card, index, targetWord) {
 		card.click(function() {
-			if ($(this).find('img').attr("src") === targetWord.image) {
-				// Correct answer
-				playFeedback(true, null, function() {
-					// If there were any wrong answers before the right one was selected
-					if (wrongIndexes.length > 0) {
-						if (!categoryRepetitionQueues[currentCategoryName]) {
-							categoryRepetitionQueues[currentCategoryName] = [];
-						}
-						// Add the word to the repetition queue for the current category
-						categoryRepetitionQueues[currentCategoryName].push({
-							wordData: targetWord,
-							reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
-						});
-					}
-					// Fade out and remove the wrong answers
-					$('.flashcard-image-container').not(this).addClass('fade-out');
-	
-					// Wait for the transition to complete before moving to the next question
-					setTimeout(function() {
-						isFirstRound = false;
-						showQuiz(); // Load next question after fade out
-					}, 600); // Adjust the delay as needed to match the transition duration
-				});
+			if (llToolsFlashcardsData.displayMode === 'image') {
+				if ($(this).find('img').attr("src") === targetWord.image) {
+					handleCorrectAnswer(targetWord);
+				} else {
+					handleWrongAnswer(targetWord, index);
+				}
 			} else {
-				// Wrong answer
-				playFeedback(false, targetWord.audio, null);
-				// Fade out and remove the wrong answer
-				$(this).addClass('fade-out').one('transitionend', function() {
-					$(this).remove(); // Remove the card completely after fade out
-				});
-
-				// Add index to wrongIndexes if the answer is incorrect
-				wrongIndexes.push(index);
-
-				// Check if the user has selected a wrong answer twice
-				if (wrongIndexes.length === 2) {
-					// Remove all options except the correct one
-					$('.flashcard-image-container').not(function() {
-						return $(this).find('img').attr("src") === targetWord.image;
-					}).remove();
+				if ($(this).find('.quiz-translation').text() === targetWord.translation) {
+					handleCorrectAnswer(targetWord);
+				} else {
+					handleWrongAnswer(targetWord, index);
 				}
 			}
 		});
+	}
+
+	// Respond to the correct answer
+	function handleCorrectAnswer(targetWord) {
+		// Correct answer
+		playFeedback(true, null, function() {
+			// If there were any wrong answers before the right one was selected
+			if (wrongIndexes.length > 0) {
+				if (!categoryRepetitionQueues[currentCategoryName]) {
+					categoryRepetitionQueues[currentCategoryName] = [];
+				}
+				// Add the word to the repetition queue for the current category
+				categoryRepetitionQueues[currentCategoryName].push({
+					wordData: targetWord,
+					reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
+				});
+			}
+			// Fade out and remove the wrong answers
+			$('.flashcard-container').not(this).addClass('fade-out');
+
+			// Wait for the transition to complete before moving to the next question
+			setTimeout(function() {
+				isFirstRound = false;
+				showQuiz(); // Load next question after fade out
+			}, 600); // Adjust the delay as needed to match the transition duration
+		});
+	}
+
+	// Respond to the wrong answer
+	function handleWrongAnswer(targetWord, index) {
+		playFeedback(false, targetWord.audio, null);
+		// Fade out and remove the wrong answer
+		$(this).addClass('fade-out').one('transitionend', function() {
+			$(this).remove(); // Remove the card completely after fade out
+		});
+
+		// Add index to wrongIndexes if the answer is incorrect
+		wrongIndexes.push(index);
+
+		// Check if the user has selected a wrong answer twice
+		if (wrongIndexes.length === 2) {
+			// Remove all options except the correct one
+			$('.flashcard-container').not(function() {
+				if (llToolsFlashcardsData.displayMode === 'image') {
+					return $(this).find('img').attr("src") === targetWord.image;
+				} else {
+					return $(this).find('.quiz-translation').text() === targetWord.translation;
+				}
+			}).remove();
+		}
 	}
 
 	function setTargetWordAudio(targetWord) {

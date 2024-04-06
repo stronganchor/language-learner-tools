@@ -9,6 +9,7 @@ function ll_tools_flashcard_widget($atts) {
     $atts = shortcode_atts(array(
         'category' => '', // Optional category
         'mode' => 'random', // Default to practice by showing one random word at a time
+        'display' => 'image', // Default to displaying the word's image
     ), $atts);
 	
     $categories = $atts['category'];
@@ -32,7 +33,7 @@ function ll_tools_flashcard_widget($atts) {
         // Get the word data for a random category
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
         $categoriesToTry = array_diff($categoriesToTry, array($random_category));
-        $words_data = ll_get_words_by_category($random_category);
+        $words_data = ll_get_words_by_category($random_category, $atts['display']);
         $firstCategoryName = $random_category;
     }
 
@@ -42,6 +43,10 @@ function ll_tools_flashcard_widget($atts) {
 	
     // Set the version numbers based on the file's modified timestamp
     $flashcard_css_version = filemtime($flashcard_css_file);
+
+    // Debugging: display the version number to the console
+    echo '<script>console.log("Flashcard CSS version: ' . $flashcard_css_version . '");</script>';
+
     $js_version = filemtime($flashcard_js_file);
 
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $flashcard_css_version);
@@ -97,6 +102,7 @@ function ll_tools_flashcard_widget($atts) {
 		'quizState' => $quiz_state,
 		'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
+        'displayMode' => $atts['display'],
         'isUserLoggedIn' => is_user_logged_in(),
         'firstCategoryData' => $words_data,
         'firstCategoryName' => $firstCategoryName,
@@ -133,9 +139,10 @@ add_action('wp_ajax_ll_get_words_by_category', 'll_get_words_by_category_ajax');
 add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
 function ll_get_words_by_category_ajax() {
     $category = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : '';
+    $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
 
     if (!empty($category)) {
-        $words_data = ll_get_words_by_category($category);
+        $words_data = ll_get_words_by_category($category, $display_mode);
         wp_send_json_success($words_data);
     } else {
         wp_send_json_error('Invalid category.');
@@ -143,16 +150,10 @@ function ll_get_words_by_category_ajax() {
 }
 
 // Get words by category
-function ll_get_words_by_category ($categoryName) {
+function ll_get_words_by_category ($categoryName, $display_mode = 'image') {
     $args = array(
         'post_type' => 'words',
         'posts_per_page' => -1,
-        'meta_query' => array(
-            array(
-                'key' => '_thumbnail_id',
-                'compare' => 'EXISTS',
-            ),
-        ),
         'tax_query' => array(
             array(
                 'taxonomy' => 'word-category',
@@ -161,6 +162,22 @@ function ll_get_words_by_category ($categoryName) {
             ),
         ),
     );
+
+    if ($display_mode === 'image') {
+        $args['meta_query'] = array(
+            array(
+                'key' => '_thumbnail_id',
+                'compare' => 'EXISTS',
+            ),
+        );
+    } else {
+        $args['meta_query'] = array(
+            array(
+                'key' => 'word_english_meaning',
+                'compare' => 'EXISTS',
+            ),
+        );
+    }
 
     $query = new WP_Query($args);
     $words_data = array();
@@ -196,11 +213,12 @@ function ll_get_words_by_category ($categoryName) {
                 $words_data[] = array(
                     'id' => $current_id,
                     'title' => get_the_title(),
-                    'image' => get_the_post_thumbnail_url($current_id, 'full'),
+                    'image' => wp_get_attachment_url(get_post_thumbnail_id($current_id)),
                     'audio' => get_post_meta($current_id, 'word_audio_file', true),
                     'similar_word_id' => get_post_meta($current_id, 'similar_word_id', true),
                     'category' => $primary_category,
                     'all_categories' => $all_categories,
+                    'translation' => get_post_meta($current_id, 'word_english_meaning', true),
                 );
             }
         }
