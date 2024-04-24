@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 1.7.4
+ * Version: 1.7.5
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -48,6 +48,7 @@ require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php'); // C
 
 // Include pages
 require_once(plugin_dir_path(__FILE__) . 'pages/manage-wordsets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
+require_once(plugin_dir_path(__FILE__) . 'pages/missing-audio-admin-page.php'); // Creates the "Missing Audio" admin page
 
 // Include other plugin files
 require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
