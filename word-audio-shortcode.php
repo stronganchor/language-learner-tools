@@ -41,7 +41,12 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 	
     // If no posts found, return the original content processed for nested shortcodes
     if (empty($post)) {
+        // Cache the missing audio instance
+        ll_cache_missing_audio_instance($normalized_content);
         return do_shortcode($original_content);
+    } else {
+        // Remove the word from the missing audio cache if it exists
+        ll_remove_missing_audio_instance($normalized_content);
     }
 	
 	$english_meaning = '';
@@ -104,6 +109,29 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     return $output;
 }
 add_shortcode('word_audio', 'll_word_audio_shortcode');
+
+// When a word_audio shortcode has no matching audio, cache this information for displaying to the admin
+function ll_cache_missing_audio_instance($word) {
+    $missing_audio_instances = get_option('ll_missing_audio_instances', array());
+
+    if (!in_array($word, $missing_audio_instances)) {
+        $missing_audio_instances[] = $word;
+        update_option('ll_missing_audio_instances', $missing_audio_instances);
+    }
+}
+
+// If a word's matching audio was missing before but now we've found a match, remove it from the missing audio metadata
+function ll_remove_missing_audio_instance($word) {
+    $missing_audio_instances = get_option('ll_missing_audio_instances', array());
+
+    if (in_array($word, $missing_audio_instances)) {
+        $key = array_search($word, $missing_audio_instances);
+        if ($key !== false) {
+            unset($missing_audio_instances[$key]);
+            update_option('ll_missing_audio_instances', $missing_audio_instances);
+        }
+    }
+}
 
 // Look up word post by the exact title, being sensitive of special characters
 function ll_find_post_by_exact_title($title, $post_type = 'words') {
