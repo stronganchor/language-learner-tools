@@ -1,5 +1,4 @@
 <?php
-
 // Create the "Missing Audio" admin page
 function ll_create_missing_audio_admin_page() {
     add_submenu_page(
@@ -17,7 +16,6 @@ add_action('admin_menu', 'll_create_missing_audio_admin_page');
 function ll_render_missing_audio_admin_page() {
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
     ?>
-
     <div class="wrap">
         <h1>Language Learner Tools - Missing Audio</h1>
         <?php if (!empty($missing_audio_instances)) : ?>
@@ -25,12 +23,23 @@ function ll_render_missing_audio_admin_page() {
                 <thead>
                     <tr>
                         <th>Word</th>
+                        <th>Post</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($missing_audio_instances as $word) : ?>
+                    <?php foreach ($missing_audio_instances as $instance) : ?>
                         <tr>
-                            <td><?php echo esc_html($word); ?></td>
+                            <td><?php echo esc_html($instance['word']); ?></td>
+                            <td>
+                                <?php
+                                $post = get_post($instance['post_id']);
+                                if ($post) {
+                                    echo '<a href="' . esc_url(get_edit_post_link($post->ID)) . '" target="_blank">' . esc_html($post->post_title) . '</a>';
+                                } else {
+                                    echo 'N/A';
+                                }
+                                ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
