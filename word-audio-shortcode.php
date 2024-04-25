@@ -42,7 +42,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // If no posts found, return the original content processed for nested shortcodes
     if (empty($post)) {
         // Cache the missing audio instance
-        ll_cache_missing_audio_instance($normalized_content);
+        ll_cache_missing_audio_instance($normalized_content, get_the_ID());
         return do_shortcode($original_content);
     } else {
         // Remove the word from the missing audio cache if it exists
@@ -111,11 +111,11 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 add_shortcode('word_audio', 'll_word_audio_shortcode');
 
 // When a word_audio shortcode has no matching audio, cache this information for displaying to the admin
-function ll_cache_missing_audio_instance($word) {
+function ll_cache_missing_audio_instance($word, $post_id) {
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
 
-    if (!in_array($word, $missing_audio_instances)) {
-        $missing_audio_instances[] = $word;
+    if (!isset($missing_audio_instances[$word])) {
+        $missing_audio_instances[$word] = intval($post_id);
         update_option('ll_missing_audio_instances', $missing_audio_instances);
     }
 }
@@ -124,12 +124,9 @@ function ll_cache_missing_audio_instance($word) {
 function ll_remove_missing_audio_instance($word) {
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
 
-    if (in_array($word, $missing_audio_instances)) {
-        $key = array_search($word, $missing_audio_instances);
-        if ($key !== false) {
-            unset($missing_audio_instances[$key]);
-            update_option('ll_missing_audio_instances', $missing_audio_instances);
-        }
+    if (isset($missing_audio_instances[$word])) {
+        unset($missing_audio_instances[$word]);
+        update_option('ll_missing_audio_instances', $missing_audio_instances);
     }
 }
 

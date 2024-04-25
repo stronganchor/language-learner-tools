@@ -27,12 +27,12 @@ function ll_render_missing_audio_admin_page() {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($missing_audio_instances as $instance) : ?>
+                    <?php foreach ($missing_audio_instances as $word => $post_id) : ?>
                         <tr>
-                            <td><?php echo esc_html($instance['word']); ?></td>
+                            <td><?php echo esc_html($word); ?></td>
                             <td>
                                 <?php
-                                $post = get_post($instance['post_id']);
+                                $post = get_post($post_id);
                                 if ($post) {
                                     echo '<a href="' . esc_url(get_edit_post_link($post->ID)) . '" target="_blank">' . esc_html($post->post_title) . '</a>';
                                 } else {
