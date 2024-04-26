@@ -3,7 +3,7 @@
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
 	const DEFAULT_NUMBER_OF_OPTIONS = 2;
 	const MAXIMUM_NUMBER_OF_OPTIONS = 9;
-	const MAXIMUM_TEXT_OPTIONS = 4;
+	const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
 	const MAX_ROWS = 3;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
