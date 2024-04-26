@@ -126,7 +126,7 @@ function ll_remove_missing_audio_instance($word) {
 function ll_find_post_by_exact_title($title, $post_type = 'words') {
     $query_args = array(
         'post_type' => $post_type,
-        'posts_per_page' => 1,
+        'posts_per_page' => -1, // Retrieve all matching posts
         'post_status' => 'publish',
         'title' => sanitize_text_field($title),
         'exact' => true,
@@ -135,10 +135,17 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
     $query = new WP_Query($query_args);
 
     if ($query->have_posts()) {
-        $query->the_post();
-        $post = get_post();
+        $exact_match = null;
+        while ($query->have_posts()) {
+            $query->the_post();
+            $post = get_post();
+            if (strcmp($post->post_title, $title) === 0) {
+                $exact_match = $post;
+                break;
+            }
+        }
         wp_reset_postdata();
-        return $post;
+        return $exact_match;
     }
 
     return null;
