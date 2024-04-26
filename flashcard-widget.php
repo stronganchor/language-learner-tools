@@ -44,9 +44,6 @@ function ll_tools_flashcard_widget($atts) {
     // Set the version numbers based on the file's modified timestamp
     $flashcard_css_version = filemtime($flashcard_css_file);
 
-    // Debugging: display the version number to the console
-    echo '<script>console.log("Flashcard CSS version: ' . $flashcard_css_version . '");</script>';
-
     $js_version = filemtime($flashcard_js_file);
 
     wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $flashcard_css_version);

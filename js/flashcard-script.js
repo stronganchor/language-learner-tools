@@ -29,8 +29,8 @@
 	processFetchedWordData(firstCategoryData, firstCategoryName);
 
     // Audio feedback elements
-    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './right-answer.mp3');
-    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './wrong-answer.mp3');
+    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
+    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
 
 	// Preload resources for the first target word and its category
 	//loadResourcesForCategory(firstCategory);

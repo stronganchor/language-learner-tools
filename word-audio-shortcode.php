@@ -69,7 +69,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
 
-	$play_icon = '<img src="/wp-content/uploads/2024/02/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
+	$play_icon = '<img src="' . plugin_dir_url(__FILE__) . 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
 	
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
@@ -83,39 +83,24 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     }
     $output .= '</span>';
 
-    // Include JavaScript for toggling play/stop
-    $output .= "
-    <script>
-	var play_icon = '<img src=\"/wp-content/uploads/2024/02/play-symbol.svg\" width=\"10\" height=\"10\" alt=\"Play\" data-no-lazy=\"1\">';
-	var stop_icon = '<img src=\"/wp-content/uploads/2024/02/stop-symbol.svg\" width=\"9\" height=\"9\" alt=\"Stop\" data-no-lazy=\"1\">';
-	
-    function ll_toggleAudio(audioId) {
-        var audio = document.getElementById(audioId);
-        var icon = document.getElementById(audioId + '_icon');
-        if (!audio.paused) {
-            audio.pause();
-            audio.currentTime = 0; // Stop the audio
-			icon.innerHTML = play_icon;
-        } else {
-            audio.play();
-        }
-    }
-
-    function ll_audioPlaying(audioId) {
-        var icon = document.getElementById(audioId + '_icon');
-        icon.innerHTML = stop_icon;
-    }
-
-    function ll_audioEnded(audioId) {
-        var icon = document.getElementById(audioId + '_icon');
-        icon.innerHTML = play_icon;
-    }
-    </script>
-    ";
-
     return $output;
 }
 add_shortcode('word_audio', 'll_word_audio_shortcode');
+
+// Enqueue JS script for the word audio shortcode
+function ll_enqueue_word_audio_js() {
+    $script_path = plugin_dir_path(__FILE__) . 'js/word-audio.js';
+    $script_url = plugin_dir_url(__FILE__) . 'js/word-audio.js';
+    $script_version = filemtime($script_path); // Get the file last modification time
+
+    wp_enqueue_script('ll-word-audio', $script_url, array(), $script_version, true);
+
+    // Pass the plugin's directory URL to the JavaScript code
+    wp_localize_script('ll-word-audio', 'll_word_audio_data', array(
+        'plugin_dir_url' => plugin_dir_url(__FILE__),
+    ));
+}
+add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
 
 // When a word_audio shortcode has no matching audio, cache this information for displaying to the admin
 function ll_cache_missing_audio_instance($word, $post_id) {
