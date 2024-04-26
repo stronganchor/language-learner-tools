@@ -3,6 +3,7 @@
 	const MINIMUM_NUMBER_OF_OPTIONS = 2;
 	const DEFAULT_NUMBER_OF_OPTIONS = 2;
 	const MAXIMUM_NUMBER_OF_OPTIONS = 9;
+	const MAXIMUM_TEXT_OPTIONS = 4;
 	const MAX_ROWS = 3;
 	
 	var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
@@ -311,6 +312,9 @@
 	// Check a value against the min and max constraints and return the value or the min/max if out of bounds
 	function checkMinMax(optionsCount, categoryName) {
 		let maxOptionsCount = MAXIMUM_NUMBER_OF_OPTIONS;
+		if (llToolsFlashcardsData.displayMode === "text") {
+			maxOptionsCount = MAXIMUM_TEXT_OPTIONS;
+		}
 		if (wordsByCategory[categoryName]) {
 			// Limit the number of options to the total number of words in this category, or the maximum number
 			maxOptionsCount = Math.min(maxOptionsCount, wordsByCategory[categoryName].length);
