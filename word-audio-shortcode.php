@@ -121,6 +121,26 @@ function ll_remove_missing_audio_instance($word) {
         update_option('ll_missing_audio_instances', $missing_audio_instances);
     }
 }
+
+// Custom function to compare strings character by character
+function ll_strcmp($str1, $str2) {
+    $len1 = strlen($str1);
+    $len2 = strlen($str2);
+
+    if ($len1 !== $len2) {
+        return false;
+    }
+
+    for ($i = 0; $i < $len1; $i++) {
+        if ($str1[$i] !== $str2[$i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 // Look up word post by the exact title, being sensitive of special characters
 function ll_find_post_by_exact_title($title, $post_type = 'words') {
     $query_args = array(
@@ -139,17 +159,9 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
             $query->the_post();
             $post = get_post();
             
-            // Use mb_strcmp() function for comparing special characters if it exists
-            if (function_exists('mb_strcmp')) {
-                if (mb_strcmp($post->post_title, $title) === 0) {
-                    $exact_match = $post;
-                    break;
-                }
-            } else { // Otherwise, fall back to a more basic comparison with strcmp()
-                if (strcmp($post->post_title, $title) === 0) {
-                    $exact_match = $post;
-                    break;
-                }
+            if (ll_strcmp($post->post_title, $title)) {
+                $exact_match = $post;
+                break;
             }
         }
         wp_reset_postdata();
