@@ -154,7 +154,7 @@ function ll_tools_display_vocab_content($content) {
             $custom_content .= "<p><em>$word_example_translation</em></p>";
         }
         if ($word_audio_file) {
-            $custom_content .= "<audio controls src='".esc_url(content_url($word_audio_file))."'></audio>";
+            $custom_content .= "<audio controls src='".esc_url($word_audio_file)."'></audio>";
         }
 
         $custom_content .= "</div>";
