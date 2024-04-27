@@ -145,7 +145,7 @@ body.ll-tools-flashcard-open {
 }
 
 .quiz-translation {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: bold;
     text-align: center;
     padding-top: 20px;
@@ -156,7 +156,7 @@ body.ll-tools-flashcard-open {
 }
 
 .quiz-translation.long-text {
-    font-size: 18px;
+    font-size: 12px;
 }
 
 .quiz-image:hover {

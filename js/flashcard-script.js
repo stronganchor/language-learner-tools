@@ -614,7 +614,7 @@
 			});
 		
 			// Check text length and add long-text class if needed
-			if (wordData.translation.length > 20) {
+			if (wordData.translation.length > 12) {
 				translationDiv.addClass('long-text');
 			}
 		
