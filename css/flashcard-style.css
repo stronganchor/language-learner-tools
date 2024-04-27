@@ -150,9 +150,13 @@ body.ll-tools-flashcard-open {
     text-align: center;
     padding-top: 20px;
     padding-bottom: 20px;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 20px;
+    padding-right: 20px;
     border-radius: 5px;
+}
+
+.quiz-translation.long-text {
+    font-size: 18px;
 }
 
 .quiz-image:hover {

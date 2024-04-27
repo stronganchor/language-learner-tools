@@ -608,10 +608,17 @@
 				}
 			}).appendTo(container);
 		} else {
-			$('<div>', {
+			let translationDiv = $('<div>', {
 				text: wordData.translation,
 				class: 'quiz-translation'
-			}).appendTo(container);
+			});
+		
+			// Check text length and add long-text class if needed
+			if (wordData.translation.length > 20) {
+				translationDiv.addClass('long-text');
+			}
+		
+			translationDiv.appendTo(container);
 		}
 		
 		const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-container').length + 1));
