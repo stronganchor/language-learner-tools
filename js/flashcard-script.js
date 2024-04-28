@@ -608,13 +608,16 @@
 				}
 			}).appendTo(container);
 		} else {
+
+			container.addClass('text-based');
+
 			let translationDiv = $('<div>', {
 				text: wordData.translation,
 				class: 'quiz-translation'
 			});
 		
 			// Check text length and add long-text class if needed
-			if (wordData.translation.length > 12) {
+			if (wordData.translation.length > 20) {
 				translationDiv.addClass('long-text');
 			}
 		
