@@ -135,8 +135,9 @@ body.ll-tools-flashcard-open {
 }
 
 .flashcard-container.text-based {
+    width: 250px;
     max-width: 250px;
-    max-height: 150px;
+    height: 150px;
 }
 
 .fade-out {
