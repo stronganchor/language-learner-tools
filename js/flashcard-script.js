@@ -640,13 +640,13 @@
 				if ($(this).find('img').attr("src") === targetWord.image) {
 					handleCorrectAnswer(targetWord);
 				} else {
-					handleWrongAnswer(targetWord, index);
+					handleWrongAnswer(targetWord, index, $(this));
 				}
 			} else {
 				if ($(this).find('.quiz-translation').text() === targetWord.translation) {
 					handleCorrectAnswer(targetWord);
 				} else {
-					handleWrongAnswer(targetWord, index);
+					handleWrongAnswer(targetWord, index, $(this));
 				}
 			}
 		});
@@ -679,11 +679,11 @@
 	}
 
 	// Respond to the wrong answer
-	function handleWrongAnswer(targetWord, index) {
+	function handleWrongAnswer(targetWord, index, wrongAnswer) {
 		playFeedback(false, targetWord.audio, null);
 		// Fade out and remove the wrong answer
-		$(this).addClass('fade-out').one('transitionend', function() {
-			$(this).remove(); // Remove the card completely after fade out
+		wrongAnswer.addClass('fade-out').one('transitionend', function() {
+			wrongAnswer.remove(); // Remove the card completely after fade out
 		});
 
 		// Add index to wrongIndexes if the answer is incorrect
