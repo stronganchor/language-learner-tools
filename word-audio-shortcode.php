@@ -88,12 +88,8 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 add_shortcode('word_audio', 'll_word_audio_shortcode');
 
 // Enqueue JS script for the word audio shortcode
-function ll_enqueue_word_audio_js() {
-    $script_path = plugin_dir_path(__FILE__) . 'js/word-audio.js';
-    $script_url = plugin_dir_url(__FILE__) . 'js/word-audio.js';
-    $script_version = filemtime($script_path); // Get the file last modification time
-
-    wp_enqueue_script('ll-word-audio', $script_url, array(), $script_version, true);
+function ll_enqueue_word_audio_js() {    
+    ll_enqueue_asset_by_timestamp('js/word-audio.js', 'll-word-audio', array(), true);
 
     // Pass the plugin's directory URL to the JavaScript code
     wp_localize_script('ll-word-audio', 'll_word_audio_data', array(

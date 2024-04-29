@@ -63,19 +63,12 @@ function ll_tools_flashcard_widget($atts) {
         $firstCategoryName = $random_category;
     }
 
-    // Get the file paths for the CSS and JS files
-    $flashcard_css_file = plugin_dir_path(__FILE__) . '/css/flashcard-style.css';
-    $flashcard_js_file = plugin_dir_path(__FILE__) . '/js/flashcard-script.js';
-	
-    // Set the version numbers based on the file's modified timestamp
-    $flashcard_css_version = filemtime($flashcard_css_file);
-
-    $js_version = filemtime($flashcard_js_file);
-
-    wp_enqueue_style('ll-tools-flashcard-style', plugins_url('/css/flashcard-style.css', __FILE__), array(), $flashcard_css_version);
-	
     // Enqueue jQuery
     wp_enqueue_script('jquery');
+
+    // Enqueue assets used by flashcard widget shortcode
+    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery'), true);
 
     // Add inline script for managing audio playback
     wp_add_inline_script('jquery', '
@@ -92,15 +85,6 @@ function ll_tools_flashcard_widget($atts) {
             });
         });
     ');
-	
-	// Enqueue the JavaScript file
-    wp_enqueue_script(
-        'll-tools-flashcard-script', // Handle for the script.
-        plugins_url('/js/flashcard-script.js', __FILE__), // Path to the script file, relative to the PHP file.
-        array('jquery'), // Dependencies, assuming your script depends on jQuery.
-        $js_version, // Version number, null to prevent version query string.
-        true  // Whether to enqueue the script in the footer. (Recommended)
-    );
 
 	// Internationalized strings to use in the user interface
     $translation_array = array(
@@ -142,7 +126,14 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
-    echo '<div id="ll-tools-flashcard-content">';
+    echo '<div id="ll-tools-flashcard-content">'; /*
+    echo '<div id="ll-tools-category-selection" style="display: none; max-height: 400px; overflow-y: auto;">';
+    echo '<h3>Select Categories</h3>';
+    echo '<button id="ll-tools-uncheck-all">Uncheck All</button>';
+    echo '<button id="ll-tools-check-all">Check All</button>';
+    echo '<div id="ll-tools-category-checkboxes"></div>';
+    echo '<button id="ll-tools-start-selected-quiz">Start Quiz</button>';
+    echo '</div>';*/
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
     echo '</div>';

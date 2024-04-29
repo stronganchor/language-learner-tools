@@ -84,12 +84,26 @@ function ll_enqueue_scripts() {
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_scripts');
 
+// Helper function for enqueueing assets using the file timestamp as the version
+function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = array(), $include_in_footer = false) {
+    $extension = pathinfo($relative_path, PATHINFO_EXTENSION);
+    $asset_file = plugins_url($relative_path, __FILE__);
+    $asset_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
+
+    if ($extension === 'js') {
+        wp_enqueue_script($handle, $asset_file, $dependencies, $asset_version, $include_in_footer);
+    } elseif ($extension === 'css') {
+        wp_enqueue_style($handle, $asset_file, $dependencies, $asset_version);
+    } else {
+        // Unsupported file type, do something (optional)
+        // For example, you could log a warning or handle it differently
+        error_log('Unsupported file type for asset: ' . $relative_path);
+    }
+}
+
 // Enqueue plugin styles
 function ll_tools_enqueue_assets() {
-    $relative_path = '/css/language-learner-tools.css';
-    $css_file = plugins_url($relative_path, __FILE__);
-    $css_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
-    wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
+    ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style');
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
 
@@ -99,10 +113,7 @@ function ll_tools_enqueue_styles_for_non_admins() {
     if (current_user_can('manage_options')) {
         return;
     }
-    $relative_path = '/css/non-admin-style.css';
-    $css_file = plugins_url($relative_path, __FILE__);
-    $css_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
-    wp_enqueue_style('ll-tools-style', $css_file, array(), $css_version);
+    ll_enqueue_asset_by_timestamp('/css/non-admin-style.css', 'll-tools-style');
 }
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_styles_for_non_admins');
 
