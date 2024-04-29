@@ -33,8 +33,25 @@ function ll_tools_flashcard_widget($atts) {
         // Get the word data for a random category
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
         $categoriesToTry = array_diff($categoriesToTry, array($random_category));
-        $words_data = ll_get_words_by_category($random_category, $atts['display']);
-        $firstCategoryName = $random_category;
+
+        // Get all category names and their lowercase versions
+        $all_categories = get_terms(array(
+            'taxonomy' => 'word-category',
+            'fields' => 'names',
+            'hide_empty' => false,
+        ));
+        $all_categories_lowercase = array_map('strtolower', $all_categories);
+
+        // Check if the random category exists (case-insensitive)
+        $random_category_lowercase = strtolower($random_category);
+        $index = array_search($random_category_lowercase, $all_categories_lowercase);
+
+        if ($index !== false) {
+            // Get the original (potentially capitalized) version of the category name
+            $original_category_name = $all_categories[$index];
+            $words_data = ll_get_words_by_category($original_category_name, $atts['display']);
+            $firstCategoryName = $original_category_name;
+        }
     }
 
     // Get the file paths for the CSS and JS files
