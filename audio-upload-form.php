@@ -238,7 +238,7 @@ function ll_handle_audio_file_uploads() {
 
                     if ($post_id && !is_wp_error($post_id)) {
                         // Save the relative path of the audio file and full transcription as post meta
-                        $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
+                        $relative_upload_path = str_replace($upload_dir['basedir'], '', $upload_path);
                         update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
                                                 
                         update_post_meta($post_id, 'wordset', $selected_wordset);
