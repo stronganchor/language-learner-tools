@@ -14,6 +14,11 @@ body.ll-tools-flashcard-open {
     padding-right: 0px;
 }
 
+#ll-tools-start-flashcard {
+    display: block;
+    margin-bottom: 40px;
+}
+
 #ll-tools-flashcard-container {
     position: relative;
 }
