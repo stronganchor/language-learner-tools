@@ -780,6 +780,9 @@
 		categoryNames = randomlySort(categoryNames);
 
 		loadQuizState();
+		
+		// Disable scrolling
+		$('body').addClass('ll-tools-flashcard-open'); 
 
 		// Event handler for the close button
 		$('#ll-tools-close-flashcard').on('click', function() {

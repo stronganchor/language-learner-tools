@@ -51,7 +51,6 @@
     // Event handler to start the widget
 	$('#ll-tools-start-flashcard').on('click', function() {
 		$('#ll-tools-flashcard-popup').show();		
-		$('body').addClass('ll-tools-flashcard-open'); 
 
         // Determine whether the user should select a category or not
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
