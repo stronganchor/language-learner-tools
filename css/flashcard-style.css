@@ -1,11 +1,11 @@
 .hidden {
     display: none !important;
 }
-
 #ll-tools-category-selection {
     display: flex;
     flex-direction: column;
-    height: auto;
+    height: 100%;
+    max-height: 80vh; /* Limit the height of the category selection screen */
 }
 
 #ll-tools-category-selection h3 {
@@ -26,11 +26,11 @@
     flex-grow: 1;
     overflow-y: auto;
     margin-bottom: 20px;
+    max-height: calc(80vh - 150px); /* Adjust the height based on other elements */
 }
 
 #ll-tools-category-checkboxes {
     max-height: 100%;
-    height: auto;
 }
 
 #ll-tools-start-selected-quiz {
