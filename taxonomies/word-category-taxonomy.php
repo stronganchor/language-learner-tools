@@ -93,3 +93,63 @@ function ll_get_category_depth($category_id, $depth = 0) {
     }
     return $depth;
 }
+
+function ll_get_words_by_category($category_name, $display_mode = 'image') {
+    $args = array(
+        'post_type' => 'words',
+        'posts_per_page' => -1,
+        'tax_query' => array(
+            array(
+                'taxonomy' => 'word-category',
+                'field' => 'name',
+                'terms' => $category_name,
+            ),
+        ),
+    );
+
+    if ($display_mode === 'image') {
+        $args['meta_query'] = array(
+            array(
+                'key' => '_thumbnail_id',
+                'compare' => 'EXISTS',
+            ),
+        );
+    } else {
+        $args['meta_query'] = array(
+            array(
+                'key' => 'word_english_meaning',
+                'compare' => 'EXISTS',
+            ),
+        );
+    }
+
+    $query = new WP_Query($args);
+    $words_data = array();
+
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $post_id = get_the_ID();
+            $deepest_categories = ll_get_deepest_categories($post_id);
+
+            foreach ($deepest_categories as $deepest_category) {
+                if ($deepest_category->name === $category_name) {
+                    $words_data[] = array(
+                        'id' => $post_id,
+                        'title' => get_the_title(),
+                        'image' => wp_get_attachment_url(get_post_thumbnail_id($post_id)),
+                        'audio' => get_post_meta($post_id, 'word_audio_file', true),
+                        'similar_word_id' => get_post_meta($post_id, 'similar_word_id', true),
+                        'category' => $deepest_category->name,
+                        'all_categories' => $deepest_categories,
+                        'translation' => get_post_meta($post_id, 'word_english_meaning', true),
+                    );
+                    break;
+                }
+            }
+        }
+        wp_reset_postdata();
+    }
+
+    return $words_data;
+}
