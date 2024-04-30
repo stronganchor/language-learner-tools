@@ -200,7 +200,7 @@
 
 	        let savedRepetitionQueues = typeof quizState.categoryRepetitionQueues === 'object' ? quizState.categoryRepetitionQueues : {};
 	        for (let category in savedRepetitionQueues) {
-	            if (selectedCategories.includes(category)) {
+	            if (categoryNames.includes(category)) {
 	                categoryRepetitionQueues[category] = savedRepetitionQueues[category];
 	            }
 	        }
