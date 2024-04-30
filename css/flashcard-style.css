@@ -2,6 +2,41 @@
     display: none !important;
 }
 
+#ll-tools-category-selection {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+}
+
+#ll-tools-category-selection h3 {
+    margin-bottom: 10px;
+}
+
+.ll-tools-category-selection-buttons {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.ll-tools-category-selection-buttons button {
+    margin: 0 5px;
+}
+
+#ll-tools-category-checkboxes-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+#ll-tools-category-checkboxes {
+    max-height: 100%;
+    height: auto;
+}
+
+#ll-tools-start-selected-quiz {
+    align-self: center;
+}
+
 body.ll-tools-flashcard-open {
     overflow: hidden;
 }

@@ -130,12 +130,16 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
-    echo '<div id="ll-tools-flashcard-content">'; 
-    echo '<div id="ll-tools-category-selection" style="display: none; max-height: 400px; overflow-y: auto;">';
+    echo '<div id="ll-tools-flashcard-content">';
+    echo '<div id="ll-tools-category-selection" style="display: none;">';
     echo '<h3>Select Categories</h3>';
+    echo '<div class="ll-tools-category-selection-buttons">';
     echo '<button id="ll-tools-uncheck-all">Uncheck All</button>';
     echo '<button id="ll-tools-check-all">Check All</button>';
+    echo '</div>';
+    echo '<div id="ll-tools-category-checkboxes-container">';
     echo '<div id="ll-tools-category-checkboxes"></div>';
+    echo '</div>';
     echo '<button id="ll-tools-start-selected-quiz">Start Quiz</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard"></div>';
