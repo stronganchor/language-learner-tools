@@ -21,13 +21,10 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 
     // Strip nested shortcodes temporarily
     $stripped_content = preg_replace('/\[.*?\]/', '', $content);
-	
-	$parentheses_regex = '/\(([^)]+)\)/'; 
-
-	// Use preg_match to capture the English meaning inside parentheses
+	    
+	// Strip out parenthesis if it exists
+	$parentheses_regex = '/\s*\(([^)]+)\)/'; 
 	$has_parenthesis = preg_match($parentheses_regex, $stripped_content, $matches);
-
-	// Now remove the matched pattern from the content
 	$without_parentheses = preg_replace($parentheses_regex, '', $stripped_content);
 	
     $normalized_content = ll_normalize_case($without_parentheses);
