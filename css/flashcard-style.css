@@ -1,6 +1,7 @@
 .hidden {
     display: none !important;
 }
+
 #ll-tools-category-selection {
     display: flex;
     flex-direction: column;
@@ -26,11 +27,14 @@
     flex-grow: 1;
     overflow-y: auto;
     margin-bottom: 20px;
-    max-height: calc(80vh - 150px); /* Adjust the height based on other elements */
+    max-height: calc(80vh - 150px);
+    -webkit-overflow-scrolling: touch;
 }
 
 #ll-tools-category-checkboxes {
     max-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 #ll-tools-start-selected-quiz {
