@@ -18,11 +18,20 @@ function ll_tools_flashcard_widget($atts) {
     // If no category is specified, get all categories
     if (empty($categories)) {
         $categoriesPreselected = false;
-        $categories = get_terms(array(
+        $all_categories = get_terms(array(
             'taxonomy' => 'word-category',
-            'fields' => 'names',
             'hide_empty' => false,
         ));
+
+        $categories = array();
+        foreach ($all_categories as $category) {
+            $word_count = $category->count;
+
+            // Require categories to have at least 6 words in them in order to be used in the quiz
+            if ($word_count >= 6) {
+                $categories[] = $category->name;
+            }
+        }
     } else {
         $category_attributes = explode(',', esc_attr($categories));
         $categories = [];
@@ -38,7 +47,9 @@ function ll_tools_flashcard_widget($atts) {
 
             // Check if the attribute matches any category name or ID (case-insensitive)
             foreach ($all_categories as $category) {
-                if (strcasecmp($attribute, $category->name) === 0 || strcasecmp($attribute, $category->term_id) === 0) {
+                $word_count = $category->count;
+
+                if ($word_count >= 6 && (strcasecmp($attribute, $category->name) === 0 || strcasecmp($attribute, $category->term_id) === 0)) {
                     // Add the exact name of the category to $categories
                     $categories[] = $category->name;
                     $attribute_found = true;
