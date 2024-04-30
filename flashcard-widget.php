@@ -25,7 +25,7 @@ function ll_tools_flashcard_widget($atts) {
 
         $categories = array();
         foreach ($all_categories as $category) {
-            $word_count = $category->count;
+            $word_count = ll_get_deepest_category_word_count($category->term_id);
 
             // Require categories to have at least 6 words in them in order to be used in the quiz
             if ($word_count >= 6) {
@@ -47,7 +47,7 @@ function ll_tools_flashcard_widget($atts) {
 
             // Check if the attribute matches any category name or ID (case-insensitive)
             foreach ($all_categories as $category) {
-                $word_count = $category->count;
+                $word_count = ll_get_deepest_category_word_count($category->term_id);
 
                 if ($word_count >= 6 && (strcasecmp($attribute, $category->name) === 0 || strcasecmp($attribute, $category->term_id) === 0)) {
                     // Add the exact name of the category to $categories
