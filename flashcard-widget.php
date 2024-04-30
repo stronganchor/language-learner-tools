@@ -13,9 +13,11 @@ function ll_tools_flashcard_widget($atts) {
     ), $atts);
 	
     $categories = $atts['category'];
+    $categoriesPreselected = true;
 
     // If no category is specified, get all categories
     if (empty($categories)) {
+        $categoriesPreselected = false;
         $categories = get_terms(array(
             'taxonomy' => 'word-category',
             'fields' => 'names',
@@ -69,6 +71,7 @@ function ll_tools_flashcard_widget($atts) {
     // Enqueue assets used by flashcard widget shortcode
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery'), true);
+    ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 
     // Add inline script for managing audio playback
     wp_add_inline_script('jquery', '
@@ -111,6 +114,7 @@ function ll_tools_flashcard_widget($atts) {
         'categories' => $categories,
         'displayMode' => $atts['display'],
         'isUserLoggedIn' => is_user_logged_in(),
+        'categoriesPreselected' => $categoriesPreselected,
         'firstCategoryData' => $words_data,
         'firstCategoryName' => $firstCategoryName,
     ));
@@ -120,20 +124,20 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
-    echo '<div id="ll-tools-flashcard-header">';
+    echo '<div id="ll-tools-flashcard-header" style="display: none;">';
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
-    echo '<div id="ll-tools-flashcard-content">'; /*
+    echo '<div id="ll-tools-flashcard-content">'; 
     echo '<div id="ll-tools-category-selection" style="display: none; max-height: 400px; overflow-y: auto;">';
     echo '<h3>Select Categories</h3>';
     echo '<button id="ll-tools-uncheck-all">Uncheck All</button>';
     echo '<button id="ll-tools-check-all">Check All</button>';
     echo '<div id="ll-tools-category-checkboxes"></div>';
     echo '<button id="ll-tools-start-selected-quiz">Start Quiz</button>';
-    echo '</div>';*/
+    echo '</div>';
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
     echo '</div>';

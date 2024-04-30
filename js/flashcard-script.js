@@ -23,18 +23,18 @@
 	var categoryOptionsCount = {}; // To track the number of options for each category
     var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
 	var loadedResources = {};
-	var firstCategoryData = llToolsFlashcardsData.firstCategoryData;
 	var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
 
 	// Preload the first category
-	processFetchedWordData(firstCategoryData, firstCategoryName);
+	if (llToolsFlashcardsData.categoriesPreselected) {
+		processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
+	}
 
     // Audio feedback elements
     var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
     var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
 
 	// Preload resources for the first target word and its category
-	//loadResourcesForCategory(firstCategory);
 	loadAudio(correctAudio.src);
 	loadAudio(wrongAudio.src);
 
@@ -181,21 +181,29 @@
 	    if (llToolsFlashcardsData.isUserLoggedIn && savedQuizState) {
 	        // Parse the saved quiz state from JSON
 	        var quizState = JSON.parse(savedQuizState);
-	
-	        // Validate each property before applying it
+
 	        usedWordIDs = Array.isArray(quizState.usedWordIDs) ? quizState.usedWordIDs : [];
-	        categoryRoundCount = typeof quizState.categoryRoundCount === 'object' ? quizState.categoryRoundCount : {};
-	        
-	        // Validate categoryOptionsCount entries
+	        let savedRoundCount = typeof quizState.categoryRoundCount === 'object' ? quizState.categoryRoundCount : {};
+			for (let category in savedRoundCount) {
+	            if (categoryNames.includes(category)) {
+	                categoryRoundCount[category] = savedRoundCount[category];
+	            }
+	        }
+
 	        let savedOptionsCount = typeof quizState.categoryOptionsCount === 'object' ? quizState.categoryOptionsCount : {};
-	        for (let category in savedOptionsCount) {
-	            if (savedOptionsCount.hasOwnProperty(category)) {
+			for (let category in savedOptionsCount) {
+	            if (categoryNames.includes(category)) {
 	                let count = parseInt(savedOptionsCount[category]);
 	                categoryOptionsCount[category] = checkMinMax(count, category);
 	            }
 	        }
-	        
-	        categoryRepetitionQueues = typeof quizState.categoryRepetitionQueues === 'object' ? quizState.categoryRepetitionQueues : {};
+
+	        let savedRepetitionQueues = typeof quizState.categoryRepetitionQueues === 'object' ? quizState.categoryRepetitionQueues : {};
+	        for (let category in savedRepetitionQueues) {
+	            if (selectedCategories.includes(category)) {
+	                categoryRepetitionQueues[category] = savedRepetitionQueues[category];
+	            }
+	        }
 	    }
 	}
 	
@@ -323,43 +331,6 @@
 		return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxOptionsCount)
 	}
 
-	// Initialize category arrays
-	function initializeCategoryArrays() {
-		
-		/* TODO: refactor this code to handle the new AJAX paradigm
-
-		// Validation step: Ensure each category has enough words
-        for (let categoryName in wordsByCategory) {
-            if (wordsByCategory[categoryName].length < MINIMUM_WORDS_PER_CATEGORY) {
-                let wordsToMove = [...wordsByCategory[categoryName]]; // Create a copy of the array
-                for (let word of wordsToMove) {
-                    for (let otherCategory of word.all_categories) {
-                        if (otherCategory !== categoryName && wordsByCategory[otherCategory] && wordsByCategory[otherCategory].length >= MINIMUM_WORDS_PER_CATEGORY) {
-                            // Move the word to the other category
-                            wordsByCategory[otherCategory].push(word);
-                            let index = wordsByCategory[categoryName].indexOf(word);
-                            if (index > -1) {
-                                wordsByCategory[categoryName].splice(index, 1);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remove categories that don't have enough words
-        for (let categoryName in wordsByCategory) {
-            if (wordsByCategory[categoryName].length < MINIMUM_WORDS_PER_CATEGORY) {
-                delete wordsByCategory[categoryName];
-            }
-        }*/
-
-		// Randomize the order of the categories to begin with
-		categoryNames = llToolsFlashcardsData.categories;
-		categoryNames = randomlySort(categoryNames);
-	}
-
 	// Set up initial values for the number of options to display for each category of words
 	function initializeOptionsCount(number_of_options) {
 		if (number_of_options) {
@@ -484,6 +455,9 @@
 		let targetWord = null;
 	
 		if (isFirstRound) {
+			if (!firstCategoryName) {
+				firstCategoryName = categoryNames[Math.floor(Math.random() * categoryNames.length)];
+			}
 			targetWord = selectTargetWord(wordsByCategory[firstCategoryName], firstCategoryName);
 			currentCategoryName = firstCategoryName;
 			currentCategory = wordsByCategory[currentCategoryName];
@@ -748,15 +722,8 @@
 		$('#ll-tools-loading-animation').hide();
 	}
 	
-	function finalizeQuizSetup() {
-		// TODO: consider removing this function if it's not needed
-	}
-
     function showQuiz(number_of_options) {
-		if (isFirstRound) {		
-			// Set up category arrays and preload the first category
-			initializeCategoryArrays();
-			
+		if (isFirstRound) {				
 			// Load resources for the first few categories
 			var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
 			var categoryLoadPromises = initialCategories.map(function(categoryName) {
@@ -786,23 +753,44 @@
 		let targetWord = selectTargetWordAndCategory();
 		fillQuizOptions(targetWord);
 		setTargetWordAudio(targetWord);
-		finalizeQuizSetup();
 		saveQuizState();
 	}
+
+	function resetQuizState() {
+		usedWordIDs = [];
+		activeAudios = [];
+	    wordsByCategory = {};
+	    categoryNames = [];
+	    categoryRoundCount = {}; 
+        wrongIndexes = []; 
+        targetAudioHasPlayed = false
+        currentTargetAudio = null;
+	    currentCategory = null;
+	    currentCategoryName = null;
+	    currentCategoryRoundCount = {};
+        isFirstRound = true;
+	    categoryOptionsCount = {}; 
+        categoryRepetitionQueues = {};
+		loadedCategories = [];
+		loadedResources = {};
+	}
         
-    // Decide which function to call based on the mode passed from PHP
-    function initFlashcardWidget() {
-        var mode = llToolsFlashcardsData.mode; // Access the mode
+    function initFlashcardWidget(selectedCategories) {
+		categoryNames = selectedCategories;
+		categoryNames = randomlySort(categoryNames);
 
 		loadQuizState();
-		
-		$('#ll-tools-flashcard-popup').show();
 
 		// Event handler for the close button
 		$('#ll-tools-close-flashcard').on('click', function() {
+			resetQuizState();
+			$('#ll-tools-flashcard').empty();
+			$('#ll-tools-flashcard-header').hide();
 			$('#ll-tools-flashcard-popup').hide();
 			$('body').removeClass('ll-tools-flashcard-open');
 		});
+
+		$('#ll-tools-flashcard-header').show();
 
 		// Event handler for the repeat button
 		$('#ll-tools-repeat-flashcard').on('click', function() {
@@ -820,14 +808,11 @@
 			isFirstRound = false; // Update the first round flag
 			showQuiz(); // Move to the next question
 		});
-    }
-
-    // Event handler to start the widget
-	$('#ll-tools-start-flashcard').on('click', function() {
-		initFlashcardWidget();
+		
 		showLoadingAnimation();
-		showQuiz();		
-		$('body').addClass('ll-tools-flashcard-open'); 
-	});
+		showQuiz();
+    }
+	// Expose initFlashcardWidget function globally
+	window.initFlashcardWidget = initFlashcardWidget;
 
 })(jQuery);
