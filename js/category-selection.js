@@ -47,7 +47,6 @@
         if (selectedCategories.length > 0) {
             $('#ll-tools-category-selection-popup').hide();
             $('#ll-tools-flashcard-quiz-popup').show();
-            $('body').addClass('ll-tools-flashcard-open');
             initFlashcardWidget(selectedCategories);
         }
     });
@@ -55,11 +54,11 @@
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function() {
         $('#ll-tools-flashcard-popup').show();
+        $('body').addClass('ll-tools-flashcard-open');
         
         // Determine whether the user should select a category or not
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
-            $('body').addClass('ll-tools-flashcard-open');
             initFlashcardWidget(llToolsFlashcardsData.categories);
         } else {
             $('#ll-tools-category-selection-popup').show();
