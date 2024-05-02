@@ -58,13 +58,13 @@
         // Determine whether the user should select a category or not
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
+            $('body').addClass('ll-tools-flashcard-open');
             initFlashcardWidget(llToolsFlashcardsData.categories);
         } else {
             $('#ll-tools-category-selection-popup').show();
             showCategorySelection();
         }
         
-        $('body').addClass('ll-tools-flashcard-open');
     });
 
     // Event handler for the close button on the category selection screen
