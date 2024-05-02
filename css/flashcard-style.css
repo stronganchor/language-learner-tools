@@ -6,12 +6,6 @@
     display: flex;
     flex-direction: column;
     height: auto;
-    max-height: 80vh; /* Limit the height of the category selection screen */
-}
-
-#ll-tools-category-selection h3 {
-    margin-top: 10px;
-    margin-bottom: 10px;
 }
 
 .ll-tools-category-selection-buttons {
@@ -27,7 +21,6 @@
 #ll-tools-category-checkboxes-container {
     flex-grow: 1;
     text-align: center;
-    /*overflow-y: auto;*/
     margin-bottom: 20px;
     max-height: calc(80vh - 150px);
     -webkit-overflow-scrolling: touch;
@@ -74,7 +67,6 @@ body.ll-tools-flashcard-open {
     width: 100%;
     height: 100%;
     background-color: white;
-    /*overflow-y: auto;*/
     z-index: 9999;
     display: flex;
     flex-direction: column;

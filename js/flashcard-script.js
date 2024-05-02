@@ -789,6 +789,7 @@
 			resetQuizState();
 			$('#ll-tools-flashcard').empty();
 			$('#ll-tools-flashcard-header').hide();
+			$('#ll-tools-flashcard-quiz-popup').hide();
 			$('#ll-tools-flashcard-popup').hide();
 			$('body').removeClass('ll-tools-flashcard-open');
 		});
