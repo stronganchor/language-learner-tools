@@ -7,17 +7,19 @@
         checkboxesContainer.empty();
 
         categories.forEach(function(category) {
+            var modifiedCategory = category.toLowerCase().replace(/\s+/g, '-');
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
-                    id: 'category-' + category,
+                    id: 'category-' + modifiedCategory,
                     value: category,
                     checked: true,
                     'data-preloaded': category === preloadedCategory
                 }),
                 $('<label>', {
-                    for: 'category-' + category,
-                    text: category
+                    for: 'category-' + modifiedCategory,
+                    text: category,
+                    style: 'margin-left: 5px;'
                 })
             );
             checkboxesContainer.append(checkbox);
