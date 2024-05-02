@@ -135,14 +135,7 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
-    echo '<div id="ll-tools-flashcard-header" style="display: none;">';
-    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
-    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-close-flashcard">&times;</button>';
-    echo '</div>';
-    echo '<div id="ll-tools-flashcard-content">';
-    echo '<div id="ll-tools-category-selection" style="display: none;">';
+    echo '<div id="ll-tools-category-selection-popup" style="display: none;">';
     echo '<h3>Select Categories</h3>';
     echo '<div class="ll-tools-category-selection-buttons">';
     echo '<button id="ll-tools-uncheck-all">Uncheck All</button>';
@@ -152,9 +145,19 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-category-checkboxes"></div>';
     echo '</div>';
     echo '<button id="ll-tools-start-selected-quiz">Start Quiz</button>';
+    echo '<button id="ll-tools-close-category-selection">&times;</button>';
     echo '</div>';
+    echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
+    echo '<div id="ll-tools-flashcard-header" style="display: none;">';
+    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
+    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
+    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
+    echo '<button id="ll-tools-close-flashcard">&times;</button>';
+    echo '</div>';
+    echo '<div id="ll-tools-flashcard-content">';
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
+    echo '</div>';
     echo '</div>';
     echo '</div>';
 	
