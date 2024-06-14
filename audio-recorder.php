@@ -1,5 +1,5 @@
 <?php
-
+/* TEMPORARILY DISABLING THIS FEATURE UNTIL WE ARE READY TO USE IT
 // [audio_recorder] shortcode
 function custom_audio_recorder_shortcode() {
     // Unique identifier for multiple recorders on the same page
@@ -116,4 +116,4 @@ function transcribe_audio_recording($audio_url, $user_prompt) {
     } else {
         return 'Error: No text found in the response.';
     }
-}
+}*/
