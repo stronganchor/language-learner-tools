@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2024-11-21 06:16+0000\n"
+"PO-Revision-Date: 2024-11-21 06:09+0000\n"
 "Last-Translator: webmaster\n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -44,7 +44,7 @@ msgstr "Kategoriler"
 
 #: flashcard-widget.php:142
 msgid "Check All"
-msgstr "Tümünü Seç"
+msgstr "Tümünü Kontrol Et"
 
 #: post-types/words-post-type.php:191
 msgid "Date"
@@ -52,7 +52,7 @@ msgstr "Tarih"
 
 #: taxonomies/wordset-taxonomy.php:149
 msgid "Enter the language for this word set."
-msgstr "Bu kelime seti için dili girin."
+msgstr "Bu sözcük kümesi için dili girin."
 
 #: post-types/words-post-type.php:188
 msgid "Featured Image"
@@ -100,7 +100,7 @@ msgstr "Tekrarla"
 
 #: flashcard-widget.php:139
 msgid "Select Categories"
-msgstr "Kategorileri Seç"
+msgstr "Kategori Seçiniz"
 
 #: flashcard-widget.php:107 flashcard-widget.php:154
 msgid "Skip"
@@ -112,7 +112,7 @@ msgstr "Başla"
 
 #: flashcard-widget.php:147
 msgid "Start Quiz"
-msgstr "Başla"
+msgstr "Teste Başla"
 
 #. Author of the plugin
 msgid "Strong Anchor Tech"
@@ -124,7 +124,7 @@ msgstr "Çeviri"
 
 #: flashcard-widget.php:141
 msgid "Uncheck All"
-msgstr "Tüm Seçimleri Kaldır"
+msgstr "Tümünün İşaretini Kaldır"
 
 #: post-types/words-post-type.php:189
 msgid "Word Set"
