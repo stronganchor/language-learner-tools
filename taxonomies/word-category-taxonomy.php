@@ -32,6 +32,71 @@ function ll_tools_register_word_category_taxonomy() {
 }
 add_action('init', 'll_tools_register_word_category_taxonomy');
 
+// Add custom fields for translated name
+add_action('word-category_add_form_fields', 'll_add_translation_field');
+add_action('word-category_edit_form_fields', 'll_edit_translation_field');
+add_action('created_word-category', 'll_save_translation_field', 10, 2);
+add_action('edited_word-category', 'll_save_translation_field', 10, 2);
+
+// Add the 'Translated Name' field for adding a new category
+function ll_add_translation_field() {
+	// Check if category translation is enabled
+    $enable_translation = get_option('ll_enable_category_translation', 0);
+
+    if (!$enable_translation) {
+        return;
+    }
+	
+    ?>
+    <div class="form-field term-translation-wrap">
+        <label for="term-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?></label>
+        <input type="text" name="term_translation" id="term-translation" value="" />
+        <p class="description"><?php esc_html_e('Enter the translated name for this category.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <?php
+}
+
+// Add the 'Translated Name' field for editing an existing category
+function ll_edit_translation_field($term) {
+	// Check if category translation is enabled
+    $enable_translation = get_option('ll_enable_category_translation', 0);
+
+    if (!$enable_translation) {
+        return;
+    }
+	
+    $translation = get_term_meta($term->term_id, 'term_translation', true);
+    ?>
+    <tr class="form-field term-translation-wrap">
+        <th scope="row">
+            <label for="term-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <input type="text" name="term_translation" id="term-translation" value="<?php echo esc_attr($translation); ?>" />
+            <p class="description"><?php esc_html_e('Enter the translated name for this category.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+
+// Save the translated name
+function ll_save_translation_field($term_id, $taxonomy) {
+    if (isset($_POST['term_translation'])) {
+        update_term_meta($term_id, 'term_translation', sanitize_text_field($_POST['term_translation']));
+    }
+}
+
+// Retrieve the translated name of a category
+function ll_get_translated_category_name($term_id) {
+    $translation = get_term_meta($term_id, 'term_translation', true);
+    if ($translation) {
+        return $translation;
+    }
+
+    $term = get_term($term_id);
+    return $term ? $term->name : '';
+}
+
 function ll_get_deepest_category_word_count($category_id) {
     $args = array(
         'post_type' => 'words',

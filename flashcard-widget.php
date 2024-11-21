@@ -5,15 +5,23 @@
  * This shortcode displays a flashcard widget for learning and practicing words.
  */
 function ll_tools_flashcard_widget($atts) {
-	// Default settings for the shortcode
+    // Default settings for the shortcode
     $atts = shortcode_atts(array(
         'category' => '', // Optional category
         'mode' => 'random', // Default to practice by showing one random word at a time
         'display' => 'image', // Default to displaying the word's image
     ), $atts);
-	
+
     $categories = $atts['category'];
     $categoriesPreselected = true;
+
+    // Check if translation is enabled and the site's language matches the translation language
+    $enable_translation = get_option('ll_enable_category_translation', 0);
+    $target_language = strtolower(get_option('ll_translation_language', 'en')); // Normalize case
+    $site_language = strtolower(get_locale()); // Normalize case
+
+    // Determine if translations should be used
+    $use_translations = $enable_translation && strpos($site_language, $target_language) === 0;
 
     // If no category is specified, get all categories
     if (empty($categories)) {
@@ -29,7 +37,10 @@ function ll_tools_flashcard_widget($atts) {
 
             // Require categories to have at least 6 words in them in order to be used in the quiz
             if ($word_count >= 6) {
-                $categories[] = $category->name;
+                // Use translation if available and applicable, otherwise fall back to the original name
+                $categories[] = $use_translations
+                    ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
+                    : $category->name;
             }
         }
     } else {
@@ -51,7 +62,9 @@ function ll_tools_flashcard_widget($atts) {
 
                 if ($word_count >= 6 && (strcasecmp($attribute, $category->name) === 0 || strcasecmp($attribute, $category->term_id) === 0)) {
                     // Add the exact name of the category to $categories
-                    $categories[] = $category->name;
+                    $categories[] = $use_translations
+                        ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
+                        : $category->name;
                     $attribute_found = true;
                     break;
                 }
@@ -63,7 +76,7 @@ function ll_tools_flashcard_widget($atts) {
             }
         }
     }
-
+	
     $words_data = array();
     $firstCategoryName = '';
     $categoriesToTry = $categories;
