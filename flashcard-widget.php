@@ -23,76 +23,54 @@ function ll_tools_flashcard_widget($atts) {
     // Determine if translations should be used
     $use_translations = $enable_translation && strpos($site_language, $target_language) === 0;
 
-    // If no category is specified, get all categories
+    // Retrieve all categories if none are specified
+    $all_categories = get_terms(array(
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+    ));
+
     if (empty($categories)) {
         $categoriesPreselected = false;
-        $all_categories = get_terms(array(
-            'taxonomy' => 'word-category',
-            'hide_empty' => false,
-        ));
 
-        $categories = array();
-        foreach ($all_categories as $category) {
-            $word_count = ll_get_deepest_category_word_count($category->term_id);
-
-            // Require categories to have at least 6 words in them in order to be used in the quiz
-            if ($word_count >= 6) {
-                // Use translation if available and applicable, otherwise fall back to the original name
-                $categories[] = $use_translations
-                    ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
-                    : $category->name;
-            }
-        }
+        // Process all categories
+        $categories = ll_process_categories($all_categories, $use_translations);
     } else {
+        // Process specified categories
         $category_attributes = explode(',', esc_attr($categories));
         $categories = [];
-        // Look up all categories
-        $all_categories = get_terms(array(
-            'taxonomy' => 'word-category',
-            'fields' => 'all', // Retrieve all fields to get IDs and names
-            'hide_empty' => false,
-        ));
+        $all_categories = ll_process_categories($all_categories, $use_translations);
 
         foreach ($category_attributes as $attribute) {
             $attribute_found = false;
 
-            // Check if the attribute matches any category name or ID (case-insensitive)
             foreach ($all_categories as $category) {
-                $word_count = ll_get_deepest_category_word_count($category->term_id);
-
-                if ($word_count >= 6 && (strcasecmp($attribute, $category->name) === 0 || strcasecmp($attribute, $category->term_id) === 0)) {
-                    // Add the exact name of the category to $categories
-                    $categories[] = $use_translations
-                        ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
-                        : $category->name;
+                if (strcasecmp($attribute, $category['name']) === 0 || strcasecmp($attribute, $category['id']) === 0) {
+                    $categories[] = $category;
                     $attribute_found = true;
                     break;
                 }
             }
 
-            // If no category matched the attribute, issue a warning
             if (!$attribute_found) {
                 error_log("Category '$attribute' not found.");
             }
         }
     }
-	
-    $words_data = array();
-    $firstCategoryName = '';
-    $categoriesToTry = $categories;
 
-    while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)){
-        // Get the word data for a random category
+    // Process category data for the quiz
+    $words_data = [];
+    $firstCategoryName = '';
+    $categoriesToTry = array_column($categories, 'name');
+
+    while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)) {
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
-        $categoriesToTry = array_diff($categoriesToTry, array($random_category));
+        $categoriesToTry = array_diff($categoriesToTry, [$random_category]);
         $words_data = ll_get_words_by_category($random_category, $atts['display']);
         $firstCategoryName = $random_category;
     }
 
-    // Enqueue jQuery
+    // Enqueue scripts and styles
     wp_enqueue_script('jquery');
-
-    // Enqueue assets used by flashcard widget shortcode
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
@@ -113,28 +91,16 @@ function ll_tools_flashcard_widget($atts) {
         });
     ');
 
-	// Internationalized strings to use in the user interface
-    $translation_array = array(
-		'start' => esc_html__('Start', 'll-tools-text-domain'),
-        'repeat' => esc_html__('Repeat', 'll-tools-text-domain'),
-        'skip' => esc_html__('Skip', 'll-tools-text-domain'),
-        'learn' => esc_html__('Learn', 'll-tools-text-domain'),
-        'practice' => esc_html__('Practice', 'll-tools-text-domain'),
-    );
-
-    // Get the current user's ID
+    // Get the current user's ID and quiz state
     $user_id = get_current_user_id();
-
-    // Retrieve the user's quiz state
     $quiz_state = ll_get_quiz_state($user_id);
-	
+
     // Preload words data to the page and include the mode
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
         'mode' => $atts['mode'], // Pass the mode to JavaScript
-	    'plugin_dir' => plugin_dir_url(__FILE__),
-		'translations' => $translation_array,
-		'quizState' => $quiz_state,
-		'ajaxurl' => admin_url('admin-ajax.php'),
+        'plugin_dir' => plugin_dir_url(__FILE__),
+        'quizState' => $quiz_state,
+        'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
         'displayMode' => $atts['display'],
         'isUserLoggedIn' => is_user_logged_in(),
@@ -173,14 +139,37 @@ function ll_tools_flashcard_widget($atts) {
     echo '</div>';
     echo '</div>';
     echo '</div>';
-	
-	// Run a script after the page loads to show the widget with proper CSS formatting
-	echo '<script type="text/javascript">
-jQuery(document).ready(function($) {
-    $("#ll-tools-flashcard-container").removeAttr("style");
-});
-</script>';
+
+    // Run a script after the page loads to show the widget with proper CSS formatting
+    echo '<script type="text/javascript">
+    jQuery(document).ready(function($) {
+        $("#ll-tools-flashcard-container").removeAttr("style");
+    });
+    </script>';
     return ob_get_clean();
+}
+
+// Helper function for gathering information on categories and filtering based on word count
+function ll_process_categories($categories, $use_translations, $min_word_count = 6) {
+    $processed_categories = [];
+
+    foreach ($categories as $category) {
+        $word_count = ll_get_deepest_category_word_count($category->term_id);
+
+        // Only include categories that meet the minimum word count requirement
+        if ($word_count >= $min_word_count) {
+            $processed_categories[] = [
+                'id' => $category->term_id,
+                'slug' => $category->slug,
+                'name' => $category->name,
+                'translation' => $use_translations
+                    ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
+                    : $category->name,
+            ];
+        }
+    }
+
+    return $processed_categories;
 }
 
 // AJAX handler for fetching words by category

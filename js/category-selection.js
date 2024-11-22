@@ -7,23 +7,28 @@
         checkboxesContainer.empty();
 
         categories.forEach(function(category) {
-            var modifiedCategory = category.toLowerCase().replace(/\s+/g, '-');
+            // Use translated name if available, otherwise fallback to the normal name
+            var displayName = category.translation || category.name;
+        
+            // Use the slug for the form ID to ensure it's sanitized and unique
+            var checkboxId = 'category-' + category.slug;
+        
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
-                    id: 'category-' + modifiedCategory,
-                    value: category,
+                    id: checkboxId,
+                    value: category.name, // Pass untranslated category name
                     checked: true,
-                    'data-preloaded': category === preloadedCategory
+                    'data-preloaded': category.name === preloadedCategory
                 }),
                 $('<label>', {
-                    for: 'category-' + modifiedCategory,
-                    text: category,
+                    for: checkboxId,
+                    text: displayName, // Show translated or fallback name in the label
                     style: 'margin-left: 5px;'
                 })
             );
             checkboxesContainer.append(checkbox);
-        });
+        });        
 
         $('#ll-tools-category-selection').show();
     }
@@ -41,7 +46,7 @@
     // Event handler for the "Start Quiz" button
     $('#ll-tools-start-selected-quiz').on('click', function() {
         var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function() {
-            return $(this).val();
+            return $(this).val(); // Pass untranslated category names
         }).get();
 
         if (selectedCategories.length > 0) {
@@ -55,16 +60,19 @@
     $('#ll-tools-start-flashcard').on('click', function() {
         $('#ll-tools-flashcard-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
-        
-        // Determine whether the user should select a category or not
+
+        // Prepare categoriesPreselected with untranslated names
+        var preselectedCategories = llToolsFlashcardsData.categories.map(function(category) {
+            return category.name; // Always use the untranslated name
+        });
+
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
-            initFlashcardWidget(llToolsFlashcardsData.categories);
+            initFlashcardWidget(preselectedCategories);
         } else {
             $('#ll-tools-category-selection-popup').show();
             showCategorySelection();
         }
-        
     });
 
     // Event handler for the close button on the category selection screen
