@@ -6,24 +6,21 @@
         var checkboxesContainer = $('#ll-tools-category-checkboxes');
         checkboxesContainer.empty();
 
-        categories.forEach(function(category) {
-            // Use translated name if available, otherwise fallback to the normal name
+        categories.forEach(function(category, index) {
             var displayName = category.translation || category.name;
-        
-            // Use the slug for the form ID to ensure it's sanitized and unique
             var checkboxId = 'category-' + category.slug;
         
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
                     id: checkboxId,
-                    value: category.name, // Pass untranslated category name
-                    checked: true,
-                    'data-preloaded': category.name === preloadedCategory
+                    value: category.name,
+                    checked: index === 0, // Select only the first category by default
+                    'data-preloaded': index === 0 // Preload only the first category
                 }),
                 $('<label>', {
                     for: checkboxId,
-                    text: displayName, // Show translated or fallback name in the label
+                    text: displayName,
                     style: 'margin-left: 5px;'
                 })
             );
