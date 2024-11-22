@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2024-11-22 06:08+0000\n"
+"PO-Revision-Date: 2024-11-21 06:16+0000\n"
 "Last-Translator: webmaster\n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Loco https://localise.biz/\n"
-"X-Loco-Version: 2.6.14; wp-6.7.1\n"
+"X-Loco-Version: 2.6.14; wp-6.7\n"
 "X-Domain: ll-tools-text-domain"
 
 #. Name of the plugin
@@ -124,7 +124,7 @@ msgstr "Çeviri"
 
 #: flashcard-widget.php:141
 msgid "Uncheck All"
-msgstr "Seçimleri Kaldır"
+msgstr "Tüm Seçimleri Kaldır"
 
 #: post-types/words-post-type.php:189
 msgid "Word Set"
