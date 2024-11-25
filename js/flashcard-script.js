@@ -1,27 +1,23 @@
 (function($) {
     const ROUNDS_PER_CATEGORY = 6;
     const MINIMUM_NUMBER_OF_OPTIONS = 2;
-    const DEFAULT_NUMBER_OF_OPTIONS = 2;
+    var DEFAULT_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_NUMBER_OF_OPTIONS = 9;
     const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
     const MAX_ROWS = 3;
 
-    var usedWordIDs = []; // set of IDs of words we've covered so far (resets when no words are left to show)
-    var activeAudios = [];
-    var wordsByCategory = {}; // key: category name string => value: set of word objects corresponding to that category
-    var categoryNames = []; // all the category names
-    var loadedCategories = []; // categories that have been loaded
-    var categoryRoundCount = {}; // key: category name string => value: number of rounds where we used a word from this category
-    var translations = llToolsFlashcardsData.translations || [];
-    var wrongIndexes = []; // To track indexes of wrong answers this turn
-    var targetAudioHasPlayed = false;
-    var currentTargetAudio = null;
+    var usedWordIDs = []; // Set of IDs of words we've covered so far
+    var wordsByCategory = {}; // Maps category names to arrays of word objects
+    var categoryNames = []; // All the category names
+    var loadedCategories = []; // Categories that have been loaded
+    var categoryRoundCount = {}; // Tracks rounds per category
+    var wrongIndexes = []; // Tracks indexes of wrong answers this turn
     var currentCategory = null;
     var currentCategoryName = null;
     var currentCategoryRoundCount = 0;
     var isFirstRound = true;
-    var categoryOptionsCount = {}; // To track the number of options for each category
-    var categoryRepetitionQueues = {}; // To manage separate repetition queues for each category
+    var categoryOptionsCount = {}; // Tracks the number of options for each category
+    var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
     var loadedResources = {};
     var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
     let quizResults = {
@@ -35,27 +31,14 @@
         processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
     }
 
-    // Audio feedback elements
-    var correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
-    var wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
+    // Initialize the audio module
+    FlashcardAudio.initializeAudio();
 
-    // Preload resources for the first target word and its category
-    loadAudio(correctAudio.src);
-    loadAudio(wrongAudio.src);
-
-    // Load an audio file so that it's cached for later use
-    function loadAudio(audioURL) {
-        if (!loadedResources[audioURL] && audioURL) {
-            new Promise((resolve, reject) => {
-                let audio = new Audio(audioURL);
-                audio.oncanplaythrough = function() {
-                    resolve(audio);
-                };
-                audio.onerror = function() {
-                    reject(new Error('Audio load failed'));
-                };
-            });
-            loadedResources[audioURL] = true;
+    // Load resources for a word
+    function loadResourcesForWord(word) {
+        FlashcardAudio.loadAudio(word.audio);
+        if (llToolsFlashcardsData.displayMode === 'image') {
+            loadImage(word.image);
         }
     }
 
@@ -73,14 +56,6 @@
                 img.src = imageURL;
             });
             loadedResources[imageURL] = true;
-        }
-    }
-
-    // Load resources for a word
-    function loadResourcesForWord(word) {
-        loadAudio(word.audio);
-        if (llToolsFlashcardsData.displayMode === 'image') {
-            loadImage(word.image);
         }
     }
 
@@ -135,7 +110,7 @@
             },
             error: function(xhr, status, error) {
                 console.error('AJAX request failed for category:', categoryName, 'Error:', error);
-				// TODO: Handle the error gracefully, e.g., show an error message to the user
+                // TODO: Handle the error gracefully, e.g., show an error message to the user
             }
         });
     }
@@ -144,11 +119,11 @@
     function preloadNextCategories() {
         var numberToPreload = 3;
 
-        // for all category names
+        // For all category names
         categoryNames.forEach(function(categoryName) {
-            // if the category is not loaded
+            // If the category is not loaded
             if (!loadedCategories.includes(categoryName)) {
-                // load the resources for the category
+                // Load the resources for the category
                 loadResourcesForCategory(categoryName);
                 numberToPreload--;
                 if (numberToPreload === 0) {
@@ -269,57 +244,6 @@
         }
 
         return true;
-    }
-
-    // Helper function for playing audio
-    function playAudio(audio) {
-        try {
-            if (!audio.paused) {
-                audio.pause();
-                audio.currentTime = 0;
-            }
-        } catch (e) {
-            console.error("Audio pause failed:", e);
-        }
-
-        activeAudios.push(audio);
-        audio.play().catch(function (e) {
-            console.error("Audio play failed:", e);
-        });
-    }
-
-    // Pause all audio elements
-    function pauseAllAudio() {
-        activeAudios.forEach(function (audio) {
-            try {
-                audio.pause();
-                audio.currentTime = 0; // Reset the playback position
-            } catch (e) {
-                console.error("Audio pause failed:", e);
-            }
-        });
-        activeAudios = [];
-    }
-
-    function playFeedback(isCorrect, targetWordAudio, callback) {
-        var audioToPlay = isCorrect ? correctAudio : wrongAudio;
-
-        // Don't register clicks for the first half second & don't repeat the 'correct' sound
-        if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
-            return;
-        }
-
-        playAudio(audioToPlay);
-
-        if (!isCorrect && targetWordAudio) {
-            // When the wrong answer sound finishes, play the target word's audio
-            wrongAudio.onended = function () {
-                playAudio(currentTargetAudio);
-            };
-        } else if (isCorrect && typeof callback === 'function') {
-            // When the correct answer sound finishes, execute the callback
-            correctAudio.onended = callback;
-        }
     }
 
     // Check a value against the min and max constraints and return the value or the min/max if out of bounds
@@ -475,9 +399,9 @@
                 categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
                 categoryNames.push(currentCategoryName);
 
-				// Reset the round count for this category so we can come back to it again later
-				categoryRoundCount[currentCategoryName] = 0;
-				currentCategoryRoundCount = 0;
+                // Reset the round count for this category so we can come back to it again later
+                categoryRoundCount[currentCategoryName] = 0;
+                currentCategoryRoundCount = 0;
             }
         }
 
@@ -512,7 +436,7 @@
     function fillQuizOptions(targetWord) {
         let selectedWords = [];
 
-        tryCategories = [];
+        let tryCategories = [];
 
         // The first category to try will be the current category
         tryCategories.push(currentCategoryName);
@@ -544,7 +468,7 @@
                 wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
                 selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
             } else {
-				// If the words data is not loaded, request it and continue with the next category
+                // If the words data is not loaded, request it and continue with the next category
                 loadResourcesForCategory(candidateCategory);
             }
         }
@@ -626,7 +550,7 @@
     // Respond to the correct answer
     function handleCorrectAnswer(targetWord) {
         // Correct answer logic
-        playFeedback(true, null, function () {
+        FlashcardAudio.playFeedback(true, null, function () {
             // If there were any wrong answers before the right one was selected
             if (wrongIndexes.length > 0) {
                 if (!categoryRepetitionQueues[currentCategoryName]) {
@@ -640,7 +564,7 @@
             }
 
             // Track correct answers on the first try
-			if (!quizResults.correctOnFirstTry.includes(targetWord.id) && !quizResults.incorrect.includes(targetWord.id)) {
+            if (!quizResults.correctOnFirstTry.includes(targetWord.id) && !quizResults.incorrect.includes(targetWord.id)) {
                 quizResults.correctOnFirstTry.push(targetWord.id);
             }
 
@@ -657,7 +581,7 @@
 
     // Respond to the wrong answer
     function handleWrongAnswer(targetWord, index, wrongAnswer) {
-        playFeedback(false, targetWord.audio, null);
+        FlashcardAudio.playFeedback(false, targetWord.audio, null);
 
         // Fade out and remove the wrong answer card
         wrongAnswer.addClass('fade-out').one('transitionend', function () {
@@ -685,44 +609,6 @@
         }
     }
 
-    function setTargetWordAudio(targetWord) {
-        // Clear existing audio elements to prevent overlaps
-        $('#ll-tools-flashcard audio').remove();
-
-        // Create the audio element for the target word
-        let audioElement = $('<audio>', {
-            src: targetWord.audio,
-            controls: true
-        }).appendTo('#ll-tools-flashcard'); // Append it to the container
-
-        // Global variable update for current audio, adapting from the original structure
-        currentTargetAudio = audioElement[0];
-
-        // Begin playback and manage interaction based on playback status
-        playAudio(currentTargetAudio); // Play the target word's audio
-
-        // Prevent clicking (interaction) before the audio has played for a certain time
-        currentTargetAudio.addEventListener('timeupdate', function () {
-
-            // If the loading animation is still visible, hide it
-            if ((this.currentTime > 0.1 || this.ended) && $('#ll-tools-loading-animation').is(':visible')) {
-                hideLoadingAnimation();
-            }
-
-            if (this.currentTime > 0.4 || this.ended) {
-                targetAudioHasPlayed = true; // Allow interactions with quiz options
-                // Optionally remove the event listener if it's no longer needed to avoid memory leaks
-                this.removeEventListener('timeupdate', arguments.callee);
-            }
-        });
-
-        // Adjust visibility and state of elements based on audio playback; similar adjustments might be needed
-        currentTargetAudio.onended = function () {
-            // Logic upon ending audio can be adapted here if necessary
-            // For example, enabling certain buttons or changing states
-        };
-    }
-
     function showLoadingAnimation() {
         $('#ll-tools-loading-animation').show();
     }
@@ -730,99 +616,99 @@
     function hideLoadingAnimation() {
         $('#ll-tools-loading-animation').hide();
     }
+    // Expose hideLoadingAnimation globally for use in flashcard-audio.js
+    window.hideLoadingAnimation = hideLoadingAnimation;
 
     function showQuiz(number_of_options) {
-		if (isFirstRound) {
-			// Load resources for the first few categories
-			var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
-			var categoryLoadPromises = initialCategories.map(function (categoryName) {
-				return new Promise(function (resolve) {
-					loadResourcesForCategory(categoryName, resolve);
-				});
-			});
-	
-			Promise.all(categoryLoadPromises)
-				.then(function () {
-					// All initial categories loaded, proceed with the quiz
-					initializeOptionsCount(number_of_options);
-					startQuizRound();
-				})
-				.catch(function (error) {
-					console.error('Failed to load initial categories:', error);
-				});
-		} else {
-			startQuizRound(); // Continue the quiz
-		}
-	}
+        if (isFirstRound) {
+            // Load resources for the first few categories
+            var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
+            var categoryLoadPromises = initialCategories.map(function (categoryName) {
+                return new Promise(function (resolve) {
+                    loadResourcesForCategory(categoryName, resolve);
+                });
+            });
+
+            Promise.all(categoryLoadPromises)
+                .then(function () {
+                    // All initial categories loaded, proceed with the quiz
+                    initializeOptionsCount(number_of_options);
+                    startQuizRound();
+                })
+                .catch(function (error) {
+                    console.error('Failed to load initial categories:', error);
+                });
+        } else {
+            startQuizRound(); // Continue the quiz
+        }
+    }
 
     // Start a new round of the quiz
     function startQuizRound() {
-		// Clear existing content from previous round
+        // Clear existing content from previous round
         $('#ll-tools-flashcard').empty();
-		
-		// Make sure the header is visible
-		$('#ll-tools-flashcard-header').show();
-		$('#ll-tools-skip-flashcard').show();
-		$('#ll-tools-repeat-flashcard').show();
 
-        pauseAllAudio();
+        // Make sure the header is visible
+        $('#ll-tools-flashcard-header').show();
+        $('#ll-tools-skip-flashcard').show();
+        $('#ll-tools-repeat-flashcard').show();
+
+        FlashcardAudio.pauseAllAudio();
         showLoadingAnimation();
-        targetAudioHasPlayed = false;
+        FlashcardAudio.setTargetAudioHasPlayed(false);
         calculateNumberOfOptions();
         let targetWord = selectTargetWordAndCategory();
         if (!targetWord) {
             showResultsPage();
         } else {
-			fillQuizOptions(targetWord);
-			setTargetWordAudio(targetWord);
-		}
+            fillQuizOptions(targetWord);
+            FlashcardAudio.setTargetWordAudio(targetWord);
+        }
         saveQuizState();
     }
 
     function resetQuizState() {
         usedWordIDs = [];
-		activeAudios = [];
-		categoryRoundCount = {};
-		wrongIndexes = [];
-		targetAudioHasPlayed = false;
-		currentTargetAudio = null;
-		currentCategory = null;
-		currentCategoryName = null;
-		currentCategoryRoundCount = 0;
-		isFirstRound = true;
-		categoryOptionsCount = {};
-		categoryRepetitionQueues = {};
-		quizResults = {
-			correctOnFirstTry: [],
-			incorrect: [],
-			skipped: []
-		};
+        categoryRoundCount = {};
+        wrongIndexes = [];
+        currentCategory = null;
+        currentCategoryName = null;
+        currentCategoryRoundCount = 0;
+        isFirstRound = true;
+        categoryOptionsCount = {};
+        categoryRepetitionQueues = {};
+        quizResults = {
+            correctOnFirstTry: [],
+            incorrect: [],
+            skipped: 0
+        };
+        FlashcardAudio.resetAudioState();
     }
 
-	// Show results and the restart button
-	function showResultsPage() {
-		// Show the results div
-		$('#quiz-results').show();
+    // Show results and the restart button
+    function showResultsPage() {
+        // Show the results div
+        $('#quiz-results').show();
 
-		// Hide the loading animation
-		$('#ll-tools-loading-animation').hide();
+        // Hide the loading animation
+        hideLoadingAnimation();
 
-		// Hide the skip and repeat buttons
-		$('#ll-tools-skip-flashcard').hide();
-		$('#ll-tools-repeat-flashcard').hide();
+        // Hide the skip and repeat buttons
+        $('#ll-tools-skip-flashcard').hide();
+        $('#ll-tools-repeat-flashcard').hide();
 
-		// Calculate the total number of questions (excluding skipped)
-		const totalQuestions = quizResults.correctOnFirstTry.length + quizResults.incorrect.length;
-		
-		// Update the results dynamically
-		$('#correct-count').text(quizResults.correctOnFirstTry.length);
-		$('#total-questions').text(totalQuestions);
-		$('#skipped-count').text(quizResults.skipped);
+        // Calculate the total number of questions (excluding skipped)
+        const totalQuestions = quizResults.correctOnFirstTry.length + quizResults.incorrect.length;
 
-		// Ensure the "Restart Quiz" button is visible
-		$('#restart-quiz').show();
-	}
-	
+        // Update the results dynamically
+        $('#correct-count').text(quizResults.correctOnFirstTry.length);
+        $('#total-questions').text(totalQuestions);
+        $('#skipped-count').text(quizResults.skipped);
+
+        // Ensure the "Restart Quiz" button is visible
+        $('#restart-quiz').show();
+    }
+
     function initFlashcardWidget(selectedCategories) {
         categoryNames = selectedCategories;
         categoryNames = randomlySort(categoryNames);
@@ -839,15 +725,16 @@
 
         // Event handler for the close button
         $('#ll-tools-close-flashcard').on('click', function () {
-			closeFlashcard();
+            closeFlashcard();
         });
 
         $('#ll-tools-flashcard-header').show();
 
         // Event handler for the repeat button
         $('#ll-tools-repeat-flashcard').on('click', function () {
-            if (currentTargetAudio) {
-                currentTargetAudio.play().catch(function (e) {
+            var currentAudio = FlashcardAudio.getCurrentTargetAudio();
+            if (currentAudio) {
+                currentAudio.play().catch(function (e) {
                     console.error("Audio play failed:", e);
                 });
             }
@@ -855,46 +742,48 @@
 
         // Event handler for the skip button
         $('#ll-tools-skip-flashcard').on('click', function () {
+            // Increment the skipped counter
+            quizResults.skipped += 1;
+
             // Consider the skipped question as wrong
             wrongIndexes.push(-1);
-			quizResults.skipped++;
             isFirstRound = false; // Update the first round flag
             showQuiz(); // Move to the next question
         });
 
-		// Handle the Restart Quiz button click
-		$('#restart-quiz').on('click', function () {
-			restartQuiz();
-		});
+        // Handle the Restart Quiz button click
+        $('#restart-quiz').on('click', function () {
+            restartQuiz();
+        });
 
         showLoadingAnimation();
         showQuiz();
     }
 
-	function closeFlashcard() {		
-		resetQuizState();
-		wordsByCategory = {};
-		categoryNames = [];
-		loadedCategories = [];
-		loadedResources = {};
-		hideResultsPage();
-		$('#ll-tools-flashcard').empty();
-		$('#ll-tools-flashcard-header').hide();
-		$('#ll-tools-flashcard-quiz-popup').hide();
-		$('#ll-tools-flashcard-popup').hide();
-		$('body').removeClass('ll-tools-flashcard-open');
-	}
+    function closeFlashcard() {
+        resetQuizState();
+        wordsByCategory = {};
+        categoryNames = [];
+        loadedCategories = [];
+        loadedResources = {};
+        hideResultsPage();
+        $('#ll-tools-flashcard').empty();
+        $('#ll-tools-flashcard-header').hide();
+        $('#ll-tools-flashcard-quiz-popup').hide();
+        $('#ll-tools-flashcard-popup').hide();
+        $('body').removeClass('ll-tools-flashcard-open');
+    }
 
-	function restartQuiz() {
-		hideResultsPage();
-		resetQuizState();
-		showQuiz();
-	}
+    function restartQuiz() {
+        hideResultsPage();
+        resetQuizState();
+        showQuiz();
+    }
 
-	function hideResultsPage() {
-		$('#quiz-results').hide();
-		$('#restart-quiz').hide();
-	}
+    function hideResultsPage() {
+        $('#quiz-results').hide();
+        $('#restart-quiz').hide();
+    }
 
     // Expose initFlashcardWidget function globally
     window.initFlashcardWidget = initFlashcardWidget;
