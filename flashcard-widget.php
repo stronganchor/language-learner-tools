@@ -137,8 +137,19 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
     echo '</div>';
+
+    // Add quiz results section here (hidden initially, will be updated by JS)
+    echo '<div id="quiz-results" style="display: none;">';
+    echo '<h2>' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>';
+    echo '<p><strong>' . esc_html__('Correct:', 'll-tools-text-domain') . '</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>';
+    echo '<p><strong>' . esc_html__('Skipped:', 'll-tools-text-domain') . '</strong> <span id="skipped-count">0</span></p>';
+    // Add restart quiz button (initially hidden)
+    echo '<button id="restart-quiz" class="quiz-button" style="display: none;">' . esc_html__('Restart Quiz', 'll-tools-text-domain') . '</button>';
+    echo '</div>';
+
     echo '</div>';
     echo '</div>';
+
 
     // Run a script after the page loads to show the widget with proper CSS formatting
     echo '<script type="text/javascript">
