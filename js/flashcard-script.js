@@ -164,6 +164,7 @@
 
     // Save the quiz state to user metadata in WordPress
     function saveQuizState() {
+		/*
         if (llToolsFlashcardsData.isUserLoggedIn) {
             var quizState = {
                 usedWordIDs: usedWordIDs,
@@ -182,10 +183,12 @@
                 }
             });
         }
+			*/
     }
 
     // Load saved quiz state from user metadata
     function loadQuizState() {
+		/*
         var savedQuizState = llToolsFlashcardsData.quizState;
         if (llToolsFlashcardsData.isUserLoggedIn && savedQuizState) {
             // Parse the saved quiz state from JSON
@@ -214,6 +217,7 @@
                 }
             }
         }
+			*/
     }
 
     // Helper function to randomly sort an array
