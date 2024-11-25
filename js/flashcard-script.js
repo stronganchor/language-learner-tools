@@ -1,15 +1,21 @@
 (function($) {
     const ROUNDS_PER_CATEGORY = 6;
     const MINIMUM_NUMBER_OF_OPTIONS = 2;
-    var DEFAULT_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_NUMBER_OF_OPTIONS = 9;
+	const DEFAULT_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
     const MAX_ROWS = 3;
 
-    var usedWordIDs = []; // Set of IDs of words we've covered so far
+	// Variables populated initially that don't change when restarting the quiz
     var wordsByCategory = {}; // Maps category names to arrays of word objects
     var categoryNames = []; // All the category names
     var loadedCategories = []; // Categories that have been loaded
+    var loadedResources = {};
+    var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
+    var defaultNumberOfOptions = DEFAULT_NUMBER_OF_OPTIONS;
+
+	// Variables related to the quiz state
+    var usedWordIDs = []; // Set of IDs of words we've covered so far
     var categoryRoundCount = {}; // Tracks rounds per category
     var wrongIndexes = []; // Tracks indexes of wrong answers this turn
     var currentCategory = null;
@@ -18,13 +24,36 @@
     var isFirstRound = true;
     var categoryOptionsCount = {}; // Tracks the number of options for each category
     var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
-    var loadedResources = {};
-    var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
+	var userClickedSkip = false;
     let quizResults = {
-        correctOnFirstTry: [],
+        correctOnFirstTry: 0,
         incorrect: [],
         skipped: 0
     };
+
+	// Resets variables related to the quiz state when closing/restarting the quiz
+	function resetQuizState() {
+        usedWordIDs = [];
+        categoryRoundCount = {};
+        wrongIndexes = [];
+        currentCategory = null;
+        currentCategoryName = null;
+        currentCategoryRoundCount = 0;
+        isFirstRound = true;
+        categoryOptionsCount = {};
+        categoryRepetitionQueues = {};
+		userClickedSkip = false;
+        resetQuizResults();
+        FlashcardAudio.resetAudioState();
+    }
+
+	function resetQuizResults() {
+		quizResults = {
+            correctOnFirstTry: 0,
+            incorrect: [],
+            skipped: 0
+        };
+	}
 
     // Preload the first category
     if (llToolsFlashcardsData.categoriesPreselected) {
@@ -263,7 +292,7 @@
     // Set up initial values for the number of options to display for each category of words
     function initializeOptionsCount(number_of_options) {
         if (number_of_options) {
-            DEFAULT_NUMBER_OF_OPTIONS = number_of_options;
+            defaultNumberOfOptions = number_of_options;
         }
 
         categoryNames.forEach(categoryName => {
@@ -279,10 +308,10 @@
         }
 
         if (wordsByCategory[categoryName]) {
-            categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, DEFAULT_NUMBER_OF_OPTIONS), categoryName);
+            categoryOptionsCount[categoryName] = checkMinMax(Math.min(wordsByCategory[categoryName].length, defaultNumberOfOptions), categoryName);
         } else {
             // Handle any mismatches between categoryNames and wordsByCategory arrays
-            categoryOptionsCount[categoryName] = checkMinMax(DEFAULT_NUMBER_OF_OPTIONS, categoryName);
+            categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions, categoryName);
         }
     }
 
@@ -347,13 +376,11 @@
                 }
             }
 
-            // Remove the target word from the repeat queue if applicable
+            // Remove the target word from the repeat queue
             const targetWordIndex = repeatQueue.findIndex(item => item.wordData.id === target.id);
             if (targetWordIndex !== -1) {
                 repeatQueue.splice(targetWordIndex, 1);
             }
-
-            usedWordIDs.push(target.id);
         }
 
         if (target) {
@@ -564,8 +591,8 @@
             }
 
             // Track correct answers on the first try
-            if (!quizResults.correctOnFirstTry.includes(targetWord.id) && !quizResults.incorrect.includes(targetWord.id)) {
-                quizResults.correctOnFirstTry.push(targetWord.id);
+            if (!quizResults.incorrect.includes(targetWord.id)) {
+                quizResults.correctOnFirstTry += 1;
             }
 
             // Fade out and remove the wrong answers
@@ -658,6 +685,7 @@
         FlashcardAudio.setTargetAudioHasPlayed(false);
         calculateNumberOfOptions();
         let targetWord = selectTargetWordAndCategory();
+
         if (!targetWord) {
             showResultsPage();
         } else {
@@ -665,24 +693,7 @@
             FlashcardAudio.setTargetWordAudio(targetWord);
         }
         saveQuizState();
-    }
-
-    function resetQuizState() {
-        usedWordIDs = [];
-        categoryRoundCount = {};
-        wrongIndexes = [];
-        currentCategory = null;
-        currentCategoryName = null;
-        currentCategoryRoundCount = 0;
-        isFirstRound = true;
-        categoryOptionsCount = {};
-        categoryRepetitionQueues = {};
-        quizResults = {
-            correctOnFirstTry: [],
-            incorrect: [],
-            skipped: 0
-        };
-        FlashcardAudio.resetAudioState();
+		userClickedSkip = false;
     }
 
     // Show results and the restart button
@@ -697,11 +708,10 @@
         $('#ll-tools-skip-flashcard').hide();
         $('#ll-tools-repeat-flashcard').hide();
 
-        // Calculate the total number of questions (excluding skipped)
-        const totalQuestions = quizResults.correctOnFirstTry.length + quizResults.incorrect.length;
+        const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
 
         // Update the results dynamically
-        $('#correct-count').text(quizResults.correctOnFirstTry.length);
+        $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#skipped-count').text(quizResults.skipped);
 
@@ -712,11 +722,6 @@
     function initFlashcardWidget(selectedCategories) {
         categoryNames = selectedCategories;
         categoryNames = randomlySort(categoryNames);
-        quizResults = {
-            correctOnFirstTry: [],
-            incorrect: [],
-            skipped: 0
-        };
 
         loadQuizState();
 
@@ -724,14 +729,14 @@
         $('body').addClass('ll-tools-flashcard-open');
 
         // Event handler for the close button
-        $('#ll-tools-close-flashcard').on('click', function () {
+        $('#ll-tools-close-flashcard').off('click').on('click', function () {
             closeFlashcard();
         });
 
         $('#ll-tools-flashcard-header').show();
 
         // Event handler for the repeat button
-        $('#ll-tools-repeat-flashcard').on('click', function () {
+        $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
             var currentAudio = FlashcardAudio.getCurrentTargetAudio();
             if (currentAudio) {
                 currentAudio.play().catch(function (e) {
@@ -741,18 +746,23 @@
         });
 
         // Event handler for the skip button
-        $('#ll-tools-skip-flashcard').on('click', function () {
-            // Increment the skipped counter
-            quizResults.skipped += 1;
+        $('#ll-tools-skip-flashcard').off('click').on('click', function () {
+            if (FlashcardAudio.getTargetAudioHasPlayed() && !userClickedSkip) {
+				userClickedSkip = true;
+				
+				// Increment the skipped counter
+				quizResults.skipped += 1;
 
-            // Consider the skipped question as wrong
-            wrongIndexes.push(-1);
-            isFirstRound = false; // Update the first round flag
-            showQuiz(); // Move to the next question
+				// Consider the skipped question as "wrong" when determining the number of options
+				wrongIndexes.push(-1);
+
+				isFirstRound = false; // Update the first round flag
+				showQuiz(); // Move to the next question
+			}
         });
 
         // Handle the Restart Quiz button click
-        $('#restart-quiz').on('click', function () {
+        $('#restart-quiz').off('click').on('click', function () {
             restartQuiz();
         });
 
