@@ -54,7 +54,7 @@ function ll_handle_image_file_uploads() {
     $success_uploads = [];
     $failed_uploads = [];
 
-    $allowed_image_types = ['image/jpeg', 'image/png', 'image/gif'];
+    $allowed_image_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
     foreach ($_FILES['ll_image_files']['tmp_name'] as $key => $tmp_name) {
         if (!in_array($_FILES['ll_image_files']['type'][$key], $allowed_image_types)) {
