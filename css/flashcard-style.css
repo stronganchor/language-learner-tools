@@ -188,18 +188,16 @@ body.ll-tools-flashcard-open {
     padding: 0; /* No spacing inside the card to allow image to fill */
     background: #fff;
     text-align: center; /* Center-align the image inside the card */
-    width: 150px; /* Width of the flashcard */
-    height: 150px; /* Height of the flashcard */
     display: flex;
     justify-content: center;
     align-items: center;
     border-radius: 10px;
-    width: 100%;
-    height: 100%;
-    max-width: 150px;
-    max-height: 150px;
     overflow: hidden;
     cursor: pointer;
+    width: 150px;
+    height: 150px;
+    max-width: 150px;
+    max-height: 150px;
 }
 
 .flashcard-container img {
@@ -208,13 +206,16 @@ body.ll-tools-flashcard-open {
 
 .flashcard-container.landscape {
     width: 200px;
-    max-width: 200px;
     height: auto;
+    max-width: 200px;
+    max-height: 150px;
 }
 
 .flashcard-container.portrait {
     width: 100%;
     height: auto;
+    max-width: 150px;
+    max-height: 200px;
 }
 
 .flashcard-container.text-based {

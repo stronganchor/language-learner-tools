@@ -5,6 +5,9 @@
 	const DEFAULT_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
     const MAX_ROWS = 3;
+    const LANDSCAPE_CARD_WIDTH = 200;
+    const PORTRAIT_CARD_HEIGHT = 200;
+    const DEFAULT_CARD_PIXELS = 150;
 
 	// Variables populated initially that don't change when restarting the quiz
     var wordsByCategory = {}; // Maps category names to arrays of word objects
@@ -25,6 +28,8 @@
     var categoryOptionsCount = {}; // Tracks the number of options for each category
     var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
 	var userClickedSkip = false;
+    var maxCardWidth = DEFAULT_CARD_PIXELS;
+    var maxCardHeight = DEFAULT_CARD_PIXELS;
     let quizResults = {
         correctOnFirstTry: 0,
         incorrect: [],
@@ -45,6 +50,8 @@
 		userClickedSkip = false;
         resetQuizResults();
         FlashcardAudio.resetAudioState();
+        maxCardWidth = DEFAULT_CARD_PIXELS;
+        maxCardHeight = DEFAULT_CARD_PIXELS;
     }
 
 	function resetQuizResults() {
@@ -246,8 +253,8 @@
         const containerHeight = container.height();
 
         const lastCard = cards.last();
-        const cardWidth = lastCard.outerWidth(true);
-        const cardHeight = lastCard.outerHeight(true);
+        const cardWidth = maxCardWidth;
+        const cardHeight = maxCardHeight;
 
         // Get the computed style of the container to extract the gap value
         const containerStyle = window.getComputedStyle(container[0]);
@@ -530,8 +537,10 @@
             }).on('load', function() {
                 if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
                     container.addClass('landscape');
+                    maxCardWidth = LANDSCAPE_CARD_WIDTH;
                 } else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
                     container.addClass('portrait');
+                    maxCardHeight = PORTRAIT_CARD_HEIGHT;
                 }
             }).appendTo(container);
         } else {
