@@ -94,13 +94,11 @@ function ll_tools_flashcard_widget($atts) {
 
     // Get the current user's ID and quiz state
     $user_id = get_current_user_id();
-    $quiz_state = ll_get_quiz_state($user_id);
 
     // Preload words data to the page and include the mode
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
         'mode' => $atts['mode'], // Pass the mode to JavaScript
         'plugin_dir' => plugin_dir_url(__FILE__),
-        'quizState' => $quiz_state,
         'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
         'displayMode' => $atts['display'],
@@ -204,38 +202,5 @@ function ll_tools_register_flashcard_widget_shortcode() {
 	add_shortcode('flashcard_widget', 'll_tools_flashcard_widget');
 }
 add_action('init', 'll_tools_register_flashcard_widget_shortcode');
-
-
-// Save user's progress on the quiz to metadata
-function ll_save_quiz_state($user_id, $quiz_state) {
-    update_user_meta($user_id, 'll_quiz_state', $quiz_state);
-}
-
-// Get user's progress on the quiz from metadata
-function ll_get_quiz_state($user_id) {
-    return get_user_meta($user_id, 'll_quiz_state', true);
-}
-
-// AJAX handler for saving the quiz state
-function ll_save_quiz_state_ajax() {
-    $user_id = get_current_user_id();
-    $quiz_state = isset($_POST['quiz_state']) ? $_POST['quiz_state'] : '';
-
-    $response = array(
-        'success' => false,
-        'message' => '',
-    );
-
-    if ($user_id && !empty($quiz_state)) {
-        ll_save_quiz_state($user_id, $quiz_state);
-        $response['success'] = true;
-        $response['message'] = 'Quiz state saved successfully';
-    } else {
-        $response['message'] = 'Invalid user ID or empty quiz state';
-    }
-
-    wp_send_json($response);
-}
-add_action('wp_ajax_ll_save_quiz_state', 'll_save_quiz_state_ajax');
 
 ?>

@@ -169,64 +169,6 @@
         });
     }
 
-    // Save the quiz state to user metadata in WordPress
-    function saveQuizState() {
-		/*
-        if (llToolsFlashcardsData.isUserLoggedIn) {
-            var quizState = {
-                usedWordIDs: usedWordIDs,
-                categoryRoundCount: categoryRoundCount,
-                categoryOptionsCount: categoryOptionsCount,
-                categoryRepetitionQueues: categoryRepetitionQueues
-            };
-
-            // Send an AJAX request to save the quiz state
-            $.ajax({
-                url: llToolsFlashcardsData.ajaxurl,
-                method: 'POST',
-                data: {
-                    action: 'll_save_quiz_state',
-                    quiz_state: JSON.stringify(quizState)
-                }
-            });
-        }
-			*/
-    }
-
-    // Load saved quiz state from user metadata
-    function loadQuizState() {
-		/*
-        var savedQuizState = llToolsFlashcardsData.quizState;
-        if (llToolsFlashcardsData.isUserLoggedIn && savedQuizState) {
-            // Parse the saved quiz state from JSON
-            var quizState = JSON.parse(savedQuizState);
-
-            usedWordIDs = Array.isArray(quizState.usedWordIDs) ? quizState.usedWordIDs : [];
-            let savedRoundCount = typeof quizState.categoryRoundCount === 'object' ? quizState.categoryRoundCount : {};
-            for (let category in savedRoundCount) {
-                if (categoryNames.includes(category)) {
-                    categoryRoundCount[category] = savedRoundCount[category];
-                }
-            }
-
-            let savedOptionsCount = typeof quizState.categoryOptionsCount === 'object' ? quizState.categoryOptionsCount : {};
-            for (let category in savedOptionsCount) {
-                if (categoryNames.includes(category)) {
-                    let count = parseInt(savedOptionsCount[category]);
-                    categoryOptionsCount[category] = checkMinMax(count, category);
-                }
-            }
-
-            let savedRepetitionQueues = typeof quizState.categoryRepetitionQueues === 'object' ? quizState.categoryRepetitionQueues : {};
-            for (let category in savedRepetitionQueues) {
-                if (categoryNames.includes(category)) {
-                    categoryRepetitionQueues[category] = savedRepetitionQueues[category];
-                }
-            }
-        }
-			*/
-    }
-
     // Helper function to randomly sort an array
     function randomlySort(inputArray) {
         if (!Array.isArray(inputArray)) {
@@ -705,7 +647,6 @@
             fillQuizOptions(targetWord);
             FlashcardAudio.setTargetWordAudio(targetWord);
         }
-        saveQuizState();
 		userClickedSkip = false;
     }
 
@@ -735,8 +676,6 @@
     function initFlashcardWidget(selectedCategories) {
         categoryNames = selectedCategories;
         categoryNames = randomlySort(categoryNames);
-
-        loadQuizState();
 
         // Disable scrolling
         $('body').addClass('ll-tools-flashcard-open');
