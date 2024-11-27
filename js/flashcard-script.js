@@ -342,7 +342,7 @@
             // Wait for the transition to complete before moving to the next question
             setTimeout(function () {
                 isFirstRound = false;
-                showQuiz(); // Load next question after fade out
+                startQuizRound(); // Load next question after fade out
             }, 600); // Adjust the delay as needed to match the transition duration
         });
     }
@@ -387,7 +387,7 @@
     // Expose hideLoadingAnimation globally for use in flashcard-audio.js
     window.hideLoadingAnimation = hideLoadingAnimation;
 
-    function showQuiz(number_of_options) {
+    function startQuizRound(number_of_options) {
         if (isFirstRound) {
             // Load resources for the first few categories
             var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
@@ -396,36 +396,39 @@
                     FlashcardLoader.loadResourcesForCategory(categoryName, resolve);
                 });
             });
-
+    
             Promise.all(categoryLoadPromises)
                 .then(function() {
                     FlashcardOptions.initializeOptionsCount(number_of_options);
-                    startQuizRound();
+    
+                    // Continue with the first quiz round
+                    runQuizRound();
                 })
                 .catch(function(error) {
                     console.error('Failed to load initial categories:', error);
                 });
         } else {
-            startQuizRound(); // Continue the quiz
+            // Proceed directly with the quiz round
+            runQuizRound();
         }
     }
-
-    // Start a new round of the quiz
-    function startQuizRound() {
+    
+    // Helper function for proceeding with a quiz round
+    function runQuizRound() {
         // Clear existing content from previous round
         $('#ll-tools-flashcard').empty();
-
+    
         // Make sure the header is visible
         $('#ll-tools-flashcard-header').show();
         $('#ll-tools-skip-flashcard').show();
         $('#ll-tools-repeat-flashcard').show();
-
+    
         FlashcardAudio.pauseAllAudio();
         showLoadingAnimation();
         FlashcardAudio.setTargetAudioHasPlayed(false);
         FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
         let targetWord = selectTargetWordAndCategory();
-
+    
         if (!targetWord) {
             showResultsPage();
         } else {
@@ -433,7 +436,7 @@
             FlashcardAudio.setTargetWordAudio(targetWord);
         }
         userClickedSkip = false;
-    }
+    }    
 
     // Show results and the restart button
     function showResultsPage() {
@@ -497,7 +500,7 @@
                 wrongIndexes.push(-1);
 
                 isFirstRound = false; // Update the first round flag
-                showQuiz(); // Move to the next question
+                startQuizRound(); // Move to the next question
             }
         });
 
@@ -507,7 +510,7 @@
         });
 
         showLoadingAnimation();
-        showQuiz();
+        startQuizRound();
     }
 
     function closeFlashcard() {
@@ -523,7 +526,7 @@
 
     function restartQuiz() {
         resetQuizState();
-        showQuiz();
+        startQuizRound();
     }
 
     function hideResultsPage() {
