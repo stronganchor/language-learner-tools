@@ -74,7 +74,8 @@ function ll_tools_flashcard_widget($atts) {
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
     ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader'), true);
+    ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
+    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 
     // Add inline script for managing audio playback
