@@ -10,7 +10,7 @@
     const DEFAULT_CARD_PIXELS = 150;
 
 	// Attach shared variables to window
-    window.categoryNames = []; // All the category names
+    window.categoryNames = []; // The category names selected for the current quiz
     window.wordsByCategory = {}; // Maps category names to arrays of word objects
     window.categoryRoundCount = {}; // Tracks rounds per category
     window.firstCategoryName = llToolsFlashcardsData.firstCategoryName;
@@ -47,6 +47,7 @@
         categoryRepetitionQueues = {};
         userClickedSkip = false;
         resetQuizResults();
+        hideResultsPage();
         FlashcardAudio.resetAudioState();
         maxCardWidth = DEFAULT_CARD_PIXELS;
         maxCardHeight = DEFAULT_CARD_PIXELS;
@@ -626,11 +627,8 @@
 
     function closeFlashcard() {
         resetQuizState();
-        wordsByCategory = {};
         categoryNames = [];
-        FlashcardLoader.loadedCategories = [];
-        FlashcardLoader.loadedResources = {};
-        hideResultsPage();
+        
         $('#ll-tools-flashcard').empty();
         $('#ll-tools-flashcard-header').hide();
         $('#ll-tools-flashcard-quiz-popup').hide();
@@ -639,7 +637,6 @@
     }
 
     function restartQuiz() {
-        hideResultsPage();
         resetQuizState();
         showQuiz();
     }
