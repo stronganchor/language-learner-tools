@@ -184,9 +184,9 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
             array(
                 'key' => 'word_english_meaning',
                 'compare' => 'EXISTS',
-            ),
-        );
-    }
+                ),
+            );
+        }
 
     $query = new WP_Query($args);
     $words_data = array();
@@ -197,16 +197,21 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
             $post_id = get_the_ID();
             $deepest_categories = ll_get_deepest_categories($post_id);
 
-            foreach ($deepest_categories as $deepest_category) {
-                if ($deepest_category->name === $category_name) {
+            // Extract category names from the deepest categories
+            $deepest_category_names = array_map(function($cat) {
+                return $cat->name;
+            }, $deepest_categories);
+
+            foreach ($deepest_category_names as $deepest_category_name) {
+                if ($deepest_category_name === $category_name) {
                     $words_data[] = array(
                         'id' => $post_id,
                         'title' => get_the_title(),
                         'image' => wp_get_attachment_url(get_post_thumbnail_id($post_id)),
                         'audio' => get_post_meta($post_id, 'word_audio_file', true),
                         'similar_word_id' => get_post_meta($post_id, 'similar_word_id', true),
-                        'category' => $deepest_category->name,
-                        'all_categories' => $deepest_categories,
+                        'category' => $deepest_category_name,
+                        'all_categories' => $deepest_category_names,
                         'translation' => get_post_meta($post_id, 'word_english_meaning', true),
                     );
                     break;

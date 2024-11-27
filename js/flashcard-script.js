@@ -2,24 +2,22 @@
     const ROUNDS_PER_CATEGORY = 6;
     const MINIMUM_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_NUMBER_OF_OPTIONS = 9;
-	const DEFAULT_NUMBER_OF_OPTIONS = 2;
+    const DEFAULT_NUMBER_OF_OPTIONS = 2;
     const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
     const MAX_ROWS = 3;
     const LANDSCAPE_CARD_WIDTH = 200;
     const PORTRAIT_CARD_HEIGHT = 200;
     const DEFAULT_CARD_PIXELS = 150;
 
-	// Variables populated initially that don't change when restarting the quiz
-    var wordsByCategory = {}; // Maps category names to arrays of word objects
-    var categoryNames = []; // All the category names
-    var loadedCategories = []; // Categories that have been loaded
-    var loadedResources = {};
-    var firstCategoryName = llToolsFlashcardsData.firstCategoryName;
-    var defaultNumberOfOptions = DEFAULT_NUMBER_OF_OPTIONS;
+	// Attach shared variables to window
+    window.categoryNames = []; // All the category names
+    window.wordsByCategory = {}; // Maps category names to arrays of word objects
+    window.categoryRoundCount = {}; // Tracks rounds per category
+    window.firstCategoryName = llToolsFlashcardsData.firstCategoryName;
 
-	// Variables related to the quiz state
+    // Variables related to the quiz state
+    var defaultNumberOfOptions = DEFAULT_NUMBER_OF_OPTIONS;
     var usedWordIDs = []; // Set of IDs of words we've covered so far
-    var categoryRoundCount = {}; // Tracks rounds per category
     var wrongIndexes = []; // Tracks indexes of wrong answers this turn
     var currentCategory = null;
     var currentCategoryName = null;
@@ -27,7 +25,7 @@
     var isFirstRound = true;
     var categoryOptionsCount = {}; // Tracks the number of options for each category
     var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
-	var userClickedSkip = false;
+    var userClickedSkip = false;
     var maxCardWidth = DEFAULT_CARD_PIXELS;
     var maxCardHeight = DEFAULT_CARD_PIXELS;
     let quizResults = {
@@ -36,8 +34,8 @@
         skipped: 0
     };
 
-	// Resets variables related to the quiz state when closing/restarting the quiz
-	function resetQuizState() {
+    // Resets variables related to the quiz state when closing/restarting the quiz
+    function resetQuizState() {
         usedWordIDs = [];
         categoryRoundCount = {};
         wrongIndexes = [];
@@ -47,20 +45,20 @@
         isFirstRound = true;
         categoryOptionsCount = {};
         categoryRepetitionQueues = {};
-		userClickedSkip = false;
+        userClickedSkip = false;
         resetQuizResults();
         FlashcardAudio.resetAudioState();
         maxCardWidth = DEFAULT_CARD_PIXELS;
         maxCardHeight = DEFAULT_CARD_PIXELS;
     }
 
-	function resetQuizResults() {
-		quizResults = {
+    function resetQuizResults() {
+        quizResults = {
             correctOnFirstTry: 0,
             incorrect: [],
             skipped: 0
         };
-	}
+    }
 
     // Preload the first category
     if (llToolsFlashcardsData.categoriesPreselected) {
@@ -69,105 +67,6 @@
 
     // Initialize the audio module
     FlashcardAudio.initializeAudio();
-
-    // Load resources for a word
-    function loadResourcesForWord(word) {
-        FlashcardAudio.loadAudio(word.audio);
-        if (llToolsFlashcardsData.displayMode === 'image') {
-            loadImage(word.image);
-        }
-    }
-
-    // Load an image so that it's cached for later use
-    function loadImage(imageURL) {
-        if (!loadedResources[imageURL] && imageURL) {
-            new Promise((resolve, reject) => {
-                let img = new Image();
-                img.onload = function() {
-                    resolve(img);
-                };
-                img.onerror = function() {
-                    reject(new Error('Image load failed'));
-                };
-                img.src = imageURL;
-            });
-            loadedResources[imageURL] = true;
-        }
-    }
-
-    function processFetchedWordData(wordData, categoryName) {
-        if (!wordsByCategory[categoryName]) {
-            wordsByCategory[categoryName] = [];
-        }
-        if (!categoryRoundCount[categoryName]) {
-            categoryRoundCount[categoryName] = 0;
-        }
-
-        // For each loaded word
-        wordData.forEach(function(word) {
-            wordsByCategory[categoryName].push(word);
-            loadResourcesForWord(word);
-        });
-
-        // Randomize the order of the words in this category
-        wordsByCategory[categoryName] = randomlySort(wordsByCategory[categoryName]);
-        // Add the category to the list of loaded categories
-        loadedCategories.push(categoryName);
-    }
-
-    // Load resources for a category
-    function loadResourcesForCategory(categoryName, callback) {
-        if (loadedCategories.includes(categoryName)) {
-            if (typeof callback === 'function') {
-                callback();
-            }
-            return;
-        }
-
-        $.ajax({
-            url: llToolsFlashcardsData.ajaxurl,
-            method: 'POST',
-            data: {
-                action: 'll_get_words_by_category',
-                category: categoryName,
-                display_mode: llToolsFlashcardsData.displayMode
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Process the received words data
-                    processFetchedWordData(response.data, categoryName);
-
-                    if (typeof callback === 'function') {
-                        callback();
-                    }
-                } else {
-                    console.error('Failed to load words for category:', categoryName);
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX request failed for category:', categoryName, 'Error:', error);
-                // TODO: Handle the error gracefully, e.g., show an error message to the user
-            }
-        });
-    }
-
-    // Preload the next few categories to avoid delays when switching categories
-    function preloadNextCategories() {
-        var numberToPreload = 3;
-
-        // For all category names
-        categoryNames.forEach(function(categoryName) {
-            // If the category is not loaded
-            if (!loadedCategories.includes(categoryName)) {
-                // Load the resources for the category
-                loadResourcesForCategory(categoryName);
-                numberToPreload--;
-                if (numberToPreload === 0) {
-                    return;
-                }
-            }
-        });
-    }
 
     // Helper function to randomly sort an array
     function randomlySort(inputArray) {
@@ -340,7 +239,7 @@
             if (currentCategoryName !== candidateCategoryName) {
                 currentCategoryName = candidateCategoryName;
                 currentCategoryRoundCount = 0;
-                preloadNextCategories();
+                FlashcardLoader.preloadNextCategories();
             }
             currentCategory = wordsByCategory[candidateCategoryName];
             categoryRoundCount[candidateCategoryName]++;
@@ -402,7 +301,7 @@
             // If this word passes the checks, add it to the selected words and container
             if (!isDuplicate && !isSimilar && !hasSameImage) {
                 selectedWords.push(candidateWord);
-                loadResourcesForWord(candidateWord);
+                FlashcardLoader.loadResourcesForWord(candidateWord);
                 appendWordToContainer(candidateWord);
 
                 if (selectedWords.length >= categoryOptionsCount[currentCategoryName] || !canAddMoreCards()) {
@@ -416,41 +315,41 @@
     function fillQuizOptions(targetWord) {
         let selectedWords = [];
 
-        let tryCategories = [];
+        let categoryNamesToTry = [];
 
         // The first category to try will be the current category
-        tryCategories.push(currentCategoryName);
+        categoryNamesToTry.push(currentCategoryName);
 
         // If we don't find enough words in the current category, look at this word's other categories
         if (targetWord.all_categories) {
             for (let category of targetWord.all_categories) {
-                if (!tryCategories.includes(category)) {
-                    tryCategories.push(category);
+                if (!categoryNamesToTry.includes(category)) {
+                    categoryNamesToTry.push(category);
                 }
             }
         }
 
         // If that still isn't enough, look at all other categories
         categoryNames.forEach(category => {
-            if (!tryCategories.includes(category)) {
-                tryCategories.push(category);
+            if (!categoryNamesToTry.includes(category)) {
+                categoryNamesToTry.push(category);
             }
         });
 
-        loadResourcesForWord(targetWord);
+        FlashcardLoader.loadResourcesForWord(targetWord);
         selectedWords.push(targetWord);
         appendWordToContainer(targetWord);
 
         while (selectedWords.length < categoryOptionsCount[currentCategoryName] && canAddMoreCards()) {
-            if (tryCategories.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
-            let candidateCategory = tryCategories.shift();
-            if (wordsByCategory[candidateCategory] && loadedCategories.includes(candidateCategory)) {
-                wordsByCategory[candidateCategory] = randomlySort(wordsByCategory[candidateCategory]);
-                selectedWords = selectWordsFromCategory(candidateCategory, selectedWords);
-            } else {
+            if (categoryNamesToTry.length === 0 || selectedWords.length >= categoryOptionsCount[currentCategoryName]) break;
+            let candidateCategoryName = categoryNamesToTry.shift();
+            if (!wordsByCategory[candidateCategoryName] || FlashcardLoader.loadedCategories.includes(candidateCategoryName)) {
                 // If the words data is not loaded, request it and continue with the next category
-                loadResourcesForCategory(candidateCategory);
+                FlashcardLoader.loadResourcesForCategory(candidateCategoryName);
             }
+
+            wordsByCategory[candidateCategoryName] = randomlySort(wordsByCategory[candidateCategoryName]);
+            selectedWords = selectWordsFromCategory(candidateCategoryName, selectedWords);
         }
 
         // Add click events to the cards
@@ -607,7 +506,7 @@
             var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
             var categoryLoadPromises = initialCategories.map(function (categoryName) {
                 return new Promise(function (resolve) {
-                    loadResourcesForCategory(categoryName, resolve);
+                    FlashcardLoader.loadResourcesForCategory(categoryName, resolve);
                 });
             });
 
@@ -647,7 +546,7 @@
             fillQuizOptions(targetWord);
             FlashcardAudio.setTargetWordAudio(targetWord);
         }
-		userClickedSkip = false;
+        userClickedSkip = false;
     }
 
     // Show results and the restart button
@@ -677,6 +576,9 @@
         categoryNames = selectedCategories;
         categoryNames = randomlySort(categoryNames);
 
+        firstCategoryName = categoryNames[0];
+        FlashcardLoader.loadResourcesForCategory(firstCategoryName);
+
         // Disable scrolling
         $('body').addClass('ll-tools-flashcard-open');
 
@@ -700,17 +602,17 @@
         // Event handler for the skip button
         $('#ll-tools-skip-flashcard').off('click').on('click', function () {
             if (FlashcardAudio.getTargetAudioHasPlayed() && !userClickedSkip) {
-				userClickedSkip = true;
-				
-				// Increment the skipped counter
-				quizResults.skipped += 1;
+                userClickedSkip = true;
 
-				// Consider the skipped question as "wrong" when determining the number of options
-				wrongIndexes.push(-1);
+                // Increment the skipped counter
+                quizResults.skipped += 1;
 
-				isFirstRound = false; // Update the first round flag
-				showQuiz(); // Move to the next question
-			}
+                // Consider the skipped question as "wrong" when determining the number of options
+                wrongIndexes.push(-1);
+
+                isFirstRound = false; // Update the first round flag
+                showQuiz(); // Move to the next question
+            }
         });
 
         // Handle the Restart Quiz button click
@@ -726,8 +628,8 @@
         resetQuizState();
         wordsByCategory = {};
         categoryNames = [];
-        loadedCategories = [];
-        loadedResources = {};
+        FlashcardLoader.loadedCategories = [];
+        FlashcardLoader.loadedResources = {};
         hideResultsPage();
         $('#ll-tools-flashcard').empty();
         $('#ll-tools-flashcard-header').hide();
