@@ -110,6 +110,14 @@ function ll_tools_flashcard_widget($atts) {
         'firstCategoryName' => $firstCategoryName,
     ));
 
+	// Localize translatable strings for results messages
+	wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(
+	    'perfect' => __('Perfect!', 'll-tools-text-domain'),
+	    'goodJob' => __('Good job!', 'll-tools-text-domain'),
+	    'keepPracticingTitle' => __('Keep practicing!', 'll-tools-text-domain'),
+	    'keepPracticingMessage' => __('You\'re on the right track to get a higher score next time!', 'll-tools-text-domain'),
+	));
+
     // Output the initial setup and the buttons
     ob_start();
     echo '<div id="ll-tools-flashcard-container">';
