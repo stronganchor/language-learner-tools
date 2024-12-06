@@ -10,38 +10,38 @@
 // Register the "words" custom post type
 function ll_tools_register_words_post_type() {
 
-	$labels = [
-		"name" => esc_html__( "Words", "astra" ),
-		"singular_name" => esc_html__( "Word", "astra" ),
-	];
+    $labels = [
+        "name" => esc_html__( "Words", "astra" ),
+        "singular_name" => esc_html__( "Word", "astra" ),
+    ];
 
-	$args = [
-		"label" => esc_html__( "Words", "astra" ),
-		"labels" => $labels,
-		"description" => "",
-		"public" => true,
-		"publicly_queryable" => true,
-		"show_ui" => true,
-		"show_in_rest" => true,
-		"rest_base" => "",
-		"rest_controller_class" => "WP_REST_Posts_Controller",
-		"rest_namespace" => "wp/v2",
-		"has_archive" => false,
-		"show_in_menu" => true,
-		"show_in_nav_menus" => true,
-		"delete_with_user" => false,
-		"exclude_from_search" => false,
-		"capability_type" => "post",
-		"map_meta_cap" => true,
-		"hierarchical" => false,
-		"can_export" => false,
-		"rewrite" => [ "slug" => "words", "with_front" => true ],
-		"query_var" => true,
-		"supports" => [ "title", "editor", "thumbnail", "custom-fields" ],
-		"show_in_graphql" => false,
-	];
+    $args = [
+        "label" => esc_html__( "Words", "astra" ),
+        "labels" => $labels,
+        "description" => "",
+        "public" => true,
+        "publicly_queryable" => true,
+        "show_ui" => true,
+        "show_in_rest" => true,
+        "rest_base" => "",
+        "rest_controller_class" => "WP_REST_Posts_Controller",
+        "rest_namespace" => "wp/v2",
+        "has_archive" => false,
+        "show_in_menu" => true,
+        "show_in_nav_menus" => true,
+        "delete_with_user" => false,
+        "exclude_from_search" => false,
+        "capability_type" => "post",
+        "map_meta_cap" => true,
+        "hierarchical" => false,
+        "can_export" => false,
+        "rewrite" => [ "slug" => "words", "with_front" => true ],
+        "query_var" => true,
+        "supports" => [ "title", "editor", "thumbnail", "custom-fields" ],
+        "show_in_graphql" => false,
+    ];
 
-	register_post_type( "words", $args );
+    register_post_type( "words", $args );
 }
 
 add_action( 'init', 'll_tools_register_words_post_type', 0 );
@@ -85,7 +85,7 @@ add_action('save_post', 'll_tools_save_similar_words_metadata');
 // Function to save the metadata
 function ll_tools_save_similar_words_metadata($post_id) {
     // Check if the nonce is set and valid
-    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'process_audio_files')) {
+    if (!isset($_POST['similar_words_meta_nonce']) || !wp_verify_nonce($_POST['similar_words_meta_nonce'], 'similar_words_meta')) {
         return;
     }
 
@@ -343,5 +343,3 @@ function ll_apply_words_filters($query) {
         }
     }
 }
-
-?>
