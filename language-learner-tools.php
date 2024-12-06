@@ -128,7 +128,7 @@ add_action('plugins_loaded', 'll_tools_load_textdomain');
 function ll_tools_enqueue_confetti_script() {
     // Print the canvas-confetti script tag in the header
     ?>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js" integrity="sha256-ChTVdW8vUOyi5BENzWg6BKRkgprHFW4psKm8YGY5F6U=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js" integrity="sha256-uX1s5/Q5gTlFtaOoOlQp1a7hExsJw3HBXbKg9gmG7T8=" crossorigin="anonymous"></script>
     <?php
 }
 add_action('wp_head', 'll_tools_enqueue_confetti_script');
