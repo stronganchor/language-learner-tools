@@ -114,9 +114,15 @@ body.ll-tools-flashcard-open {
     left: 50%;
     transform: translate(-50%, -50%);
     padding: 20px;
-    width: 80%; /* Optional, adjust based on preference */
-    max-width: 600px; /* Optional, to prevent it from being too wide */
+    width: 80%; 
+    max-width: 600px; 
     z-index: 10; /* Make sure it's on top of other content */
+}
+
+#quiz-results-message {
+    font-size: 14px;
+    color: #555;
+    margin-top: 10px;
 }
 
 .ll-tools-loading-animation {
