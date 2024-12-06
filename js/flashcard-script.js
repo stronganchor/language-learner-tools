@@ -487,7 +487,6 @@
         }());
     }
 
-    // Make sure your showResultsPage() function calls startConfetti() if score >= 70%
     function showResultsPage() {
         // Show the results div
         $('#quiz-results').show();
@@ -511,6 +510,31 @@
     
         // Calculate the user's score percentage
         const correctRatio = (totalQuestions > 0) ? (quizResults.correctOnFirstTry / totalQuestions) : 0;
+    
+        // Select the title and message elements
+        const $title = $('#quiz-results-title');
+        const $message = $('#quiz-results-message');
+    
+        // Decide on the encouragement message
+        if (correctRatio === 1) {
+            // Perfect score
+            $title.text(llToolsFlashcardsMessages.perfect);
+            $message.hide();
+        } else if (correctRatio >= 0.7) {
+            // Good job score
+            $title.text(llToolsFlashcardsMessages.goodJob);
+            $message.hide();
+        } else {
+            // Below 70%
+            $title.text(llToolsFlashcardsMessages.keepPracticingTitle);
+            $message.text(llToolsFlashcardsMessages.keepPracticingMessage);
+            $message.css({
+                'font-size': '14px',
+                'margin-top': '10px',
+                'color': '#555', // Optional for styling
+            });
+            $message.show();
+        }
     
         // If the user scored 70% or better, trigger confetti
         if (correctRatio >= 0.7) {
