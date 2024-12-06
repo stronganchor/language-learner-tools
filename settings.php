@@ -113,8 +113,6 @@ function ll_render_settings_page() {
     <?php
 }
 
-add_action('update_option_ll_enable_category_translation', 'll_auto_translate_existing_categories', 10, 3);
-
 function ll_auto_translate_existing_categories($old_value, $new_value, $option_name) {
     if (!$old_value && $new_value) { // Only run when the setting is enabled
         // Fetch all categories in the taxonomy
