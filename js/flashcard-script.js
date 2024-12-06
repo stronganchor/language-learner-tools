@@ -438,27 +438,84 @@
         userClickedSkip = false;
     }    
 
-    // Show results and the restart button
+    // Add this function near the top or bottom of flashcard-script.js
+    function startConfetti() {
+        // If we added a #confetti-canvas in HTML:
+        var confettiCanvas = document.getElementById('confetti-canvas');
+        if (!confettiCanvas) {
+            // If for some reason the canvas is not found, create one dynamically.
+            confettiCanvas = document.createElement('canvas');
+            confettiCanvas.id = 'confetti-canvas';
+            confettiCanvas.style.position = 'fixed';
+            confettiCanvas.style.top = '0px';
+            confettiCanvas.style.left = '0px';
+            confettiCanvas.style.width = '100%';
+            confettiCanvas.style.height = '100%';
+            confettiCanvas.style.pointerEvents = 'none';
+            document.body.appendChild(confettiCanvas);
+        }
+    
+        // Create a confetti function instance tied to our canvas
+        var myConfetti = confetti.create(confettiCanvas, {
+          resize: true, // will fit the canvas to the screen size
+          useWorker: true
+        });
+    
+        // Run the confetti shower for a few seconds
+        var end = Date.now() + (3 * 1000); // confetti for 3 seconds
+    
+        (function frame() {
+            // Launch a few confetti from the left edge
+            myConfetti({
+                particleCount: 3,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 }
+            });
+            // ... and launch a few from the right edge
+            myConfetti({
+                particleCount: 3,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 }
+            });
+    
+            // Keep going until we hit our time limit
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    }
+
+    // Make sure your showResultsPage() function calls startConfetti() if score >= 70%
     function showResultsPage() {
         // Show the results div
         $('#quiz-results').show();
-
+    
         // Hide the loading animation
         hideLoadingAnimation();
-
+    
         // Hide the skip and repeat buttons
         $('#ll-tools-skip-flashcard').hide();
         $('#ll-tools-repeat-flashcard').hide();
-
+    
         const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
-
+    
         // Update the results dynamically
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#skipped-count').text(quizResults.skipped);
-
+    
         // Ensure the "Restart Quiz" button is visible
         $('#restart-quiz').show();
+    
+        // Calculate the user's score percentage
+        const correctRatio = (totalQuestions > 0) ? (quizResults.correctOnFirstTry / totalQuestions) : 0;
+    
+        // If the user scored 70% or better, trigger confetti
+        if (correctRatio >= 0.7) {
+            startConfetti();
+        }
     }
 
     function initFlashcardWidget(selectedCategories) {
