@@ -301,23 +301,31 @@
         card.click(function() {
             if (llToolsFlashcardsData.displayMode === 'image') {
                 if ($(this).find('img').attr("src") === targetWord.image) {
-                    handleCorrectAnswer(targetWord);
+                    handleCorrectAnswer(targetWord, $(this));
                 } else {
                     handleWrongAnswer(targetWord, index, $(this));
                 }
             } else {
                 if ($(this).find('.quiz-translation').text() === targetWord.translation) {
-                    handleCorrectAnswer(targetWord);
+                    handleCorrectAnswer(targetWord, $(this));
                 } else {
                     handleWrongAnswer(targetWord, index, $(this));
                 }
             }
         });
     }
-
-    // Respond to the correct answer
-    function handleCorrectAnswer(targetWord) {
-        // Correct answer logic
+    
+    function handleCorrectAnswer(targetWord, correctCard) {
+        correctCard.addClass('correct-answer');
+        const rect = correctCard[0].getBoundingClientRect();
+        const xPos = (rect.left + rect.width / 2) / window.innerWidth;
+        const yPos = (rect.top + rect.height / 2) / window.innerHeight;
+        confetti({
+            origin: { x: xPos, y: yPos },
+            particleCount: 30,
+            spread: 60
+        });
+    
         FlashcardAudio.playFeedback(true, null, function () {
             // If there were any wrong answers before the right one was selected
             if (wrongIndexes.length > 0) {
@@ -330,15 +338,15 @@
                     reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
                 });
             }
-
+    
             // Track correct answers on the first try
             if (!quizResults.incorrect.includes(targetWord.id)) {
                 quizResults.correctOnFirstTry += 1;
             }
-
+    
             // Fade out and remove the wrong answers
-            $('.flashcard-container').not(this).addClass('fade-out');
-
+            $('.flashcard-container').not(correctCard).addClass('fade-out');
+    
             // Wait for the transition to complete before moving to the next question
             setTimeout(function () {
                 isFirstRound = false;
@@ -346,7 +354,7 @@
             }, 600); // Adjust the delay as needed to match the transition duration
         });
     }
-
+    
     // Respond to the wrong answer
     function handleWrongAnswer(targetWord, index, wrongAnswer) {
         FlashcardAudio.playFeedback(false, targetWord.audio, null);
