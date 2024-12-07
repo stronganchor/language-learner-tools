@@ -320,11 +320,19 @@
         const rect = correctCard[0].getBoundingClientRect();
         const xPos = (rect.left + rect.width / 2) / window.innerWidth;
         const yPos = (rect.top + rect.height / 2) / window.innerHeight;
-        confetti({
-            origin: { x: xPos, y: yPos },
-            particleCount: 30,
-            spread: 60
-        });
+        
+        // Wrap confetti call in a try/catch
+        try {
+            if (typeof confetti === 'function') {
+                confetti({
+                    origin: { x: xPos, y: yPos },
+                    particleCount: 30,
+                    spread: 60
+                });
+            }
+        } catch (e) {
+            console.warn('Confetti not available. Continuing without it.');
+        }
     
         FlashcardAudio.playFeedback(true, null, function () {
             // If there were any wrong answers before the right one was selected
@@ -448,51 +456,53 @@
 
     // Add this function near the top or bottom of flashcard-script.js
     function startConfetti() {
-        // If we added a #confetti-canvas in HTML:
-        var confettiCanvas = document.getElementById('confetti-canvas');
-        if (!confettiCanvas) {
-            // If for some reason the canvas is not found, create one dynamically.
-            confettiCanvas = document.createElement('canvas');
-            confettiCanvas.id = 'confetti-canvas';
-            confettiCanvas.style.position = 'fixed';
-            confettiCanvas.style.top = '0px';
-            confettiCanvas.style.left = '0px';
-            confettiCanvas.style.width = '100%';
-            confettiCanvas.style.height = '100%';
-            confettiCanvas.style.pointerEvents = 'none';
-            document.body.appendChild(confettiCanvas);
-        }
-    
-        // Create a confetti function instance tied to our canvas
-        var myConfetti = confetti.create(confettiCanvas, {
-          resize: true, // will fit the canvas to the screen size
-          useWorker: true
-        });
-    
-        // Run the confetti shower for a few seconds
-        var end = Date.now() + (3 * 1000); // confetti for 3 seconds
-    
-        (function frame() {
-            // Launch a few confetti from the left edge
-            myConfetti({
-                particleCount: 3,
-                angle: 60,
-                spread: 55,
-                origin: { x: 0 }
-            });
-            // ... and launch a few from the right edge
-            myConfetti({
-                particleCount: 3,
-                angle: 120,
-                spread: 55,
-                origin: { x: 1 }
-            });
-    
-            // Keep going until we hit our time limit
-            if (Date.now() < end) {
-                requestAnimationFrame(frame);
+        // Wrap entire confetti setup in try/catch
+        try {
+            var confettiCanvas = document.getElementById('confetti-canvas');
+            if (!confettiCanvas) {
+                confettiCanvas = document.createElement('canvas');
+                confettiCanvas.id = 'confetti-canvas';
+                confettiCanvas.style.position = 'fixed';
+                confettiCanvas.style.top = '0px';
+                confettiCanvas.style.left = '0px';
+                confettiCanvas.style.width = '100%';
+                confettiCanvas.style.height = '100%';
+                confettiCanvas.style.pointerEvents = 'none';
+                document.body.appendChild(confettiCanvas);
             }
-        }());
+    
+            if (typeof confetti === 'function') {
+                var myConfetti = confetti.create(confettiCanvas, {
+                  resize: true,
+                  useWorker: true
+                });
+    
+                var end = Date.now() + (3 * 1000);
+                (function frame() {
+                    myConfetti({
+                        particleCount: 3,
+                        angle: 60,
+                        spread: 55,
+                        origin: { x: 0 }
+                    });
+                    myConfetti({
+                        particleCount: 3,
+                        angle: 120,
+                        spread: 55,
+                        origin: { x: 1 }
+                    });
+    
+                    if (Date.now() < end) {
+                        requestAnimationFrame(frame);
+                    }
+                }());
+            } else {
+                console.warn('Confetti not available. Skipping confetti animation.');
+            }
+    
+        } catch (e) {
+            console.warn('Confetti initialization failed. Skipping confetti animation.');
+        }
     }
 
     function showResultsPage() {
