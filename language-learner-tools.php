@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.3.2
+ * Version: 2.3.3
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -128,7 +128,7 @@ add_action('plugins_loaded', 'll_tools_load_textdomain');
 function ll_tools_enqueue_confetti_script() {
     // Print the canvas-confetti script tag in the header
     ?>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js" integrity="sha256-uX1s5/Q5gTlFtaOoOlQp1a7hExsJw3HBXbKg9gmG7T8=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <?php
 }
 add_action('wp_head', 'll_tools_enqueue_confetti_script');
