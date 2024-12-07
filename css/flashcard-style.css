@@ -245,7 +245,7 @@ body.ll-tools-flashcard-open {
 }
 
 .correct-answer::after {
-    content: "✔";
+    content: "\2714";
     position: absolute;
     top: 50%;
     left: 50%;
@@ -253,8 +253,10 @@ body.ll-tools-flashcard-open {
     font-size: 64px;
     color: #85cd6a;
     font-weight: bold;
+    font-family: Arial, Helvetica, sans-serif;
     text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
     z-index: 2;
+    line-height: 1;
 }
 
 .fade-out {
