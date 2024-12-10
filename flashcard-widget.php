@@ -174,23 +174,53 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
     $processed_categories = [];
 
     foreach ($categories as $category) {
-        $word_count = ll_get_deepest_category_word_count($category->term_id);
+        // Instead of relying on total word_count, we determine mode by comparing image vs text directly
+        $image_words = ll_get_words_by_category($category->name, 'image');
+        $text_words = ll_get_words_by_category($category->name, 'text');
 
-        // Only include categories that meet the minimum word count requirement
-        if ($word_count >= $min_word_count) {
-            $processed_categories[] = [
-                'id' => $category->term_id,
-                'slug' => $category->slug,
-                'name' => $category->name,
-                'translation' => $use_translations
-                    ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
-                    : $category->name,
-            ];
+        $image_count = count($image_words);
+        $text_count = count($text_words);
+
+        // Check if at least one mode meets the minimum word count
+        if ($image_count < $min_word_count && $text_count < $min_word_count) {
+            // Neither mode meets the requirement, skip this category
+            continue;
         }
+
+        // Determine the mode
+        // If only image meets min_word_count, choose image
+        if ($image_count >= $min_word_count && $text_count < $min_word_count) {
+            $mode = 'image';
+        }
+        // If only text meets min_word_count, choose text
+        elseif ($text_count >= $min_word_count && $image_count < $min_word_count) {
+            $mode = 'text';
+        } else {
+            // Both meet or exceed min_word_count. Pick the one with more words.
+            // If tied, default to text (or image if you prefer).
+            if ($image_count > $text_count) {
+                $mode = 'image';
+            } else {
+                $mode = 'text'; // either they're tied or text_count > image_count
+            }
+        }
+
+        $translation = $use_translations
+            ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
+            : $category->name;
+
+        $processed_categories[] = [
+            'id' => $category->term_id,
+            'slug' => $category->slug,
+            'name' => $category->name,
+            'translation' => $translation,
+            'mode' => $mode,
+        ];
     }
 
     return $processed_categories;
 }
+
 
 // AJAX handler for fetching words by category
 add_action('wp_ajax_ll_get_words_by_category', 'll_get_words_by_category_ajax');

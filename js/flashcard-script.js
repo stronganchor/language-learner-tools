@@ -25,7 +25,13 @@
         skipped: 0
     };
 
-    // Resets variables related to the quiz state when closing/restarting the quiz
+    // Helper function to get the current display mode based on the current category
+    function getCurrentDisplayMode() {
+        if (!currentCategoryName) return llToolsFlashcardsData.displayMode; // Fallback if no category selected
+        let currentCatData = llToolsFlashcardsData.categories.find(cat => cat.name === currentCategoryName);
+        return currentCatData ? currentCatData.mode : llToolsFlashcardsData.displayMode;
+    }
+
     function resetQuizState() {
         usedWordIDs = [];
         categoryRoundCount = {};
@@ -107,7 +113,7 @@
             // Check if the target word is the same as the previous one
             if (target.id === usedWordIDs[usedWordIDs.length - 1]) {
                 // If it's the same and there are other words in the category, try to select a different one
-                const otherWords = currentCategory.filter(word => word.id !== target.id);
+                const otherWords = candidateCategory.filter(word => word.id !== target.id);
                 if (otherWords.length > 0) {
                     target = otherWords[Math.floor(Math.random() * otherWords.length)];
                 }
@@ -177,11 +183,13 @@
     }
 
     function selectWordsFromCategory(category, selectedWords) {
+        const displayMode = getCurrentDisplayMode();
+
         for (let candidateWord of wordsByCategory[category]) {
             // Check if the candidate word is not already selected and not similar to any selected words
             let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
             let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-            let hasSameImage = llToolsFlashcardsData.displayMode === 'image' && selectedWords.some(word => word.image === candidateWord.image);
+            let hasSameImage = displayMode === 'image' && selectedWords.some(word => word.image === candidateWord.image);
 
             // If this word passes the checks, add it to the selected words and container
             if (!isDuplicate && !isSimilar && !hasSameImage) {
@@ -251,6 +259,7 @@
 
     // Add a word to the flashcard container at a random position
     function appendWordToContainer(wordData) {
+        const displayMode = getCurrentDisplayMode();
         let container = $('<div>', {
             class: 'flashcard-container',
             'data-word': wordData.title
@@ -258,7 +267,7 @@
 
         let fudgePixels = 10;
 
-        if (llToolsFlashcardsData.displayMode === 'image') {
+        if (displayMode === 'image') {
             $('<img>', {
                 src: wordData.image,
                 alt: wordData.title,
@@ -273,7 +282,6 @@
                 }
             }).appendTo(container);
         } else {
-
             container.addClass('text-based');
 
             let translationDiv = $('<div>', {
@@ -299,8 +307,10 @@
 
     // Add click event to the card to handle right and wrong answers
     function addClickEventToCard(card, index, targetWord) {
+        const displayMode = getCurrentDisplayMode();
+
         card.click(function() {
-            if (llToolsFlashcardsData.displayMode === 'image') {
+            if (displayMode === 'image') {
                 if ($(this).find('img').attr("src") === targetWord.image) {
                     handleCorrectAnswer(targetWord, $(this));
                 } else {
@@ -334,7 +344,7 @@
             spread: 60,
             origin: { x: xPos, y: yPos }, 
             duration: 50
-          });
+        });
     
         FlashcardAudio.playFeedback(true, null, function () {
             // If there were any wrong answers before the right one was selected
@@ -345,7 +355,7 @@
                 // Add the word to the repetition queue for the current category
                 categoryRepetitionQueues[currentCategoryName].push({
                     wordData: targetWord,
-                    reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3), // Reappear in a few rounds
+                    reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3),
                 });
             }
     
@@ -383,11 +393,13 @@
         // Add the index to wrongIndexes if the answer is incorrect
         wrongIndexes.push(index);
 
+        const displayMode = getCurrentDisplayMode();
+        
         // Check if the user has selected a wrong answer twice
         if (wrongIndexes.length === 2) {
             // Remove all options except the correct one
             $('.flashcard-container').not(function () {
-                if (llToolsFlashcardsData.displayMode === 'image') {
+                if (displayMode === 'image') {
                     return $(this).find('img').attr("src") === targetWord.image;
                 } else {
                     return $(this).find('.quiz-translation').text() === targetWord.translation;
@@ -460,8 +472,8 @@
     function startConfetti(options) {
         // Default options if nothing is passed
         const defaults = {
-            particleCount: 6,   // total per frame (3 at x:0 and 3 at x:1 if no origin specified)
-            angle: 70,
+            particleCount: 6,
+            angle: 60,
             spread: 55,
             origin: null, // null by default, meaning no fixed origin specified
             duration: 2000 // duration in ms

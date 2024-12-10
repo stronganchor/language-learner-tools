@@ -97,6 +97,7 @@ function ll_get_translated_category_name($term_id) {
     return $term ? $term->name : '';
 }
 
+// Deprecated.  Consider removing if we aren't going to use it.
 function ll_get_deepest_category_word_count($category_id) {
     $args = array(
         'post_type' => 'words',
