@@ -18,6 +18,7 @@
     var isFirstRound = true;
     var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
     var userClickedSkip = false;
+    var userClickedCorrectAnswer = false;
     let quizResults = {
         correctOnFirstTry: 0,
         incorrect: [],
@@ -316,23 +317,24 @@
     }
     
     function handleCorrectAnswer(targetWord, correctCard) {
+        if (userClickedCorrectAnswer){
+            return;
+        }
+
         correctCard.addClass('correct-answer');
         const rect = correctCard[0].getBoundingClientRect();
         const xPos = (rect.left + rect.width / 2) / window.innerWidth;
         const yPos = (rect.top + rect.height / 2) / window.innerHeight;
         
-        // Wrap confetti call in a try/catch
-        try {
-            if (typeof confetti === 'function') {
-                confetti({
-                    origin: { x: xPos, y: yPos },
-                    particleCount: 30,
-                    spread: 60
-                });
-            }
-        } catch (e) {
-            console.warn('Confetti not available. Continuing without it.');
-        }
+        userClickedCorrectAnswer = true;
+
+        startConfetti({
+            particleCount: 20,
+            angle: 90,
+            spread: 60,
+            origin: { x: xPos, y: yPos }, 
+            duration: 50
+          });
     
         FlashcardAudio.playFeedback(true, null, function () {
             // If there were any wrong answers before the right one was selected
@@ -358,6 +360,7 @@
             // Wait for the transition to complete before moving to the next question
             setTimeout(function () {
                 isFirstRound = false;
+                userClickedCorrectAnswer = false;
                 startQuizRound(); // Load next question after fade out
             }, 600); // Adjust the delay as needed to match the transition duration
         });
@@ -454,9 +457,19 @@
         userClickedSkip = false;
     }    
 
-    // Add this function near the top or bottom of flashcard-script.js
-    function startConfetti() {
-        // Wrap entire confetti setup in try/catch
+    function startConfetti(options) {
+        // Default options if nothing is passed
+        const defaults = {
+            particleCount: 6,   // total per frame (3 at x:0 and 3 at x:1 if no origin specified)
+            angle: 60,
+            spread: 55,
+            origin: null, // null by default, meaning no fixed origin specified
+            duration: 3000 // duration in ms (3 seconds)
+        };
+    
+        // Merge defaults with passed-in options
+        const settings = Object.assign({}, defaults, options);
+    
         try {
             var confettiCanvas = document.getElementById('confetti-canvas');
             if (!confettiCanvas) {
@@ -474,24 +487,37 @@
     
             if (typeof confetti === 'function') {
                 var myConfetti = confetti.create(confettiCanvas, {
-                  resize: true,
-                  useWorker: true
+                    resize: true,
+                    useWorker: true
                 });
     
-                var end = Date.now() + (3 * 1000);
+                var end = Date.now() + settings.duration;
+    
                 (function frame() {
-                    myConfetti({
-                        particleCount: 3,
-                        angle: 60,
-                        spread: 55,
-                        origin: { x: 0 }
-                    });
-                    myConfetti({
-                        particleCount: 3,
-                        angle: 120,
-                        spread: 55,
-                        origin: { x: 1 }
-                    });
+                    if (settings.origin && typeof settings.origin.x === 'number' && typeof settings.origin.y === 'number') {
+                        // If an origin is specified, launch confetti from that exact spot
+                        myConfetti({
+                            particleCount: settings.particleCount,
+                            angle: settings.angle,
+                            spread: settings.spread,
+                            origin: { x: settings.origin.x, y: settings.origin.y }
+                        });
+                    } else {
+                        // No origin specified, launch from left and right sides
+                        myConfetti({
+                            particleCount: Math.floor(settings.particleCount / 2),
+                            angle: settings.angle,
+                            spread: settings.spread,
+                            origin: { x: 0.0, y: 0.5 }
+                        });
+    
+                        myConfetti({
+                            particleCount: Math.ceil(settings.particleCount / 2),
+                            angle: 120, // opposite angle
+                            spread: settings.spread,
+                            origin: { x: 1.0, y: 0.5 }
+                        });
+                    }
     
                     if (Date.now() < end) {
                         requestAnimationFrame(frame);
@@ -500,11 +526,10 @@
             } else {
                 console.warn('Confetti not available. Skipping confetti animation.');
             }
-    
         } catch (e) {
-            console.warn('Confetti initialization failed. Skipping confetti animation.');
+            console.warn('Confetti initialization failed. Skipping confetti animation.', e);
         }
-    }
+    }    
 
     function showResultsPage() {
         // Show the results div
