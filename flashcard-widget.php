@@ -136,7 +136,6 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-close-category-selection">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
-    echo '<canvas id="confetti-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>';
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
