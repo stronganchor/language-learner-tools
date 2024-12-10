@@ -8,8 +8,7 @@ function ll_tools_flashcard_widget($atts) {
     // Default settings for the shortcode
     $atts = shortcode_atts(array(
         'category' => '', // Optional category
-        'mode' => 'random', // Default to practice by showing one random word at a time
-        'display' => 'image', // Default to displaying the word's image
+        'mode' => 'random' // Default to practice by showing one random word at a time
     ), $atts);
 
     $categories = $atts['category'];
@@ -65,7 +64,20 @@ function ll_tools_flashcard_widget($atts) {
     while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)) {
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
         $categoriesToTry = array_diff($categoriesToTry, [$random_category]);
-        $words_data = ll_get_words_by_category($random_category, $atts['display']);
+    
+        // Find the category data in $categories
+        $selected_category_data = null;
+        foreach ($categories as $cat) {
+            if ($cat['name'] === $random_category) {
+                $selected_category_data = $cat;
+                break;
+            }
+        }
+    
+        // If for some reason we don't find it, default to image
+        $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
+    
+        $words_data = ll_get_words_by_category($random_category, $mode);
         $firstCategoryName = $random_category;
     }
 
@@ -103,7 +115,6 @@ function ll_tools_flashcard_widget($atts) {
         'plugin_dir' => plugin_dir_url(__FILE__),
         'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
-        'displayMode' => $atts['display'],
         'isUserLoggedIn' => is_user_logged_in(),
         'categoriesPreselected' => $categoriesPreselected,
         'firstCategoryData' => $words_data,
@@ -169,40 +180,37 @@ function ll_tools_flashcard_widget($atts) {
     return ob_get_clean();
 }
 
+function ll_determine_display_mode($categoryName, $min_word_count = 6) {
+    $image_words = ll_get_words_by_category($categoryName, 'image');
+    $text_words = ll_get_words_by_category($categoryName, 'text');
+
+    $image_count = count($image_words);
+    $text_count = count($text_words);
+
+    if ($image_count < $min_word_count && $text_count < $min_word_count) {
+        return null;
+    }
+
+    if ($image_count >= $min_word_count && $text_count < $min_word_count) {
+        return 'image';
+    } elseif ($text_count >= $min_word_count && $image_count < $min_word_count) {
+        return 'text';
+    } else {
+        // Both exceed min_word_count; choose the one with more words
+        return ($image_count >= $text_count) ? 'image' : 'text';
+    }
+}
+
 // Helper function for gathering information on categories and filtering based on word count
 function ll_process_categories($categories, $use_translations, $min_word_count = 6) {
     $processed_categories = [];
 
     foreach ($categories as $category) {
-        // Instead of relying on total word_count, we determine mode by comparing image vs text directly
-        $image_words = ll_get_words_by_category($category->name, 'image');
-        $text_words = ll_get_words_by_category($category->name, 'text');
+        $mode = ll_determine_display_mode($category->name, $min_word_count);
 
-        $image_count = count($image_words);
-        $text_count = count($text_words);
-
-        // Check if at least one mode meets the minimum word count
-        if ($image_count < $min_word_count && $text_count < $min_word_count) {
-            // Neither mode meets the requirement, skip this category
+        // If no mode could be determined, skip this category
+        if ($mode === null) {
             continue;
-        }
-
-        // Determine the mode
-        // If only image meets min_word_count, choose image
-        if ($image_count >= $min_word_count && $text_count < $min_word_count) {
-            $mode = 'image';
-        }
-        // If only text meets min_word_count, choose text
-        elseif ($text_count >= $min_word_count && $image_count < $min_word_count) {
-            $mode = 'text';
-        } else {
-            // Both meet or exceed min_word_count. Pick the one with more words.
-            // If tied, default to text (or image if you prefer).
-            if ($image_count > $text_count) {
-                $mode = 'image';
-            } else {
-                $mode = 'text'; // either they're tied or text_count > image_count
-            }
         }
 
         $translation = $use_translations
