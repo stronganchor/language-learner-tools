@@ -1,7 +1,6 @@
 (function($) {
-    const ROUNDS_PER_CATEGORY = 6;    
-    const LANDSCAPE_CARD_WIDTH = 200;
-    const PORTRAIT_CARD_HEIGHT = 200;
+    const ROUNDS_PER_CATEGORY = 6;
+    const DEFAULT_DISPLAY_MODE = "image";
 
     // Attach shared variables to window
     window.categoryNames = []; // The category names selected for the current quiz
@@ -27,9 +26,9 @@
 
     // Helper function to get the current display mode based on the current category
     function getCurrentDisplayMode() {
-        if (!currentCategoryName) return llToolsFlashcardsData.displayMode; // Fallback if no category selected
+        if (!currentCategoryName) return DEFAULT_DISPLAY_MODE; // Fallback if no category selected
         let currentCatData = llToolsFlashcardsData.categories.find(cat => cat.name === currentCategoryName);
-        return currentCatData ? currentCatData.mode : llToolsFlashcardsData.displayMode;
+        return currentCatData ? currentCatData.mode : DEFAULT_DISPLAY_MODE;
     }
 
     function resetQuizState() {
@@ -275,10 +274,8 @@
             }).on('load', function() {
                 if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
                     container.addClass('landscape');
-                    maxCardWidth = LANDSCAPE_CARD_WIDTH;
                 } else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
                     container.addClass('portrait');
-                    maxCardHeight = PORTRAIT_CARD_HEIGHT;
                 }
             }).appendTo(container);
         } else {

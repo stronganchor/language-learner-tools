@@ -6,13 +6,11 @@
         const MAXIMUM_NUMBER_OF_OPTIONS = 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
-        const DEFAULT_CARD_PIXELS = 150;
+        const MAX_CARD_PIXELS = 200;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
         let categoryOptionsCount = {}; // Tracks the number of options for each category
-        let maxCardWidth = DEFAULT_CARD_PIXELS;
-        let maxCardHeight = DEFAULT_CARD_PIXELS;
 
         // Helper: Check a value against min/max constraints
         function checkMinMax(optionsCount, categoryName) {
@@ -84,8 +82,8 @@
             const containerHeight = container.height();
 
             const lastCard = cards.last();
-            const cardWidth = maxCardWidth;
-            const cardHeight = maxCardHeight;
+            const cardWidth = MAX_CARD_PIXELS;
+            const cardHeight = MAX_CARD_PIXELS;
 
             const containerStyle = window.getComputedStyle(container[0]);
             const gapValue = parseInt(containerStyle.getPropertyValue('gap'), 10);
