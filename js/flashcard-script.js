@@ -468,6 +468,7 @@
                 confettiCanvas.style.width = '100%';
                 confettiCanvas.style.height = '100%';
                 confettiCanvas.style.pointerEvents = 'none';
+                confettiCanvas.style.zIndex = '999999';
                 document.body.appendChild(confettiCanvas);
             }
     

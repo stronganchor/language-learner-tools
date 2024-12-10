@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.3.5
+ * Version: 2.3.6
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
