@@ -6,7 +6,7 @@
         const MAXIMUM_NUMBER_OF_OPTIONS = 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
-        const MAX_CARD_PIXELS = 200;
+        const MAX_CARD_PIXELS = 150;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
