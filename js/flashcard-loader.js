@@ -14,9 +14,9 @@
         }
 
         // Load resources for a word
-        function loadResourcesForWord(word) {
+        function loadResourcesForWord(word, displayMode = 'image') {
             FlashcardAudio.loadAudio(word.audio);
-            if (llToolsFlashcardsData.displayMode === 'image') {
+            if (displayMode === 'image') {
                 loadImage(word.image);
             }
         }
@@ -38,7 +38,7 @@
             }
         }
 
-        function processFetchedWordData(wordData, categoryName) {
+        function processFetchedWordData(wordData, categoryName, displayMode) {
             if (!window.wordsByCategory[categoryName]) {
                 window.wordsByCategory[categoryName] = [];
             }
@@ -49,7 +49,7 @@
             // For each loaded word
             wordData.forEach(function(word) {
                 window.wordsByCategory[categoryName].push(word);
-                loadResourcesForWord(word);
+                loadResourcesForWord(word, displayMode);
             });
 
             // Randomize the order of the words in this category
@@ -69,18 +69,20 @@
                 return;
             }
 
+            displayMode = window.getCategoryDisplayMode(categoryName);
+
             $.ajax({
                 url: llToolsFlashcardsData.ajaxurl,
                 method: 'POST',
                 data: {
                     action: 'll_get_words_by_category',
                     category: categoryName,
-                    display_mode: llToolsFlashcardsData.displayMode
+                    display_mode: displayMode
                 },
                 success: function(response) {
                     if (response.success) {
                         // Process the received words data
-                        processFetchedWordData(response.data, categoryName);
+                        processFetchedWordData(response.data, categoryName, displayMode);
 
                         if (typeof callback === 'function') {
                             callback();

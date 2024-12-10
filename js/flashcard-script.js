@@ -24,11 +24,14 @@
         skipped: 0
     };
 
-    // Helper function to get the current display mode based on the current category
+    function getCategoryDisplayMode(categoryName) {
+        if (!categoryName) return 'image'; // default if no category
+        let catData = llToolsFlashcardsData.categories.find(cat => cat.name === categoryName);
+        return catData ? catData.mode : 'image'; // default to 'image' if not found
+    }
+    
     function getCurrentDisplayMode() {
-        if (!currentCategoryName) return DEFAULT_DISPLAY_MODE; // Fallback if no category selected
-        let currentCatData = llToolsFlashcardsData.categories.find(cat => cat.name === currentCategoryName);
-        return currentCatData ? currentCatData.mode : DEFAULT_DISPLAY_MODE;
+        return getCategoryDisplayMode(currentCategoryName);
     }
 
     function resetQuizState() {
@@ -193,7 +196,7 @@
             // If this word passes the checks, add it to the selected words and container
             if (!isDuplicate && !isSimilar && !hasSameImage) {
                 selectedWords.push(candidateWord);
-                FlashcardLoader.loadResourcesForWord(candidateWord);
+                FlashcardLoader.loadResourcesForWord(candidateWord, displayMode);
                 appendWordToContainer(candidateWord);
 
                 if (selectedWords.length >= FlashcardOptions.categoryOptionsCount[currentCategoryName] || !FlashcardOptions.canAddMoreCards()) {
@@ -227,7 +230,7 @@
             }
         });
 
-        FlashcardLoader.loadResourcesForWord(targetWord);
+        FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode());
         selectedWords.push(targetWord);
         appendWordToContainer(targetWord);
 
@@ -668,7 +671,9 @@
         $('#restart-quiz').hide();
     }
 
-    // Expose initFlashcardWidget function globally
+    // Expose functions globally
     window.initFlashcardWidget = initFlashcardWidget;
+    window.getCategoryDisplayMode = getCategoryDisplayMode;
+    window.getCurrentDisplayMode = getCurrentDisplayMode;
 
 })(jQuery);

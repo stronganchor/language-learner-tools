@@ -7,6 +7,7 @@
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
         const MAX_CARD_PIXELS = 150;
+        const MAX_TEXT_CARD_WIDTH = 250;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
@@ -82,8 +83,13 @@
             const containerHeight = container.height();
 
             const lastCard = cards.last();
-            const cardWidth = MAX_CARD_PIXELS;
+            cardWidth = MAX_CARD_PIXELS;
             const cardHeight = MAX_CARD_PIXELS;
+
+            displayMode = window.getCurrentDisplayMode();
+            if (displayMode === 'text') {
+                cardWidth = MAX_TEXT_CARD_WIDTH;
+            }
 
             const containerStyle = window.getComputedStyle(container[0]);
             const gapValue = parseInt(containerStyle.getPropertyValue('gap'), 10);
