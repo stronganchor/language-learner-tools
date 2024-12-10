@@ -461,10 +461,10 @@
         // Default options if nothing is passed
         const defaults = {
             particleCount: 6,   // total per frame (3 at x:0 and 3 at x:1 if no origin specified)
-            angle: 60,
+            angle: 70,
             spread: 55,
             origin: null, // null by default, meaning no fixed origin specified
-            duration: 3000 // duration in ms (3 seconds)
+            duration: 2000 // duration in ms
         };
     
         // Merge defaults with passed-in options
