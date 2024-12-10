@@ -51,7 +51,7 @@
 
     // Preload the first category
     if (llToolsFlashcardsData.categoriesPreselected) {
-        processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
+        FlashcardLoader.processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
     }
 
     // Initialize the audio module
