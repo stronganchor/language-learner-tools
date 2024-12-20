@@ -25,9 +25,9 @@
     };
 
     function getCategoryDisplayMode(categoryName) {
-        if (!categoryName) return 'image'; // default if no category
+        if (!categoryName) return DEFAULT_DISPLAY_MODE;
         let catData = llToolsFlashcardsData.categories.find(cat => cat.name === categoryName);
-        return catData ? catData.mode : 'image'; // default to 'image' if not found
+        return catData ? catData.mode : DEFAULT_DISPLAY_MODE; 
     }
     
     function getCurrentDisplayMode() {
