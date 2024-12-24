@@ -303,8 +303,8 @@ function ll_apply_words_filters($query) {
             $query->query_vars['tax_query'] = array(
                 array(
                     'taxonomy' => 'word-category',
-                    'field' => 'slug',
-                    'terms' => $_GET['word_category'],
+                    'field'    => 'term_id',
+                    'terms'    => $_GET['word_category'],
                 ),
             );
         }
@@ -313,7 +313,7 @@ function ll_apply_words_filters($query) {
         if (isset($_GET['wordset']) && !empty($_GET['wordset'])) {
             $query->query_vars['meta_query'] = array(
                 array(
-                    'key' => 'wordset',
+                    'key'   => 'wordset',
                     'value' => $_GET['wordset'],
                 ),
             );
@@ -324,7 +324,7 @@ function ll_apply_words_filters($query) {
             $image_query = ($_GET['has_image'] === 'yes') ? 'EXISTS' : 'NOT EXISTS';
             $query->query_vars['meta_query'] = array(
                 array(
-                    'key' => '_thumbnail_id',
+                    'key'     => '_thumbnail_id',
                     'compare' => $image_query,
                 ),
             );
@@ -333,13 +333,13 @@ function ll_apply_words_filters($query) {
         // Sort by audio file
         if (isset($_GET['orderby']) && $_GET['orderby'] === 'audio_file') {
             $query->query_vars['meta_key'] = 'word_audio_file';
-            $query->query_vars['orderby'] = 'meta_value';
+            $query->query_vars['orderby']  = 'meta_value';
         }
 
         // Sort by translation
         if (isset($_GET['orderby']) && $_GET['orderby'] === 'translation') {
             $query->query_vars['meta_key'] = 'word_english_meaning';
-            $query->query_vars['orderby'] = 'meta_value';
+            $query->query_vars['orderby']  = 'meta_value';
         }
     }
 }
