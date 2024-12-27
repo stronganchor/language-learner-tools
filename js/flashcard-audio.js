@@ -6,6 +6,11 @@
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
 
+        // Keep track of resources so we don't re-attempt loading the same file infinitely
+        if (!FlashcardAudio.loadedResources) {
+            FlashcardAudio.loadedResources = {};
+        }
+
         // Load audio feedback elements
         function initializeAudio() {
             correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
@@ -16,59 +21,82 @@
             loadAudio(wrongAudio.src);
         }
 
-        // Load an audio file so that it's cached for later use
+        /**
+         * Load an audio file so that it’s cached for later use.
+         * Includes error logging that shows which file failed.
+         */
         function loadAudio(audioURL) {
-            if (!FlashcardAudio.loadedResources) {
-                FlashcardAudio.loadedResources = {};
+            // If we've already loaded (or at least tried loading) this audio, skip
+            if (!audioURL || FlashcardAudio.loadedResources[audioURL]) {
+                return;
             }
-            if (!FlashcardAudio.loadedResources[audioURL] && audioURL) {
-                new Promise((resolve, reject) => {
-                    let audio = new Audio(audioURL);
-                    audio.oncanplaythrough = function() {
-                        resolve(audio);
-                    };
-                    audio.onerror = function() {
-                        reject(new Error('Audio load failed'));
-                    };
-                });
-                FlashcardAudio.loadedResources[audioURL] = true;
-            }
+
+            FlashcardAudio.loadedResources[audioURL] = true;
+
+            // Use a lightweight Promise-based approach
+            new Promise((resolve, reject) => {
+                let audio = new Audio(audioURL);
+
+                // If the file is playable
+                audio.oncanplaythrough = function() {
+                    resolve(audioURL);
+                };
+
+                // If something goes wrong
+                audio.onerror = function(e) {
+                    reject(new Error('Audio load failed for: ' + audioURL));
+                };
+            })
+            .catch(function(err) {
+                // Log an error with the file name
+                console.error(err);
+            });
         }
 
-        // Helper function for playing audio
+        /**
+         * Helper function for playing an audio object
+         * with a console error if it fails to play.
+         */
         function playAudio(audio) {
             try {
                 if (!audio.paused) {
                     audio.pause();
-                    audio.currentTime = 0;
+                    audio.currentTime = 0; // Reset playback position
                 }
             } catch (e) {
-                console.error("Audio pause failed:", e);
+                console.error("Audio pause failed for:", audio.src, e);
             }
 
             activeAudios.push(audio);
-            audio.play().catch(function (e) {
-                console.error("Audio play failed:", e);
+
+            audio.play().catch(function(e) {
+                console.error("Audio play failed for:", audio.src, e);
             });
         }
 
-        // Pause all audio elements
+        /**
+         * Pause all audio elements in our active list
+         */
         function pauseAllAudio() {
             activeAudios.forEach(function (audio) {
                 try {
                     audio.pause();
                     audio.currentTime = 0; // Reset the playback position
                 } catch (e) {
-                    console.error("Audio pause failed:", e);
+                    console.error("Audio pause failed for:", audio.src, e);
                 }
             });
             activeAudios = [];
         }
 
+        /**
+         * Play feedback sound (correct or wrong), then
+         * optionally play targetWordAudio or run a callback.
+         */
         function playFeedback(isCorrect, targetWordAudio, callback) {
             var audioToPlay = isCorrect ? correctAudio : wrongAudio;
 
-            // Don't register clicks for the first half second & don't repeat the 'correct' sound
+            // Don’t register clicks for the first half second & don’t repeat the 'correct' sound
             if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
                 return;
             }
@@ -86,8 +114,12 @@
             }
         }
 
+        /**
+         * Sets the target word’s audio in the DOM,
+         * and attempts to play it once loaded.
+         */
         function setTargetWordAudio(targetWord) {
-            // Clear existing audio elements to prevent overlaps
+            // Remove any existing audio elements to prevent clutter
             $('#ll-tools-flashcard audio').remove();
 
             // Create the audio element for the target word
@@ -99,32 +131,26 @@
             // Update the currentTargetAudio variable
             currentTargetAudio = audioElement[0];
 
-            // Begin playback and manage interaction based on playback status
-            playAudio(currentTargetAudio); // Play the target word's audio
+            // Start playing the audio
+            playAudio(currentTargetAudio);
 
-            // Prevent clicking (interaction) before the audio has played for a certain time
+            // Before it’s fully played, we set a small threshold after which the user can interact
             currentTargetAudio.addEventListener('timeupdate', function timeUpdateListener() {
-
-                // If the loading animation is still visible, hide it
-                if ((this.currentTime > 0.1 || this.ended) && $('#ll-tools-loading-animation').is(':visible')) {
-                    if (typeof window.hideLoadingAnimation === 'function') {
-                        window.hideLoadingAnimation();
-                    }
-                }
-
                 if (this.currentTime > 0.4 || this.ended) {
-                    targetAudioHasPlayed = true; // Allow interactions with quiz options
-                    // Remove the event listener
+                    targetAudioHasPlayed = true; // Allow quiz options
                     this.removeEventListener('timeupdate', timeUpdateListener);
                 }
             });
 
-            // Adjust visibility and state of elements based on audio playback
-            currentTargetAudio.onended = function () {
-                // Additional logic upon ending audio can be added here if necessary
+            // Also handle error logging for the target audio
+            currentTargetAudio.onerror = function(e) {
+                console.error("Error playing target audio file:", currentTargetAudio.src, e);
             };
         }
 
+        /**
+         * Reset audio to initial state
+         */
         function resetAudioState() {
             pauseAllAudio();
             activeAudios = [];
@@ -132,7 +158,7 @@
             targetAudioHasPlayed = false;
         }
 
-        // Expose the methods and variables as needed
+        // Expose module methods
         return {
             initializeAudio: initializeAudio,
             playAudio: playAudio,
@@ -149,5 +175,4 @@
 
     // Expose FlashcardAudio globally
     window.FlashcardAudio = FlashcardAudio;
-
 })(jQuery);

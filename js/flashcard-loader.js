@@ -13,35 +13,87 @@
             return [...inputArray].sort(() => 0.5 - Math.random());
         }
 
-        // Load resources for a single word (audio or image)
-        // Called selectively in flashcard-script.js for the
-        // target word and its quiz options.
+        /**
+         * Create an ephemeral Audio() object and load a given URL.
+         * Once "canplaythrough" or "error" fires, we remove the source to allow garbage-collection.
+         */
+        function loadAudioEphemerally(audioURL) {
+            // If already loaded, skip
+            if (!audioURL || loadedResources[audioURL]) {
+                return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+                let audio = new Audio();
+                audio.src = audioURL;
+
+                // Mark as loaded on success
+                audio.oncanplaythrough = function() {
+                    loadedResources[audioURL] = true;
+                    cleanupAudio(audio);
+                    resolve();
+                };
+
+                // Even on error, mark as loaded so we don’t retry indefinitely
+                audio.onerror = function() {
+                    loadedResources[audioURL] = true;
+                    cleanupAudio(audio);
+                    resolve();
+                };
+            });
+        }
+
+        /**
+         * Clean up an Audio() element so it doesn’t remain in memory.
+         */
+        function cleanupAudio(audio) {
+            if (!audio) return;
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load(); 
+            // The audio var will go out of scope in the calling function, so it can be GC’d.
+        }
+
+        /**
+         * Load an image (no persistent DOM element). 
+         * This doesn't trigger the same WebMediaPlayer cap as audio does.
+         */
+        function loadImage(imageURL) {
+            if (!imageURL || loadedResources[imageURL]) {
+                return Promise.resolve();
+            }
+            return new Promise((resolve) => {
+                let img = new Image();
+                img.onload = () => {
+                    loadedResources[imageURL] = true;
+                    resolve();
+                };
+                img.onerror = () => {
+                    loadedResources[imageURL] = true;
+                    resolve();
+                };
+                img.src = imageURL;
+            });
+        }
+
+        /**
+         *  Called selectively in flashcard-script.js for the target word and its quiz options. 
+         *  Uses ephemeral loading for audio so we don’t build up a large pool of audio elements.
+         */
         function loadResourcesForWord(word, displayMode = 'image') {
-            FlashcardAudio.loadAudio(word.audio);
+            if (!word) return;
+            // Fire off an ephemeral load for the audio
+            loadAudioEphemerally(word.audio);
+            // And an image load if needed
             if (displayMode === 'image') {
                 loadImage(word.image);
             }
         }
 
-        // Load an image so that it's cached for later use
-        function loadImage(imageURL) {
-            if (!loadedResources[imageURL] && imageURL) {
-                new Promise((resolve, reject) => {
-                    let img = new Image();
-                    img.onload = function() {
-                        resolve(img);
-                    };
-                    img.onerror = function() {
-                        reject(new Error('Image load failed'));
-                    };
-                    img.src = imageURL;
-                });
-                loadedResources[imageURL] = true;
-            }
-        }
-
-        // Store the fetched word data in memory (window.wordsByCategory),
-        // but do not load every resource at once.
+        /**
+         *  Store the fetched word data in memory without mass-creating audio elements. 
+         *  We'll do partial preloading separately (preloadCategoryResources).
+         */
         function processFetchedWordData(wordData, categoryName, displayMode) {
             if (!window.wordsByCategory[categoryName]) {
                 window.wordsByCategory[categoryName] = [];
@@ -61,9 +113,12 @@
             loadedCategories.push(categoryName);
         }
 
-        // Fetch the word list for a category (via AJAX) and then do a partial resource preload.
+        /**
+         *  Fetch the word list for a category (via AJAX).
+         *  Then do partial resource preloading in chunks (preloadCategoryResources).
+         */
         function loadResourcesForCategory(categoryName, callback) {
-            // If this category is already loaded
+            // If this category is already loaded, skip
             if (loadedCategories.includes(categoryName)) {
                 if (typeof callback === 'function') {
                     callback();
@@ -91,7 +146,6 @@
                                 callback();
                             }
                         });
-
                     } else {
                         console.error('Failed to load words for category:', categoryName);
                         if (typeof callback === 'function') {
@@ -108,15 +162,16 @@
             });
         }
 
-        // Preload the next few categories by fetching their word lists.
-        // The actual resource loading for each category will happen in chunks
-        // once loadResourcesForCategory() completes.
+        /**
+         *  Preload the next few categories (just their word lists) by calling loadResourcesForCategory.
+         *  Each category’s actual resources (audio/image) will be chunk-preloaded in preloadCategoryResources.
+         */
         function preloadNextCategories() {
             var numberToPreload = 3;
 
             // For all category names
             window.categoryNames.forEach(function(categoryName) {
-                // If the category is not loaded
+                // If the category is not yet loaded
                 if (!loadedCategories.includes(categoryName)) {
                     loadResourcesForCategory(categoryName);
                     numberToPreload--;
@@ -127,8 +182,10 @@
             });
         }
 
-        // Preload resources in chunks if the category is large;
-        // otherwise load them all in one go.
+        /**
+         *  Once a category’s words are fetched, we do partial preloads of the audio/image data 
+         *  in small chunks (10 at a time if more than 30 total words).
+         */
         function preloadCategoryResources(categoryName, onComplete) {
             const words = window.wordsByCategory[categoryName] || [];
             const totalWords = words.length;
@@ -139,14 +196,14 @@
                 return;
             }
 
-            // If fewer than or equal to 30 words, load them all at once.
-            // If more than 30, load in small chunks (e.g., 10 at a time).
+            // If 30 or fewer words, load them all at once; otherwise in chunks of 10.
             const chunkSize = (totalWords <= 30) ? totalWords : 10;
             let currentIndex = 0;
             let displayMode = window.getCategoryDisplayMode(categoryName);
 
-            function loadChunk() {
+            function loadNextChunk() {
                 if (currentIndex >= totalWords) {
+                    // Done preloading the entire category
                     if (typeof onComplete === 'function') {
                         onComplete();
                     }
@@ -156,45 +213,36 @@
                 let end = Math.min(currentIndex + chunkSize, totalWords);
                 let chunk = words.slice(currentIndex, end);
 
+                // Start ephemeral loads for each word in the chunk
                 let loadPromises = chunk.map((word) => {
-                    return new Promise((resolve) => {
-                        FlashcardAudio.loadAudio(word.audio);
-                        if (displayMode === 'image' && word.image && !loadedResources[word.image]) {
-                            let img = new Image();
-                            img.onload = function() {
-                                loadedResources[word.image] = true;
-                                resolve();
-                            };
-                            img.onerror = function() {
-                                resolve();
-                            };
-                            img.src = word.image;
-                        } else {
-                            resolve();
-                        }
-                    });
+                    return Promise.all([
+                        loadAudioEphemerally(word.audio),
+                        (displayMode === 'image' ? loadImage(word.image) : Promise.resolve())
+                    ]);
                 });
 
+                // Once all items in this chunk are loaded (or errored), move to the next chunk
                 Promise.all(loadPromises).then(() => {
                     currentIndex = end;
-                    loadChunk();
+                    loadNextChunk();
                 });
             }
 
-            loadChunk();
+            // Start the chain
+            loadNextChunk();
         }
 
         // Expose functions and variables as needed
         return {
             loadedCategories: loadedCategories,
             loadedResources: loadedResources,
+            loadAudioEphemerally: loadAudioEphemerally,
             loadResourcesForWord: loadResourcesForWord,
             loadImage: loadImage,
             processFetchedWordData: processFetchedWordData,
             loadResourcesForCategory: loadResourcesForCategory,
             preloadNextCategories: preloadNextCategories,
         };
-
     })();
 
     // Expose FlashcardLoader globally
