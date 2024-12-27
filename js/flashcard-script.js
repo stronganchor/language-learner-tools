@@ -64,6 +64,8 @@
 
     // Initialize the audio module
     FlashcardAudio.initializeAudio();
+    FlashcardLoader.loadAudio(FlashcardAudio.getCorrectAudioURL());
+    FlashcardLoader.loadAudio(FlashcardAudio.getWrongAudioURL());
 
     // Helper function to randomly sort an array
     function randomlySort(inputArray) {

@@ -17,7 +17,7 @@
          * Create an ephemeral Audio() object and load a given URL.
          * Once "canplaythrough" or "error" fires, we remove the source to allow garbage-collection.
          */
-        function loadAudioEphemerally(audioURL) {
+        function loadAudio(audioURL) {
             // If already loaded, skip
             if (!audioURL || loadedResources[audioURL]) {
                 return Promise.resolve();
@@ -83,7 +83,7 @@
         function loadResourcesForWord(word, displayMode = 'image') {
             if (!word) return;
             // Fire off an ephemeral load for the audio
-            loadAudioEphemerally(word.audio);
+            loadAudio(word.audio);
             // And an image load if needed
             if (displayMode === 'image') {
                 loadImage(word.image);
@@ -216,7 +216,7 @@
                 // Start ephemeral loads for each word in the chunk
                 let loadPromises = chunk.map((word) => {
                     return Promise.all([
-                        loadAudioEphemerally(word.audio),
+                        loadAudio(word.audio),
                         (displayMode === 'image' ? loadImage(word.image) : Promise.resolve())
                     ]);
                 });
@@ -236,7 +236,7 @@
         return {
             loadedCategories: loadedCategories,
             loadedResources: loadedResources,
-            loadAudioEphemerally: loadAudioEphemerally,
+            loadAudio: loadAudio,
             loadResourcesForWord: loadResourcesForWord,
             loadImage: loadImage,
             processFetchedWordData: processFetchedWordData,
