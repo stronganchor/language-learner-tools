@@ -81,13 +81,15 @@
          *  Uses ephemeral loading for audio so we don’t build up a large pool of audio elements.
          */
         function loadResourcesForWord(word, displayMode = 'image') {
-            if (!word) return;
-            // Fire off an ephemeral load for the audio
-            loadAudio(word.audio);
-            // And an image load if needed
-            if (displayMode === 'image') {
-                loadImage(word.image);
+            if (!word) {
+                return Promise.resolve();
             }
+            // Fire off an ephemeral load for the audio and (optionally) the image
+            let audioPromise = loadAudio(word.audio);
+            let imagePromise = (displayMode === 'image') ? loadImage(word.image) : Promise.resolve();
+
+            // Return a promise that resolves once both are done loading
+            return Promise.all([audioPromise, imagePromise]);
         }
 
         /**

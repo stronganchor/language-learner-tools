@@ -459,17 +459,28 @@
         FlashcardAudio.pauseAllAudio();
         showLoadingAnimation();
         FlashcardAudio.setTargetAudioHasPlayed(false);
+    
+        // Decide how many options we want this round
         FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
+    
+        // Select the target word for this round
         let targetWord = selectTargetWordAndCategory();
     
+        // If no word is returned, the quiz is finished
         if (!targetWord) {
             showResultsPage();
         } else {
-            fillQuizOptions(targetWord);
-            FlashcardAudio.setTargetWordAudio(targetWord);
+            // Make sure we load the target word resources first
+            FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
+                .then(function() {
+                    // Now that the target word audio is ready, build the quiz options
+                    fillQuizOptions(targetWord);
+                    FlashcardAudio.setTargetWordAudio(targetWord);
+                    hideLoadingAnimation();
+                    userClickedSkip = false;
+                });
         }
-        userClickedSkip = false;
-    }    
+    }      
 
     function startConfetti(options) {
         // Default options if nothing is passed
