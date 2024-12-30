@@ -1,7 +1,11 @@
+/* flashcard-style.css */
+
+/* Utility Classes */
 .hidden {
     display: none !important;
 }
 
+/* Category Selection Styles */
 #ll-tools-category-selection {
     display: flex;
     flex-direction: column;
@@ -39,11 +43,14 @@
     align-self: center;
 }
 
+/* Body State When Flashcard is Open */
 body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
-#ll-tools-skip-flashcard, #ll-tools-repeat-flashcard {
+/* Flashcard Control Buttons */
+#ll-tools-skip-flashcard,
+#ll-tools-repeat-flashcard {
     margin-left: 10px;
     margin-right: 10px;
     width: 120px;
@@ -56,10 +63,12 @@ body.ll-tools-flashcard-open {
     margin-bottom: 40px;
 }
 
+/* Flashcard Container */
 #ll-tools-flashcard-container {
     position: relative;
 }
 
+/* Category Selection Popup */
 #ll-tools-category-selection-popup {
     position: fixed;
     top: 0;
@@ -78,6 +87,7 @@ body.ll-tools-flashcard-open {
     margin-top: 50px;
 }
 
+/* Flashcard Quiz Popup */
 #ll-tools-flashcard-quiz-popup {
     position: fixed;
     top: 0;
@@ -91,7 +101,9 @@ body.ll-tools-flashcard-open {
     flex-direction: column;
 }
 
-#ll-tools-close-category-selection {
+/* Close Button Styles */
+#ll-tools-close-category-selection,
+#ll-tools-close-flashcard {
     position: absolute;
     top: 10px;
     right: 10px;
@@ -106,6 +118,7 @@ body.ll-tools-flashcard-open {
     color: black;
 }
 
+/* Quiz Results Styles */
 #quiz-results {
     display: none;
     text-align: center;
@@ -116,7 +129,7 @@ body.ll-tools-flashcard-open {
     padding: 20px;
     width: 80%; 
     max-width: 600px; 
-    z-index: 10; /* Make sure it's on top of other content */
+    z-index: 10; /* Ensure it's on top of other content */
 }
 
 #quiz-results-message {
@@ -125,6 +138,7 @@ body.ll-tools-flashcard-open {
     margin-top: 10px;
 }
 
+/* Loading Animation Styles */
 .ll-tools-loading-animation {
     display: none;
     position: absolute;
@@ -144,6 +158,7 @@ body.ll-tools-flashcard-open {
     100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
+/* Flashcard Header and Content */
 #ll-tools-flashcard-header {
     display: flex;
     justify-content: center;
@@ -189,6 +204,7 @@ body.ll-tools-flashcard-open {
     width: 100%;
 }
 
+/* Flashcard Container Styles */
 .flashcard-container {
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     padding: 0; /* No spacing inside the card to allow image to fill */
@@ -210,7 +226,7 @@ body.ll-tools-flashcard-open {
     object-fit: contain;
 }
 
-/* TODO: consider removing landscape & portrait options */
+/* Modifier Classes for Flashcard Orientation */
 .flashcard-container.landscape {
     width: 150px;
     height: auto;
@@ -231,6 +247,7 @@ body.ll-tools-flashcard-open {
     height: 150px;
 }
 
+/* Correct Answer Overlay */
 .correct-answer {
     position: relative;
     z-index: 9999;
@@ -246,7 +263,7 @@ body.ll-tools-flashcard-open {
 }
 
 .correct-answer::after {
-    content: "\2714";
+    content: "\2714"; /* Unicode for checkmark */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -263,17 +280,19 @@ body.ll-tools-flashcard-open {
     text-rendering: optimizeLegibility;
 }
 
+/* Fade-Out Animation */
 .fade-out {
     opacity: 0;
     transition: opacity 0.2s, transform 0.2s;
     pointer-events: none; /* Prevent interaction during fade-out */
 }
 
+/* Quiz Image Styles */
 .quiz-image {
-    width: 100%; /* Adjusted to ensure the image fills the container */
-    height: 100%; /* Adjusted to ensure the image fills the container */
-    object-fit: cover; /* Ensures the image covers the container, maintaining its aspect ratio */
-    border-radius: 10px; /* Apply rounded corners to the image */
+    width: 100%; /* Ensure the image fills the container */
+    height: 100%; /* Ensure the image fills the container */
+    object-fit: cover; /* Maintain aspect ratio while covering the container */
+    border-radius: 10px; /* Rounded corners */
     cursor: pointer; 
     transition: transform 0.3s ease;
 }
