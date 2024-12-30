@@ -56,7 +56,6 @@ require_once(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a 
 require_once(plugin_dir_path(__FILE__) . 'image-upload-form.php'); // Creates a form for admins to upload images in bulk and generate word_image posts
 require_once(plugin_dir_path(__FILE__) . 'flashcard-widget.php'); // Implements the [flashcard_widget] shortcode
 require_once(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php'); // Implements the [word_audio] shortcode for audio playback and translation display
-require_once(plugin_dir_path(__FILE__) . 'audio-recorder.php'); // Enables user to record audio and save it to the server along with a transcription
 require_once(plugin_dir_path(__FILE__) . 'word-grid-shortcode.php'); // Implements the [word_grid] shortcode for displaying words along with associated images and audio
 require_once(plugin_dir_path(__FILE__) . 'settings.php'); // WP Admin settings page for the plugin
 
