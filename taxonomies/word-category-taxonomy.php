@@ -1,6 +1,8 @@
 <?php
 
-// Register the "word-category" taxonomy
+/**
+ * Registers the "word-category" taxonomy for "words" and "word_images" post types.
+ */
 function ll_tools_register_word_category_taxonomy() {
     $labels = [
         "name" => esc_html__("Word Categories", "astra"),
@@ -29,24 +31,35 @@ function ll_tools_register_word_category_taxonomy() {
         "show_in_graphql" => false,
     ];
     register_taxonomy("word-category", ["words", "word_images"], $args);
+
+    // Initialize translation meta fields
+    ll_tools_initialize_word_category_meta_fields();
 }
 add_action('init', 'll_tools_register_word_category_taxonomy');
 
-// Add custom fields for translated name
-add_action('word-category_add_form_fields', 'll_add_translation_field');
-add_action('word-category_edit_form_fields', 'll_edit_translation_field');
-add_action('created_word-category', 'll_save_translation_field', 10, 2);
-add_action('edited_word-category', 'll_save_translation_field', 10, 2);
+/**
+ * Initializes custom meta fields for the "word-category" taxonomy.
+ */
+function ll_tools_initialize_word_category_meta_fields() {
+    // Add 'Translated Name' field for adding new categories
+    add_action('word-category_add_form_fields', 'll_add_translation_field');
+    // Add 'Translated Name' field for editing existing categories
+    add_action('word-category_edit_form_fields', 'll_edit_translation_field');
+    // Save the 'Translated Name' meta field
+    add_action('created_word-category', 'll_save_translation_field', 10, 2);
+    add_action('edited_word-category', 'll_save_translation_field', 10, 2);
+}
 
-// Add the 'Translated Name' field for adding a new category
-function ll_add_translation_field() {
-	// Check if category translation is enabled
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-
-    if (!$enable_translation) {
+/**
+ * Adds the 'Translated Name' field to the add new category form.
+ *
+ * @param WP_Term $term Term object.
+ */
+function ll_add_translation_field($term) {
+    if (!ll_tools_is_category_translation_enabled()) {
         return;
     }
-	
+
     ?>
     <div class="form-field term-translation-wrap">
         <label for="term-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?></label>
@@ -56,15 +69,16 @@ function ll_add_translation_field() {
     <?php
 }
 
-// Add the 'Translated Name' field for editing an existing category
+/**
+ * Adds the 'Translated Name' field to the edit category form.
+ *
+ * @param WP_Term $term Term object.
+ */
 function ll_edit_translation_field($term) {
-	// Check if category translation is enabled
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-
-    if (!$enable_translation) {
+    if (!ll_tools_is_category_translation_enabled()) {
         return;
     }
-	
+
     $translation = get_term_meta($term->term_id, 'term_translation', true);
     ?>
     <tr class="form-field term-translation-wrap">
@@ -79,14 +93,25 @@ function ll_edit_translation_field($term) {
     <?php
 }
 
-// Save the translated name
+/**
+ * Saves the 'Translated Name' meta field for a term.
+ *
+ * @param int    $term_id Term ID.
+ * @param string $taxonomy Taxonomy name.
+ */
 function ll_save_translation_field($term_id, $taxonomy) {
     if (isset($_POST['term_translation'])) {
-        update_term_meta($term_id, 'term_translation', sanitize_text_field($_POST['term_translation']));
+        $similar_word_id = sanitize_text_field($_POST['term_translation']);
+        update_term_meta($term_id, 'term_translation', $similar_word_id);
     }
 }
 
-// Retrieve the translated name of a category
+/**
+ * Retrieves the translated name of a category.
+ *
+ * @param int $term_id Term ID.
+ * @return string Translated name or default name if not translated.
+ */
 function ll_get_translated_category_name($term_id) {
     $translation = get_term_meta($term_id, 'term_translation', true);
     if ($translation) {
@@ -97,43 +122,21 @@ function ll_get_translated_category_name($term_id) {
     return $term ? $term->name : '';
 }
 
-// Deprecated.  Consider removing if we aren't going to use it.
-function ll_get_deepest_category_word_count($category_id) {
-    $args = array(
-        'post_type' => 'words',
-        'posts_per_page' => -1,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'word-category',
-                'field' => 'term_id',
-                'terms' => $category_id,
-                'include_children' => true,
-            ),
-        ),
-    );
-
-    $query = new WP_Query($args);
-    $word_count = 0;
-
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-            $post_id = get_the_ID();
-            $deepest_categories = ll_get_deepest_categories($post_id);
-
-            foreach ($deepest_categories as $deepest_category) {
-                if ($deepest_category->term_id == $category_id) {
-                    $word_count++;
-                    break;
-                }
-            }
-        }
-        wp_reset_postdata();
-    }
-
-    return $word_count;
+/**
+ * Checks if category translation is enabled.
+ *
+ * @return bool True if enabled, false otherwise.
+ */
+function ll_tools_is_category_translation_enabled() {
+    return (bool) get_option('ll_enable_category_translation', 0);
 }
 
+/**
+ * Determines the deepest-level category or categories for a given post.
+ * 
+ * @param int $post_id The post ID.
+ * @return array An array of category objects representing the deepest-level categories.
+ */
 function ll_get_deepest_categories($post_id) {
     $categories = wp_get_post_terms($post_id, 'word-category');
     $deepest_categories = array();
@@ -152,6 +155,13 @@ function ll_get_deepest_categories($post_id) {
     return $deepest_categories;
 }
 
+/**
+ * Recursively determines the depth of a category in the category hierarchy.
+ * 
+ * @param int $category_id The category ID.
+ * @param int $depth The current depth.
+ * @return int The depth of the category.
+ */
 function ll_get_category_depth($category_id, $depth = 0) {
     $parent_id = get_term_field('parent', $category_id, 'word-category');
     if ($parent_id != 0) {
@@ -160,6 +170,13 @@ function ll_get_category_depth($category_id, $depth = 0) {
     return $depth;
 }
 
+/**
+ * Retrieves words by category name.
+ * 
+ * @param string $category_name The name of the category.
+ * @param string $display_mode The display mode ('image' or 'text').
+ * @return array An array of word data.
+ */
 function ll_get_words_by_category($category_name, $display_mode = 'image') {
     $args = array(
         'post_type' => 'words',
