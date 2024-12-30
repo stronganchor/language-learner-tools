@@ -147,6 +147,7 @@ function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
 
 // Hook into the admin_post action for our form's submission
 add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
+
 function ll_handle_audio_file_uploads() {
     // Security check: Ensure the current user can upload files
     if (!current_user_can('upload_files')) {
@@ -169,145 +170,243 @@ function ll_handle_audio_file_uploads() {
         $original_name = $_FILES['ll_audio_files']['name'][$key];
         $file_size = $_FILES['ll_audio_files']['size'][$key];
 
-        // Check if the file type is allowed
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $tmp_name);
-        finfo_close($finfo);
-        if (!in_array($mime_type, $allowed_audio_types)) {
-            $failed_matches[] = $original_name . ' (Invalid file type)';
+        // Validate the uploaded file
+        $validation_result = ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allowed_audio_types, $max_file_size);
+        if ($validation_result !== true) {
+            $failed_matches[] = $validation_result;
             continue;
         }
 
-        // Check if the file size is within the allowed limit
-        if ($file_size > $max_file_size) {
-            $failed_matches[] = $original_name . ' (File size exceeds the limit)';
+        // Move the uploaded file
+        $upload_result = ll_upload_file($tmp_name, $original_name, $upload_dir['path']);
+        if (is_wp_error($upload_result)) {
+            $failed_matches[] = $original_name . ' (' . $upload_result->get_error_message() . ')';
             continue;
         }
 
-        // Perform additional audio file validation using getID3 library
-        require_once 'getid3/getid3.php';
-        $getID3 = new getID3();
-        $file_info = $getID3->analyze($tmp_name);
-        if (!isset($file_info['audio'])) {
-            $failed_matches[] = $original_name . ' (Invalid audio file)';
-            continue;
-        }
+        $relative_upload_path = ll_get_relative_upload_path($upload_result);
 
-        if ($_FILES['ll_audio_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
-            $sanitized_name = sanitize_file_name(basename($original_name));
-            $upload_path = $upload_dir['path'] . '/' . $sanitized_name;
+        $formatted_title = ll_format_title($original_name);
 
-            // Check if the file already exists and modify the file name if it does
-            $counter = 0;
-            $file_info = pathinfo($sanitized_name);
-            $original_base_name = $file_info['filename'];
-            $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
-            while (file_exists($upload_path)) {
-                $sanitized_name = $original_base_name . '_' . $counter . $extension;
-                $upload_path = $upload_dir['path'] . '/' . $sanitized_name;
-                $counter++;
+        if ($match_existing_posts) {
+            // Try to find and update an existing post
+            $existing_post = ll_find_post_by_exact_title($formatted_title);
+            if ($existing_post) {
+                ll_update_existing_post_audio($existing_post->ID, $relative_upload_path);
+                $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
+            } else {
+                $failed_matches[] = $original_name . ' (No matching post found)';
             }
-
-            if (move_uploaded_file($tmp_name, $upload_path)) {
-                $relative_upload_path = str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($upload_path));
-
-                $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-                $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
-                $formatted_title = ll_normalize_case(sanitize_text_field($title_cleaned));
-
-                if ($match_existing_posts) {
-                    // Try to find an existing post with a matching title
-                    $existing_post = ll_find_post_by_exact_title($formatted_title);
-                    if ($existing_post) {
-                        // Update the existing post's audio file metadata
-                        update_post_meta($existing_post->ID, 'word_audio_file', $relative_upload_path);
-                        $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
-                    } else {
-                        $failed_matches[] = $original_name;
-                    }
-                } else {
-                    // Use the normalized title as the post title
-                    $post_id = wp_insert_post([
-                        'post_title'    => $formatted_title,
-                        'post_content'  => '',
-                        'post_status'   => 'publish',
-                        'post_type'     => 'words',
-                    ]);
-
-                    $selected_wordset = isset($_POST['selected_wordset']) ? intval($_POST['selected_wordset']) : 0;
-
-                    if ($post_id && !is_wp_error($post_id)) {
-                        // Save the relative path of the audio file and full transcription as post meta
-                        $relative_upload_path = '/wp-content/uploads' . str_replace($upload_dir['basedir'], '', $upload_path);
-                        update_post_meta($post_id, 'word_audio_file', $relative_upload_path);
-                                                
-                        update_post_meta($post_id, 'wordset', $selected_wordset);
-
-                        // Get language codes from deepl_languages
-                        $deepl_language_codes = get_deepl_language_codes();
-
-                        // if the result is not null
-                        if ($deepl_language_codes) {                            
-                            $target_language_name = ll_get_wordset_language($selected_wordset);
-
-                            // If the wordset language is not set, fetch the target language from settings
-                            $target_language_code = '';
-                            if (!$target_language_name) {
-                                $target_language_code = get_option('ll_target_language');
-                            } else {                      
-                                $target_language_code = array_search($target_language_name, $deepl_language_codes);
-                            }
-
-                            $translation_language_code = get_option('ll_translation_language');
-                        
-                            // If the languages are supported by DeepL, translate the title
-                            if ($target_language_code && $translation_language_code) {
-                                $translated_title = translate_with_deepl($formatted_title, $translation_language_code, $target_language_code);
-                                if (!is_null($translated_title)) {
-                                    update_post_meta($post_id, 'word_english_meaning', $translated_title);
-                                } else {
-                                    update_post_meta($post_id, 'word_english_meaning', 'Error translating ' . $formatted_title . ' to ' . $translation_language_code . ' from ' . $target_language_code);
-                                }
-                            } else {
-                                update_post_meta($post_id, 'word_english_meaning', 'Error translating to ' . $translation_language_code . ' from ' . $target_language_code);
-                            }
-                        }
-
-                        // Assign selected categories to the post
-                        if (!empty($selected_categories)) {
-                            $selected_categories = array_map('intval', $selected_categories);
-                            wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
-                        }
-                        
-                        // Assign the selected part of speech to the post
-                        if (isset($_POST['ll_part_of_speech']) && !empty($_POST['ll_part_of_speech'])) {
-                            $selected_part_of_speech = intval($_POST['ll_part_of_speech']);
-                            wp_set_object_terms($post_id, $selected_part_of_speech, 'part_of_speech', false);
-                        }
-
-                        // Try to find a relevant image and assign it as the featured image
-                        $matching_image = ll_find_matching_image($title_without_extension, $selected_categories);
-                        if ($matching_image) {
-                            $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
-                            if ($matching_image_attachment_id) {
-                                set_post_thumbnail($post_id, $matching_image_attachment_id);
-                            }
-                        }
-
-                        // Add to success matches list for feedback
-                        $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
-                    } else {
-                        // Add to failed matches list if there was an issue creating the post
-                        $failed_matches[] = $original_name . ' (Failed to create post)';
-                    }
-                }
+        } else {
+            // Create a new post
+            $post_id = ll_create_new_word_post($formatted_title, $relative_upload_path, $_POST, $selected_categories, $upload_dir);
+            if ($post_id && !is_wp_error($post_id)) {
+                $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
+            } else {
+                $failed_matches[] = $original_name . ' (Failed to create post)';
             }
         }
     }
+
     // Display success and failure messages on the same page    
+    ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts);
+
+    // Add a link to go back to the previous page
+    echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
+}
+
+// Helper Functions
+
+/**
+ * Validates an uploaded audio file.
+ *
+ * @param string $tmp_name Temporary file path.
+ * @param string $original_name Original file name.
+ * @param int    $file_size File size in bytes.
+ * @param array  $allowed_types Allowed MIME types.
+ * @param int    $max_size Maximum allowed file size in bytes.
+ * @return true|string True if valid, otherwise error message.
+ */
+function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allowed_types, $max_size) {
+    // Check if the file type is allowed
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime_type = finfo_file($finfo, $tmp_name);
+    finfo_close($finfo);
+    if (!in_array($mime_type, $allowed_types)) {
+        return $original_name . ' (Invalid file type)';
+    }
+
+    // Check if the file size is within the allowed limit
+    if ($file_size > $max_size) {
+        return $original_name . ' (File size exceeds the limit)';
+    }
+
+    // Perform additional audio file validation using getID3 library
+    require_once 'getid3/getid3.php';
+    $getID3 = new getID3();
+    $file_info = $getID3->analyze($tmp_name);
+    if (!isset($file_info['audio'])) {
+        return $original_name . ' (Invalid audio file)';
+    }
+
+    return true;
+}
+
+/**
+ * Moves the uploaded file to the uploads directory, handling duplicates.
+ *
+ * @param string $tmp_name Temporary file path.
+ * @param string $original_name Original file name.
+ * @param string $upload_path Upload directory path.
+ * @return string|WP_Error Destination file path or WP_Error on failure.
+ */
+function ll_upload_file($tmp_name, $original_name, $upload_path) {
+    $sanitized_name = sanitize_file_name(basename($original_name));
+    $destination = $upload_path . '/' . $sanitized_name;
+
+    // Check if the file already exists and modify the file name if it does
+    $counter = 0;
+    $file_info = pathinfo($sanitized_name);
+    $original_base_name = $file_info['filename'];
+    $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
+    while (file_exists($destination)) {
+        $sanitized_name = $original_base_name . '_' . $counter . $extension;
+        $destination = $upload_path . '/' . $sanitized_name;
+        $counter++;
+    }
+
+    if (move_uploaded_file($tmp_name, $destination)) {
+        return $destination;
+    } else {
+        return new WP_Error('upload_error', 'Failed to move uploaded file.');
+    }
+}
+
+/**
+ * Generates a relative upload path from the absolute path.
+ *
+ * @param string $absolute_path Absolute file path.
+ * @return string Relative file path.
+ */
+function ll_get_relative_upload_path($absolute_path) {
+    $upload_dir = wp_upload_dir();
+    return str_replace(wp_normalize_path(untrailingslashit(ABSPATH)), '', wp_normalize_path($absolute_path));
+}
+
+/**
+ * Cleans and formats the title from the original file name.
+ *
+ * @param string $original_name Original file name.
+ * @return string Formatted title.
+ */
+function ll_format_title($original_name) {
+    $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
+    $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
+    return ll_normalize_case(sanitize_text_field($title_cleaned));
+}
+
+/**
+ * Updates the audio file metadata for an existing post.
+ *
+ * @param int    $post_id Post ID.
+ * @param string $relative_path Relative path to the audio file.
+ */
+function ll_update_existing_post_audio($post_id, $relative_path) {
+    update_post_meta($post_id, 'word_audio_file', $relative_path);
+}
+
+/**
+ * Creates a new word post with the provided details.
+ *
+ * @param string $title Formatted post title.
+ * @param string $relative_path Relative path to the audio file.
+ * @param array  $post_data POST data from the form.
+ * @param array  $selected_categories Selected category IDs.
+ * @param array  $upload_dir Upload directory details.
+ * @return int|WP_Error New post ID or WP_Error on failure.
+ */
+function ll_create_new_word_post($title, $relative_path, $post_data, $selected_categories, $upload_dir) {
+    $post_id = wp_insert_post([
+        'post_title'    => $title,
+        'post_content'  => '',
+        'post_status'   => 'publish',
+        'post_type'     => 'words',
+    ]);
+
+    if ($post_id && !is_wp_error($post_id)) {
+        // Save the relative path of the audio file
+        update_post_meta($post_id, 'word_audio_file', $relative_path);
+
+        // Assign the selected word set
+        $selected_wordset = isset($post_data['selected_wordset']) ? intval($post_data['selected_wordset']) : 0;
+        update_post_meta($post_id, 'wordset', $selected_wordset);
+
+        // Handle translations
+        $deepl_language_codes = get_deepl_language_codes();
+        if ($deepl_language_codes) {                            
+            $target_language_name = ll_get_wordset_language($selected_wordset);
+
+            // Determine target language code
+            $target_language_code = '';
+            if (!$target_language_name) {
+                $target_language_code = get_option('ll_target_language');
+            } else {                      
+                $target_language_code = array_search($target_language_name, $deepl_language_codes);
+            }
+
+            $translation_language_code = get_option('ll_translation_language');
+
+            // If the languages are supported by DeepL, translate the title
+            if ($target_language_code && $translation_language_code) {
+                $translated_title = translate_with_deepl($title, $translation_language_code, $target_language_code);
+                if (!is_null($translated_title)) {
+                    update_post_meta($post_id, 'word_english_meaning', $translated_title);
+                } else {
+                    update_post_meta($post_id, 'word_english_meaning', 'Error translating ' . $title . ' to ' . $translation_language_code . ' from ' . $target_language_code);
+                }
+            } else {
+                update_post_meta($post_id, 'word_english_meaning', 'Error translating to ' . $translation_language_code . ' from ' . $target_language_code);
+            }
+        }
+
+        // Assign selected categories to the post
+        if (!empty($selected_categories)) {
+            $selected_categories = array_map('intval', $selected_categories);
+            wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
+        }
+
+        // Assign the selected part of speech to the post
+        if (isset($post_data['ll_part_of_speech']) && !empty($post_data['ll_part_of_speech'])) {
+            $selected_part_of_speech = intval($post_data['ll_part_of_speech']);
+            wp_set_object_terms($post_id, $selected_part_of_speech, 'part_of_speech', false);
+        }
+
+        // Try to find a relevant image and assign it as the featured image
+        $matching_image = ll_find_matching_image($title, $selected_categories);
+        if ($matching_image) {
+            $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
+            if ($matching_image_attachment_id) {
+                set_post_thumbnail($post_id, $matching_image_attachment_id);
+            }
+        }
+
+        return $post_id;
+    }
+
+    return new WP_Error('post_creation_failed', 'Failed to create new word post.');
+}
+
+/**
+ * Displays the upload results to the user.
+ *
+ * @param array  $success_matches Array of successful uploads.
+ * @param array  $failed_matches Array of failed uploads.
+ * @param bool   $match_existing_posts Whether matching existing posts was enabled.
+ */
+function ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts) {
     echo '<h3>Upload Results:</h3>';
     if (!empty($success_matches)) {
-        if($match_existing_posts){
+        if ($match_existing_posts) {
             echo '<h4>Updated Posts:</h4>';
         } else {
             echo '<h4>Created Posts:</h4>';
@@ -320,7 +419,7 @@ function ll_handle_audio_file_uploads() {
     }
 
     if (!empty($failed_matches)) {
-        if($match_existing_posts){
+        if ($match_existing_posts) {
             echo '<h4>Failed Updates:</h4>';
         } else {
             echo '<h4>Failed Creations:</h4>';
@@ -331,10 +430,6 @@ function ll_handle_audio_file_uploads() {
         }
         echo '</ul>';
     }
-
-    // Add a link to go back to the previous page
-    echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
-
 }
 
 // Find the best matching image for a given audio file name and category
