@@ -2,6 +2,12 @@
 /************************************************************************************
  * [image_upload_form] Shortcode - Bulk upload image files & generate new word image posts
  ***********************************************************************************/
+
+/**
+ * Shortcode handler for [image_upload_form].
+ *
+ * @return string The HTML form for uploading image files.
+ */
 function ll_image_upload_form_shortcode() {
     if (!current_user_can('upload_files')) {
         return 'You do not have permission to upload files.';
@@ -27,7 +33,9 @@ function ll_image_upload_form_shortcode() {
 }
 add_shortcode('image_upload_form', 'll_image_upload_form_shortcode');
 
-// Add bulk image uploading tool to the 'All Word Images' page in the admin dashboard
+/**
+ * Adds bulk image uploading tool to the 'All Word Images' page in the admin dashboard.
+ */
 function ll_add_bulk_image_upload_tool_admin_page() {
     $screen = get_current_screen();
 
@@ -40,8 +48,9 @@ function ll_add_bulk_image_upload_tool_admin_page() {
 }
 add_action('admin_notices', 'll_add_bulk_image_upload_tool_admin_page');
 
-// Hook into the admin_post action for our form's submission
-add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
+/**
+ * Handles the processing of uploaded image files.
+ */
 function ll_handle_image_file_uploads() {
     // Security check: Ensure the current user can upload files
     if (!current_user_can('upload_files')) {
@@ -57,63 +66,71 @@ function ll_handle_image_file_uploads() {
     $allowed_image_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
     foreach ($_FILES['ll_image_files']['tmp_name'] as $key => $tmp_name) {
-        if (!in_array($_FILES['ll_image_files']['type'][$key], $allowed_image_types)) {
+        $original_name = $_FILES['ll_image_files']['name'][$key];
+        $file_type = $_FILES['ll_image_files']['type'][$key];
+        $file_error = $_FILES['ll_image_files']['error'][$key];
+
+        // Validate the uploaded file
+        if (!in_array($file_type, $allowed_image_types)) {
             $failed_uploads[] = $original_name . ' (Invalid file type)';
             continue;
         }
-        if ($_FILES['ll_image_files']['error'][$key] === UPLOAD_ERR_OK && is_uploaded_file($tmp_name)) {
-            $original_name = $_FILES['ll_image_files']['name'][$key];
-            $file_name = sanitize_file_name($original_name);
-            $upload_path = $upload_dir['path'] . '/' . $file_name;
+        if ($file_error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp_name)) {
+            $failed_uploads[] = $original_name . ' (File upload error)';
+            continue;
+        }
 
-            // Check if the file already exists and modify the file name if it does
-            $counter = 0; // Initialize a counter for the filename suffix
-            $file_info = pathinfo($file_name);
-            $original_base_name = $file_info['filename']; // Filename without extension
-            $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : ''; // Include the dot
-            // Loop to find a new filename if the current one already exists
-            while (file_exists($upload_path)) {
-                $file_name = $original_base_name . '_' . $counter . $extension;
-                $upload_path = $upload_dir['path'] . '/' . $file_name;
-                $counter++; // Increment the counter for the next round if needed
-            }
+        // Sanitize and prepare file name
+        $file_name = sanitize_file_name($original_name);
+        $upload_path = trailingslashit($upload_dir['path']) . $file_name;
 
-            if (move_uploaded_file($tmp_name, $upload_path)) {
-                $attachment_id = wp_insert_attachment([
-                    'guid' => $upload_dir['baseurl'] . '/' . $file_name,
-                    'post_mime_type' => $_FILES['ll_image_files']['type'][$key],
-                    'post_title' => preg_replace('/\.[^.]+$/', '', $file_name),
+        // Check if the file already exists and modify the file name if it does
+        $counter = 0; // Initialize a counter for the filename suffix
+        $file_info = pathinfo($file_name);
+        $original_base_name = $file_info['filename']; // Filename without extension
+        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : ''; // Include the dot
+        // Loop to find a new filename if the current one already exists
+        while (file_exists($upload_path)) {
+            $file_name = $original_base_name . '_' . $counter . $extension;
+            $upload_path = trailingslashit($upload_dir['path']) . $file_name;
+            $counter++; // Increment the counter for the next round if needed
+        }
+
+        if (move_uploaded_file($tmp_name, $upload_path)) {
+            $attachment_id = wp_insert_attachment([
+                'guid' => trailingslashit($upload_dir['baseurl']) . $file_name,
+                'post_mime_type' => $file_type,
+                'post_title' => preg_replace('/\.[^.]+$/', '', $file_name),
+                'post_content' => '',
+                'post_status' => 'inherit'
+            ], $upload_path);
+
+            if ($attachment_id && !is_wp_error($attachment_id)) {
+                $post_id = wp_insert_post([
+                    'post_title' => $original_base_name,
                     'post_content' => '',
-                    'post_status' => 'inherit'
-                ], $upload_path);
+                    'post_status' => 'publish',
+                    'post_type' => 'word_images',
+                ]);
 
-                if ($attachment_id && !is_wp_error($attachment_id)) {
-                    $post_id = wp_insert_post([
-                        'post_title' => $original_base_name,
-                        'post_content' => '',
-                        'post_status' => 'publish',
-                        'post_type' => 'word_images',
-                    ]);
+                if ($post_id && !is_wp_error($post_id)) {
+                    set_post_thumbnail($post_id, $attachment_id);
 
-                    if ($post_id && !is_wp_error($post_id)) {
-                        set_post_thumbnail($post_id, $attachment_id);
-
-                        // Assign selected categories to the post
-                        if (!empty($selected_categories)) {
-                            $selected_categories = array_map('intval', $selected_categories);
-                            wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
-                        }
-
-                        $success_uploads[] = $original_name . ' -> New Post ID: ' . $post_id;
-                    } else {
-                        $failed_uploads[] = $original_name . ' (Failed to create post)';
+                    // Assign selected categories to the post
+                    if (!empty($selected_categories)) {
+                        $selected_categories = array_map('intval', $selected_categories);
+                        wp_set_object_terms($post_id, $selected_categories, 'word-category', false);
                     }
+
+                    $success_uploads[] = $original_name . ' -> New Post ID: ' . $post_id;
                 } else {
-                    $failed_uploads[] = $original_name . ' (Failed to create attachment)';
+                    $failed_uploads[] = $original_name . ' (Failed to create post)';
                 }
             } else {
-                $failed_uploads[] = $original_name . ' (Failed to move file)';
+                $failed_uploads[] = $original_name . ' (Failed to create attachment)';
             }
+        } else {
+            $failed_uploads[] = $original_name . ' (Failed to move file)';
         }
     }
 
@@ -127,4 +144,5 @@ function ll_handle_image_file_uploads() {
     wp_redirect($redirect_url);
     exit;
 }
+add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
 ?>
