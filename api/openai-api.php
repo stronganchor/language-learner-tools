@@ -3,8 +3,8 @@
  * OpenAI API Integration for WordPress
  */
 
-/* 
- * Add Admin Page under the Tools menu
+/**
+ * Adds the ChatGPT Interface admin page under the Tools menu.
  */
 function chatgpt_admin_page() {
     add_submenu_page(
@@ -18,7 +18,9 @@ function chatgpt_admin_page() {
 }
 add_action('admin_menu', 'chatgpt_admin_page');
 
-// Display Admin Page content
+/**
+ * Renders the ChatGPT Interface admin page content.
+ */
 function chatgpt_interface_callback() {
     ?>
     <div class="wrap">
@@ -38,14 +40,20 @@ function chatgpt_interface_callback() {
     <?php
 }
 
-// Register the admin settings
+/**
+ * Registers the ChatGPT API key setting.
+ */
 function chatgpt_settings() {
     register_setting('chatgpt-settings-group', 'chatgpt_api_key');
 }
 add_action('admin_init', 'chatgpt_settings');
 
-/* 
- * Function to interact with ChatGPT API
+/**
+ * Sends a message to the ChatGPT API and retrieves the response.
+ *
+ * @param string $message The message to send.
+ * @param string $model The model to use (default: 'gpt-3.5-turbo').
+ * @return string The response from ChatGPT or an error message.
  */
 function chatgpt_send_message($message, $model = 'gpt-3.5-turbo') {
     $api_key = get_option('chatgpt_api_key'); // Retrieve API key from WordPress settings
@@ -85,7 +93,6 @@ function chatgpt_send_message($message, $model = 'gpt-3.5-turbo') {
         return "Error: " . $decoded_response['error']['message'] . "    Raw Response: " . $response;
     }
 
-    $decoded_response = json_decode($response, true);
     if (!isset($decoded_response['choices'][0]['message']['content'])) {
         error_log("ChatGPT Error: Unexpected API response format.");
         return "Error: Unexpected API response format." . "    Raw Response: " . $response; 
@@ -94,17 +101,19 @@ function chatgpt_send_message($message, $model = 'gpt-3.5-turbo') {
     return $decoded_response['choices'][0]['message']['content'];
 }
 
-
-/*
- * Set up the shortcode [chatgpt_form]
+/**
+ * Shortcode callback to display the ChatGPT form and handle submissions.
+ *
+ * @param array $atts Shortcode attributes.
+ * @return string HTML content for the ChatGPT form and response.
  */
 function chatgpt_shortcode_callback($atts) {
     $output = '';
 
-    if (isset($_POST['chatgpt_message'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['chatgpt_message'])) {
         $user_message = sanitize_text_field($_POST['chatgpt_message']);
         $response = chatgpt_send_message($user_message);
-        $output .= '<div class="chatgpt-response">Zeki: ' . esc_html($response) . '</div>';
+        $output .= '<div class="chatgpt-response"><strong>Zeki:</strong> ' . esc_html($response) . '</div>';
     }
 
     $output .= '
@@ -118,8 +127,12 @@ function chatgpt_shortcode_callback($atts) {
 }
 add_shortcode('chatgpt_form', 'chatgpt_shortcode_callback');
 
-/*
- * Convert the inputted text into an audio file using OpenAI's TTS API
+/**
+ * Generates a text-to-speech audio file using OpenAI's TTS API.
+ *
+ * @param string $input_text The text to convert to speech.
+ * @param string $voice The voice to use (default: 'onyx').
+ * @return string The URL to the generated audio file or an error message.
  */
 function generate_text_to_speech($input_text, $voice = 'onyx') {
     $api_key = get_option('chatgpt_api_key'); // Retrieve API key from WordPress settings
@@ -158,56 +171,24 @@ function generate_text_to_speech($input_text, $voice = 'onyx') {
         // Format and sanitize the filename
         $formatted_text = substr(strtolower(preg_replace('/[^a-zA-Z0-9_]+/', '_', $input_text)), 0, 100); // Replace non-alphanumeric characters with underscore and limit to 100 chars
         $audio_file_name = 'tts_' . $voice . '_' . $formatted_text . '.mp3'; // Create the file name
-        $audio_file_path = wp_upload_dir()['path'] . '/' . $audio_file_name;
+        $upload_dir = wp_upload_dir();
+        $audio_file_path = trailingslashit($upload_dir['path']) . $audio_file_name;
 
         file_put_contents($audio_file_path, $response);
 
         // Return the URL to the saved audio file
-        return wp_upload_dir()['url'] . '/' . $audio_file_name;
+        return trailingslashit($upload_dir['url']) . $audio_file_name;
     } else {
         return "Error: Unexpected API response format.";
     }
 }
 
-
-/*
- * Creates a shortcode that receives text input, converts it to audio and displays it with an audio player.
- */
-function tts_shortcode_callback() {
-    $output = '<form method="post">';
-    $output .= '<textarea name="tts_input_text" required placeholder="Enter text to convert to speech..."></textarea><br>';
-
-    // Voice selection dropdown
-    $output .= '<label for="voice_selection">Choose a voice:</label>';
-    $output .= '<select name="voice_selection" id="voice_selection">';
-    $voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-    foreach ($voices as $voice) {
-        $selected = ($voice == 'shimmer') ? 'selected' : '';
-        $output .= '<option value="' . $voice . '" ' . $selected . '>' . ucfirst($voice) . '</option>';
-    }
-    $output .= '</select><br>';
-
-    $output .= '<input type="submit" value="Convert to Speech" />';
-    $output .= '</form>';
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['tts_input_text'])) {
-        $input_text = sanitize_text_field($_POST['tts_input_text']);
-        $selected_voice = isset($_POST['voice_selection']) ? $_POST['voice_selection'] : 'shimmer';
-        $audio_url = generate_text_to_speech($input_text, $selected_voice);
-
-        if (filter_var($audio_url, FILTER_VALIDATE_URL)) {
-            $output .= '<audio controls><source src="' . esc_url($audio_url) . '" type="audio/mpeg">Your browser does not support the audio element.</audio>';
-        } else {
-            $output .= '<div class="error-message">' . esc_html($audio_url) . '</div>'; // Display error message
-        }
-    }
-
-    return $output;
-}
-add_shortcode('tts_form', 'tts_shortcode_callback');
-
-/*
- * Generate a text file by transcribing speech in an audio file, using OpenAI's Speech-To-Text API
+/**
+ * Transcribes speech from an audio file using OpenAI's Speech-To-Text API.
+ *
+ * @param string $audio_url The URL to the audio file.
+ * @param string $user_prompt An optional user prompt to assist transcription.
+ * @return string The transcribed text or an error message.
  */
 function transcribe_audio_to_text($audio_url, $user_prompt) {
     $api_key = get_option('chatgpt_api_key');
@@ -236,8 +217,9 @@ function transcribe_audio_to_text($audio_url, $user_prompt) {
 
     if (curl_errno($ch)) {
         $error_msg = curl_error($ch);
+        error_log("Transcription cURL Error: " . $error_msg);
         curl_close($ch);
-        return "cURL Error: " . $error_msg;
+        return "Error: cURL error - " . $error_msg;
     }
 
     curl_close($ch);
@@ -250,6 +232,12 @@ function transcribe_audio_to_text($audio_url, $user_prompt) {
     }
 }
 
+/**
+ * Adds paragraph breaks to transcribed text based on sentence boundaries.
+ *
+ * @param string $text The transcribed text.
+ * @return string The text with paragraph breaks.
+ */
 function add_paragraph_breaks_to_text($text) {
     $processed_text = '';
     $remainingText = $text;
@@ -292,39 +280,11 @@ function add_paragraph_breaks_to_text($text) {
     return $processed_text;
 }
 
-/*
- * Creates a shortcode [audio_to_text_form] to prompt the user for an audio file and display the speech-to-text results.
- */
-function audio_to_text_shortcode_callback() {
-    $output = '<form method="post" enctype="multipart/form-data">';
-    $output .= '<label for="audio_file">Upload an audio file:</label><br>';
-    $output .= '<input type="file" name="audio_file" id="audio_file" accept="audio/*"><br>';
-    $output .= '<textarea name="user_prompt" placeholder="Enter a prompt to assist transcription (optional)"></textarea><br>';
-    $output .= '<input type="submit" value="Transcribe Audio">';
-    $output .= '</form>';
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['audio_file'])) {
-        if ($_FILES['audio_file']['size'] > 26214400) {
-            $output .= '<div class="error-message">Error: File size exceeds 26 MB limit.</div>';
-        } else {
-            $upload = wp_handle_upload($_FILES['audio_file'], array('test_form' => FALSE));
-            if (isset($upload['error'])) {
-                $output .= '<div class="error-message">Upload Error: ' . $upload['error'] . '</div>';
-            } else {
-                $audio_file_url = $upload['url'];
-                $user_prompt = isset($_POST['user_prompt']) ? sanitize_text_field($_POST['user_prompt']) : '';
-                $transcribed_text = transcribe_audio_to_text($audio_file_url, $user_prompt);
-                $output .= '<div class="transcribed-text">' . $transcribed_text . '</div>';
-            }
-        }
-    }
-
-    return $output;
-}
-add_shortcode('audio_to_text_form', 'audio_to_text_shortcode_callback');
-
-/*
- * Sends an image file to OpenAI API in order to receive a newly generated image similar to it.
+/**
+ * Generates a variation of an image using OpenAI's DALL-E API.
+ *
+ * @param string $image_url The URL to the original image.
+ * @return string|null The URL to the generated image variation or null on failure.
  */
 function generate_image_variation($image_url) {
     $api_key = get_option('chatgpt_api_key'); // Retrieve API key from WordPress settings
@@ -360,37 +320,108 @@ function generate_image_variation($image_url) {
 
     // Accessing the URL from the response
     if(isset($decoded_response['data'][0]['url'])) {
-        return $decoded_response['data'][0]['url'];
+        return esc_url($decoded_response['data'][0]['url']);
     } else {
         return null; // Return null if the URL is not found
     }
 }
 
-/*
- * Creates a shortcode [image_variation] to prompt the user for an image file and displays a similar image.
+/**
+ * Shortcode callback to display the TTS form and handle submissions.
+ *
+ * @return string HTML content for the TTS form and audio player.
+ */
+function tts_shortcode_callback() {
+    $output = '<form method="post" enctype="multipart/form-data">';
+    $output .= '<textarea name="tts_input_text" required placeholder="Enter text to convert to speech..."></textarea><br>';
+
+    // Voice selection dropdown
+    $output .= '<label for="voice_selection">Choose a voice:</label>';
+    $output .= '<select name="voice_selection" id="voice_selection">';
+    $voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    foreach ($voices as $voice) {
+        $selected = ($voice == 'shimmer') ? 'selected' : '';
+        $output .= '<option value="' . esc_attr($voice) . '" ' . $selected . '>' . ucfirst($voice) . '</option>';
+    }
+    $output .= '</select><br>';
+
+    $output .= '<input type="submit" value="Convert to Speech" />';
+    $output .= '</form>';
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['tts_input_text'])) {
+        $input_text = sanitize_text_field($_POST['tts_input_text']);
+        $selected_voice = isset($_POST['voice_selection']) ? sanitize_text_field($_POST['voice_selection']) : 'shimmer';
+        $audio_url = generate_text_to_speech($input_text, $selected_voice);
+
+        if (filter_var($audio_url, FILTER_VALIDATE_URL)) {
+            $output .= '<audio controls><source src="' . esc_url($audio_url) . '" type="audio/mpeg">Your browser does not support the audio element.</audio>';
+        } else {
+            $output .= '<div class="error-message">' . esc_html($audio_url) . '</div>'; // Display error message
+        }
+    }
+
+    return $output;
+}
+add_shortcode('tts_form', 'tts_shortcode_callback');
+
+/**
+ * Shortcode callback to handle audio file uploads and transcribe them.
+ *
+ * @return string HTML content for the audio-to-text form and transcription results.
+ */
+function audio_to_text_shortcode_callback() {
+    $output = '<form method="post" enctype="multipart/form-data">';
+    $output .= '<label for="audio_file">Upload an audio file:</label><br>';
+    $output .= '<input type="file" name="audio_file" id="audio_file" accept="audio/*"><br>';
+    $output .= '<textarea name="user_prompt" placeholder="Enter a prompt to assist transcription (optional)"></textarea><br>';
+    $output .= '<input type="submit" name="submit_audio_transcription" value="Transcribe Audio">';
+    $output .= '</form>';
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_audio_transcription']) && isset($_FILES['audio_file'])) {
+        if ($_FILES['audio_file']['size'] > 26214400) { // 25MB limit
+            $output .= '<div class="error-message">Error: File size exceeds 26 MB limit.</div>';
+        } else {
+            $upload = wp_handle_upload($_FILES['audio_file'], array('test_form' => FALSE));
+            if (isset($upload['error'])) {
+                $output .= '<div class="error-message">Upload Error: ' . esc_html($upload['error']) . '</div>';
+            } else {
+                $audio_file_url = $upload['url'];
+                $user_prompt = isset($_POST['user_prompt']) ? sanitize_text_field($_POST['user_prompt']) : '';
+                $transcribed_text = transcribe_audio_to_text($audio_file_url, $user_prompt);
+                $output .= '<div class="transcribed-text">' . $transcribed_text . '</div>';
+            }
+        }
+    }
+
+    return $output;
+}
+add_shortcode('audio_to_text_form', 'audio_to_text_shortcode_callback');
+
+/**
+ * Shortcode callback to generate image variations using OpenAI's DALL-E API.
+ *
+ * @return string HTML content for the image variation form and generated image.
  */
 function image_variation_shortcode() {
     ob_start();
     ?>
     <form method="post" enctype="multipart/form-data">
         <input type="file" name="uploaded_image" accept="image/*">
-        <input type="submit" name="submit_image" value="Generate Image Variation">
+        <input type="submit" name="submit_image_variation" value="Generate Image Variation">
     </form>
     <?php
-    if (isset($_POST['submit_image']) && !empty($_FILES['uploaded_image'])) {
+    if (isset($_POST['submit_image_variation']) && !empty($_FILES['uploaded_image']['tmp_name'])) {
         $file = $_FILES['uploaded_image']['tmp_name'];
         $result = generate_image_variation($file);
 
         if ($result) {
             // Assuming the result contains a URL to the generated image
-            echo '<img src="' . esc_url($result) . '" alt="Generated Image Variation">';
+            $output .= '<img src="' . esc_url($result) . '" alt="Generated Image Variation">';
         } else {
-            echo 'An error occurred.';
+            $output .= '<div class="error-message">An error occurred while generating the image variation.</div>';
         }
     }
     return ob_get_clean();
 }
 add_shortcode('image_variation', 'image_variation_shortcode');
-
-
 ?>
