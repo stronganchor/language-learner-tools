@@ -24,16 +24,30 @@
         skipped: 0
     };
 
+    /**
+     * Returns the display mode for a given category name.
+     *
+     * @param {string} categoryName - The name of the category.
+     * @returns {string} The display mode ('image' or 'text').
+     */
     function getCategoryDisplayMode(categoryName) {
         if (!categoryName) return DEFAULT_DISPLAY_MODE;
         let catData = llToolsFlashcardsData.categories.find(cat => cat.name === categoryName);
         return catData ? catData.mode : DEFAULT_DISPLAY_MODE; 
     }
     
+    /**
+     * Returns the display mode for the current category.
+     *
+     * @returns {string} The display mode ('image' or 'text').
+     */
     function getCurrentDisplayMode() {
         return getCategoryDisplayMode(currentCategoryName);
     }
 
+    /**
+     * Resets the overall quiz state and prepares for a new quiz session.
+     */
     function resetQuizState() {
         usedWordIDs = [];
         categoryRoundCount = {};
@@ -49,6 +63,9 @@
         FlashcardAudio.resetAudioState();
     }
 
+    /**
+     * Resets the quiz results counters.
+     */
     function resetQuizResults() {
         quizResults = {
             correctOnFirstTry: 0,
@@ -57,18 +74,23 @@
         };
     }
 
-    // Preload the first category
+    // Preload the first category if categories are preselected
     if (llToolsFlashcardsData.categoriesPreselected) {
         FlashcardLoader.processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
         preloadCategoryResources(firstCategoryName);
     }
 
-    // Initialize the audio module
+    // Initialize audio functionality and load correct/wrong sounds
     FlashcardAudio.initializeAudio();
     FlashcardLoader.loadAudio(FlashcardAudio.getCorrectAudioURL());
     FlashcardLoader.loadAudio(FlashcardAudio.getWrongAudioURL());
 
-    // Helper function to randomly sort an array
+    /**
+     * Utility function to randomly sort an array.
+     *
+     * @param {Array} inputArray - Array to sort.
+     * @returns {Array} A new, randomly sorted array.
+     */
     function randomlySort(inputArray) {
         if (!Array.isArray(inputArray)) {
             return inputArray;
@@ -76,61 +98,73 @@
         return [...inputArray].sort(() => 0.5 - Math.random());
     }
 
-    // Returns a random integer between the min and max values (inclusive)
+    /**
+     * Returns a random integer between the specified min and max (inclusive).
+     *
+     * @param {number} min - Minimum value.
+     * @param {number} max - Maximum value.
+     * @returns {number} A random integer in [min, max].
+     */
     function randomIntFromInterval(min, max) {
         return Math.floor((Math.random() * (max - min + 1)) + min);
     }
 
+    /**
+     * Attempts to select a target word from a specific category.
+     * May also select from that category's repetition queue if applicable.
+     *
+     * @param {Array} candidateCategory - Words in the chosen category.
+     * @param {string} candidateCategoryName - The name of the chosen category.
+     * @returns {Object|null} The selected target word or null if none found.
+     */
     function selectTargetWord(candidateCategory, candidateCategoryName) {
         if (!candidateCategory) {
             return null;
         }
 
         let target = null;
-        // Check if there are words due to reappear from the repetition queue
         const repeatQueue = categoryRepetitionQueues[candidateCategoryName];
+
+        // Check if there are words due to reappear from the repetition queue
         if (repeatQueue && repeatQueue.length > 0) {
             for (let i = 0; i < repeatQueue.length; i++) {
                 if (repeatQueue[i].reappearRound <= categoryRoundCount[candidateCategoryName]) {
                     target = repeatQueue[i].wordData;
-                    // Remove the word from the queue as it's now selected to reappear
                     repeatQueue.splice(i, 1);
-                    break; // Exit the loop once the target word is selected
+                    break;
                 }
             }
         }
 
-        // If we didn't select a word from the repeat queue, attempt to select from the chosen category
+        // If no word was found in the queue, pick a new one from the category
         if (!target) {
             for (let i = 0; i < candidateCategory.length; i++) {
-                if (!usedWordIDs.includes(candidateCategory[i].id)) { // Ensure this word hasn't been recently used as a target
+                if (!usedWordIDs.includes(candidateCategory[i].id)) {
                     target = candidateCategory[i];
-                    usedWordIDs.push(target.id); // Add to usedWordIDs as it's now the target
-                    break; // Exit the loop once the target word is selected
+                    usedWordIDs.push(target.id);
+                    break;
                 }
             }
         }
 
-        // If we still didn't select a word, but there are repeatQueue words that aren't ready yet
+        // If still no target, try the earliest item in the queue even if not scheduled yet
         if (!target && repeatQueue && repeatQueue.length > 0) {
             target = repeatQueue[0].wordData;
 
-            // Check if the target word is the same as the previous one
+            // Avoid picking the exact same word consecutively if there's another choice
             if (target.id === usedWordIDs[usedWordIDs.length - 1]) {
-                // If it's the same and there are other words in the category, try to select a different one
                 const otherWords = candidateCategory.filter(word => word.id !== target.id);
                 if (otherWords.length > 0) {
                     target = otherWords[Math.floor(Math.random() * otherWords.length)];
                 }
             }
-
-            // Remove the target word from the repeat queue
             const targetWordIndex = repeatQueue.findIndex(item => item.wordData.id === target.id);
             if (targetWordIndex !== -1) {
                 repeatQueue.splice(targetWordIndex, 1);
             }
         }
 
+        // Update the global state if we selected a new target
         if (target) {
             if (currentCategoryName !== candidateCategoryName) {
                 currentCategoryName = candidateCategoryName;
@@ -145,16 +179,26 @@
         return target;
     }
 
+    /**
+     * Tries to select a target word from the next categories in sequence.
+     *
+     * @returns {Object|null} The selected word or null if none found.
+     */
     function selectWordFromNextCategory() {
         for (let categoryName of categoryNames) {
             let targetWord = selectTargetWord(wordsByCategory[categoryName], categoryName);
             if (targetWord) {
-                return targetWord; // Exit the loop if we have found a target word
+                return targetWord;
             }
         }
         return null;
     }
 
+    /**
+     * Selects the target word and category for the next round.
+     *
+     * @returns {Object|null} The selected target word or null if quiz is finished.
+     */
     function selectTargetWordAndCategory() {
         let targetWord = null;
 
@@ -170,11 +214,11 @@
             if ((repeatQueue && repeatQueue.length > 0) || currentCategoryRoundCount <= ROUNDS_PER_CATEGORY) {
                 targetWord = selectTargetWord(currentCategory, currentCategoryName);
             } else {
-                // Put the current category at the end of the category names list
+                // Move the current category to the end of the list
                 categoryNames.splice(categoryNames.indexOf(currentCategoryName), 1);
                 categoryNames.push(currentCategoryName);
 
-                // Reset the round count for this category so we can come back to it again later
+                // Reset the round count for this category, then pick from the next
                 categoryRoundCount[currentCategoryName] = 0;
                 currentCategoryRoundCount = 0;
             }
@@ -187,22 +231,29 @@
         return targetWord;
     }
 
+    /**
+     * Selects words from a given category and appends them to the selected set,
+     * avoiding duplicates, similar words, or repeated images.
+     *
+     * @param {string} category - Name of the category to fetch words from.
+     * @param {Array} selectedWords - Already selected words for this round.
+     * @returns {Array} Updated list of selected words.
+     */
     function selectWordsFromCategory(category, selectedWords) {
         const displayMode = getCurrentDisplayMode();
 
         for (let candidateWord of wordsByCategory[category]) {
-            // Check if the candidate word is not already selected and not similar to any selected words
             let isDuplicate = selectedWords.some(word => word.id === candidateWord.id);
             let isSimilar = selectedWords.some(word => word.similar_word_id === candidateWord.id.toString() || candidateWord.similar_word_id === word.id.toString());
-            let hasSameImage = displayMode === 'image' && selectedWords.some(word => word.image === candidateWord.image);
+            let hasSameImage = (displayMode === 'image') && selectedWords.some(word => word.image === candidateWord.image);
 
-            // If this word passes the checks, add it to the selected words and container
             if (!isDuplicate && !isSimilar && !hasSameImage) {
                 selectedWords.push(candidateWord);
                 FlashcardLoader.loadResourcesForWord(candidateWord, displayMode);
                 appendWordToContainer(candidateWord);
 
-                if (selectedWords.length >= FlashcardOptions.categoryOptionsCount[currentCategoryName] || !FlashcardOptions.canAddMoreCards()) {
+                if (selectedWords.length >= FlashcardOptions.categoryOptionsCount[currentCategoryName] ||
+                    !FlashcardOptions.canAddMoreCards()) {
                     break;
                 }
             }
@@ -210,14 +261,19 @@
         return selectedWords;
     }
 
+    /**
+     * Builds out the quiz UI by filling options around the targetWord.
+     *
+     * @param {Object} targetWord - The word that the user must guess.
+     */
     function fillQuizOptions(targetWord) {
         let selectedWords = [];
         let categoryNamesToTry = [];
 
-        // The first category to try will be the current category
+        // Current category first
         categoryNamesToTry.push(currentCategoryName);
 
-        // If we don't find enough words in the current category, look at this word's other categories
+        // Then the target word's other categories
         if (targetWord.all_categories) {
             for (let category of targetWord.all_categories) {
                 if (!categoryNamesToTry.includes(category)) {
@@ -226,7 +282,7 @@
             }
         }
 
-        // If that still isn't enough, look at all other categories
+        // Then any other categories
         categoryNames.forEach(category => {
             if (!categoryNamesToTry.includes(category)) {
                 categoryNamesToTry.push(category);
@@ -237,32 +293,36 @@
         selectedWords.push(targetWord);
         appendWordToContainer(targetWord);
 
-        while (selectedWords.length < FlashcardOptions.categoryOptionsCount[currentCategoryName] &&
-               FlashcardOptions.canAddMoreCards()) {
-            if (categoryNamesToTry.length === 0 || 
+        while (
+            selectedWords.length < FlashcardOptions.categoryOptionsCount[currentCategoryName] &&
+            FlashcardOptions.canAddMoreCards()
+        ) {
+            if (categoryNamesToTry.length === 0 ||
                 selectedWords.length >= FlashcardOptions.categoryOptionsCount[currentCategoryName]) {
                 break;
             }
             let candidateCategoryName = categoryNamesToTry.shift();
             if (!wordsByCategory[candidateCategoryName] || FlashcardLoader.loadedCategories.includes(candidateCategoryName)) {
-                // If the words data is not loaded, request it and continue with the next category
                 FlashcardLoader.loadResourcesForCategory(candidateCategoryName);
             }
-
             wordsByCategory[candidateCategoryName] = randomlySort(wordsByCategory[candidateCategoryName]);
             selectedWords = selectWordsFromCategory(candidateCategoryName, selectedWords);
         }
 
-        // Add click events to the cards
+        // Attach click handlers
         $('.flashcard-container').each(function (index) {
             addClickEventToCard($(this), index, targetWord);
         });
 
-        // Make the cards visible
+        // Fade in the new cards
         $('.flashcard-container').hide().fadeIn(600);
     }
 
-    // Add a word to the flashcard container at a random position
+    /**
+     * Appends a word to the flashcard container in a random position.
+     *
+     * @param {Object} wordData - The word object containing image or text for display.
+     */
     function appendWordToContainer(wordData) {
         const displayMode = getCurrentDisplayMode();
         let container = $('<div>', {
@@ -286,17 +346,15 @@
             }).appendTo(container);
         } else {
             container.addClass('text-based');
-
             let translationDiv = $('<div>', {
                 text: wordData.translation,
                 class: 'quiz-translation'
             });
 
-            // Check text length and add long-text class if needed
+            // Check text length and add long-text syling if needed
             if (wordData.translation.length > 20) {
                 translationDiv.addClass('long-text');
             }
-
             translationDiv.appendTo(container);
         }
 
@@ -308,7 +366,13 @@
         }
     }
 
-    // Add click event to the card to handle right and wrong answers
+    /**
+     * Adds a click event to a card for right/wrong answer handling.
+     *
+     * @param {jQuery} card - The jQuery element for the card.
+     * @param {number} index - Index of the card.
+     * @param {Object} targetWord - The target word object to compare with.
+     */
     function addClickEventToCard(card, index, targetWord) {
         const displayMode = getCurrentDisplayMode();
 
@@ -328,29 +392,36 @@
             }
         });
     }
-    
+
+    /**
+     * Handles a correct answer by applying visuals, playing audio feedback,
+     * and scheduling the next round.
+     *
+     * @param {Object} targetWord - The target word object.
+     * @param {jQuery} correctCard - The card element that was clicked.
+     */
     function handleCorrectAnswer(targetWord, correctCard) {
-        if (userClickedCorrectAnswer){
+        if (userClickedCorrectAnswer) {
             return;
         }
-
         correctCard.addClass('correct-answer');
+
+        // Determine where on the screen to launch confetti
         const rect = correctCard[0].getBoundingClientRect();
         const xPos = (rect.left + rect.width / 2) / window.innerWidth;
         const yPos = (rect.top + rect.height / 2) / window.innerHeight;
-        
-        userClickedCorrectAnswer = true;
 
+        userClickedCorrectAnswer = true;
         startConfetti({
             particleCount: 20,
             angle: 90,
             spread: 60,
-            origin: { x: xPos, y: yPos }, 
+            origin: { x: xPos, y: yPos },
             duration: 50
         });
-    
+
         FlashcardAudio.playFeedback(true, null, function () {
-            // If there were any wrong answers before the right one was selected
+            // If there were any wrong answers previously
             if (wrongIndexes.length > 0) {
                 if (!categoryRepetitionQueues[currentCategoryName]) {
                     categoryRepetitionQueues[currentCategoryName] = [];
@@ -361,44 +432,45 @@
                     reappearRound: categoryRoundCount[currentCategoryName] + randomIntFromInterval(1, 3),
                 });
             }
-    
+
             // Track correct answers on the first try
             if (!quizResults.incorrect.includes(targetWord.id)) {
                 quizResults.correctOnFirstTry += 1;
             }
-    
-            // Fade out and remove the wrong answers
+
+            // Fade out and remove the incorrect cards
             $('.flashcard-container').not(correctCard).addClass('fade-out');
-    
-            // Wait for the transition to complete before moving to the next question
+
             setTimeout(function () {
                 isFirstRound = false;
                 userClickedCorrectAnswer = false;
-                startQuizRound(); // Load next question after fade out
-            }, 600); // Adjust the delay as needed to match the transition duration
+                startQuizRound(); 
+            }, 600);
         });
     }
-    
-    // Respond to the wrong answer
+
+    /**
+     * Handles a wrong answer by playing feedback, removing the wrong card,
+     * and potentially removing all but the correct card on second wrong attempt.
+     *
+     * @param {Object} targetWord - The target word object.
+     * @param {number} index - Index of the card that was clicked.
+     * @param {jQuery} wrongAnswer - The jQuery element of the wrong card.
+     */
     function handleWrongAnswer(targetWord, index, wrongAnswer) {
         FlashcardAudio.playFeedback(false, targetWord.audio, null);
 
-        // Fade out and remove the wrong answer card
+        // Fade out the incorrect card
         wrongAnswer.addClass('fade-out').one('transitionend', function () {
-            wrongAnswer.remove(); // Remove the card completely after fade out
+            wrongAnswer.remove();
         });
 
-        // Add the current index to the list of wrong answers
         if (!quizResults.incorrect.includes(targetWord.id)) {
-            quizResults.incorrect.push(targetWord.id); // Track incorrect answers
+            quizResults.incorrect.push(targetWord.id);
         }
-
-        // Add the index to wrongIndexes if the answer is incorrect
         wrongIndexes.push(index);
 
         const displayMode = getCurrentDisplayMode();
-        
-        // Check if the user has selected a wrong answer twice
         if (wrongIndexes.length === 2) {
             // Remove all options except the correct one
             $('.flashcard-container').not(function () {
@@ -411,85 +483,93 @@
         }
     }
 
+    /**
+     * Displays the loading animation.
+     */
     function showLoadingAnimation() {
         $('#ll-tools-loading-animation').show();
     }
 
+    /**
+     * Hides the loading animation.
+     */
     function hideLoadingAnimation() {
         $('#ll-tools-loading-animation').hide();
     }
-    // Expose hideLoadingAnimation globally for use in flashcard-audio.js
+    // Expose hideLoadingAnimation globally for reference in other files
     window.hideLoadingAnimation = hideLoadingAnimation;
-    
+
     /**
-     * Starts or continues the quiz. If it's the first round, load the first 3 categories,
-     * but only wait for the first chunk of the first category before starting the quiz.
+     * Sets up the quiz round. If it's the first round, attempts to load
+     * the first chunk of categories before starting. Otherwise, runs directly.
      *
-     * @param {number} number_of_options - The initial number of options for the quiz.
+     * @param {number} number_of_options - Optional initial number of options for the quiz.
      */
     function startQuizRound(number_of_options) {
         if (isFirstRound) {
-            // Identify the first three categories to begin loading immediately
             const firstThreeCategories = categoryNames.slice(0, 3);
 
             // Load the first chunk of the first category, then proceed
             FlashcardLoader.loadResourcesForCategory(firstThreeCategories[0], function() {
-                // Once the first chunk for this category is loaded, we can start the quiz
                 FlashcardOptions.initializeOptionsCount(number_of_options);
                 runQuizRound();
             });
 
-            // Preload the other two categories in the background (no callback)
+            // Preload remaining categories in the background
             if (firstThreeCategories.length > 1) {
                 for (let i = 1; i < firstThreeCategories.length; i++) {
                     FlashcardLoader.loadResourcesForCategory(firstThreeCategories[i]);
                 }
             }
-
         } else {
-            // If not the first round, proceed directly
             runQuizRound();
         }
     }
-    
-    // Helper function for proceeding with a quiz round
+
+    /**
+     * Runs the logic for each quiz round: clears previous data, sets up new,
+     * picks a target word, and displays the options.
+     */
     function runQuizRound() {
-        // Clear existing content from previous round
+        // Clear UI from previous round
         $('#ll-tools-flashcard').empty();
-    
-        // Make sure the header is visible
         $('#ll-tools-flashcard-header').show();
         $('#ll-tools-skip-flashcard').show();
         $('#ll-tools-repeat-flashcard').show();
-    
+
         FlashcardAudio.pauseAllAudio();
         showLoadingAnimation();
         FlashcardAudio.setTargetAudioHasPlayed(false);
-    
-        // Decide how many options we want this round
+
+        // Decide the number of options for this round
         FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
-    
-        // Select the target word for this round
+
+        // Pick the target word
         let targetWord = selectTargetWordAndCategory();
-    
+
         // If no word is returned, the quiz is finished
         if (!targetWord) {
             showResultsPage();
-        } else {
-            // Make sure we load the target word resources first
-            FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
-                .then(function() {
-                    // Now that the target word audio is ready, build the quiz options
-                    fillQuizOptions(targetWord);
-                    FlashcardAudio.setTargetWordAudio(targetWord);
-                    hideLoadingAnimation();
-                    userClickedSkip = false;
-                });
+            return;
         }
-    }      
 
+        // Load resources for the target word first
+        FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
+            .then(function() {
+                // Build UI options around the target word
+                fillQuizOptions(targetWord);
+                FlashcardAudio.setTargetWordAudio(targetWord);
+                hideLoadingAnimation();
+                userClickedSkip = false;
+            });
+    }
+
+    /**
+     * Fires confetti from either a specific origin or from both sides of the screen.
+     *
+     * @param {Object} options - Configuration for the confetti.
+     */
     function startConfetti(options) {
-        // Default options if nothing is passed
         const defaults = {
             particleCount: 6,
             angle: 60,
@@ -500,7 +580,7 @@
     
         // Merge defaults with passed-in options
         const settings = Object.assign({}, defaults, options);
-    
+
         try {
             var confettiCanvas = document.getElementById('confetti-canvas');
             if (!confettiCanvas) {
@@ -515,15 +595,14 @@
                 confettiCanvas.style.zIndex = '999999';
                 document.body.appendChild(confettiCanvas);
             }
-    
+
             if (typeof confetti === 'function') {
                 var myConfetti = confetti.create(confettiCanvas, {
                     resize: true,
                     useWorker: true
                 });
-    
                 var end = Date.now() + settings.duration;
-    
+
                 (function frame() {
                     if (settings.origin && typeof settings.origin.x === 'number' && typeof settings.origin.y === 'number') {
                         // If an origin is specified, launch confetti from that exact spot
@@ -541,7 +620,6 @@
                             spread: settings.spread,
                             origin: { x: 0.0, y: 0.5 }
                         });
-    
                         myConfetti({
                             particleCount: Math.ceil(settings.particleCount / 2),
                             angle: 120, // opposite angle
@@ -549,7 +627,7 @@
                             origin: { x: 1.0, y: 0.5 }
                         });
                     }
-    
+
                     if (Date.now() < end) {
                         requestAnimationFrame(frame);
                     }
@@ -560,36 +638,27 @@
         } catch (e) {
             console.warn('Confetti initialization failed. Skipping confetti animation.', e);
         }
-    }    
+    }
 
+    /**
+     * Shows the final quiz results, including correct/skipped counts and a progress message.
+     */
     function showResultsPage() {
-        // Show the results div
         $('#quiz-results').show();
-    
-        // Hide the loading animation
         hideLoadingAnimation();
-    
-        // Hide the skip and repeat buttons
         $('#ll-tools-skip-flashcard').hide();
         $('#ll-tools-repeat-flashcard').hide();
-    
+
         const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
-    
-        // Update the results dynamically
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#skipped-count').text(quizResults.skipped);
-    
-        // Ensure the "Restart Quiz" button is visible
         $('#restart-quiz').show();
-    
-        // Calculate the user's score percentage
+
         const correctRatio = (totalQuestions > 0) ? (quizResults.correctOnFirstTry / totalQuestions) : 0;
-    
-        // Select the title and message elements
         const $title = $('#quiz-results-title');
         const $message = $('#quiz-results-message');
-    
+
         // Decide on the encouragement message
         if (correctRatio === 1) {
             // Perfect score
@@ -606,25 +675,30 @@
             $message.css({
                 'font-size': '14px',
                 'margin-top': '10px',
-                'color': '#555', // Optional for styling
+                'color': '#555'
             });
             $message.show();
         }
-    
+
         // If the user scored 70% or better, trigger confetti
         if (correctRatio >= 0.7) {
             startConfetti();
         }
     }
 
+    /**
+     * Initializes the flashcard quiz with chosen categories, sets up event handlers,
+     * and starts the first quiz round.
+     *
+     * @param {Array} selectedCategories - The category names selected for the quiz.
+     */
     function initFlashcardWidget(selectedCategories) {
         categoryNames = selectedCategories;
         categoryNames = randomlySort(categoryNames);
-
         firstCategoryName = categoryNames[0];
         FlashcardLoader.loadResourcesForCategory(firstCategoryName);
 
-        // Disable scrolling
+        // Disable scrolling while quiz is open
         $('body').addClass('ll-tools-flashcard-open');
 
         // Event handler for the close button
@@ -648,15 +722,13 @@
         $('#ll-tools-skip-flashcard').off('click').on('click', function () {
             if (FlashcardAudio.getTargetAudioHasPlayed() && !userClickedSkip) {
                 userClickedSkip = true;
-
-                // Increment the skipped counter
                 quizResults.skipped += 1;
 
                 // Consider the skipped question as "wrong" when determining the number of options
                 wrongIndexes.push(-1);
 
-                isFirstRound = false; // Update the first round flag
-                startQuizRound(); // Move to the next question
+                isFirstRound = false;
+                startQuizRound();
             }
         });
 
@@ -669,10 +741,13 @@
         startQuizRound();
     }
 
+    /**
+     * Closes the flashcard quiz and restores page state.
+     */
     function closeFlashcard() {
         resetQuizState();
         categoryNames = [];
-        
+
         $('#ll-tools-flashcard').empty();
         $('#ll-tools-flashcard-header').hide();
         $('#ll-tools-flashcard-quiz-popup').hide();
@@ -680,17 +755,23 @@
         $('body').removeClass('ll-tools-flashcard-open');
     }
 
+    /**
+     * Restarts the quiz from the beginning.
+     */
     function restartQuiz() {
         resetQuizState();
         startQuizRound();
     }
 
+    /**
+     * Hides the results page section.
+     */
     function hideResultsPage() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
     }
 
-    // Expose functions globally
+    // Expose relevant functions globally
     window.initFlashcardWidget = initFlashcardWidget;
     window.getCategoryDisplayMode = getCategoryDisplayMode;
     window.getCurrentDisplayMode = getCurrentDisplayMode;
