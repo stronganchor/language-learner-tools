@@ -5,6 +5,12 @@
  * 
  * Bulk upload audio files & generate new word posts
  ***********************************************************************************/
+
+/**
+ * Shortcode handler for [audio_upload_form].
+ *
+ * @return string The HTML form for uploading audio files.
+ */
 function ll_audio_upload_form_shortcode() {
     if (!current_user_can('upload_files')) {
         return 'You do not have permission to upload files.';
@@ -83,7 +89,9 @@ function ll_audio_upload_form_shortcode() {
 }
 add_shortcode('audio_upload_form', 'll_audio_upload_form_shortcode');
 
-// Add bulk audio uploading tool to the 'All Words' page in the admin dashboard
+/**
+ * Adds bulk audio uploading tool to the 'All Words' page in the admin dashboard.
+ */
 function ll_add_bulk_audio_upload_tool_admin_page() {
     $screen = get_current_screen();
 
@@ -96,7 +104,9 @@ function ll_add_bulk_audio_upload_tool_admin_page() {
 }
 add_action('admin_notices', 'll_add_bulk_audio_upload_tool_admin_page');
 
-// Function to display a dropdown of available word sets based on user role
+/**
+ * Displays a dropdown of available word sets based on user role.
+ */
 function ll_display_wordsets_dropdown() {
     $user = wp_get_current_user();
     $wordsets = array();
@@ -120,7 +130,7 @@ function ll_display_wordsets_dropdown() {
         echo '<select name="selected_wordset">';
         echo '<option value="">Select a word set</option>';
         foreach ($wordsets as $wordset) {
-            echo '<option value="' . $wordset->term_id . '">' . $wordset->name . '</option>';
+            echo '<option value="' . esc_attr($wordset->term_id) . '">' . esc_html($wordset->name) . '</option>';
         }
         echo '</select>';
     } else {
@@ -128,7 +138,13 @@ function ll_display_wordsets_dropdown() {
     }
 }
 
-// Function to display categories with indentation
+/**
+ * Displays categories with indentation.
+ *
+ * @param string $taxonomy The taxonomy to retrieve categories from.
+ * @param int $parent The parent term ID.
+ * @param int $level The current indentation level.
+ */
 function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
     $categories = get_terms([
         'taxonomy'   => $taxonomy,
@@ -145,9 +161,9 @@ function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
     }
 }
 
-// Hook into the admin_post action for our form's submission
-add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
-
+/**
+ * Handles the processing of uploaded audio files.
+ */
 function ll_handle_audio_file_uploads() {
     // Security check: Ensure the current user can upload files
     if (!current_user_can('upload_files')) {
@@ -214,8 +230,7 @@ function ll_handle_audio_file_uploads() {
     // Add a link to go back to the previous page
     echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
 }
-
-// Helper Functions
+add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
 
 /**
  * Validates an uploaded audio file.
@@ -262,7 +277,7 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
  */
 function ll_upload_file($tmp_name, $original_name, $upload_path) {
     $sanitized_name = sanitize_file_name(basename($original_name));
-    $destination = $upload_path . '/' . $sanitized_name;
+    $destination = trailingslashit($upload_path) . $sanitized_name;
 
     // Check if the file already exists and modify the file name if it does
     $counter = 0;
@@ -271,7 +286,7 @@ function ll_upload_file($tmp_name, $original_name, $upload_path) {
     $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
     while (file_exists($destination)) {
         $sanitized_name = $original_base_name . '_' . $counter . $extension;
-        $destination = $upload_path . '/' . $sanitized_name;
+        $destination = trailingslashit($upload_path) . $sanitized_name;
         $counter++;
     }
 
@@ -432,7 +447,13 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
     }
 }
 
-// Find the best matching image for a given audio file name and category
+/**
+ * Finds the best matching image for a given audio file name and category.
+ *
+ * @param string $audio_file_name The name of the audio file.
+ * @param array  $categories The category IDs associated with the word.
+ * @return WP_Post|null The best matching image post or null if none found.
+ */
 function ll_find_matching_image($audio_file_name, $categories) {
     $image_posts = get_posts(array(
         'post_type' => 'word_images',
