@@ -1,4 +1,13 @@
+/**
+ * category-selection.js
+ *
+ * Handles category selection interactions for the flashcard widget.
+ */
+
 (function($) {
+    /**
+     * Displays the category selection popup with checkboxes for each category.
+     */
     function showCategorySelection() {
         var categories = llToolsFlashcardsData.categories;
         var preloadedCategory = llToolsFlashcardsData.firstCategoryName;
