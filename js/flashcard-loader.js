@@ -44,6 +44,8 @@
                 const onLoad = () => {
                     loadedResources[audioURL] = true;
                     cleanupAudio(audio);
+                    // Remove the reference to free memory
+                    audio = null; 
                     resolve();
                 };
 
@@ -60,8 +62,12 @@
         function cleanupAudio(audio) {
             if (!audio) return;
             audio.pause();
-            audio.src = '';
+            audio.removeAttribute('src');
             audio.load();
+            // If for any reason it was added to the DOM, remove it.
+            if (audio.parentNode) {
+                audio.parentNode.removeChild(audio);
+            }
         }
 
         /**
@@ -96,9 +102,8 @@
          *
          * @param {Array} wordData - Array of word objects.
          * @param {string} categoryName - The name of the category.
-         * @param {string} displayMode - The display mode ('image' or 'text').
          */
-        function processFetchedWordData(wordData, categoryName, displayMode) {
+        function processFetchedWordData(wordData, categoryName) {
             if (!window.wordsByCategory[categoryName]) {
                 window.wordsByCategory[categoryName] = [];
             }
@@ -136,7 +141,7 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        processFetchedWordData(response.data, categoryName, displayMode);
+                        processFetchedWordData(response.data, categoryName);
                         preloadCategoryResources(categoryName, callback);
                     } else {
                         console.error('Failed to load words for category:', categoryName);
@@ -151,32 +156,40 @@
         }
 
         /**
-         * Preloads resources for a category in chunks to optimize performance.
+         * Preloads resources for a category in chunks to optimize performance,
+         * but doesn't block the user from starting the quiz after the first chunk.
          *
          * @param {string} categoryName - The name of the category.
-         * @param {function} onComplete - Callback after preloading.
+         * @param {function} onFirstChunkLoaded - Callback invoked once the first chunk has finished loading.
          */
-        function preloadCategoryResources(categoryName, onComplete) {
+        function preloadCategoryResources(categoryName, onFirstChunkLoaded) {
             const words = window.wordsByCategory[categoryName] || [];
             const totalWords = words.length;
             if (totalWords === 0) {
-                if (typeof onComplete === 'function') onComplete();
+                if (typeof onFirstChunkLoaded === 'function') {
+                    onFirstChunkLoaded();
+                }
                 return;
             }
 
-            const chunkSize = (totalWords <= 30) ? totalWords : 10;
+            const chunkSize = (totalWords <= 30) ? totalWords : 20;
             let currentIndex = 0;
             const displayMode = window.getCategoryDisplayMode(categoryName);
 
+            let hasTriggeredFirstChunkLoad = false; // Ensure we only fire onFirstChunkLoaded once
+
             function loadNextChunk() {
                 if (currentIndex >= totalWords) {
-                    if (typeof onComplete === 'function') onComplete();
+                    // All chunks loaded, we're done.
+                    loadedCategories.push(categoryName);
                     return;
                 }
 
+                // Get the slice of words for this chunk
                 const end = Math.min(currentIndex + chunkSize, totalWords);
                 const chunk = words.slice(currentIndex, end);
 
+                // Preload images/audio in this chunk
                 const loadPromises = chunk.map((word) => {
                     return Promise.all([
                         loadAudio(word.audio),
@@ -184,12 +197,25 @@
                     ]);
                 });
 
+                // Once all items in the chunk are loaded (or failed), move to the next chunk
                 Promise.all(loadPromises).then(() => {
                     currentIndex = end;
+
+                    // After loading the first chunk, proceed with the callback function
+                    if (!hasTriggeredFirstChunkLoad) {
+                        hasTriggeredFirstChunkLoad = true;
+                        if (typeof onFirstChunkLoaded === 'function') {
+                            onFirstChunkLoaded();
+                        }
+                        
+                    }
+
+                    // Continue loading subsequent chunks in the background
                     loadNextChunk();
                 });
             }
 
+            // Start loading the first chunk
             loadNextChunk();
         }
 

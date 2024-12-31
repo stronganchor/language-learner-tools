@@ -60,6 +60,7 @@
     // Preload the first category
     if (llToolsFlashcardsData.categoriesPreselected) {
         FlashcardLoader.processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
+        preloadCategoryResources(firstCategoryName);
     }
 
     // Initialize the audio module
@@ -419,29 +420,34 @@
     }
     // Expose hideLoadingAnimation globally for use in flashcard-audio.js
     window.hideLoadingAnimation = hideLoadingAnimation;
-
+    
+    /**
+     * Starts or continues the quiz. If it's the first round, load the first 3 categories,
+     * but only wait for the first chunk of the first category before starting the quiz.
+     *
+     * @param {number} number_of_options - The initial number of options for the quiz.
+     */
     function startQuizRound(number_of_options) {
         if (isFirstRound) {
-            // Load resources for the first few categories
-            var initialCategories = categoryNames.slice(0, 3); // Adjust the number of initial categories as needed
-            var categoryLoadPromises = initialCategories.map(function (categoryName) {
-                return new Promise(function (resolve) {
-                    FlashcardLoader.loadResourcesForCategory(categoryName, resolve);
-                });
+            // Identify the first three categories to begin loading immediately
+            const firstThreeCategories = categoryNames.slice(0, 3);
+
+            // Load the first chunk of the first category, then proceed
+            FlashcardLoader.loadResourcesForCategory(firstThreeCategories[0], function() {
+                // Once the first chunk for this category is loaded, we can start the quiz
+                FlashcardOptions.initializeOptionsCount(number_of_options);
+                runQuizRound();
             });
-    
-            Promise.all(categoryLoadPromises)
-                .then(function() {
-                    FlashcardOptions.initializeOptionsCount(number_of_options);
-    
-                    // Continue with the first quiz round
-                    runQuizRound();
-                })
-                .catch(function(error) {
-                    console.error('Failed to load initial categories:', error);
-                });
+
+            // Preload the other two categories in the background (no callback)
+            if (firstThreeCategories.length > 1) {
+                for (let i = 1; i < firstThreeCategories.length; i++) {
+                    FlashcardLoader.loadResourcesForCategory(firstThreeCategories[i]);
+                }
+            }
+
         } else {
-            // Proceed directly with the quiz round
+            // If not the first round, proceed directly
             runQuizRound();
         }
     }
