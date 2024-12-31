@@ -4,6 +4,13 @@
  * 
  * This shortcode displays a flashcard widget for learning and practicing words.
  */
+
+/**
+ * Shortcode handler for [flashcard_widget].
+ *
+ * @param array $atts Shortcode attributes.
+ * @return string HTML content for the flashcard widget.
+ */
 function ll_tools_flashcard_widget($atts) {
     // Default settings for the shortcode
     $atts = shortcode_atts(array(
@@ -180,6 +187,13 @@ function ll_tools_flashcard_widget($atts) {
     return ob_get_clean();
 }
 
+/**
+ * Determines the display mode for a category based on word counts.
+ *
+ * @param string $categoryName The name of the category.
+ * @param int $min_word_count The minimum number of words required.
+ * @return string|null The display mode ('image' or 'text') or null if not determined.
+ */
 function ll_determine_display_mode($categoryName, $min_word_count = 6) {
     $image_words = ll_get_words_by_category($categoryName, 'image');
     $text_words = ll_get_words_by_category($categoryName, 'text');
@@ -201,7 +215,14 @@ function ll_determine_display_mode($categoryName, $min_word_count = 6) {
     }
 }
 
-// Helper function for gathering information on categories and filtering based on word count
+/**
+ * Processes categories by filtering based on translations and word counts.
+ *
+ * @param array $categories The array of category terms.
+ * @param bool $use_translations Whether to use translations.
+ * @param int $min_word_count The minimum number of words required.
+ * @return array The processed categories.
+ */
 function ll_process_categories($categories, $use_translations, $min_word_count = 6) {
     $processed_categories = [];
 
