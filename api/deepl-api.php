@@ -7,7 +7,7 @@
  * performing translation using the DeepL API, and handling API errors.
  */
 
-// Add an admin page under Tools for entering the API key (https://www.deepl.com/pro-api)
+ // Add an admin page under Tools for entering the API key (https://www.deepl.com/pro-api)
 function ll_add_deepl_api_key_page() {
     add_management_page(
         'DeepL API Key',
@@ -19,7 +19,9 @@ function ll_add_deepl_api_key_page() {
 }
 add_action('admin_menu', 'll_add_deepl_api_key_page');
 
-// Add content to the DeepL API page
+/**
+ * Renders the DeepL API Key admin page content.
+ */
 function ll_deepl_api_key_page_content() {
     ?>
     <div class="wrap">
@@ -41,13 +43,22 @@ function ll_deepl_api_key_page_content() {
     <?php
 }
 
-// Register the DeepL API key setting
+/**
+ * Registers the DeepL API key setting.
+ */
 function ll_register_deepl_api_key_setting() {
     register_setting('ll-deepl-api-key-group', 'll_deepl_api_key');
 }
 add_action('admin_init', 'll_register_deepl_api_key_setting');
 
-// Perform translation with DeepL API
+/**
+ * Translates text using the DeepL API.
+ *
+ * @param string $text The text to translate.
+ * @param string $translate_to_lang The target language code (e.g., 'EN').
+ * @param string $translate_from_lang The source language code (e.g., 'TR').
+ * @return string|null The translated text or null on failure.
+ */
 function translate_with_deepl($text, $translate_to_lang = 'EN', $translate_from_lang = 'TR') {
     $api_key = get_option('ll_deepl_api_key'); // Retrieve the API key from WordPress options
     if (empty($api_key)) {
@@ -85,9 +96,19 @@ function translate_with_deepl($text, $translate_to_lang = 'EN', $translate_from_
     return $json['translations'][0]['text'] ?? $text; // Return the translation or original text if something goes wrong
 }
 
-// Get the translation languages from the DeepL API
+/**
+ * Retrieves the available language names from the DeepL API.
+ *
+ * @param bool $no_parentheses Whether to remove parentheses from language names.
+ * @param string $type The type of languages to retrieve ('source' or 'target').
+ * @return array|null An array of language names or null on failure.
+ */
 function get_deepl_language_names($no_parentheses = false, $type = 'target') {
-    $json = get_deepl_language_json();
+    $json = get_deepl_language_json($type);
+
+    if ($json === null) {
+        return null;
+    }
 
     // Remove parentheses and duplicate entries if no_parentheses is true
     if ($no_parentheses) {
@@ -103,7 +124,11 @@ function get_deepl_language_names($no_parentheses = false, $type = 'target') {
     }, $json);
 }
 
-// Get an array with keys as language codes and values as language names
+/**
+ * Retrieves an associative array of language codes and their names from the DeepL API.
+ *
+ * @return array|null An associative array with language codes as keys and names as values, or null on failure.
+ */
 function get_deepl_language_codes() {
     $json = get_deepl_language_json();
     if ($json === null) {
@@ -113,7 +138,12 @@ function get_deepl_language_codes() {
     return array_column($json, 'name', 'language');
 }
 
-// Get the full language json from the DeepL API
+/**
+ * Retrieves the full language JSON from the DeepL API and caches it.
+ *
+ * @param string $type The type of languages to retrieve ('source' or 'target').
+ * @return array|null The decoded JSON response or null on failure.
+ */
 function get_deepl_language_json($type = 'target') {
     $transient_key = 'deepl_language_json_' . $type;
     $cached_json = get_transient($transient_key);
@@ -154,7 +184,11 @@ function get_deepl_language_json($type = 'target') {
     return $json;
 }
 
-// Create the [test_deepl_api] shortcode for testing the DeepL API
+/**
+ * Shortcode to test the DeepL API functionality.
+ *
+ * @return string HTML content with test results.
+ */
 function test_deepl_api_shortcode() {
     $output = '';
     
@@ -171,7 +205,7 @@ function test_deepl_api_shortcode() {
     if ($translated_text === null) {
         $output .= 'Translation failed. Please check your API key.<br>';
     }
-    $output .= 'Translated text from Turkish: ' . $translated_text . '<br>';
+    $output .= 'Translated text from Turkish: ' . esc_html($translated_text) . '<br>';
     return $output;
 }
 add_shortcode('test_deepl_api', 'test_deepl_api_shortcode');
