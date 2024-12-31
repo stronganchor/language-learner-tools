@@ -5,6 +5,14 @@
  * 
  * This shortcode displays a word with an interactive audio player icon.
  **************************/
+
+/**
+ * Shortcode handler for [word_audio].
+ *
+ * @param array $atts Shortcode attributes.
+ * @param string|null $content The content within the shortcode.
+ * @return string The HTML output for the word audio.
+ */
 function ll_word_audio_shortcode($atts = [], $content = null) {
     // Ensure content is not empty
     if (empty($content)) {
@@ -52,7 +60,6 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return do_shortcode($original_content);
     }
 
-	
 	$english_meaning = '';
 	
     // Retrieve the English meaning if needed
@@ -67,7 +74,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     $audio_id = uniqid('audio_');
 
 	$play_icon = '<img src="' . plugin_dir_url(__FILE__) . 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
-	
+
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
     if (!empty($audio_file)) {
@@ -84,7 +91,9 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 }
 add_shortcode('word_audio', 'll_word_audio_shortcode');
 
-// Enqueue JS script for the word audio shortcode
+/**
+ * Enqueues the JavaScript necessary for the word_audio shortcode.
+ */
 function ll_enqueue_word_audio_js() {    
     ll_enqueue_asset_by_timestamp('js/word-audio.js', 'll-word-audio', array(), true);
 
@@ -95,7 +104,12 @@ function ll_enqueue_word_audio_js() {
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
 
-// When a word_audio shortcode has no matching audio, cache this information for displaying to the admin
+/**
+ * Caches instances of missing audio for administrator users.
+ *
+ * @param string $word The word with missing audio.
+ * @param int    $post_id The post ID associated with the word.
+ */
 function ll_cache_missing_audio_instance($word, $post_id) {
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
 
@@ -105,7 +119,11 @@ function ll_cache_missing_audio_instance($word, $post_id) {
     }
 }
 
-// If a word's matching audio was missing before but now we've found a match, remove it from the missing audio metadata
+/**
+ * Removes a word from the missing audio cache.
+ *
+ * @param string $word The word to remove from the cache.
+ */
 function ll_remove_missing_audio_instance($word) {
     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
 
@@ -115,7 +133,13 @@ function ll_remove_missing_audio_instance($word) {
     }
 }
 
-// Custom function to compare strings character by character
+/**
+ * Compares two strings character by character.
+ *
+ * @param string $str1 The first string.
+ * @param string $str2 The second string.
+ * @return bool True if strings are identical, false otherwise.
+ */
 function ll_strcmp($str1, $str2) {
     $len1 = strlen($str1);
     $len2 = strlen($str2);
@@ -133,8 +157,13 @@ function ll_strcmp($str1, $str2) {
     return true;
 }
 
-
-// Look up word post by the exact title, being sensitive of special characters
+/**
+ * Finds a post by its exact title, sensitive to special characters.
+ *
+ * @param string $title The title to search for.
+ * @param string $post_type The post type to search within.
+ * @return WP_Post|null The matched post or null if not found.
+ */
 function ll_find_post_by_exact_title($title, $post_type = 'words') {
     $query_args = array(
         'post_type' => $post_type,
@@ -164,7 +193,12 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
     return null;
 }
 
-// Set a Turkish text to only have the first character capitalized.
+/**
+ * Normalizes the case of a string based on target language settings.
+ *
+ * @param string $text The text to normalize.
+ * @return string The normalized text.
+ */
 function ll_normalize_case($text) {
     $target_language = get_option('ll_target_language');
 	if ($target_language === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
