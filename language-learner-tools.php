@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: * Language Learner Tools
+ * Plugin Name: Language Learner Tools
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
@@ -69,22 +69,31 @@ if (!function_exists('transcribe_audio_to_text')) {  // Only include if the func
 require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-	'https://github.com/stronganchor/language-learner-tools',
-	__FILE__,
-	'language-learner-tools'
+    'https://github.com/stronganchor/language-learner-tools',
+    __FILE__,
+    'language-learner-tools'
 );
 $myUpdateChecker->setBranch('main');
 //Optional: If you're using a private repository, specify the access token like this:
 //$myUpdateChecker->setAuthentication('your-token-here');
 
-// Include jQuery UI library for autocomplete
-function ll_enqueue_scripts() {
+    
+/**
+ * Enqueues the jQuery UI scripts and styles.
+ */
+function ll_enqueue_jquery_ui() {
     wp_enqueue_script('jquery-ui-autocomplete');
     wp_enqueue_style('jquery-ui-css', 'https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
 }
-add_action('wp_enqueue_scripts', 'll_enqueue_scripts');
 
-// Helper function for enqueueing assets using the file timestamp as the version
+/**
+ * Helper function for enqueueing assets using the file timestamp as the version.
+ *
+ * @param string $relative_path The relative path to the asset file.
+ * @param string $handle The unique handle for the asset.
+ * @param array $dependencies An array of dependencies.
+ * @param bool $include_in_footer Whether to include the script in the footer.
+ */
 function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = array(), $include_in_footer = false) {
     $extension = pathinfo($relative_path, PATHINFO_EXTENSION);
     $asset_file = plugins_url($relative_path, __FILE__);
@@ -101,13 +110,17 @@ function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = 
     }
 }
 
-// Enqueue plugin styles
+/**
+ * Enqueues the main plugin styles.
+ */
 function ll_tools_enqueue_assets() {
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style');
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
 
-// Enqueue dashboard style for non-admins
+/**
+ * Enqueues dashboard styles for non-admin users.
+ */
 function ll_tools_enqueue_styles_for_non_admins() {
     // Ensure the user does not have the Administrator role
     if (current_user_can('manage_options')) {
@@ -117,13 +130,17 @@ function ll_tools_enqueue_styles_for_non_admins() {
 }
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_styles_for_non_admins');
 
-
-// Load translations for internationalization
+/**
+ * Loads the plugin text domain for internationalization.
+ */
 function ll_tools_load_textdomain() {
     load_plugin_textdomain('ll-tools-text-domain', false, basename(dirname(__FILE__)) . '/languages');
 }
 add_action('plugins_loaded', 'll_tools_load_textdomain');
 
+/**
+ * Enqueues the confetti script in the header.
+ */
 function ll_tools_enqueue_confetti_script() {
     // Print the canvas-confetti script tag in the header
     ?>
@@ -131,5 +148,4 @@ function ll_tools_enqueue_confetti_script() {
     <?php
 }
 add_action('wp_head', 'll_tools_enqueue_confetti_script');
-
 ?>
