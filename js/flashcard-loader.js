@@ -1,7 +1,13 @@
+/**
+ * flashcard-loader.js
+ *
+ * Handles loading of resources (audio, images) for flashcards.
+ */
 (function($) {
     /**
      * FlashcardLoader Module
-     * Handles loading of resources (audio, images) for flashcards.
+     * 
+     * Manages the loading of audio and image resources for flashcards, ensuring efficient preloading and organization by category.
      */
     const FlashcardLoader = (function() {
         // Tracks loaded categories and resources
@@ -22,7 +28,7 @@
         }
 
         /**
-         * Loads an audio file.
+         * Loads an audio file and marks it as loaded.
          *
          * @param {string} audioURL - The URL of the audio file.
          * @returns {Promise} Resolves when the audio is loaded or fails.
@@ -59,7 +65,7 @@
         }
 
         /**
-         * Loads an image file.
+         * Loads an image file and marks it as loaded.
          *
          * @param {string} imageURL - The URL of the image file.
          * @returns {Promise} Resolves when the image is loaded or fails.
@@ -216,7 +222,6 @@
             ]);
         }
 
-        // Expose functions and variables as needed
         return {
             loadedCategories,
             loadedResources,

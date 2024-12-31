@@ -1,5 +1,14 @@
+/**
+ * flashcard-options.js
+ *
+ * Manages the configuration and dynamic adjustment of flashcard options based on user interactions and quiz performance.
+ */
 (function($) {
-    // Options Module
+    /**
+     * FlashcardOptions Module
+     *
+     * Handles the logic for determining the number of options per flashcard round, enforcing limits, and adjusting based on user performance.
+     */
     const FlashcardOptions = (function() {
         // Constants for option limits
         const MINIMUM_NUMBER_OF_OPTIONS = 2;
@@ -13,7 +22,13 @@
         let defaultNumberOfOptions = 2; // Default value for number of options
         let categoryOptionsCount = {}; // Tracks the number of options for each category
 
-        // Helper: Check a value against min/max constraints
+        /**
+         * Ensures the number of options is within the defined minimum and maximum limits.
+         *
+         * @param {number} optionsCount - The desired number of options.
+         * @param {string} categoryName - The name of the category.
+         * @returns {number} The adjusted number of options.
+         */
         function checkMinMax(optionsCount, categoryName) {
             let maxOptionsCount = MAXIMUM_NUMBER_OF_OPTIONS;
             if (llToolsFlashcardsData.displayMode === "text") {
@@ -26,7 +41,11 @@
             return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxOptionsCount);
         }
 
-        // Helper: Initialize option counts for all categories
+        /**
+         * Initializes the option counts for all categories based on the default number of options.
+         *
+         * @param {number} [numberOfOptions] - Optional initial number of options to set.
+         */
         function initializeOptionsCount(numberOfOptions) {
             if (numberOfOptions) {
                 defaultNumberOfOptions = numberOfOptions;
@@ -36,7 +55,11 @@
             });
         }
 
-        // Helper: Set the initial option count for a specific category
+        /**
+         * Sets the initial option count for a specific category.
+         *
+         * @param {string} categoryName - The name of the category.
+         */
         function setInitialOptionsCount(categoryName) {
             let existingCount = categoryOptionsCount[categoryName];
             if (existingCount && existingCount === checkMinMax(existingCount, categoryName)) {
@@ -53,16 +76,23 @@
             }
         }
 
-        // Calculate number of options dynamically based on previous answers
+        /**
+         * Calculates the number of options for the current round based on user performance.
+         *
+         * @param {Array} wrongIndexes - Array tracking indexes of wrong answers.
+         * @param {boolean} isFirstRound - Indicates if it's the first round of the quiz.
+         * @param {string} currentCategoryName - The name of the current category.
+         * @returns {number} The calculated number of options for the round.
+         */
         function calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName) {
             let numberOfOptions = categoryOptionsCount[currentCategoryName];
             numberOfOptions = checkMinMax(numberOfOptions, currentCategoryName);
 
             if (wrongIndexes.length > 0) {
-                // Show fewer options if the user got it wrong last round
+                // Reduce the number of options if the user got answers wrong
                 numberOfOptions--;
             } else if (!isFirstRound) {
-                // Add more options if the user got the last card right on the first try
+                // Increase the number of options if the user consistently answers correctly
                 numberOfOptions++;
             }
 
@@ -71,7 +101,11 @@
             return numberOfOptions;
         }
 
-        // Determine if more cards can be added to the current round
+        /**
+         * Determines whether more flashcard options can be added based on the current layout constraints.
+         *
+         * @returns {boolean} True if more cards can be added; otherwise, false.
+         */
         function canAddMoreCards() {
             const cards = $('.flashcard-container');
             if (cards.length < MINIMUM_NUMBER_OF_OPTIONS) {
@@ -83,12 +117,12 @@
             const containerHeight = container.height();
 
             const lastCard = cards.last();
-            cardWidth = MAX_CARD_PIXELS;
+            let cardWidth = MAX_CARD_PIXELS; // Changed to let to allow reassignment
             const cardHeight = MAX_CARD_PIXELS;
 
-            displayMode = window.getCurrentDisplayMode();
+            const displayMode = window.getCurrentDisplayMode();
             if (displayMode === 'text') {
-                cardWidth = MAX_TEXT_CARD_WIDTH;
+                cardWidth = MAX_TEXT_CARD_WIDTH; // Reassigning cardWidth based on display mode
             }
 
             const containerStyle = window.getComputedStyle(container[0]);
@@ -119,21 +153,7 @@
             initializeOptionsCount,
             calculateNumberOfOptions,
             canAddMoreCards,
-            get categoryOptionsCount() {
-                return categoryOptionsCount;
-            },
-            get maxCardWidth() {
-                return maxCardWidth;
-            },
-            set maxCardWidth(value) {
-                maxCardWidth = value;
-            },
-            get maxCardHeight() {
-                return maxCardHeight;
-            },
-            set maxCardHeight(value) {
-                maxCardHeight = value;
-            },
+            categoryOptionsCount,
         };
     })();
 
