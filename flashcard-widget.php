@@ -195,24 +195,26 @@ function ll_tools_flashcard_widget($atts) {
  * @return string|null The display mode ('image' or 'text') or null if not determined.
  */
 function ll_determine_display_mode($categoryName, $min_word_count = 6) {
-    $image_words = ll_get_words_by_category($categoryName, 'image');
-    $text_words = ll_get_words_by_category($categoryName, 'text');
+    $image_count = count(ll_get_words_by_category($categoryName, 'image'));
+    $text_count = count(ll_get_words_by_category($categoryName, 'text'));
 
-    $image_count = count($image_words);
-    $text_count = count($text_words);
-
+    // If both image and text counts are below the minimum, return null
     if ($image_count < $min_word_count && $text_count < $min_word_count) {
         return null;
     }
 
-    if ($image_count >= $min_word_count && $text_count < $min_word_count) {
-        return 'image';
-    } elseif ($text_count >= $min_word_count && $image_count < $min_word_count) {
+    // If only image_count is below the minimum, default to text
+    if ($image_count < $min_word_count) {
         return 'text';
-    } else {
-        // Both exceed min_word_count; choose the one with more words
-        return ($image_count >= $text_count) ? 'image' : 'text';
     }
+
+    // If only text_count is below the minimum, default to image
+    if ($text_count < $min_word_count) {
+        return 'image';
+    }
+
+    // Both exceed the minimum; pick whichever has more words
+    return ($image_count >= $text_count) ? 'image' : 'text';
 }
 
 /**
