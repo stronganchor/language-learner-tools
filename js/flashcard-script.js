@@ -338,6 +338,9 @@
                 alt: wordData.title,
                 class: 'quiz-image'
             }).on('load', function() {
+                // Determine if image is landscape or portrait based on dimensions
+                // We use a fudge factor (fudgePixels) to account for minor discrepancies
+                // Adds 'landscape' or 'portrait' class accordingly for CSS styling
                 if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
                     container.addClass('landscape');
                 } else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
@@ -351,7 +354,7 @@
                 class: 'quiz-translation'
             });
 
-            // Check text length and add long-text syling if needed
+            // Check text length and add long-text styling if needed
             if (wordData.translation.length > 20) {
                 translationDiv.addClass('long-text');
             }
