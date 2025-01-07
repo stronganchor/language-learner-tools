@@ -1,6 +1,10 @@
 <?php
 
-// Register the "language" taxonomy for the "words" custom post type
+/**
+ * Registers the "language" taxonomy for the "words" custom post type.
+ *
+ * @return void
+ */
 function ll_register_language_taxonomy() {
     $labels = array(
         'name' => __('Languages', 'll-tools-text-domain'),

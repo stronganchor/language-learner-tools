@@ -1,4 +1,9 @@
 <?php
+/**
+ * Sets up the "Manage Word Sets" admin page template.
+ *
+ * @return void
+ */
 function ll_manage_wordsets_page_template() {
     $page_slug = 'manage-word-sets';
     $existing_page = get_page_by_path($page_slug, OBJECT, 'page');

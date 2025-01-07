@@ -2,6 +2,8 @@
 
 /**
  * Registers the "word-category" taxonomy for "words" and "word_images" post types.
+ *
+ * @return void
  */
 function ll_tools_register_word_category_taxonomy() {
     $labels = [
@@ -39,6 +41,8 @@ add_action('init', 'll_tools_register_word_category_taxonomy');
 
 /**
  * Initializes custom meta fields for the "word-category" taxonomy.
+ *
+ * @return void
  */
 function ll_tools_initialize_word_category_meta_fields() {
     // Add 'Translated Name' field for adding new categories
@@ -132,10 +136,10 @@ function ll_tools_is_category_translation_enabled() {
 }
 
 /**
- * Determines the deepest-level category or categories for a given post.
- * 
+ * Determines the deepest-level categories for a given post.
+ *
  * @param int $post_id The post ID.
- * @return array An array of category objects representing the deepest-level categories.
+ * @return array An array of deepest-level category objects.
  */
 function ll_get_deepest_categories($post_id) {
     $categories = wp_get_post_terms($post_id, 'word-category');

@@ -7,7 +7,11 @@
  */
 
 
-// Register the "words" custom post type
+/**
+ * Registers the "words" custom post type.
+ *
+ * @return void
+ */
 function ll_tools_register_words_post_type() {
 
     $labels = [
@@ -53,7 +57,11 @@ add_action( 'init', 'll_tools_register_words_post_type', 0 );
 // Hook to add the meta boxes
 add_action('add_meta_boxes', 'll_tools_add_similar_words_metabox');
 
-// Function to add the meta box
+/**
+ * Adds the Similar Words meta box to the "words" post type.
+ *
+ * @return void
+ */
 function ll_tools_add_similar_words_metabox() {
     add_meta_box(
         'similar_words_meta', // ID of the meta box

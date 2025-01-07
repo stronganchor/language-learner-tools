@@ -1,6 +1,10 @@
 <?php
 
-// Create the "Word Set Manager" user role
+/**
+ * Creates the "Word Set Manager" user role with specific capabilities.
+ *
+ * @return void
+ */
 function ll_create_wordset_manager_role() {
     add_role(
         'wordset_manager',
@@ -19,7 +23,11 @@ function ll_create_wordset_manager_role() {
 }
 add_action('init', 'll_create_wordset_manager_role');
 
-// Only allow access to certain admin menus for the "Word Set Manager" role
+/**
+ * Customizes the admin menu for users with the "Word Set Manager" role.
+ *
+ * @return void
+ */
 function customize_admin_menu_for_wordset_manager() {
     if (current_user_can('wordset_manager')) { 
         global $menu;
@@ -38,7 +46,11 @@ function customize_admin_menu_for_wordset_manager() {
 }
 add_action('admin_menu', 'customize_admin_menu_for_wordset_manager', 999);
 
-// Hide the admin bar on site pages for non-admin users
+/**
+ * Hides the admin bar for non-administrator users.
+ *
+ * @return bool False to hide the admin bar for non-admins.
+ */
 function hide_admin_bar_for_non_admins() {
     if (!current_user_can('administrator')) {
         return false;
