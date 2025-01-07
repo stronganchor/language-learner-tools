@@ -647,6 +647,16 @@
      * Shows the final quiz results, including correct/skipped counts and a progress message.
      */
     function showResultsPage() {
+
+        // Check if no results were found
+        if (totalQuestions === 0) {
+            $('#quiz-results-title').text(llToolsFlashcardsMessages.somethingWentWrong);
+            $('#quiz-results-message').hide();
+            $('#quiz-results').show();
+            $('#restart-quiz').hide();
+            FlashcardAudio.playFeedback(false, null, null);
+            return;
+        }
         $('#quiz-results').show();
         hideLoadingAnimation();
         $('#ll-tools-skip-flashcard').hide();
