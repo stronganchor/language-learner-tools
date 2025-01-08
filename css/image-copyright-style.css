@@ -1,0 +1,66 @@
+/* Basic grid layout for Word Images */
+.ll-image-copyright-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.ll-image-copyright-grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: #fdfdfd;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.ll-image-wrapper {
+    width: 150px;
+    height: 150px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.ll-image-wrapper img {
+    width: 100%;
+    height: auto;
+    object-fit: cover; /* or contain, whichever you prefer */
+}
+
+.ll-word-image-title {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.ll-copyright-info {
+    font-size: 0.85rem;
+    color: #777;
+}
+
+/* Pagination styling */
+.ll-grid-pagination {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.ll-grid-pagination .page-numbers {
+    display: inline-block;
+    margin: 0 3px;
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+    color: #555;
+    text-decoration: none;
+}
+.ll-grid-pagination .page-numbers.current {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+.ll-grid-pagination .page-numbers:hover {
+    border-color: #0073aa;
+    color: #0073aa;
+}
