@@ -57,6 +57,37 @@ function ll_handle_image_file_uploads() {
         wp_die('You do not have permission to upload files.');
     }
 
+    /**
+     * Extracts copyright information from EXIF and from any XMP packet data.
+     *
+     * @param string $file_path The path to the uploaded file on the server.
+     * @return string The combined copyright information.
+     */
+    function ll_extract_copyright_info($file_path) {
+        $extracted = '';
+        $exif_data = @exif_read_data($file_path, 'ANY_TAG', true);
+        if (!empty($exif_data['IFD0']['Copyright'])) {
+            $extracted = trim($exif_data['IFD0']['Copyright']);
+        }
+        $contents = @file_get_contents($file_path);
+        if ($contents !== false) {
+            $xmp_start = strpos($contents, '<?xpacket begin=');
+            if ($xmp_start !== false) {
+                $xmp_end = strpos($contents, '<?xpacket end="', $xmp_start);
+                if ($xmp_end !== false) {
+                    $xmp_data = substr($contents, $xmp_start, $xmp_end - $xmp_start);
+                    if (preg_match('/<dc:rights>.*?<rdf:li[^>]*>(.*?)<\/rdf:li>.*?<\/dc:rights>/s', $xmp_data, $m)) {
+                        $in_xmp = trim($m[1]);
+                        if ($in_xmp !== '') {
+                            $extracted = $extracted ? $extracted . ' | ' . $in_xmp : $in_xmp;
+                        }
+                    }
+                }
+            }
+        }
+        return $extracted;
+    }
+
     // Prepare for file upload handling
     $selected_categories = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
     $upload_dir = wp_upload_dir();
@@ -85,15 +116,14 @@ function ll_handle_image_file_uploads() {
         $upload_path = trailingslashit($upload_dir['path']) . $file_name;
 
         // Check if the file already exists and modify the file name if it does
-        $counter = 0; // Initialize a counter for the filename suffix
+        $counter = 0;
         $file_info = pathinfo($file_name);
-        $original_base_name = $file_info['filename']; // Filename without extension
-        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : ''; // Include the dot
-        // Loop to find a new filename if the current one already exists
+        $original_base_name = $file_info['filename'];
+        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
         while (file_exists($upload_path)) {
             $file_name = $original_base_name . '_' . $counter . $extension;
             $upload_path = trailingslashit($upload_dir['path']) . $file_name;
-            $counter++; // Increment the counter for the next round if needed
+            $counter++;
         }
 
         if (move_uploaded_file($tmp_name, $upload_path)) {
@@ -114,6 +144,16 @@ function ll_handle_image_file_uploads() {
                 ]);
 
                 if ($post_id && !is_wp_error($post_id)) {
+                    // Extract and store any discovered copyright info
+                    $copyright_data = ll_extract_copyright_info($upload_path);
+                    if (!empty($copyright_data)) {
+                        update_post_meta(
+                            $post_id,
+                            'copyright_info',
+                            sanitize_text_field($copyright_data)
+                        );
+                    }
+
                     set_post_thumbnail($post_id, $attachment_id);
 
                     // Assign selected categories to the post
@@ -145,4 +185,3 @@ function ll_handle_image_file_uploads() {
     exit;
 }
 add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
-?>
