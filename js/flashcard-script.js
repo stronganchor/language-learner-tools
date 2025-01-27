@@ -647,6 +647,7 @@
      * Shows the final quiz results, including correct/skipped counts and a progress message.
      */
     function showResultsPage() {
+        const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
 
         // Check if no results were found
         if (totalQuestions === 0) {
@@ -662,7 +663,6 @@
         $('#ll-tools-skip-flashcard').hide();
         $('#ll-tools-repeat-flashcard').hide();
 
-        const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#skipped-count').text(quizResults.skipped);
