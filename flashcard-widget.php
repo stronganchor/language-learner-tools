@@ -94,6 +94,9 @@ function ll_tools_flashcard_widget($atts) {
     ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
+    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', array(
+        'maxOptionsOverride' => get_option('ll_max_options_override', 9),
+    ));
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 

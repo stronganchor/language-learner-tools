@@ -12,7 +12,7 @@
     const FlashcardOptions = (function() {
         // Constants for option limits
         const MINIMUM_NUMBER_OF_OPTIONS = 2;
-        const MAXIMUM_NUMBER_OF_OPTIONS = 9;
+        const MAXIMUM_NUMBER_OF_OPTIONS = (llToolsFlashcardsData.maxOptionsOverride) ? parseInt(llToolsFlashcardsData.maxOptionsOverride, 10) : 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
         const MAX_CARD_PIXELS = 150;

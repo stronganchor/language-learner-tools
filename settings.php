@@ -22,8 +22,21 @@ function ll_register_settings() {
     register_setting('language-learning-tools-options', 'll_translation_language');
     register_setting('language-learning-tools-options', 'll_enable_category_translation');
     register_setting('language-learning-tools-options', 'll_category_translation_source');
+    register_setting('language-learning-tools-options', 'll_max_options_override', [
+        'type' => 'integer',
+        'sanitize_callback' => 'll_sanitize_max_options_override',
+        'default' => 9,
+    ]);
 }
 add_action('admin_init', 'll_register_settings');
+
+function ll_sanitize_max_options_override($value) {
+    $value = absint($value);
+    if ($value < 2) {
+        $value = 9;
+    }
+    return $value;
+}
 
 function ll_render_settings_page() {
     $target_language = get_option('ll_target_language', '');
@@ -65,6 +78,13 @@ function ll_render_settings_page() {
                     <td>
                         <input type="checkbox" name="ll_enable_category_translation" id="ll_enable_category_translation" value="1" <?php checked(1, $enable_translation, true); ?> />
                         <p class="description">Check this box to enable automatic or manual translations of category names.</p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Max Number of Options:</th>
+                    <td>
+                        <input type="number" name="ll_max_options_override" id="ll_max_options_override" value="<?php echo esc_attr(get_option('ll_max_options_override', 9)); ?>" min="2" />
+                        <p class="description">Set the maximum number of options in flashcards. Minimum is 2.</p>
                     </td>
                 </tr>
                 <tr valign="top">
