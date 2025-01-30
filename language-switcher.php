@@ -1,6 +1,8 @@
 <?php
 
-// Switch the site language to match the browser's language
+/**
+ * Automatically switches the site language based on the user's browser language settings.
+ */
 function switch_language() {
     if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
         return;
