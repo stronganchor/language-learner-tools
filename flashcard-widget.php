@@ -129,6 +129,7 @@ function ll_tools_flashcard_widget($atts) {
         'categoriesPreselected' => $categoriesPreselected,
         'firstCategoryData' => $words_data,
         'firstCategoryName' => $firstCategoryName,
+        'imageSize' => get_option('ll_flashcard_image_size', 'small'),
     ));
 
 	// Localize translatable strings for results messages

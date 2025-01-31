@@ -27,6 +27,11 @@ function ll_register_settings() {
         'sanitize_callback' => 'll_sanitize_max_options_override',
         'default' => 9,
     ]);
+    register_setting('language-learning-tools-options', 'll_flashcard_image_size', [
+        'type' => 'string',
+        'default' => 'small',
+        'sanitize_callback' => 'sanitize_text_field',
+    ]);
 }
 add_action('admin_init', 'll_register_settings');
 
@@ -85,6 +90,19 @@ function ll_render_settings_page() {
                     <td>
                         <input type="number" name="ll_max_options_override" id="ll_max_options_override" value="<?php echo esc_attr(get_option('ll_max_options_override', 9)); ?>" min="2" />
                         <p class="description">Set the maximum number of options in flashcards. Minimum is 2.</p>
+                        <tr valign="top">
+                            <th scope="row">Flashcard Image Size:</th>
+                            <td>
+                                <?php 
+                                $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
+                                ?>
+                                <select name="ll_flashcard_image_size" id="ll_flashcard_image_size">
+                                    <option value="small" <?php selected($flashcard_image_size, 'small'); ?>>Small (150×150)</option>
+                                    <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>>Medium (200×200)</option>
+                                    <option value="large" <?php selected($flashcard_image_size, 'large'); ?>>Large (250×250)</option>
+                                </select>
+                            </td>
+                        </tr>
                     </td>
                 </tr>
                 <tr valign="top">

@@ -326,7 +326,7 @@
     function appendWordToContainer(wordData) {
         const displayMode = getCurrentDisplayMode();
         let container = $('<div>', {
-            class: 'flashcard-container',
+            class: 'flashcard-container flashcard-size-' + llToolsFlashcardsData.imageSize,
             'data-word': wordData.title
         }).hide();
 

@@ -216,10 +216,6 @@ body.ll-tools-flashcard-open {
     border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
-    width: 150px;
-    height: 150px;
-    max-width: 150px;
-    max-height: 150px;
 }
 
 .flashcard-container img {
@@ -228,17 +224,11 @@ body.ll-tools-flashcard-open {
 
 /* Modifier Classes for Flashcard Orientation */
 .flashcard-container.landscape {
-    width: 150px;
     height: auto;
-    max-width: 150px;
-    max-height: 150px;
 }
 
 .flashcard-container.portrait {
-    width: 100%;
     height: auto;
-    max-width: 150px;
-    max-height: 200px;
 }
 
 .flashcard-container.text-based {
@@ -319,4 +309,26 @@ body.ll-tools-flashcard-open {
 /* Hide the audio player */
 #ll-tools-flashcard audio {
     display: none;
+}
+
+/* New Classes for Flashcard Sizes */
+.flashcard-size-small {
+    width: 150px;
+    height: 150px;
+    max-width: 150px;
+    max-height: 150px;
+}
+
+.flashcard-size-medium {
+    width: 200px;
+    height: 200px;
+    max-width: 200px;
+    max-height: 200px;
+}
+
+.flashcard-size-large {
+    width: 250px;
+    height: 250px;
+    max-width: 250px;
+    max-height: 250px;
 }
