@@ -94,9 +94,7 @@ function ll_tools_flashcard_widget($atts) {
     ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
-    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', array(
-        'maxOptionsOverride' => get_option('ll_max_options_override', 9),
-    ));
+    
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 
@@ -119,8 +117,8 @@ function ll_tools_flashcard_widget($atts) {
     // Get the current user's ID and quiz state
     $user_id = get_current_user_id();
 
-    // Preload words data to the page and include the mode
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', array(
+    // Data to be localized for use in JavaScript
+    $localized_data = array(
         'mode' => $atts['mode'], // Pass the mode to JavaScript
         'plugin_dir' => plugin_dir_url(__FILE__),
         'ajaxurl' => admin_url('admin-ajax.php'),
@@ -130,7 +128,12 @@ function ll_tools_flashcard_widget($atts) {
         'firstCategoryData' => $words_data,
         'firstCategoryName' => $firstCategoryName,
         'imageSize' => get_option('ll_flashcard_image_size', 'small'),
-    ));
+        'maxOptionsOverride' => get_option('ll_max_options_override', 9),
+    );
+
+    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
+
 
 	// Localize translatable strings for results messages
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(

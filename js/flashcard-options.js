@@ -15,12 +15,27 @@
         const MAXIMUM_NUMBER_OF_OPTIONS = (llToolsFlashcardsData.maxOptionsOverride) ? parseInt(llToolsFlashcardsData.maxOptionsOverride, 10) : 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
-        const MAX_CARD_PIXELS = 150;
         const MAX_TEXT_CARD_WIDTH = 250;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
         let categoryOptionsCount = {}; // Tracks the number of options for each category
+
+        /**
+         * Helper function to get the maximum card size based on the plugin's imageSize setting.
+         *
+         * @returns {number} The maximum card size in pixels.
+         */
+        function getMaxCardSize() {
+            switch (llToolsFlashcardsData.imageSize) {
+                case 'medium':
+                    return 200;
+                case 'large':
+                    return 250;
+                default:
+                    return 150;  // small
+            }
+        }
 
         /**
          * Ensures the number of options is within the defined minimum and maximum limits.
@@ -117,8 +132,9 @@
             const containerHeight = container.height();
 
             const lastCard = cards.last();
-            let cardWidth = MAX_CARD_PIXELS; // Changed to let to allow reassignment
-            const cardHeight = MAX_CARD_PIXELS;
+            let size = getMaxCardSize();
+            let cardWidth = size;
+            const cardHeight = size;
 
             const displayMode = window.getCurrentDisplayMode();
             if (displayMode === 'text') {
