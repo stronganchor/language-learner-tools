@@ -336,7 +336,6 @@
             }).on('load', function() {
                 // Determine if image is landscape or portrait based on dimensions
                 // We use a fudge factor (fudgePixels) to account for minor discrepancies
-                // Adds 'landscape' or 'portrait' class accordingly for CSS styling
                 if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
                     container.addClass('landscape');
                 } else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
@@ -350,9 +349,15 @@
                 class: 'quiz-text'
             });
     
-            if (wordData.label && wordData.label.length > 20) {
-                labelDiv.addClass('long-text'); 
+            // If text is very short (1-3 letters), add short-text class
+            if (wordData.label && countGraphemes(wordData.label) <= 3) {
+                labelDiv.addClass('short-text');
             }
+            // Otherwise, if the text is fairly long
+            else if (wordData.label && wordData.label.length > 20) {
+                labelDiv.addClass('long-text');
+            }
+    
             labelDiv.appendTo(container);
         }
     
@@ -363,6 +368,22 @@
             container.insertBefore($('.flashcard-container').eq(insertAtIndex));
         }
     }    
+
+    /**
+     * Counts the number of graphemes in a string using the Intl.Segmenter API.
+     */
+    function countGraphemes(str) {
+        try {
+            // Create a segmenter for grapheme clusters in the current (or default) locale:
+            const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+            // Segment into grapheme clusters and count:
+            let graphemes = [...segmenter.segment(str)];
+            return graphemes.length;
+        } catch (e) {
+            console.error('Intl.Segmenter API not supported:', e);
+            return str.length;
+        }
+    }
 
     /**
      * Adds a click event to a card for right/wrong answer handling.
