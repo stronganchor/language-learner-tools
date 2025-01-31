@@ -165,7 +165,6 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-skip-flashcard">' . esc_html__('Skip', 'll-tools-text-domain') . '</button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-content">';
@@ -178,7 +177,6 @@ function ll_tools_flashcard_widget($atts) {
     echo '<h2 id="quiz-results-title">' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>'; // Dynamic title
     echo '<p id="quiz-results-message" style="display: none;"></p>'; 
     echo '<p><strong>' . esc_html__('Correct:', 'll-tools-text-domain') . '</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>';
-    echo '<p><strong>' . esc_html__('Skipped:', 'll-tools-text-domain') . '</strong> <span id="skipped-count">0</span></p>';
     echo '<button id="restart-quiz" class="quiz-button" style="display: none;">' . esc_html__('Restart Quiz', 'll-tools-text-domain') . '</button>';
     echo '</div>';
 

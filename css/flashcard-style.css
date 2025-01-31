@@ -48,8 +48,6 @@ body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
-/* Flashcard Control Buttons */
-#ll-tools-skip-flashcard,
 #ll-tools-repeat-flashcard {
     margin-left: 10px;
     margin-right: 10px;

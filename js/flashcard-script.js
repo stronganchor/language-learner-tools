@@ -16,12 +16,10 @@
     var currentCategoryRoundCount = 0;
     var isFirstRound = true;
     var categoryRepetitionQueues = {}; // Manages separate repetition queues for each category
-    var userClickedSkip = false;
     var userClickedCorrectAnswer = false;
     let quizResults = {
         correctOnFirstTry: 0,
-        incorrect: [],
-        skipped: 0
+        incorrect: []
     };
 
     /**
@@ -57,7 +55,6 @@
         currentCategoryRoundCount = 0;
         isFirstRound = true;
         categoryRepetitionQueues = {};
-        userClickedSkip = false;
         resetQuizResults();
         hideResultsPage();
         FlashcardAudio.resetAudioState();
@@ -69,8 +66,7 @@
     function resetQuizResults() {
         quizResults = {
             correctOnFirstTry: 0,
-            incorrect: [],
-            skipped: 0
+            incorrect: []
         };
     }
 
@@ -533,39 +529,37 @@
      * Runs the logic for each quiz round: clears previous data, sets up new,
      * picks a target word, and displays the options.
      */
-    function runQuizRound() {
-        // Clear UI from previous round
+function runQuizRound() {
+    // Clear UI from previous round
         $('#ll-tools-flashcard').empty();
         $('#ll-tools-flashcard-header').show();
-        $('#ll-tools-skip-flashcard').show();
         $('#ll-tools-repeat-flashcard').show();
 
-        FlashcardAudio.pauseAllAudio();
-        showLoadingAnimation();
-        FlashcardAudio.setTargetAudioHasPlayed(false);
+    FlashcardAudio.pauseAllAudio();
+    showLoadingAnimation();
+    FlashcardAudio.setTargetAudioHasPlayed(false);
 
-        // Decide the number of options for this round
-        FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
+    // Decide the number of options for this round
+    FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
 
-        // Pick the target word
-        let targetWord = selectTargetWordAndCategory();
+    // Pick the target word
+    let targetWord = selectTargetWordAndCategory();
 
-        // If no word is returned, the quiz is finished
-        if (!targetWord) {
-            showResultsPage();
-            return;
-        }
-
-        // Load resources for the target word first
-        FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
-            .then(function() {
-                // Build UI options around the target word
-                fillQuizOptions(targetWord);
-                FlashcardAudio.setTargetWordAudio(targetWord);
-                hideLoadingAnimation();
-                userClickedSkip = false;
-            });
+    // If no word is returned, the quiz is finished
+    if (!targetWord) {
+        showResultsPage();
+        return;
     }
+
+    // Load resources for the target word first
+    FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
+        .then(function() {
+            // Build UI options around the target word
+            fillQuizOptions(targetWord);
+            FlashcardAudio.setTargetWordAudio(targetWord);
+            hideLoadingAnimation();
+        });
+}
 
     /**
      * Fires confetti from either a specific origin or from both sides of the screen.
@@ -644,10 +638,10 @@
     }
 
     /**
-     * Shows the final quiz results, including correct/skipped counts and a progress message.
+     * Shows the final quiz results, including correct/total counts and a progress message.
      */
     function showResultsPage() {
-        const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length + quizResults.skipped;
+        const totalQuestions = quizResults.correctOnFirstTry + quizResults.incorrect.length;
 
         // Check if no results were found
         if (totalQuestions === 0) {
@@ -660,12 +654,10 @@
         }
         $('#quiz-results').show();
         hideLoadingAnimation();
-        $('#ll-tools-skip-flashcard').hide();
         $('#ll-tools-repeat-flashcard').hide();
 
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
-        $('#skipped-count').text(quizResults.skipped);
         $('#restart-quiz').show();
 
         const correctRatio = (totalQuestions > 0) ? (quizResults.correctOnFirstTry / totalQuestions) : 0;
@@ -728,20 +720,6 @@
                 currentAudio.play().catch(function(e) {
                     console.error("Audio play failed:", e);
                 });
-            }
-        });
-
-        // Event handler for the skip button
-        $('#ll-tools-skip-flashcard').off('click').on('click', function () {
-            if (FlashcardAudio.getTargetAudioHasPlayed() && !userClickedSkip) {
-                userClickedSkip = true;
-                quizResults.skipped += 1;
-
-                // Consider the skipped question as "wrong" when determining the number of options
-                wrongIndexes.push(-1);
-
-                isFirstRound = false;
-                startQuizRound();
             }
         });
 
