@@ -325,9 +325,9 @@
             class: 'flashcard-container flashcard-size-' + llToolsFlashcardsData.imageSize,
             'data-word': wordData.title
         }).hide();
-
+    
         let fudgePixels = 10;
-
+    
         if (displayMode === 'image') {
             $('<img>', {
                 src: wordData.image,
@@ -345,25 +345,24 @@
             }).appendTo(container);
         } else {
             container.addClass('text-based');
-            let translationDiv = $('<div>', {
-                text: wordData.translation,
-                class: 'quiz-translation'
+            let labelDiv = $('<div>', {
+                text: wordData.label,
+                class: 'quiz-text'
             });
-
-            // Check text length and add long-text styling if needed
-            if (wordData.translation.length > 20) {
-                translationDiv.addClass('long-text');
+    
+            if (wordData.label && wordData.label.length > 20) {
+                labelDiv.addClass('long-text'); 
             }
-            translationDiv.appendTo(container);
+            labelDiv.appendTo(container);
         }
-
+    
         const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-container').length + 1));
         if ($('.flashcard-container').length === 0 || insertAtIndex >= $('.flashcard-container').length) {
             $('#ll-tools-flashcard').append(container);
         } else {
             container.insertBefore($('.flashcard-container').eq(insertAtIndex));
         }
-    }
+    }    
 
     /**
      * Adds a click event to a card for right/wrong answer handling.
@@ -383,11 +382,11 @@
                     handleWrongAnswer(targetWord, index, $(this));
                 }
             } else {
-                if ($(this).find('.quiz-translation').text() === targetWord.translation) {
+                if ($(this).find('.quiz-text').text() === (targetWord.label || '')) {
                     handleCorrectAnswer(targetWord, $(this));
                 } else {
                     handleWrongAnswer(targetWord, index, $(this));
-                }
+                }                
             }
         });
     }
@@ -476,7 +475,7 @@
                 if (displayMode === 'image') {
                     return $(this).find('img').attr("src") === targetWord.image;
                 } else {
-                    return $(this).find('.quiz-translation').text() === targetWord.translation;
+                    return $(this).find('.quiz-text').text() === (targetWord.label || '');
                 }
             }).remove();
         }

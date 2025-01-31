@@ -227,21 +227,30 @@ function ll_determine_display_mode($categoryName, $min_word_count = 6) {
  * Processes categories by filtering based on translations and word counts.
  *
  * @param array $categories The array of category terms.
- * @param bool $use_translations Whether to use translations.
- * @param int $min_word_count The minimum number of words required.
+ * @param bool  $use_translations Whether to use translations.
+ * @param int   $min_word_count The minimum number of words required.
  * @return array The processed categories.
  */
 function ll_process_categories($categories, $use_translations, $min_word_count = 6) {
     $processed_categories = [];
 
     foreach ($categories as $category) {
-        $mode = ll_determine_display_mode($category->name, $min_word_count);
+        // If this category is set to "match audio to titles", force text mode
+        $use_titles = get_term_meta($category->term_id, 'use_word_titles_for_audio', true) === '1';
+        if ($use_titles) {
+            // If user has set "match titles," forcibly treat as text
+            $mode = 'text';
+        } else {
+            // Otherwise, fallback to existing logic
+            $mode = ll_determine_display_mode($category->name, $min_word_count);
+        }
 
         // If no mode could be determined, skip this category
         if ($mode === null) {
             continue;
         }
 
+        // If translations are enabled, check if the category has a translation
         $translation = $use_translations
             ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
             : $category->name;
@@ -257,7 +266,6 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
     return $processed_categories;
 }
-
 
 // AJAX handler for fetching words by category
 add_action('wp_ajax_ll_get_words_by_category', 'll_get_words_by_category_ajax');

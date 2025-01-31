@@ -285,7 +285,7 @@ body.ll-tools-flashcard-open {
     transition: transform 0.3s ease;
 }
 
-.quiz-translation {
+.quiz-text {
     font-size: 18px;
     font-weight: bold;
     text-align: center;
@@ -296,7 +296,7 @@ body.ll-tools-flashcard-open {
     border-radius: 5px;
 }
 
-.quiz-translation.long-text {
+.quiz-text.long-text {
     font-size: 12px;
 }
 

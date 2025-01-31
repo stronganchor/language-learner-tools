@@ -52,6 +52,12 @@ function ll_tools_initialize_word_category_meta_fields() {
     // Save the 'Translated Name' meta field
     add_action('created_word-category', 'll_save_translation_field', 10, 2);
     add_action('edited_word-category', 'll_save_translation_field', 10, 2);
+
+    // Checkbox for matching titles instead of translations
+    add_action('word-category_add_form_fields', 'll_add_use_word_titles_field');
+    add_action('word-category_edit_form_fields', 'll_edit_use_word_titles_field');
+    add_action('created_word-category', 'll_save_use_word_titles_field', 10, 2);
+    add_action('edited_word-category', 'll_save_use_word_titles_field', 10, 2);
 }
 
 /**
@@ -63,7 +69,6 @@ function ll_add_translation_field($term) {
     if (!ll_tools_is_category_translation_enabled()) {
         return;
     }
-
     ?>
     <div class="form-field term-translation-wrap">
         <label for="term-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?></label>
@@ -136,6 +141,42 @@ function ll_tools_is_category_translation_enabled() {
 }
 
 /**
+ * Field to mark a category as "use titles" for audio matching.
+ */
+function ll_add_use_word_titles_field($term) {
+    ?>
+    <div class="form-field term-use-word-titles-wrap">
+        <label for="use_word_titles_for_audio">
+            <input type="checkbox" name="use_word_titles_for_audio" id="use_word_titles_for_audio" value="1">
+            <?php esc_html_e('For this category, match audio to word titles instead of translations', 'll-tools-text-domain'); ?>
+        </label>
+    </div>
+    <?php
+}
+function ll_edit_use_word_titles_field($term) {
+    $checkbox_value = get_term_meta($term->term_id, 'use_word_titles_for_audio', true);
+    $checked = $checkbox_value === '1' ? 'checked' : '';
+    ?>
+    <tr class="form-field term-use-word-titles-wrap">
+        <th scope="row" valign="top">
+            <label for="use_word_titles_for_audio"><?php esc_html_e('Match audio to word titles?', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <input type="checkbox" name="use_word_titles_for_audio" id="use_word_titles_for_audio" value="1" <?php echo $checked; ?>>
+            <p class="description"><?php esc_html_e('If enabled, the quiz will treat this category as text-only and use the word post title as the correct match.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+function ll_save_use_word_titles_field($term_id, $taxonomy) {
+    if (isset($_POST['use_word_titles_for_audio'])) {
+        update_term_meta($term_id, 'use_word_titles_for_audio', '1');
+    } else {
+        delete_term_meta($term_id, 'use_word_titles_for_audio');
+    }
+}
+
+/**
  * Determines the deepest-level categories for a given post.
  *
  * @param int $post_id The post ID.
@@ -161,7 +202,7 @@ function ll_get_deepest_categories($post_id) {
 
 /**
  * Recursively determines the depth of a category in the category hierarchy.
- * 
+ *
  * @param int $category_id The category ID.
  * @param int $depth The current depth.
  * @return int The depth of the category.
@@ -176,72 +217,97 @@ function ll_get_category_depth($category_id, $depth = 0) {
 
 /**
  * Retrieves words by category name.
- * 
+ *
  * @param string $category_name The name of the category.
- * @param string $display_mode The display mode ('image' or 'text').
- * @return array An array of word data.
+ * @param string $display_mode  'image' or 'text'.
+ * @return array An array of word data (id, title, image, audio, label, etc.).
  */
 function ll_get_words_by_category($category_name, $display_mode = 'image') {
-    $args = array(
-        'post_type' => 'words',
-        'posts_per_page' => -1,
-        'tax_query' => array(
-            array(
-                'taxonomy' => 'word-category',
-                'field' => 'name',
-                'terms' => $category_name,
-            ),
-        ),
-    );
+    // Detect if "use_word_titles_for_audio" is set
+    $cat_term = get_term_by('name', $category_name, 'word-category');
+    $useTitlesMeta = false;
+    if ($cat_term) {
+        $useTitlesMeta = (get_term_meta($cat_term->term_id, 'use_word_titles_for_audio', true) === '1');
+    }
 
-    if ($display_mode === 'image') {
-        $args['meta_query'] = array(
-            array(
-                'key' => '_thumbnail_id',
-                'compare' => 'EXISTS',
-            ),
-        );
-    } else {
-        $args['meta_query'] = array(
-            array(
-                'key' => 'word_english_meaning',
-                'compare' => 'EXISTS',
-                ),
-            );
+    $args = [
+        'post_type'      => 'words',
+        'posts_per_page' => -1,
+        'tax_query' => [
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'name',
+                'terms'    => $category_name,
+            ],
+        ],
+    ];
+
+    // Only add meta queries if NOT using post titles
+    if (!$useTitlesMeta) {
+        if ($display_mode === 'image') {
+            // Demand a featured image
+            $args['meta_query'] = [
+                [
+                    'key'     => '_thumbnail_id',
+                    'compare' => 'EXISTS',
+                ],
+            ];
+        } else {
+            // Demand a word_english_meaning field
+            $args['meta_query'] = [
+                [
+                    'key'     => 'word_english_meaning',
+                    'compare' => 'EXISTS',
+                ],
+            ];
         }
+    }
 
     $query = new WP_Query($args);
-    $words_data = array();
+    $words_data = [];
 
     if ($query->have_posts()) {
         while ($query->have_posts()) {
             $query->the_post();
             $post_id = get_the_ID();
+
             $deepest_categories = ll_get_deepest_categories($post_id);
+            $deepest_category_names = array_map(
+                function($cat) { return $cat->name; },
+                $deepest_categories
+            );
 
-            // Extract category names from the deepest categories
-            $deepest_category_names = array_map(function($cat) {
-                return $cat->name;
-            }, $deepest_categories);
-
-            foreach ($deepest_category_names as $deepest_category_name) {
-                if ($deepest_category_name === $category_name) {
-                    $words_data[] = array(
-                        'id' => $post_id,
-                        'title' => get_the_title(),
-                        'image' => wp_get_attachment_url(get_post_thumbnail_id($post_id)),
-                        'audio' => get_post_meta($post_id, 'word_audio_file', true),
-                        'similar_word_id' => get_post_meta($post_id, 'similar_word_id', true),
-                        'category' => $deepest_category_name,
-                        'all_categories' => $deepest_category_names,
-                        'translation' => get_post_meta($post_id, 'word_english_meaning', true),
-                    );
-                    break;
-                }
+            // Only add this post if it actually belongs to the $category_name
+            if (!in_array($category_name, $deepest_category_names, true)) {
+                continue;
             }
+
+            // Decide what text label to show on the flashcard
+            if ($useTitlesMeta) {
+                // If "match titles" is enabled, use the post title
+                $labelValue = get_the_title($post_id);
+            } else {
+                // Otherwise, fallback to the word_english_meaning
+                $labelValue = get_post_meta($post_id, 'word_english_meaning', true);
+            }
+
+            $words_data[] = [
+                'id'             => $post_id,
+                'title'          => get_the_title(),
+                'image'          => wp_get_attachment_url(get_post_thumbnail_id($post_id)),
+                'audio'          => get_post_meta($post_id, 'word_audio_file', true),
+                'similar_word_id'=> get_post_meta($post_id, 'similar_word_id', true),
+                'category'       => $category_name,
+                'all_categories' => $deepest_category_names,
+                // renamed from 'translation' to 'label'
+                'label'          => $labelValue,
+            ];
         }
         wp_reset_postdata();
     }
 
     return $words_data;
 }
+
+
+?>
