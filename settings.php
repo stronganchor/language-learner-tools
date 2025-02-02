@@ -32,6 +32,9 @@ function ll_register_settings() {
         'default' => 'small',
         'sanitize_callback' => 'sanitize_text_field',
     ]);
+    // Settings for quiz font name and URL.
+    register_setting('language-learning-tools-options', 'll_quiz_font', 'sanitize_text_field');
+    register_setting('language-learning-tools-options', 'll_quiz_font_url', 'esc_url_raw');
 }
 add_action('admin_init', 'll_register_settings');
 
@@ -48,6 +51,8 @@ function ll_render_settings_page() {
     $translation_language = get_option('ll_translation_language', '');
     $enable_translation = get_option('ll_enable_category_translation', 0);
     $translation_source = get_option('ll_category_translation_source', 'target');
+    $quiz_font = get_option('ll_quiz_font');
+    $quiz_font_url = get_option('ll_quiz_font_url');
 
     // Default to showing placeholders if languages are not set
     $target_language_name = $target_language ? ucfirst($target_language) : __('Target Language', 'll-tools-text-domain');
@@ -90,19 +95,42 @@ function ll_render_settings_page() {
                     <td>
                         <input type="number" name="ll_max_options_override" id="ll_max_options_override" value="<?php echo esc_attr(get_option('ll_max_options_override', 9)); ?>" min="2" />
                         <p class="description">Set the maximum number of options in flashcards. Minimum is 2.</p>
-                        <tr valign="top">
-                            <th scope="row">Flashcard Image Size:</th>
-                            <td>
-                                <?php 
-                                $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
-                                ?>
-                                <select name="ll_flashcard_image_size" id="ll_flashcard_image_size">
-                                    <option value="small" <?php selected($flashcard_image_size, 'small'); ?>>Small (150×150)</option>
-                                    <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>>Medium (200×200)</option>
-                                    <option value="large" <?php selected($flashcard_image_size, 'large'); ?>>Large (250×250)</option>
-                                </select>
-                            </td>
-                        </tr>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Flashcard Image Size:</th>
+                    <td>
+                        <?php 
+                        $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
+                        ?>
+                        <select name="ll_flashcard_image_size" id="ll_flashcard_image_size">
+                            <option value="small" <?php selected($flashcard_image_size, 'small'); ?>>Small (150×150)</option>
+                            <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>>Medium (200×200)</option>
+                            <option value="large" <?php selected($flashcard_image_size, 'large'); ?>>Large (250×250)</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Quiz Font (for text mode):</th>
+                    <td>
+                        <?php
+                        $available_fonts = ll_get_site_available_fonts();
+                        $selected_font = get_option('ll_quiz_font');
+                        if ( !empty( $available_fonts ) ) {
+                            echo '<select name="ll_quiz_font" id="ll_quiz_font">';
+                            echo '<option value="">-- Select a Font --</option>';
+                            foreach ( $available_fonts as $font ) {
+                                echo '<option value="' . esc_attr($font) . '" ' . selected( $selected_font, $font, false ) . '>' . esc_html( $font ) . '</option>';
+                            }
+                            echo '</select>';
+                        } else {
+                            echo '<p>No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin.</p>';
+                        }
+                        ?>
+                        <p class="description">
+                            Choose one of the fonts that are already loaded on your site.
+                            If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually.
+                        </p>
                     </td>
                 </tr>
                 <tr valign="top">
@@ -249,6 +277,58 @@ function ll_display_translation_results() {
             echo '</div>';
         }
     }
+}
+
+/**
+ * Returns an array of font family names that appear to be loaded on the site.
+ * It looks for enqueued styles whose src contains either “fonts.googleapis.com”
+ * or a file extension like .woff, .woff2, .ttf, .otf, or .eot.
+ *
+ * @return array List of font names.
+ */
+function ll_get_site_available_fonts() {
+    global $wp_styles;
+    $fonts = array();
+
+    if ( isset( $wp_styles ) && is_object( $wp_styles ) && !empty( $wp_styles->registered ) ) {
+        foreach ( $wp_styles->registered as $handle => $style ) {
+            if ( isset( $style->src ) ) {
+                // Look for Google Fonts
+                if ( false !== strpos( $style->src, 'fonts.googleapis.com' ) ) {
+                    $url_parts = wp_parse_url( $style->src );
+                    if ( isset( $url_parts['query'] ) ) {
+                        parse_str( $url_parts['query'], $query );
+                        if ( ! empty( $query['family'] ) ) {
+                            $families = explode( '|', $query['family'] );
+                            foreach ( $families as $family ) {
+                                $font = explode( ':', $family )[0];
+                                $font = str_replace( '+', ' ', $font );
+                                $fonts[] = $font;
+                            }
+                        }
+                    }
+                }
+                // Look for locally enqueued fonts
+                elseif ( preg_match( '/\.(woff2?|ttf|otf|eot)(\?.*)?$/i', $style->src ) ) {
+                    $path_parts = pathinfo( $style->src );
+                    if ( ! empty( $path_parts['filename'] ) ) {
+                        $font = ucwords( str_replace( array('-', '_'), ' ', $path_parts['filename'] ) );
+                        $fonts[] = $font;
+                    }
+                }
+            }
+        }
+    }
+    // Merge with fonts registered by Use Any Font plugin
+    if ( function_exists('uaf_get_font_families') ) {
+        $custom_fonts = uaf_get_font_families(); // This should return an array of font names.
+        if ( is_array( $custom_fonts ) ) {
+            $fonts = array_merge( $fonts, $custom_fonts );
+        }
+    }
+    $fonts = array_unique( $fonts );
+    sort( $fonts );
+    return apply_filters( 'll_site_available_fonts', $fonts );
 }
 
 ?>

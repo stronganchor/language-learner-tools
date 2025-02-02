@@ -18,6 +18,15 @@ function ll_tools_flashcard_widget($atts) {
         'mode' => 'random' // Default to practice by showing one random word at a time
     ), $atts);
 
+    ob_start();
+
+    // Retrieve quiz font settings
+    $quiz_font = get_option('ll_quiz_font');
+    if ( !empty($quiz_font) ) {
+        // Output inline CSS to force text-based flashcards to use the selected font
+        echo '<style>#ll-tools-flashcard .text-based { font-family: "' . esc_attr($quiz_font) . '", sans-serif; }</style>';
+    }
+    
     $categories = $atts['category'];
     $categoriesPreselected = true;
 
@@ -134,7 +143,6 @@ function ll_tools_flashcard_widget($atts) {
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
 
-
 	// Localize translatable strings for results messages
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(
         'perfect' => __('Perfect!', 'll-tools-text-domain'),
@@ -145,7 +153,6 @@ function ll_tools_flashcard_widget($atts) {
     ));
 
     // Output the initial setup and the buttons
-    ob_start();
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
@@ -182,7 +189,6 @@ function ll_tools_flashcard_widget($atts) {
 
     echo '</div>';
     echo '</div>';
-
 
     // Run a script after the page loads to show the widget with proper CSS formatting
     echo '<script type="text/javascript">
