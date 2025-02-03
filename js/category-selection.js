@@ -9,8 +9,15 @@
      * Displays the category selection popup with checkboxes for each category.
      */
     function showCategorySelection() {
-        var categories = llToolsFlashcardsData.categories;
-        var preloadedCategory = llToolsFlashcardsData.firstCategoryName;
+        // Clone the categories array so that the original order (used elsewhere) remains unchanged.
+        var categories = llToolsFlashcardsData.categories.slice();
+        
+        // Sort categories by display name (using translation if available) with natural numeric sorting.
+        categories.sort(function(a, b) {
+            var nameA = (a.translation || a.name).toLowerCase();
+            var nameB = (b.translation || b.name).toLowerCase();
+            return nameA.localeCompare(nameB, undefined, {numeric: true});
+        });
 
         var checkboxesContainer = $('#ll-tools-category-checkboxes');
         checkboxesContainer.empty();
