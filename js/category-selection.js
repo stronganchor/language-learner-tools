@@ -31,7 +31,7 @@
                     type: 'checkbox',
                     id: checkboxId,
                     value: category.name,
-                    checked: index === 0, // Select only the first category by default
+                    checked: false,
                     'data-preloaded': index === 0 // Preload only the first category
                 }),
                 $('<label>', {
