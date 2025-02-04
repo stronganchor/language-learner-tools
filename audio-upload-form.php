@@ -23,6 +23,9 @@ function ll_audio_upload_form_shortcode() {
         
         <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
         <label for="match_existing_posts">Match to existing word posts instead of creating new ones</label><br>
+
+        <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
+        <label for="match_image_on_translation">Match images based on translation instead of original word</label><br>
         
         <div id="wordsets_section">
         Select Word Set:<br>
@@ -358,7 +361,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
 
         // Handle translations
         $deepl_language_codes = get_deepl_language_codes();
-        if ($deepl_language_codes) {                            
+        if ($deepl_language_codes) {  
             $target_language_name = ll_get_wordset_language($selected_wordset);
 
             // Determine target language code
@@ -370,6 +373,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             }
 
             $translation_language_code = get_option('ll_translation_language');
+            $translated_title = ''; 
 
             // If the languages are supported by DeepL, translate the title
             if ($target_language_code && $translation_language_code) {
@@ -396,8 +400,17 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             wp_set_object_terms($post_id, $selected_part_of_speech, 'part_of_speech', false);
         }
 
+        // Determine which string to use for image matching (translated or original title)
+        $image_search_string = $title;
+        if ( isset($post_data['match_image_on_translation']) && $post_data['match_image_on_translation'] == 1 ) {
+            $translated_value = get_post_meta($post_id, 'word_english_meaning', true);
+            if (!empty($translated_value) && strpos($translated_value, 'Error translating') === false) {
+                $image_search_string = $translated_value;
+            }
+        }
+
         // Try to find a relevant image and assign it as the featured image
-        $matching_image = ll_find_matching_image($title, $selected_categories);
+        $matching_image = ll_find_matching_image($image_search_string, $selected_categories);
         if ($matching_image) {
             $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
             if ($matching_image_attachment_id) {
