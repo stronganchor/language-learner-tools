@@ -70,12 +70,6 @@
         };
     }
 
-    // Preload the first category if categories are preselected
-    if (llToolsFlashcardsData.categoriesPreselected) {
-        FlashcardLoader.processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
-        preloadCategoryResources(firstCategoryName);
-    }
-
     // Initialize audio functionality and load correct/wrong sounds
     FlashcardAudio.initializeAudio();
     FlashcardLoader.loadAudio(FlashcardAudio.getCorrectAudioURL());
@@ -786,5 +780,11 @@ function runQuizRound() {
     window.initFlashcardWidget = initFlashcardWidget;
     window.getCategoryDisplayMode = getCategoryDisplayMode;
     window.getCurrentDisplayMode = getCurrentDisplayMode;
+
+    // Preload the first category if categories are preselected
+    if (llToolsFlashcardsData.categoriesPreselected) {
+        FlashcardLoader.processFetchedWordData(llToolsFlashcardsData.firstCategoryData, firstCategoryName);
+        FlashcardLoader.preloadCategoryResources(firstCategoryName);
+    }
 
 })(jQuery);
