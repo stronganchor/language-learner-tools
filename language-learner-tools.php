@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.6.1
+ * Version: 2.6.2
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -149,4 +149,25 @@ function ll_tools_enqueue_confetti_script() {
     <?php
 }
 add_action('wp_head', 'll_tools_enqueue_confetti_script');
+
+/* Embed Flashcard Pages - create embeddable quiz pages for each category */
+function ll_embed_rewrite_rule() {
+    add_rewrite_rule('^embed/([^/]+)/?$', 'index.php?embed_category=$matches[1]', 'top');
+}
+add_action('init', 'll_embed_rewrite_rule');
+
+function ll_embed_query_vars($vars) {
+    $vars[] = 'embed_category';
+    return $vars;
+}
+add_filter('query_vars', 'll_embed_query_vars');
+
+function ll_embed_template_include($template) {
+    if (get_query_var('embed_category')) {
+        return plugin_dir_path(__FILE__) . 'pages/embed-page.php';
+    }
+    return $template;
+}
+add_filter('template_include', 'll_embed_template_include');
+
 ?>

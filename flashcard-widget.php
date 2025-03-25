@@ -57,19 +57,19 @@ function ll_tools_flashcard_widget($atts) {
 
         foreach ($category_attributes as $attribute) {
             $attribute_found = false;
-
+        
             foreach ($all_categories as $category) {
-                if (strcasecmp($attribute, $category['name']) === 0 || strcasecmp($attribute, $category['id']) === 0) {
+                if (strcasecmp($attribute, $category['name']) === 0 || strcasecmp($attribute, $category['id']) === 0 || strcasecmp($attribute, $category['slug']) === 0) {
                     $categories[] = $category;
                     $attribute_found = true;
                     break;
                 }
             }
-
+        
             if (!$attribute_found) {
                 error_log("Category '$attribute' not found.");
             }
-        }
+        }        
     }
 
     // Process category data for the quiz
