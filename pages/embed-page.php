@@ -7,20 +7,19 @@
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
-    <meta charset="<?php bloginfo( 'charset' ); ?>">
+    <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>Embed Flashcard</title>
+    <title><?php wp_title(''); ?></title>
     <?php wp_head(); ?>
-    <style>
-        body { margin: 0; padding: 0; }
-    </style>
 </head>
-<body>
-<?php
-$embed_category = get_query_var('embed_category');
-echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '" mode="random"]');
-wp_footer();
-?>
+<body <?php body_class(); ?>>
+    <div class="entry-content" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+        <?php
+        $embed_category = get_query_var('embed_category');
+        echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '"]');
+        ?>
+    </div>
+    <?php wp_footer(); ?>
 </body>
 </html>
