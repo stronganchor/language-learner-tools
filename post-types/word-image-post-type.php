@@ -157,8 +157,12 @@ function ll_render_word_images_columns($column, $post_id) {
             break;
 
         case 'attached_image':
-            $thumb = get_the_post_thumbnail($post_id, 'thumbnail');
-            echo $thumb ?: '—';
+            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            if ($thumbnail) {
+                echo $thumbnail;
+            } else {
+                echo '-';
+            }
             break;
     }
 }
