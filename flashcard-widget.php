@@ -171,7 +171,7 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
-    echo '<button id="ll-tools-repeat-flashcard">' . esc_html__('Repeat', 'll-tools-text-domain') . '</button>';
+    echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(plugin_dir_url(__FILE__) . 'media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-content">';

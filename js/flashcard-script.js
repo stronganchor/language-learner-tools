@@ -731,9 +731,26 @@ function runQuizRound() {
         $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
             var currentAudio = FlashcardAudio.getCurrentTargetAudio();
             if (currentAudio) {
-                currentAudio.play().catch(function(e) {
-                    console.error("Audio play failed:", e);
-                });
+                if (!currentAudio.paused) {
+                    // Pause and revert to play
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    $(this).html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir + 'media/play-symbol.svg" alt="Play"></span>');
+                    $(this).removeClass('stop-mode').addClass('play-mode');
+                } else {
+                    // Play and switch to stop
+                    currentAudio.play().then(() => {
+                        $('#ll-tools-repeat-flashcard').html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir + 'media/stop-symbol.svg" alt="Stop"></span>');
+                        $('#ll-tools-repeat-flashcard').removeClass('play-mode').addClass('stop-mode');
+                    }).catch(e => {
+                        console.error("Audio play failed:", e);
+                    });
+                    // When audio ends, revert to play
+                    currentAudio.onended = function() {
+                        $('#ll-tools-repeat-flashcard').html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir + 'media/play-symbol.svg" alt="Play"></span>');
+                        $('#ll-tools-repeat-flashcard').removeClass('stop-mode').addClass('play-mode');
+                    };
+                }
             }
         });
 

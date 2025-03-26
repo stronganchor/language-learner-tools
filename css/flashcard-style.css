@@ -48,13 +48,41 @@ body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
+/* Repeat button (play/stop icons) */
 #ll-tools-repeat-flashcard {
-    margin-left: 10px;
-    margin-right: 10px;
-    width: 120px;
-    padding-left: 0px;
-    padding-right: 0px;
-}
+    background: none;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+    /* Ensure the button itself doesn’t shrink when icons change */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Fixed container for icons so layout doesn't shift */
+  #ll-tools-repeat-flashcard .icon-container {
+    display: inline-block;
+    width: 24px;  
+    height: 24px; 
+    position: relative;
+  }
+  
+  /* By default, fill container for the play icon */
+  #ll-tools-repeat-flashcard.play-mode .icon-container img {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  
+  /* For the stop icon, keep container the same size but scale down the icon */
+  #ll-tools-repeat-flashcard.stop-mode .icon-container img {
+    width: 80%;  
+    height: 80%; 
+    margin: auto;
+    display: block;
+  }
 
 #ll-tools-start-flashcard {
     display: block;
