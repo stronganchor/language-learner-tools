@@ -35,22 +35,26 @@
          */
         function loadAudio(audioURL) {
             if (!audioURL || loadedResources[audioURL]) {
-                return Promise.resolve();
+            return Promise.resolve();
             }
-
+        
             return new Promise((resolve) => {
-                let audio = new Audio(audioURL);
-
-                const onLoad = () => {
-                    loadedResources[audioURL] = true;
-                    cleanupAudio(audio);
-                    // Remove the reference to free memory
-                    audio = null; 
-                    resolve();
-                };
-
-                audio.oncanplaythrough = onLoad;
-                audio.onerror = onLoad;
+            let audio = new Audio(audioURL);
+            audio.preload = 'auto';      // hint to preload
+            audio.load();                // force the load() call
+        
+            const onLoad = () => {
+                loadedResources[audioURL] = true;
+                cleanupAudio(audio);
+                audio = null;
+                resolve();
+            };
+        
+            // main “loaded” events
+            audio.oncanplaythrough = onLoad;
+            audio.onerror            = onLoad;
+            // iOS fallback — loadstart always fires once loading begins
+            audio.addEventListener('loadstart', onLoad, { once: true });
             });
         }
 
