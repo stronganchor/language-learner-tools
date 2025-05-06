@@ -12,8 +12,14 @@
     <meta name="robots" content="noindex, nofollow">
     <title><?php wp_title(''); ?></title>
     <?php wp_head(); ?>
+    <style>
+        /* Transparent background for embedded iframe quiz */
+        html, body, #ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup {
+            background: transparent !important;
+        }
+    </style>
 </head>
-<body <?php body_class(); ?>>
+<body <?php body_class(); ?> style="background: transparent;">
     <div class="entry-content" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
         <?php
         $embed_category = get_query_var('embed_category');
@@ -21,5 +27,17 @@
         ?>
     </div>
     <?php wp_footer(); ?>
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        // Remove default start/close controls
+        $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
+        // Display quiz popup immediately
+        $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
+        $('body').addClass('ll-tools-flashcard-open');
+        // Launch directly into quiz
+        var preselectedCategories = llToolsFlashcardsData.categories.map(function(cat) { return cat.name; });
+        initFlashcardWidget(preselectedCategories);
+    });
+    </script>
 </body>
 </html>
