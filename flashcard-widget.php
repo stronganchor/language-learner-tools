@@ -206,7 +206,7 @@ function ll_tools_flashcard_widget($atts) {
  * @param int $min_word_count The minimum number of words required.
  * @return string|null The display mode ('image' or 'text') or null if not determined.
  */
-function ll_determine_display_mode($categoryName, $min_word_count = 6) {
+function ll_determine_display_mode($categoryName, $min_word_count = 5) {
     $image_count = count(ll_get_words_by_category($categoryName, 'image'));
     $text_count = count(ll_get_words_by_category($categoryName, 'text'));
 
@@ -237,7 +237,7 @@ function ll_determine_display_mode($categoryName, $min_word_count = 6) {
  * @param int   $min_word_count The minimum number of words required.
  * @return array The processed categories.
  */
-function ll_process_categories($categories, $use_translations, $min_word_count = 6) {
+function ll_process_categories($categories, $use_translations, $min_word_count = 5) {
     $processed_categories = [];
 
     foreach ($categories as $category) {
