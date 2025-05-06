@@ -37,6 +37,22 @@
         // Launch directly into quiz
         var preselectedCategories = llToolsFlashcardsData.categories.map(function(cat) { return cat.name; });
         initFlashcardWidget(preselectedCategories);
+
+        // Disable answer selection until audio has played
+        $('#ll-tools-flashcard').css('pointer-events','none');
+        var observer = new MutationObserver(function(mutations, obs) {
+            var audioEl = document.querySelector('#ll-tools-flashcard audio');
+            if (audioEl) {
+                obs.disconnect();
+                audioEl.addEventListener('timeupdate', function listener() {
+                    if (this.currentTime > 0.4) {
+                        $('#ll-tools-flashcard').css('pointer-events','auto');
+                        audioEl.removeEventListener('timeupdate', listener);
+                    }
+                });
+            }
+        });
+        observer.observe(document.querySelector('#ll-tools-flashcard'), { childList: true, subtree: true });
     });
     </script>
 </body>
