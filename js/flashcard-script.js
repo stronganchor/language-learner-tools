@@ -311,18 +311,19 @@
     /**
      * Appends a single flashcard (image or text) into #ll-tools-flashcard at a random position.
      *
-     * • In “image” mode, it just inserts the <img> and lets your existing CSS handle
-     *   .flashcard-size-small/medium/large (whichever you are using).
-     * • In “text” mode, it:
-     *     1) Creates the container with class "flashcard-container text-based".
-     *     2) Appends it off-screen (visibility:hidden; position:absolute; top:-9999px; left:-9999px).
-     *     3) Measures its exact innerWidth() and innerHeight() (both come from your CSS).
-     *     4) Subtracts a small vertical‐padding reserve so the text never hits top/bottom edges.
-     *     5) Loops fontSizes downward until both:
-     *         – The canvas.measureText(...) width ≤ measured container width
-     *         – The labelDiv.outerHeight() ≤ (measured container height − vertical padding)
-     *     6) Locks in that font size, detaches the off-screen wrapper, resets its CSS,
-     *        and reinserts it in a random slot (calling .show()).
+     * • In “image” mode, we insert an <img> and let your existing .flashcard-size-… CSS handle sizing.
+     * • In “text” mode, we:
+     *     1) Create the container with class "flashcard-container text-based".
+     *     2) Insert it off-screen (visibility:hidden; position:absolute; top:-9999px; left:-9999px) so the browser applies your CSS (250×150, etc.).
+     *     3) Measure container.innerWidth() and container.innerHeight().
+     *     4) Reserve a small vertical padding so text won’t touch top/bottom edges.
+     *     5) Loop from MAX_FONT (48px) down to MIN_FONT (12px),
+     *        each time temporarily setting `font-size: fs px; line-height: fs px;` on the text.
+     *        Check both:
+     *          – canvas.measureText(text) width ≤ containerWidth
+     *          – labelDiv.outerHeight() ≤ (containerHeight – VERTICAL_PADDING)
+     *     6) Once found, lock in that `font-size` + `line-height`, detach the off-screen wrapper,
+     *        clear its “hidden” CSS, and insert it back into the visible DOM at a random index.
      *
      * @param {Object} wordData
      *   • id             (int)      Post ID
@@ -335,23 +336,22 @@
      *   • label          (string)   The text to show on a “text” card
      */
     function appendWordToContainer(wordData) {
-        const displayMode = getCurrentDisplayMode(); // either "image" or "text"
-        const pluginDir = llToolsFlashcardsData.plugin_dir; // your plugin URL, for audio paths etc.
+        const displayMode = getCurrentDisplayMode(); // “image” or “text”
+        const pluginDir = llToolsFlashcardsData.plugin_dir; // plugin URL base
     
-        // 1) Create the container, hidden initially
+        // 1) Build the container, but keep it hidden initially:
         let container = $('<div>', {
         class: 'flashcard-container' + (displayMode === 'text' ? ' text-based' : ' flashcard-size-' + llToolsFlashcardsData.imageSize),
         'data-word': wordData.title
         }).css({ display: 'none' });
     
         if (displayMode === 'image') {
-        // ----- IMAGE MODE (unchanged) -----
+        // -------- IMAGE MODE: just insert the <img> and let CSS size it --------
         $('<img>', {
             src: wordData.image,
             alt: wordData.title,
             class: 'quiz-image'
         }).on('load', function() {
-            // Auto‐tag orientation classes based on natural dimensions
             const fudge = 10;
             if (this.naturalWidth > (this.naturalHeight + fudge)) {
             container.addClass('landscape');
@@ -360,23 +360,24 @@
             }
         }).appendTo(container);
     
-        // We'll insert this container at step 7 below.
-        } else {
-        // ----- TEXT MODE -----
+        // We'll insert this container into the DOM at step 7 below.
     
-        // 2) Create a hidden labelDiv for measurement
+        } else {
+        // -------- TEXT MODE: find the biggest font/line-height that fits within 250×150 --------
+    
+        // Create a hidden <div> that will hold the text for measurement:
         let labelDiv = $('<div>', {
             text: wordData.label,
             class: 'quiz-text'
         }).css({
             visibility: 'hidden',
-            position: 'absolute',   // so it does not affect layout
+            position: 'absolute',
             'white-space': 'normal',
             'word-break': 'break-word'
         });
         container.append(labelDiv);
     
-        // 3) Temporarily place container off-screen so CSS rules take effect
+        // 2) Append container off-screen so that any CSS rules (250×150, border, padding, etc.) apply:
         container.css({
             position: 'absolute',
             top: '-9999px',
@@ -386,34 +387,35 @@
         });
         $('body').append(container);
     
-        // 4) Measure container’s true width/height (from CSS)
-        const measuredWidthPx = container.innerWidth();   // e.g. 250px if .text-based { width:250px }
-        const measuredHeightPx = container.innerHeight(); // e.g. 150px if .text-based { height:150px }
+        // 3) Measure the container’s computed inner width/height (from CSS):
+        const measuredWidthPx = container.innerWidth();   // e.g. 250px
+        const measuredHeightPx = container.innerHeight(); // e.g. 150px
     
-        // 5) Reserve a bit of vertical padding so text never touches edges:
-        //    (You can tweak this if you want more or less breathing room.)
-        const VERTICAL_PADDING = 20; // total top+bottom padding
+        // 4) Reserve a little vertical padding so the text never touches top/bottom:
+        const VERTICAL_PADDING = 20; // Total top+bottom breathing room
         const maxTextHeightPx = Math.max(0, measuredHeightPx - VERTICAL_PADDING);
     
-        // 6) Find the largest font-size (px) that fits in width & height.
-        //    Start from MAX (48px) down to MIN (12px), measuring both:
-        //      • canvas.measureText(...) width ≤ measuredWidthPx
-        //      • labelDiv.outerHeight() ≤ maxTextHeightPx
+        // 5) We will try font sizes from 48px down to 12px. For each fs:
+        //    – Set font-size: fs px; line-height: fs px on labelDiv
+        //    – Check if canvas‐measured width ≤ measuredWidthPx, AND if
+        //      labelDiv.outerHeight() ≤ maxTextHeightPx.
+        //    Stop when both constraints are satisfied.
         const computedStyle = window.getComputedStyle(labelDiv[0]);
         const fontFamily = computedStyle.fontFamily || 'sans-serif';
     
         let chosenFontSize = 12;
         for (let fs = 48; fs >= 12; fs--) {
-            // 6a) Check width via canvas
+            // 5a) Check width via a canvas:
             const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
             if (textWidth > measuredWidthPx) {
-            continue; // too wide, try next smaller fs
+            continue; // too wide, try smaller fs
             }
     
-            // 6b) Temporarily apply that fs to labelDiv and measure its outerHeight()
+            // 5b) Temporarily apply fs & line-height to labelDiv and measure height:
             labelDiv.css({
             'font-size': fs + 'px',
-            visibility: 'visible',
+            'line-height': fs + 'px',
+            visibility: 'visible',    // only for height measurement
             position: 'relative'
             });
             const textHeight = labelDiv.outerHeight();
@@ -421,10 +423,10 @@
             chosenFontSize = fs;
             break;
             }
-            // else: too tall, continue decreasing fs
+            // else: too tall, try next smaller fs
         }
     
-        // 7) Now that we've locked in chosenFontSize, remove the off-screen wrapper:
+        // 6) We have chosenFontSize; detach container (remove off-screen positioning) and keep that size locked in:
         container.detach();
         container.css({
             position: '',
@@ -433,12 +435,13 @@
             visibility: '',
             display: 'none' // keep hidden until final insertion
         });
+        // labelDiv already has 'font-size: chosenFontSize px' and 'line-height: chosenFontSize px'
     
-        // labelDiv already has 'font-size: chosenFontSize' from the loop above.
-        // We do NOT override container height – CSS continues enforcing height:150px.
+        // From now on, CSS enforces container at exactly 250×150 (via .text-based), and labelDiv has a matching
+        // line-height, so two lines (or one) will never overlap.
         }
     
-        // 8) Finally, insert container at a random index in #ll-tools-flashcard, then show it
+        // 7) Finally, insert container at a random index inside #ll-tools-flashcard, then call .show():
         const allCards = $('.flashcard-container');
         const insertAtIndex = Math.floor(Math.random() * (allCards.length + 1));
         if (allCards.length === 0 || insertAtIndex >= allCards.length) {
@@ -451,7 +454,7 @@
     
     /**
      * Helper: measures a given text string at a given CSS font (e.g. "24px Roboto")
-     * via a single shared <canvas>. Returns the pixel width.
+     * via a single shared hidden <canvas>. Returns the pixel width.
      */
     function measureTextWidth(text, cssFont) {
         if (!measureTextWidth._canvas) {
@@ -461,7 +464,7 @@
         const ctx = measureTextWidth._ctx;
         ctx.font = cssFont;
         return ctx.measureText(text).width;
-    }
+    }  
 
     /**
      * Calculates the largest font size that fits within a given width for a specific text and font family.
