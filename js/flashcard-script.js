@@ -309,75 +309,187 @@
     }
 
     /**
-     * Appends a word to the flashcard container in a random position.
+     * Appends a single flashcard (image or text) into #ll-tools-flashcard at a random position.
      *
-     * @param {Object} wordData - The word object containing image or text for display.
+     * • In “image” mode, it just inserts the <img> and lets your existing CSS handle
+     *   .flashcard-size-small/medium/large (whichever you are using).
+     * • In “text” mode, it:
+     *     1) Creates the container with class "flashcard-container text-based".
+     *     2) Appends it off-screen (visibility:hidden; position:absolute; top:-9999px; left:-9999px).
+     *     3) Measures its exact innerWidth() and innerHeight() (both come from your CSS).
+     *     4) Subtracts a small vertical‐padding reserve so the text never hits top/bottom edges.
+     *     5) Loops fontSizes downward until both:
+     *         – The canvas.measureText(...) width ≤ measured container width
+     *         – The labelDiv.outerHeight() ≤ (measured container height − vertical padding)
+     *     6) Locks in that font size, detaches the off-screen wrapper, resets its CSS,
+     *        and reinserts it in a random slot (calling .show()).
+     *
+     * @param {Object} wordData
+     *   • id             (int)      Post ID
+     *   • title          (string)   The word’s title
+     *   • image          (string)   URL to the image (if image mode)
+     *   • audio          (string)   URL to the audio file
+     *   • similar_word_id(string)   (unused here)
+     *   • category       (string)   Category name
+     *   • all_categories (string[]) All deepest-level categories
+     *   • label          (string)   The text to show on a “text” card
      */
     function appendWordToContainer(wordData) {
-        const displayMode = getCurrentDisplayMode();
-        let container = $('<div>', {
-            class: 'flashcard-container flashcard-size-' + llToolsFlashcardsData.imageSize,
-            'data-word': wordData.title
-        }).hide();
+        const displayMode = getCurrentDisplayMode(); // either "image" or "text"
+        const pluginDir = llToolsFlashcardsData.plugin_dir; // your plugin URL, for audio paths etc.
     
-        let fudgePixels = 10;
+        // 1) Create the container, hidden initially
+        let container = $('<div>', {
+        class: 'flashcard-container' + (displayMode === 'text' ? ' text-based' : ' flashcard-size-' + llToolsFlashcardsData.imageSize),
+        'data-word': wordData.title
+        }).css({ display: 'none' });
     
         if (displayMode === 'image') {
-            $('<img>', {
-                src: wordData.image,
-                alt: wordData.title,
-                class: 'quiz-image'
-            }).on('load', function() {
-                // Determine if image is landscape or portrait based on dimensions
-                // We use a fudge factor (fudgePixels) to account for minor discrepancies
-                if (this.naturalWidth > (this.naturalHeight + fudgePixels)) {
-                    container.addClass('landscape');
-                } else if ((this.naturalWidth + fudgePixels) < this.naturalHeight) {
-                    container.addClass('portrait');
-                }
-            }).appendTo(container);
+        // ----- IMAGE MODE (unchanged) -----
+        $('<img>', {
+            src: wordData.image,
+            alt: wordData.title,
+            class: 'quiz-image'
+        }).on('load', function() {
+            // Auto‐tag orientation classes based on natural dimensions
+            const fudge = 10;
+            if (this.naturalWidth > (this.naturalHeight + fudge)) {
+            container.addClass('landscape');
+            } else if ((this.naturalWidth + fudge) < this.naturalHeight) {
+            container.addClass('portrait');
+            }
+        }).appendTo(container);
+    
+        // We'll insert this container at step 7 below.
         } else {
-            container.addClass('text-based');
-            let labelDiv = $('<div>', {
-                text: wordData.label,
-                class: 'quiz-text'
+        // ----- TEXT MODE -----
+    
+        // 2) Create a hidden labelDiv for measurement
+        let labelDiv = $('<div>', {
+            text: wordData.label,
+            class: 'quiz-text'
+        }).css({
+            visibility: 'hidden',
+            position: 'absolute',   // so it does not affect layout
+            'white-space': 'normal',
+            'word-break': 'break-word'
+        });
+        container.append(labelDiv);
+    
+        // 3) Temporarily place container off-screen so CSS rules take effect
+        container.css({
+            position: 'absolute',
+            top: '-9999px',
+            left: '-9999px',
+            visibility: 'hidden',
+            display: 'block'
+        });
+        $('body').append(container);
+    
+        // 4) Measure container’s true width/height (from CSS)
+        const measuredWidthPx = container.innerWidth();   // e.g. 250px if .text-based { width:250px }
+        const measuredHeightPx = container.innerHeight(); // e.g. 150px if .text-based { height:150px }
+    
+        // 5) Reserve a bit of vertical padding so text never touches edges:
+        //    (You can tweak this if you want more or less breathing room.)
+        const VERTICAL_PADDING = 20; // total top+bottom padding
+        const maxTextHeightPx = Math.max(0, measuredHeightPx - VERTICAL_PADDING);
+    
+        // 6) Find the largest font-size (px) that fits in width & height.
+        //    Start from MAX (48px) down to MIN (12px), measuring both:
+        //      • canvas.measureText(...) width ≤ measuredWidthPx
+        //      • labelDiv.outerHeight() ≤ maxTextHeightPx
+        const computedStyle = window.getComputedStyle(labelDiv[0]);
+        const fontFamily = computedStyle.fontFamily || 'sans-serif';
+    
+        let chosenFontSize = 12;
+        for (let fs = 48; fs >= 12; fs--) {
+            // 6a) Check width via canvas
+            const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
+            if (textWidth > measuredWidthPx) {
+            continue; // too wide, try next smaller fs
+            }
+    
+            // 6b) Temporarily apply that fs to labelDiv and measure its outerHeight()
+            labelDiv.css({
+            'font-size': fs + 'px',
+            visibility: 'visible',
+            position: 'relative'
             });
-    
-            // If text is very short (1-3 letters), add short-text class
-            if (wordData.label && countGraphemes(wordData.label) <= 3) {
-                labelDiv.addClass('short-text');
+            const textHeight = labelDiv.outerHeight();
+            if (textHeight <= maxTextHeightPx) {
+            chosenFontSize = fs;
+            break;
             }
-            // Otherwise, if the text is fairly long
-            else if (wordData.label && wordData.label.length > 20) {
-                labelDiv.addClass('long-text');
-            }
-    
-            labelDiv.appendTo(container);
+            // else: too tall, continue decreasing fs
         }
     
-        const insertAtIndex = Math.floor(Math.random() * ($('.flashcard-container').length + 1));
-        if ($('.flashcard-container').length === 0 || insertAtIndex >= $('.flashcard-container').length) {
-            $('#ll-tools-flashcard').append(container);
+        // 7) Now that we've locked in chosenFontSize, remove the off-screen wrapper:
+        container.detach();
+        container.css({
+            position: '',
+            top: '',
+            left: '',
+            visibility: '',
+            display: 'none' // keep hidden until final insertion
+        });
+    
+        // labelDiv already has 'font-size: chosenFontSize' from the loop above.
+        // We do NOT override container height – CSS continues enforcing height:150px.
+        }
+    
+        // 8) Finally, insert container at a random index in #ll-tools-flashcard, then show it
+        const allCards = $('.flashcard-container');
+        const insertAtIndex = Math.floor(Math.random() * (allCards.length + 1));
+        if (allCards.length === 0 || insertAtIndex >= allCards.length) {
+        $('#ll-tools-flashcard').append(container.show());
         } else {
-            container.insertBefore($('.flashcard-container').eq(insertAtIndex));
-        }
-    }    
-
-    /**
-     * Counts the number of graphemes in a string using the Intl.Segmenter API.
-     */
-    function countGraphemes(str) {
-        try {
-            // Create a segmenter for grapheme clusters in the current (or default) locale:
-            const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-            // Segment into grapheme clusters and count:
-            let graphemes = [...segmenter.segment(str)];
-            return graphemes.length;
-        } catch (e) {
-            console.error('Intl.Segmenter API not supported:', e);
-            return str.length;
+        container.show().insertBefore(allCards.eq(insertAtIndex));
         }
     }
+    
+    
+    /**
+     * Helper: measures a given text string at a given CSS font (e.g. "24px Roboto")
+     * via a single shared <canvas>. Returns the pixel width.
+     */
+    function measureTextWidth(text, cssFont) {
+        if (!measureTextWidth._canvas) {
+        measureTextWidth._canvas = document.createElement('canvas');
+        measureTextWidth._ctx = measureTextWidth._canvas.getContext('2d');
+        }
+        const ctx = measureTextWidth._ctx;
+        ctx.font = cssFont;
+        return ctx.measureText(text).width;
+    }
+
+    /**
+     * Calculates the largest font size that fits within a given width for a specific text and font family.
+     * 
+     * @param {string} text - The text to measure.
+     * @param {string} fontFamily - The font family to use for measurement.
+     * @param {number} maxWidthPx - The maximum width in pixels that the text should fit within.
+     * @param {number} [maxFontSizePx=48] - The maximum font size in pixels to try.
+     * @param {number} [minFontSizePx=12] - The minimum font size in pixels to try.
+     * @returns {number} The largest font size in pixels that fits the text within the specified width.
+     */
+    function getFittingFontSize(text, fontFamily, maxWidthPx, maxFontSizePx = 48, minFontSizePx = 12) {
+        if (!getFittingFontSize._canvas) {
+          getFittingFontSize._canvas = document.createElement('canvas');
+          getFittingFontSize._ctx = getFittingFontSize._canvas.getContext('2d');
+        }
+        const ctx = getFittingFontSize._ctx;
+        let fontSize = maxFontSizePx;
+        while (fontSize >= minFontSizePx) {
+          ctx.font = fontSize + 'px ' + fontFamily;
+          const width = ctx.measureText(text).width;
+          if (width <= maxWidthPx) {
+            return fontSize;
+          }
+          fontSize--;
+        }
+        return minFontSizePx;
+      }      
 
     /**
      * Adds a click event to a card for right/wrong answer handling.

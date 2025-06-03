@@ -324,14 +324,6 @@ body.ll-tools-flashcard-open {
     border-radius: 5px;
 }
 
-.quiz-text.long-text {
-    font-size: 12px;
-}
-
-.quiz-text.short-text {
-    font-size: 32px !important;
-}
-
 .quiz-image:hover {
     transform: scale(1.05);
 }
