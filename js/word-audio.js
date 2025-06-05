@@ -28,20 +28,20 @@ function ll_audioEnded(audioId) {
 }
 
 function pauseAllAudioPlayers() {
-    activeAudioPlayers.forEach(function(audioPlayer) {
+    activeAudioPlayers.forEach(function (audioPlayer) {
         audioPlayer.pause();
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     var wordElements = document.querySelectorAll('.ll-word-audio');
-    
-    wordElements.forEach(function(wordElement) {
-        wordElement.addEventListener('click', function() {
-            var audioPlayer = activeAudioPlayers.find(function(player) {
+
+    wordElements.forEach(function (wordElement) {
+        wordElement.addEventListener('click', function () {
+            var audioPlayer = activeAudioPlayers.find(function (player) {
                 return player.src === wordElement.getAttribute('data-audio-url');
             });
-            
+
             if (audioPlayer) {
                 if (audioPlayer.paused) {
                     pauseAllAudioPlayers();

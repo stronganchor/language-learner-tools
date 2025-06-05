@@ -3,13 +3,13 @@
  *
  * Manages the configuration and dynamic adjustment of flashcard options based on user interactions and quiz performance.
  */
-(function($) {
+(function ($) {
     /**
      * FlashcardOptions Module
      *
      * Handles the logic for determining the number of options per flashcard round, enforcing limits, and adjusting based on user performance.
      */
-    const FlashcardOptions = (function() {
+    const FlashcardOptions = (function () {
         // Constants for option limits
         const MINIMUM_NUMBER_OF_OPTIONS = 2;
         const MAXIMUM_NUMBER_OF_OPTIONS = (llToolsFlashcardsData.maxOptionsOverride) ? parseInt(llToolsFlashcardsData.maxOptionsOverride, 10) : 9;

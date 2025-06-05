@@ -4,28 +4,28 @@
  * Handles category selection interactions for the flashcard widget.
  */
 
-(function($) {
+(function ($) {
     /**
      * Displays the category selection popup with checkboxes for each category.
      */
     function showCategorySelection() {
         // Clone the categories array so that the original order (used elsewhere) remains unchanged.
         var categories = llToolsFlashcardsData.categories.slice();
-        
+
         // Sort categories by display name (using translation if available) with natural numeric sorting.
-        categories.sort(function(a, b) {
+        categories.sort(function (a, b) {
             var nameA = (a.translation || a.name).toLowerCase();
             var nameB = (b.translation || b.name).toLowerCase();
-            return nameA.localeCompare(nameB, undefined, {numeric: true});
+            return nameA.localeCompare(nameB, undefined, { numeric: true });
         });
 
         var checkboxesContainer = $('#ll-tools-category-checkboxes');
         checkboxesContainer.empty();
 
-        categories.forEach(function(category, index) {
+        categories.forEach(function (category, index) {
             var displayName = category.translation || category.name;
             var checkboxId = 'category-' + category.slug;
-        
+
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
@@ -41,24 +41,24 @@
                 })
             );
             checkboxesContainer.append(checkbox);
-        });        
+        });
 
         $('#ll-tools-category-selection').show();
     }
 
     // Event handler for the "Uncheck All" button
-    $('#ll-tools-uncheck-all').on('click', function() {
+    $('#ll-tools-uncheck-all').on('click', function () {
         $('#ll-tools-category-checkboxes input[type="checkbox"]').prop('checked', false);
     });
 
     // Event handler for the "Check All" button
-    $('#ll-tools-check-all').on('click', function() {
+    $('#ll-tools-check-all').on('click', function () {
         $('#ll-tools-category-checkboxes input[type="checkbox"]').prop('checked', true);
     });
 
     // Event handler for the "Start Quiz" button
-    $('#ll-tools-start-selected-quiz').on('click', function() {
-        var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function() {
+    $('#ll-tools-start-selected-quiz').on('click', function () {
+        var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function () {
             return $(this).val(); // Pass untranslated category names
         }).get();
 
@@ -70,12 +70,12 @@
     });
 
     // Event handler to start the widget
-    $('#ll-tools-start-flashcard').on('click', function() {
+    $('#ll-tools-start-flashcard').on('click', function () {
         $('#ll-tools-flashcard-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
 
         // Prepare categoriesPreselected with untranslated names
-        var preselectedCategories = llToolsFlashcardsData.categories.map(function(category) {
+        var preselectedCategories = llToolsFlashcardsData.categories.map(function (category) {
             return category.name; // Always use the untranslated name
         });
 
@@ -89,7 +89,7 @@
     });
 
     // Event handler for the close button on the category selection screen
-    $('#ll-tools-close-category-selection').on('click', function() {
+    $('#ll-tools-close-category-selection').on('click', function () {
         $('#ll-tools-category-selection-popup').hide();
         $('#ll-tools-flashcard-popup').hide();
     });

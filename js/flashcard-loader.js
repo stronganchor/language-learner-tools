@@ -3,13 +3,13 @@
  *
  * Handles loading of resources (audio, images) for flashcards.
  */
-(function($) {
+(function ($) {
     /**
      * FlashcardLoader Module
      * 
      * Manages the loading of audio and image resources for flashcards, ensuring efficient preloading and organization by category.
      */
-    const FlashcardLoader = (function() {
+    const FlashcardLoader = (function () {
         // Tracks loaded categories and resources
         const loadedCategories = [];
         const loadedResources = {};
@@ -35,26 +35,26 @@
          */
         function loadAudio(audioURL) {
             if (!audioURL || loadedResources[audioURL]) {
-            return Promise.resolve();
+                return Promise.resolve();
             }
-        
+
             return new Promise((resolve) => {
-            let audio = new Audio(audioURL);
-            audio.preload = 'auto';      // hint to preload
-            audio.load();                // force the load() call
-        
-            const onLoad = () => {
-                loadedResources[audioURL] = true;
-                cleanupAudio(audio);
-                audio = null;
-                resolve();
-            };
-        
-            // main “loaded” events
-            audio.oncanplaythrough = onLoad;
-            audio.onerror            = onLoad;
-            // iOS fallback — loadstart always fires once loading begins
-            audio.addEventListener('loadstart', onLoad, { once: true });
+                let audio = new Audio(audioURL);
+                audio.preload = 'auto';      // hint to preload
+                audio.load();                // force the load() call
+
+                const onLoad = () => {
+                    loadedResources[audioURL] = true;
+                    cleanupAudio(audio);
+                    audio = null;
+                    resolve();
+                };
+
+                // main “loaded” events
+                audio.oncanplaythrough = onLoad;
+                audio.onerror = onLoad;
+                // iOS fallback — loadstart always fires once loading begins
+                audio.addEventListener('loadstart', onLoad, { once: true });
             });
         }
 
@@ -143,7 +143,7 @@
                     category: categoryName,
                     display_mode: displayMode
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.success) {
                         processFetchedWordData(response.data, categoryName);
                         preloadCategoryResources(categoryName, callback);
@@ -152,7 +152,7 @@
                         if (typeof callback === 'function') callback();
                     }
                 },
-                error: function(xhr, status, error) {
+                error: function (xhr, status, error) {
                     console.error('AJAX request failed for category:', categoryName, 'Error:', error);
                     if (typeof callback === 'function') callback();
                 }
@@ -211,7 +211,7 @@
                         if (typeof onFirstChunkLoaded === 'function') {
                             onFirstChunkLoaded();
                         }
-                        
+
                     }
 
                     // Continue loading subsequent chunks in the background
@@ -229,7 +229,7 @@
          * @param {number} numberToPreload - Number of categories to preload.
          */
         function preloadNextCategories(numberToPreload = 3) {
-            window.categoryNames.forEach(function(categoryName) {
+            window.categoryNames.forEach(function (categoryName) {
                 if (!loadedCategories.includes(categoryName) && numberToPreload > 0) {
                     loadResourcesForCategory(categoryName);
                     numberToPreload--;

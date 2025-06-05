@@ -1,4 +1,4 @@
-(function($) {
+(function ($) {
     const ROUNDS_PER_CATEGORY = 6;
     const DEFAULT_DISPLAY_MODE = "image";
 
@@ -31,9 +31,9 @@
     function getCategoryDisplayMode(categoryName) {
         if (!categoryName) return DEFAULT_DISPLAY_MODE;
         let catData = llToolsFlashcardsData.categories.find(cat => cat.name === categoryName);
-        return catData ? catData.mode : DEFAULT_DISPLAY_MODE; 
+        return catData ? catData.mode : DEFAULT_DISPLAY_MODE;
     }
-    
+
     /**
      * Returns the display mode for the current category.
      *
@@ -338,161 +338,132 @@
     function appendWordToContainer(wordData) {
         const displayMode = getCurrentDisplayMode(); // “image” or “text”
         const pluginDir = llToolsFlashcardsData.plugin_dir; // plugin URL base
-    
+
         // 1) Build the container, but keep it hidden initially:
         let container = $('<div>', {
-        class: 'flashcard-container' + (displayMode === 'text' ? ' text-based' : ' flashcard-size-' + llToolsFlashcardsData.imageSize),
-        'data-word': wordData.title
+            class: 'flashcard-container' + (displayMode === 'text' ? ' text-based' : ' flashcard-size-' + llToolsFlashcardsData.imageSize),
+            'data-word': wordData.title
         }).css({ display: 'none' });
-    
+
         if (displayMode === 'image') {
-        // -------- IMAGE MODE: just insert the <img> and let CSS size it --------
-        $('<img>', {
-            src: wordData.image,
-            alt: wordData.title,
-            class: 'quiz-image'
-        }).on('load', function() {
-            const fudge = 10;
-            if (this.naturalWidth > (this.naturalHeight + fudge)) {
-            container.addClass('landscape');
-            } else if ((this.naturalWidth + fudge) < this.naturalHeight) {
-            container.addClass('portrait');
-            }
-        }).appendTo(container);
-    
-        // We'll insert this container into the DOM at step 7 below.
-    
+            // -------- IMAGE MODE: just insert the <img> and let CSS size it --------
+            $('<img>', {
+                src: wordData.image,
+                alt: wordData.title,
+                class: 'quiz-image'
+            }).on('load', function () {
+                const fudge = 10;
+                if (this.naturalWidth > (this.naturalHeight + fudge)) {
+                    container.addClass('landscape');
+                } else if ((this.naturalWidth + fudge) < this.naturalHeight) {
+                    container.addClass('portrait');
+                }
+            }).appendTo(container);
+
+            // We'll insert this container into the DOM at step 7 below.
+
         } else {
-        // -------- TEXT MODE: find the biggest font/line-height that fits within 250×150 --------
-    
-        // Create a hidden <div> that will hold the text for measurement:
-        let labelDiv = $('<div>', {
-            text: wordData.label,
-            class: 'quiz-text'
-        }).css({
-            visibility: 'hidden',
-            position: 'absolute',
-            'white-space': 'normal',
-            'word-break': 'break-word'
-        });
-        container.append(labelDiv);
-    
-        // 2) Append container off-screen so that any CSS rules (250×150, border, padding, etc.) apply:
-        container.css({
-            position: 'absolute',
-            top: '-9999px',
-            left: '-9999px',
-            visibility: 'hidden',
-            display: 'block'
-        });
-        $('body').append(container);
-    
-        // 3) Measure the container’s computed inner width/height (from CSS):
-        const measuredWidthPx = container.innerWidth();   // e.g. 250px
-        const measuredHeightPx = container.innerHeight(); // e.g. 150px
-    
-        // 4) Reserve a little vertical padding so the text never touches top/bottom:
-        const VERTICAL_PADDING = 20; // Total top+bottom breathing room
-        const maxTextHeightPx = Math.max(0, measuredHeightPx - VERTICAL_PADDING);
-    
-        // 5) We will try font sizes from 48px down to 12px. For each fs:
-        //    – Set font-size: fs px; line-height: fs px on labelDiv
-        //    – Check if canvas‐measured width ≤ measuredWidthPx, AND if
-        //      labelDiv.outerHeight() ≤ maxTextHeightPx.
-        //    Stop when both constraints are satisfied.
-        const computedStyle = window.getComputedStyle(labelDiv[0]);
-        const fontFamily = computedStyle.fontFamily || 'sans-serif';
-    
-        let chosenFontSize = 12;
-        for (let fs = 48; fs >= 12; fs--) {
-            // 5a) Check width via a canvas:
-            const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
-            if (textWidth > measuredWidthPx) {
-            continue; // too wide, try smaller fs
-            }
-    
-            // 5b) Temporarily apply fs & line-height to labelDiv and measure height:
-            labelDiv.css({
-            'font-size': fs + 'px',
-            'line-height': fs + 'px',
-            visibility: 'visible',    // only for height measurement
-            position: 'relative'
+            // -------- TEXT MODE: find the biggest font/line-height that fits within 250×150 --------
+
+            // Create a hidden <div> that will hold the text for measurement:
+            let labelDiv = $('<div>', {
+                text: wordData.label,
+                class: 'quiz-text'
+            }).css({
+                visibility: 'hidden',
+                position: 'absolute',
+                'white-space': 'normal',
+                'word-break': 'break-word'
             });
-            const textHeight = labelDiv.outerHeight();
-            if (textHeight <= maxTextHeightPx) {
-            chosenFontSize = fs;
-            break;
+            container.append(labelDiv);
+
+            // 2) Append container off-screen so that any CSS rules (250×150, border, padding, etc.) apply:
+            container.css({
+                position: 'absolute',
+                top: '-9999px',
+                left: '-9999px',
+                visibility: 'hidden',
+                display: 'block'
+            });
+            $('body').append(container);
+
+            // 3) Measure the container’s computed inner width/height (from CSS):
+            const measuredWidthPx = container.innerWidth();   // e.g. 250px
+            const measuredHeightPx = container.innerHeight(); // e.g. 150px
+
+            // 4) Reserve a little vertical padding so the text never touches top/bottom:
+            const VERTICAL_PADDING = 20; // Total top+bottom breathing room
+            const maxTextHeightPx = Math.max(0, measuredHeightPx - VERTICAL_PADDING);
+
+            // 5) We will try font sizes from 48px down to 12px. For each fs:
+            //    – Set font-size: fs px; line-height: fs px on labelDiv
+            //    – Check if canvas‐measured width ≤ measuredWidthPx, AND if
+            //      labelDiv.outerHeight() ≤ maxTextHeightPx.
+            //    Stop when both constraints are satisfied.
+            const computedStyle = window.getComputedStyle(labelDiv[0]);
+            const fontFamily = computedStyle.fontFamily || 'sans-serif';
+
+            let chosenFontSize = 12;
+            for (let fs = 48; fs >= 12; fs--) {
+                // 5a) Check width via a canvas:
+                const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
+                if (textWidth > measuredWidthPx) {
+                    continue; // too wide, try smaller fs
+                }
+
+                // 5b) Temporarily apply fs & line-height to labelDiv and measure height:
+                labelDiv.css({
+                    'font-size': fs + 'px',
+                    'line-height': fs + 'px',
+                    visibility: 'visible',    // only for height measurement
+                    position: 'relative'
+                });
+                const textHeight = labelDiv.outerHeight();
+                if (textHeight <= maxTextHeightPx) {
+                    chosenFontSize = fs;
+                    break;
+                }
+                // else: too tall, try next smaller fs
             }
-            // else: too tall, try next smaller fs
+
+            // 6) We have chosenFontSize; detach container (remove off-screen positioning) and keep that size locked in:
+            container.detach();
+            container.css({
+                position: '',
+                top: '',
+                left: '',
+                visibility: '',
+                display: 'none' // keep hidden until final insertion
+            });
+            // labelDiv already has 'font-size: chosenFontSize px' and 'line-height: chosenFontSize px'
+
+            // From now on, CSS enforces container at exactly 250×150 (via .text-based), and labelDiv has a matching
+            // line-height, so two lines (or one) will never overlap.
         }
-    
-        // 6) We have chosenFontSize; detach container (remove off-screen positioning) and keep that size locked in:
-        container.detach();
-        container.css({
-            position: '',
-            top: '',
-            left: '',
-            visibility: '',
-            display: 'none' // keep hidden until final insertion
-        });
-        // labelDiv already has 'font-size: chosenFontSize px' and 'line-height: chosenFontSize px'
-    
-        // From now on, CSS enforces container at exactly 250×150 (via .text-based), and labelDiv has a matching
-        // line-height, so two lines (or one) will never overlap.
-        }
-    
+
         // 7) Finally, insert container at a random index inside #ll-tools-flashcard, then call .show():
         const allCards = $('.flashcard-container');
         const insertAtIndex = Math.floor(Math.random() * (allCards.length + 1));
         if (allCards.length === 0 || insertAtIndex >= allCards.length) {
-        $('#ll-tools-flashcard').append(container.show());
+            $('#ll-tools-flashcard').append(container.show());
         } else {
-        container.show().insertBefore(allCards.eq(insertAtIndex));
+            container.show().insertBefore(allCards.eq(insertAtIndex));
         }
     }
-    
-    
+
     /**
      * Helper: measures a given text string at a given CSS font (e.g. "24px Roboto")
      * via a single shared hidden <canvas>. Returns the pixel width.
      */
     function measureTextWidth(text, cssFont) {
         if (!measureTextWidth._canvas) {
-        measureTextWidth._canvas = document.createElement('canvas');
-        measureTextWidth._ctx = measureTextWidth._canvas.getContext('2d');
+            measureTextWidth._canvas = document.createElement('canvas');
+            measureTextWidth._ctx = measureTextWidth._canvas.getContext('2d');
         }
         const ctx = measureTextWidth._ctx;
         ctx.font = cssFont;
         return ctx.measureText(text).width;
-    }  
-
-    /**
-     * Calculates the largest font size that fits within a given width for a specific text and font family.
-     * 
-     * @param {string} text - The text to measure.
-     * @param {string} fontFamily - The font family to use for measurement.
-     * @param {number} maxWidthPx - The maximum width in pixels that the text should fit within.
-     * @param {number} [maxFontSizePx=48] - The maximum font size in pixels to try.
-     * @param {number} [minFontSizePx=12] - The minimum font size in pixels to try.
-     * @returns {number} The largest font size in pixels that fits the text within the specified width.
-     */
-    function getFittingFontSize(text, fontFamily, maxWidthPx, maxFontSizePx = 48, minFontSizePx = 12) {
-        if (!getFittingFontSize._canvas) {
-          getFittingFontSize._canvas = document.createElement('canvas');
-          getFittingFontSize._ctx = getFittingFontSize._canvas.getContext('2d');
-        }
-        const ctx = getFittingFontSize._ctx;
-        let fontSize = maxFontSizePx;
-        while (fontSize >= minFontSizePx) {
-          ctx.font = fontSize + 'px ' + fontFamily;
-          const width = ctx.measureText(text).width;
-          if (width <= maxWidthPx) {
-            return fontSize;
-          }
-          fontSize--;
-        }
-        return minFontSizePx;
-      }      
+    }
 
     /**
      * Adds a click event to a card for right/wrong answer handling.
@@ -504,7 +475,7 @@
     function addClickEventToCard(card, index, targetWord) {
         const displayMode = getCurrentDisplayMode();
 
-        card.click(function() {
+        card.click(function () {
             if (displayMode === 'image') {
                 if ($(this).find('img').attr("src") === targetWord.image) {
                     handleCorrectAnswer(targetWord, $(this));
@@ -516,7 +487,7 @@
                     handleCorrectAnswer(targetWord, $(this));
                 } else {
                     handleWrongAnswer(targetWord, index, $(this));
-                }                
+                }
             }
         });
     }
@@ -572,7 +543,7 @@
             setTimeout(function () {
                 isFirstRound = false;
                 userClickedCorrectAnswer = false;
-                startQuizRound(); 
+                startQuizRound();
             }, 600);
         });
     }
@@ -638,7 +609,7 @@
             const firstThreeCategories = categoryNames.slice(0, 3);
 
             // Load the first chunk of the first category, then proceed
-            FlashcardLoader.loadResourcesForCategory(firstThreeCategories[0], function() {
+            FlashcardLoader.loadResourcesForCategory(firstThreeCategories[0], function () {
                 FlashcardOptions.initializeOptionsCount(number_of_options);
                 runQuizRound();
             });
@@ -658,37 +629,37 @@
      * Runs the logic for each quiz round: clears previous data, sets up new,
      * picks a target word, and displays the options.
      */
-function runQuizRound() {
-    // Clear UI from previous round
+    function runQuizRound() {
+        // Clear UI from previous round
         $('#ll-tools-flashcard').empty();
         $('#ll-tools-flashcard-header').show();
         $('#ll-tools-repeat-flashcard').show();
 
-    FlashcardAudio.pauseAllAudio();
-    showLoadingAnimation();
-    FlashcardAudio.setTargetAudioHasPlayed(false);
+        FlashcardAudio.pauseAllAudio();
+        showLoadingAnimation();
+        FlashcardAudio.setTargetAudioHasPlayed(false);
 
-    // Decide the number of options for this round
-    FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
+        // Decide the number of options for this round
+        FlashcardOptions.calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName);
 
-    // Pick the target word
-    let targetWord = selectTargetWordAndCategory();
+        // Pick the target word
+        let targetWord = selectTargetWordAndCategory();
 
-    // If no word is returned, the quiz is finished
-    if (!targetWord) {
-        showResultsPage();
-        return;
+        // If no word is returned, the quiz is finished
+        if (!targetWord) {
+            showResultsPage();
+            return;
+        }
+
+        // Load resources for the target word first
+        FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
+            .then(function () {
+                // Build UI options around the target word
+                fillQuizOptions(targetWord);
+                FlashcardAudio.setTargetWordAudio(targetWord);
+                hideLoadingAnimation();
+            });
     }
-
-    // Load resources for the target word first
-    FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode())
-        .then(function() {
-            // Build UI options around the target word
-            fillQuizOptions(targetWord);
-            FlashcardAudio.setTargetWordAudio(targetWord);
-            hideLoadingAnimation();
-        });
-}
 
     /**
      * Fires confetti from either a specific origin or from both sides of the screen.
@@ -703,7 +674,7 @@ function runQuizRound() {
             origin: null, // null by default, meaning no fixed origin specified
             duration: 2000 // duration in ms
         };
-    
+
         // Merge defaults with passed-in options
         const settings = Object.assign({}, defaults, options);
 
@@ -861,7 +832,7 @@ function runQuizRound() {
                         console.error("Audio play failed:", e);
                     });
                     // When audio ends, revert to play
-                    currentAudio.onended = function() {
+                    currentAudio.onended = function () {
                         $('#ll-tools-repeat-flashcard').html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir + 'media/play-symbol.svg" alt="Play"></span>');
                         $('#ll-tools-repeat-flashcard').removeClass('stop-mode').addClass('play-mode');
                     };

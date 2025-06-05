@@ -3,13 +3,13 @@
  *
  * Handles audio playback functionalities for flashcards, including correct and wrong answer feedback.
  */
-(function($) {
+(function ($) {
     /**
      * FlashcardAudio Module
      *
      * Manages audio playback for flashcards, including playing correct/wrong sounds and target word audio.
      */
-    var FlashcardAudio = (function() {
+    var FlashcardAudio = (function () {
         var activeAudios = [];
         var currentTargetAudio = null;
         var targetAudioHasPlayed = false;
@@ -36,7 +36,7 @@
                     audio.currentTime = 0; // Reset playback
                 }
                 activeAudios.push(audio);
-                audio.play().catch(function(e) {
+                audio.play().catch(function (e) {
                     console.error("Audio play failed for:", audio.src, e);
                 });
             } catch (e) {
@@ -48,7 +48,7 @@
          * Pauses all currently active audio elements and resets their playback.
          */
         function pauseAllAudio() {
-            activeAudios.forEach(function(audio) {
+            activeAudios.forEach(function (audio) {
                 try {
                     audio.pause();
                     audio.currentTime = 0;
@@ -101,7 +101,7 @@
             var audioElement = $('<audio>', {
                 src: targetWord.audio,
                 controls: true
-            }).appendTo('#ll-tools-flashcard'); 
+            }).appendTo('#ll-tools-flashcard');
 
             currentTargetAudio = audioElement[0];
             playAudio(currentTargetAudio);
@@ -115,7 +115,7 @@
             });
 
             // Log any errors encountered during audio playback
-            currentTargetAudio.onerror = function(e) {
+            currentTargetAudio.onerror = function (e) {
                 console.error("Error playing target audio file:", currentTargetAudio.src, e);
             };
         }
@@ -138,11 +138,11 @@
             playFeedback: playFeedback,
             setTargetWordAudio: setTargetWordAudio,
             resetAudioState: resetAudioState,
-            getCurrentTargetAudio: function() { return currentTargetAudio; },
-            getTargetAudioHasPlayed: function() { return targetAudioHasPlayed; },
-            setTargetAudioHasPlayed: function(value) { targetAudioHasPlayed = value; },
-            getCorrectAudioURL: function() { return correctAudio.src; },
-            getWrongAudioURL: function() { return wrongAudio.src; }
+            getCurrentTargetAudio: function () { return currentTargetAudio; },
+            getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
+            setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },
+            getCorrectAudioURL: function () { return correctAudio.src; },
+            getWrongAudioURL: function () { return wrongAudio.src; }
         };
     })();
 
