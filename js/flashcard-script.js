@@ -308,161 +308,142 @@
         $('.flashcard-container').hide().fadeIn(600);
     }
 
+    const _llTextMeasureCanvas = document.createElement('canvas');
+    const _llTextMeasureCtx = _llTextMeasureCanvas.getContext('2d');
+
     /**
-     * Appends a single flashcard (image or text) into #ll-tools-flashcard at a random position.
-     *
-     * • In “image” mode, we insert an <img> and let your existing .flashcard-size-… CSS handle sizing.
-     * • In “text” mode, we:
-     *     1) Create the container with class "flashcard-container text-based".
-     *     2) Insert it off-screen (visibility:hidden; position:absolute; top:-9999px; left:-9999px) so the browser applies your CSS (250×150, etc.).
-     *     3) Measure container.innerWidth() and container.innerHeight().
-     *     4) Reserve a small vertical padding so text won’t touch top/bottom edges.
-     *     5) Loop from MAX_FONT (48px) down to MIN_FONT (12px),
-     *        each time temporarily setting `font-size: fs px; line-height: fs px;` on the text.
-     *        Check both:
-     *          – canvas.measureText(text) width ≤ containerWidth
-     *          – labelDiv.outerHeight() ≤ (containerHeight – VERTICAL_PADDING)
-     *     6) Once found, lock in that `font-size` + `line-height`, detach the off-screen wrapper,
-     *        clear its “hidden” CSS, and insert it back into the visible DOM at a random index.
-     *
-     * @param {Object} wordData
-     *   • id             (int)      Post ID
-     *   • title          (string)   The word’s title
-     *   • image          (string)   URL to the image (if image mode)
-     *   • audio          (string)   URL to the audio file
-     *   • similar_word_id(string)   (unused here)
-     *   • category       (string)   Category name
-     *   • all_categories (string[]) All deepest-level categories
-     *   • label          (string)   The text to show on a “text” card
+     * Measures the width of a given text string using a specified CSS font.
+     * 
+     * @param {string} text - The text to measure.
+     * @param {string} cssFont - The CSS font string (e.g., "16px Arial").
      */
-    function appendWordToContainer(wordData) {
-        const displayMode = getCurrentDisplayMode(); // “image” or “text”
-        const pluginDir = llToolsFlashcardsData.plugin_dir; // plugin URL base
+    function measureTextWidth(text, cssFont) {
+        _llTextMeasureCtx.font = cssFont;
+        return _llTextMeasureCtx.measureText(text).width;
+    }
 
-        // 1) Build the container, but keep it hidden initially:
-        let container = $('<div>', {
-            class: 'flashcard-container' + (displayMode === 'text' ? ' text-based' : ' flashcard-size-' + llToolsFlashcardsData.imageSize),
-            'data-word': wordData.title
-        }).css({ display: 'none' });
+    /* ------------------------------------------------------------------
+     *  Card-construction helpers
+     * ------------------------------------------------------------------ */
 
-        if (displayMode === 'image') {
-            // -------- IMAGE MODE: just insert the <img> and let CSS size it --------
-            $('<img>', {
-                src: wordData.image,
-                alt: wordData.title,
-                class: 'quiz-image'
-            }).on('load', function () {
-                const fudge = 10;
-                if (this.naturalWidth > (this.naturalHeight + fudge)) {
-                    container.addClass('landscape');
-                } else if ((this.naturalWidth + fudge) < this.naturalHeight) {
-                    container.addClass('portrait');
-                }
-            }).appendTo(container);
+    /**
+     * Builds and returns an image-mode flashcard <div>.
+     * @param  {Object} wordData  – The word object from the AJAX response
+     * @return {jQuery}           – A hidden (display:none) jQuery element
+     */
+    function createImageCard(wordData) {
+        const container = $('<div>', {
+            class: 'flashcard-container flashcard-size-' + llToolsFlashcardsData.imageSize,
+            'data-word': wordData.title,
+            css: { display: 'none' }
+        });
 
-            // We'll insert this container into the DOM at step 7 below.
-
-        } else {
-            // -------- TEXT MODE: find the biggest font/line-height that fits within 250×150 --------
-
-            // Create a hidden <div> that will hold the text for measurement:
-            let labelDiv = $('<div>', {
-                text: wordData.label,
-                class: 'quiz-text'
-            }).css({
-                visibility: 'hidden',
-                position: 'absolute',
-                'white-space': 'normal',
-                'word-break': 'break-word'
-            });
-            container.append(labelDiv);
-
-            // 2) Append container off-screen so that any CSS rules (250×150, border, padding, etc.) apply:
-            container.css({
-                position: 'absolute',
-                top: '-9999px',
-                left: '-9999px',
-                visibility: 'hidden',
-                display: 'block'
-            });
-            $('body').append(container);
-
-            // 3) Measure the container’s computed inner width/height (from CSS):
-            const measuredWidthPx = container.innerWidth();   // e.g. 250px
-            const measuredHeightPx = container.innerHeight(); // e.g. 150px
-
-            // 4) Reserve a little vertical padding so the text never touches top/bottom:
-            const VERTICAL_PADDING = 20; // Total top+bottom breathing room
-            const maxTextHeightPx = Math.max(0, measuredHeightPx - VERTICAL_PADDING);
-
-            // 5) We will try font sizes from 48px down to 12px. For each fs:
-            //    – Set font-size: fs px; line-height: fs px on labelDiv
-            //    – Check if canvas‐measured width ≤ measuredWidthPx, AND if
-            //      labelDiv.outerHeight() ≤ maxTextHeightPx.
-            //    Stop when both constraints are satisfied.
-            const computedStyle = window.getComputedStyle(labelDiv[0]);
-            const fontFamily = computedStyle.fontFamily || 'sans-serif';
-
-            let chosenFontSize = 12;
-            for (let fs = 48; fs >= 12; fs--) {
-                // 5a) Check width via a canvas:
-                const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
-                if (textWidth > measuredWidthPx) {
-                    continue; // too wide, try smaller fs
-                }
-
-                // 5b) Temporarily apply fs & line-height to labelDiv and measure height:
-                labelDiv.css({
-                    'font-size': fs + 'px',
-                    'line-height': fs + 'px',
-                    visibility: 'visible',    // only for height measurement
-                    position: 'relative'
-                });
-                const textHeight = labelDiv.outerHeight();
-                if (textHeight <= maxTextHeightPx) {
-                    chosenFontSize = fs;
-                    break;
-                }
-                // else: too tall, try next smaller fs
+        $('<img>', {
+            src: wordData.image,
+            alt: wordData.title,
+            class: 'quiz-image'
+        }).on('load', function () {
+            const fudge = 10;
+            if (this.naturalWidth > this.naturalHeight + fudge) {
+                container.addClass('landscape');
+            } else if (this.naturalWidth + fudge < this.naturalHeight) {
+                container.addClass('portrait');
             }
+        }).appendTo(container);
 
-            // 6) We have chosenFontSize; detach container (remove off-screen positioning) and keep that size locked in:
-            container.detach();
-            container.css({
-                position: '',
-                top: '',
-                left: '',
-                visibility: '',
-                display: 'none' // keep hidden until final insertion
-            });
-            // labelDiv already has 'font-size: chosenFontSize px' and 'line-height: chosenFontSize px'
-
-            // From now on, CSS enforces container at exactly 250×150 (via .text-based), and labelDiv has a matching
-            // line-height, so two lines (or one) will never overlap.
-        }
-
-        // 7) Finally, insert container at a random index inside #ll-tools-flashcard, then call .show():
-        const allCards = $('.flashcard-container');
-        const insertAtIndex = Math.floor(Math.random() * (allCards.length + 1));
-        if (allCards.length === 0 || insertAtIndex >= allCards.length) {
-            $('#ll-tools-flashcard').append(container.show());
-        } else {
-            container.show().insertBefore(allCards.eq(insertAtIndex));
-        }
+        return container;
     }
 
     /**
-     * Helper: measures a given text string at a given CSS font (e.g. "24px Roboto")
-     * via a single shared hidden <canvas>. Returns the pixel width.
+     * Builds and returns a text-mode flashcard <div>.
+     * Dynamically chooses the largest font size that fits.
+     *
+     * @param  {Object} wordData – The word object
+     * @return {jQuery}          – A hidden (display:none) jQuery element
      */
-    function measureTextWidth(text, cssFont) {
-        if (!measureTextWidth._canvas) {
-            measureTextWidth._canvas = document.createElement('canvas');
-            measureTextWidth._ctx = measureTextWidth._canvas.getContext('2d');
+    function createTextCard(wordData) {
+
+        // give the card the same size bucket as image cards
+        const sizeClass = 'flashcard-size-' + llToolsFlashcardsData.imageSize;
+
+        const container = $('<div>', {
+            class: `flashcard-container text-based ${sizeClass}`,
+            'data-word': wordData.title
+        });
+
+        const labelDiv = $('<div>', {
+            text: wordData.label,
+            class: 'quiz-text'
+        }).appendTo(container);
+
+        /* ——— Measure off-screen ——— */
+        container.css({
+            position: 'absolute',
+            top: -9999,
+            left: -9999,
+            visibility: 'hidden',
+            display: 'block'      // let it render so width/height are real
+        })
+            .appendTo('body');
+
+        const boxH = container.innerHeight() - 15;
+        const boxW = container.innerWidth() - 15;
+        const fontFamily = getComputedStyle(labelDiv[0]).fontFamily || 'sans-serif';
+
+        for (let fs = 48; fs >= 12; fs--) {
+            const textWidth = measureTextWidth(wordData.label, fs + 'px ' + fontFamily);
+            if (textWidth > boxW) {
+                continue; // too wide, try smaller fs
+            }
+
+            labelDiv.css({
+                'font-size': fs + 'px',
+                'line-height': fs + 'px',
+                visibility: 'visible',    // only for height measurement
+                position: 'relative'
+            });
+            const textHeight = labelDiv.outerHeight();
+            if (textHeight <= boxH) {
+                break;
+            }
+            // else: too tall, try next smaller fs
         }
-        const ctx = measureTextWidth._ctx;
-        ctx.font = cssFont;
-        return ctx.measureText(text).width;
+
+        /* ——— Clean-up ——— */
+        container.detach().css({ position: '', top: '', left: '', visibility: '', display: 'none' });
+
+        return container;
+    }
+
+    /**
+     * Inserts a flashcard container at a random position within the flashcard widget.
+     * 
+     * @param {jQuery} container - The jQuery element representing the flashcard container to insert.
+     */
+    function insertContainerAtRandom(container) {
+        const $cards = $('#ll-tools-flashcard .flashcard-container');
+        const idx = Math.floor(Math.random() * ($cards.length + 1));
+
+        if (!$cards.length || idx >= $cards.length) {
+            $('#ll-tools-flashcard').append(container);
+        } else {
+            container.insertBefore($cards.eq(idx));
+        }
+        container.fadeIn(200);
+    }
+
+    /**
+     * Appends a word to the flashcard container based on the current display mode.
+     * 
+     * @param {Object} wordData - The word data object containing the word's details.
+     */
+    function appendWordToContainer(wordData) {
+        const displayMode = getCurrentDisplayMode(); // "image" | "text"
+        const card = (displayMode === 'image')
+            ? createImageCard(wordData)
+            : createTextCard(wordData);
+
+        insertContainerAtRandom(card);
     }
 
     /**
