@@ -447,23 +447,31 @@
     }
 
     /**
-     * Adds a click event to a card for right/wrong answer handling.
-     *
-     * @param {jQuery} card - The jQuery element for the card.
-     * @param {number} index - Index of the card.
-     * @param {Object} targetWord - The target word object to compare with.
-     */
+ * Adds a click event to a card for right/wrong answer handling.
+ * Clicks are ignored until the target-word audio has played long enough
+ *
+ * @param {jQuery} card        – Card element
+ * @param {number} index       – Index of the card
+ * @param {Object} targetWord  – Target-word metadata
+ */
     function addClickEventToCard(card, index, targetWord) {
         const displayMode = getCurrentDisplayMode();
 
-        card.click(function () {
+        // Remove any existing handler first, then attach the new one
+        card.off('click').on('click', function () {
+
+            // Ignore clicks until the target audio has played
+            if (!FlashcardAudio.getTargetAudioHasPlayed()) {
+                return;
+            }
+
             if (displayMode === 'image') {
-                if ($(this).find('img').attr("src") === targetWord.image) {
+                if ($(this).find('img').attr('src') === targetWord.image) {
                     handleCorrectAnswer(targetWord, $(this));
                 } else {
                     handleWrongAnswer(targetWord, index, $(this));
                 }
-            } else {
+            } else { // text mode
                 if ($(this).find('.quiz-text').text() === (targetWord.label || '')) {
                     handleCorrectAnswer(targetWord, $(this));
                 } else {
