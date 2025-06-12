@@ -447,13 +447,13 @@
     }
 
     /**
- * Adds a click event to a card for right/wrong answer handling.
- * Clicks are ignored until the target-word audio has played long enough
- *
- * @param {jQuery} card        – Card element
- * @param {number} index       – Index of the card
- * @param {Object} targetWord  – Target-word metadata
- */
+     * Adds a click event to a card for right/wrong answer handling.
+     * Clicks are ignored until the target-word audio has played long enough
+     *
+     * @param {jQuery} card        – Card element
+     * @param {number} index       – Index of the card
+     * @param {Object} targetWord  – Target-word metadata
+     */
     function addClickEventToCard(card, index, targetWord) {
         const displayMode = getCurrentDisplayMode();
 
@@ -546,6 +546,10 @@
      * @param {jQuery} wrongAnswer - The jQuery element of the wrong card.
      */
     function handleWrongAnswer(targetWord, index, wrongAnswer) {
+        if (userClickedCorrectAnswer) {
+            return;
+        }
+
         FlashcardAudio.playFeedback(false, targetWord.audio, null);
 
         // Fade out the incorrect card
