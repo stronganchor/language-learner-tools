@@ -408,68 +408,69 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
 /**
  * Finds the best matching image for a given audio file name and category.
  *
- * 1. If an image post title exactly equals the audio title (case‐insensitive),
- *    return that immediately.
- * 2. Otherwise, pick the post with the most token‐by‐token overlaps.
- * 3. If still zero overlaps, fall back to a fuzzy similar_text scan.
- *
- * @param string $audio_file_name  The (formatted) audio‐search string.
- * @param array  $categories       Array of category IDs to limit the search.
- * @return WP_Post|null            The best matching image post or null if none found.
+ * @param string $audio_file_name The name of the audio post title.
+ * @param array  $categories      The category IDs to limit the image search.
+ * @return WP_Post|null           The best matching image post or null if none found.
  */
 function ll_find_matching_image( $audio_file_name, $categories ) {
-    // Get all word_image posts in these categories
-    $image_posts = get_posts( array(
+    // Break the audio title into lowercase tokens, splitting on space, hyphen, underscore, dot, comma, semicolon, colon, ! or ?
+    $audio_words = preg_split(
+        '/[\s\-\_.,;:!?]+/',
+        strtolower( $audio_file_name ),
+        -1,
+        PREG_SPLIT_NO_EMPTY
+    );
+
+    // Fetch all word_images in those same categories
+    $image_posts = get_posts([
         'post_type'      => 'word_images',
         'posts_per_page' => -1,
-        'tax_query'      => array(
-            array(
-                'taxonomy' => 'word-category',
-                'field'    => 'term_id',
-                'terms'    => $categories,
-            ),
-        ),
-    ) );
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => $categories,
+        ]],
+    ]);
 
-    if ( empty( $image_posts ) ) {
-        return null;
-    }
+    $best_match   = null;
+    $max_matches  = 0;
 
-    $audio_lower  = mb_strtolower( $audio_file_name, 'UTF-8' );
-    // split on punctuation/whitespace into tokens
-    $audio_words  = preg_split( '/[\s\-\.,;:!?\(\)]+/', $audio_lower, -1, PREG_SPLIT_NO_EMPTY );
+    // 1) EXACT TOKEN OVERLAP
+    foreach ( $image_posts as $img ) {
+        // If during bulk‐upload you had to append "_0", "_1", etc., drop that here
+        $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
 
-    $best_match         = null;
-    $max_exact_matches  = -1;
-    $best_fuzzy_score   = 0;
+        $image_words = preg_split(
+            '/[\s\-\_.,;:!?]+/',
+            strtolower( $clean_title ),
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        );
 
-    foreach ( $image_posts as $image_post ) {
-        $image_title      = pathinfo( $image_post->post_title, PATHINFO_FILENAME );
-        $image_lower      = mb_strtolower( $image_title, 'UTF-8' );
+        // count how many tokens are exactly shared
+        $matches = count( array_intersect( $audio_words, $image_words ) );
 
-        // 1) immediate exact full‐string match
-        if ( 0 === strcasecmp( $audio_lower, $image_lower ) ) {
-            return $image_post;
-        }
-
-        // 2) count token overlaps
-        $image_words      = preg_split( '/[\s\-\.,;:!?\(\)]+/', $image_lower, -1, PREG_SPLIT_NO_EMPTY );
-        $exact_matches    = count( array_intersect( $audio_words, $image_words ) );
-
-        if ( $exact_matches > $max_exact_matches ) {
-            $max_exact_matches = $exact_matches;
-            $best_match        = $image_post;
+        if ( $matches > $max_matches ) {
+            $max_matches = $matches;
+            $best_match  = $img;
         }
     }
 
-    // 3) if we got zero overlaps, fall back to fuzzy scoring
-    if ( 0 === $max_exact_matches ) {
-        foreach ( $image_posts as $image_post ) {
-            $image_title    = pathinfo( $image_post->post_title, PATHINFO_FILENAME );
-            similar_text( $audio_file_name, $image_title, $score );
-            if ( $score > $best_fuzzy_score ) {
-                $best_fuzzy_score = $score;
-                $best_match       = $image_post;
+    // 2) FALL BACK to fuzzy match if *no* exact overlaps
+    if ( 0 === $max_matches && ! empty( $image_posts ) ) {
+        $highest_score = 0;
+        $best_match    = null;
+
+        foreach ( $image_posts as $img ) {
+            $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
+            similar_text(
+                strtolower( $audio_file_name ),
+                strtolower( $clean_title ),
+                $score
+            );
+            if ( $score > $highest_score ) {
+                $highest_score = $score;
+                $best_match    = $img;
             }
         }
     }
