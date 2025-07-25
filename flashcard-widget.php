@@ -256,17 +256,21 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             continue;
         }
 
-        // If translations are enabled, check if the category has a translation
+        // Pick the correct display name (raw or translated)
         $translation = $use_translations
-            ? (get_term_meta($category->term_id, 'term_translation', true) ?: $category->name)
+            ? ( get_term_meta($category->term_id, 'term_translation', true) ?: $category->name )
             : $category->name;
 
+        // decode any HTML entities so "&amp;" → "&"
+        $decoded_name        = html_entity_decode( $category->name,    ENT_QUOTES, 'UTF-8' );
+        $decoded_translation = html_entity_decode( $translation,      ENT_QUOTES, 'UTF-8' );
+
         $processed_categories[] = [
-            'id' => $category->term_id,
-            'slug' => $category->slug,
-            'name' => $category->name,
-            'translation' => $translation,
-            'mode' => $mode,
+            'id'          => $category->term_id,
+            'slug'        => $category->slug,
+            'name'        => $decoded_name,
+            'translation' => $decoded_translation,
+            'mode'        => $mode,
         ];
     }
 

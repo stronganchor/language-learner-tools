@@ -109,67 +109,91 @@ function ll_tools_save_similar_words_metadata($post_id) {
     }
 }
 
-// Display the content of custom fields on the "words" posts.
+/**
+ * Displays the content of custom fields on the "words" posts.
+ *
+ * @param string $content The original post content.
+ * @return string Modified content with vocab details prepended.
+ */
 function ll_tools_display_vocab_content($content) {
-    // Check if we're inside the main loop in a single 'words' post
+    // Only modify output on single 'words' posts inside the main loop.
     if (is_singular('words') && in_the_loop() && is_main_query()) {
         global $post;
 
-        // Retrieve custom field values
-        $word_audio_file = get_post_meta($post->ID, 'word_audio_file', true);
-        $word_english_meaning = get_post_meta($post->ID, 'word_english_meaning', true);
-        $word_example_sentence = get_post_meta($post->ID, 'word_example_sentence', true);
-        $word_example_translation = get_post_meta($post->ID, 'word_example_sentence_translation', true);
+        // Retrieve custom field values for this word.
+        $word_audio_file               = get_post_meta($post->ID, 'word_audio_file', true);
+        $word_english_meaning          = get_post_meta($post->ID, 'word_english_meaning', true);
+        $word_example_sentence         = get_post_meta($post->ID, 'word_example_sentence', true);
+        $word_example_translation      = get_post_meta($post->ID, 'word_example_sentence_translation', true);
 
-        // Fetch and format the word categories, including parent categories
+        // Build the category list, including any parent terms.
         $word_categories_content = '';
         $word_categories = get_the_terms($post->ID, 'word-category');
-        if (!empty($word_categories)) {
+        if (!empty($word_categories) && !is_wp_error($word_categories)) {
             $word_categories_content .= '<div class="word-categories">Word categories: ';
             $category_links = array();
-            foreach ($word_categories as $category) {
-                // Add the current category
-                $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">' . esc_html($category->name) . '</a>';
 
-                // Check and add parent category if it exists
+            foreach ($word_categories as $category) {
+                // Decode any HTML entities, then escape for safe output.
+                $decoded_name = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
+                $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
+                                    . esc_html($decoded_name)
+                                    . '</a>';
+
+                // Walk up the parent chain to include ancestors.
                 while ($category->parent != 0) {
                     $category = get_term($category->parent, 'word-category');
-                    $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">' . esc_html($category->name) . '</a>';
+                    if (is_wp_error($category) || ! $category) {
+                        break;
+                    }
+                    $decoded_parent = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
+                    $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
+                                        . esc_html($decoded_parent)
+                                        . '</a>';
                 }
             }
 
-            // Remove duplicate category links and implode
+            // Remove duplicates and join with commas.
             $category_links = array_unique($category_links);
             $word_categories_content .= implode(', ', $category_links);
             $word_categories_content .= '</div>';
         }
 
-        // Build the custom output
+        // Begin assembling the custom vocab display.
         $custom_content = "<div class='vocab-item'>";
 
-        // Add word categories at the top
+        // Prepend the category list.
         $custom_content .= $word_categories_content;
 
-        // Add featured image with a custom class
+        // Display the featured image if one is set.
         if (has_post_thumbnail($post->ID)) {
-            $custom_content .= get_the_post_thumbnail($post->ID, 'full', array('class' => 'vocab-featured-image'));
+            $custom_content .= get_the_post_thumbnail(
+                $post->ID,
+                'full',
+                array('class' => 'vocab-featured-image')
+            );
         }
 
-        $custom_content .= "<h2>Meaning: $word_english_meaning</h2>";
+        // Show the English meaning as a heading.
+        $custom_content .= "<h2>Meaning: " . esc_html($word_english_meaning) . "</h2>";
 
+        // Show example sentence and its translation, if available.
         if ($word_example_sentence && $word_example_translation) {
-            $custom_content .= "<p>$word_example_sentence</p>";
-            $custom_content .= "<p><em>$word_example_translation</em></p>";
+            $custom_content .= '<p>' . esc_html($word_example_sentence) . '</p>';
+            $custom_content .= '<p><em>' . esc_html($word_example_translation) . '</em></p>';
         }
+
+        // Include an audio player if an audio file URL is provided.
         if ($word_audio_file) {
-            $custom_content .= "<audio controls src='".esc_url($word_audio_file)."'></audio>";
+            $custom_content .= '<audio controls src="' . esc_url($word_audio_file) . '"></audio>';
         }
 
         $custom_content .= "</div>";
 
-        // Append the custom content to the original content
+        // Prepend our custom vocab block to the existing post content.
         $content = $custom_content . $content;
     }
+
     return $content;
 }
 add_filter('the_content', 'll_tools_display_vocab_content');
