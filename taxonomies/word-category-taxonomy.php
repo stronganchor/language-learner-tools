@@ -21,7 +21,7 @@ function ll_tools_register_word_category_taxonomy() {
         "show_in_menu" => true,
         "show_in_nav_menus" => true,
         "query_var" => true,
-        "rewrite" => ['slug' => 'word-category', 'with_front' => true,],
+        "rewrite" => ['slug' => 'word-category', 'with_front' => true],
         "show_admin_column" => false,
         "show_in_rest" => true,
         "show_tagcloud" => false,
@@ -34,7 +34,7 @@ function ll_tools_register_word_category_taxonomy() {
     ];
     register_taxonomy("word-category", ["words", "word_images"], $args);
 
-    // Initialize translation meta fields
+    // Initialize translation meta fields and bulk‐add hooks
     ll_tools_initialize_word_category_meta_fields();
 }
 add_action('init', 'll_tools_register_word_category_taxonomy');
@@ -58,6 +58,10 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('word-category_edit_form_fields', 'll_edit_use_word_titles_field');
     add_action('created_word-category', 'll_save_use_word_titles_field', 10, 2);
     add_action('edited_word-category', 'll_save_use_word_titles_field', 10, 2);
+
+    // Bulk‑add form display and processing hooks
+    add_action('admin_notices', 'll_render_bulk_add_categories_form');
+    add_action('admin_post_ll_word_category_bulk_add', 'll_process_bulk_add_categories');
 }
 
 /**
@@ -110,8 +114,8 @@ function ll_edit_translation_field($term) {
  */
 function ll_save_translation_field($term_id, $taxonomy) {
     if (isset($_POST['term_translation'])) {
-        $similar_word_id = sanitize_text_field($_POST['term_translation']);
-        update_term_meta($term_id, 'term_translation', $similar_word_id);
+        $translation = sanitize_text_field($_POST['term_translation']);
+        update_term_meta($term_id, 'term_translation', $translation);
     }
 }
 
@@ -153,6 +157,12 @@ function ll_add_use_word_titles_field($term) {
     </div>
     <?php
 }
+
+/**
+ * Field to mark a category as "use titles" when editing.
+ *
+ * @param WP_Term $term Term object.
+ */
 function ll_edit_use_word_titles_field($term) {
     $checkbox_value = get_term_meta($term->term_id, 'use_word_titles_for_audio', true);
     $checked = $checkbox_value === '1' ? 'checked' : '';
@@ -168,6 +178,13 @@ function ll_edit_use_word_titles_field($term) {
     </tr>
     <?php
 }
+
+/**
+ * Saves the "use titles" checkbox for a term.
+ *
+ * @param int    $term_id Term ID.
+ * @param string $taxonomy Taxonomy name.
+ */
 function ll_save_use_word_titles_field($term_id, $taxonomy) {
     if (isset($_POST['use_word_titles_for_audio'])) {
         update_term_meta($term_id, 'use_word_titles_for_audio', '1');
@@ -184,14 +201,14 @@ function ll_save_use_word_titles_field($term_id, $taxonomy) {
  */
 function ll_get_deepest_categories($post_id) {
     $categories = wp_get_post_terms($post_id, 'word-category');
-    $deepest_categories = array();
+    $deepest_categories = [];
     $max_depth = -1;
 
     foreach ($categories as $category) {
         $depth = ll_get_category_depth($category->term_id);
         if ($depth > $max_depth) {
             $max_depth = $depth;
-            $deepest_categories = array($category);
+            $deepest_categories = [$category];
         } elseif ($depth == $max_depth) {
             $deepest_categories[] = $category;
         }
@@ -233,7 +250,7 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
     $args = [
         'post_type'      => 'words',
         'posts_per_page' => -1,
-        'tax_query' => [
+        'tax_query'      => [
             [
                 'taxonomy' => 'word-category',
                 'field'    => 'name',
@@ -242,10 +259,8 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
         ],
     ];
 
-    // Only add meta queries if NOT using post titles
     if (!$useTitlesMeta) {
         if ($display_mode === 'image') {
-            // Demand a featured image
             $args['meta_query'] = [
                 [
                     'key'     => '_thumbnail_id',
@@ -253,7 +268,6 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
                 ],
             ];
         } else {
-            // Demand a word_english_meaning field
             $args['meta_query'] = [
                 [
                     'key'     => 'word_english_meaning',
@@ -271,23 +285,16 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
             $query->the_post();
             $post_id = get_the_ID();
 
-            $deepest_categories = ll_get_deepest_categories($post_id);
-            $deepest_category_names = array_map(
-                function($cat) { return $cat->name; },
-                $deepest_categories
-            );
+            $deepest_categories      = ll_get_deepest_categories($post_id);
+            $deepest_category_names  = array_map(function($cat) { return $cat->name; }, $deepest_categories);
 
-            // Only add this post if it actually belongs to the $category_name
             if (!in_array($category_name, $deepest_category_names, true)) {
                 continue;
             }
 
-            // Decide what text label to show on the flashcard
             if ($useTitlesMeta) {
-                // If "match titles" is enabled, use the post title
                 $labelValue = get_the_title($post_id);
             } else {
-                // Otherwise, fallback to the word_english_meaning
                 $labelValue = get_post_meta($post_id, 'word_english_meaning', true);
             }
 
@@ -299,7 +306,6 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
                 'similar_word_id'=> get_post_meta($post_id, 'similar_word_id', true),
                 'category'       => $category_name,
                 'all_categories' => $deepest_category_names,
-                // renamed from 'translation' to 'label'
                 'label'          => $labelValue,
             ];
         }
@@ -309,5 +315,85 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
     return $words_data;
 }
 
+/**
+ * Renders a separate "Bulk Add Categories" form at the top of the Word Categories page.
+ */
+function ll_render_bulk_add_categories_form() {
+    $screen = get_current_screen();
+    if ('edit-word-category' !== $screen->id) {
+        return;
+    }
 
-?>
+    // Display summary notices after processing
+    if (isset($_GET['bulk_added'])) {
+        $added  = intval($_GET['bulk_added']);
+        $failed = intval($_GET['bulk_failed']);
+        if ($added) {
+            printf(
+                '<div class="notice notice-success"><p>%s</p></div>',
+                esc_html(sprintf(_n('Successfully added %d category.', 'Successfully added %d categories.', $added, 'll-tools-text-domain'), $added))
+            );
+        }
+        if ($failed) {
+            printf(
+                '<div class="notice notice-warning"><p>%s</p></div>',
+                esc_html(sprintf(_n('%d entry failed.', '%d entries failed.', $failed, 'll-tools-text-domain'), $failed))
+            );
+        }
+    }
+
+    $action = esc_url(admin_url('admin-post.php'));
+    ?>
+    <div class="wrap term-bulk-add-wrap">
+        <h2><?php esc_html_e('Bulk Add Categories', 'll-tools-text-domain'); ?></h2>
+        <form method="post" action="<?php echo $action; ?>">
+            <?php wp_nonce_field('ll_bulk_add_categories'); ?>
+            <input type="hidden" name="action" value="ll_word_category_bulk_add">
+            <textarea name="bulk_categories" rows="5" style="width:60%;" placeholder="<?php esc_attr_e('Enter names separated by commas, tabs or new lines…', 'll-tools-text-domain'); ?>"></textarea>
+            <p>
+                <input type="submit" class="button button-primary" value="<?php esc_attr_e('Bulk Add Categories', 'll-tools-text-domain'); ?>">
+            </p>
+        </form>
+    </div>
+    <?php
+}
+
+/**
+ * Processes the bulk‑add submission and creates categories.
+ */
+function ll_process_bulk_add_categories() {
+    if (!current_user_can('manage_categories') || !check_admin_referer('ll_bulk_add_categories')) {
+        wp_die(__('Permission denied or invalid nonce.', 'll-tools-text-domain'));
+    }
+
+    $raw    = isset($_POST['bulk_categories']) ? wp_unslash($_POST['bulk_categories']) : '';
+    $names  = preg_split('/[\r\n\t,]+/', $raw);
+    $added  = 0;
+    $failed = 0;
+
+    foreach ($names as $name) {
+        $name = sanitize_text_field(trim($name));
+        if ('' === $name || term_exists($name, 'word-category')) {
+            $failed++;
+            continue;
+        }
+        $result = wp_insert_term($name, 'word-category');
+        if (!is_wp_error($result)) {
+            $added++;
+        } else {
+            $failed++;
+        }
+    }
+
+    $redirect = add_query_arg(
+        [
+            'taxonomy'    => 'word-category',
+            'bulk_added'  => $added,
+            'bulk_failed' => $failed,
+        ],
+        admin_url('edit-tags.php')
+    );
+    wp_safe_redirect($redirect);
+    exit;
+}
+
