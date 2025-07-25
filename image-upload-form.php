@@ -16,7 +16,8 @@ function ll_image_upload_form_shortcode() {
     ob_start();
     ?>
     <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
-        <input type="file" name="ll_image_files[]" multiple="multiple"><br>
+        <!-- only allow image files -->
+        <input type="file" name="ll_image_files[]" accept="image/*" multiple="multiple"><br>
 
         <div>
             <?php

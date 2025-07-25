@@ -19,7 +19,7 @@ function ll_audio_upload_form_shortcode() {
     ob_start();
     ?>
     <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
-        <input type="file" name="ll_audio_files[]" multiple="multiple"><br>
+        <input type="file" name="ll_audio_files[]" accept="audio/*" multiple="multiple"><br>
         
         <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
         <label for="match_existing_posts">Match to existing word posts instead of creating new ones</label><br>
