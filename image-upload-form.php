@@ -9,25 +9,23 @@
  * @return string The HTML form for uploading image files.
  */
 function ll_image_upload_form_shortcode() {
-    if (!current_user_can('upload_files')) {
+    if ( ! current_user_can( 'upload_files' ) ) {
         return 'You do not have permission to upload files.';
     }
 
     ob_start();
     ?>
-    <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
+    <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" enctype="multipart/form-data">
         <!-- only allow image files -->
-        <input type="file" name="ll_image_files[]" accept="image/*" multiple="multiple"><br>
+        <input type="file" name="ll_image_files[]" accept="image/*" multiple /><br>
 
         <div>
-            <?php
-            echo 'Select Categories:<br>';
-            ll_display_categories_checklist('word-category');
-            ?>
+            <label><?php esc_html_e( 'Select Categories', 'll-tools-text-domain' ); ?>:</label><br>
+            <?php ll_render_category_selection_field( 'word_images' ); ?>
         </div>
 
         <input type="hidden" name="action" value="process_image_files">
-        <input type="submit" value="Upload Image Files">
+        <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Images', 'll-tools-text-domain' ); ?>">
     </form>
     <?php
     return ob_get_clean();

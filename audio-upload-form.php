@@ -12,81 +12,34 @@
  * @return string The HTML form for uploading audio files.
  */
 function ll_audio_upload_form_shortcode() {
-    if (!current_user_can('upload_files')) {
+    if ( ! current_user_can( 'upload_files' ) ) {
         return 'You do not have permission to upload files.';
     }
 
     ob_start();
     ?>
-    <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
-        <input type="file" name="ll_audio_files[]" accept="audio/*" multiple="multiple"><br>
-        
-        <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
-        <label for="match_existing_posts">Match to existing word posts instead of creating new ones</label><br>
+    <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" enctype="multipart/form-data">
+        <!-- only allow audio files -->
+        <input type="file" name="ll_audio_files[]" accept="audio/*" multiple /><br>
 
-        <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
-        <label for="match_image_on_translation">Match images based on translation instead of original word</label><br>
-        
-        <div id="wordsets_section">
-        Select Word Set:<br>
-        <?php
-            ll_display_wordsets_dropdown();
-        ?>
+        <label>
+            <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
+            <?php esc_html_e( 'Match to existing word posts instead of creating new ones', 'll-tools-text-domain' ); ?>
+        </label><br>
+
+        <label>
+            <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
+            <?php esc_html_e( 'Match images based on translation instead of original word', 'll-tools-text-domain' ); ?>
+        </label><br>
+
+        <div>
+            <label><?php esc_html_e( 'Select Categories', 'll-tools-text-domain' ); ?>:</label><br>
+            <?php ll_render_category_selection_field( 'words' ); ?>
         </div>
 
-        <div id="parts_of_speech_section">
-            Select Part of Speech:<br>
-            <select name="ll_part_of_speech">
-                <option value="">-- Select Part of Speech --</option>
-                <?php
-                $parts_of_speech = get_terms([
-                    'taxonomy' => 'part_of_speech',
-                    'hide_empty' => false,
-                ]);
-                foreach ($parts_of_speech as $part_of_speech) {
-                    echo '<option value="' . esc_attr($part_of_speech->term_id) . '">' . esc_html($part_of_speech->name) . '</option>';
-                }
-                ?>
-            </select>
-        </div>
-
-        <div id="categories_section">
-            <?php
-            echo 'Select Categories:<br>';
-            echo '<div style="max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;">';
-            ll_display_categories_checklist('word-category');
-            echo '</div>';
-            ?>
-        </div>
-        
         <input type="hidden" name="action" value="process_audio_files">
-        <input type="submit" value="Upload Audio Files">
+        <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
     </form>
-
-    <script type="text/javascript">
-    jQuery(document).ready(function($) {
-        // When the 'Match to existing word posts' checkbox changes
-        $('#match_existing_posts').change(function() {
-            // Toggle the visibility of the categories section
-            $('#categories_section').toggle(!this.checked);
-            // Toggle the visibility of the word set section
-            $('#wordsets_section').toggle(!this.checked);
-            // Toggle the visibility of the part of speech section
-            $('#parts_of_speech_section').toggle(!this.checked);
-        });
-
-        // When a category checkbox changes
-        $('input[name="ll_word_categories[]"]').on('change', function() {
-            let parentId = $(this).data('parent-id');
-            // Loop through all parents and check them
-            while (parentId) {
-                const parentCheckbox = $('input[name="ll_word_categories[]"][value="' + parentId + '"]');
-                parentCheckbox.prop('checked', true);
-                parentId = parentCheckbox.data('parent-id'); // Move to the next parent
-            }
-        });
-    });
-    </script>
     <?php
     return ob_get_clean();
 }
@@ -138,29 +91,6 @@ function ll_display_wordsets_dropdown() {
         echo '</select>';
     } else {
         echo '<p>No word sets available.</p>';
-    }
-}
-
-/**
- * Displays categories with indentation.
- *
- * @param string $taxonomy The taxonomy to retrieve categories from.
- * @param int $parent The parent term ID.
- * @param int $level The current indentation level.
- */
-function ll_display_categories_checklist($taxonomy, $parent = 0, $level = 0) {
-    $categories = get_terms([
-        'taxonomy'   => $taxonomy,
-        'hide_empty' => false,
-        'parent'     => $parent,
-    ]);
-
-    foreach ($categories as $category) {
-        $indent = str_repeat("&nbsp;&nbsp;&nbsp;", $level);
-        echo $indent . '<input type="checkbox" name="ll_word_categories[]" value="' . esc_attr($category->term_id) . '" data-parent-id="' . esc_attr($category->parent) . '"> ' . esc_html($category->name) . '<br>';
-
-        // Recursive call to get child categories
-        ll_display_categories_checklist($taxonomy, $category->term_id, $level + 1);
     }
 }
 

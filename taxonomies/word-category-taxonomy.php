@@ -417,3 +417,62 @@ function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
     return $terms;
 }
 add_filter( 'get_terms', 'll_tools_nat_sort_word_category_terms', 10, 3 );
+
+/**
+ * Renders a scrollable category‐checkbox list (with post counts) for the given post type.
+ *
+ * @param string $post_type Post type slug ('words' or 'word_images').
+ */
+function ll_render_category_selection_field( $post_type ) {
+    echo '<div style="max-height:200px; overflow-y:auto; border:1px solid #ccc; padding:5px;">';
+    ll_display_categories_checklist( 'word-category', $post_type );
+    echo '</div>';
+}
+
+/**
+ * Recursively outputs category checkboxes, indenting child terms and showing a per–post_type count.
+ *
+ * @param string $taxonomy  Taxonomy slug (always 'word-category').
+ * @param string $post_type Post type to count (e.g. 'words' or 'word_images').
+ * @param int    $parent    Parent term ID for recursion.
+ * @param int    $level     Depth level for indentation.
+ */
+function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $level = 0 ) {
+    $terms = get_terms([
+        'taxonomy'   => $taxonomy,
+        'hide_empty' => false,
+        'parent'     => $parent,
+    ]);
+    if ( is_wp_error( $terms ) ) {
+        return;
+    }
+
+    foreach ( $terms as $term ) {
+        // Count posts of this type in this term
+        $q = new WP_Query([
+            'post_type'      => $post_type,
+            'tax_query'      => [[
+                'taxonomy' => $taxonomy,
+                'field'    => 'term_id',
+                'terms'    => $term->term_id,
+            ]],
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => false,
+        ]);
+        $count = $q->found_posts;
+
+        $indent = str_repeat( '&nbsp;&nbsp;&nbsp;', $level );
+        printf(
+            '%s<input type="checkbox" name="ll_word_categories[]" value="%d" data-parent-id="%d"> <label>%s (%d)</label><br>',
+            $indent,
+            esc_attr( $term->term_id ),
+            esc_attr( $term->parent ),
+            esc_html( $term->name ),
+            intval( $count )
+        );
+
+        // Recurse into children
+        ll_display_categories_checklist( $taxonomy, $post_type, $term->term_id, $level + 1 );
+    }
+}
