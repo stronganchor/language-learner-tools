@@ -397,3 +397,23 @@ function ll_process_bulk_add_categories() {
     exit;
 }
 
+/**
+ * Apply a natural (numeric‑aware) name sort whenever "word-category" terms are fetched.
+ *
+ * @param array           $terms      Array of WP_Term objects.
+ * @param string|string[] $taxonomies The taxonomy slug or array of slugs.
+ * @param array           $args       The get_terms arguments.
+ * @return array          Sorted array of WP_Term objects.
+ */
+function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
+    if (
+        ( is_array( $taxonomies ) && in_array( 'word-category', $taxonomies, true ) )
+        || $taxonomies === 'word-category'
+    ) {
+        usort( $terms, function( $a, $b ) {
+            return strnatcasecmp( $a->name, $b->name );
+        } );
+    }
+    return $terms;
+}
+add_filter( 'get_terms', 'll_tools_nat_sort_word_category_terms', 10, 3 );
