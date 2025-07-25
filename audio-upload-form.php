@@ -243,14 +243,29 @@ function ll_get_relative_upload_path($absolute_path) {
 
 /**
  * Cleans and formats the title from the original file name.
+ * Strips out digits/underscores—but if that leaves under 4 chars,
+ * it falls back to the full filename (so mostly-numeric names keep their numbers).
  *
- * @param string $original_name Original file name.
- * @return string Formatted title.
+ * @param string $original_name Original file name (with extension).
+ * @return string Formatted title for matching.
  */
-function ll_format_title($original_name) {
-    $title_without_extension = pathinfo($original_name, PATHINFO_FILENAME);
-    $title_cleaned = preg_replace('/[_0-9]+/', '', $title_without_extension);
-    return ll_normalize_case(sanitize_text_field($title_cleaned));
+function ll_format_title( $original_name ) {
+    // 1) Get filename without its extension
+    $filename = pathinfo( $original_name, PATHINFO_FILENAME );
+
+    // 2) Attempt to strip underscores and digits
+    $stripped = preg_replace( '/[_0-9]+/', '', $filename );
+    $stripped = trim( $stripped );
+
+    // 3) If stripping left us with fewer than 4 characters, keep the numbers
+    if ( mb_strlen( $stripped, 'UTF-8' ) < 4 ) {
+        $to_use = $filename;
+    } else {
+        $to_use = $stripped;
+    }
+
+    // 4) Normalize case (e.g. Turkish “I”) and sanitize
+    return ll_normalize_case( sanitize_text_field( $to_use ) );
 }
 
 /**
