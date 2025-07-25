@@ -448,7 +448,7 @@ function ll_find_matching_image( $audio_file_name, $categories ) {
         $image_lower      = mb_strtolower( $image_title, 'UTF-8' );
 
         // 1) immediate exact full‐string match
-        if ( 0 === mb_strcasecmp( $audio_lower, $image_lower, 'UTF-8' ) ) {
+        if ( 0 === strcasecmp( $audio_lower, $image_lower ) ) {
             return $image_post;
         }
 
