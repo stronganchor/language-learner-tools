@@ -5,7 +5,7 @@ function ll_create_missing_audio_admin_page() {
         'tools.php',
         'Language Learner Tools - Missing Audio',
         'LL Tools Missing Audio',
-        'manage_options',
+        'view_ll_tools',
         'language-learner-tools-missing-audio',
         'll_render_missing_audio_admin_page'
     );

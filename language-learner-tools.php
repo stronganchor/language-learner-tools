@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.8.2
+ * Version: 2.8.3
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -45,6 +45,7 @@ require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php
 
 // Include user roles
 require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php'); // Creates the 'wordset_manager' role for managing word sets
+require_once(plugin_dir_path(__FILE__) . 'user-roles/ll-tools-editor.php'); // Creates the 'll_tools_editor' role for managing the plugin's content
 
 // Include pages
 require_once(plugin_dir_path(__FILE__) . 'pages/manage-wordsets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
@@ -120,8 +121,8 @@ add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
  * Enqueues dashboard styles for non-admin users.
  */
 function ll_tools_enqueue_styles_for_non_admins() {
-    // Ensure the user does not have the Administrator role
-    if (current_user_can('manage_options')) {
+    // Ensure the user does not have the Administrator role or the LL Tools Editor role (both of which have access to the admin pages)
+    if (current_user_can('manage_options') || current_user_can('view_ll_tools')) {
         return;
     }
     ll_enqueue_asset_by_timestamp('/css/non-admin-style.css', 'll-tools-style');

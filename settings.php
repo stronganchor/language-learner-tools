@@ -10,7 +10,7 @@ function ll_register_settings_page() {
     add_options_page(
         'Language Learning Tools Settings', // Page title
         'Language Learning Tools', // Menu title
-        'manage_options', // Capability required to see the page
+        'view_ll_tools', // Capability required to see the page
         'language-learning-tools-settings', // Menu slug
         'll_render_settings_page' // Function to display the settings page
     );

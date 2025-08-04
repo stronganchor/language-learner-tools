@@ -12,7 +12,7 @@ function ll_add_deepl_api_key_page() {
     add_management_page(
         'DeepL API Key',
         'DeepL API Key',
-        'manage_options',
+        'view_ll_tools',
         'deepl-api-key',
         'll_deepl_api_key_page_content'
     );
