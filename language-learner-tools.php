@@ -20,7 +20,7 @@
  * - Custom post types and taxonomies
  * - Shortcodes for displaying vocabulary grids, flashcard quizzes, and audio playback
  * - AJAX for saving and retrieving user progress in the flashcard quiz
- * - Integration with external APIs (DeepL and OpenAI) for automatic translation and transcription
+ * - Integration with DeepL for automatic translation
  * - Handling for bulk audio and image uploads and generating posts from uploaded files
  * - Custom admin pages and settings for configuring the plugin
  * - Enqueuing custom styles and scripts
@@ -62,9 +62,6 @@ require_once(plugin_dir_path(__FILE__) . 'settings.php'); // WP Admin settings p
 
 // Include API files
 require_once(plugin_dir_path(__FILE__) . 'api/deepl-api.php'); // Handles the integration with the DeepL API for automatic translation
-if (!function_exists('transcribe_audio_to_text')) {  // Only include if the function does not already exist (e.g., in a separate OpenAI API plugin)
-    require_once(plugin_dir_path(__FILE__) . 'api/openai-api.php'); // Handles the integration with the OpenAI API
-}
 
 // Include the plugin update checker
 require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
