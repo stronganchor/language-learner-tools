@@ -770,6 +770,9 @@
         hideLoadingAnimation();
         $('#ll-tools-repeat-flashcard').hide();
 
+        // Hide the category header stack while results are visible
+        $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#restart-quiz').show();
@@ -785,15 +788,12 @@
 
         // Decide on the encouragement message
         if (correctRatio === 1) {
-            // Perfect score
             $title.text(llToolsFlashcardsMessages.perfect);
             $message.hide();
         } else if (correctRatio >= 0.7) {
-            // Good job score
             $title.text(llToolsFlashcardsMessages.goodJob);
             $message.hide();
         } else {
-            // Below 70%
             $title.text(llToolsFlashcardsMessages.keepPracticingTitle);
             $message.text(llToolsFlashcardsMessages.keepPracticingMessage);
             $message.css({
