@@ -1,7 +1,7 @@
 <?php
 /**
  * [flashcard_widget] shortcode
- * 
+ *
  * This shortcode displays a flashcard widget for learning and practicing words.
  */
 
@@ -26,7 +26,7 @@ function ll_tools_flashcard_widget($atts) {
         // Output inline CSS to force text-based flashcards to use the selected font
         echo '<style>#ll-tools-flashcard .text-based { font-family: "' . esc_attr($quiz_font) . '", sans-serif; }</style>';
     }
-    
+
     $categories = $atts['category'];
     $categoriesPreselected = true;
 
@@ -57,7 +57,7 @@ function ll_tools_flashcard_widget($atts) {
 
         foreach ($category_attributes as $attribute) {
             $attribute_found = false;
-        
+
             foreach ($all_categories as $category) {
                 if (strcasecmp($attribute, $category['name']) === 0 || strcasecmp($attribute, $category['id']) === 0 || strcasecmp($attribute, $category['slug']) === 0) {
                     $categories[] = $category;
@@ -65,11 +65,11 @@ function ll_tools_flashcard_widget($atts) {
                     break;
                 }
             }
-        
+
             if (!$attribute_found) {
                 error_log("Category '$attribute' not found.");
             }
-        }        
+        }
     }
 
     // Process category data for the quiz
@@ -80,7 +80,7 @@ function ll_tools_flashcard_widget($atts) {
     while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)) {
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
         $categoriesToTry = array_diff($categoriesToTry, [$random_category]);
-    
+
         // Find the category data in $categories
         $selected_category_data = null;
         foreach ($categories as $cat) {
@@ -89,10 +89,10 @@ function ll_tools_flashcard_widget($atts) {
                 break;
             }
         }
-    
+
         // If for some reason we don't find it, default to image
         $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
-    
+
         $words_data = ll_get_words_by_category($random_category, $mode);
         $firstCategoryName = $random_category;
     }
@@ -103,7 +103,7 @@ function ll_tools_flashcard_widget($atts) {
     ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
-    
+
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 
@@ -169,7 +169,13 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-close-category-selection">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
+    // Flashcard quiz header. When the quiz starts this header becomes visible.
+    // Display the current category name on the left and keep the existing
+    // loading animation and control buttons on the right. The category name
+    // will be injected via JavaScript when the quiz begins.
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
+    // Container for the current category name. Populated via JS in flashcard-script.js.
+    echo '<span id="ll-tools-category-display" class="ll-tools-category-display"></span>';
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(plugin_dir_url(__FILE__) . 'media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
@@ -182,8 +188,11 @@ function ll_tools_flashcard_widget($atts) {
     // Add quiz results section here (hidden initially, will be updated by JS)
     echo '<div id="quiz-results" style="display: none;">';
     echo '<h2 id="quiz-results-title">' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>'; // Dynamic title
-    echo '<p id="quiz-results-message" style="display: none;"></p>'; 
+    echo '<p id="quiz-results-message" style="display: none;"></p>';
     echo '<p><strong>' . esc_html__('Correct:', 'll-tools-text-domain') . '</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>';
+    // Display the categories used in the quiz. This will be filled in by JavaScript on
+    // the results page to show the list of categories the user practiced.
+    echo '<p id="quiz-results-categories" style="margin-top: 10px; display: none;"></p>';
     echo '<button id="restart-quiz" class="quiz-button" style="display: none;">' . esc_html__('Restart Quiz', 'll-tools-text-domain') . '</button>';
     echo '</div>';
 

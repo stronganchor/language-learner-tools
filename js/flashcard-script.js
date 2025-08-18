@@ -100,6 +100,25 @@
     }
 
     /**
+     * Updates the text in the flashcard header to display the current category name.
+     *
+     * This helper ensures that the current category is visible to the user
+     * during the quiz. If the header element is not present, the function
+     * silently fails.
+     *
+     * @param {string} catName - The name of the category to display.
+     */
+    function updateCategoryNameDisplay(catName) {
+        if (!catName) return;
+        var $container = jQuery('#ll-tools-category-display');
+        if ($container.length) {
+            // Escape HTML entities to prevent injection
+            var safeName = String(catName).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            $container.text(safeName);
+        }
+    }
+
+    /**
      * Attempts to select a target word from a specific category.
      * May also select from that category's repetition queue if applicable.
      *
@@ -160,6 +179,8 @@
                 currentCategoryName = candidateCategoryName;
                 currentCategoryRoundCount = 0;
                 FlashcardLoader.preloadNextCategories();
+                // Update the header to show the new category name
+                updateCategoryNameDisplay(currentCategoryName);
             }
             currentCategory = wordsByCategory[candidateCategoryName];
             categoryRoundCount[candidateCategoryName]++;
@@ -313,7 +334,7 @@
 
     /**
      * Measures the width of a given text string using a specified CSS font.
-     * 
+     *
      * @param {string} text - The text to measure.
      * @param {string} cssFont - The CSS font string (e.g., "16px Arial").
      */
@@ -417,7 +438,7 @@
 
     /**
      * Inserts a flashcard container at a random position within the flashcard widget.
-     * 
+     *
      * @param {jQuery} container - The jQuery element representing the flashcard container to insert.
      */
     function insertContainerAtRandom(container) {
@@ -434,7 +455,7 @@
 
     /**
      * Appends a word to the flashcard container based on the current display mode.
-     * 
+     *
      * @param {Object} wordData - The word data object containing the word's details.
      */
     function appendWordToContainer(wordData) {
@@ -752,6 +773,11 @@
         $('#correct-count').text(quizResults.correctOnFirstTry);
         $('#total-questions').text(totalQuestions);
         $('#restart-quiz').show();
+        // Show the list of categories used in this quiz on the results page.
+        if (Array.isArray(categoryNames) && categoryNames.length > 0) {
+            var categoriesLabel = 'Categories: ' + categoryNames.join(', ');
+            jQuery('#quiz-results-categories').text(categoriesLabel).show();
+        }
 
         const correctRatio = (totalQuestions > 0) ? (quizResults.correctOnFirstTry / totalQuestions) : 0;
         const $title = $('#quiz-results-title');
@@ -795,6 +821,8 @@
         categoryNames = randomlySort(categoryNames);
         firstCategoryName = categoryNames[0];
         FlashcardLoader.loadResourcesForCategory(firstCategoryName);
+        // Show the name of the first category in the header as soon as the quiz starts
+        updateCategoryNameDisplay(firstCategoryName);
 
         // Disable scrolling while quiz is open
         $('body').addClass('ll-tools-flashcard-open');
