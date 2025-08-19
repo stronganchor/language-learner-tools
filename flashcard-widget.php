@@ -14,8 +14,8 @@
 function ll_tools_flashcard_widget($atts) {
     // Default settings for the shortcode
     $atts = shortcode_atts(array(
-        'category' => '', // Optional category
-        'mode' => 'random' // Default to practice by showing one random word at a time
+        'category' => '',
+        'mode' => 'random'
     ), $atts);
 
     ob_start();
@@ -32,9 +32,8 @@ function ll_tools_flashcard_widget($atts) {
 
     // Check if translation is enabled and the site's language matches the translation language
     $enable_translation = get_option('ll_enable_category_translation', 0);
-    $target_language = strtolower(get_option('ll_translation_language', 'en')); // Normalize case
-    $site_language = strtolower(get_locale()); // Normalize case
-
+    $target_language = strtolower(get_option('ll_translation_language', 'en'));
+    $site_language = strtolower(get_locale());
     // Determine if translations should be used
     $use_translations = $enable_translation && strpos($site_language, $target_language) === 0;
 
@@ -103,7 +102,6 @@ function ll_tools_flashcard_widget($atts) {
     ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
     ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
-
     ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
     ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
 
@@ -111,7 +109,6 @@ function ll_tools_flashcard_widget($atts) {
     wp_add_inline_script('jquery', '
         jQuery(document).ready(function($) {
             var audios = $("#word-grid audio");
-
             audios.on("play", function() {
                 var currentAudio = this;
                 audios.each(function() {
@@ -128,7 +125,7 @@ function ll_tools_flashcard_widget($atts) {
 
     // Data to be localized for use in JavaScript
     $localized_data = array(
-        'mode' => $atts['mode'], // Pass the mode to JavaScript
+        'mode' => $atts['mode'],
         'plugin_dir' => plugin_dir_url(__FILE__),
         'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
@@ -143,7 +140,6 @@ function ll_tools_flashcard_widget($atts) {
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
 
-	// Localize translatable strings for results messages
     wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(
         'perfect' => __('Perfect!', 'll-tools-text-domain'),
         'goodJob' => __('Good job!', 'll-tools-text-domain'),
@@ -152,7 +148,6 @@ function ll_tools_flashcard_widget($atts) {
         'somethingWentWrong' => __('Something went wrong, try again later.', 'll-tools-text-domain'),
     ));
 
-    // Output the initial setup and the buttons
     echo '<div id="ll-tools-flashcard-container">';
     echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
     echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
@@ -169,17 +164,18 @@ function ll_tools_flashcard_widget($atts) {
     echo '<button id="ll-tools-close-category-selection">&times;</button>';
     echo '</div>';
     echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
-    // Flashcard quiz header. When the quiz starts this header becomes visible.
-    // Display the current category name on the left and keep the existing
-    // loading animation and control buttons on the right. The category name
-    // will be injected via JavaScript when the quiz begins.
+
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
-    // Container for the current category name. Populated via JS in flashcard-script.js.
+    // STACK: category name above play/pause
+    echo '<div id="ll-tools-category-stack" class="ll-tools-category-stack">';
     echo '<span id="ll-tools-category-display" class="ll-tools-category-display"></span>';
-    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(plugin_dir_url(__FILE__) . 'media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
+    echo '</div>';
+
+    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
     echo '<button id="ll-tools-close-flashcard">&times;</button>';
     echo '</div>';
+
     echo '<div id="ll-tools-flashcard-content">';
     echo '<div id="ll-tools-flashcard"></div>';
     echo '<audio controls class="hidden"></audio>';
@@ -187,7 +183,7 @@ function ll_tools_flashcard_widget($atts) {
 
     // Add quiz results section here (hidden initially, will be updated by JS)
     echo '<div id="quiz-results" style="display: none;">';
-    echo '<h2 id="quiz-results-title">' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>'; // Dynamic title
+    echo '<h2 id="quiz-results-title">' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>';
     echo '<p id="quiz-results-message" style="display: none;"></p>';
     echo '<p><strong>' . esc_html__('Correct:', 'll-tools-text-domain') . '</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>';
     // Display the categories used in the quiz. This will be filled in by JavaScript on
