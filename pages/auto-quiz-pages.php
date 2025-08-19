@@ -16,17 +16,63 @@ if (!defined('WPINC')) {
  */
 function ll_tools_build_quiz_page_content($term) {
     $src = home_url('/embed/' . $term->slug);
-    // A responsive wrapper so the iframe scales inside any theme layout.
-    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:700px;">';
+
+    // Allow overrides via filters (defaults: 400px min, 70vh height)
+    $min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
+    $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 70);
+
+    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $min_px . 'px;">';
     $html .= '<iframe src="' . esc_url($src) . '"'
-          .  ' style="position:relative;width:100%;height:80vh;min-height:700px;border:0;"'
+          .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $min_px . 'px;border:0;"'
           .  ' loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>';
     $html .= '</div>';
+
     return $html;
 }
 
 /**
- * Create or update the WP Page for a given category term.
+ * Ensure the parent "quiz" page exists and return its ID.
+ * Allows overrides using the 'll_tools_quiz_parent_slug' filter.
+ *
+ * @return int Parent page ID (0 if not available).
+ */
+function ll_tools_get_or_create_quiz_parent_page() {
+    $parent_slug = sanitize_title(apply_filters('ll_tools_quiz_parent_slug', 'quiz'));
+
+    // Try exact root-level page by slug
+    $parent = get_page_by_path($parent_slug);
+    if ($parent instanceof WP_Post && $parent->post_type === 'page') {
+        return (int) $parent->ID;
+    }
+
+    // Fallback: query strictly for a root-level page named "quiz"
+    $candidates = get_posts(array(
+        'name'        => $parent_slug,
+        'post_type'   => 'page',
+        'post_status' => array('publish', 'draft', 'pending', 'private'),
+        'numberposts' => 1,
+        'post_parent' => 0,
+        'fields'      => 'all',
+    ));
+    if (!empty($candidates) && $candidates[0] instanceof WP_Post) {
+        return (int) $candidates[0]->ID;
+    }
+
+    // Create it if missing
+    $parent_id = wp_insert_post(array(
+        'post_title'   => ucfirst($parent_slug),
+        'post_name'    => $parent_slug,
+        'post_content' => '',
+        'post_status'  => 'publish',
+        'post_type'    => 'page',
+        'post_parent'  => 0,
+    ), true);
+
+    return is_wp_error($parent_id) ? 0 : (int) $parent_id;
+}
+
+/**
+ * Create or update the WP Page for a given category term as a *child* of /quiz/.
  *
  * @param int $term_id
  * @return int|WP_Error Post ID or error
@@ -37,7 +83,10 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
         return new WP_Error('invalid_term', 'Invalid word-category term.');
     }
 
-    // Try to find an existing page by our meta marker.
+    $parent_id  = ll_tools_get_or_create_quiz_parent_page();
+    $child_slug = apply_filters('ll_tools_quiz_child_slug', sanitize_title($term->slug), $term);
+
+    // Find by our meta marker
     $existing = get_posts(array(
         'post_type'   => 'page',
         'post_status' => array('publish', 'draft', 'pending', 'private'),
@@ -46,37 +95,58 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
         'numberposts' => 1,
         'fields'      => 'ids',
     ));
-    $post_id = $existing ? (int)$existing[0] : 0;
+    $post_id = $existing ? (int) $existing[0] : 0;
 
     $title   = $term->name;
-    $slug    = sanitize_title('quiz-' . $term->slug);
     $content = ll_tools_build_quiz_page_content($term);
 
     if ($post_id) {
-        // Update existing page if the title/content changed (keep slug stable once created).
+        $existing_post = get_post($post_id);
+        if (!$existing_post) {
+            return new WP_Error('missing_post', 'Could not load existing quiz page.');
+        }
+
+        // Ensure correct parent and slug
+        $needs_parent = ((int) $existing_post->post_parent !== (int) $parent_id);
+        $needs_slug   = ($existing_post->post_name !== $child_slug);
+
         $update = array(
             'ID'           => $post_id,
             'post_title'   => $title,
             'post_content' => $content,
             'post_status'  => 'publish',
         );
-        $post_id = wp_update_post($update, true);
-    } else {
-        // Ensure slug uniqueness but prefer "quiz-{slug}".
-        $unique_slug = wp_unique_post_slug($slug, 0, 'publish', 'page', 0);
 
-        $postarr = array(
-            'post_title'   => $title,
-            'post_name'    => $unique_slug,
-            'post_content' => $content,
-            'post_status'  => 'publish',
-            'post_type'    => 'page',
-        );
-
-        $post_id = wp_insert_post($postarr, true);
-        if (!is_wp_error($post_id)) {
-            update_post_meta($post_id, '_ll_tools_word_category_id', (string) $term->term_id);
+        if ($needs_parent) {
+            $update['post_parent'] = $parent_id;
         }
+        if ($needs_slug || $needs_parent) {
+            $update['post_name'] = wp_unique_post_slug(
+                $child_slug,
+                $post_id,
+                $existing_post->post_status,
+                'page',
+                $parent_id
+            );
+        }
+
+        return wp_update_post($update, true);
+    }
+
+    // New page under /quiz/
+    $unique_slug = wp_unique_post_slug($child_slug, 0, 'publish', 'page', $parent_id);
+    $postarr = array(
+        'post_title'   => $title,
+        'post_name'    => $unique_slug,
+        'post_content' => $content,
+        'post_status'  => 'publish',
+        'post_type'    => 'page',
+        'post_parent'  => $parent_id,
+    );
+
+    $post_id = wp_insert_post($postarr, true);
+    if (!is_wp_error($post_id)) {
+        update_post_meta($post_id, '_ll_tools_word_category_id', (string) $term->term_id);
     }
 
     return $post_id;
@@ -155,7 +225,7 @@ add_action('created_word-category', 'll_tools_handle_category_sync', 10, 1);
 add_action('edited_word-category',  'll_tools_handle_category_sync', 10, 1);
 add_action('delete_word-category',  'll_tools_handle_category_delete', 10, 1);
 
-// Optional safety net: ensure pages exist for all categories for admins once per day.
+// Optional safety net: ensure pages exist and migrate mis-parented ones (admin-only, once/day).
 add_action('admin_init', function () {
     $key = 'll_tools_quiz_page_sync_last';
     $last = (int) get_option($key, 0);
@@ -164,3 +234,17 @@ add_action('admin_init', function () {
         update_option($key, time(), false);
     }
 });
+
+/**
+ * Suppress the page title display for auto-generated quiz pages.
+ */
+add_filter('the_title', function ($title, $post_id) {
+    if (is_admin()) {
+        return $title;
+    }
+    if (get_post_type($post_id) === 'page' && get_post_meta($post_id, '_ll_tools_word_category_id', true)) {
+        // Return empty string so themes won’t render the title.
+        return '';
+    }
+    return $title;
+}, 10, 2);
