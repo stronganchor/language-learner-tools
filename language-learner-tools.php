@@ -51,6 +51,12 @@ require_once(plugin_dir_path(__FILE__) . 'user-roles/ll-tools-editor.php'); // C
 require_once(plugin_dir_path(__FILE__) . 'pages/manage-wordsets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
 require_once(plugin_dir_path(__FILE__) . 'pages/missing-audio-admin-page.php'); // Creates the "Missing Audio" admin page
 
+// Auto-create normal WP Pages for each quiz (per word-category)
+require_once(plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php');
+if (function_exists('ll_tools_register_autopage_activation')) {
+    ll_tools_register_autopage_activation(__FILE__);
+}
+
 // Include other plugin files
 require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
 require_once(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a form for admins to upload audio files in bulk and generate word posts
