@@ -211,8 +211,11 @@ function ll_tools_handle_category_delete($term_id) {
  * @return void
  */
 function ll_tools_sync_quiz_pages() {
-    // First, clean up invalid pages
-    ll_tools_cleanup_invalid_quiz_pages();
+    // First, clean up invalid pages (more aggressively)
+    $removed = ll_tools_cleanup_invalid_quiz_pages();
+
+    // Log the cleanup for debugging
+    error_log("LL Tools: Cleaned up $removed invalid quiz pages");
 
     // Then create/update pages for valid categories
     $terms = get_terms(array(
@@ -229,6 +232,9 @@ function ll_tools_sync_quiz_pages() {
             ll_tools_get_or_create_quiz_page_for_category($term->term_id);
         }
     }
+
+    // Force update the sync timestamp to ensure it runs
+    update_option('ll_tools_quiz_page_sync_last', time(), false);
 }
 
 /**
@@ -337,3 +343,23 @@ function ll_tools_add_manual_cleanup_button() {
     <?php
 }
 add_action('admin_notices', 'll_tools_add_manual_cleanup_button');
+
+/**
+ * Force immediate cleanup of invalid quiz pages.
+ * Can be triggered by visiting: /wp-admin/?ll_force_quiz_cleanup=1
+ */
+function ll_tools_force_quiz_cleanup() {
+    if (is_admin() && isset($_GET['ll_force_quiz_cleanup']) && current_user_can('manage_options')) {
+        $removed = ll_tools_cleanup_invalid_quiz_pages();
+        ll_tools_sync_quiz_pages();
+
+        wp_die(
+            sprintf(
+                'Quiz page cleanup completed. %d invalid pages removed. <a href="%s">Go to Pages</a>',
+                $removed,
+                admin_url('edit.php?post_type=page')
+            )
+        );
+    }
+}
+add_action('admin_init', 'll_tools_force_quiz_cleanup', 5);
