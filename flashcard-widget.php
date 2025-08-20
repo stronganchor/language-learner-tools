@@ -246,7 +246,12 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
     $processed_categories = [];
 
     foreach ($categories as $category) {
-        // If this category is set to "match audio to titles", force text mode
+        // Check if this category can generate a valid quiz
+        if (!ll_can_category_generate_quiz($category, $min_word_count)) {
+            continue;
+        }
+
+        // Determine the mode for this category
         $use_titles = get_term_meta($category->term_id, 'use_word_titles_for_audio', true) === '1';
         if ($use_titles) {
             // If user has set "match titles," forcibly treat as text
@@ -254,11 +259,6 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
         } else {
             // Otherwise, fallback to existing logic
             $mode = ll_determine_display_mode($category->name, $min_word_count);
-        }
-
-        // If no mode could be determined, skip this category
-        if ($mode === null) {
-            continue;
         }
 
         // Pick the correct display name (raw or translated)

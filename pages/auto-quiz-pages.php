@@ -164,7 +164,24 @@ function ll_tools_handle_category_sync($term_id) {
     if (!$term || is_wp_error($term) || $term->taxonomy !== 'word-category') {
         return;
     }
-    ll_tools_get_or_create_quiz_page_for_category($term_id);
+
+    if (ll_can_category_generate_quiz($term)) {
+        // Create/update page for valid categories
+        ll_tools_get_or_create_quiz_page_for_category($term_id);
+    } else {
+        // Remove page if category can no longer generate a quiz
+        $existing = get_posts(array(
+            'post_type'   => 'page',
+            'post_status' => array('publish', 'draft', 'pending', 'private'),
+            'meta_key'    => '_ll_tools_word_category_id',
+            'meta_value'  => (string) $term_id,
+            'numberposts' => 1,
+            'fields'      => 'ids',
+        ));
+        if ($existing) {
+            wp_trash_post((int)$existing[0]);
+        }
+    }
 }
 
 /**
@@ -194,16 +211,23 @@ function ll_tools_handle_category_delete($term_id) {
  * @return void
  */
 function ll_tools_sync_quiz_pages() {
+    // First, clean up invalid pages
+    ll_tools_cleanup_invalid_quiz_pages();
+
+    // Then create/update pages for valid categories
     $terms = get_terms(array(
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
-        'fields'     => 'ids',
+        'fields'     => 'all',
     ));
     if (is_wp_error($terms)) {
         return;
     }
-    foreach ($terms as $term_id) {
-        ll_tools_get_or_create_quiz_page_for_category($term_id);
+    foreach ($terms as $term) {
+        // Only create pages for categories that can generate valid quizzes
+        if (ll_can_category_generate_quiz($term)) {
+            ll_tools_get_or_create_quiz_page_for_category($term->term_id);
+        }
     }
 }
 
@@ -248,3 +272,68 @@ add_filter('the_title', function ($title, $post_id) {
     }
     return $title;
 }, 10, 2);
+
+/**
+ * Removes pages for categories that can no longer generate valid quizzes.
+ *
+ * @return int Number of pages removed.
+ */
+function ll_tools_cleanup_invalid_quiz_pages() {
+    $removed_count = 0;
+
+    // Find all existing quiz pages
+    $existing_pages = get_posts(array(
+        'post_type'   => 'page',
+        'post_status' => array('publish', 'draft', 'pending', 'private'),
+        'meta_key'    => '_ll_tools_word_category_id',
+        'numberposts' => -1,
+        'fields'      => 'all',
+    ));
+
+    foreach ($existing_pages as $page) {
+        $term_id = get_post_meta($page->ID, '_ll_tools_word_category_id', true);
+        $term = get_term($term_id, 'word-category');
+
+        // If the term doesn't exist or can't generate a quiz, remove the page
+        if (!$term || is_wp_error($term) || !ll_can_category_generate_quiz($term)) {
+            wp_trash_post($page->ID);
+            $removed_count++;
+        }
+    }
+
+    return $removed_count;
+}
+
+/**
+ * Adds a manual cleanup button to the Word Categories admin page.
+ */
+function ll_tools_add_manual_cleanup_button() {
+    $screen = get_current_screen();
+    if ('edit-word-category' !== $screen->id) {
+        return;
+    }
+
+    // Handle cleanup action
+    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($_POST['ll_cleanup_nonce'], 'll_cleanup_quiz_pages')) {
+        $removed_count = ll_tools_cleanup_invalid_quiz_pages();
+        ll_tools_sync_quiz_pages(); // Also sync valid pages
+
+        printf(
+            '<div class="notice notice-success"><p>Quiz page cleanup completed. %d invalid pages removed and valid pages synced.</p></div>',
+            $removed_count
+        );
+    }
+
+    // Display the cleanup form
+    ?>
+    <div class="wrap">
+        <h2>Quiz Page Management</h2>
+        <p>Clean up quiz pages for categories that can no longer generate valid quizzes and sync pages for valid categories.</p>
+        <form method="post" action="">
+            <?php wp_nonce_field('ll_cleanup_quiz_pages', 'll_cleanup_nonce'); ?>
+            <input type="submit" name="ll_cleanup_quiz_pages" class="button button-secondary" value="Clean Up & Sync Quiz Pages">
+        </form>
+    </div>
+    <?php
+}
+add_action('admin_notices', 'll_tools_add_manual_cleanup_button');
