@@ -1,0 +1,62 @@
+/* quiz-pages-style.css */
+
+.ll-quiz-pages-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 12px 0 18px;
+}
+
+.ll-quiz-page-card {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    padding: 16px 14px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.ll-quiz-page-card:hover {
+    transform: translateY(-1px);
+    border-color: #d9d9d9;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.ll-quiz-page-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.ll-quiz-page-name {
+    margin: 0 0 6px 0;
+    font-size: 1.02rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.ll-quiz-pages-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 18px;
+    flex-wrap: wrap;
+}
+
+.ll-quiz-pages-select {
+    min-width: 240px;
+    padding: 6px 8px;
+}
+
+.ll-quiz-pages-go {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #d4d4d4;
+    background: #f6f6f6;
+    cursor: pointer;
+}
+
+.ll-quiz-pages-go:hover {
+    background: #f0f0f0;
+}

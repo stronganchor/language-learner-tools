@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.8.5
+ * Version: 2.8.6
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -56,6 +56,7 @@ require_once(plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation')) {
     ll_tools_register_autopage_activation(__FILE__);
 }
+require_once(plugin_dir_path(__FILE__) . 'pages/quiz-pages-shortcodes.php'); // Implements the [quiz_pages_grid] and [quiz_pages_dropdown] shortcodes to display quiz pages
 
 // Include other plugin files
 require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
