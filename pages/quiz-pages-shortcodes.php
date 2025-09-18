@@ -221,82 +221,87 @@ function ll_qpg_print_flashcard_shell_once() {
 /** ------------------------------------------------------------------
  * Shortcode: [quiz_pages_grid]
  * ------------------------------------------------------------------ */
-function ll_quiz_pages_grid_shortcode($atts) {
+function ll_quiz_pages_grid_shortcode( $atts ) {
     $atts = shortcode_atts(
         array(
-            'columns' => '',
-            'popup'   => 'no', // when "yes", reuse flashcard popup
+            'columns'   => '',        // optional fixed column count
+            'popup'     => 'no',      // "yes" => open flashcard overlay instead of navigating
+            'order'     => 'title',   // ignored (kept for backward compat)
+            'order_dir' => 'ASC',     // ignored (kept for backward compat)
         ),
         $atts,
         'quiz_pages_grid'
     );
 
+    // Build list using the helper so translated display names are respected.
     $items = ll_get_all_quiz_pages_data();
-
-    ob_start();
-
-    if (empty($items)) {
-        echo '<p>' . esc_html__('No quiz pages are available yet.', 'll-tools-text-domain') . '</p>';
-        return ob_get_clean();
+    if ( empty( $items ) ) {
+        return '<p>' . esc_html__( 'No quizzes found.', 'll-tools-text-domain' ) . '</p>';
     }
 
-    $columns = is_numeric($atts['columns']) ? max(2, (int) $atts['columns']) : 0;
-    $style   = $columns > 0
-        ? 'grid-template-columns: repeat(' . $columns . ', minmax(180px, 1fr));'
-        : '';
+    $use_popup = ( strtolower( $atts['popup'] ) === 'yes' );
+    $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
 
-    $use_popup = in_array(strtolower(trim($atts['popup'])), array('1','true','yes','on'), true);
-
-    // If using popup, make sure flashcard overlay + assets are ready
-    if ($use_popup) {
+    // When using popup mode, make sure the flashcard overlay + assets exist.
+    if ( $use_popup ) {
         ll_qpg_bootstrap_flashcards_for_grid();
     }
 
-    $instance_id = wp_generate_uuid4();
-    $grid_id     = 'll-quiz-pages-grid-' . $instance_id;
+    // Optional fixed columns override.
+    $style = '';
+    if ( $atts['columns'] !== '' && is_numeric( $atts['columns'] ) && (int)$atts['columns'] > 0 ) {
+        $cols  = (int) $atts['columns'];
+        $style = ' style="grid-template-columns: repeat(' . $cols . ', minmax(220px, 1fr));"';
+    }
 
-    echo '<div id="' . esc_attr($grid_id) . '" class="ll-quiz-pages-grid" style="' . esc_attr($style) . '">';
+    ob_start();
 
-    foreach ($items as $it) {
-        $label = $it['display_name'];
+    echo '<div id="' . esc_attr( $grid_id ) . '" class="ll-quiz-pages-grid"' . $style . '>';
 
-        if ($use_popup) {
-            // One element only – the whole tile is the trigger
-            echo '<a href="#" class="ll-quiz-page-card ll-quiz-page-trigger" data-category="' . esc_attr($it['name']) . '">';
-            echo '  <h3 class="ll-quiz-page-name">' . esc_html($label) . '</h3>';
-            echo '</a>';
+    foreach ( $items as $it ) {
+        $title      = $it['display_name']; // what the user sees (translated when enabled)
+        $permalink  = $it['permalink'];
+        $raw_name   = $it['name'];         // untranslated category name (used by flashcards)
+
+        if ( $use_popup ) {
+            // Popup mode: one BUTTON inside a card (no nested anchors anywhere).
+            echo '<div class="ll-quiz-page-card">';
+            echo   '<button type="button" class="ll-quiz-page-link ll-quiz-page-trigger" data-category="' . esc_attr( $raw_name ) . '">';
+            echo     '<span class="ll-quiz-page-name">' . esc_html( $title ) . '</span>';
+            echo   '</button>';
+            echo '</div>';
         } else {
-            echo '<a class="ll-quiz-page-card" href="' . esc_url($it['permalink']) . '">';
-            echo '  <h3 class="ll-quiz-page-name">' . esc_html($label) . '</h3>';
+            // Link mode: the CARD itself is a single <a>.
+            echo '<a class="ll-quiz-page-card ll-quiz-page-link" href="' . esc_url( $permalink ) . '">';
+            echo   '<span class="ll-quiz-page-name">' . esc_html( $title ) . '</span>';
             echo '</a>';
         }
     }
 
     echo '</div>';
 
-    if ($use_popup) {
-        // Lightweight instance-scoped JS to wire click → open flashcard overlay
+    // Lightweight delegation for popup clicks (no duplicates, no nested links).
+    if ( $use_popup ) {
         echo '<script>
         (function(){
-        var grid = document.getElementById(' . json_encode($grid_id) . ');
-        if (!grid) return;
-        grid.addEventListener("click", function(e){
-            var btn = e.target.closest(".ll-quiz-page-trigger");
-            if (!btn) return;
-            e.preventDefault();
-            var cat = btn.getAttribute("data-category");
-            if (cat && typeof window.llOpenFlashcardForCategory === "function") {
-            window.llOpenFlashcardForCategory(cat);
-            }
-        });
+            var grid = document.getElementById(' . json_encode( $grid_id ) . ');
+            if (!grid) return;
+            grid.addEventListener("click", function(e){
+                var btn = e.target.closest(".ll-quiz-page-trigger");
+                if (!btn || !grid.contains(btn)) return;
+                e.preventDefault();
+                var cat = btn.getAttribute("data-category");
+                if (cat && typeof window.llOpenFlashcardForCategory === "function") {
+                    window.llOpenFlashcardForCategory(cat);
+                }
+            });
         })();
         </script>';
-
     }
 
     return ob_get_clean();
 }
-add_shortcode('quiz_pages_grid', 'll_quiz_pages_grid_shortcode');
+add_shortcode( 'quiz_pages_grid', 'll_quiz_pages_grid_shortcode' );
 
 /** ------------------------------------------------------------------
  * Shortcode: [quiz_pages_dropdown]
