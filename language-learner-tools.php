@@ -145,6 +145,15 @@ register_activation_hook(__FILE__, function () {
         $role->add_cap('view_ll_tools');
     }
 });
+// Give admins the custom cap if they're missing it (runs on every admin request).
+add_action('admin_init', function () {
+    if (current_user_can('manage_options')) {
+        $role = get_role('administrator');
+        if ($role && !$role->has_cap('view_ll_tools')) {
+            $role->add_cap('view_ll_tools');
+        }
+    }
+});
 
 /**
  * Removes 'view_ll_tools' capability on deactivation/uninstall
@@ -195,5 +204,35 @@ function ll_embed_template_include($template) {
     return $template;
 }
 add_filter('template_include', 'll_embed_template_include');
+
+const LL_TOOLS_SETTINGS_SLUG = 'language-learning-tools-settings';
+
+/**
+ * Add a "Settings" link on the Plugins screen row for this plugin.
+ */
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links) {
+    // Skip adding the link in Network Admin (since the settings page is per-site).
+    if (is_network_admin()) {
+        return $links;
+    }
+
+    $url = admin_url('options-general.php?page=' . LL_TOOLS_SETTINGS_SLUG);
+    $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools') . '</a>';
+
+    // Put our Settings link first.
+    array_unshift($links, $settings_link);
+    return $links;
+});
+
+/**
+ * (Optional) Add extra row meta links (e.g., Docs / Support) under the plugin description.
+ */
+add_filter('plugin_row_meta', function ($links, $file) {
+    if ($file === plugin_basename(__FILE__)) {
+        //$links[] = '<a href="https://example.com/ll-tools-docs" target="_blank" rel="noopener">' . esc_html__('Docs', 'll-tools') . '</a>';
+        //$links[] = '<a href="https://example.com/ll-tools-support" target="_blank" rel="noopener">' . esc_html__('Support', 'll-tools') . '</a>';
+    }
+    return $links;
+}, 10, 2);
 
 ?>
