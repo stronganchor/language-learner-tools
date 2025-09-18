@@ -205,7 +205,7 @@ body.ll-tools-flashcard-open {
     padding: 15px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     overflow: hidden;
     width: 100%;
