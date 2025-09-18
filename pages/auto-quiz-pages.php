@@ -18,12 +18,12 @@ function ll_tools_build_quiz_page_content($term) {
     $src = home_url('/embed/' . $term->slug);
 
     // Allow overrides via filters (defaults: 400px min, 70vh height)
-    $min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
+    //$min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
     $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
 
-    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $min_px . 'px;">';
+    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;">';
     $html .= '<iframe src="' . esc_url($src) . '"'
-          .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $min_px . 'px;border:0;"'
+          .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $vh . 'vh;border:0;"'
           .  ' loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>';
     $html .= '</div>';
 

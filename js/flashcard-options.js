@@ -46,12 +46,21 @@
          */
         function checkMinMax(optionsCount, categoryName) {
             let maxOptionsCount = MAXIMUM_NUMBER_OF_OPTIONS;
-            if (llToolsFlashcardsData.displayMode === "text") {
-                maxOptionsCount = MAXIMUM_TEXT_OPTIONS;
+
+            // Use the per-category display mode (text limits differ)
+            const mode = (typeof window.getCategoryDisplayMode === 'function')
+                ? window.getCategoryDisplayMode(categoryName)
+                : null;
+
+            if (mode === 'text') {
+                maxOptionsCount = Math.min(maxOptionsCount, MAXIMUM_TEXT_OPTIONS);
             }
+
+            // Also cap by how many words are actually available in that category
             if (window.wordsByCategory[categoryName]) {
                 maxOptionsCount = Math.min(maxOptionsCount, window.wordsByCategory[categoryName].length);
             }
+
             maxOptionsCount = Math.max(MINIMUM_NUMBER_OF_OPTIONS, maxOptionsCount);
             return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, optionsCount), maxOptionsCount);
         }
@@ -122,45 +131,33 @@
          * @returns {boolean} True if more cards can be added; otherwise, false.
          */
         function canAddMoreCards() {
-            const cards = $('.flashcard-container');
-            if (cards.length < MINIMUM_NUMBER_OF_OPTIONS) {
-                return true;
+            const $container = $('#ll-tools-flashcard');
+            const $cards = $container.find('.flashcard-container');
+
+            // Determine card width for the current mode
+            const size = getMaxCardSize();
+            const mode = (typeof window.getCurrentDisplayMode === 'function')
+                ? window.getCurrentDisplayMode()
+                : null;
+
+            let cardWidth = (mode === 'text') ? MAX_TEXT_CARD_WIDTH : size;
+
+            // Read the flex gap (fallback to 0)
+            let gapValue = 0;
+            if ($container.length && $container[0]) {
+                const cs = window.getComputedStyle($container[0]);
+                gapValue = parseInt(cs.getPropertyValue('gap'), 10);
+                if (isNaN(gapValue)) gapValue = 0;
             }
 
-            const container = $('#ll-tools-flashcard');
-            const containerWidth = container.width();
-            const containerHeight = container.height();
+            const containerWidth = Math.max(1, $container.innerWidth()); // avoid divide-by-zero
+            const perRow = Math.max(1, Math.floor((containerWidth + gapValue) / (cardWidth + gapValue)));
 
-            const lastCard = cards.last();
-            let size = getMaxCardSize();
-            let cardWidth = size;
-            const cardHeight = size;
+            // If we were to add one more card, how many rows would we need?
+            const rowsIfAdd = Math.ceil(($cards.length + 1) / perRow);
 
-            const displayMode = window.getCurrentDisplayMode();
-            if (displayMode === 'text') {
-                cardWidth = MAX_TEXT_CARD_WIDTH; // Reassigning cardWidth based on display mode
-            }
-
-            const containerStyle = window.getComputedStyle(container[0]);
-            const gapValue = parseInt(containerStyle.getPropertyValue('gap'), 10);
-
-            const cardsPerRow = Math.floor((containerWidth + gapValue) / (cardWidth + gapValue));
-            const rows = Math.ceil(cards.length / cardsPerRow);
-
-            if (rows > MAX_ROWS) {
-                return false;
-            }
-
-            const cardsInLastRow = cards.length - (cardsPerRow * (rows - 1));
-            const lastRowWidth = cardsInLastRow * (cardWidth + gapValue) - gapValue;
-            const remainingWidth = containerWidth - lastRowWidth;
-
-            const remainingHeight =
-                containerHeight - (lastCard.offset().top + cardHeight - container.offset().top + (rows - 1) * gapValue);
-
-            const thisIsTheLastRow = rows === MAX_ROWS || remainingHeight < cardHeight;
-
-            return !(thisIsTheLastRow && remainingWidth < (cardWidth + gapValue));
+            // Only allow if we would still be within MAX_ROWS
+            return rowsIfAdd <= MAX_ROWS;
         }
 
         // Expose functionality
