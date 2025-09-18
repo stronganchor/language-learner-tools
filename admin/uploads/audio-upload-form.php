@@ -190,7 +190,7 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
     }
 
     // Perform additional audio file validation using getID3 library
-    require_once 'getid3/getid3.php';
+    require_once plugin_dir_path(__FILE__) . 'getid3/getid3.php';
     $getID3 = new getID3();
     $file_info = $getID3->analyze($tmp_name);
     if (!isset($file_info['audio'])) {

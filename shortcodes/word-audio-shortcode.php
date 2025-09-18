@@ -73,7 +73,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
 
-	$play_icon = '<img src="' . plugin_dir_url(__FILE__) . 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
+	$play_icon = '<img src="' . plugin_dir_url(dirname(__FILE__)) . '../media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
 
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
@@ -99,7 +99,7 @@ function ll_enqueue_word_audio_js() {
 
     // Pass the plugin's directory URL to the JavaScript code
     wp_localize_script('ll-word-audio', 'll_word_audio_data', array(
-        'plugin_dir_url' => plugin_dir_url(__FILE__),
+        'plugin_dir_url' => plugin_dir_url(dirname(__FILE__)) . '../',
     ));
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
