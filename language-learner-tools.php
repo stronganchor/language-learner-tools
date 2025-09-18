@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.9.1
+ * Version: 2.9.2
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -235,55 +235,67 @@ add_filter('plugin_row_meta', function ($links, $file) {
     return $links;
 }, 10, 2);
 
-// Auto-resync quiz pages if the builder source file changed.
+// Auto-resync quiz pages when the builder source changes (uses the original sync path).
 add_action('admin_init', function () {
     if ( ! current_user_can('manage_options') ) return;
 
-    // Path to the builder file we care about
     $file = plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php';
     if ( ! file_exists($file) ) return;
 
     $current_mtime = (int) filemtime($file);
     if ( ! $current_mtime ) return;
 
-    $opt_key = 'll_tools_autopage_source_mtime';
+    $opt_key   = 'll_tools_autopage_source_mtime';
     $last_mtime = (int) get_option($opt_key, 0);
 
-    // Optional: manual trigger via URL (visit any wp-admin URL with ?lltools-resync=1&_wpnonce=XYZ)
-    if ( isset($_GET['lltools-resync']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'lltools-resync') ) {
-        $last_mtime = 0; // force resync
-    }
+    // Optional manual trigger: /wp-admin/?lltools-resync=1&_wpnonce=...
+    $force = ( isset($_GET['lltools-resync']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'lltools-resync') );
 
-    // Nothing to do if unchanged
-    if ( $current_mtime === $last_mtime ) return;
+    if ( ! $force && $current_mtime === $last_mtime ) return;
 
-    // Prevent double-runs if multiple admin requests fire at once
     if ( get_transient('ll_tools_autopage_resync_running') ) return;
     set_transient('ll_tools_autopage_resync_running', 1, 5 * MINUTE_IN_SECONDS);
 
-    // Rebuild/refresh the quiz pages for all categories
+    // Use the same logic used at creation time.
+    if ( ! function_exists('ll_tools_handle_category_sync') ) {
+        delete_transient('ll_tools_autopage_resync_running');
+        return;
+    }
+
+    // Re-sync every term via the original handler (creates, updates, OR removes).
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
     ]);
-
     if ( ! is_wp_error($terms) ) {
         foreach ($terms as $t) {
-            if ( function_exists('ll_tools_get_or_create_quiz_page_for_category') ) {
-                ll_tools_get_or_create_quiz_page_for_category($t->term_id);
-            }
+            ll_tools_handle_category_sync($t->term_id);
         }
     }
 
-    // Record the mtime we synced against
+    // (Optional) Cleanup: remove orphan quiz pages whose term no longer exists.
+    $orphan_pages = get_posts([
+        'post_type'      => 'page',
+        'post_status'    => ['publish','draft','pending','private'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'meta_key'       => '_ll_tools_word_category_id',
+    ]);
+    foreach ($orphan_pages as $pid) {
+        $term_id = (int) get_post_meta($pid, '_ll_tools_word_category_id', true);
+        $term    = $term_id ? get_term($term_id, 'word-category') : null;
+        if ( ! $term || is_wp_error($term) ) {
+            // Term missing — this page can never be re-synced; delete permanently.
+            wp_delete_post($pid, true);
+        }
+    }
+
     update_option($opt_key, $current_mtime, true);
     delete_transient('ll_tools_autopage_resync_running');
 
-    // Optional: log a note for debugging
     if ( defined('WP_DEBUG') && WP_DEBUG ) {
-        error_log('[LL Tools] Auto-quiz pages resynced after source change (mtime=' . $current_mtime . ').');
+        error_log('[LL Tools] Auto-quiz pages re-synced using handler after source change (mtime=' . $current_mtime . ').');
     }
 });
-
 
 ?>

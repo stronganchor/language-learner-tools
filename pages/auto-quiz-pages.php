@@ -17,7 +17,7 @@ if (!defined('WPINC')) {
 function ll_tools_build_quiz_page_content($term) {
     $src = home_url('/embed/' . $term->slug);
 
-    // Allow overrides via filters (defaults: 400px min, 70vh height)
+    // Allow overrides via filters
     //$min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
     $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
 
