@@ -8,9 +8,9 @@
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
- * This plugin is designed to display vocabulary items in a custom post type called 'words'. 
- * It adds the English meaning, an audio file, and associated images to each post. 
- * 
+ * This plugin is designed to display vocabulary items in a custom post type called 'words'.
+ * It adds the English meaning, an audio file, and associated images to each post.
+ *
  * The plugin also includes activities for practicing vocabulary.
  *
  * The plugin uses a combination of PHP, JavaScript (jQuery), and CSS to provide its functionality.
@@ -34,42 +34,45 @@ if (!defined('WPINC')) {
 }
 
 // Include custom post types
-require_once(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php'); // Registers the 'words' post type
-require_once(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php'); // Registers the 'word_images' post type to store images associated with words
+require_once(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php');
+require_once(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php');
 
 // Include taxonomies
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php'); // Registers the 'word-category' taxonomy for the 'words' post type
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/wordset-taxonomy.php'); // Registers the 'wordset' taxonomy for the 'words' post type
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php'); // Registers the 'language' taxonomy for the 'words' post type and handles language data import
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php'); // Registers the 'part_of_speech' taxonomy for the 'words' post type
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php');
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/wordset-taxonomy.php');
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php');
+require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php');
 
 // Include user roles
-require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php'); // Creates the 'wordset_manager' role for managing word sets
-require_once(plugin_dir_path(__FILE__) . 'user-roles/ll-tools-editor.php'); // Creates the 'll_tools_editor' role for managing the plugin's content
+require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php');
+require_once(plugin_dir_path(__FILE__) . 'user-roles/ll-tools-editor.php');
+
+// Include admin functionality
+require_once(plugin_dir_path(__FILE__) . 'admin/uploads/audio-upload-form.php');
+require_once(plugin_dir_path(__FILE__) . 'admin/uploads/image-upload-form.php');
+require_once(plugin_dir_path(__FILE__) . 'admin/manage-wordsets.php');
+require_once(plugin_dir_path(__FILE__) . 'admin/missing-audio-admin-page.php');
+require_once(plugin_dir_path(__FILE__) . 'admin/settings.php');
+
+// Include API integrations
+require_once(plugin_dir_path(__FILE__) . 'admin/api/deepl-api.php');
 
 // Include pages
-require_once(plugin_dir_path(__FILE__) . 'pages/manage-wordsets.php'); // Creates the "Manage Word Sets" page for Word Set Managers
-require_once(plugin_dir_path(__FILE__) . 'pages/missing-audio-admin-page.php'); // Creates the "Missing Audio" admin page
-
-// Auto-create normal WP Pages for each quiz (per word-category)
 require_once(plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation')) {
     ll_tools_register_autopage_activation(__FILE__);
 }
-require_once(plugin_dir_path(__FILE__) . 'pages/quiz-pages-shortcodes.php'); // Implements the [quiz_pages_grid] and [quiz_pages_dropdown] shortcodes to display quiz pages
+// Note: embed-page.php is loaded via template_include filter, not require
 
-// Include other plugin files
-require_once(plugin_dir_path(__FILE__) . 'language-switcher.php'); // Provides site language switching functionality
-require_once(plugin_dir_path(__FILE__) . 'audio-upload-form.php'); // Creates a form for admins to upload audio files in bulk and generate word posts
-require_once(plugin_dir_path(__FILE__) . 'image-upload-form.php'); // Creates a form for admins to upload images in bulk and generate word_image posts
-require_once(plugin_dir_path(__FILE__) . 'flashcard-widget.php'); // Implements the [flashcard_widget] shortcode
-require_once(plugin_dir_path(__FILE__) . 'word-audio-shortcode.php'); // Implements the [word_audio] shortcode for audio playback and translation display
-require_once(plugin_dir_path(__FILE__) . 'word-grid-shortcode.php'); // Implements the [word_grid] shortcode for displaying words along with associated images and audio
-require_once plugin_dir_path(__FILE__) . 'image-copyright-grid-shortcode.php';
-require_once(plugin_dir_path(__FILE__) . 'settings.php'); // WP Admin settings page for the plugin
+// Include shortcodes
+require_once(plugin_dir_path(__FILE__) . 'shortcodes/flashcard-widget.php');
+require_once(plugin_dir_path(__FILE__) . 'shortcodes/word-audio-shortcode.php');
+require_once(plugin_dir_path(__FILE__) . 'shortcodes/word-grid-shortcode.php');
+require_once(plugin_dir_path(__FILE__) . 'shortcodes/image-copyright-grid-shortcode.php');
+require_once(plugin_dir_path(__FILE__) . 'shortcodes/quiz-pages-shortcodes.php');
 
-// Include API files
-require_once(plugin_dir_path(__FILE__) . 'api/deepl-api.php'); // Handles the integration with the DeepL API for automatic translation
+// Include other utility files
+require_once(plugin_dir_path(__FILE__) . 'language-switcher.php');
 
 // Include the plugin update checker
 require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
@@ -80,10 +83,7 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
     'language-learner-tools'
 );
 $myUpdateChecker->setBranch('main');
-//Optional: If you're using a private repository, specify the access token like this:
-//$myUpdateChecker->setAuthentication('your-token-here');
 
-    
 /**
  * Enqueues the jQuery UI scripts and styles.
  */
@@ -110,8 +110,6 @@ function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = 
     } elseif ($extension === 'css') {
         wp_enqueue_style($handle, $asset_file, $dependencies, $asset_version);
     } else {
-        // Unsupported file type, do something (optional)
-        // For example, you could log a warning or handle it differently
         error_log('Unsupported file type for asset: ' . $relative_path);
     }
 }
@@ -128,7 +126,6 @@ add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
  * Enqueues dashboard styles for non-admin users.
  */
 function ll_tools_enqueue_styles_for_non_admins() {
-    // Ensure the user does not have the Administrator role or the LL Tools Editor role (both of which have access to the admin pages)
     if (current_user_can('manage_options') || current_user_can('view_ll_tools')) {
         return;
     }
@@ -145,7 +142,7 @@ register_activation_hook(__FILE__, function () {
         $role->add_cap('view_ll_tools');
     }
 });
-// Give admins the custom cap if they're missing it (runs on every admin request).
+
 add_action('admin_init', function () {
     if (current_user_can('manage_options')) {
         $role = get_role('administrator');
@@ -156,10 +153,9 @@ add_action('admin_init', function () {
 });
 
 /**
- * Removes 'view_ll_tools' capability on deactivation/uninstall
+ * Removes 'view_ll_tools' capability on deactivation
  */
 register_deactivation_hook(__FILE__, function () {
-    // Usually you leave caps in place, but if you want to remove:
     $role = get_role('administrator');
     if ($role) {
         $role->remove_cap('view_ll_tools');
@@ -178,7 +174,6 @@ add_action('plugins_loaded', 'll_tools_load_textdomain');
  * Enqueues the confetti script in the header.
  */
 function ll_tools_enqueue_confetti_script() {
-    // Print the canvas-confetti script tag in the header
     ?>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <?php
@@ -211,7 +206,6 @@ const LL_TOOLS_SETTINGS_SLUG = 'language-learning-tools-settings';
  * Add a "Settings" link on the Plugins screen row for this plugin.
  */
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links) {
-    // Skip adding the link in Network Admin (since the settings page is per-site).
     if (is_network_admin()) {
         return $links;
     }
@@ -219,23 +213,11 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
     $url = admin_url('options-general.php?page=' . LL_TOOLS_SETTINGS_SLUG);
     $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools') . '</a>';
 
-    // Put our Settings link first.
     array_unshift($links, $settings_link);
     return $links;
 });
 
-/**
- * (Optional) Add extra row meta links (e.g., Docs / Support) under the plugin description.
- */
-add_filter('plugin_row_meta', function ($links, $file) {
-    if ($file === plugin_basename(__FILE__)) {
-        //$links[] = '<a href="https://example.com/ll-tools-docs" target="_blank" rel="noopener">' . esc_html__('Docs', 'll-tools') . '</a>';
-        //$links[] = '<a href="https://example.com/ll-tools-support" target="_blank" rel="noopener">' . esc_html__('Support', 'll-tools') . '</a>';
-    }
-    return $links;
-}, 10, 2);
-
-// Auto-resync quiz pages when the builder source changes (uses the original sync path).
+// Auto-resync quiz pages when the builder source changes
 add_action('admin_init', function () {
     if ( ! current_user_can('manage_options') ) return;
 
@@ -248,7 +230,6 @@ add_action('admin_init', function () {
     $opt_key   = 'll_tools_autopage_source_mtime';
     $last_mtime = (int) get_option($opt_key, 0);
 
-    // Optional manual trigger: /wp-admin/?lltools-resync=1&_wpnonce=...
     $force = ( isset($_GET['lltools-resync']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'lltools-resync') );
 
     if ( ! $force && $current_mtime === $last_mtime ) return;
@@ -256,13 +237,11 @@ add_action('admin_init', function () {
     if ( get_transient('ll_tools_autopage_resync_running') ) return;
     set_transient('ll_tools_autopage_resync_running', 1, 5 * MINUTE_IN_SECONDS);
 
-    // Use the same logic used at creation time.
     if ( ! function_exists('ll_tools_handle_category_sync') ) {
         delete_transient('ll_tools_autopage_resync_running');
         return;
     }
 
-    // Re-sync every term via the original handler (creates, updates, OR removes).
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
@@ -273,7 +252,6 @@ add_action('admin_init', function () {
         }
     }
 
-    // (Optional) Cleanup: remove orphan quiz pages whose term no longer exists.
     $orphan_pages = get_posts([
         'post_type'      => 'page',
         'post_status'    => ['publish','draft','pending','private'],
@@ -285,7 +263,6 @@ add_action('admin_init', function () {
         $term_id = (int) get_post_meta($pid, '_ll_tools_word_category_id', true);
         $term    = $term_id ? get_term($term_id, 'word-category') : null;
         if ( ! $term || is_wp_error($term) ) {
-            // Term missing — this page can never be re-synced; delete permanently.
             wp_delete_post($pid, true);
         }
     }
