@@ -34,7 +34,15 @@
 <body <?php body_class(); ?> style="background: transparent;">
     <div class="entry-content" style="display: flex; justify-content: center; align-items: center; min-height: 90vh;">
         <?php
+        // Updated section in /pages/embed-page.php
         $embed_category = get_query_var('embed_category');
+        // Validate the category exists before using it
+        $term = get_term_by('slug', $embed_category, 'word-category');
+        if ($term && !is_wp_error($term)) {
+            echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '"]');
+        } else {
+            echo '<p>' . esc_html__('Invalid category specified.', 'll-tools-text-domain') . '</p>';
+        }
         echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '"]');
         ?>
     </div>
