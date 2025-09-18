@@ -19,7 +19,7 @@ function ll_tools_build_quiz_page_content($term) {
 
     // Allow overrides via filters (defaults: 400px min, 70vh height)
     $min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
-    $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 70);
+    $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
 
     $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $min_px . 'px;">';
     $html .= '<iframe src="' . esc_url($src) . '"'
