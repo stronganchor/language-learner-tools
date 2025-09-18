@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.8.9
+ * Version: 2.9.0
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -234,5 +234,56 @@ add_filter('plugin_row_meta', function ($links, $file) {
     }
     return $links;
 }, 10, 2);
+
+// Auto-resync quiz pages if the builder source file changed.
+add_action('admin_init', function () {
+    if ( ! current_user_can('manage_options') ) return;
+
+    // Path to the builder file we care about
+    $file = plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php';
+    if ( ! file_exists($file) ) return;
+
+    $current_mtime = (int) filemtime($file);
+    if ( ! $current_mtime ) return;
+
+    $opt_key = 'll_tools_autopage_source_mtime';
+    $last_mtime = (int) get_option($opt_key, 0);
+
+    // Optional: manual trigger via URL (visit any wp-admin URL with ?lltools-resync=1&_wpnonce=XYZ)
+    if ( isset($_GET['lltools-resync']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'lltools-resync') ) {
+        $last_mtime = 0; // force resync
+    }
+
+    // Nothing to do if unchanged
+    if ( $current_mtime === $last_mtime ) return;
+
+    // Prevent double-runs if multiple admin requests fire at once
+    if ( get_transient('ll_tools_autopage_resync_running') ) return;
+    set_transient('ll_tools_autopage_resync_running', 1, 5 * MINUTE_IN_SECONDS);
+
+    // Rebuild/refresh the quiz pages for all categories
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+    ]);
+
+    if ( ! is_wp_error($terms) ) {
+        foreach ($terms as $t) {
+            if ( function_exists('ll_tools_get_or_create_quiz_page_for_category') ) {
+                ll_tools_get_or_create_quiz_page_for_category($t->term_id);
+            }
+        }
+    }
+
+    // Record the mtime we synced against
+    update_option($opt_key, $current_mtime, true);
+    delete_transient('ll_tools_autopage_resync_running');
+
+    // Optional: log a note for debugging
+    if ( defined('WP_DEBUG') && WP_DEBUG ) {
+        error_log('[LL Tools] Auto-quiz pages resynced after source change (mtime=' . $current_mtime . ').');
+    }
+});
+
 
 ?>
