@@ -4,7 +4,7 @@
  * Plugin URI: https://stronganchortech.com
  * Description: Adds custom display features for vocab items in the 'words' custom post type.
  * Author: Strong Anchor Tech
- * Version: 2.8.7
+ * Version: 2.8.8
  * Text Domain: ll-tools-text-domain
  * Domain Path: /languages
  *
@@ -135,6 +135,27 @@ function ll_tools_enqueue_styles_for_non_admins() {
     ll_enqueue_asset_by_timestamp('/css/non-admin-style.css', 'll-tools-style');
 }
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_styles_for_non_admins');
+
+/**
+ * Adds the 'view_ll_tools' capability to the Administrator role on plugin activation.
+ */
+register_activation_hook(__FILE__, function () {
+    $role = get_role('administrator');
+    if ($role && !$role->has_cap('view_ll_tools')) {
+        $role->add_cap('view_ll_tools');
+    }
+});
+
+/**
+ * Removes 'view_ll_tools' capability on deactivation/uninstall
+ */
+register_deactivation_hook(__FILE__, function () {
+    // Usually you leave caps in place, but if you want to remove:
+    $role = get_role('administrator');
+    if ($role) {
+        $role->remove_cap('view_ll_tools');
+    }
+});
 
 /**
  * Loads the plugin text domain for internationalization.

@@ -18,10 +18,21 @@ function ll_register_settings_page() {
 add_action('admin_menu', 'll_register_settings_page');
 
 function ll_register_settings() {
-    register_setting('language-learning-tools-options', 'll_target_language');
-    register_setting('language-learning-tools-options', 'll_translation_language');
-    register_setting('language-learning-tools-options', 'll_enable_category_translation');
-    register_setting('language-learning-tools-options', 'll_category_translation_source');
+    $args = array(
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'show_in_rest' => false,
+        'default' => ''
+    );
+
+    register_setting('language-learning-tools-options', 'll_target_language', $args);
+    register_setting('language-learning-tools-options', 'll_translation_language', $args);
+    register_setting('language-learning-tools-options', 'll_enable_category_translation', array(
+        'type' => 'boolean',
+        'sanitize_callback' => 'absint',
+        'default' => 0
+    ));
+    register_setting('language-learning-tools-options', 'll_category_translation_source', $args);
     register_setting('language-learning-tools-options', 'll_max_options_override', [
         'type' => 'integer',
         'sanitize_callback' => 'll_sanitize_max_options_override',
@@ -33,8 +44,14 @@ function ll_register_settings() {
         'sanitize_callback' => 'sanitize_text_field',
     ]);
     // Settings for quiz font name and URL.
-    register_setting('language-learning-tools-options', 'll_quiz_font', 'sanitize_text_field');
-    register_setting('language-learning-tools-options', 'll_quiz_font_url', 'esc_url_raw');
+    register_setting('language-learning-tools-options', 'll_quiz_font', array(
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field'
+    ));
+    register_setting('language-learning-tools-options', 'll_quiz_font_url', array(
+        'type' => 'string',
+        'sanitize_callback' => 'esc_url_raw'
+    ));
 }
 add_action('admin_init', 'll_register_settings');
 
