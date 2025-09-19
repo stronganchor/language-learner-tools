@@ -60,6 +60,30 @@
         FlashcardAudio.resetAudioState();
     }
 
+    function setRepeatButton(state) {
+        var $btn = $('#ll-tools-repeat-flashcard');
+        if (!$btn.length) return;
+
+        if (state === 'stop') {
+            $btn.html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir +
+                'media/stop-symbol.svg" alt="Stop"></span>');
+            $btn.removeClass('play-mode').addClass('stop-mode');
+        } else {
+            $btn.html('<span class="icon-container"><img src="' + llToolsFlashcardsData.plugin_dir +
+                'media/play-symbol.svg" alt="Play"></span>');
+            $btn.removeClass('stop-mode').addClass('play-mode');
+        }
+        $btn.show();
+    }
+
+    function restoreHeaderUI() {
+        // Make the overall header and its inner stack visible
+        $('#ll-tools-flashcard-header').show();
+        $('#ll-tools-category-stack, #ll-tools-category-display').show();
+        // Always come back in a clean "play" state
+        setRepeatButton('play');
+    }
+
     /**
      * Resets the quiz results counters.
      */
@@ -646,8 +670,7 @@
     function runQuizRound() {
         // Clear UI from previous round
         $('#ll-tools-flashcard').empty();
-        $('#ll-tools-flashcard-header').show();
-        $('#ll-tools-repeat-flashcard').show();
+        restoreHeaderUI();
 
         FlashcardAudio.pauseAllAudio();
         showLoadingAnimation();
