@@ -82,6 +82,18 @@ function ll_tools_build_quiz_page_content($term) {
 }
 
 /**
+ * Disable wpautop for quiz pages to prevent breaking inline JavaScript
+ */
+add_filter('the_content', function($content) {
+    global $post;
+    if ($post && get_post_meta($post->ID, '_ll_tools_word_category_id', true)) {
+        remove_filter('the_content', 'wpautop');
+        return $content;
+    }
+    return $content;
+}, 9); // Run before wpautop (priority 10)
+
+/**
  * Ensure the parent "quiz" page exists and return its ID.
  * Allows overrides using the 'll_tools_quiz_parent_slug' filter.
  *
