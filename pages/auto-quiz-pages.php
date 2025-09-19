@@ -39,48 +39,44 @@ function ll_tools_build_quiz_page_content($term) {
         }
     </style>';
 
-    // JavaScript with multiple fallback mechanisms to hide loader
-    $html .= '<script>
-        (function() {
-            var iframe = document.getElementById("' . esc_js($iframe_id) . '");
-            var loader = document.getElementById("' . esc_js($loader_id) . '");
-            var loaderHidden = false;
+    // Wrap script in HTML comments to prevent wpautop from adding paragraph tags
+    $html .= '<!-- noformat on -->';
+    $html .= '<script type="text/javascript">
+(function() {
+    var iframe = document.getElementById("' . esc_js($iframe_id) . '");
+    var loader = document.getElementById("' . esc_js($loader_id) . '");
+    var loaderHidden = false;
 
-            function hideLoader() {
-                if (!loaderHidden && loader) {
-                    loader.style.display = "none";
-                    loaderHidden = true;
-                }
-            }
+    function hideLoader() {
+        if (!loaderHidden && loader) {
+            loader.style.display = "none";
+            loaderHidden = true;
+        }
+    }
 
-            if (iframe && loader) {
-                // Method 1: Standard load event
-                iframe.addEventListener("load", hideLoader);
+    if (iframe && loader) {
+        iframe.addEventListener("load", hideLoader);
 
-                // Method 2: Check if iframe document is ready
-                var checkIframeReady = setInterval(function() {
-                    try {
-                        var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                        if (iframeDoc && iframeDoc.readyState === "complete") {
-                            hideLoader();
-                            clearInterval(checkIframeReady);
-                        }
-                    } catch(e) {
-                        // Cross-origin, rely on other methods
-                    }
-                }, 100);
-
-                // Method 3: Maximum timeout fallback (3 seconds)
-                setTimeout(function() {
+        var checkIframeReady = setInterval(function() {
+            try {
+                var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc && iframeDoc.readyState === "complete") {
                     hideLoader();
                     clearInterval(checkIframeReady);
-                }, 5000);
+                }
+            } catch(e) {}
+        }, 100);
 
-                // Method 4: Hide on error too
-                iframe.addEventListener("error", hideLoader);
-            }
-        })();
-    </script>';
+        setTimeout(function() {
+            hideLoader();
+            clearInterval(checkIframeReady);
+        }, 5000);
+
+        iframe.addEventListener("error", hideLoader);
+    }
+})();
+</script>';
+    $html .= '<!-- noformat off -->';
 
     return $html;
 }
