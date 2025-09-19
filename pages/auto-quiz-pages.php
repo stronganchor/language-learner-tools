@@ -31,7 +31,7 @@ function ll_tools_build_quiz_page_content($term) {
 
     $html .= '</div>';
 
-    // Add the CSS for the spinner animation and JavaScript for hiding it
+    // Add the CSS for the spinner animation
     $html .= '<style>
         @keyframes ll-tools-spin {
             0% { transform: translateX(-50%) rotate(0deg); }
@@ -39,19 +39,45 @@ function ll_tools_build_quiz_page_content($term) {
         }
     </style>';
 
-    // JavaScript to hide loader when iframe content loads
+    // JavaScript with multiple fallback mechanisms to hide loader
     $html .= '<script>
         (function() {
             var iframe = document.getElementById("' . esc_js($iframe_id) . '");
             var loader = document.getElementById("' . esc_js($loader_id) . '");
+            var loaderHidden = false;
+
+            function hideLoader() {
+                if (!loaderHidden && loader) {
+                    loader.style.display = "none";
+                    loaderHidden = true;
+                }
+            }
+
             if (iframe && loader) {
-                iframe.addEventListener("load", function() {
-                    loader.style.display = "none";
-                });
-                // Also hide loader if iframe errors
-                iframe.addEventListener("error", function() {
-                    loader.style.display = "none";
-                });
+                // Method 1: Standard load event
+                iframe.addEventListener("load", hideLoader);
+
+                // Method 2: Check if iframe document is ready
+                var checkIframeReady = setInterval(function() {
+                    try {
+                        var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc && iframeDoc.readyState === "complete") {
+                            hideLoader();
+                            clearInterval(checkIframeReady);
+                        }
+                    } catch(e) {
+                        // Cross-origin, rely on other methods
+                    }
+                }, 100);
+
+                // Method 3: Maximum timeout fallback (3 seconds)
+                setTimeout(function() {
+                    hideLoader();
+                    clearInterval(checkIframeReady);
+                }, 5000);
+
+                // Method 4: Hide on error too
+                iframe.addEventListener("error", hideLoader);
             }
         })();
     </script>';
