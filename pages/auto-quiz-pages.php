@@ -17,15 +17,13 @@ if (!defined('WPINC')) {
 function ll_tools_build_quiz_page_content($term) {
     $src = home_url('/embed/' . $term->slug);
     $vh = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
-    $iframe_id = 'quiz-iframe-' . sanitize_html_class($term->slug);
-    $loader_id = 'quiz-loader-' . sanitize_html_class($term->slug);
 
-    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;">';
+    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;" data-quiz-slug="' . esc_attr($term->slug) . '">';
 
-    // Add loading animation positioned near top of iframe area
-    $html .= '<div id="' . esc_attr($loader_id) . '" class="ll-tools-iframe-loading" style="position:absolute;top:100px;left:50%;transform:translateX(-50%);width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #333333;border-radius:50%;animation:ll-tools-spin 2s linear infinite;z-index:1;"></div>';
+    // Add loading animation
+    $html .= '<div class="ll-tools-iframe-loading" style="position:absolute;top:100px;left:50%;transform:translateX(-50%);width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #333333;border-radius:50%;animation:ll-tools-spin 2s linear infinite;z-index:1;"></div>';
 
-    $html .= '<iframe id="' . esc_attr($iframe_id) . '" src="' . esc_url($src) . '"'
+    $html .= '<iframe class="ll-tools-quiz-iframe" src="' . esc_url($src) . '"'
           .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $vh . 'vh;border:0;"'
           .  ' loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>';
 
@@ -39,59 +37,8 @@ function ll_tools_build_quiz_page_content($term) {
         }
     </style>';
 
-    // Wrap script in HTML comments to prevent wpautop from adding paragraph tags
-    $html .= '<!-- noformat on -->';
-    $html .= '<script type="text/javascript">
-(function() {
-    var iframe = document.getElementById("' . esc_js($iframe_id) . '");
-    var loader = document.getElementById("' . esc_js($loader_id) . '");
-    var loaderHidden = false;
-
-    function hideLoader() {
-        if (!loaderHidden && loader) {
-            loader.style.display = "none";
-            loaderHidden = true;
-        }
-    }
-
-    if (iframe && loader) {
-        iframe.addEventListener("load", hideLoader);
-
-        var checkIframeReady = setInterval(function() {
-            try {
-                var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                if (iframeDoc && iframeDoc.readyState === "complete") {
-                    hideLoader();
-                    clearInterval(checkIframeReady);
-                }
-            } catch(e) {}
-        }, 100);
-
-        setTimeout(function() {
-            hideLoader();
-            clearInterval(checkIframeReady);
-        }, 5000);
-
-        iframe.addEventListener("error", hideLoader);
-    }
-})();
-</script>';
-    $html .= '<!-- noformat off -->';
-
     return $html;
 }
-
-/**
- * Disable wpautop for quiz pages to prevent breaking inline JavaScript
- */
-add_filter('the_content', function($content) {
-    global $post;
-    if ($post && get_post_meta($post->ID, '_ll_tools_word_category_id', true)) {
-        remove_filter('the_content', 'wpautop');
-        return $content;
-    }
-    return $content;
-}, 9); // Run before wpautop (priority 10)
 
 /**
  * Ensure the parent "quiz" page exists and return its ID.
@@ -488,3 +435,31 @@ function ll_tools_sync_categories_before_delete( $post_id ) {
     }
 }
 add_action( 'before_delete_post', 'll_tools_sync_categories_before_delete' );
+
+/**
+ * Add JavaScript for quiz iframe loading in the footer
+ */
+add_action('wp_footer', function() {
+    global $post;
+    if ($post && get_post_meta($post->ID, '_ll_tools_word_category_id', true)) {
+        ?>
+        <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            var wrappers = document.querySelectorAll('.ll-tools-quiz-iframe-wrapper');
+            wrappers.forEach(function(wrapper) {
+                var iframe = wrapper.querySelector('.ll-tools-quiz-iframe');
+                var loader = wrapper.querySelector('.ll-tools-iframe-loading');
+                if (iframe && loader) {
+                    var hideLoader = function() {
+                        loader.style.display = 'none';
+                    };
+                    iframe.addEventListener('load', hideLoader);
+                    iframe.addEventListener('error', hideLoader);
+                    setTimeout(hideLoader, 3000);
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+});
