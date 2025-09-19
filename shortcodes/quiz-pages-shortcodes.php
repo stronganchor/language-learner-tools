@@ -116,7 +116,7 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
     // 3) Localize the same object the widget uses
     $localized_data = array(
         'mode'                 => 'random',
-        'plugin_dir'           => plugin_dir_url(__FILE__),
+        'plugin_dir'           => LL_TOOLS_BASE_URL,
         'ajaxurl'              => admin_url('admin-ajax.php'),
         'categories'           => $categories,
         'isUserLoggedIn'       => is_user_logged_in(),
@@ -149,15 +149,6 @@ function ll_qpg_print_flashcard_shell_once() {
     if ($printed) { return; }
     $printed = true;
 
-    // Build a base URL that points to the plugin ROOT (so /media/*.svg resolves correctly)
-    // This file lives in /pages/, so hop up one level to the main plugin file.
-    $plugin_main_file = dirname(__FILE__) . '/../language-learner-tools.php';
-    if ( file_exists( $plugin_main_file ) ) {
-        $lltools_base_url = plugin_dir_url( $plugin_main_file );
-    } else {
-        // Fallback: derive from two levels up if the main file isn’t where we expect.
-        $lltools_base_url = trailingslashit( plugins_url( '', dirname(__FILE__, 2) . '/language-learner-tools.php' ) );
-    }
     ?>
     <div id="ll-tools-flashcard-container" style="display:none;">
         <div id="ll-tools-flashcard-popup" style="display:none;">
@@ -169,7 +160,7 @@ function ll_qpg_print_flashcard_shell_once() {
                         <button id="ll-tools-repeat-flashcard" class="play-mode">
                             <span class="icon-container">
                                 <img
-                                    src="<?php echo esc_url( $lltools_base_url . 'media/play-symbol.svg' ); ?>"
+                                    src="<?php echo esc_url( LL_TOOLS_BASE_URL . 'media/play-symbol.svg' ); ?>"
                                     alt="<?php esc_attr_e('Play', 'll-tools-text-domain'); ?>"
                                 >
                             </span>

@@ -33,49 +33,57 @@ if (!defined('WPINC')) {
     die;
 }
 
+// Base URL/path for this plugin (safe to use from nested files)
+if (!defined('LL_TOOLS_BASE_URL')) {
+    define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
+}
+if (!defined('LL_TOOLS_BASE_PATH')) {
+    define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
+}
+
 // Include custom post types
-require_once(plugin_dir_path(__FILE__) . 'post-types/words-post-type.php');
-require_once(plugin_dir_path(__FILE__) . 'post-types/word-image-post-type.php');
+require_once(LL_TOOLS_BASE_PATH . 'post-types/words-post-type.php');
+require_once(LL_TOOLS_BASE_PATH . 'post-types/word-image-post-type.php');
 
 // Include taxonomies
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/word-category-taxonomy.php');
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/wordset-taxonomy.php');
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/language-taxonomy.php');
-require_once(plugin_dir_path(__FILE__) . 'taxonomies/part-of-speech-taxonomy.php');
+require_once(LL_TOOLS_BASE_PATH . 'taxonomies/word-category-taxonomy.php');
+require_once(LL_TOOLS_BASE_PATH . 'taxonomies/wordset-taxonomy.php');
+require_once(LL_TOOLS_BASE_PATH . 'taxonomies/language-taxonomy.php');
+require_once(LL_TOOLS_BASE_PATH . 'taxonomies/part-of-speech-taxonomy.php');
 
 // Include user roles
-require_once(plugin_dir_path(__FILE__) . 'user-roles/wordset-manager.php');
-require_once(plugin_dir_path(__FILE__) . 'user-roles/ll-tools-editor.php');
+require_once(LL_TOOLS_BASE_PATH . 'user-roles/wordset-manager.php');
+require_once(LL_TOOLS_BASE_PATH . 'user-roles/ll-tools-editor.php');
 
 // Include admin functionality
-require_once(plugin_dir_path(__FILE__) . 'admin/uploads/audio-upload-form.php');
-require_once(plugin_dir_path(__FILE__) . 'admin/uploads/image-upload-form.php');
-require_once(plugin_dir_path(__FILE__) . 'admin/manage-wordsets.php');
-require_once(plugin_dir_path(__FILE__) . 'admin/missing-audio-admin-page.php');
-require_once(plugin_dir_path(__FILE__) . 'admin/settings.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/uploads/audio-upload-form.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/uploads/image-upload-form.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/manage-wordsets.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/missing-audio-admin-page.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/settings.php');
 
 // Include API integrations
-require_once(plugin_dir_path(__FILE__) . 'admin/api/deepl-api.php');
+require_once(LL_TOOLS_BASE_PATH . 'admin/api/deepl-api.php');
 
 // Include pages
-require_once(plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php');
+require_once(LL_TOOLS_BASE_PATH . 'pages/auto-quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation')) {
     ll_tools_register_autopage_activation(__FILE__);
 }
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
-require_once(plugin_dir_path(__FILE__) . 'shortcodes/flashcard-widget.php');
-require_once(plugin_dir_path(__FILE__) . 'shortcodes/word-audio-shortcode.php');
-require_once(plugin_dir_path(__FILE__) . 'shortcodes/word-grid-shortcode.php');
-require_once(plugin_dir_path(__FILE__) . 'shortcodes/image-copyright-grid-shortcode.php');
-require_once(plugin_dir_path(__FILE__) . 'shortcodes/quiz-pages-shortcodes.php');
+require_once(LL_TOOLS_BASE_PATH . 'shortcodes/flashcard-widget.php');
+require_once(LL_TOOLS_BASE_PATH . 'shortcodes/word-audio-shortcode.php');
+require_once(LL_TOOLS_BASE_PATH . 'shortcodes/word-grid-shortcode.php');
+require_once(LL_TOOLS_BASE_PATH . 'shortcodes/image-copyright-grid-shortcode.php');
+require_once(LL_TOOLS_BASE_PATH . 'shortcodes/quiz-pages-shortcodes.php');
 
 // Include other utility files
-require_once(plugin_dir_path(__FILE__) . 'language-switcher.php');
+require_once(LL_TOOLS_BASE_PATH . 'language-switcher.php');
 
 // Include the plugin update checker
-require_once plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
+require_once LL_TOOLS_BASE_PATH . 'plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
     'https://github.com/stronganchor/language-learner-tools',
@@ -103,7 +111,7 @@ function ll_enqueue_jquery_ui() {
 function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = array(), $include_in_footer = false) {
     $extension = pathinfo($relative_path, PATHINFO_EXTENSION);
     $asset_file = plugins_url($relative_path, __FILE__);
-    $asset_version = filemtime(plugin_dir_path(__FILE__) . $relative_path);
+    $asset_version = filemtime(LL_TOOLS_BASE_PATH . $relative_path);
 
     if ($extension === 'js') {
         wp_enqueue_script($handle, $asset_file, $dependencies, $asset_version, $include_in_footer);
@@ -194,7 +202,7 @@ add_filter('query_vars', 'll_embed_query_vars');
 
 function ll_embed_template_include($template) {
     if (get_query_var('embed_category')) {
-        return plugin_dir_path(__FILE__) . 'pages/embed-page.php';
+        return LL_TOOLS_BASE_PATH . 'pages/embed-page.php';
     }
     return $template;
 }
@@ -221,7 +229,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
 add_action('admin_init', function () {
     if ( ! current_user_can('manage_options') ) return;
 
-    $file = plugin_dir_path(__FILE__) . 'pages/auto-quiz-pages.php';
+    $file = LL_TOOLS_BASE_PATH . 'pages/auto-quiz-pages.php';
     if ( ! file_exists($file) ) return;
 
     $current_mtime = (int) filemtime($file);

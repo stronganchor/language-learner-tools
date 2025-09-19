@@ -43,7 +43,6 @@
         } else {
             echo '<p>' . esc_html__('Invalid category specified.', 'll-tools-text-domain') . '</p>';
         }
-        echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '"]');
         ?>
     </div>
     <?php wp_footer(); ?>

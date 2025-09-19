@@ -126,7 +126,7 @@ function ll_tools_flashcard_widget($atts) {
     // Data to be localized for use in JavaScript
     $localized_data = array(
         'mode' => $atts['mode'],
-        'plugin_dir' => plugin_dir_url(dirname(__FILE__)) . '../',
+        'plugin_dir' => LL_TOOLS_BASE_URL,
         'ajaxurl' => admin_url('admin-ajax.php'),
         'categories' => $categories,
         'isUserLoggedIn' => is_user_logged_in(),
@@ -169,7 +169,7 @@ function ll_tools_flashcard_widget($atts) {
     // STACK: category name above play/pause
     echo '<div id="ll-tools-category-stack" class="ll-tools-category-stack">';
     echo '<span id="ll-tools-category-display" class="ll-tools-category-display"></span>';
-    echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(plugin_dir_url(dirname(__FILE__)) . '../media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
+    echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(LL_TOOLS_BASE_URL . '/media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
     echo '</div>';
 
     echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';

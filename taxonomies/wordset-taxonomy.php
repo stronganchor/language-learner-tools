@@ -157,11 +157,11 @@ add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
 function ll_enqueue_wordsets_script() {
     // Assuming this function is in a file located in /pages/ directory of your plugin
     // Go up one level to the plugin root, then into the /js/ directory
-    $js_path = plugin_dir_path(dirname(__FILE__)) . 'js/manage-wordsets.js';
+    $js_path = LL_TOOLS_BASE_PATH . 'js/manage-wordsets.js';
     $version = filemtime($js_path); // File modification time as version
     $userId = get_current_user_id();
 
-    wp_enqueue_script('manage-wordsets-script', plugin_dir_url(dirname(__FILE__)) . 'js/manage-wordsets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
+    wp_enqueue_script('manage-wordsets-script', LL_TOOLS_BASE_URL . 'js/manage-wordsets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
 
     $languages = get_terms([
         'taxonomy' => 'language',
