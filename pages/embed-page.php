@@ -39,7 +39,7 @@
         // Validate the category exists before using it
         $term = get_term_by('slug', $embed_category, 'word-category');
         if ($term && !is_wp_error($term)) {
-            echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '"]');
+            echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"]');
         } else {
             echo '<p>' . esc_html__('Invalid category specified.', 'll-tools-text-domain') . '</p>';
         }

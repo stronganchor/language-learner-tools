@@ -15,7 +15,8 @@ function ll_tools_flashcard_widget($atts) {
     // Default settings for the shortcode
     $atts = shortcode_atts(array(
         'category' => '',
-        'mode' => 'random'
+        'mode' => 'random',
+        'embed' => 'false',
     ), $atts);
 
     ob_start();
@@ -149,7 +150,9 @@ function ll_tools_flashcard_widget($atts) {
     ));
 
     echo '<div id="ll-tools-flashcard-container">';
-    echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
+    if ($atts['embed'] !== 'true') {
+        echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
+    }
     echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
     echo '<div id="ll-tools-category-selection-popup" style="display: none;">';
     echo '<h3>' . esc_html__('Select Categories', 'll-tools-text-domain') . '</h3>';
