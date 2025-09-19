@@ -16,16 +16,45 @@ if (!defined('WPINC')) {
  */
 function ll_tools_build_quiz_page_content($term) {
     $src = home_url('/embed/' . $term->slug);
-
-    // Allow overrides via filters
-    //$min_px = (int) apply_filters('ll_tools_quiz_iframe_min_height', 400);
-    $vh     = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
+    $vh = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
+    $iframe_id = 'quiz-iframe-' . sanitize_html_class($term->slug);
+    $loader_id = 'quiz-loader-' . sanitize_html_class($term->slug);
 
     $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;">';
-    $html .= '<iframe src="' . esc_url($src) . '"'
+
+    // Add loading animation positioned near top of iframe area
+    $html .= '<div id="' . esc_attr($loader_id) . '" class="ll-tools-iframe-loading" style="position:absolute;top:100px;left:50%;transform:translateX(-50%);width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #333333;border-radius:50%;animation:ll-tools-spin 2s linear infinite;z-index:1;"></div>';
+
+    $html .= '<iframe id="' . esc_attr($iframe_id) . '" src="' . esc_url($src) . '"'
           .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $vh . 'vh;border:0;"'
           .  ' loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+
     $html .= '</div>';
+
+    // Add the CSS for the spinner animation and JavaScript for hiding it
+    $html .= '<style>
+        @keyframes ll-tools-spin {
+            0% { transform: translateX(-50%) rotate(0deg); }
+            100% { transform: translateX(-50%) rotate(360deg); }
+        }
+    </style>';
+
+    // JavaScript to hide loader when iframe content loads
+    $html .= '<script>
+        (function() {
+            var iframe = document.getElementById("' . esc_js($iframe_id) . '");
+            var loader = document.getElementById("' . esc_js($loader_id) . '");
+            if (iframe && loader) {
+                iframe.addEventListener("load", function() {
+                    loader.style.display = "none";
+                });
+                // Also hide loader if iframe errors
+                iframe.addEventListener("error", function() {
+                    loader.style.display = "none";
+                });
+            }
+        })();
+    </script>';
 
     return $html;
 }
