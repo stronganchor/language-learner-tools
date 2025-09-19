@@ -363,3 +363,65 @@ function ll_tools_force_quiz_cleanup() {
     }
 }
 add_action('admin_init', 'll_tools_force_quiz_cleanup', 5);
+
+/**
+ * Re-evaluate quiz-page eligibility for any categories attached to this post.
+ */
+function ll_tools_sync_categories_for_post( $post_id, $post, $update ) {
+    if ( wp_is_post_revision( $post_id ) || ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE ) ) {
+        return;
+    }
+    if ( ! in_array( $post->post_type, array( 'words', 'word_images' ), true ) ) {
+        return;
+    }
+    // Only count published items toward quiz validity.
+    if ( $post->post_status !== 'publish' ) {
+        return;
+    }
+
+    $term_ids = wp_get_post_terms( $post_id, 'word-category', array( 'fields' => 'ids' ) );
+    if ( is_wp_error( $term_ids ) || empty( $term_ids ) ) {
+        return;
+    }
+    foreach ( $term_ids as $tid ) {
+        ll_tools_handle_category_sync( (int) $tid );
+    }
+}
+add_action( 'save_post_words',       'll_tools_sync_categories_for_post', 10, 3 );
+add_action( 'save_post_word_images', 'll_tools_sync_categories_for_post', 10, 3 );
+
+/**
+ * Also catch explicit term changes (adding/removing a category on the edit screen).
+ */
+function ll_tools_sync_categories_on_term_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+    if ( $taxonomy !== 'word-category' ) {
+        return;
+    }
+    $post = get_post( $object_id );
+    if ( ! $post || ! in_array( $post->post_type, array( 'words', 'word_images' ), true ) ) {
+        return;
+    }
+    $term_ids = array_map( 'intval', (array) $terms );
+    foreach ( $term_ids as $tid ) {
+        ll_tools_handle_category_sync( $tid );
+    }
+}
+add_action( 'set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 6 );
+
+/**
+ * Re-evaluate when a word/word_image is deleted/trashed.
+ */
+function ll_tools_sync_categories_before_delete( $post_id ) {
+    $post = get_post( $post_id );
+    if ( ! $post || ! in_array( $post->post_type, array( 'words', 'word_images' ), true ) ) {
+        return;
+    }
+    $term_ids = wp_get_post_terms( $post_id, 'word-category', array( 'fields' => 'ids' ) );
+    if ( is_wp_error( $term_ids ) ) {
+        return;
+    }
+    foreach ( $term_ids as $tid ) {
+        ll_tools_handle_category_sync( (int) $tid );
+    }
+}
+add_action( 'before_delete_post', 'll_tools_sync_categories_before_delete' );
