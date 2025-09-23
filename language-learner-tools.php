@@ -41,46 +41,48 @@ if (!defined('LL_TOOLS_BASE_PATH')) {
     define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 }
 
+$includes_path = LL_TOOLS_BASE_PATH . 'includes/';
+
 // Include custom post types
-require_once(LL_TOOLS_BASE_PATH . 'post-types/words-post-type.php');
-require_once(LL_TOOLS_BASE_PATH . 'post-types/word-image-post-type.php');
+require_once($includes_path . 'post-types/words-post-type.php');
+require_once($includes_path . 'post-types/word-image-post-type.php');
 
 // Include taxonomies
-require_once(LL_TOOLS_BASE_PATH . 'taxonomies/word-category-taxonomy.php');
-require_once(LL_TOOLS_BASE_PATH . 'taxonomies/wordset-taxonomy.php');
-require_once(LL_TOOLS_BASE_PATH . 'taxonomies/language-taxonomy.php');
-require_once(LL_TOOLS_BASE_PATH . 'taxonomies/part-of-speech-taxonomy.php');
+require_once($includes_path . 'taxonomies/word-category-taxonomy.php');
+require_once($includes_path . 'taxonomies/wordset-taxonomy.php');
+require_once($includes_path . 'taxonomies/language-taxonomy.php');
+require_once($includes_path . 'taxonomies/part-of-speech-taxonomy.php');
 
 // Include user roles
-require_once(LL_TOOLS_BASE_PATH . 'user-roles/wordset-manager.php');
-require_once(LL_TOOLS_BASE_PATH . 'user-roles/ll-tools-editor.php');
+require_once($includes_path . 'user-roles/wordset-manager.php');
+require_once($includes_path . 'user-roles/ll-tools-editor.php');
 
 // Include admin functionality
-require_once(LL_TOOLS_BASE_PATH . 'admin/uploads/audio-upload-form.php');
-require_once(LL_TOOLS_BASE_PATH . 'admin/uploads/image-upload-form.php');
-require_once(LL_TOOLS_BASE_PATH . 'admin/manage-wordsets.php');
-require_once(LL_TOOLS_BASE_PATH . 'admin/missing-audio-admin-page.php');
-require_once(LL_TOOLS_BASE_PATH . 'admin/settings.php');
+require_once($includes_path . 'admin/uploads/audio-upload-form.php');
+require_once($includes_path . 'admin/uploads/image-upload-form.php');
+require_once($includes_path . 'admin/manage-wordsets.php');
+require_once($includes_path . 'admin/missing-audio-admin-page.php');
+require_once($includes_path . 'admin/settings.php');
 
 // Include API integrations
-require_once(LL_TOOLS_BASE_PATH . 'admin/api/deepl-api.php');
+require_once($includes_path . 'admin/api/deepl-api.php');
 
 // Include pages
-require_once(LL_TOOLS_BASE_PATH . 'pages/auto-quiz-pages.php');
+require_once($includes_path . 'pages/auto-quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation')) {
     ll_tools_register_autopage_activation(__FILE__);
 }
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
-require_once(LL_TOOLS_BASE_PATH . 'shortcodes/flashcard-widget.php');
-require_once(LL_TOOLS_BASE_PATH . 'shortcodes/word-audio-shortcode.php');
-require_once(LL_TOOLS_BASE_PATH . 'shortcodes/word-grid-shortcode.php');
-require_once(LL_TOOLS_BASE_PATH . 'shortcodes/image-copyright-grid-shortcode.php');
-require_once(LL_TOOLS_BASE_PATH . 'shortcodes/quiz-pages-shortcodes.php');
+require_once($includes_path . 'shortcodes/flashcard-widget.php');
+require_once($includes_path . 'shortcodes/word-audio-shortcode.php');
+require_once($includes_path . 'shortcodes/word-grid-shortcode.php');
+require_once($includes_path . 'shortcodes/image-copyright-grid-shortcode.php');
+require_once($includes_path . 'shortcodes/quiz-pages-shortcodes.php');
 
 // Include other utility files
-require_once(LL_TOOLS_BASE_PATH . 'language-switcher.php');
+require_once($includes_path . '/i18n/language-switcher.php');
 
 // Include the plugin update checker
 require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';
