@@ -64,7 +64,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
 
     if (function_exists('ll_tools_render_template')) {
         ob_start();
-        ll_tools_render_template('quiz_pages/page.php', [
+        ll_tools_render_template('quiz-pags.php', [
             'vh'           => $vh,
             'src'          => $src,
             'display_name' => $display_name,
@@ -324,7 +324,7 @@ add_action('admin_init', function () {
 
     $watch = [
         __FILE__,
-        LL_TOOLS_BASE_PATH . 'templates/quiz_pages/page.php',
+        LL_TOOLS_BASE_PATH . 'templates/quiz-pages.php',
         LL_TOOLS_BASE_PATH . 'js/quiz-pages.js',
         LL_TOOLS_BASE_PATH . 'css/quiz-pages.css',
     ];
