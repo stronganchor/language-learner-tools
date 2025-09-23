@@ -83,7 +83,7 @@ require_once(LL_TOOLS_BASE_PATH . 'shortcodes/quiz-pages-shortcodes.php');
 require_once(LL_TOOLS_BASE_PATH . 'language-switcher.php');
 
 // Include the plugin update checker
-require_once LL_TOOLS_BASE_PATH . 'plugin-update-checker/plugin-update-checker.php';
+require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 $myUpdateChecker = PucFactory::buildUpdateChecker(
     'https://github.com/stronganchor/language-learner-tools',

@@ -30,8 +30,8 @@ function ll_register_language_taxonomy() {
     if (!$languages_populated) {
         // Load language and macrolanguage data from SIL tables
         $plugin_root_dir = LL_TOOLS_BASE_PATH;
-        $languages_table = $plugin_root_dir . 'iso-languages/iso-639-3_Name_Index.tab.txt';
-        $macrolanguage_mappings_table = $plugin_root_dir . 'iso-languages/iso-639-3-macrolanguages.tab.txt';
+        $languages_table = $plugin_root_dir . 'data/iso-languages/iso-639-3_Name_Index.tab.txt';
+        $macrolanguage_mappings_table = $plugin_root_dir . 'data/iso-languages/iso-639-3-macrolanguages.tab.txt';
 
         $languages = array();
         $macrolanguage_mappings = array();
