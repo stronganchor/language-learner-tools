@@ -30,8 +30,8 @@ require_once(__DIR__ . '/admin/api/deepl-api.php');
 
 // Include pages
 require_once(__DIR__ . '/pages/auto-quiz-pages.php');
-if (function_exists('ll_tools_register_autopage_activation')) {
-    ll_tools_register_autopage_activation(__FILE__);
+if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOLS_MAIN_FILE')) {
+    ll_tools_register_autopage_activation(LL_TOOLS_MAIN_FILE);
 }
 // Note: embed-page.php is loaded via template_include filter, not require
 
