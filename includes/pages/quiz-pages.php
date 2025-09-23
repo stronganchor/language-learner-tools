@@ -67,7 +67,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
         : $term->name;
 
     ob_start();
-    ll_tools_render_template('quiz-pages.php', [
+    ll_tools_render_template('quiz-page-template.php', [
         'vh'           => $vh,
         'src'          => $src,
         'display_name' => $display_name,

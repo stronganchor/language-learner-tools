@@ -22,7 +22,7 @@ function ll_tools_templates_dir(): string {
  *   - ll_tools_template_theme_subdir (default: 'll-tools')
  *   - ll_tools_template_search_paths (array of candidates)
  *
- * @param string $relative  e.g. 'flashcard-widget-template.php' or 'quiz-pages.php' or 'flashcards/overlay.php'
+ * @param string $relative  e.g. 'flashcard-widget-template.php'
  * @return string Absolute file path, or '' if not found.
  */
 function ll_tools_locate_template(string $relative): string {
