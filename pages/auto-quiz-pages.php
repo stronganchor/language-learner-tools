@@ -15,21 +15,26 @@ if (!defined('WPINC')) {
  * @return string
  */
 function ll_tools_build_quiz_page_content($term) {
-    $src = home_url('/embed/' . $term->slug);
     $vh = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
+    $src = home_url('/embed/' . $term->slug);
 
-    $html  = '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;" data-quiz-slug="' . esc_attr($term->slug) . '">';
+    $display_name = ll_tools_get_category_display_name($term);
 
-    // Add loading animation
-    $html .= '<div class="ll-tools-iframe-loading" style="position:absolute;top:100px;left:50%;transform:translateX(-50%);width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #333333;border-radius:50%;animation:ll-tools-spin 2s linear infinite;z-index:1;"></div>';
+    $html  = '<div class="ll-tools-quiz-wrapper" style="width:100%;">';
+    $html .= '<h1 class="ll-quiz-page-title" style="text-align:center;margin:0 0 10px;">' . esc_html($display_name) . '</h1>';
+
+    $html .= '<div class="ll-tools-quiz-iframe-wrapper" style="position:relative;width:100%;min-height:' . $vh . 'vh;" data-quiz-slug="' . esc_attr($term->slug) . '">';
+
+    // Simple spinner shown until iframe paints
+    $html .= '<div class="ll-tools-iframe-loading" style="position:absolute;top:100px;left:50%;transform:translateX(-50%);width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #333;border-radius:50%;animation:ll-tools-spin 2s linear infinite;z-index:1;"></div>';
 
     $html .= '<iframe class="ll-tools-quiz-iframe" src="' . esc_url($src) . '"'
           .  ' style="position:relative;width:100%;height:' . $vh . 'vh;min-height:' . $vh . 'vh;border:0;"'
           .  ' loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>';
 
-    $html .= '</div>';
+    $html .= '</div>'; // wrapper
+    $html .= '</div>'; // outer
 
-    // Add the CSS for the spinner animation
     $html .= '<style>
         @keyframes ll-tools-spin {
             0% { transform: translateX(-50%) rotate(0deg); }

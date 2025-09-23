@@ -120,19 +120,55 @@ function ll_save_translation_field($term_id, $taxonomy) {
 }
 
 /**
- * Retrieves the translated name of a category.
+ * Resolve the user-facing display name for a word-category term.
  *
- * @param int $term_id Term ID.
- * @return string Translated name or default name if not translated.
+ * @param int|WP_Term $term  Term ID or object (taxonomy: word-category)
+ * @param array $args {
+ *   @type bool|null   $enable_translation  Default: get_option('ll_enable_category_translation', 0)
+ *   @type string|null $target_language     Default: get_option('ll_translation_language', 'en') (e.g., 'en', 'tr')
+ *   @type string|null $site_language       Default: get_locale() (e.g., 'en_US', 'tr_TR')
+ *   @type string      $meta_key            Default: 'term_translation'
+ * }
+ * @return string
  */
-function ll_get_translated_category_name($term_id) {
-    $translation = get_term_meta($term_id, 'term_translation', true);
-    if ($translation) {
-        return $translation;
+function ll_tools_get_category_display_name($term, array $args = []) {
+    $tax = 'word-category';
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, $tax);
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return '';
     }
 
-    $term = get_term($term_id);
-    return $term ? $term->name : '';
+    $defaults = [
+        'enable_translation' => (bool) get_option('ll_enable_category_translation', 0),
+        'target_language'    => strtolower((string) get_option('ll_translation_language', 'en')),
+        'site_language'      => strtolower((string) get_locale()),
+        'meta_key'           => 'term_translation',
+    ];
+    $opts = array_merge($defaults, $args);
+
+    $display = $term->name;
+
+    $use_translations = $opts['enable_translation']
+        && $opts['target_language'] !== ''
+        && strpos($opts['site_language'], $opts['target_language']) === 0;
+
+    if ($use_translations) {
+        $maybe = get_term_meta($term->term_id, $opts['meta_key'], true);
+        if (is_string($maybe) && $maybe !== '') {
+            $display = $maybe;
+        }
+    }
+
+    /**
+     * Filter the resolved display name for a category term.
+     *
+     * @param string  $display
+     * @param WP_Term $term
+     * @param array   $opts
+     */
+    return apply_filters('ll_tools_category_display_name', $display, $term, $opts);
 }
 
 /**

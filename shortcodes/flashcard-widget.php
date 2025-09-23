@@ -77,6 +77,9 @@ function ll_tools_flashcard_widget($atts) {
     $firstCategoryName = '';
     $categoriesToTry = array_column($categories, 'name');
 
+    // Keep track of the selected category record
+    $selected_category_data = null;
+
     while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)) {
         $random_category = $categoriesToTry[array_rand($categoriesToTry)];
         $categoriesToTry = array_diff($categoriesToTry, [$random_category]);
@@ -95,6 +98,17 @@ function ll_tools_flashcard_widget($atts) {
 
         $words_data = ll_get_words_by_category($random_category, $mode);
         $firstCategoryName = $random_category;
+    }
+
+    // Compute display label via helper (non-embed only)
+    $category_label_text = '';
+    if ($atts['embed'] !== 'true') {
+        if (!empty($selected_category_data) && !empty($selected_category_data['id'])) {
+            $category_label_text = ll_tools_get_category_display_name($selected_category_data['id']);
+        } elseif ($firstCategoryName !== '') {
+            // Fallback if ID wasn't available—helper accepts slug/name too
+            $category_label_text = ll_tools_get_category_display_name($firstCategoryName);
+        }
     }
 
     // Enqueue scripts and styles
@@ -171,7 +185,9 @@ function ll_tools_flashcard_widget($atts) {
     echo '<div id="ll-tools-flashcard-header" style="display: none;">';
     // STACK: category name above play/pause
     echo '<div id="ll-tools-category-stack" class="ll-tools-category-stack">';
-    echo '<span id="ll-tools-category-display" class="ll-tools-category-display"></span>';
+    if ($atts['embed'] !== 'true') {
+            echo '<span id="ll-tools-category-display" class="ll-tools-category-display">' . esc_html($category_label_text) . '</span>';
+    }
     echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(LL_TOOLS_BASE_URL . '/media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
     echo '</div>';
 
