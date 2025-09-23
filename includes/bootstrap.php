@@ -4,6 +4,9 @@ if (!defined('WPINC')) { die; }
 // Include asset management
 require_once(__DIR__ . '/assets.php');
 
+// Include template loader
+require_once __DIR__ . '/template-loader.php';
+
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');

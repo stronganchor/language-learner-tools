@@ -2,324 +2,263 @@
 /**
  * [flashcard_widget] shortcode
  *
- * This shortcode displays a flashcard widget for learning and practicing words.
+ * Thin controller + helpers + AJAX. Markup is in /templates/flashcard-widget-template.php
  */
 
-/**
- * Shortcode handler for [flashcard_widget].
- *
- * @param array $atts Shortcode attributes.
- * @return string HTML content for the flashcard widget.
+if (!defined('WPINC')) { die; }
+
+/** ---------------------------
+ *  Helpers (small + focused)
+ *  ---------------------------
  */
-function ll_tools_flashcard_widget($atts) {
-    // Default settings for the shortcode
-    $atts = shortcode_atts(array(
-        'category' => '',
-        'mode' => 'random',
-        'embed' => 'false',
-    ), $atts);
 
-    ob_start();
-
-    // Retrieve quiz font settings
-    $quiz_font = get_option('ll_quiz_font');
-    if ( !empty($quiz_font) ) {
-        // Output inline CSS to force text-based flashcards to use the selected font
-        echo '<style>#ll-tools-flashcard .text-based { font-family: "' . esc_attr($quiz_font) . '", sans-serif; }</style>';
-    }
-
-    $categories = $atts['category'];
-    $categoriesPreselected = true;
-
-    // Check if translation is enabled and the site's language matches the translation language
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-    $target_language = strtolower(get_option('ll_translation_language', 'en'));
-    $site_language = strtolower(get_locale());
-    // Determine if translations should be used
-    $use_translations = $enable_translation && strpos($site_language, $target_language) === 0;
-
-    // Retrieve all categories if none are specified
-    $all_categories = get_terms(array(
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-    ));
-
-    if (empty($categories)) {
-        $categoriesPreselected = false;
-
-        // Process all categories
-        $categories = ll_process_categories($all_categories, $use_translations);
-    } else {
-        // Process specified categories
-        $category_attributes = explode(',', esc_attr($categories));
-        $categories = [];
-        $all_categories = ll_process_categories($all_categories, $use_translations);
-
-        foreach ($category_attributes as $attribute) {
-            $attribute_found = false;
-
-            foreach ($all_categories as $category) {
-                if (strcasecmp($attribute, $category['name']) === 0 || strcasecmp($attribute, $category['id']) === 0 || strcasecmp($attribute, $category['slug']) === 0) {
-                    $categories[] = $category;
-                    $attribute_found = true;
-                    break;
-                }
-            }
-
-            if (!$attribute_found) {
-                error_log("Category '$attribute' not found.");
-            }
-        }
-    }
-
-    // Process category data for the quiz
-    $words_data = [];
-    $firstCategoryName = '';
-    $categoriesToTry = array_column($categories, 'name');
-
-    // Keep track of the selected category record
-    $selected_category_data = null;
-
-    while (!empty($categoriesToTry) && (empty($words_data) || count($words_data) < 3)) {
-        $random_category = $categoriesToTry[array_rand($categoriesToTry)];
-        $categoriesToTry = array_diff($categoriesToTry, [$random_category]);
-
-        // Find the category data in $categories
-        $selected_category_data = null;
-        foreach ($categories as $cat) {
-            if ($cat['name'] === $random_category) {
-                $selected_category_data = $cat;
-                break;
-            }
-        }
-
-        // If for some reason we don't find it, default to image
-        $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
-
-        $words_data = ll_get_words_by_category($random_category, $mode);
-        $firstCategoryName = $random_category;
-    }
-
-    // Compute display label via helper (non-embed only)
-    $category_label_text = '';
-    if ($atts['embed'] !== 'true') {
-        if (!empty($selected_category_data) && !empty($selected_category_data['id'])) {
-            $category_label_text = ll_tools_get_category_display_name($selected_category_data['id']);
-        } elseif ($firstCategoryName !== '') {
-            // Fallback if ID wasn't available—helper accepts slug/name too
-            $category_label_text = ll_tools_get_category_display_name($firstCategoryName);
-        }
-    }
-
-    // Enqueue scripts and styles
-    wp_enqueue_script('jquery');
-    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
-    ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js', 'll-tools-flashcard-audio', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js', 'll-tools-flashcard-loader', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-options.js', 'll-tools-flashcard-options', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js', 'll-tools-flashcard-script', array('jquery', 'll-tools-flashcard-audio', 'll-tools-flashcard-loader', 'll-tools-flashcard-options'), true);
-    ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', array('jquery', 'll-tools-flashcard-script'), true);
-
-    // Add inline script for managing audio playback
-    wp_add_inline_script('jquery', '
-        jQuery(document).ready(function($) {
-            var audios = $("#word-grid audio");
-            audios.on("play", function() {
-                var currentAudio = this;
-                audios.each(function() {
-                    if (this !== currentAudio) {
-                        this.pause();
-                    }
-                });
-            });
-        });
-    ');
-
-    // Get the current user's ID and quiz state
-    $user_id = get_current_user_id();
-
-    // Data to be localized for use in JavaScript
-    $localized_data = array(
-        'mode' => $atts['mode'],
-        'plugin_dir' => LL_TOOLS_BASE_URL,
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'categories' => $categories,
-        'isUserLoggedIn' => is_user_logged_in(),
-        'categoriesPreselected' => $categoriesPreselected,
-        'firstCategoryData' => $words_data,
-        'firstCategoryName' => $firstCategoryName,
-        'imageSize' => get_option('ll_flashcard_image_size', 'small'),
-        'maxOptionsOverride' => get_option('ll_max_options_override', 9),
-    );
-
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
-
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(
-        'perfect' => __('Perfect!', 'll-tools-text-domain'),
-        'goodJob' => __('Good job!', 'll-tools-text-domain'),
-        'keepPracticingTitle' => __('Keep practicing!', 'll-tools-text-domain'),
-        'keepPracticingMessage' => __('You\'re on the right track to get a higher score next time!', 'll-tools-text-domain'),
-        'somethingWentWrong' => __('Something went wrong, try again later.', 'll-tools-text-domain'),
-    ));
-
-    echo '<div id="ll-tools-flashcard-container">';
-    if ($atts['embed'] !== 'true') {
-        echo '<button id="ll-tools-start-flashcard">' . esc_html__('Start', 'll-tools-text-domain') . '</button>';
-    }
-    echo '<div id="ll-tools-flashcard-popup" style="display: none;">';
-    echo '<div id="ll-tools-category-selection-popup" style="display: none;">';
-    echo '<h3>' . esc_html__('Select Categories', 'll-tools-text-domain') . '</h3>';
-    echo '<div class="ll-tools-category-selection-buttons">';
-    echo '<button id="ll-tools-uncheck-all">' . esc_html__('Uncheck All', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-check-all">' . esc_html__('Check All', 'll-tools-text-domain') . '</button>';
-    echo '</div>';
-    echo '<div id="ll-tools-category-checkboxes-container">';
-    echo '<div id="ll-tools-category-checkboxes"></div>';
-    echo '</div>';
-    echo '<button id="ll-tools-start-selected-quiz">' . esc_html__('Start Quiz', 'll-tools-text-domain') . '</button>';
-    echo '<button id="ll-tools-close-category-selection">&times;</button>';
-    echo '</div>';
-    echo '<div id="ll-tools-flashcard-quiz-popup" style="display: none;">';
-
-    echo '<div id="ll-tools-flashcard-header" style="display: none;">';
-    // STACK: category name above play/pause
-    echo '<div id="ll-tools-category-stack" class="ll-tools-category-stack">';
-    if ($atts['embed'] !== 'true') {
-            echo '<span id="ll-tools-category-display" class="ll-tools-category-display">' . esc_html($category_label_text) . '</span>';
-    }
-    echo '<button id="ll-tools-repeat-flashcard" class="play-mode"><span class="icon-container"><img src="' . esc_url(LL_TOOLS_BASE_URL . '/media/play-symbol.svg') . '" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '"></span></button>';
-    echo '</div>';
-
-    echo '<div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>';
-    echo '<button id="ll-tools-close-flashcard">&times;</button>';
-    echo '</div>';
-
-    echo '<div id="ll-tools-flashcard-content">';
-    echo '<div id="ll-tools-flashcard"></div>';
-    echo '<audio controls class="hidden"></audio>';
-    echo '</div>';
-
-    // Add quiz results section here (hidden initially, will be updated by JS)
-    echo '<div id="quiz-results" style="display: none;">';
-    echo '<h2 id="quiz-results-title">' . esc_html__('Quiz Results', 'll-tools-text-domain') . '</h2>';
-    echo '<p id="quiz-results-message" style="display: none;"></p>';
-    echo '<p><strong>' . esc_html__('Correct:', 'll-tools-text-domain') . '</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>';
-    // Display the categories used in the quiz. This will be filled in by JavaScript on
-    // the results page to show the list of categories the user practiced.
-    echo '<p id="quiz-results-categories" style="margin-top: 10px; display: none;"></p>';
-    echo '<button id="restart-quiz" class="quiz-button" style="display: none;">' . esc_html__('Restart Quiz', 'll-tools-text-domain') . '</button>';
-    echo '</div>';
-
-    echo '</div>';
-    echo '</div>';
-
-    // Run a script after the page loads to show the widget with proper CSS formatting
-    echo '<script type="text/javascript">
-    jQuery(document).ready(function($) {
-        $("#ll-tools-flashcard-container").removeAttr("style");
-    });
-    </script>';
-    return ob_get_clean();
+/** Normalize and decide if translations should be used */
+function ll_flashcards_should_use_translations(): bool {
+    $enable_translation = (int) get_option('ll_enable_category_translation', 0);
+    $target_language    = strtolower((string) get_option('ll_translation_language', 'en'));
+    $site_language      = strtolower(get_locale());
+    return $enable_translation && strpos($site_language, $target_language) === 0;
 }
 
 /**
- * Determines the display mode for a category based on word counts.
- *
- * @param string $categoryName The name of the category.
- * @param int $min_word_count The minimum number of words required.
- * @return string|null The display mode ('image' or 'text') or null if not determined.
+ * Build the categories list used by the widget.
+ * Returns [array $categories, bool $categoriesPreselected]
+ */
+function ll_flashcards_build_categories(?string $raw, bool $use_translations): array {
+    $all_terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($all_terms)) $all_terms = [];
+
+    // Your existing helper builds the final structure: id, slug, name, translation, mode
+    $all_processed = ll_process_categories($all_terms, $use_translations);
+
+    // No specific categories provided → offer all; not preselected.
+    if (empty($raw)) {
+        return [$all_processed, false];
+    }
+
+    // Specific categories requested → pick matching ones; preselected = true.
+    $wanted = array_map('trim', explode(',', (string) $raw));
+    $out = [];
+    foreach ($wanted as $w) {
+        $w_lc = strtolower($w);
+        $found = false;
+        foreach ($all_processed as $cat) {
+            if (
+                strtolower((string) $cat['name']) === $w_lc ||
+                (string) $cat['id'] === $w ||
+                strtolower((string) $cat['slug']) === $w_lc
+            ) {
+                $out[] = $cat;
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) error_log("LL Tools: Category '$w' not found.");
+    }
+    return [$out, true];
+}
+
+/**
+ * Pick an initial category and fetch its words (so first render isn’t empty).
+ * Returns [$selected_category_data, $firstCategoryName, $words_data]
+ */
+function ll_flashcards_pick_initial_batch(array $categories): array {
+    $words_data = [];
+    $firstCategoryName = '';
+    $selected_category_data = null;
+
+    // Try random categories until we have at least a few words
+    $names = array_column($categories, 'name');
+    $tries = $names;
+    while (!empty($tries) && (empty($words_data) || count($words_data) < 3)) {
+        $random = $tries[array_rand($tries)];
+        $tries  = array_diff($tries, [$random]);
+
+        $selected_category_data = null;
+        foreach ($categories as $cat) {
+            if ($cat['name'] === $random) { $selected_category_data = $cat; break; }
+        }
+        $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
+        $words_data = ll_get_words_by_category($random, $mode);
+        $firstCategoryName = $random;
+    }
+
+    return [$selected_category_data, $firstCategoryName, $words_data];
+}
+
+/** Compute the category label shown above the play button (non-embed only) */
+function ll_flashcards_category_label(?array $selected_category_data, string $firstCategoryName, bool $embed): string {
+    if ($embed) return '';
+    if (!empty($selected_category_data['id'])) {
+        return (string) ll_tools_get_category_display_name($selected_category_data['id']);
+    }
+    if ($firstCategoryName !== '') {
+        return (string) ll_tools_get_category_display_name($firstCategoryName);
+    }
+    return '';
+}
+
+/** Enqueue styles/scripts and localize data */
+function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): void {
+    wp_enqueue_script('jquery');
+
+    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/flashcard-options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js',   'll-tools-flashcard-script',  ['jquery','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'], true);
+    ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-tools-flashcard-script'], true);
+
+    // Stop parallel audio playback
+    wp_add_inline_script('jquery', <<<JS
+    jQuery(function($){
+      var audios = $("#word-grid audio");
+      audios.on("play", function(){
+        var cur = this;
+        audios.each(function(){ if (this !== cur) this.pause(); });
+      });
+    });
+JS);
+
+    $localized_data = [
+        'mode'                 => $atts['mode'],
+        'plugin_dir'           => LL_TOOLS_BASE_URL,
+        'ajaxurl'              => admin_url('admin-ajax.php'),
+        'categories'           => $categories,
+        'isUserLoggedIn'       => is_user_logged_in(),
+        'categoriesPreselected'=> $preselected,
+        'firstCategoryData'    => $initial_words,
+        'firstCategoryName'    => $firstCategoryName,
+        'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
+        'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
+    ];
+    wp_localize_script('ll-tools-flashcard-script',  'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
+
+    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', [
+        'perfect'              => __('Perfect!', 'll-tools-text-domain'),
+        'goodJob'              => __('Good job!', 'll-tools-text-domain'),
+        'keepPracticingTitle'  => __('Keep practicing!', 'll-tools-text-domain'),
+        'keepPracticingMessage'=> __('You\'re on the right track to get a higher score next time!', 'll-tools-text-domain'),
+        'somethingWentWrong'   => __('Something went wrong, try again later.', 'll-tools-text-domain'),
+    ]);
+}
+
+/** ---------------------------
+ *  Shortcode Controller
+ *  ---------------------------
+ */
+
+/**
+ * [flashcard_widget] handler
+ * @param array $atts
+ * @return string
+ */
+function ll_tools_flashcard_widget($atts) {
+    $atts = shortcode_atts([
+        'category' => '',
+        'mode'     => 'random',
+        'embed'    => 'false',
+    ], $atts);
+
+    $embed     = strtolower((string)$atts['embed']) === 'true';
+    $quiz_font = (string) get_option('ll_quiz_font');
+
+    // 1) translations on/off
+    $use_translations = ll_flashcards_should_use_translations();
+
+    // 2) categories list (+ whether they were preselected)
+    [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations);
+
+    // 3) initial words batch so the UI isn’t empty
+    [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories);
+
+    // 4) label shown above play button
+    $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed);
+
+    // 5) assets + localized data for JS
+    ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
+
+    // 6) render the template (single source of truth for markup)
+    if (!function_exists('ll_tools_render_template')) {
+        // If the loader somehow isn’t loaded, require it (no markup fallback)
+        require_once LL_TOOLS_BASE_PATH . 'includes/template-loader.php';
+    }
+
+    ob_start();
+    ll_tools_render_template('flashcard-widget-template.php', [
+        'embed'               => $embed,
+        'category_label_text' => $category_label_text,
+        'quiz_font'           => $quiz_font,
+    ]);
+    // (Optional) tiny post-render tweak you had before:
+    echo "<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('ll-tools-flashcard-container');if(c){c.removeAttribute('style');}});</script>";
+    return (string) ob_get_clean();
+}
+
+/** ---------------------------
+ *  Existing helpers you already had
+ *  (keeping them here for now to avoid extra files)
+ *  ---------------------------
+ */
+
+/**
+ * Determines display mode by counts.
  */
 function ll_determine_display_mode($categoryName, $min_word_count = 5) {
     $image_count = count(ll_get_words_by_category($categoryName, 'image'));
-    $text_count = count(ll_get_words_by_category($categoryName, 'text'));
+    $text_count  = count(ll_get_words_by_category($categoryName, 'text'));
 
-    // If both image and text counts are below the minimum, return null
-    if ($image_count < $min_word_count && $text_count < $min_word_count) {
-        return null;
-    }
-
-    // If only image_count is below the minimum, default to text
-    if ($image_count < $min_word_count) {
-        return 'text';
-    }
-
-    // If only text_count is below the minimum, default to image
-    if ($text_count < $min_word_count) {
-        return 'image';
-    }
-
-    // Both exceed the minimum; pick whichever has more words
+    if ($image_count < $min_word_count && $text_count < $min_word_count) return null;
+    if ($image_count < $min_word_count) return 'text';
+    if ($text_count  < $min_word_count) return 'image';
     return ($image_count >= $text_count) ? 'image' : 'text';
 }
 
 /**
- * Processes categories by filtering based on translations and word counts.
- *
- * @param array $categories The array of category terms.
- * @param bool  $use_translations Whether to use translations.
- * @param int   $min_word_count The minimum number of words required.
- * @return array The processed categories.
+ * Processes categories (unchanged from your version).
  */
 function ll_process_categories($categories, $use_translations, $min_word_count = 5) {
-    $processed_categories = [];
-
+    $processed = [];
     foreach ($categories as $category) {
-        // Check if this category can generate a valid quiz
-        if (!ll_can_category_generate_quiz($category, $min_word_count)) {
-            continue;
-        }
+        if (!ll_can_category_generate_quiz($category, $min_word_count)) continue;
 
-        // Determine the mode for this category
         $use_titles = get_term_meta($category->term_id, 'use_word_titles_for_audio', true) === '1';
-        if ($use_titles) {
-            // If user has set "match titles," forcibly treat as text
-            $mode = 'text';
-        } else {
-            // Otherwise, fallback to existing logic
-            $mode = ll_determine_display_mode($category->name, $min_word_count);
-        }
+        $mode = $use_titles ? 'text' : ll_determine_display_mode($category->name, $min_word_count);
 
-        // Pick the correct display name (raw or translated)
         $translation = $use_translations
             ? ( get_term_meta($category->term_id, 'term_translation', true) ?: $category->name )
             : $category->name;
 
-        // decode any HTML entities so "&amp;" → "&"
-        $decoded_name        = html_entity_decode( $category->name,    ENT_QUOTES, 'UTF-8' );
-        $decoded_translation = html_entity_decode( $translation,      ENT_QUOTES, 'UTF-8' );
-
-        $processed_categories[] = [
+        $processed[] = [
             'id'          => $category->term_id,
             'slug'        => $category->slug,
-            'name'        => $decoded_name,
-            'translation' => $decoded_translation,
+            'name'        => html_entity_decode($category->name, ENT_QUOTES, 'UTF-8'),
+            'translation' => html_entity_decode($translation,     ENT_QUOTES, 'UTF-8'),
             'mode'        => $mode,
         ];
     }
-
-    return $processed_categories;
+    return $processed;
 }
 
-// AJAX handler for fetching words by category
-add_action('wp_ajax_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+/** ---------------------------
+ *  AJAX + Shortcode registration
+ *  ---------------------------
+ */
+
+add_action('wp_ajax_ll_get_words_by_category',        'll_get_words_by_category_ajax');
 add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
 function ll_get_words_by_category_ajax() {
-    $category = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : '';
+    $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
-
-    if (!empty($category)) {
-        $words_data = ll_get_words_by_category($category, $display_mode);
-        wp_send_json_success($words_data);
-    } else {
-        wp_send_json_error('Invalid category.');
-    }
+    if (!$category) { wp_send_json_error('Invalid category.'); }
+    wp_send_json_success(ll_get_words_by_category($category, $display_mode));
 }
 
-// Register the [flashcard_widget] shortcode
 function ll_tools_register_flashcard_widget_shortcode() {
-	add_shortcode('flashcard_widget', 'll_tools_flashcard_widget');
+    add_shortcode('flashcard_widget', 'll_tools_flashcard_widget');
 }
 add_action('init', 'll_tools_register_flashcard_widget_shortcode');
-
-?>

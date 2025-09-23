@@ -54,37 +54,26 @@ function ll_tools_get_or_create_quiz_parent_page() {
     return is_wp_error($parent_id) ? 0 : (int) $parent_id;
 }
 
-/** Build HTML via template (fallback inline if loader missing) */
+/** Build HTML via template */
 function ll_tools_build_quiz_page_content(WP_Term $term) : string {
+    if (!function_exists('ll_tools_render_template')) {
+        require_once LL_TOOLS_BASE_PATH . 'includes/template-loader.php';
+    }
+
     $vh           = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
     $src          = home_url('/embed/' . $term->slug);
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? ll_tools_get_category_display_name($term)
         : $term->name;
 
-    if (function_exists('ll_tools_render_template')) {
-        ob_start();
-        ll_tools_render_template('quiz-pags.php', [
-            'vh'           => $vh,
-            'src'          => $src,
-            'display_name' => $display_name,
-            'slug'         => $term->slug,
-        ]);
-        return (string) ob_get_clean();
-    }
-
-    // Fallback inline rendering (keeps things working if template loader missing)
-    ob_start(); ?>
-    <div class="ll-tools-quiz-wrapper" style="width:100%;">
-      <h1 class="ll-quiz-page-title" style="text-align:center;margin:0 0 10px;"><?php echo esc_html($display_name); ?></h1>
-      <div class="ll-tools-quiz-iframe-wrapper" data-quiz-slug="<?php echo esc_attr($term->slug); ?>">
-        <div class="ll-tools-iframe-loading" aria-hidden="true"></div>
-        <iframe class="ll-tools-quiz-iframe"
-                src="<?php echo esc_url($src); ?>"
-                loading="lazy" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>
-      </div>
-    </div>
-    <?php return (string) ob_get_clean();
+    ob_start();
+    ll_tools_render_template('quiz-pages.php', [
+        'vh'           => $vh,
+        'src'          => $src,
+        'display_name' => $display_name,
+        'slug'         => $term->slug,
+    ]);
+    return (string) ob_get_clean();
 }
 
 /** Create or update the page for a category */

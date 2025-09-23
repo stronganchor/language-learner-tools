@@ -1,0 +1,64 @@
+<?php
+// Vars: $embed (bool), $category_label_text (string), $quiz_font (string)
+?>
+<?php if (!empty($quiz_font)): ?>
+<style>
+  #ll-tools-flashcard .text-based { font-family: "<?php echo esc_attr($quiz_font); ?>", sans-serif; }
+</style>
+<?php endif; ?>
+
+<div id="ll-tools-flashcard-container">
+  <?php if (!$embed): ?>
+    <button id="ll-tools-start-flashcard"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
+  <?php endif; ?>
+
+  <div id="ll-tools-flashcard-popup" style="display:none;">
+    <div id="ll-tools-category-selection-popup" style="display:none;">
+      <h3><?php echo esc_html__('Select Categories', 'll-tools-text-domain'); ?></h3>
+      <div class="ll-tools-category-selection-buttons">
+        <button id="ll-tools-uncheck-all"><?php echo esc_html__('Uncheck All', 'll-tools-text-domain'); ?></button>
+        <button id="ll-tools-check-all"><?php echo esc_html__('Check All', 'll-tools-text-domain'); ?></button>
+      </div>
+      <div id="ll-tools-category-checkboxes-container">
+        <div id="ll-tools-category-checkboxes"></div>
+      </div>
+      <button id="ll-tools-start-selected-quiz"><?php echo esc_html__('Start Quiz', 'll-tools-text-domain'); ?></button>
+      <button id="ll-tools-close-category-selection" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
+    </div>
+
+    <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+      <div id="ll-tools-flashcard-header" style="display:none;">
+        <div id="ll-tools-category-stack" class="ll-tools-category-stack">
+          <?php if (!$embed): ?>
+          <span id="ll-tools-category-display" class="ll-tools-category-display">
+            <?php echo esc_html($category_label_text); ?>
+          </span>
+          <?php endif; ?>
+          <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
+            <span class="icon-container">
+              <img src="<?php echo esc_url(LL_TOOLS_BASE_URL . 'media/play-symbol.svg'); ?>" alt="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
+            </span>
+          </button>
+        </div>
+        <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
+        <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
+      </div>
+
+      <div id="ll-tools-flashcard-content">
+        <div id="ll-tools-flashcard"></div>
+        <audio controls class="hidden"></audio>
+      </div>
+
+      <div id="quiz-results" style="display:none;">
+        <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
+        <p id="quiz-results-message" style="display:none;"></p>
+        <p>
+          <strong><?php echo esc_html__('Correct:', 'll-tools-text-domain'); ?></strong>
+          <span id="correct-count">0</span> / <span id="total-questions">0</span>
+        </p>
+        <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
+        <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
+      </div>
+    </div>
+  </div>
+</div>
