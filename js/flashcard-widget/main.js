@@ -126,8 +126,13 @@
         $('body').removeClass('ll-tools-flashcard-open');
     }
 
+    // Replace the entire function
     function restartQuiz() {
         State.reset();
+        // make sure the results overlay is hidden before starting again
+        root.LLFlashcards.Results.hideResults();
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
         startQuizRound();
     }
 

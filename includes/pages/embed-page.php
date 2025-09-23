@@ -45,55 +45,70 @@
         }
         ?>
     </div>
-    <?php wp_footer(); ?>
-    <script type="text/javascript">
-    jQuery(document).ready(function($) {
-        // Remove default start/close controls
-        $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
+    <?php wp_footer(); ?><script>
+    (function(){
+    // Prevent double-init no matter how many times this runs
+    if (window.__llFlashcardInitOnce) return;
+    window.__llFlashcardInitOnce = false;
 
-        // Display quiz popup immediately
+    function selectedCategories() {
+        var d = window.llToolsFlashcardsData;
+        return (d && Array.isArray(d.categories)) ? d.categories.map(function(c){ return c.name; }) : [];
+    }
+
+    function showQuizUI() {
+        var $ = window.jQuery;
+        if (!$) return setTimeout(showQuizUI, 16);
+        $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
         $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
+    }
 
-        // Launch directly into quiz
-        var preselectedCategories = llToolsFlashcardsData.categories.map(function(cat) { return cat.name; });
-        initFlashcardWidget(preselectedCategories);
+    function waitAndInit(){
+        if (window.__llFlashcardInitOnce) return;
 
-        // Disable answer selection until audio has played
-        $('#ll-tools-flashcard').css('pointer-events','none');
-        var observer = new MutationObserver(function(mutations, obs) {
-            var audioEl = document.querySelector('#ll-tools-flashcard audio');
-            if (audioEl) {
-                obs.disconnect();
-                audioEl.addEventListener('timeupdate', function listener() {
-                    if (this.currentTime > 0.4) {
-                        $('#ll-tools-flashcard').css('pointer-events','auto');
-                        audioEl.removeEventListener('timeupdate', listener);
-                    }
-                });
-            }
-        });
-        observer.observe(document.querySelector('#ll-tools-flashcard'), { childList: true, subtree: true });
-    });
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-    // Build a sensible default list of categories if you have it in PHP; otherwise,
-    // this will try to read what the shortcode localized.
-    var selected = (window.llToolsFlashcardsData && Array.isArray(llToolsFlashcardsData.categories))
-        ? llToolsFlashcardsData.categories.map(function(c){ return c.name; })
-        : [];
+        var hasNew = window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function';
+        var hasLegacy = typeof window.initFlashcardWidget === 'function';
+        var ready = (hasNew || hasLegacy) && window.jQuery && document.getElementById('ll-tools-flashcard');
 
-    (function wait(){
-        if (window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function') {
-        LLFlashcards.Main.initFlashcardWidget(selected);
-        } else if (typeof window.initFlashcardWidget === 'function') {
-        window.initFlashcardWidget(selected);
+        if (!ready) return setTimeout(waitAndInit, 30);
+
+        window.__llFlashcardInitOnce = true;
+        var cats = selectedCategories();
+
+        if (hasNew) {
+        LLFlashcards.Main.initFlashcardWidget(cats);
         } else {
-        setTimeout(wait, 30);
+        window.initFlashcardWidget(cats);
         }
+
+        // Optional: lock answers briefly until audio plays a bit
+        try {
+        var $ = window.jQuery;
+        $('#ll-tools-flashcard').css('pointer-events','none');
+        var obs = new MutationObserver(function(_,observer){
+            var audio = document.querySelector('#ll-tools-flashcard audio');
+            if (!audio) return;
+            observer.disconnect();
+            function onTU() {
+            if (this.currentTime > 0.4) {
+                $('#ll-tools-flashcard').css('pointer-events','auto');
+                audio.removeEventListener('timeupdate', onTU);
+            }
+            }
+            audio.addEventListener('timeupdate', onTU);
+        });
+        obs.observe(document.getElementById('ll-tools-flashcard'), {childList:true, subtree:true});
+        } catch(_) {}
+    }
+
+    // Kick off
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ showQuizUI(); waitAndInit(); });
+    } else {
+        showQuizUI(); waitAndInit();
+    }
     })();
-    });
     </script>
 </body>
 </html>

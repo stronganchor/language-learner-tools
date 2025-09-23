@@ -106,12 +106,14 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     wp_enqueue_script('jquery');
 
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
-    
+
     $shortcode_folder = '/js/flashcard-widget/';
 
+    // Core & modules
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',      'll-flc-util',      ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',     'll-flc-state',     ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
@@ -119,23 +121,26 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'cards.js',     'll-flc-cards',     ['ll-flc-dom','ll-flc-state','ll-flc-effects'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state','ll-flc-dom','ll-flc-effects'], true);
+
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'main.js',      'll-flc-main',
         ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'],
         true
     );
+
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-flc-main'], true);
 
-    // Stop parallel audio playback
+    // Stop parallel audio playback when the grid is present
     wp_add_inline_script('jquery', <<<JS
-        jQuery(function($){
+      jQuery(function($){
         var audios = $("#word-grid audio");
         audios.on("play", function(){
-            var cur = this;
-            audios.each(function(){ if (this !== cur) this.pause(); });
+          var cur = this;
+          audios.each(function(){ if (this !== cur) this.pause(); });
         });
-        });
+      });
     JS);
 
+    // Data: print early on 'options' and again on 'main' (belt & suspenders)
     $localized_data = [
         'mode'                 => $atts['mode'],
         'plugin_dir'           => LL_TOOLS_BASE_URL,
@@ -148,16 +153,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
         'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
     ];
-    wp_localize_script('ll-tools-flashcard-script',  'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
 
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', [
-        'perfect'              => __('Perfect!', 'll-tools-text-domain'),
-        'goodJob'              => __('Good job!', 'll-tools-text-domain'),
-        'keepPracticingTitle'  => __('Keep practicing!', 'll-tools-text-domain'),
-        'keepPracticingMessage'=> __('You\'re on the right track to get a higher score next time!', 'll-tools-text-domain'),
-        'somethingWentWrong'   => __('Something went wrong, try again later.', 'll-tools-text-domain'),
-    ]);
+    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-flc-main',                'llToolsFlashcardsData', $localized_data);
 }
 
 /** ---------------------------
