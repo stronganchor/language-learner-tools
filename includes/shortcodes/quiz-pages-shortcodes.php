@@ -221,20 +221,25 @@ function ll_quiz_pages_grid_shortcode( $atts ) {
     echo '<div id="' . esc_attr( $grid_id ) . '" class="ll-quiz-pages-grid"' . $style . '>';
 
     foreach ( $items as $it ) {
-        $title      = $it['display_name']; // what the user sees (translated when enabled)
-        $permalink  = $it['permalink'];
-        $raw_name   = $it['name'];         // untranslated category name (used by flashcards)
+        $title     = $it['display_name']; // what the user sees (translated when enabled)
+        $permalink = $it['permalink'];
+        $raw_name  = $it['name'];         // untranslated category name (used by flashcards)
 
         if ( $use_popup ) {
-            // Popup mode: one BUTTON inside a card (no nested anchors anywhere).
-            echo '<div class="ll-quiz-page-card">';
-            echo   '<button type="button" class="ll-quiz-page-link ll-quiz-page-trigger" data-category="' . esc_attr( $raw_name ) . '">';
-            echo     '<span class="ll-quiz-page-name">' . esc_html( $title ) . '</span>';
-            echo   '</button>';
-            echo '</div>';
+            // Popup mode: the CARD itself is a single <a> acting as a button.
+            echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
+            . ' href="#"'
+            . ' role="button"'
+            . ' aria-label="Start ' . esc_attr( $title ) . '"'
+            . ' data-category="' . esc_attr( $raw_name ) . '"'
+            . ' onclick="llOpenFlashcardForCategory(' . wp_json_encode( $raw_name ) . '); return false;">';
+            echo   '<span class="ll-quiz-page-name">' . esc_html( $title ) . '</span>';
+            echo '</a>';
         } else {
             // Link mode: the CARD itself is a single <a>.
-            echo '<a class="ll-quiz-page-card ll-quiz-page-link" href="' . esc_url( $permalink ) . '">';
+            echo '<a class="ll-quiz-page-card ll-quiz-page-link"'
+            . ' href="' . esc_url( $permalink ) . '"'
+            . ' aria-label="' . esc_attr( $title ) . '">';
             echo   '<span class="ll-quiz-page-name">' . esc_html( $title ) . '</span>';
             echo '</a>';
         }
