@@ -106,22 +106,35 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     wp_enqueue_script('jquery');
 
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
-    ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-options.js',  'll-tools-flashcard-options', ['jquery'], true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js',   'll-tools-flashcard-script',  ['jquery','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'], true);
-    ll_enqueue_asset_by_timestamp('/js/category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-tools-flashcard-script'], true);
+    
+    $shortcode_folder = '/js/flashcard-widget/';
+
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',      'll-flc-util',      ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',     'll-flc-state',     ['ll-flc-util'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'cards.js',     'll-flc-cards',     ['ll-flc-dom','ll-flc-state','ll-flc-effects'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state','ll-flc-dom','ll-flc-effects'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'main.js',      'll-flc-main',
+        ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'],
+        true
+    );
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-flc-main'], true);
 
     // Stop parallel audio playback
     wp_add_inline_script('jquery', <<<JS
-    jQuery(function($){
-      var audios = $("#word-grid audio");
-      audios.on("play", function(){
-        var cur = this;
-        audios.each(function(){ if (this !== cur) this.pause(); });
-      });
-    });
-JS);
+        jQuery(function($){
+        var audios = $("#word-grid audio");
+        audios.on("play", function(){
+            var cur = this;
+            audios.each(function(){ if (this !== cur) this.pause(); });
+        });
+        });
+    JS);
 
     $localized_data = [
         'mode'                 => $atts['mode'],

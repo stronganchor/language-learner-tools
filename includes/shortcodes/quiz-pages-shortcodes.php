@@ -82,24 +82,16 @@ function ll_get_all_quiz_pages_data() {
  * Called only when [quiz_pages_grid popup="yes"] is used.
  */
 function ll_qpg_bootstrap_flashcards_for_grid() {
-    // 1) Enqueue assets used by the flashcard widget
-    wp_enqueue_script('jquery');
-    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',       'll-tools-flashcard-style');
-    ll_enqueue_asset_by_timestamp('/js/flashcard-audio.js',         'll-tools-flashcard-audio', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-loader.js',        'll-tools-flashcard-loader', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-options.js',       'll-tools-flashcard-options', array('jquery'), true);
-    ll_enqueue_asset_by_timestamp('/js/flashcard-script.js',        'll-tools-flashcard-script', array('jquery','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'), true);
-
-    // 2) Build the categories array exactly like the widget does
+    // Build the categories array exactly like the widget does (kept from your version)
     $enable_translation = get_option('ll_enable_category_translation', 0);
-    $target_language = strtolower(get_option('ll_translation_language', 'en'));
-    $site_language   = strtolower(get_locale());
-    $use_translations = $enable_translation && strpos($site_language, $target_language) === 0;
+    $target_language    = strtolower(get_option('ll_translation_language', 'en'));
+    $site_language      = strtolower(get_locale());
+    $use_translations   = $enable_translation && strpos($site_language, $target_language) === 0;
 
     $all_terms = get_terms(array('taxonomy' => 'word-category', 'hide_empty' => false));
     if (is_wp_error($all_terms)) $all_terms = array();
+
     if (!function_exists('ll_process_categories')) {
-        // Safety: if for some reason that function is not available, fall back to raw terms
         $categories = array_map(function($t){
             return array(
                 'id'          => $t->term_id,
@@ -113,31 +105,10 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
         $categories = ll_process_categories($all_terms, $use_translations);
     }
 
-    // 3) Localize the same object the widget uses
-    $localized_data = array(
-        'mode'                 => 'random',
-        'plugin_dir'           => LL_TOOLS_BASE_URL,
-        'ajaxurl'              => admin_url('admin-ajax.php'),
-        'categories'           => $categories,
-        'isUserLoggedIn'       => is_user_logged_in(),
-        'categoriesPreselected'=> false,
-        'firstCategoryData'    => array(),  // we’ll let AJAX load
-        'firstCategoryName'    => '',
-        'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
-        'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
-    );
-    wp_localize_script('ll-tools-flashcard-script',  'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
+    $atts = array('mode' => 'random');
+    ll_flashcards_enqueue_and_localize($atts, $categories, false, array(), '');
 
-    wp_localize_script('ll-tools-flashcard-script', 'llToolsFlashcardsMessages', array(
-        'perfect'               => __('Perfect!', 'll-tools-text-domain'),
-        'goodJob'               => __('Good job!', 'll-tools-text-domain'),
-        'keepPracticingTitle'   => __('Keep practicing!', 'll-tools-text-domain'),
-        'keepPracticingMessage' => __('You\'re on the right track to get a higher score next time!', 'll-tools-text-domain'),
-        'somethingWentWrong'    => __('Something went wrong, try again later.', 'll-tools-text-domain'),
-    ));
-
-    // 4) Print the overlay HTML shell once at footer, if not printed yet
+    // Ensure the overlay DOM exists once per page (unchanged).
     add_action('wp_footer', 'll_qpg_print_flashcard_shell_once');
 }
 

@@ -3,13 +3,34 @@
  *
  * Handles category selection interactions for the flashcard widget.
  */
-
 (function ($) {
+
+    // ---- tiny shim: safely call init no matter load order ----
+    function startWidget(selectedCategories) {
+        // wait until either the namespaced or legacy global init is available
+        (function wait() {
+            if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
+                window.LLFlashcards.Main.initFlashcardWidget(selectedCategories);
+            } else if (typeof window.initFlashcardWidget === 'function') {
+                window.initFlashcardWidget(selectedCategories);
+            } else {
+                setTimeout(wait, 30);
+            }
+        })();
+    }
+
+    // Also expose a legacy global stub so any inline callers don't explode.
+    if (typeof window.initFlashcardWidget !== 'function') {
+        window.initFlashcardWidget = function (selectedCategories) {
+            startWidget(selectedCategories);
+        };
+    }
+
     /**
      * Displays the category selection popup with checkboxes for each category.
      */
     function showCategorySelection() {
-        // Clone the categories array so that the original order (used elsewhere) remains unchanged.
+        // Clone the categories array so that the original order remains unchanged.
         var categories = llToolsFlashcardsData.categories.slice();
 
         // Sort categories by display name (using translation if available) with natural numeric sorting.
@@ -43,7 +64,8 @@
             checkboxesContainer.append(checkbox);
         });
 
-        $('#ll-tools-category-selection').show();
+        // IMPORTANT: match the actual template id
+        $('#ll-tools-category-selection-popup').show();
     }
 
     // Event handler for the "Uncheck All" button
@@ -65,7 +87,7 @@
         if (selectedCategories.length > 0) {
             $('#ll-tools-category-selection-popup').hide();
             $('#ll-tools-flashcard-quiz-popup').show();
-            initFlashcardWidget(selectedCategories);
+            startWidget(selectedCategories);
         }
     });
 
@@ -81,7 +103,7 @@
 
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
-            initFlashcardWidget(preselectedCategories);
+            startWidget(preselectedCategories);
         } else {
             $('#ll-tools-category-selection-popup').show();
             showCategorySelection();

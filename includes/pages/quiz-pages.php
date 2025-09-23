@@ -258,20 +258,31 @@ add_filter('the_title', function ($title, $post_id) {
     return (get_post_type($post_id) === 'page' && get_post_meta($post_id, '_ll_tools_word_category_id', true)) ? '' : $title;
 }, 10, 2);
 
-/** Enqueue assets only on quiz pages */
+/** Enqueue assets (JS always for popup safety; CSS only on quiz pages) */
 function ll_qp_enqueue_assets() {
-    if (!ll_qp_is_quiz_page_context()) return;
+    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') ? ll_qp_is_quiz_page_context() : false;
 
     if (function_exists('ll_enqueue_asset_by_timestamp')) {
-        ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
-        ll_enqueue_asset_by_timestamp('/js/quiz-pages.js',   'll-quiz-pages-js', [], true);
+        // Always enqueue the JS (contains the init stub used by popups)
+        ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', [], true);
+
+        // Only quiz pages need the stylesheet and the height localization
+        if ($is_quiz_ctx) {
+            ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
+            wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
+                'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
+            ]);
+        }
     } else {
-        wp_enqueue_style('ll-quiz-pages-css', plugins_url('css/quiz-pages.css', LL_TOOLS_MAIN_FILE), [], null);
         wp_enqueue_script('ll-quiz-pages-js', plugins_url('js/quiz-pages.js', LL_TOOLS_MAIN_FILE), [], null, true);
+
+        if ($is_quiz_ctx) {
+            wp_enqueue_style('ll-quiz-pages-css', plugins_url('css/quiz-pages.css', LL_TOOLS_MAIN_FILE), [], null);
+            wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
+                'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
+            ]);
+        }
     }
-    wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
-        'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
-    ]);
 }
 add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
 

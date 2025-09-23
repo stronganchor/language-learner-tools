@@ -76,5 +76,24 @@
         observer.observe(document.querySelector('#ll-tools-flashcard'), { childList: true, subtree: true });
     });
     </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+    // Build a sensible default list of categories if you have it in PHP; otherwise,
+    // this will try to read what the shortcode localized.
+    var selected = (window.llToolsFlashcardsData && Array.isArray(llToolsFlashcardsData.categories))
+        ? llToolsFlashcardsData.categories.map(function(c){ return c.name; })
+        : [];
+
+    (function wait(){
+        if (window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function') {
+        LLFlashcards.Main.initFlashcardWidget(selected);
+        } else if (typeof window.initFlashcardWidget === 'function') {
+        window.initFlashcardWidget(selected);
+        } else {
+        setTimeout(wait, 30);
+        }
+    })();
+    });
+    </script>
 </body>
 </html>
