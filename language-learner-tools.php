@@ -47,54 +47,6 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 );
 $myUpdateChecker->setBranch('main');
 
-/**
- * Enqueues the jQuery UI scripts and styles.
- */
-function ll_enqueue_jquery_ui() {
-    wp_enqueue_script('jquery-ui-autocomplete');
-    wp_enqueue_style('jquery-ui-css', 'https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
-}
-
-/**
- * Helper function for enqueueing assets using the file timestamp as the version.
- *
- * @param string $relative_path The relative path to the asset file.
- * @param string $handle The unique handle for the asset.
- * @param array $dependencies An array of dependencies.
- * @param bool $include_in_footer Whether to include the script in the footer.
- */
-function ll_enqueue_asset_by_timestamp($relative_path, $handle, $dependencies = array(), $include_in_footer = false) {
-    $extension = pathinfo($relative_path, PATHINFO_EXTENSION);
-    $asset_file = plugins_url($relative_path, __FILE__);
-    $asset_version = filemtime(LL_TOOLS_BASE_PATH . $relative_path);
-
-    if ($extension === 'js') {
-        wp_enqueue_script($handle, $asset_file, $dependencies, $asset_version, $include_in_footer);
-    } elseif ($extension === 'css') {
-        wp_enqueue_style($handle, $asset_file, $dependencies, $asset_version);
-    } else {
-        error_log('Unsupported file type for asset: ' . $relative_path);
-    }
-}
-
-/**
- * Enqueues the main plugin styles.
- */
-function ll_tools_enqueue_assets() {
-    ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style');
-}
-add_action('wp_enqueue_scripts', 'll_tools_enqueue_assets');
-
-/**
- * Enqueues dashboard styles for non-admin users.
- */
-function ll_tools_enqueue_styles_for_non_admins() {
-    if (current_user_can('manage_options') || current_user_can('view_ll_tools')) {
-        return;
-    }
-    ll_enqueue_asset_by_timestamp('/css/non-admin-style.css', 'll-tools-style');
-}
-add_action('admin_enqueue_scripts', 'll_tools_enqueue_styles_for_non_admins');
 
 /**
  * Adds the 'view_ll_tools' capability to the Administrator role on plugin activation.
@@ -132,16 +84,6 @@ function ll_tools_load_textdomain() {
     load_plugin_textdomain('ll-tools-text-domain', false, basename(dirname(__FILE__)) . '/languages');
 }
 add_action('plugins_loaded', 'll_tools_load_textdomain');
-
-/**
- * Enqueues the confetti script in the header.
- */
-function ll_tools_enqueue_confetti_script() {
-    ?>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <?php
-}
-add_action('wp_head', 'll_tools_enqueue_confetti_script');
 
 /* Embed Flashcard Pages - create embeddable quiz pages for each category */
 function ll_embed_rewrite_rule() {
