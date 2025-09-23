@@ -363,7 +363,7 @@ add_action('admin_init', function () {
     delete_transient('ll_tools_autopage_resync_running');
 
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[LL Tools] Auto-quiz pages re-synced after source change (mtime=' . $current_mtime . ').');
+        error_log('[LL Tools] Quiz pages re-synced after source change (mtime=' . $current_mtime . ').');
     }
 });
 
