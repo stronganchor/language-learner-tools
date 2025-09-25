@@ -153,11 +153,26 @@
             const containerWidth = Math.max(1, $container.innerWidth()); // avoid divide-by-zero
             const perRow = Math.max(1, Math.floor((containerWidth + gapValue) / (cardWidth + gapValue)));
 
+            // Use the visible content area if present; otherwise fall back to the container
+            const $contentArea = $('#ll-tools-flashcard-content');
+            const $heightScope = $contentArea.length ? $contentArea : $container;
+
+            // Estimate card height: use an existing card if present; else fall back to cardWidth (conservative)
+            const sampleCard = $cards[0];
+            const cardHeight = sampleCard ? $(sampleCard).outerHeight(true) : cardWidth;
+
+            // How many rows actually fit vertically in the available space?
+            const availableHeight = Math.max(1, $heightScope.innerHeight());
+            const maxRowsByHeight = Math.max(1, Math.floor((availableHeight + gapValue) / (cardHeight + gapValue)));
+
+            // Respect the tighter of the original MAX_ROWS and the height-based limit
+            const effectiveMaxRows = Math.min(MAX_ROWS, maxRowsByHeight);
+
             // If we were to add one more card, how many rows would we need?
             const rowsIfAdd = Math.ceil(($cards.length + 1) / perRow);
 
-            // Only allow if we would still be within MAX_ROWS
-            return rowsIfAdd <= MAX_ROWS;
+            // Only allow if we would still be within the effective max rows
+            return rowsIfAdd <= effectiveMaxRows;
         }
 
         // Expose functionality
