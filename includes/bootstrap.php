@@ -26,6 +26,7 @@ require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/admin/manage-wordsets.php');
 require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
+require_once(__DIR__ . '/admin/audio-image-matcher.php'); 
 require_once(__DIR__ . '/admin/settings.php');
 
 // Include API integrations
