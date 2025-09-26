@@ -1,5 +1,4 @@
 <?php
-<?php
 /*
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
