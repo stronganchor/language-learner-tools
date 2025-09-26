@@ -1,32 +1,15 @@
 <?php
-/**
- * Plugin Name: Language Learner Tools
- * Plugin URI: https://stronganchortech.com
- * Description: Adds custom display features for vocab items in the 'words' custom post type.
- * Author: Strong Anchor Tech
- * Version: 3.0.1
- * Text Domain: ll-tools-text-domain
- * Domain Path: /languages
- *
- * This plugin is designed to display vocabulary items in a custom post type called 'words'.
- * It adds the English meaning, an audio file, and associated images to each post.
- *
- * The plugin also includes activities for practicing vocabulary.
- *
- * The plugin uses a combination of PHP, JavaScript (jQuery), and CSS to provide its functionality.
- * It interacts with the WordPress database to store and retrieve vocabulary items, categories, and user progress.
- *
- * Key concepts and techniques used in the plugin:
- * - Custom post types and taxonomies
- * - Shortcodes for displaying vocabulary grids, flashcard quizzes, and audio playback
- * - AJAX for saving and retrieving user progress in the flashcard quiz
- * - Integration with DeepL for automatic translation
- * - Handling for bulk audio and image uploads and generating posts from uploaded files
- * - Custom admin pages and settings for configuring the plugin
- * - Enqueuing custom styles and scripts
- * - Internationalization and localization support
- *
- */
+<?php
+/*
+Plugin Name: Language Learner Tools
+Plugin URI: https://github.com/stronganchor/language-learner-tools
+Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
+Version: 3.0.1
+Author: Strong Anchor Tech
+Author URI: https://stronganchortech.com
+Text Domain: ll-tools-text-domain
+Domain Path: /languages
+*/
 
 // If this file is called directly, abort.
 if (!defined('WPINC')) {
