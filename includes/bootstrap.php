@@ -21,9 +21,6 @@ require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
 require_once(__DIR__ . '/user-roles/wordset-manager.php');
 require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
 
-// Include library functions
-require_once(__DIR__ . '/lib/ll-matching.php'); // NEW
-
 // Include admin functionality
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');

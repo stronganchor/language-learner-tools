@@ -138,7 +138,6 @@ add_action('wp_ajax_ll_aim_get_images', function() {
             'id'    => $img_post->ID,
             'title' => $img_post->post_title,
             'thumb' => $thumb_url,
-            'used_count' => (int) get_post_meta($img_post->ID, '_ll_picked_count', true),
         ];
     }
     wp_send_json_success(['images' => $out]);

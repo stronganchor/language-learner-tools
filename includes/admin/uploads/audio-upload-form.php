@@ -2,10 +2,8 @@
 
 /************************************************************************************
  * [audio_upload_form] Shortcode
- *
- * Bulk upload audio files & generate/update word posts
- * - Conservative auto-image-matching with thresholds
- * - Marks auto-picked images so the matcher UI can highlight them
+ * 
+ * Bulk upload audio files & generate new word posts
  ***********************************************************************************/
 
 /**
@@ -70,8 +68,10 @@ function ll_display_wordsets_dropdown() {
     $wordsets = array();
 
     if (in_array('administrator', $user->roles)) {
+        // If the user is an administrator, get all word sets
         $wordsets = get_terms('wordset', array('hide_empty' => false));
     } elseif (in_array('wordset_manager', $user->roles)) {
+        // If the user is a word set manager, get only the word sets they manage
         $managed_wordsets = get_user_meta($user->ID, 'managed_wordsets', true);
         if (!empty($managed_wordsets)) {
             $wordsets = get_terms(array(
@@ -103,21 +103,21 @@ function ll_handle_audio_file_uploads() {
         wp_die('You do not have permission to upload files.');
     }
 
-    $match_existing_posts       = !empty($_POST['match_existing_posts']);
-    $match_image_on_translation = !empty($_POST['match_image_on_translation']);
+    // Check if we're matching existing posts or creating new ones
+    $match_existing_posts = isset($_POST['match_existing_posts']) && $_POST['match_existing_posts'];
 
     // Prepare for file upload handling
     $selected_categories = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
-    $upload_dir          = wp_upload_dir();
-    $success_matches     = [];
-    $failed_matches      = [];
+    $upload_dir = wp_upload_dir();
+    $success_matches = [];
+    $failed_matches = [];
 
     $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
-    $max_file_size       = 10 * 1024 * 1024; // 10MB
+    $max_file_size = 10 * 1024 * 1024; // 10MB
 
     foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
         $original_name = $_FILES['ll_audio_files']['name'][$key];
-        $file_size     = $_FILES['ll_audio_files']['size'][$key];
+        $file_size = $_FILES['ll_audio_files']['size'][$key];
 
         // Validate the uploaded file
         $validation_result = ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allowed_audio_types, $max_file_size);
@@ -134,20 +134,21 @@ function ll_handle_audio_file_uploads() {
         }
 
         $relative_upload_path = ll_get_relative_upload_path($upload_result);
-        $formatted_title      = ll_format_title($original_name);
+
+        $formatted_title = ll_format_title($original_name);
 
         if ($match_existing_posts) {
             // Try to find and update an existing post
             $existing_post = ll_find_post_by_exact_title($formatted_title);
             if ($existing_post) {
-                ll_update_existing_post_audio($existing_post->ID, $relative_upload_path, $_POST, $selected_categories, $match_image_on_translation);
+                ll_update_existing_post_audio($existing_post->ID, $relative_upload_path);
                 $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
             } else {
                 $failed_matches[] = $original_name . ' (No matching post found)';
             }
         } else {
             // Create a new post
-            $post_id = ll_create_new_word_post($formatted_title, $relative_upload_path, $_POST, $selected_categories, $upload_dir, $match_image_on_translation);
+            $post_id = ll_create_new_word_post($formatted_title, $relative_upload_path, $_POST, $selected_categories, $upload_dir);
             if ($post_id && !is_wp_error($post_id)) {
                 $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
             } else {
@@ -156,7 +157,7 @@ function ll_handle_audio_file_uploads() {
         }
     }
 
-    // Display success and failure messages on the same page
+    // Display success and failure messages on the same page    
     ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts);
 
     // Add a link to go back to the previous page
@@ -188,7 +189,7 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
         return $original_name . ' (File size exceeds the limit)';
     }
 
-    // Validate using getID3
+    // Perform additional audio file validation using getID3 library
     require_once LL_TOOLS_BASE_PATH . 'vendor/getid3/getid3.php';
     $getID3 = new getID3();
     $file_info = $getID3->analyze($tmp_name);
@@ -249,136 +250,45 @@ function ll_get_relative_upload_path($absolute_path) {
  * @return string Formatted title for matching.
  */
 function ll_format_title( $original_name ) {
+    // 1) Get filename without its extension
     $filename = pathinfo( $original_name, PATHINFO_FILENAME );
 
+    // 2) Attempt to strip underscores and digits
     $stripped = preg_replace( '/[_0-9]+/', '', $filename );
     $stripped = trim( $stripped );
 
-    $to_use = ( mb_strlen( $stripped, 'UTF-8' ) < 4 ) ? $filename : $stripped;
-
-    // If your project defines ll_normalize_case elsewhere, this will use it.
-    if (function_exists('ll_normalize_case')) {
-        return ll_normalize_case( sanitize_text_field( $to_use ) );
-    }
-    return sanitize_text_field( $to_use );
-}
-
-/**
- * ---- Similarity helpers for conservative auto-matching ----
- */
-
-/** Lowercase, trim, collapse spaces */
-function ll_sim_normalize($s) {
-    $s = strtolower( wp_strip_all_tags( (string)$s ) );
-    // replace underscores/dashes with space, collapse whitespace
-    $s = preg_replace('/[._\-]+/u', ' ', $s);
-    $s = preg_replace('/\s+/u', ' ', $s);
-    return trim($s);
-}
-
-/** Tokenize to a set of unique words (letters+digits), length>=2 to ignore tiny tokens */
-function ll_sim_tokens($s) {
-    $s = ll_sim_normalize($s);
-    preg_match_all('/[[:alnum:]]{2,}/u', $s, $m);
-    return array_values(array_unique($m[0] ?? []));
-}
-
-/** Jaccard similarity between token sets */
-function ll_sim_jaccard(array $a, array $b) {
-    if (!$a || !$b) return 0.0;
-    $a = array_unique($a); $b = array_unique($b);
-    $inter = array_intersect($a, $b);
-    $union = array_unique(array_merge($a, $b));
-    return count($union) ? (count($inter) / count($union)) : 0.0;
-}
-
-/** similar_text percentage wrapper */
-function ll_sim_percent($a, $b) {
-    similar_text(ll_sim_normalize($a), ll_sim_normalize($b), $pct);
-    return (float)$pct;
-}
-
-/**
- * Decide if it's a confident enough match:
- * - Whole-word containment either way; OR
- * - Jaccard (token overlap) ≥ 0.6; OR
- * - similar_text percent ≥ 85
- * For very short strings (<=3 chars), require exact equality.
- */
-function ll_is_confident_match($needle, $hay) {
-    $a = ll_sim_normalize($needle);
-    $b = ll_sim_normalize($hay);
-
-    if ($a === '' || $b === '') return false;
-
-    if (mb_strlen($a, 'UTF-8') <= 3 || mb_strlen($b, 'UTF-8') <= 3) {
-        return $a === $b;
+    // 3) If stripping left us with fewer than 4 characters, keep the numbers
+    if ( mb_strlen( $stripped, 'UTF-8' ) < 4 ) {
+        $to_use = $filename;
+    } else {
+        $to_use = $stripped;
     }
 
-    // whole-word containment
-    $patternA = '/\b' . preg_quote($a, '/') . '\b/u';
-    $patternB = '/\b' . preg_quote($b, '/') . '\b/u';
-    if (preg_match($patternA, $b) || preg_match($patternB, $a)) return true;
-
-    // token overlap
-    $ja = ll_sim_jaccard(ll_sim_tokens($a), ll_sim_tokens($b));
-    if ($ja >= 0.60) return true;
-
-    // character-level similarity
-    $pct = ll_sim_percent($a, $b);
-    if ($pct >= 85.0) return true;
-
-    return false;
+    // 4) Normalize case (e.g. Turkish “I”) and sanitize
+    return ll_normalize_case( sanitize_text_field( $to_use ) );
 }
 
 /**
- * Updates the audio file metadata for an existing post and (optionally) conservative auto-image match
+ * Updates the audio file metadata for an existing post.
  *
- * @param int    $post_id
- * @param string $relative_path
- * @param array  $post_data          Raw $_POST from the form
- * @param array  $selected_categories Category IDs used to scope image search
- * @param bool   $use_translation    Whether to match images based on translation
+ * @param int    $post_id Post ID.
+ * @param string $relative_path Relative path to the audio file.
  */
-function ll_update_existing_post_audio($post_id, $relative_path, $post_data, $selected_categories, $use_translation = false) {
+function ll_update_existing_post_audio($post_id, $relative_path) {
     update_post_meta($post_id, 'word_audio_file', $relative_path);
-
-    // Only auto-assign an image if the post doesn't already have one
-    if (has_post_thumbnail($post_id)) {
-        return;
-    }
-
-    $search_string = get_the_title($post_id);
-    if ($use_translation) {
-        $translated_value = get_post_meta($post_id, 'word_english_meaning', true);
-        if (!empty($translated_value) && strpos($translated_value, 'Error translating') === false) {
-            $search_string = $translated_value;
-        }
-    }
-
-    $matching_image = ll_find_matching_image_conservative($search_string, $selected_categories);
-    if ($matching_image) {
-        $attachment_id = get_post_thumbnail_id($matching_image->ID);
-        if ($attachment_id) {
-            set_post_thumbnail($post_id, $attachment_id);
-            // Mark bookkeeping so the matcher UI can highlight “picked” images
-            ll_mark_image_picked_for_word($matching_image->ID, $post_id);
-        }
-    }
 }
 
 /**
  * Creates a new word post with the provided details.
  *
- * @param string $title
- * @param string $relative_path
- * @param array  $post_data
- * @param array  $selected_categories
- * @param array  $upload_dir
- * @param bool   $use_translation
- * @return int|WP_Error
+ * @param string $title Formatted post title.
+ * @param string $relative_path Relative path to the audio file.
+ * @param array  $post_data POST data from the form.
+ * @param array  $selected_categories Selected category IDs.
+ * @param array  $upload_dir Upload directory details.
+ * @return int|WP_Error New post ID or WP_Error on failure.
  */
-function ll_create_new_word_post($title, $relative_path, $post_data, $selected_categories, $upload_dir, $use_translation = false) {
+function ll_create_new_word_post($title, $relative_path, $post_data, $selected_categories, $upload_dir) {
     $post_id = wp_insert_post([
         'post_title'    => $title,
         'post_content'  => '',
@@ -387,7 +297,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
-        // Save audio path
+        // Save the relative path of the audio file
         update_post_meta($post_id, 'word_audio_file', $relative_path);
 
         // Assign the selected word set
@@ -395,21 +305,23 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         update_post_meta($post_id, 'wordset', $selected_wordset);
 
         // Handle translations
-        $deepl_language_codes = function_exists('get_deepl_language_codes') ? get_deepl_language_codes() : [];
-        if ($deepl_language_codes) {
-            $target_language_name = function_exists('ll_get_wordset_language') ? ll_get_wordset_language($selected_wordset) : '';
+        $deepl_language_codes = get_deepl_language_codes();
+        if ($deepl_language_codes) {  
+            $target_language_name = ll_get_wordset_language($selected_wordset);
 
+            // Determine target language code
             $target_language_code = '';
             if (!$target_language_name) {
                 $target_language_code = get_option('ll_target_language');
-            } else {
-                $target_language_code = array_search($target_language_name, $deepl_language_codes, true);
+            } else {                      
+                $target_language_code = array_search($target_language_name, $deepl_language_codes);
             }
 
             $translation_language_code = get_option('ll_translation_language');
-            $translated_title = '';
+            $translated_title = ''; 
 
-            if ($target_language_code && $translation_language_code && function_exists('translate_with_deepl')) {
+            // If the languages are supported by DeepL, translate the title
+            if ($target_language_code && $translation_language_code) {
                 $translated_title = translate_with_deepl($title, $translation_language_code, $target_language_code);
                 if (!is_null($translated_title)) {
                     update_post_meta($post_id, 'word_english_meaning', $translated_title);
@@ -435,21 +347,19 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
 
         // Determine which string to use for image matching (translated or original title)
         $image_search_string = $title;
-        if ($use_translation) {
+        if ( isset($post_data['match_image_on_translation']) && $post_data['match_image_on_translation'] == 1 ) {
             $translated_value = get_post_meta($post_id, 'word_english_meaning', true);
             if (!empty($translated_value) && strpos($translated_value, 'Error translating') === false) {
                 $image_search_string = $translated_value;
             }
         }
 
-        // Conservative auto-match; only assign if confident
-        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories);
+        // Try to find a relevant image and assign it as the featured image
+        $matching_image = ll_find_matching_image($image_search_string, $selected_categories);
         if ($matching_image) {
             $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
             if ($matching_image_attachment_id) {
                 set_post_thumbnail($post_id, $matching_image_attachment_id);
-                // Mark bookkeeping so the matcher UI can highlight “picked” images
-                ll_mark_image_picked_for_word($matching_image->ID, $post_id);
             }
         }
 
@@ -496,18 +406,22 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
 }
 
 /**
- * Conservative matching:
- * - Looks for best candidate in same categories
- * - Returns it only if ll_is_confident_match(...) passes
+ * Finds the best matching image for a given audio file name and category.
  *
- * @param string $audio_like_name
- * @param array  $categories
- * @return WP_Post|null
+ * @param string $audio_file_name The name of the audio post title.
+ * @param array  $categories      The category IDs to limit the image search.
+ * @return WP_Post|null           The best matching image post or null if none found.
  */
-function ll_find_matching_image_conservative( $audio_like_name, $categories ) {
-    $audio_norm  = ll_sim_normalize($audio_like_name);
-    if ($audio_norm === '') return null;
+function ll_find_matching_image( $audio_file_name, $categories ) {
+    // Break the audio title into lowercase tokens, splitting on space, hyphen, underscore, dot, comma, semicolon, colon, ! or ?
+    $audio_words = preg_split(
+        '/[\s\-\_.,;:!?]+/',
+        strtolower( $audio_file_name ),
+        -1,
+        PREG_SPLIT_NO_EMPTY
+    );
 
+    // Fetch all word_images in those same categories
     $image_posts = get_posts([
         'post_type'      => 'word_images',
         'posts_per_page' => -1,
@@ -516,76 +430,51 @@ function ll_find_matching_image_conservative( $audio_like_name, $categories ) {
             'field'    => 'term_id',
             'terms'    => $categories,
         ]],
-        'orderby' => 'title',
-        'order'   => 'ASC',
     ]);
 
-    if (empty($image_posts)) return null;
+    $best_match   = null;
+    $max_matches  = 0;
 
-    $best   = null;
-    $bestSc = -1.0;
+    // 1) EXACT TOKEN OVERLAP
+    foreach ( $image_posts as $img ) {
+        // If during bulk‐upload you had to append "_0", "_1", etc., drop that here
+        $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
 
-    foreach ($image_posts as $img) {
-        // Drop trailing _0, _1 added during bulk uploads
-        $clean = preg_replace('/_\d+$/', '', $img->post_title);
+        $image_words = preg_split(
+            '/[\s\-\_.,;:!?]+/',
+            strtolower( $clean_title ),
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        );
 
-        // Compute a composite score for ranking; final acceptance gate uses ll_is_confident_match
-        $pct  = ll_sim_percent($audio_norm, $clean);           // 0..100
-        $jac  = ll_sim_jaccard(ll_sim_tokens($audio_norm), ll_sim_tokens($clean)); // 0..1
-        $cont = (int) (ll_is_confident_match($audio_norm, $clean)); // 0 or 1 based on rules (includes containment)
+        // count how many tokens are exactly shared
+        $matches = count( array_intersect( $audio_words, $image_words ) );
 
-        // Weighted score for choosing the "best" candidate
-        $score = ($pct / 100.0) * 0.6 + $jac * 0.3 + $cont * 0.1;
-
-        if ($score > $bestSc) {
-            $bestSc = $score;
-            $best   = $img;
+        if ( $matches > $max_matches ) {
+            $max_matches = $matches;
+            $best_match  = $img;
         }
     }
 
-    if (!$best) return null;
+    // 2) FALL BACK to fuzzy match if *no* exact overlaps
+    if ( 0 === $max_matches && ! empty( $image_posts ) ) {
+        $highest_score = 0;
+        $best_match    = null;
 
-    // Final conservative gate: must be “confident”
-    $clean_best = preg_replace('/_\d+$/', '', $best->post_title);
-    return ll_is_confident_match($audio_norm, $clean_best) ? $best : null;
-}
+        foreach ( $image_posts as $img ) {
+            $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
+            similar_text(
+                strtolower( $audio_file_name ),
+                strtolower( $clean_title ),
+                $score
+            );
+            if ( $score > $highest_score ) {
+                $highest_score = $score;
+                $best_match    = $img;
+            }
+        }
+    }
 
-/**
- * Legacy (kept for compatibility in other parts of the plugin if referenced).
- * Prefer ll_find_matching_image_conservative().
- */
-function ll_find_matching_image( $audio_file_name, $categories ) {
-    return ll_find_matching_image_conservative($audio_file_name, $categories);
-}
-
-/**
- * Bookkeeping so the matcher UI can show which images have been “picked”.
- * - Increments a counter on the image post: _ll_picked_count
- * - Stores last picked timestamp
- * - Stores on the word: _ll_autopicked_image_id
- */
-function ll_mark_image_picked_for_word($image_post_id, $word_post_id) {
-    $count = (int) get_post_meta($image_post_id, '_ll_picked_count', true);
-    update_post_meta($image_post_id, '_ll_picked_count', $count + 1);
-    update_post_meta($image_post_id, '_ll_picked_last', time());
-    update_post_meta($word_post_id, '_ll_autopicked_image_id', (int) $image_post_id);
-}
-
-/**
- * Finds a post by exact, sanitized title (helper referenced above).
- * If you already have an implementation elsewhere, you can remove this.
- */
-function ll_find_post_by_exact_title($title) {
-    $q = new WP_Query([
-        'post_type'      => 'words',
-        'title'          => $title,
-        'posts_per_page' => 1,
-        'fields'         => 'all',
-        'post_status'    => 'any',
-        'no_found_rows'  => true,
-    ]);
-    $post = $q->have_posts() ? $q->posts[0] : null;
-    wp_reset_postdata();
-    return $post;
+    return $best_match;
 }
 ?>
