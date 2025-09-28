@@ -15,11 +15,30 @@
     let cachedImages = [];
     let currentWord = null;
 
+    // Robust ajax URL helper: works even if ajaxurl is relative or missing
+    function getAjaxBase() {
+        if (typeof ajaxurl === 'string' && ajaxurl.length) {
+            try { return new URL(ajaxurl, window.location.origin).toString(); }
+            catch (e) { /* fall through */ }
+        }
+        // Fallback to standard admin-ajax location
+        return new URL('/wp-admin/admin-ajax.php', window.location.origin).toString();
+    }
+
     function endpoint(action, params) {
-        const url = new URL(ajaxurl); // WP global
-        url.searchParams.set('action', action);
-        Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-        return url.toString();
+        const base = getAjaxBase();
+        const u = new URL(base);
+        u.searchParams.set('action', action);
+        if (params) {
+            Object.entries(params).forEach(([k, v]) => {
+                if (Array.isArray(v)) {
+                    v.forEach(val => u.searchParams.append(k, val));
+                } else if (v !== undefined && v !== null) {
+                    u.searchParams.set(k, v);
+                }
+            });
+        }
+        return u.toString();
     }
 
     function uiIdle() {
@@ -50,10 +69,23 @@
 
     async function fetchNext() {
         uiLoading('Loading next audio…');
-        const u = endpoint('ll_aim_get_next', { term_id: termId, exclude: excludeIds.join(',') });
-        const res = await fetch(u, { credentials: 'same-origin' });
+
+        // Append exclude as an array param "exclude[]"
+        const params = { term_id: termId };
+        excludeIds.forEach(id => {
+            // We'll add them as "exclude[]" in the URL
+        });
+
+        const base = getAjaxBase();
+        const u = new URL(base);
+        u.searchParams.set('action', 'll_aim_get_next');
+        u.searchParams.set('term_id', termId);
+        excludeIds.forEach(id => u.searchParams.append('exclude[]', id));
+
+        const res = await fetch(u.toString(), { credentials: 'same-origin' });
         const json = await res.json();
         currentWord = (json && json.data) ? json.data.item : null;
+
         if (!currentWord) {
             $title.text('All done in this category 🎉');
             $audio.removeAttr('src').hide();
@@ -68,8 +100,7 @@
         $title.text(currentWord.title);
         if (currentWord.audio_url) {
             $audio.attr('src', currentWord.audio_url).show();
-            $audio[0].currentTime = 0;
-            $audio[0].play().catch(() => { /* autoplay may be blocked; user can click play */ });
+            try { $audio[0].currentTime = 0; $audio[0].play(); } catch (e) { /* user gesture may be required */ }
         } else {
             $audio.removeAttr('src').hide();
         }
@@ -98,7 +129,7 @@
         body.set('action', 'll_aim_assign');
         body.set('word_id', currentWord.id);
         body.set('image_id', imageId);
-        const res = await fetch(ajaxurl, {
+        const res = await fetch(getAjaxBase(), {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -127,6 +158,21 @@
         await fetchNext();
     });
 
-    // initial
-    uiIdle();
+    // Auto-preselect from URL (?term_id=123&autostart=1)
+    function getParam(name) {
+        const m = new RegExp('[?&]' + name + '=([^&]+)').exec(window.location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : null;
+    }
+
+    $(async function () {
+        uiIdle();
+        const pTerm = parseInt(getParam('term_id') || '0', 10);
+        const pAuto = getParam('autostart');
+        if (pTerm) {
+            $catSel.val(String(pTerm));
+            if (pAuto === '1') {
+                $start.trigger('click');
+            }
+        }
+    });
 })(jQuery);

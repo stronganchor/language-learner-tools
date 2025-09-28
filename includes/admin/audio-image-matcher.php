@@ -4,7 +4,7 @@ if (!defined('WPINC')) { die; }
 
 /**
  * Admin submenu: Tools → LL Tools Audio/Image Matcher
- * Capability: view_ll_tools (same as other LL Tools admin pages)
+ * Capability: view_ll_tools
  */
 function ll_register_audio_image_matcher_admin_page() {
     add_submenu_page(
@@ -19,22 +19,38 @@ function ll_register_audio_image_matcher_admin_page() {
 add_action('admin_menu', 'll_register_audio_image_matcher_admin_page');
 
 /**
- * Render the matching UI page.
- * - Select a word-category term
- * - Step through "words" posts that HAVE audio but LACK a featured image
- * - Play audio and choose one image from all word_images in that category
+ * Enqueue JS (cache-busted) on our page
  */
-function ll_render_audio_image_matcher_page() {
-    // Enqueue our JS (cache-busted by mtime)
+function ll_aim_enqueue_admin_assets($hook) {
+    if ($hook !== 'tools_page_ll-audio-image-matcher') return;
     if (function_exists('ll_enqueue_asset_by_timestamp')) {
         ll_enqueue_asset_by_timestamp('/js/audio-image-matcher.js', 'll-audio-image-matcher', ['jquery'], true);
+    } else {
+        // Fallback enqueue if your helper isn't present
+        wp_enqueue_script(
+            'll-audio-image-matcher',
+            plugins_url('../../js/audio-image-matcher.js', __FILE__),
+            ['jquery'],
+            filemtime(plugin_dir_path(__FILE__) . '../../js/audio-image-matcher.js'),
+            true
+        );
     }
+    // Ensure ajaxurl is available even on some edge admin pages
+    wp_add_inline_script('ll-audio-image-matcher', 'window.ajaxurl = window.ajaxurl || "'.admin_url('admin-ajax.php').'";', 'before');
+}
+add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
 
-    // Prepare categories (word-category)
+/**
+ * Render UI
+ */
+function ll_render_audio_image_matcher_page() {
     $cats = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
     ]);
+
+    // Preselect via URL (?term_id=..)
+    $pre_term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     ?>
     <div class="wrap">
         <h1>Audio ↔ Image Matcher</h1>
@@ -45,7 +61,7 @@ function ll_render_audio_image_matcher_page() {
             <select id="ll-aim-category">
                 <option value="">— Select —</option>
                 <?php foreach ($cats as $t): ?>
-                    <option value="<?php echo esc_attr($t->term_id); ?>">
+                    <option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($pre_term_id, $t->term_id); ?>>
                         <?php echo esc_html($t->name . ' ('.$t->slug.')'); ?>
                     </option>
                 <?php endforeach; ?>
@@ -84,7 +100,7 @@ function ll_render_audio_image_matcher_page() {
 }
 
 /**
- * AJAX: Fetch all candidate images for a category (word_images posts)
+ * AJAX: Fetch candidate images for a category (word_images posts)
  */
 add_action('wp_ajax_ll_aim_get_images', function() {
     if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
@@ -118,41 +134,53 @@ add_action('wp_ajax_ll_aim_get_images', function() {
 });
 
 /**
- * AJAX: Fetch next "words" post in the category that has audio but no featured image
+ * AJAX: Next "words" post with audio (word_audio_file) but no featured image
  */
 add_action('wp_ajax_ll_aim_get_next', function() {
     if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
 
-    $term_id   = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
-    $exclude   = isset($_GET['exclude']) ? array_map('intval', (array) $_GET['exclude']) : [];
+    $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+
+    // Accept exclude as array "exclude[]" or a single scalar / comma string
+    $exclude = [];
+    if (isset($_GET['exclude'])) {
+        $raw = $_GET['exclude'];
+        if (is_array($raw)) {
+            $exclude = array_map('intval', $raw);
+        } else {
+            $parts = array_filter(array_map('trim', explode(',', (string)$raw)));
+            $exclude = array_map('intval', $parts);
+        }
+    }
 
     if (!$term_id) wp_send_json_success(['item' => null]);
 
     $q = new WP_Query([
         'post_type'      => 'words',
-        'posts_per_page' => 1,
+        'posts_per_page' => 10, // small batch for efficient skipping if some already have thumbnails
         'post__not_in'   => $exclude,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
             'field'    => 'term_id',
             'terms'    => [$term_id],
         ]],
-        'meta_query'     => [[ // must have audio meta
+        'meta_query'     => [[
             'key'     => 'word_audio_file',
             'compare' => 'EXISTS',
         ]],
+        'orderby' => 'ID',
+        'order'   => 'ASC',
+        'no_found_rows' => true,
     ]);
 
     $item = null;
     if ($q->have_posts()) {
         while ($q->have_posts()) { $q->the_post();
             $pid = get_the_ID();
-
-            // Skip if already has a featured image
             if (has_post_thumbnail($pid)) continue;
 
             $audio_rel = get_post_meta($pid, 'word_audio_file', true);
-            $audio_url = $audio_rel ? site_url($audio_rel) : '';
+            $audio_url = $audio_rel ? ( (0 === strpos($audio_rel, 'http')) ? $audio_rel : site_url($audio_rel) ) : '';
 
             $item = [
                 'id'         => $pid,
@@ -170,7 +198,7 @@ add_action('wp_ajax_ll_aim_get_next', function() {
 });
 
 /**
- * AJAX: Save the choice (assign chosen image’s thumbnail to the "words" post)
+ * AJAX: Assign chosen image’s thumbnail to the "words" post
  */
 add_action('wp_ajax_ll_aim_assign', function() {
     if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
@@ -180,7 +208,6 @@ add_action('wp_ajax_ll_aim_assign', function() {
 
     if (!$word_id || !$image_id) wp_send_json_error('missing params', 400);
 
-    // Use the word_images post’s featured image attachment as the words post thumbnail
     $attachment_id = get_post_thumbnail_id($image_id);
     if (!$attachment_id) wp_send_json_error('image has no thumbnail', 400);
 
@@ -188,3 +215,115 @@ add_action('wp_ajax_ll_aim_assign', function() {
 
     wp_send_json_success(['ok' => true]);
 });
+
+/* ----------------------------------------------------------------------
+ * AUTO-LAUNCH LOGIC
+ *
+ * Goal: After you add audio to a category that already has images (or vice versa),
+ * open the matcher page automatically with that category selected and autostart.
+ * --------------------------------------------------------------------*/
+
+/**
+ * Helper: does this term have at least one post of a given post_type?
+ */
+function ll_aim_term_has_posttype($term_id, $post_type) {
+    $q = new WP_Query([
+        'post_type'      => $post_type,
+        'posts_per_page' => 1,
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => [$term_id],
+        ]],
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ]);
+    $has = $q->have_posts();
+    wp_reset_postdata();
+    return $has;
+}
+
+/**
+ * After saving a WORDS post, if it has audio and shares a category that already has images, queue an autolaunch.
+ */
+function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
+    if (wp_is_post_revision($post_id) || $post->post_type !== 'words') return;
+
+    // Has audio?
+    $audio = get_post_meta($post_id, 'word_audio_file', true);
+    if (!$audio) return;
+
+    $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+    if (empty($terms)) return;
+
+    foreach ($terms as $tid) {
+        if (ll_aim_term_has_posttype($tid, 'word_images')) {
+            // Queue autolaunch for current user for 2 minutes
+            if (is_user_logged_in()) {
+                $key = 'll_aim_autolaunch_' . get_current_user_id();
+                set_transient($key, intval($tid), 120);
+            }
+            break;
+        }
+    }
+}
+add_action('save_post', 'll_aim_maybe_queue_autolaunch_on_words_save', 10, 3);
+
+/**
+ * After saving a WORD_IMAGES post, if its category already has words with audio, queue an autolaunch.
+ */
+function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) {
+    if (wp_is_post_revision($post_id) || $post->post_type !== 'word_images') return;
+
+    $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+    if (empty($terms)) return;
+
+    foreach ($terms as $tid) {
+        // Check if there exists at least one words post with audio in this term
+        $q = new WP_Query([
+            'post_type'      => 'words',
+            'posts_per_page' => 1,
+            'tax_query'      => [[
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => [$tid],
+            ]],
+            'meta_query'     => [[ 'key' => 'word_audio_file', 'compare' => 'EXISTS' ]],
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ]);
+        $has_words_with_audio = $q->have_posts();
+        wp_reset_postdata();
+
+        if ($has_words_with_audio) {
+            if (is_user_logged_in()) {
+                $key = 'll_aim_autolaunch_' . get_current_user_id();
+                set_transient($key, intval($tid), 120);
+            }
+            break;
+        }
+    }
+}
+add_action('save_post', 'll_aim_maybe_queue_autolaunch_on_images_save', 10, 3);
+
+/**
+ * On next admin load, if an autolaunch is queued, redirect to the matcher
+ * with the term selected and autostart=1. Fire once then clear the transient.
+ */
+function ll_aim_admin_autolaunch_redirect() {
+    if (!is_user_logged_in()) return;
+    if (wp_doing_ajax()) return;
+
+    $key = 'll_aim_autolaunch_' . get_current_user_id();
+    $tid = get_transient($key);
+    if ($tid) {
+        delete_transient($key);
+        $url = add_query_arg(
+            ['page' => 'll-audio-image-matcher', 'term_id' => intval($tid), 'autostart' => 1],
+            admin_url('tools.php')
+        );
+        wp_safe_redirect($url);
+        exit;
+    }
+}
+add_action('admin_init', 'll_aim_admin_autolaunch_redirect');
