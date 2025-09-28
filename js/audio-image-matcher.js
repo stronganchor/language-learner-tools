@@ -19,22 +19,36 @@
     let cachedImages = [];
     let currentWord = null;
 
-    // Robust ajax URL helper: works even if ajaxurl is relative or missing
+    // --- tiny CSS for "Picked" badge (kept here so you don't need to edit PHP) ---
+    (function injectBadgeCSS() {
+        const css = `
+      .ll-aim-card { position: relative; }
+      .ll-aim-badge {
+        position: absolute; top: 6px; right: 6px;
+        padding: 2px 6px; border-radius: 999px;
+        font-size: 11px; font-weight: 600; line-height: 1.4;
+        background: rgba(16, 185, 129, .12); /* green-ish */
+        border: 1px solid rgba(16,185,129,.45); color: #065f46;
+        pointer-events: none; user-select: none;
+      }
+      .ll-aim-card.is-picked { box-shadow: 0 0 0 2px rgba(16,185,129,.25), 0 4px 14px rgba(0,0,0,.08); }
+    `;
+        const style = document.createElement('style');
+        style.type = 'text/css';
+        style.appendChild(document.createTextNode(css));
+        document.head.appendChild(style);
+    })();
+
+    // --- helpers ---
     function getAjaxBase() {
         if (typeof ajaxurl === 'string' && ajaxurl.length) {
             try { return new URL(ajaxurl, window.location.origin).toString(); }
-            catch (e) { /* fall through */ }
+            catch (e) { }
         }
         return new URL('/wp-admin/admin-ajax.php', window.location.origin).toString();
     }
 
-    function uiIdle() {
-        $skip.prop('disabled', true);
-        $stage.hide();
-        $status.text('');
-        currentWord = null;
-    }
-
+    function uiIdle() { $skip.prop('disabled', true); $stage.hide(); $status.text(''); currentWord = null; }
     function uiLoading(msg) { $status.text(msg || 'Loading…'); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
 
@@ -51,7 +65,6 @@
 
     async function fetchNext() {
         uiLoading('Loading next audio…');
-
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_next');
         u.searchParams.set('term_id', termId);
@@ -73,7 +86,7 @@
             return;
         }
 
-        // Populate UI
+        // Populate word area
         $title.text(currentWord.title);
         if (currentWord.audio_url) {
             $audio.attr('src', currentWord.audio_url).show();
@@ -83,7 +96,7 @@
         }
         $extra.text(currentWord.translation ? ('Translation: ' + currentWord.translation) : '');
 
-        // Show current thumbnail (if any)
+        // Show current featured image (if any)
         if (currentWord.current_thumb) {
             $currentImg.attr('src', currentWord.current_thumb);
             $currentCap.text('Current image (will be replaced if you pick a new one)');
@@ -107,6 +120,14 @@
             const i = $('<img/>', { src: img.thumb || '', alt: img.title });
             const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
             const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
+
+            // Visual indicator for images already "picked" by auto-match or previous choices
+            if (img.used_count && img.used_count > 0) {
+                card.addClass('is-picked');
+                const badge = $('<div/>', { 'class': 'll-aim-badge', text: `Picked${img.used_count > 1 ? ` ×${img.used_count}` : ''}` });
+                card.append(badge);
+            }
+
             card.append(i, t, s);
             card.on('click', () => assign(img.id));
             $images.append(card);
@@ -139,7 +160,7 @@
         termId = parseInt($catSel.val(), 10) || 0;
         if (!termId) { alert('Please select a category first.'); return; }
         excludeIds = [];
-        cachedImages = []; // ensure we refetch if user switches categories
+        cachedImages = []; // refetch images when switching categories
         await fetchImagesOnce();
         await fetchNext();
     });
