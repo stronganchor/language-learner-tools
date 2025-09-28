@@ -19,22 +19,36 @@
     let cachedImages = [];
     let currentWord = null;
 
-    // Robust ajax URL helper: works even if ajaxurl is relative or missing
+    // Lightweight CSS for picked badges + grid
+    (function injectCSS() {
+        if (document.getElementById('ll-aim-css')) return;
+        const css = `
+      #ll-aim-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+      .ll-aim-card{position:relative;border:1px solid #ccd0d4;border-radius:6px;padding:8px;background:#fff;cursor:pointer}
+      .ll-aim-card img{width:100%;height:120px;object-fit:cover;border-radius:4px}
+      .ll-aim-title{margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .ll-aim-small{font-size:11px;color:#666}
+      .ll-aim-card.is-picked{box-shadow:0 0 0 2px #2271b1 inset}
+      .ll-aim-badge{position:absolute;top:8px;left:8px;background:#2271b1;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
+      #ll-aim-current-thumb{display:flex;align-items:center;gap:10px;margin:10px 0}
+      #ll-aim-current-thumb img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccd0d4}
+      #ll-aim-current-thumb .ll-aim-cap{font-size:12px;color:#555}
+    `;
+        const el = document.createElement('style');
+        el.id = 'll-aim-css';
+        el.appendChild(document.createTextNode(css));
+        document.head.appendChild(el);
+    })();
+
     function getAjaxBase() {
         if (typeof ajaxurl === 'string' && ajaxurl.length) {
             try { return new URL(ajaxurl, window.location.origin).toString(); }
-            catch (e) { /* fall through */ }
+            catch (e) { }
         }
         return new URL('/wp-admin/admin-ajax.php', window.location.origin).toString();
     }
 
-    function uiIdle() {
-        $skip.prop('disabled', true);
-        $stage.hide();
-        $status.text('');
-        currentWord = null;
-    }
-
+    function uiIdle() { $skip.prop('disabled', true); $stage.hide(); $status.text(''); currentWord = null; }
     function uiLoading(msg) { $status.text(msg || 'Loading…'); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
 
@@ -51,7 +65,6 @@
 
     async function fetchNext() {
         uiLoading('Loading next audio…');
-
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_next');
         u.searchParams.set('term_id', termId);
@@ -73,7 +86,6 @@
             return;
         }
 
-        // Populate UI
         $title.text(currentWord.title);
         if (currentWord.audio_url) {
             $audio.attr('src', currentWord.audio_url).show();
@@ -83,7 +95,6 @@
         }
         $extra.text(currentWord.translation ? ('Translation: ' + currentWord.translation) : '');
 
-        // Show current thumbnail (if any)
         if (currentWord.current_thumb) {
             $currentImg.attr('src', currentWord.current_thumb);
             $currentCap.text('Current image (will be replaced if you pick a new one)');
@@ -107,6 +118,13 @@
             const i = $('<img/>', { src: img.thumb || '', alt: img.title });
             const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
             const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
+
+            if (img.used_count && img.used_count > 0) {
+                card.addClass('is-picked');
+                const badge = $('<div/>', { 'class': 'll-aim-badge', text: `Picked${img.used_count > 1 ? ` ×${img.used_count}` : ''}` });
+                card.append(badge);
+            }
+
             card.append(i, t, s);
             card.on('click', () => assign(img.id));
             $images.append(card);
@@ -139,7 +157,7 @@
         termId = parseInt($catSel.val(), 10) || 0;
         if (!termId) { alert('Please select a category first.'); return; }
         excludeIds = [];
-        cachedImages = []; // ensure we refetch if user switches categories
+        cachedImages = [];
         await fetchImagesOnce();
         await fetchNext();
     });
@@ -150,19 +168,27 @@
         await fetchNext();
     });
 
-    // URL helpers: ?term_id=123&autostart=1&rematch=1
+    // ?term_id=123&autostart=1&rematch=1
     function getParam(name) {
-        const m = new RegExp('[?&]' + name + '=([^&]+)').exec(window.location.search);
-        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : null;
+        const m = new RegExp('[?&]' + name + '=([^&]+)').exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
     }
 
+    // Autostart if told via querystring
     $(async function () {
-        uiIdle();
-        const pTerm = parseInt(getParam('term_id') || '0', 10);
-        const pAuto = getParam('autostart');
-        const pRem = getParam('rematch');
-        if (pTerm) $catSel.val(String(pTerm));
-        if (pRem === '1') $rematch.prop('checked', true);
-        if (pTerm && pAuto === '1') { $start.trigger('click'); }
+        const qTerm = parseInt(getParam('term_id') || '0', 10);
+        const auto = getParam('autostart') === '1';
+        const rm = getParam('rematch') === '1';
+        if (qTerm) $catSel.val(String(qTerm));
+        if (rm) $rematch.prop('checked', true);
+        if (qTerm && auto) {
+            termId = qTerm;
+            excludeIds = [];
+            cachedImages = [];
+            await fetchImagesOnce();
+            await fetchNext();
+        } else {
+            uiIdle();
+        }
     });
 })(jQuery);

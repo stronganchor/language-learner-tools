@@ -355,11 +355,12 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         }
 
         // Try to find a relevant image and assign it as the featured image
-        $matching_image = ll_find_matching_image($image_search_string, $selected_categories);
+        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories);
         if ($matching_image) {
             $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
             if ($matching_image_attachment_id) {
                 set_post_thumbnail($post_id, $matching_image_attachment_id);
+                ll_mark_image_picked_for_word($matching_image->ID, $post_id);
             }
         }
 
@@ -405,76 +406,140 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
     }
 }
 
-/**
- * Finds the best matching image for a given audio file name and category.
- *
- * @param string $audio_file_name The name of the audio post title.
- * @param array  $categories      The category IDs to limit the image search.
- * @return WP_Post|null           The best matching image post or null if none found.
- */
-function ll_find_matching_image( $audio_file_name, $categories ) {
-    // Break the audio title into lowercase tokens, splitting on space, hyphen, underscore, dot, comma, semicolon, colon, ! or ?
-    $audio_words = preg_split(
-        '/[\s\-\_.,;:!?]+/',
-        strtolower( $audio_file_name ),
-        -1,
-        PREG_SPLIT_NO_EMPTY
-    );
+/* ==== Conservative auto-match helpers + picker bookkeeping ================== */
 
-    // Fetch all word_images in those same categories
-    $image_posts = get_posts([
-        'post_type'      => 'word_images',
-        'posts_per_page' => -1,
-        'tax_query'      => [[
-            'taxonomy' => 'word-category',
-            'field'    => 'term_id',
-            'terms'    => $categories,
-        ]],
-    ]);
-
-    $best_match   = null;
-    $max_matches  = 0;
-
-    // 1) EXACT TOKEN OVERLAP
-    foreach ( $image_posts as $img ) {
-        // If during bulk‐upload you had to append "_0", "_1", etc., drop that here
-        $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
-
-        $image_words = preg_split(
-            '/[\s\-\_.,;:!?]+/',
-            strtolower( $clean_title ),
-            -1,
-            PREG_SPLIT_NO_EMPTY
-        );
-
-        // count how many tokens are exactly shared
-        $matches = count( array_intersect( $audio_words, $image_words ) );
-
-        if ( $matches > $max_matches ) {
-            $max_matches = $matches;
-            $best_match  = $img;
-        }
+if (!function_exists('ll_sim_normalize')) {
+    /** Lowercase, trim, replace separators with spaces, collapse whitespace */
+    function ll_sim_normalize($s) {
+        $s = strtolower( wp_strip_all_tags( (string)$s ) );
+        // Treat dot/underscore/dash as separators
+        $s = preg_replace('/[._\-]+/u', ' ', $s);
+        $s = preg_replace('/\s+/u', ' ', $s);
+        return trim($s);
     }
-
-    // 2) FALL BACK to fuzzy match if *no* exact overlaps
-    if ( 0 === $max_matches && ! empty( $image_posts ) ) {
-        $highest_score = 0;
-        $best_match    = null;
-
-        foreach ( $image_posts as $img ) {
-            $clean_title = preg_replace( '/_\d+$/', '', $img->post_title );
-            similar_text(
-                strtolower( $audio_file_name ),
-                strtolower( $clean_title ),
-                $score
-            );
-            if ( $score > $highest_score ) {
-                $highest_score = $score;
-                $best_match    = $img;
-            }
-        }
-    }
-
-    return $best_match;
 }
+
+if (!function_exists('ll_sim_tokens')) {
+    /** Tokenize to unique alnum tokens (len >= 2) */
+    function ll_sim_tokens($s) {
+        $s = ll_sim_normalize($s);
+        preg_match_all('/[[:alnum:]]{2,}/u', $s, $m);
+        return array_values(array_unique($m[0] ?? []));
+    }
+}
+
+if (!function_exists('ll_sim_jaccard')) {
+    /** Jaccard similarity between token sets */
+    function ll_sim_jaccard(array $a, array $b) {
+        if (!$a || !$b) return 0.0;
+        $a = array_unique($a); $b = array_unique($b);
+        $inter = array_intersect($a, $b);
+        $union = array_unique(array_merge($a, $b));
+        return count($union) ? (count($inter) / count($union)) : 0.0;
+    }
+}
+
+if (!function_exists('ll_sim_percent')) {
+    /** similar_text percentage wrapper on normalized strings */
+    function ll_sim_percent($a, $b) {
+        similar_text(ll_sim_normalize($a), ll_sim_normalize($b), $pct);
+        return (float)$pct;
+    }
+}
+
+if (!function_exists('ll_is_confident_match')) {
+    /**
+     * Decide if two names are "confidently" the same thing:
+     * - whole-word containment (either direction), OR
+     * - token Jaccard >= 0.60, OR
+     * - similar_text >= 85%
+     * - for very short strings (<=3), require exact equality
+     */
+    function ll_is_confident_match($a, $b) {
+        $a = ll_sim_normalize($a);
+        $b = ll_sim_normalize($b);
+        if ($a === '' || $b === '') return false;
+
+        if (mb_strlen($a, 'UTF-8') <= 3 || mb_strlen($b, 'UTF-8') <= 3) {
+            return $a === $b;
+        }
+
+        // whole-word containment
+        $pa = '/\b' . preg_quote($a, '/') . '\b/u';
+        $pb = '/\b' . preg_quote($b, '/') . '\b/u';
+        if (preg_match($pa, $b) || preg_match($pb, $a)) return true;
+
+        // token overlap
+        $jac = ll_sim_jaccard(ll_sim_tokens($a), ll_sim_tokens($b));
+        if ($jac >= 0.60) return true;
+
+        // character similarity
+        $pct = ll_sim_percent($a, $b);
+        if ($pct >= 85.0) return true;
+
+        return false;
+    }
+}
+
+if (!function_exists('ll_find_matching_image_conservative')) {
+    /**
+     * Conservative image finder scoped to the given categories.
+     * Returns a WP_Post (word_images) only if the final confidence gate passes.
+     */
+    function ll_find_matching_image_conservative($audio_like_name, $categories) {
+        $audio_norm = ll_sim_normalize($audio_like_name);
+        if ($audio_norm === '') return null;
+
+        $image_posts = get_posts([
+            'post_type'      => 'word_images',
+            'posts_per_page' => -1,
+            'tax_query'      => [[
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => $categories,
+            ]],
+            'orderby' => 'title',
+            'order'   => 'ASC',
+        ]);
+        if (empty($image_posts)) return null;
+
+        $best   = null;
+        $bestSc = -1.0;
+
+        foreach ($image_posts as $img) {
+            // drop trailing _0, _1 added during bulk imports
+            $clean = preg_replace('/_\d+$/', '', (string)$img->post_title);
+
+            // composite ranking (we still gate with ll_is_confident_match at the end)
+            $pct  = ll_sim_percent($audio_norm, $clean); // 0..100
+            $jac  = ll_sim_jaccard(ll_sim_tokens($audio_norm), ll_sim_tokens($clean)); // 0..1
+            $cont = ll_is_confident_match($audio_norm, $clean) ? 1 : 0;
+
+            $score = ($pct / 100.0) * 0.6 + $jac * 0.3 + $cont * 0.1;
+            if ($score > $bestSc) { $bestSc = $score; $best = $img; }
+        }
+
+        if (!$best) return null;
+
+        $clean_best = preg_replace('/_\d+$/', '', (string)$best->post_title);
+        return ll_is_confident_match($audio_norm, $clean_best) ? $best : null;
+    }
+}
+
+if (!function_exists('ll_mark_image_picked_for_word')) {
+    /**
+     * Bookkeeping so the matcher UI can show "picked" badges.
+     * - bumps _ll_picked_count on the image CPT
+     * - sets _ll_picked_last on the image
+     * - records _ll_autopicked_image_id on the word (for reference)
+     */
+    function ll_mark_image_picked_for_word($image_post_id, $word_post_id) {
+        $count = (int) get_post_meta($image_post_id, '_ll_picked_count', true);
+        update_post_meta($image_post_id, '_ll_picked_count', $count + 1);
+        update_post_meta($image_post_id, '_ll_picked_last', time());
+        update_post_meta($word_post_id, '_ll_autopicked_image_id', (int)$image_post_id);
+    }
+}
+/* ==== /helpers =============================================================== */
+
 ?>
