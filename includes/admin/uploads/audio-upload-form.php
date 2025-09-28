@@ -103,30 +103,25 @@ function ll_handle_audio_file_uploads() {
         wp_die('You do not have permission to upload files.');
     }
 
-    // Check if we're matching existing posts or creating new ones
-    $match_existing_posts = isset($_POST['match_existing_posts']) && $_POST['match_existing_posts'];
+    $match_existing_posts = !empty($_POST['match_existing_posts']);
+    $selected_categories  = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
+    $upload_dir           = wp_upload_dir();
+    $success_matches      = [];
+    $failed_matches       = [];
 
-    // Prepare for file upload handling
-    $selected_categories = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
-    $upload_dir = wp_upload_dir();
-    $success_matches = [];
-    $failed_matches = [];
-
-    $allowed_audio_types = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
-    $max_file_size = 10 * 1024 * 1024; // 10MB
+    $allowed_audio_types  = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
+    $max_file_size        = 10 * 1024 * 1024; // 10MB
 
     foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
         $original_name = $_FILES['ll_audio_files']['name'][$key];
-        $file_size = $_FILES['ll_audio_files']['size'][$key];
+        $file_size     = $_FILES['ll_audio_files']['size'][$key];
 
-        // Validate the uploaded file
         $validation_result = ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allowed_audio_types, $max_file_size);
         if ($validation_result !== true) {
             $failed_matches[] = $validation_result;
             continue;
         }
 
-        // Move the uploaded file
         $upload_result = ll_upload_file($tmp_name, $original_name, $upload_dir['path']);
         if (is_wp_error($upload_result)) {
             $failed_matches[] = $original_name . ' (' . $upload_result->get_error_message() . ')';
@@ -134,11 +129,9 @@ function ll_handle_audio_file_uploads() {
         }
 
         $relative_upload_path = ll_get_relative_upload_path($upload_result);
-
-        $formatted_title = ll_format_title($original_name);
+        $formatted_title      = ll_format_title($original_name);
 
         if ($match_existing_posts) {
-            // Try to find and update an existing post
             $existing_post = ll_find_post_by_exact_title($formatted_title);
             if ($existing_post) {
                 ll_update_existing_post_audio($existing_post->ID, $relative_upload_path);
@@ -147,7 +140,6 @@ function ll_handle_audio_file_uploads() {
                 $failed_matches[] = $original_name . ' (No matching post found)';
             }
         } else {
-            // Create a new post
             $post_id = ll_create_new_word_post($formatted_title, $relative_upload_path, $_POST, $selected_categories, $upload_dir);
             if ($post_id && !is_wp_error($post_id)) {
                 $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
@@ -157,10 +149,58 @@ function ll_handle_audio_file_uploads() {
         }
     }
 
-    // Display success and failure messages on the same page    
-    ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts);
+    // If we succeeded on at least one file, try to jump straight into the matcher.
+    // Pick the first selected category that *already has* word_images, so the grid isn't empty.
+    $redirect_term_id = 0;
+    if (!empty($success_matches) && !empty($selected_categories)) {
+        foreach ($selected_categories as $maybe_tid) {
+            $maybe_tid = intval($maybe_tid);
 
-    // Add a link to go back to the previous page
+            // Use existing helper if loaded; otherwise do a lightweight check inline.
+            if (function_exists('ll_aim_term_has_posttype')) {
+                if (ll_aim_term_has_posttype($maybe_tid, 'word_images')) {
+                    $redirect_term_id = $maybe_tid;
+                    break;
+                }
+            } else {
+                // Fallback: check for at least one word_images post in this term
+                $q = new WP_Query([
+                    'post_type'      => 'word_images',
+                    'posts_per_page' => 1,
+                    'tax_query'      => [[
+                        'taxonomy' => 'word-category',
+                        'field'    => 'term_id',
+                        'terms'    => [$maybe_tid],
+                    ]],
+                    'fields'        => 'ids',
+                    'no_found_rows' => true,
+                ]);
+                if ($q->have_posts()) {
+                    $redirect_term_id = $maybe_tid;
+                    wp_reset_postdata();
+                    break;
+                }
+                wp_reset_postdata();
+            }
+        }
+    }
+
+    if ($redirect_term_id && is_user_logged_in()) {
+        // Prime the same transient the admin_init hook looks for
+        $key = 'll_aim_autolaunch_' . get_current_user_id();
+        set_transient($key, intval($redirect_term_id), 120);
+
+        // Send them directly to the matcher with autostart
+        $url = add_query_arg(
+            ['page' => 'll-audio-image-matcher', 'term_id' => intval($redirect_term_id), 'autostart' => 1],
+            admin_url('tools.php')
+        );
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    // Fallback: show the summary like before if no redirect was possible
+    ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts);
     echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
 }
 add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');

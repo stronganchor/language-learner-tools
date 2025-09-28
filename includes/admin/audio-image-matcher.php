@@ -134,10 +134,27 @@ add_action('wp_ajax_ll_aim_get_images', function() {
     foreach ($images as $img_post) {
         $thumb_id  = get_post_thumbnail_id($img_post->ID);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
+
+        // Prefer meta counter if you've been recording it; otherwise fall back to boolean usage check.
+        $used_count = (int) get_post_meta($img_post->ID, '_ll_picked_count', true);
+        if ($used_count < 1 && $thumb_id) {
+            // Lightweight "is it used at all?" check to power the badge
+            $q = new WP_Query([
+                'post_type'      => 'words',
+                'posts_per_page' => 1,
+                'meta_query'     => [[ 'key' => '_thumbnail_id', 'value' => $thumb_id, 'compare' => '=' ]],
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+            ]);
+            $used_count = $q->have_posts() ? 1 : 0;
+            wp_reset_postdata();
+        }
+
         $out[] = [
-            'id'    => $img_post->ID,
-            'title' => $img_post->post_title,
-            'thumb' => $thumb_url,
+            'id'         => $img_post->ID,
+            'title'      => $img_post->post_title,
+            'thumb'      => $thumb_url,
+            'used_count' => $used_count,
         ];
     }
     wp_send_json_success(['images' => $out]);

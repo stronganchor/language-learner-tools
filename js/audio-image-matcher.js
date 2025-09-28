@@ -113,6 +113,14 @@
             $images.append($('<div/>', { text: 'No images found in this category.' }));
             return;
         }
+
+        // Unused first, then already-used images
+        cachedImages.sort((a, b) => {
+            const av = a.used_count && a.used_count > 0 ? 1 : 0;
+            const bv = b.used_count && b.used_count > 0 ? 1 : 0;
+            return av - bv;
+        });
+
         cachedImages.forEach(img => {
             const card = $('<div/>', { 'class': 'll-aim-card', 'data-img-id': img.id, title: img.title });
             const i = $('<img/>', { src: img.thumb || '', alt: img.title });
