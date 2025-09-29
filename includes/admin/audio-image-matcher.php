@@ -57,13 +57,12 @@ function ll_render_audio_image_matcher_page() {
     }
 }
 
-/**
- * AJAX: Fetch candidate images for a category (word_images posts)
- */
+// AJAX: Fetch candidate images for a category (word_images posts)
 add_action('wp_ajax_ll_aim_get_images', function() {
     if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
 
-    $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+    $term_id  = isset($_GET['term_id'])   ? intval($_GET['term_id'])   : 0;
+    $hide_used = isset($_GET['hide_used']) ? (intval($_GET['hide_used']) === 1) : false;
     if (!$term_id) wp_send_json_success(['images' => []]);
 
     $images = get_posts([
@@ -83,10 +82,9 @@ add_action('wp_ajax_ll_aim_get_images', function() {
         $thumb_id  = get_post_thumbnail_id($img_post->ID);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
-        // Prefer meta counter if you've been recording it; otherwise fall back to boolean usage check.
+        // Prefer meta counter if recorded; otherwise do a lightweight "is it used?" check
         $used_count = (int) get_post_meta($img_post->ID, '_ll_picked_count', true);
         if ($used_count < 1 && $thumb_id) {
-            // Lightweight "is it used at all?" check to power the badge
             $q = new WP_Query([
                 'post_type'      => 'words',
                 'posts_per_page' => 1,
@@ -96,6 +94,11 @@ add_action('wp_ajax_ll_aim_get_images', function() {
             ]);
             $used_count = $q->have_posts() ? 1 : 0;
             wp_reset_postdata();
+        }
+
+        // NEW: skip used images if requested
+        if ($hide_used && $used_count > 0) {
+            continue;
         }
 
         $out[] = [

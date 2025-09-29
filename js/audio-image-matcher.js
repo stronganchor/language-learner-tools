@@ -13,27 +13,28 @@
     const $currentWrap = $('#ll-aim-current-thumb');
     const $currentImg = $('#ll-aim-current-thumb img');
     const $currentCap = $('#ll-aim-current-thumb .ll-aim-cap');
+    const $hideUsed = $('#ll-aim-hide-used');
 
     let termId = 0;
     let excludeIds = [];
     let cachedImages = [];
     let currentWord = null;
 
-    // Lightweight CSS for picked badges + grid
+    // Minimal CSS (kept) — harmless if you also have a stylesheet
     (function injectCSS() {
         if (document.getElementById('ll-aim-css')) return;
         const css = `
-      #ll-aim-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-      .ll-aim-card{position:relative;border:1px solid #ccd0d4;border-radius:6px;padding:8px;background:#fff;cursor:pointer}
-      .ll-aim-card img{width:100%;height:120px;object-fit:cover;border-radius:4px}
-      .ll-aim-title{margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .ll-aim-small{font-size:11px;color:#666}
-      .ll-aim-card.is-picked{box-shadow:0 0 0 2px #2271b1 inset}
-      .ll-aim-badge{position:absolute;top:8px;left:8px;background:#2271b1;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
-      #ll-aim-current-thumb{display:flex;align-items:center;gap:10px;margin:10px 0}
-      #ll-aim-current-thumb img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccd0d4}
-      #ll-aim-current-thumb .ll-aim-cap{font-size:12px;color:#555}
-    `;
+          #ll-aim-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+          .ll-aim-card{position:relative;border:1px solid #ccd0d4;border-radius:6px;padding:8px;background:#fff;cursor:pointer}
+          .ll-aim-card img{width:100%;height:120px;object-fit:cover;border-radius:4px}
+          .ll-aim-title{margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .ll-aim-small{font-size:11px;color:#666}
+          .ll-aim-card.is-picked{box-shadow:0 0 0 2px #2271b1 inset}
+          .ll-aim-badge{position:absolute;top:8px;left:8px;background:#2271b1;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
+          #ll-aim-current-thumb{display:flex;align-items:center;gap:10px;margin:10px 0}
+          #ll-aim-current-thumb img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccd0d4}
+          #ll-aim-current-thumb .ll-aim-cap{font-size:12px;color:#555}
+        `;
         const el = document.createElement('style');
         el.id = 'll-aim-css';
         el.appendChild(document.createTextNode(css));
@@ -42,14 +43,13 @@
 
     function getAjaxBase() {
         if (typeof ajaxurl === 'string' && ajaxurl.length) {
-            try { return new URL(ajaxurl, window.location.origin).toString(); }
-            catch (e) { }
+            try { return new URL(ajaxurl, window.location.origin).toString(); } catch (e) { }
         }
         return new URL('/wp-admin/admin-ajax.php', window.location.origin).toString();
     }
 
     function uiIdle() { $skip.prop('disabled', true); $stage.hide(); $status.text(''); currentWord = null; }
-    function uiLoading(msg) { $status.text(msg || 'Loading…'); }
+    function uiLoading(m) { $status.text(m || 'Loading…'); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
 
     async function fetchImagesOnce() {
@@ -58,6 +58,7 @@
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_images');
         u.searchParams.set('term_id', termId);
+        u.searchParams.set('hide_used', $hideUsed.is(':checked') ? '1' : '0');
         const res = await fetch(u.toString(), { credentials: 'same-origin' });
         const json = await res.json();
         cachedImages = (json && json.data && json.data.images) ? json.data.images : [];
@@ -114,14 +115,18 @@
             return;
         }
 
-        // Unused first, then already-used images
-        cachedImages.sort((a, b) => {
+        // Defensive: filter out used images on the client too (in case server didn't)
+        const list = $hideUsed.is(':checked')
+            ? cachedImages.filter(img => !(img.used_count && img.used_count > 0))
+            : cachedImages.slice();
+
+        list.sort((a, b) => {
             const av = a.used_count && a.used_count > 0 ? 1 : 0;
             const bv = b.used_count && b.used_count > 0 ? 1 : 0;
             return av - bv;
         });
 
-        cachedImages.forEach(img => {
+        list.forEach(img => {
             const card = $('<div/>', { 'class': 'll-aim-card', 'data-img-id': img.id, title: img.title });
             const i = $('<img/>', { src: img.thumb || '', alt: img.title });
             const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
@@ -154,6 +159,8 @@
         });
         const json = await res.json();
         if (json && json.success) {
+            // Mark used locally so we can hide it immediately (no extra fetch needed)
+            cachedImages = cachedImages.map(img => img.id === imageId ? { ...img, used_count: (img.used_count || 0) + 1 } : img);
             excludeIds.push(currentWord.id);
             await fetchNext();
         } else {
@@ -161,42 +168,30 @@
         }
     }
 
-    $start.on('click', async function () {
-        termId = parseInt($catSel.val(), 10) || 0;
-        if (!termId) { alert('Please select a category first.'); return; }
+    // Wire up controls
+    $start.on('click', async () => {
+        termId = parseInt(String($catSel.val() || '0'), 10) || 0;
+        if (!termId) { $status.text('Please choose a category.'); return; }
         excludeIds = [];
         cachedImages = [];
+        uiIdle();
         await fetchImagesOnce();
         await fetchNext();
     });
 
-    $skip.on('click', async function () {
-        if (!currentWord) return;
-        excludeIds.push(currentWord.id);
-        await fetchNext();
+    $skip.on('click', fetchNext);
+
+    $catSel.on('change', () => {
+        // Changing category invalidates cache
+        cachedImages = [];
+        excludeIds = [];
+        uiIdle();
     });
 
-    // ?term_id=123&autostart=1&rematch=1
-    function getParam(name) {
-        const m = new RegExp('[?&]' + name + '=([^&]+)').exec(location.search);
-        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
-    }
-
-    // Autostart if told via querystring
-    $(async function () {
-        const qTerm = parseInt(getParam('term_id') || '0', 10);
-        const auto = getParam('autostart') === '1';
-        const rm = getParam('rematch') === '1';
-        if (qTerm) $catSel.val(String(qTerm));
-        if (rm) $rematch.prop('checked', true);
-        if (qTerm && auto) {
-            termId = qTerm;
-            excludeIds = [];
-            cachedImages = [];
-            await fetchImagesOnce();
-            await fetchNext();
-        } else {
-            uiIdle();
-        }
+    $hideUsed.on('change', async () => {
+        // Re-fetch from server for efficiency (but we also filter client-side)
+        cachedImages = [];
+        await fetchImagesOnce();
+        buildImageGrid();
     });
 })(jQuery);
