@@ -283,17 +283,30 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
         $useTitlesMeta = (get_term_meta($cat_term->term_id, 'use_word_titles_for_audio', true) === '1');
     }
 
+    $tax_query = [
+        [
+            'taxonomy' => 'word-category',
+            'field'    => 'name',
+            'terms'    => $category_name,
+        ],
+    ];
+
+    // Add wordset scoping
+    $active_wordset_id = ll_tools_get_active_wordset_id();
+    if ($active_wordset_id > 0) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => [$active_wordset_id],
+        ];
+    }
+
     $args = [
         'post_type'      => 'words',
         'posts_per_page' => -1,
-        'tax_query'      => [
-            [
-                'taxonomy' => 'word-category',
-                'field'    => 'name',
-                'terms'    => $category_name,
-            ],
-        ],
+        'tax_query'      => $tax_query,
     ];
+
 
     if (!$useTitlesMeta) {
         if ($display_mode === 'image') {

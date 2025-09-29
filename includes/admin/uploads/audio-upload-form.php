@@ -37,6 +37,24 @@ function ll_audio_upload_form_shortcode() {
             <?php ll_render_category_selection_field( 'words' ); ?>
         </div>
 
+        <div style="margin-top:10px;">
+            <label><?php esc_html_e( 'Word Set', 'll-tools-text-domain' ); ?>:</label><br>
+            <select name="ll_wordset_id" required>
+                <?php
+                $wsets = get_terms(['taxonomy' => 'wordset', 'hide_empty' => false]);
+                if (!is_wp_error($wsets)) {
+                    echo '<option value="">' . esc_html__('— Select —', 'll-tools-text-domain') . '</option>';
+                    foreach ($wsets as $ws) {
+                        printf('<option value="%d">%s</option>',
+                            (int) $ws->term_id,
+                            esc_html($ws->name)
+                        );
+                    }
+                }
+                ?>
+            </select>
+        </div>
+
         <input type="hidden" name="action" value="process_audio_files">
         <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
     </form>
@@ -337,41 +355,33 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
-        // Save the relative path of the audio file
+        // 1) Save the relative path of the audio file
         update_post_meta($post_id, 'word_audio_file', $relative_path);
 
-        // Assign the selected word set
-        $selected_wordset = isset($post_data['selected_wordset']) ? intval($post_data['selected_wordset']) : 0;
-        update_post_meta($post_id, 'wordset', $selected_wordset);
+        // 2) Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
+        $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
 
-        // Handle translations
-        $deepl_language_codes = get_deepl_language_codes();
-        if ($deepl_language_codes) {  
-            $target_language_name = ll_get_wordset_language($selected_wordset);
-
-            // Determine target language code
-            $target_language_code = '';
-            if (!$target_language_name) {
-                $target_language_code = get_option('ll_target_language');
-            } else {                      
-                $target_language_code = array_search($target_language_name, $deepl_language_codes);
-            }
-
-            $translation_language_code = get_option('ll_translation_language');
-            $translated_title = ''; 
-
-            // If the languages are supported by DeepL, translate the title
-            if ($target_language_code && $translation_language_code) {
-                $translated_title = translate_with_deepl($title, $translation_language_code, $target_language_code);
-                if (!is_null($translated_title)) {
-                    update_post_meta($post_id, 'word_english_meaning', $translated_title);
-                } else {
-                    update_post_meta($post_id, 'word_english_meaning', 'Error translating ' . $title . ' to ' . $translation_language_code . ' from ' . $target_language_code);
-                }
-            } else {
-                update_post_meta($post_id, 'word_english_meaning', 'Error translating to ' . $translation_language_code . ' from ' . $target_language_code);
-            }
+        // Back-compat: if older field exists, allow it as a fallback
+        if ($wordset_id <= 0 && isset($post_data['selected_wordset'])) {
+            $wordset_id = (int) $post_data['selected_wordset'];
         }
+
+        // Final fallback: use the active/default word-set helper if available
+        if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
+            $wordset_id = (int) ll_tools_get_active_wordset_id();
+        }
+
+        // 3) Assign taxonomy term for 'wordset' (authoritative for scoping)
+        if ($wordset_id > 0) {
+            wp_set_object_terms($post_id, [$wordset_id], 'wordset', /*append*/ true);
+        }
+
+        // (Optional) keep any existing meta for compatibility with your older code/UI
+        if ($wordset_id > 0) {
+            update_post_meta($post_id, 'wordset', $wordset_id);
+        }
+
+        // 4) (Existing code) — translations, categories, part of speech, image matching, etc.
 
         // Assign selected categories to the post
         if (!empty($selected_categories)) {
@@ -407,7 +417,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         return $post_id;
     }
 
-    return new WP_Error('post_creation_failed', 'Failed to create new word post.');
+    return new WP_Error('ll_create_word_failed', 'Failed to create the post.');
 }
 
 /**

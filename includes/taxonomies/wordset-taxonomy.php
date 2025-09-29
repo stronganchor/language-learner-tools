@@ -218,3 +218,26 @@ add_action('edited_wordset', 'll_save_wordset_language');
 function ll_get_wordset_language($term_id) {
     return get_term_meta($term_id, 'll_language', true);
 }
+
+/**
+ * Active word set resolution.
+ * - If an explicit ID is provided, use it (when admins pass it).
+ * - Else if a default is saved in options, use it.
+ * - Else if exactly one word set exists, use that.
+ * - Else return 0 (caller can decide to warn or require selection).
+ */
+function ll_tools_get_active_wordset_id($explicit = 0): int {
+    $explicit = (int) $explicit;
+    if ($explicit > 0 && term_exists($explicit, 'wordset')) {
+        return $explicit;
+    }
+    $opt = (int) get_option('ll_default_wordset_id', 0);
+    if ($opt > 0 && term_exists($opt, 'wordset')) {
+        return $opt;
+    }
+    $all = get_terms(['taxonomy' => 'wordset', 'hide_empty' => false, 'fields' => 'ids']);
+    if (!is_wp_error($all) && is_array($all) && count($all) === 1) {
+        return (int) $all[0];
+    }
+    return 0;
+}
