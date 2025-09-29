@@ -49,11 +49,11 @@ function ll_render_audio_image_matcher_page() {
     $pre_rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
     // Include template
-    $template = LL_TOOLS_BASE_PATH . '/templates/audio-image-matcher.php';
+    $template = LL_TOOLS_BASE_PATH . '/templates/audio-image-matcher-template.php';
     if (file_exists($template)) {
         include $template; // expects $cats, $pre_term_id, $pre_rematch in scope
     } else {
-        echo '<div class="notice notice-error"><p>Template not found: <code>/templates/audio-image-matcher.php</code></p></div>';
+        echo '<div class="notice notice-error"><p>Template not found: <code>' . $template . '</code></p></div>';
     }
 }
 
