@@ -39,23 +39,23 @@ function ll_tools_resolve_term_id_by_slug_name_or_id($taxonomy, $value) {
 }
 
 /**
- * Collect all word-category term IDs that are used by at least one published
- * 'words' post that also has the given wordset term. Include ancestors so
- * parent categories appear too.
- *
- * @param int $wordset_term_id
- * @return int[]  unique term IDs
+ * Collect all word-category term IDs used by at least one published "words"
+ * post in the given wordset (include ancestors).
  */
 function ll_collect_word_category_ids_for_wordset($wordset_term_id) {
     $found = [];
 
     $q = new WP_Query([
-        'post_type'      => 'words',
-        'post_status'    => 'publish',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'tax_query'      => [[
+        'post_type'                 => 'words',
+        'post_status'               => 'publish',
+        'posts_per_page'            => -1,
+        'fields'                    => 'ids',
+        'no_found_rows'             => true,
+        'suppress_filters'          => true,  
+        'update_post_term_cache'    => false,
+        'update_post_meta_cache'    => false,
+        'perm'                      => 'readable',
+        'tax_query'                 => [[
             'taxonomy' => 'wordset',
             'field'    => 'term_id',
             'terms'    => [(int)$wordset_term_id],
@@ -66,13 +66,16 @@ function ll_collect_word_category_ids_for_wordset($wordset_term_id) {
         $cats = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
         foreach ($cats as $cid) {
             $found[$cid] = true;
-            // Include ancestors so higher-level categories in the chain are available
+            // Also include ancestors so parent categories appear
             $ancestors = get_ancestors($cid, 'word-category', 'taxonomy');
             foreach ($ancestors as $aid) {
                 $found[$aid] = true;
             }
         }
     }
+
+    // No global post object was set with fields=ids, but be tidy anyway
+    wp_reset_postdata();
 
     return array_map('intval', array_keys($found));
 }
