@@ -434,25 +434,61 @@ function ll_process_bulk_add_categories() {
 }
 
 /**
- * Apply a natural (numeric‑aware) name sort whenever "word-category" terms are fetched.
+ * Apply a natural (numeric-aware) name sort whenever "word-category" terms are fetched.
  *
- * @param array           $terms      Array of WP_Term objects.
- * @param string|string[] $taxonomies The taxonomy slug or array of slugs.
- * @param array           $args       The get_terms arguments.
- * @return array          Sorted array of WP_Term objects.
+ * @param array           $terms       Array of results from get_terms (may be WP_Term[], strings, ints, or maps).
+ * @param string|string[] $taxonomies  The taxonomy slug or array of slugs.
+ * @param array           $args        The get_terms() arguments.
+ * @return array                      Possibly sorted array, or original if not applicable.
  */
 function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
-    if (
-        ( is_array( $taxonomies ) && in_array( 'word-category', $taxonomies, true ) )
-        || $taxonomies === 'word-category'
-    ) {
-        usort( $terms, function( $a, $b ) {
-            return strnatcasecmp( $a->name, $b->name );
-        } );
+    // Only touch our taxonomy.
+    $is_word_cat = ( is_array( $taxonomies ) )
+        ? in_array( 'word-category', $taxonomies, true )
+        : ( $taxonomies === 'word-category' );
+
+    if ( ! $is_word_cat || ! is_array( $terms ) || empty( $terms ) ) {
+        return $terms;
     }
+
+    // If the caller did NOT request full objects, don't access ->name.
+    // Common values: 'all' (default/objects), 'ids', 'id=>parent', 'names', 'id=>name'
+    $fields = isset( $args['fields'] ) ? $args['fields'] : '';
+
+    // Handle string-only responses safely.
+    if ( $fields === 'names' ) {
+        // Natural, case-insensitive sort of the names array (preserves keys).
+        natcasesort( $terms );
+        return $terms;
+    }
+
+    // Handle associative map of id => name.
+    if ( $fields === 'id=>name' ) {
+        uasort( $terms, static function( $a, $b ) {
+            return strnatcasecmp( (string) $a, (string) $b );
+        } );
+        return $terms;
+    }
+
+    // For ids or id=>parent or anything else non-object, do nothing (avoid warnings).
+    if ( $fields && $fields !== 'all' ) {
+        return $terms;
+    }
+
+    // From here on, we expect WP_Term objects.
+    $first = reset( $terms );
+    if ( ! is_object( $first ) || ! isset( $first->name ) ) {
+        return $terms;
+    }
+
+    usort( $terms, static function( $a, $b ) {
+        $an = isset( $a->name ) ? (string) $a->name : '';
+        $bn = isset( $b->name ) ? (string) $b->name : '';
+        return strnatcasecmp( $an, $bn );
+    } );
+
     return $terms;
 }
-add_filter( 'get_terms', 'll_tools_nat_sort_word_category_terms', 10, 3 );
 
 /**
  * Renders a scrollable category‐checkbox list (with post counts) for the given post type.
