@@ -30,6 +30,8 @@ function ll_tools_register_wordset_taxonomy() {
         "labels" => $labels,
         "public" => true,
         "publicly_queryable" => true,
+        'exclude_from_search'=> false,
+        'has_archive'        => true,
         "hierarchical" => false,
         "show_ui" => true,
         "show_in_menu" => true,

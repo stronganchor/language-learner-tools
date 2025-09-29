@@ -96,6 +96,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
     $pages = get_posts([
         'post_type'      => 'page',
         'post_status'    => 'publish',
+        'has_password'     => false,
+        'suppress_filters' => true,
+        'no_found_rows'    => true,
         'numberposts'    => -1,
         'meta_key'       => '_ll_tools_word_category_id',
         'fields'         => 'ids',
@@ -252,7 +255,7 @@ function ll_qpg_print_flashcard_shell_once() {
 /** ------------------------------------------------------------------
  * Shortcode: [quiz_pages_grid]
  * Attributes:
- *   - wordset  (id|slug|name)  ← NEW
+ *   - wordset  (id|slug|name)
  *   - columns
  *   - popup    ("yes" to open flashcard overlay inline)
  *   - order / order_dir (kept for backward compat; ignored)
@@ -275,7 +278,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $filter['wordset'] = $atts['wordset'];
     }
 
-    // Build list using the helper so translated display names are respected. :contentReference[oaicite:2]{index=2}
+    // Use helper so translated display names are respected.
     $items = ll_get_all_quiz_pages_data($filter);
     if (empty($items)) {
         return '<p>' . esc_html__('No quizzes found.', 'll-tools-text-domain') . '</p>';
@@ -284,9 +287,13 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
 
-    // When using popup mode, make sure the flashcard overlay + assets exist.
+    // If popup, ensure overlay/assets are bootstrapped.
     if ($use_popup) {
-        ll_qpg_bootstrap_flashcards_for_grid();
+        if (function_exists('ll_qpg_bootstrap_flashcards_for_grid')) {
+            ll_qpg_bootstrap_flashcards_for_grid();
+        }
+        // Also ensure our delegated handler is enqueued (if you register this file via WP).
+        // wp_enqueue_script('ll-quiz-pages-js'); // leave commented if you enqueue elsewhere
     }
 
     // Optional fixed columns override.
@@ -302,15 +309,16 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     foreach ($items as $it) {
         $title     = $it['display_name']; // translated when enabled
-        $permalink = $it['permalink'];
+        $permalink = $it['permalink'];    // real URL we can load in iframe
         $raw_name  = $it['name'];         // untranslated category name
 
         if ($use_popup) {
+            // IMPORTANT: provide data-url so JS can load the true page in iframe
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
                . ' href="#" role="button"'
                . ' aria-label="Start ' . esc_attr($title) . '"'
                . ' data-category="' . esc_attr($raw_name) . '"'
-               . ' onclick="llOpenFlashcardForCategory(' . wp_json_encode($raw_name) . '); return false;">';
+               . ' data-url="' . esc_url($permalink) . '">';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         } else {
@@ -326,7 +334,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     return ob_get_clean();
 }
-add_shortcode('quiz_pages_grid', 'll_quiz_pages_grid_shortcode'); // existed previously. :contentReference[oaicite:3]{index=3}
+add_shortcode('quiz_pages_grid', 'll_quiz_pages_grid_shortcode'); 
 
 /** ------------------------------------------------------------------
  * Shortcode: [quiz_pages_dropdown]

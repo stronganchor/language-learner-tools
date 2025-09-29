@@ -1,147 +1,126 @@
-// Global, lazy stub so inline popup code can call initFlashcardWidget even if the real scripts
-// haven’t been loaded yet on the host page. It patiently waits, then forwards the call.
+/* LL Tools – Quiz Pages (robust popup)
+   - Delegated click (no inline JS)
+   - Uses data-url if present; otherwise falls back to /quiz?category=...
+   - Provides its own modal/iframe if no global llOpenFlashcardForCategory exists
+*/
 (function () {
-    function startWidget(selectedCategories) {
-        (function wait() {
-            try {
-                if (
-                    window.LLFlashcards &&
-                    window.LLFlashcards.Main &&
-                    typeof window.LLFlashcards.Main.initFlashcardWidget === "function"
-                ) {
-                    window.LLFlashcards.Main.initFlashcardWidget(selectedCategories);
-                    return;
-                }
-                if (typeof window.initFlashcardWidget_real === "function") {
-                    window.initFlashcardWidget_real(selectedCategories);
-                    return;
-                }
-            } catch (e) { }
-            setTimeout(wait, 30);
-        })();
+    'use strict';
+
+    // -------------------------
+    // Minimal modal infrastructure
+    // -------------------------
+    var overlayEl, modalEl, iframeEl, lastFocus;
+
+    function ensureModal() {
+        if (overlayEl) return;
+
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'll-quiz-overlay';
+        overlayEl.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:999999;';
+
+        modalEl = document.createElement('div');
+        modalEl.className = 'll-quiz-modal';
+        modalEl.style.cssText = 'background:#111;color:#eee;width:min(1200px,95vw);height:min(800px,90vh);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);box-shadow:0 10px 40px rgba(0,0,0,.4);';
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.1);';
+        var title = document.createElement('div');
+        title.id = 'll-quiz-modal-title';
+        title.textContent = 'Quiz';
+        title.style.cssText = 'font-weight:600';
+        var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '✕';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.style.cssText = 'border:0;background:transparent;color:#eee;font-size:18px;cursor:pointer;padding:6px 8px;';
+        closeBtn.addEventListener('click', closeModal);
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+
+        iframeEl = document.createElement('iframe');
+        iframeEl.className = 'll-quiz-iframe';
+        iframeEl.setAttribute('loading', 'eager');
+        iframeEl.setAttribute('title', 'Quiz Content');
+        iframeEl.style.cssText = 'flex:1;width:100%;border:0;background:#000;';
+
+        modalEl.appendChild(header);
+        modalEl.appendChild(iframeEl);
+        overlayEl.appendChild(modalEl);
+
+        overlayEl.addEventListener('click', function (e) {
+            if (e.target === overlayEl) closeModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlayEl && overlayEl.parentNode) closeModal();
+        });
     }
 
-    // Only install our forwarder if a different implementation isn't already present
-    if (
-        typeof window.initFlashcardWidget !== "function" ||
-        String(window.initFlashcardWidget).indexOf("startWidget") === -1
-    ) {
-        window.initFlashcardWidget = startWidget;
+    function openModal(url, titleTxt) {
+        ensureModal();
+        lastFocus = document.activeElement;
+        iframeEl.src = url;
+        var titleEl = modalEl.querySelector('#ll-quiz-modal-title');
+        if (titleEl) titleEl.textContent = titleTxt || 'Quiz';
+        document.body.appendChild(overlayEl);
+        modalEl.setAttribute('tabindex', '-1');
+        modalEl.focus({ preventScroll: true });
     }
-})();
 
-// Small helper to read categories localized by PHP for the popup grid
-function llSelectedCategoriesFromLocalization() {
-    var d = window.llToolsFlashcardsData;
-    return d && Array.isArray(d.categories)
-        ? d.categories.map(function (c) {
-            return c.name;
-        })
-        : [];
-}
+    function closeModal() {
+        if (!overlayEl) return;
+        if (overlayEl.parentNode) overlayEl.parentNode.removeChild(overlayEl);
+        if (iframeEl) iframeEl.src = 'about:blank';
+        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
 
-// Non-popup (iframe) quality-of-life: manage loader + ensure VH
-document.addEventListener("DOMContentLoaded", function () {
-    var wrappers = document.querySelectorAll(".ll-tools-quiz-iframe-wrapper");
-    wrappers.forEach(function (wrapper) {
-        var iframe = wrapper.querySelector(".ll-tools-quiz-iframe");
-        var loader = wrapper.querySelector(".ll-tools-iframe-loading");
-        if (!iframe || !loader) return;
+    // -------------------------
+    // URL building fallback
+    // -------------------------
+    function buildFallbackUrl(catName) {
+        var basePath = '/quiz';
+        var sep = basePath.indexOf('?') === -1 ? '?' : '&';
+        return basePath + sep + 'category=' + encodeURIComponent(catName || '');
+    }
 
-        function hide() {
-            loader.style.display = "none";
-        }
-        iframe.addEventListener("load", hide);
-        iframe.addEventListener("error", hide);
-        setTimeout(hide, 3000);
+    // -------------------------
+    // Public API (global) — if absent
+    // -------------------------
+    if (typeof window.llOpenFlashcardForCategory !== 'function') {
+        window.llOpenFlashcardForCategory = function (catName, opts) {
+            // If a URL is provided via opts, prefer it; otherwise construct a fallback.
+            var url = (opts && opts.url) ? String(opts.url) : buildFallbackUrl(catName);
+            openModal(url, catName || 'Quiz');
+        };
+    }
+
+    // -------------------------
+    // Delegated click handler
+    // -------------------------
+    document.addEventListener('click', function (ev) {
+        var trigger = ev.target.closest('.ll-quiz-page-trigger,[data-ll-open-cat],[data-category]');
+        if (!trigger) return;
+
+        // Determine if this is meant to be a popup trigger:
+        // - has class ll-quiz-page-trigger, or
+        // - href is "#" / empty / javascript:
+        var href = (trigger.getAttribute('href') || '').trim();
+        var explicitPopup = trigger.classList.contains('ll-quiz-page-trigger');
+        var looksPopup = explicitPopup || !href || href === '#' || href.toLowerCase().startsWith('javascript:');
+        if (!looksPopup) return; // allow normal navigation for non-popup links
+
+        ev.preventDefault();
+
+        var cat = trigger.getAttribute('data-ll-open-cat') || trigger.getAttribute('data-category') || '';
+        var url = trigger.getAttribute('data-url'); // NEW: prefer real permalink if provided
+        var title = trigger.querySelector('.ll-quiz-page-name')?.textContent?.trim() || cat || 'Quiz';
 
         try {
-            var vh = (window.llQuizPages && parseInt(llQuizPages.vh, 10)) || 95;
-            iframe.style.height = vh + "vh";
-            iframe.style.minHeight = vh + "vh";
-            wrapper.style.minHeight = vh + "vh";
-        } catch (e) { }
-    });
-});
-
-// Popup entry point used by the quiz-pages grid
-// Exposed globally because the grid’s category tiles call it directly.
-window.llOpenFlashcardForCategory =
-    window.llOpenFlashcardForCategory ||
-    function (catName) {
-        if (!catName) return;
-
-        try {
-            // Ensure overlay DOM is visible if present
-            var container = document.getElementById("ll-tools-flashcard-container");
-            if (container) {
-                container.style.display = "block";
-            }
-            var popup = document.getElementById("ll-tools-flashcard-popup");
-            if (popup) {
-                popup.style.display = "block";
-            }
-            var quizPopup = document.getElementById("ll-tools-flashcard-quiz-popup");
-            if (quizPopup) {
-                quizPopup.style.display = "block";
-            }
-
-            // Some templates default the header to display:none; make sure it shows
-            var header = document.getElementById("ll-tools-flashcard-header");
-            if (header) header.style.display = "";
-
-            // Body class toggle for background scroll lock, etc.
-            if (document.body && document.body.classList) {
-                document.body.classList.add("ll-tools-flashcard-open");
-            }
-
-            // Kick off the new or legacy widget with the requested category
-            var hasNew =
-                window.LLFlashcards &&
-                window.LLFlashcards.Main &&
-                typeof window.LLFlashcards.Main.initFlashcardWidget === "function";
-            var hasLegacy = typeof window.initFlashcardWidget === "function";
-
-            // Prepare the categories array; fall back to whatever is localized
-            var cats = [catName];
-            if (!catName && hasNew) {
-                cats = llSelectedCategoriesFromLocalization();
-            }
-
-            if (hasNew) {
-                window.LLFlashcards.Main.initFlashcardWidget(cats);
-            } else if (hasLegacy) {
-                window.initFlashcardWidget(cats);
-            }
-
-            // Optional: temporarily lock clicks until audio has started a bit
-            try {
-                var $ = window.jQuery;
-                if ($) {
-                    $("#ll-tools-flashcard").css("pointer-events", "none");
-                    var obs = new MutationObserver(function (_, observer) {
-                        var audio = document.querySelector("#ll-tools-flashcard audio");
-                        if (!audio) return;
-                        observer.disconnect();
-                        function onTU() {
-                            if (this.currentTime > 0.4) {
-                                $("#ll-tools-flashcard").css("pointer-events", "auto");
-                                audio.removeEventListener("timeupdate", onTU);
-                            }
-                        }
-                        audio.addEventListener("timeupdate", onTU);
-                    });
-                    obs.observe(document.getElementById("ll-tools-flashcard"), {
-                        childList: true,
-                        subtree: true,
-                    });
-                }
-            } catch (_) { }
+            // If some other script replaced the global with a custom one, still call it:
+            window.llOpenFlashcardForCategory(cat, { url: url });
         } catch (e) {
-            // Swallow errors to avoid breaking the page UI in case of theme conflicts
-            // but still log for debugging.
-            try {
-                console.error("llOpenFlashcardForCategory error:", e);
-            } catch (_) { }
+            // Ultimate fallback: navigate
+            window.location.href = url || buildFallbackUrl(cat);
         }
-    };
+    }, false);
+
+})();
