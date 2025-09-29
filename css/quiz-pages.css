@@ -42,3 +42,17 @@
         transform: translateX(-50%) rotate(360deg);
     }
 }
+
+/* Center the quiz block within the theme's content area */
+.ll-tools-quiz-wrapper,
+.ll-tools-quiz-iframe-wrapper {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Ensure iframe stretches to container width */
+.ll-tools-quiz-iframe {
+    display: block;
+    width: 100%;
+}

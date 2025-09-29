@@ -202,47 +202,48 @@ function ll_qpg_print_flashcard_shell_once() {
     $printed = true;
     ?>
     <div id="ll-tools-flashcard-container" style="display:none;">
-        <div id="ll-tools-flashcard-popup" style="display:none;">
-            <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+      <div id="ll-tools-flashcard-popup" style="display:none;">
+        <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
 
-                <div id="ll-tools-flashcard-header" class="ll-tools-category-stack">
-                    <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
-                    <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php esc_attr_e('Repeat', 'll-tools-text-domain'); ?>">
-                        <span class="icon-container"><img alt="" /></span>
-                    </button>
-                    <div id="ll-tools-loading-animation" class="ll-tools-loading-animation"></div>
-                    <button id="ll-tools-close-flashcard" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">&times;</button>
-                </div>
+          <div id="ll-tools-flashcard-header" class="ll-tools-category-stack" style="display:none;">
+            <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
+            <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Repeat', 'll-tools-text-domain'); ?>">
+              <span class="icon-container"><img alt="" /></span>
+            </button>
+            <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
+            <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
+          </div>
 
-                <div id="ll-tools-flashcard-content">
-                    <div id="ll-tools-flashcard"></div>
-                    <audio controls class="hidden"></audio>
-                </div>
+          <div id="ll-tools-flashcard-content">
+            <div id="ll-tools-flashcard"></div>
+            <audio controls class="hidden"></audio>
+          </div>
 
-                <div id="quiz-results" style="display:none;">
-                    <h2 id="quiz-results-title"><?php esc_html_e('Quiz Results', 'll-tools-text-domain'); ?></h2>
-                    <p id="quiz-results-message" style="display:none;"></p>
-                    <p><strong><?php esc_html_e('Correct:', 'll-tools-text-domain'); ?></strong>
-                        <span id="correct-count">0</span> / <span id="total-questions">0</span></p>
-                    <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
-                    <button id="restart-quiz" class="quiz-button" style="display:none;">
-                        <?php esc_html_e('Restart Quiz', 'll-tools-text-domain'); ?>
-                    </button>
-                </div>
+          <div id="quiz-results" style="display:none;">
+            <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
+            <p id="quiz-results-message" style="display:none;"></p>
+            <p><strong><?php echo esc_html__('Correct:', 'll-tools-text-domain'); ?></strong>
+              <span id="correct-count">0</span> / <span id="total-questions">0</span>
+            </p>
+            <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
+            <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
+          </div>
 
-            </div>
         </div>
+      </div>
     </div>
+
     <script>
     (function($){
-        window.llOpenFlashcardForCategory = function(catName){
-            if (!catName) return;
-            $('#ll-tools-flashcard-container').show();
-            $('#ll-tools-flashcard-popup').show();
-            $('#ll-tools-flashcard-quiz-popup').show();
-            $('body').addClass('ll-tools-flashcard-open');
-            try { initFlashcardWidget([catName]); } catch (e) { console.error('initFlashcardWidget failed', e); }
-        };
+      // Called by the grid link: onclick="llOpenFlashcardForCategory('...')"
+      window.llOpenFlashcardForCategory = function(catName){
+        if (!catName) return;
+        $('#ll-tools-flashcard-container').show();
+        $('#ll-tools-flashcard-popup').show();
+        $('#ll-tools-flashcard-quiz-popup').show();
+        $('body').addClass('ll-tools-flashcard-open');
+        try { initFlashcardWidget([catName]); } catch (e) { console.error('initFlashcardWidget failed', e); }
+      };
     })(jQuery);
     </script>
     <?php

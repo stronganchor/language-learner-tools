@@ -260,27 +260,22 @@ add_filter('the_title', function ($title, $post_id) {
 
 /** Enqueue assets (JS always for popup safety; CSS only on quiz pages) */
 function ll_qp_enqueue_assets() {
-    // enqueue CSS only when actually inside a quiz page
-    if (is_singular() && has_shortcode(get_post()->post_content, 'flashcard_widget')) {
-        wp_enqueue_style(
-            'll-quiz-pages-css',
-            plugins_url('css/quiz-pages.css', LL_TOOLS_MAIN_FILE),
-            [],
-            null
-        );
+    if (is_admin()) return;
+
+    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
+
+    // Base JS for both grid and quiz pages
+    wp_enqueue_script('ll-quiz-pages-js', plugins_url('js/quiz-pages.js', LL_TOOLS_MAIN_FILE), [], null, true);
+
+    // Localize unconditionally so llQuizPages.vh is always present
+    wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
+        'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
+    ]);
+
+    // Only quiz pages need the iframe CSS
+    if ($is_quiz_ctx) {
+        wp_enqueue_style('ll-quiz-pages-css', plugins_url('css/quiz-pages.css', LL_TOOLS_MAIN_FILE), [], null);
     }
-
-    // JS is needed on grid pages for popup mode as well
-    ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', ['jquery'], true);
-
-    // ✅ ALWAYS print the config object, even when not a single quiz page
-    wp_localize_script(
-        'll-quiz-pages-js',
-        'llQuizPages',
-        [
-            'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
-        ]
-    );
 }
 add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
 
