@@ -19,23 +19,20 @@ function ll_register_audio_image_matcher_admin_page() {
 add_action('admin_menu', 'll_register_audio_image_matcher_admin_page');
 
 /**
- * Enqueue JS (cache-busted) on our page
+ * Enqueue admin assets (CSS + JS) for the Audio/Image Matcher
  */
 function ll_aim_enqueue_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-image-matcher') return;
-    if (function_exists('ll_enqueue_asset_by_timestamp')) {
-        ll_enqueue_asset_by_timestamp('/js/audio-image-matcher.js', 'll-audio-image-matcher', ['jquery'], true);
-    } else {
-        wp_enqueue_script(
-            'll-audio-image-matcher',
-            plugins_url('../../js/audio-image-matcher.js', __FILE__),
-            ['jquery'],
-            filemtime(plugin_dir_path(__FILE__) . '../../js/audio-image-matcher.js'),
-            true
-        );
-    }
+
+    ll_enqueue_asset_by_timestamp('/assets/css/audio-image-matcher.css', 'll-aim-admin-css', [], false);
+    ll_enqueue_asset_by_timestamp('/js/audio-image-matcher.js', 'll-audio-image-matcher', ['jquery'], true);
+
     // Ensure ajaxurl exists
-    wp_add_inline_script('ll-audio-image-matcher', 'window.ajaxurl = window.ajaxurl || "'.admin_url('admin-ajax.php').'";', 'before');
+    wp_add_inline_script(
+        'll-audio-image-matcher',
+        'window.ajaxurl = window.ajaxurl || "'.esc_js(admin_url('admin-ajax.php')).'";',
+        'before'
+    );
 }
 add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
 
@@ -50,63 +47,14 @@ function ll_render_audio_image_matcher_page() {
 
     $pre_term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $pre_rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
-    ?>
-    <div class="wrap">
-        <h1>Audio ↔ Image Matcher</h1>
-        <p>Select a category, then click <em>Start Matching</em>. In <strong>Rematch mode</strong>, already-matched words are included and picking an image will replace the current featured image.</p>
 
-        <div id="ll-aim-controls" style="margin:16px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
-            <label for="ll-aim-category"><strong>Category:</strong></label>
-            <select id="ll-aim-category">
-                <option value="">— Select —</option>
-                <?php foreach ($cats as $t): ?>
-                    <option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($pre_term_id, $t->term_id); ?>>
-                        <?php echo esc_html($t->name . ' ('.$t->slug.')'); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-
-            <label style="display:flex; align-items:center; gap:6px;">
-                <input type="checkbox" id="ll-aim-rematch" <?php checked($pre_rematch, true); ?> />
-                Rematch mode (include already-matched words)
-            </label>
-
-            <button class="button button-primary" id="ll-aim-start">Start Matching</button>
-            <button class="button" id="ll-aim-skip" disabled>Skip</button>
-        </div>
-
-        <div id="ll-aim-stage" style="display:none;">
-            <div id="ll-aim-current" style="margin-bottom:12px;">
-                <h2 id="ll-aim-word-title" style="margin:8px 0;">&nbsp;</h2>
-                <audio id="ll-aim-audio" controls preload="auto" style="max-width:520px; display:block;"></audio>
-                <p id="ll-aim-extra" style="color:#666; margin:6px 0 10px;"></p>
-
-                <div id="ll-aim-current-thumb" style="display:none; max-width:520px;">
-                    <img src="" alt="" style="width:100%; height:auto; border:1px solid #ddd; border-radius:8px;">
-                    <div class="ll-aim-cap" style="font-size:.9rem; color:#555; margin-top:6px;"></div>
-                </div>
-            </div>
-
-            <div id="ll-aim-images" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:12px;"></div>
-
-            <div id="ll-aim-status" style="margin-top:14px; color:#444;"></div>
-        </div>
-
-        <style>
-            .ll-aim-card {
-                border:1px solid #ddd; border-radius:10px; padding:8px; background:#fff;
-                display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;
-                box-shadow:0 2px 6px rgba(0,0,0,.05);
-                transition:transform .08s ease, box-shadow .08s ease;
-                text-align:center;
-            }
-            .ll-aim-card:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,0,0,.10); }
-            .ll-aim-card img { width:100%; height:120px; object-fit:cover; border-radius:8px; }
-            .ll-aim-title { font-size:.92rem; font-weight:600; line-height:1.2; }
-            .ll-aim-small { font-size:.8rem; color:#777; }
-        </style>
-    </div>
-    <?php
+    // Include template
+    $template = LL_TOOLS_BASE_PATH . '/templates/audio-image-matcher.php';
+    if (file_exists($template)) {
+        include $template; // expects $cats, $pre_term_id, $pre_rematch in scope
+    } else {
+        echo '<div class="notice notice-error"><p>Template not found: <code>/templates/audio-image-matcher.php</code></p></div>';
+    }
 }
 
 /**
@@ -268,10 +216,19 @@ function ll_aim_term_has_posttype($term_id, $post_type) {
 }
 
 function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
-    if (wp_is_post_revision($post_id) || $post->post_type !== 'words') return;
+    if ($post->post_type !== 'words') return;
+    if (wp_is_post_revision($post_id)) return;
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+
+    // If the post is being trashed/deleted or is an auto-draft/inherit, skip queuing
+    $status = get_post_status($post_id);
+    if (in_array($status, ['trash','auto-draft','inherit'], true)) return;
+
+    // Must actually have audio to match
     $audio = get_post_meta($post_id, 'word_audio_file', true);
     if (!$audio) return;
 
+    // Require at least one relevant image in the same category
     $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (empty($terms)) return;
 
@@ -279,7 +236,7 @@ function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
         if (ll_aim_term_has_posttype($tid, 'word_images')) {
             if (is_user_logged_in()) {
                 $key = 'll_aim_autolaunch_' . get_current_user_id();
-                set_transient($key, intval($tid), 120);
+                set_transient($key, (int) $tid, 120);
             }
             break;
         }
@@ -288,12 +245,19 @@ function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
 add_action('save_post', 'll_aim_maybe_queue_autolaunch_on_words_save', 10, 3);
 
 function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) {
-    if (wp_is_post_revision($post_id) || $post->post_type !== 'word_images') return;
+    if ($post->post_type !== 'word_images') return;
+    if (wp_is_post_revision($post_id)) return;
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+
+    // Skip while trashing/auto-drafts to avoid false positives during delete flows
+    $status = get_post_status($post_id);
+    if (in_array($status, ['trash','auto-draft','inherit'], true)) return;
 
     $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (empty($terms)) return;
 
     foreach ($terms as $tid) {
+        // Only queue if there’s at least one word in that category that has audio
         $q = new WP_Query([
             'post_type'      => 'words',
             'posts_per_page' => 1,
@@ -312,7 +276,7 @@ function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) 
         if ($has_words_with_audio) {
             if (is_user_logged_in()) {
                 $key = 'll_aim_autolaunch_' . get_current_user_id();
-                set_transient($key, intval($tid), 120);
+                set_transient($key, (int) $tid, 120);
             }
             break;
         }
