@@ -42,25 +42,25 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { }
     });
 });
-// Fallback global in case the footer helper isn't printed (popup mode off)
-window.llOpenFlashcardForCategory = window.llOpenFlashcardForCategory || function (catName) {
-    if (!catName) return;
+// Fallback in case inline helper script failed to print
+window.llOpenFlashcardForCategory = window.llOpenFlashcardForCategory || function (cat) {
+    if (!cat) return;
     try {
-        // ensure overlay is visible if the shell exists
-        var container = document.getElementById('ll-tools-flashcard-container');
-        if (container) {
-            container.style.display = 'block';
-            var p1 = document.getElementById('ll-tools-flashcard-popup');
-            var p2 = document.getElementById('ll-tools-flashcard-quiz-popup');
-            if (p1) p1.style.display = 'block';
-            if (p2) p2.style.display = 'block';
-            document.body.classList.add('ll-tools-flashcard-open');
-        }
-        // new or legacy init
+        const c = document.getElementById('ll-tools-flashcard-container');
+        if (c) c.style.display = 'block';
+        const p1 = document.getElementById('ll-tools-flashcard-popup');
+        const p2 = document.getElementById('ll-tools-flashcard-quiz-popup');
+        if (p1) p1.style.display = 'block';
+        if (p2) p2.style.display = 'block';
+        document.body.classList.add('ll-tools-flashcard-open');
+
         if (window.LLFlashcards?.Main?.initFlashcardWidget) {
-            LLFlashcards.Main.initFlashcardWidget([catName]);
+            LLFlashcards.Main.initFlashcardWidget([cat]);
         } else if (typeof window.initFlashcardWidget === 'function') {
-            window.initFlashcardWidget([catName]);
+            window.initFlashcardWidget([cat]);
         }
-    } catch (e) { console.error('llOpenFlashcardForCategory failed', e); }
+    } catch (e) {
+        console.error('llOpenFlashcardForCategory fallback error', e);
+    }
 };
+
