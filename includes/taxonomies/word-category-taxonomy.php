@@ -565,33 +565,58 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
 /**
  * Determines if a category can generate a valid quiz.
  *
- * @param WP_Term|int $category The category term object or term ID.
- * @param int $min_word_count The minimum number of words required.
- * @return bool True if the category can generate a quiz, false otherwise.
+ * A quiz is viable if either:
+ *  - there are >= $min_word_count "words" in the term (text mode), OR
+ *  - there are >= $min_word_count "words" in the term with a featured image (image mode).
+ *
+ * @param WP_Term|int $category
+ * @param int         $min_word_count
+ * @return bool
  */
 function ll_can_category_generate_quiz($category, $min_word_count = 5) {
-    // Get the term object if we received an ID
-    if (is_numeric($category)) {
-        $term = get_term($category, 'word-category');
-        if (!$term || is_wp_error($term)) {
-            return false;
-        }
-    } else {
-        $term = $category;
+    // Normalize to term
+    $term = is_numeric($category)
+        ? get_term((int)$category, 'word-category')
+        : $category;
+
+    if (!$term || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return false;
     }
 
-    // If this category is set to "match audio to titles", check text mode specifically
-    $use_titles = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
-    if ($use_titles) {
-        // Check if there are enough words for text mode
-        $text_count = count(ll_get_words_by_category($term->name, 'text'));
-        return $text_count >= $min_word_count;
+    // TEXT MODE: count words in this term (ID-based, not name-based)
+    $q_text = new WP_Query([
+        'post_type'      => 'words',
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => [$term->term_id],
+        ]],
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ]);
+    $text_count = (int) $q_text->found_posts;
+    wp_reset_postdata();
+
+    if ($text_count >= $min_word_count) {
+        return true;
     }
 
-    // Otherwise, use the same logic as ll_determine_display_mode
-    $image_count = count(ll_get_words_by_category($term->name, 'image'));
-    $text_count = count(ll_get_words_by_category($term->name, 'text'));
+    // IMAGE MODE: words in term that have a featured image
+    $q_image = new WP_Query([
+        'post_type'      => 'words',
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => [$term->term_id],
+        ]],
+        'meta_query'     => [[ 'key' => '_thumbnail_id', 'compare' => 'EXISTS' ]],
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ]);
+    $image_count = (int) $q_image->found_posts;
+    wp_reset_postdata();
 
-    // If both image and text counts are below the minimum, can't generate quiz
-    return !($image_count < $min_word_count && $text_count < $min_word_count);
+    return ($image_count >= $min_word_count);
 }
