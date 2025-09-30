@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 3.3.0
+Version: 3.3.1
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -29,16 +29,19 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 );
 $myUpdateChecker->setBranch('main');
 
-
-/**
- * Adds the 'view_ll_tools' capability to the Administrator role on plugin activation.
- */
+// Actions to take on plugin activation
 register_activation_hook(__FILE__, function () {
+    // Add 'view_ll_tools' capability to administrator role
     $role = get_role('administrator');
     if ($role && !$role->has_cap('view_ll_tools')) {
         $role->add_cap('view_ll_tools');
     }
+    // Flag post-activation tasks to run on the next init (after taxonomies are available).
+    set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
 });
+
+// Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).
+add_action('init', 'll_tools_maybe_seed_default_wordset_and_assign', 20);
 
 add_action('admin_init', function () {
     if (current_user_can('manage_options')) {

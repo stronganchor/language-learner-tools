@@ -243,3 +243,69 @@ function ll_tools_get_active_wordset_id($explicit = 0): int {
     }
     return 0;
 }
+
+/**
+ * On first request after activation:
+ *  - Ensure at least one 'wordset' term exists (create "Default Word Set" if none).
+ *  - If exactly one wordset exists, assign it to all 'words' posts that have none.
+ */
+function ll_tools_maybe_seed_default_wordset_and_assign() {
+    // Only run if activation set the transient.
+    if (!get_transient('ll_tools_seed_default_wordset')) {
+        return;
+    }
+    delete_transient('ll_tools_seed_default_wordset');
+
+    // Safety: make sure taxonomy/post type exist.
+    if (!taxonomy_exists('wordset') || !post_type_exists('words')) {
+        return;
+    }
+
+    // Collect existing wordset terms.
+    $term_ids = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+    ]);
+    if (is_wp_error($term_ids)) {
+        return;
+    }
+
+    // If none, create "Default Word Set".
+    if (empty($term_ids)) {
+        $created = wp_insert_term(
+            __('Default Word Set', 'll-tools-text-domain'),
+            'wordset',
+            ['slug' => 'default-word-set']
+        );
+        if (is_wp_error($created) || !isset($created['term_id'])) {
+            return; // Couldn’t create; bail quietly.
+        }
+        $term_ids = [(int) $created['term_id']];
+    }
+
+    // Only auto-assign when exactly one wordset exists.
+    if (count($term_ids) !== 1) {
+        return;
+    }
+    $the_only_wordset_id = (int) array_values($term_ids)[0];
+
+    // Find all "words" posts with no wordset term.
+    $orphans = new WP_Query([
+        'post_type'      => 'words',
+        'post_status'    => 'any',
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'tax_query'      => [[
+            'taxonomy' => 'wordset',
+            'operator' => 'NOT EXISTS',
+        ]],
+    ]);
+
+    if (!is_wp_error($orphans) && !empty($orphans->posts)) {
+        foreach ($orphans->posts as $post_id) {
+            wp_set_object_terms((int) $post_id, $the_only_wordset_id, 'wordset', false);
+        }
+    }
+}
