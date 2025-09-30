@@ -229,46 +229,48 @@ function ll_render_words_columns($column, $post_id) {
     switch ($column) {
         case 'word_categories':
             $categories = get_the_terms($post_id, 'word-category');
-            if ($categories) {
-                $category_names = array();
+            if ($categories && !is_wp_error($categories)) {
+                $names = array();
                 foreach ($categories as $category) {
-                    $category_names[] = $category->name;
+                    $names[] = $category->name;
                 }
-                echo implode(', ', $category_names);
+                echo implode(', ', $names);
             } else {
-                echo '-';
+                echo '—';
             }
             break;
+
         case 'featured_image':
             $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
-            if ($thumbnail) {
-                echo $thumbnail;
-            } else {
-                echo '-';
-            }
+            echo $thumbnail ? $thumbnail : '—';
             break;
+
         case 'audio_file':
             $audio_file = get_post_meta($post_id, 'word_audio_file', true);
-            if ($audio_file) {
-                echo basename($audio_file);
-            } else {
-                echo '-';
-            }
+            echo $audio_file ? basename($audio_file) : '—';
             break;
+
         case 'translation':
             $translation = get_post_meta($post_id, 'word_english_meaning', true);
-            if ($translation) {
-                echo $translation;
-            } else {
-                echo '-';
-            }
+            echo $translation ? $translation : '—';
             break;
+
         case 'wordset':
-            $wordset = get_post_meta($post_id, 'wordset', true);
-            if ($wordset) {
-                echo $wordset;
+            // Show assigned taxonomy term names (not the legacy meta ID)
+            $terms = get_the_terms($post_id, 'wordset');
+            if ($terms && !is_wp_error($terms)) {
+                $links = array();
+                foreach ($terms as $t) {
+                    // Link to filter the list by this wordset
+                    $url = add_query_arg(
+                        array('post_type' => 'words', 'wordset' => $t->slug),
+                        admin_url('edit.php')
+                    );
+                    $links[] = '<a href="' . esc_url($url) . '">' . esc_html($t->name) . '</a>';
+                }
+                echo implode(', ', $links);
             } else {
-                echo '-';
+                echo '—';
             }
             break;
     }
@@ -329,49 +331,56 @@ function ll_add_words_filters() {
 // Apply the selected filters to the query
 function ll_apply_words_filters($query) {
     global $pagenow;
-    if (is_admin() && $pagenow === 'edit.php' && isset($_GET['post_type']) && $_GET['post_type'] === 'words') {
-        // Filter by category
-        if (isset($_GET['word_category']) && !empty($_GET['word_category'])) {
-            $query->query_vars['tax_query'] = array(
-                array(
-                    'taxonomy' => 'word-category',
-                    'field'    => 'term_id',
-                    'terms'    => $_GET['word_category'],
-                ),
-            );
-        }
 
-        // Filter by word set
-        if (isset($_GET['wordset']) && !empty($_GET['wordset'])) {
-            $query->query_vars['meta_query'] = array(
-                array(
-                    'key'   => 'wordset',
-                    'value' => $_GET['wordset'],
-                ),
-            );
-        }
+    if (!is_admin() || $pagenow !== 'edit.php' || empty($_GET['post_type']) || $_GET['post_type'] !== 'words') {
+        return;
+    }
 
-        // Filter by featured image
-        if (isset($_GET['has_image']) && !empty($_GET['has_image'])) {
-            $image_query = ($_GET['has_image'] === 'yes') ? 'EXISTS' : 'NOT EXISTS';
-            $query->query_vars['meta_query'] = array(
-                array(
-                    'key'     => '_thumbnail_id',
-                    'compare' => $image_query,
-                ),
-            );
-        }
+    // Build a combined tax_query so category + wordset can both apply
+    $tax_query = array();
 
-        // Sort by audio file
-        if (isset($_GET['orderby']) && $_GET['orderby'] === 'audio_file') {
-            $query->query_vars['meta_key'] = 'word_audio_file';
-            $query->query_vars['orderby']  = 'meta_value';
-        }
+    // Filter by category (term_id)
+    if (!empty($_GET['word_category'])) {
+        $tax_query[] = array(
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => (int) $_GET['word_category'],
+        );
+    }
 
-        // Sort by translation
-        if (isset($_GET['orderby']) && $_GET['orderby'] === 'translation') {
-            $query->query_vars['meta_key'] = 'word_english_meaning';
-            $query->query_vars['orderby']  = 'meta_value';
-        }
+    // Filter by word set (slug from the dropdown)
+    if (!empty($_GET['wordset'])) {
+        $tax_query[] = array(
+            'taxonomy' => 'wordset',
+            'field'    => 'slug',
+            'terms'    => sanitize_text_field($_GET['wordset']),
+        );
+    }
+
+    if (!empty($tax_query)) {
+        $query->set('tax_query', $tax_query);
+    }
+
+    // Filter by featured image
+    if (!empty($_GET['has_image'])) {
+        $compare = ($_GET['has_image'] === 'yes') ? 'EXISTS' : 'NOT EXISTS';
+        $query->set('meta_query', array(
+            array(
+                'key'     => '_thumbnail_id',
+                'compare' => $compare,
+            ),
+        ));
+    }
+
+    // Sort by audio file
+    if (!empty($_GET['orderby']) && $_GET['orderby'] === 'audio_file') {
+        $query->set('meta_key', 'word_audio_file');
+        $query->set('orderby', 'meta_value');
+    }
+
+    // Sort by translation
+    if (!empty($_GET['orderby']) && $_GET['orderby'] === 'translation') {
+        $query->set('meta_key', 'word_english_meaning');
+        $query->set('orderby', 'meta_value');
     }
 }
