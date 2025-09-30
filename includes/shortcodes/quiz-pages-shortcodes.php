@@ -225,11 +225,77 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
         $categories = ll_process_categories($all_terms, $use_translations);
     }
 
+    // Ensure flashcard assets + data are present
     $atts = ['mode' => 'random'];
     ll_flashcards_enqueue_and_localize($atts, $categories, false, [], '');
 
+    // Ensure the popup shell is printed late in the page
     add_action('wp_footer', 'll_qpg_print_flashcard_shell_once');
+
+    // Keep the overlay above anything (incl. WP admin bar)
+    echo '<style id="ll-qpg-popup-zfix">
+      #ll-tools-flashcard-container,
+      #ll-tools-flashcard-popup,
+      #ll-tools-flashcard-quiz-popup{position:fixed;inset:0;z-index:999999}
+      #ll-tools-flashcard-content{height:100%;overflow:auto}
+    </style>';
+
+    // Robust delegated click binding:
+    //  - Works with or without jQuery
+    //  - Prevents href="#" navigation
+    ?>
+    <script>
+    (function(){
+      function openFromAnchor(a){
+        var cat = a.getAttribute('data-category') || '';
+        if (!cat) return;
+        if (typeof window.llOpenFlashcardForCategory === 'function') {
+          window.llOpenFlashcardForCategory(cat);
+        } else {
+          console.error('llOpenFlashcardForCategory not found');
+        }
+      }
+
+      // Vanilla JS delegation
+      function vanillaBind(){
+        document.removeEventListener('click', vanillaHandler, true);
+        document.addEventListener('click', vanillaHandler, true);
+      }
+      function vanillaHandler(e){
+        var a = e.target.closest && e.target.closest('.ll-quiz-page-trigger');
+        if (!a) return;
+        e.preventDefault(); e.stopPropagation();
+        openFromAnchor(a);
+      }
+
+      // If jQuery exists, also bind via jQuery (nice to have)
+      function jqueryBind($){
+        $(document).off('click.llqpg', '.ll-quiz-page-trigger')
+                   .on('click.llqpg', '.ll-quiz-page-trigger', function(ev){
+                      ev.preventDefault(); ev.stopPropagation();
+                      openFromAnchor(this);
+                   });
+        $(document).off('keydown.llqpg', '.ll-quiz-page-trigger')
+                   .on('keydown.llqpg', '.ll-quiz-page-trigger', function(ev){
+                      if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); $(this).trigger('click'); }
+                   });
+      }
+
+      function init(){
+        vanillaBind();
+        if (window.jQuery) { jqueryBind(window.jQuery); }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+    </script>
+    <?php
 }
+
 
 /** Prints the flashcard overlay DOM (same IDs the widget expects) once. */
 function ll_qpg_print_flashcard_shell_once() {
