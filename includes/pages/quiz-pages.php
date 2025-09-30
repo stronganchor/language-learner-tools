@@ -18,40 +18,52 @@ function ll_qp_is_quiz_page_context() : bool {
     return $post ? (bool) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : false;
 }
 
-/** Ensure the parent "/quiz" page exists and return its ID */
+/**
+ * Ensure the parent "/quiz" page exists and return its ID.
+ * If a page with slug "quiz" is in the Trash, automatically restore it
+ * (so we never end up with /quiz-2, /quiz-3 duplicates).
+ */
 function ll_tools_get_or_create_quiz_parent_page() {
-    $parent_slug = sanitize_title(apply_filters('ll_tools_quiz_parent_slug', 'quiz'));
+    $parent_slug = sanitize_title( apply_filters( 'll_tools_quiz_parent_slug', 'quiz' ) );
 
-    // Try exact root-level page by slug
-    $parent = get_page_by_path($parent_slug);
-    if ($parent instanceof WP_Post && $parent->post_type === 'page') {
+    // 1) Any non-trashed match?
+    $parent = get_page_by_path( $parent_slug );
+    if ( $parent instanceof WP_Post && $parent->post_type === 'page' ) {
         return (int) $parent->ID;
     }
 
-    // Strict root-level lookup
-    $candidates = get_posts([
+    // 2) Specifically look *inside* the trash.
+    $trashed = get_posts( [
         'name'        => $parent_slug,
         'post_type'   => 'page',
-        'post_status' => ['publish','draft','pending','private'],
+        'post_status' => 'trash',
         'numberposts' => 1,
         'post_parent' => 0,
         'fields'      => 'all',
-    ]);
-    if (!empty($candidates) && $candidates[0] instanceof WP_Post) {
-        return (int) $candidates[0]->ID;
+    ] );
+    if ( $trashed ) {
+        // Un-trash it and return the ID
+        $trashed_id = (int) $trashed[0]->ID;
+        wp_untrash_post( $trashed_id );
+        wp_update_post( [
+            'ID'         => $trashed_id,
+            'post_name'  => $parent_slug, // ensure slug is correct
+            'post_status'=> 'publish',
+        ] );
+        return $trashed_id;
     }
 
-    // Create it if missing
-    $parent_id = wp_insert_post([
-        'post_title'   => ucfirst($parent_slug),
+    // 3) Last resort – create a fresh one.
+    $parent_id = wp_insert_post( [
+        'post_title'   => ucfirst( $parent_slug ),
         'post_name'    => $parent_slug,
         'post_content' => '',
         'post_status'  => 'publish',
         'post_type'    => 'page',
         'post_parent'  => 0,
-    ], true);
+    ], true );
 
-    return is_wp_error($parent_id) ? 0 : (int) $parent_id;
+    return is_wp_error( $parent_id ) ? 0 : (int) $parent_id;
 }
 
 /** Build HTML via template */
