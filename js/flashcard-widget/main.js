@@ -88,6 +88,12 @@
     }
 
     function initFlashcardWidget(selectedCategories) {
+        // Guard: bail out if one instance is already active
+        if (State.widgetActive) {
+            return;
+        }
+        State.widgetActive = true;
+
         // Always start from a clean slate: hide any stale results UI
         if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
             root.LLFlashcards.Results.hideResults();

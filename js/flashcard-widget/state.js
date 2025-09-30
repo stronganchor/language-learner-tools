@@ -5,6 +5,7 @@
         DEFAULT_DISPLAY_MODE: 'image',
 
         // dynamic state
+        widgetActive: false,
         categoryNames: [],
         wordsByCategory: {},
         categoryRoundCount: {},
@@ -20,6 +21,7 @@
         quizResults: { correctOnFirstTry: 0, incorrect: [] },
 
         reset() {
+            this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
             this.wrongIndexes = [];
