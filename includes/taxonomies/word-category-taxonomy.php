@@ -269,18 +269,23 @@ function ll_get_category_depth($category_id, $depth = 0) {
 }
 
 /**
- * Retrieves words by category name.
+ * Retrieves words that belong to a category (and optionally to one word-set).
  *
- * @param string $category_name The name of the category.
- * @param string $display_mode  'image' or 'text'.
- * @return array An array of word data (id, title, image, audio, label, etc.).
+ * @param string       $category_name  The category’s name.
+ * @param string       $display_mode   'image' | 'text'.  Default 'image'.
+ * @param int|null|0   $wordset_id     >0  → restrict to that word-set
+ *                                      0  → ignore word-set (global)
+ *                                    null → use the site’s “active” word-set (if any)
+ * @return array                      Array of word data.
  */
-function ll_get_words_by_category($category_name, $display_mode = 'image') {
-    // Detect if "use_word_titles_for_audio" is set
-    $cat_term = get_term_by('name', $category_name, 'word-category');
-    $useTitlesMeta = false;
-    if ($cat_term) {
-        $useTitlesMeta = (get_term_meta($cat_term->term_id, 'use_word_titles_for_audio', true) === '1');
+function ll_get_words_by_category( $category_name,
+                                   $display_mode = 'image',
+                                   $wordset_id   = 0 ) {
+
+    /* ---------- figure out which word-set (if any) ---------- */
+    if ( $wordset_id === null ) {
+        // “null” means “whatever is currently active on the site”.
+        $wordset_id = ll_tools_get_active_wordset_id();
     }
 
     $tax_query = [
@@ -291,77 +296,51 @@ function ll_get_words_by_category($category_name, $display_mode = 'image') {
         ],
     ];
 
-    // Add wordset scoping
-    $active_wordset_id = ll_tools_get_active_wordset_id();
-    if ($active_wordset_id > 0) {
+    if ( $wordset_id > 0 ) {
         $tax_query[] = [
             'taxonomy' => 'wordset',
             'field'    => 'term_id',
-            'terms'    => [$active_wordset_id],
+            'terms'    => [ $wordset_id ],
         ];
     }
 
-    $args = [
+    /* ---------- mode-specific meta checks ---------- */
+    $cat_term   = get_term_by( 'name', $category_name, 'word-category' );
+    $use_titles = $cat_term && get_term_meta( $cat_term->term_id,
+                                             'use_word_titles_for_audio',
+                                             true ) === '1';
+
+    $meta_query = [];
+    if ( ! $use_titles ) {
+        $meta_query[] = ( $display_mode === 'image' )
+            ? [ 'key' => '_thumbnail_id',       'compare' => 'EXISTS' ]
+            : [ 'key' => 'word_english_meaning','compare' => 'EXISTS' ];
+    }
+
+    /* ---------- main query ---------- */
+    $q = new WP_Query( [
         'post_type'      => 'words',
         'posts_per_page' => -1,
         'tax_query'      => $tax_query,
-    ];
+        'meta_query'     => $meta_query,
+    ] );
 
-
-    if (!$useTitlesMeta) {
-        if ($display_mode === 'image') {
-            $args['meta_query'] = [
-                [
-                    'key'     => '_thumbnail_id',
-                    'compare' => 'EXISTS',
-                ],
-            ];
-        } else {
-            $args['meta_query'] = [
-                [
-                    'key'     => 'word_english_meaning',
-                    'compare' => 'EXISTS',
-                ],
-            ];
-        }
+    $out = [];
+    while ( $q->have_posts() ) {
+        $q->the_post();
+        $out[] = [
+            'id'    => get_the_ID(),
+            'title' => get_the_title(),
+            'image' => wp_get_attachment_url( get_post_thumbnail_id() ),
+            'audio' => get_post_meta( get_the_ID(), 'word_audio_file', true ),
+            'label' => $use_titles
+                        ? get_the_title()
+                        : get_post_meta( get_the_ID(), 'word_english_meaning', true ),
+        ];
     }
+    wp_reset_postdata();
 
-    $query = new WP_Query($args);
-    $words_data = [];
-
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-            $post_id = get_the_ID();
-
-            $deepest_categories      = ll_get_deepest_categories($post_id);
-            $deepest_category_names  = array_map(function($cat) { return $cat->name; }, $deepest_categories);
-
-            if (!in_array($category_name, $deepest_category_names, true)) {
-                continue;
-            }
-
-            if ($useTitlesMeta) {
-                $labelValue = get_the_title($post_id);
-            } else {
-                $labelValue = get_post_meta($post_id, 'word_english_meaning', true);
-            }
-
-            $words_data[] = [
-                'id'             => $post_id,
-                'title'          => get_the_title(),
-                'image'          => wp_get_attachment_url(get_post_thumbnail_id($post_id)),
-                'audio'          => get_post_meta($post_id, 'word_audio_file', true),
-                'similar_word_id'=> get_post_meta($post_id, 'similar_word_id', true),
-                'category'       => $category_name,
-                'all_categories' => $deepest_category_names,
-                'label'          => $labelValue,
-            ];
-        }
-        wp_reset_postdata();
-    }
-
-    return $words_data;
+    return $out;
 }
 
 /**
