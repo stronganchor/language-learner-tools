@@ -179,7 +179,13 @@
         await fetchNext();
     });
 
-    $skip.on('click', fetchNext);
+    $skip.on('click', async () => {
+        if (currentWord && currentWord.id) {
+            // ensure unique entries in excludeIds
+            if (!excludeIds.includes(currentWord.id)) excludeIds.push(currentWord.id);
+        }
+        await fetchNext();
+    });
 
     $catSel.on('change', () => {
         // Changing category invalidates cache
