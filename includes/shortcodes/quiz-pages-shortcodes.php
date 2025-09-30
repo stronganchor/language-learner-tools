@@ -39,101 +39,133 @@ function ll_tools_resolve_term_id_by_slug_name_or_id($taxonomy, $value) {
 }
 
 /**
- * Collect all word-category term IDs used by at least one published "words"
- * post in the given wordset (include ancestors).
+ * Resolve a wordset spec (slug/name/id) to one or more raw term_ids
+ * directly from the DB, ignoring language filters.
  */
-function ll_collect_word_category_ids_for_wordset($wordset_term_id) {
-    $found = [];
+function ll_raw_resolve_wordset_term_ids($spec) {
+    global $wpdb;
 
-    $q = new WP_Query([
-        'post_type'                 => 'words',
-        'post_status'               => 'publish',
-        'posts_per_page'            => -1,
-        'fields'                    => 'ids',
-        'no_found_rows'             => true,
-        'suppress_filters'          => true,  
-        'update_post_term_cache'    => false,
-        'update_post_meta_cache'    => false,
-        'perm'                      => 'readable',
-        'tax_query'                 => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [(int)$wordset_term_id],
-        ]],
-    ]);
-
-    foreach ((array) $q->posts as $post_id) {
-        $cats = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-        foreach ($cats as $cid) {
-            $found[$cid] = true;
-            // Also include ancestors so parent categories appear
-            $ancestors = get_ancestors($cid, 'word-category', 'taxonomy');
-            foreach ($ancestors as $aid) {
-                $found[$aid] = true;
-            }
-        }
+    if (is_numeric($spec)) {
+        $tid = (int) $spec;
+        if ($tid > 0) return [$tid];
+        return [];
     }
 
-    // No global post object was set with fields=ids, but be tidy anyway
-    wp_reset_postdata();
+    $spec = trim((string) $spec);
+    if ($spec === '') return [];
 
-    return array_map('intval', array_keys($found));
+    // 1) Exact slug match(es)
+    $sql_slug = $wpdb->prepare("
+        SELECT tt.term_id
+        FROM {$wpdb->term_taxonomy} tt
+        INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id
+        WHERE tt.taxonomy = %s AND t.slug = %s
+    ", 'wordset', $spec);
+    $ids = array_map('intval', (array) $wpdb->get_col($sql_slug));
+
+    // 2) If nothing found by slug, try exact name match
+    if (empty($ids)) {
+        $sql_name = $wpdb->prepare("
+            SELECT tt.term_id
+            FROM {$wpdb->term_taxonomy} tt
+            INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id
+            WHERE tt.taxonomy = %s AND t.name = %s
+        ", 'wordset', $spec);
+        $ids = array_map('intval', (array) $wpdb->get_col($sql_name));
+    }
+
+    return array_values(array_unique(array_filter($ids, function($v){ return $v > 0; })));
+}
+
+/**
+ * Collect all word-category IDs used by at least one published "words" post
+ * that belongs to ANY of the provided wordset term IDs. Uses direct SQL.
+ * Includes ancestor categories so parents appear.
+ */
+function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
+    global $wpdb;
+
+    $wordset_term_ids = array_values(array_unique(array_map('intval', $wordset_term_ids)));
+    $wordset_term_ids = array_filter($wordset_term_ids, function($v){ return $v > 0; });
+    if (empty($wordset_term_ids)) return [];
+
+    // Simple in-request cache
+    $cache_key = 'll_wcids_ws_' . md5(implode(',', $wordset_term_ids));
+    $cached = wp_cache_get($cache_key, 'll_tools');
+    if ($cached !== false) return $cached;
+
+    $placeholders = implode(',', array_fill(0, count($wordset_term_ids), '%d'));
+
+    $sql = $wpdb->prepare("
+        SELECT DISTINCT tt_cat.term_id
+        FROM {$wpdb->posts}                p
+        INNER JOIN {$wpdb->term_relationships} tr_ws  ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy}      tt_ws  ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+        INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy}      tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+        WHERE p.post_type   = %s
+          AND p.post_status = %s
+          AND tt_ws.taxonomy  = %s
+          AND tt_ws.term_id  IN ($placeholders)
+          AND tt_cat.taxonomy = %s
+    ", array_merge(['words','publish','wordset'], $wordset_term_ids, ['word-category']));
+
+    $cat_ids = array_map('intval', (array) $wpdb->get_col($sql));
+    if (empty($cat_ids)) {
+        wp_cache_set($cache_key, [], 'll_tools', HOUR_IN_SECONDS);
+        return [];
+    }
+
+    // Include ancestors so parents appear
+    $with_anc = [];
+    foreach ($cat_ids as $cid) {
+        $with_anc[$cid] = true;
+        foreach (get_ancestors($cid, 'word-category', 'taxonomy') as $aid) {
+            $with_anc[(int) $aid] = true;
+        }
+    }
+    $result = array_values(array_map('intval', array_keys($with_anc)));
+    wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);
+    return $result;
 }
 
 /**
  * Fetch all published quiz pages and return display data.
- * Optionally filter by a Word Set (only categories that actually have words in that set).
- *
- * @param array $opts e.g. ['wordset' => 'kurmanji']  (accepts id|slug|name)
- * @return array[] Each item: [
- *   'post_id'      => int,
- *   'permalink'    => string,
- *   'slug'         => string,
- *   'term_id'      => int,
- *   'name'         => string,   // original term name (UNTRANSLATED)
- *   'translation'  => string,   // translated term name (may be '')
- *   'display_name' => string,   // translation if available (and enabled), else name
- * ]
+ * Optional filter: $opts['wordset'] accepts slug/name/id of a WORDSET term.
+ * This version is DB-driven for the filter path so guest/admin see identical results.
  */
 function ll_get_all_quiz_pages_data($opts = []) {
+    // Load all quiz pages (public pages with a word-category meta)
     $pages = get_posts([
-        'post_type'      => 'page',
-        'post_status'    => 'publish',
+        'post_type'        => 'page',
+        'post_status'      => 'publish',
         'has_password'     => false,
-        'suppress_filters' => true,
         'no_found_rows'    => true,
-        'numberposts'    => -1,
-        'meta_key'       => '_ll_tools_word_category_id',
-        'fields'         => 'ids',
-        'orderby'        => 'title',
-        'order'          => 'ASC',
+        'suppress_filters' => true,
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'meta_key'         => '_ll_tools_word_category_id',
+        'orderby'          => 'title',
+        'order'            => 'ASC',
     ]);
     if (empty($pages)) return [];
 
-    $filter_term_id   = null;
     $allowed_term_ids = null;
 
     if (!empty($opts['wordset'])) {
-        $filter_term_id = ll_tools_resolve_term_id_by_slug_name_or_id('wordset', $opts['wordset']);
-        if ($filter_term_id) {
-            // Build a one-shot map of which word-category terms appear in this wordset
-            $allowed_term_ids = ll_collect_word_category_ids_for_wordset($filter_term_id);
-            // If nothing matches, short-circuit to empty
-            if (empty($allowed_term_ids)) return [];
-        } else {
-            // Invalid wordset spec -> return empty to avoid mixing sets
-            return [];
-        }
+        $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
+        if (empty($ws_ids)) return []; // nothing by that slug/name/id
+        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($ws_ids);
+        if (empty($allowed_term_ids)) return []; // no categories used by that wordset
     }
 
-    $enable_translation = get_option('ll_enable_category_translation', 0);
+    $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
 
     foreach ($pages as $post_id) {
         $term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
-        if (!$term_id) continue;
+        if ($term_id <= 0) continue;
 
-        // If a wordset filter is active, keep only categories present in that set
         if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true)) {
             continue;
         }
@@ -141,8 +173,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
         $term = get_term($term_id, 'word-category');
         if (!$term || is_wp_error($term)) continue;
 
-        $name = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
-
+        $name        = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
         $translation = '';
         if ($enable_translation) {
             $t = get_term_meta($term_id, 'term_translation', true);
@@ -160,10 +191,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
         ];
     }
 
-    // Natural alpha by display name, same as before.
     usort($items, function ($a, $b) {
         return strnatcasecmp($a['display_name'], $b['display_name']);
-    }); // based on existing sort approach. :contentReference[oaicite:1]{index=1}
+    });
 
     return $items;
 }
@@ -337,7 +367,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     return ob_get_clean();
 }
-add_shortcode('quiz_pages_grid', 'll_quiz_pages_grid_shortcode'); 
+add_shortcode('quiz_pages_grid', 'll_quiz_pages_grid_shortcode');
 
 /** ------------------------------------------------------------------
  * Shortcode: [quiz_pages_dropdown]
