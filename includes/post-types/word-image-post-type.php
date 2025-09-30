@@ -123,17 +123,13 @@ function ll_modify_word_images_admin_page() {
  * @return array Modified columns
  */
 function ll_modify_word_images_columns($columns) {
-    // We could unset unwanted ones, keep as you see fit:
-    // unset($columns['date']); // Example: if you want to remove the "Date" column
-
     // Insert our new columns after the 'title' column
     $new_columns = [];
     foreach ($columns as $col_key => $col_label) {
         $new_columns[$col_key] = $col_label;
         if ('title' === $col_key) {
-            // Our new column for "Copyright Info"
+            $new_columns['word_categories'] = __('Categories', 'll-tools-text-domain');
             $new_columns['copyright_info'] = __('Copyright Info', 'll-tools-text-domain');
-            // Example: Add any other columns you want (like categories or attachments)
             $new_columns['attached_image'] = __('Featured Image', 'll-tools-text-domain');
         }
     }
@@ -150,6 +146,24 @@ function ll_modify_word_images_columns($columns) {
  */
 function ll_render_word_images_columns($column, $post_id) {
     switch ($column) {
+        case 'word_categories':
+            // Show assigned 'word-category' terms for this Word Image
+            $terms = get_the_terms($post_id, 'word-category');
+            if ($terms && !is_wp_error($terms)) {
+                $links = [];
+                foreach ($terms as $t) {
+                    // Link to filter Word Images by this category
+                    $url = add_query_arg(
+                        ['post_type' => 'word_images', 'word-category' => $t->slug],
+                        admin_url('edit.php')
+                    );
+                    $links[] = '<a href="' . esc_url($url) . '">' . esc_html($t->name) . '</a>';
+                }
+                echo implode(', ', $links);
+            } else {
+                echo '—';
+            }
+            break;
         case 'copyright_info':
             // Show the "copyright_info" meta field
             $val = get_post_meta($post_id, 'copyright_info', true);
