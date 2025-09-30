@@ -123,4 +123,48 @@
         }
     }, false);
 
+    // --- Spinner control for quiz pages that render an <iframe> ---
+    function wireQuizIframeSpinner() {
+        var wrapper = document.querySelector('.ll-tools-quiz-iframe-wrapper');
+        if (!wrapper) return; // Not on a quiz page
+
+        var iframe = wrapper.querySelector('.ll-tools-quiz-iframe');
+        var spinner = wrapper.querySelector('.ll-tools-iframe-loading');
+        if (!iframe || !spinner) return;
+
+        var hide = function () {
+            if (spinner && spinner.style.display !== 'none') {
+                spinner.style.display = 'none';
+            }
+        };
+
+        // 1) Hide on native iframe load
+        iframe.addEventListener('load', hide, { once: true });
+
+        // 2) Hide when the embed tells us it's ready
+        window.addEventListener('message', function (e) {
+            if (!e || !e.data) return;
+            var okType = (typeof e.data === 'string' && e.data === 'll-embed-ready') ||
+                (typeof e.data === 'object' && e.data.type === 'll-embed-ready');
+            if (!okType) return;
+
+            // Only accept same-origin (embed uses home_url('/embed/...'))
+            try {
+                if (e.origin && e.origin !== window.location.origin) return;
+            } catch (_) { /* ignore */ }
+
+            hide();
+        });
+
+        // 3) Safety net so it never spins forever
+        setTimeout(hide, 12000);
+    }
+
+    // Call it on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireQuizIframeSpinner);
+    } else {
+        wireQuizIframeSpinner();
+    }
+
 })();

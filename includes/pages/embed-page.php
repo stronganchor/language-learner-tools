@@ -64,10 +64,10 @@
         $('body').addClass('ll-tools-flashcard-open');
     }
 
-    function waitAndInit(){
+    function waitAndInit() {
         if (window.__llFlashcardInitOnce) return;
 
-        var hasNew = window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function';
+        var hasNew   = window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function';
         var hasLegacy = typeof window.initFlashcardWidget === 'function';
         var ready = (hasNew || hasLegacy) && window.jQuery && document.getElementById('ll-tools-flashcard');
 
@@ -77,29 +77,40 @@
         var cats = selectedCategories();
 
         if (hasNew) {
-        LLFlashcards.Main.initFlashcardWidget(cats);
+            LLFlashcards.Main.initFlashcardWidget(cats);
         } else {
-        window.initFlashcardWidget(cats);
+            window.initFlashcardWidget(cats);
         }
 
-        // Optional: lock answers briefly until audio plays a bit
+        // 🔔 Tell the parent that the embed is initialized so it can hide its spinner
         try {
-        var $ = window.jQuery;
-        $('#ll-tools-flashcard').css('pointer-events','none');
-        var obs = new MutationObserver(function(_,observer){
-            var audio = document.querySelector('#ll-tools-flashcard audio');
-            if (!audio) return;
-            observer.disconnect();
-            function onTU() {
-            if (this.currentTime > 0.4) {
-                $('#ll-tools-flashcard').css('pointer-events','auto');
-                audio.removeEventListener('timeupdate', onTU);
+            var targetOrigin = document.referrer ? new URL(document.referrer).origin : window.location.origin;
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'll-embed-ready' }, targetOrigin);
             }
-            }
-            audio.addEventListener('timeupdate', onTU);
-        });
-        obs.observe(document.getElementById('ll-tools-flashcard'), {childList:true, subtree:true});
-        } catch(_) {}
+        } catch (e) {
+            // Fallback if referrer parsing is blocked
+            try { window.parent && window.parent.postMessage({ type: 'll-embed-ready' }, '*'); } catch (_e) {}
+        }
+
+        // Lock pointer events briefly until audio plays a bit
+        try {
+            var $ = window.jQuery;
+            $('#ll-tools-flashcard').css('pointer-events', 'none');
+            var obs = new MutationObserver(function (_, observer) {
+                var audio = document.querySelector('#ll-tools-flashcard audio');
+                if (!audio) return;
+                observer.disconnect();
+                function onTU() {
+                    if (this.currentTime > 0.4) {
+                        $('#ll-tools-flashcard').css('pointer-events', 'auto');
+                        audio.removeEventListener('timeupdate', onTU);
+                    }
+                }
+                audio.addEventListener('timeupdate', onTU);
+            });
+            obs.observe(document.getElementById('ll-tools-flashcard'), { childList: true, subtree: true });
+        } catch (_) {}
     }
 
     // Kick off
