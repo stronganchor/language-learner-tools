@@ -34,7 +34,7 @@
   window.addEventListener('message', function(ev){
     var data = ev && ev.data;
     if (!data) return;
-    if (data.type === 'll-tools-embed-ready' || data.type === 'LL_EMBED_READY') {
+    if (data.type === 'll-embed-ready' || data.type === 'LL_EMBED_READY') {
       hideSpinner();
     }
   });
