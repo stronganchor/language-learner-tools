@@ -88,6 +88,11 @@
     }
 
     function initFlashcardWidget(selectedCategories) {
+        // Always start from a clean slate: hide any stale results UI
+        if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+            root.LLFlashcards.Results.hideResults();
+        }
+
         State.categoryNames = Util.randomlySort(selectedCategories || []);
         root.categoryNames = State.categoryNames;
         State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
@@ -117,6 +122,11 @@
     }
 
     function closeFlashcard() {
+        // Clear any visible results first
+        if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+            root.LLFlashcards.Results.hideResults();
+        }
+
         State.reset();
         State.categoryNames = [];
         $('#ll-tools-flashcard').empty();
