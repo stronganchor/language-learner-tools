@@ -200,4 +200,35 @@
         await fetchImagesOnce();
         buildImageGrid();
     });
+
+    (function autoStartFromURL() {
+        const q = new URLSearchParams(location.search);
+        const id = q.get('term_id') || q.get('category') || q.get('cat') || q.get('word_category');
+        const slug = q.get('category_slug') || q.get('slug');
+        if (!id && !slug) return;
+
+        let val = null;
+
+        if (id) {
+            const v = String(parseInt(id, 10));
+            if ($catSel.find(`option[value="${v}"]`).length) val = v;
+        } else if (slug) {
+            const s = String(slug).toLowerCase();
+            // prefer data-slug match
+            const byData = $catSel.find(`option[data-slug="${s}"]`);
+            if (byData.length) val = byData.val();
+            else {
+                // strict text match, case-insensitive
+                const byText = $catSel.find('option').filter(function () {
+                    return $(this).text().trim().toLowerCase() === s;
+                });
+                if (byText.length) val = byText.first().val();
+            }
+        }
+
+        if (!val) return;
+        $catSel.val(val).trigger('change');
+        if ($start && !$start.prop('disabled')) $start.trigger('click');
+    })();
+
 })(jQuery);
