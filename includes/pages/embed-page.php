@@ -12,6 +12,11 @@
     <meta name="robots" content="noindex, nofollow">
     <title><?php wp_title(''); ?></title>
     <?php wp_head(); ?>
+
+    <!-- Preload quiz icons for immediate availability -->
+    <link rel="preload" as="image" type="image/svg+xml" href="<?php echo esc_url( LL_TOOLS_BASE_URL . 'media/play-symbol.svg' ); ?>" />
+    <link rel="preload" as="image" type="image/svg+xml" href="<?php echo esc_url( LL_TOOLS_BASE_URL . 'media/stop-symbol.svg' ); ?>" />
+
     <style>
         /* Transparent background for embedded iframe quiz */
         html, body, #ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup {
