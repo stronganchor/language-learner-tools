@@ -20,27 +20,6 @@
     let cachedImages = [];
     let currentWord = null;
 
-    // Minimal CSS (kept) — harmless if you also have a stylesheet
-    (function injectCSS() {
-        if (document.getElementById('ll-aim-css')) return;
-        const css = `
-          #ll-aim-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-          .ll-aim-card{position:relative;border:1px solid #ccd0d4;border-radius:6px;padding:8px;background:#fff;cursor:pointer}
-          .ll-aim-card img{width:100%;height:120px;object-fit:cover;border-radius:4px}
-          .ll-aim-title{margin-top:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .ll-aim-small{font-size:11px;color:#666}
-          .ll-aim-card.is-picked{box-shadow:0 0 0 2px #2271b1 inset}
-          .ll-aim-badge{position:absolute;top:8px;left:8px;background:#2271b1;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px}
-          #ll-aim-current-thumb{display:flex;align-items:center;gap:10px;margin:10px 0}
-          #ll-aim-current-thumb img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ccd0d4}
-          #ll-aim-current-thumb .ll-aim-cap{font-size:12px;color:#555}
-        `;
-        const el = document.createElement('style');
-        el.id = 'll-aim-css';
-        el.appendChild(document.createTextNode(css));
-        document.head.appendChild(el);
-    })();
-
     function getAjaxBase() {
         if (typeof ajaxurl === 'string' && ajaxurl.length) {
             try { return new URL(ajaxurl, window.location.origin).toString(); } catch (e) { }
@@ -115,7 +94,6 @@
             return;
         }
 
-        // Defensive: filter out used images on the client too (in case server didn't)
         const list = $hideUsed.is(':checked')
             ? cachedImages.filter(img => !(img.used_count && img.used_count > 0))
             : cachedImages.slice();
@@ -126,19 +104,35 @@
             return av - bv;
         });
 
+        const imageSize = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.imageSize) || 'small';
+
         list.forEach(img => {
-            const card = $('<div/>', { 'class': 'll-aim-card', 'data-img-id': img.id, title: img.title });
-            const i = $('<img/>', { src: img.thumb || '', alt: img.title });
+            // Outer wrapper
+            const card = $('<div/>', {
+                'class': 'll-aim-card',
+                'data-img-id': img.id,
+                title: img.title
+            });
+
+            // Inner image container - uses exact quiz classes
+            const imageWrapper = $('<div/>', {
+                'class': `ll-aim-image-wrapper flashcard-container flashcard-size-${imageSize}`
+            });
+
+            const i = $('<img/>', { src: img.thumb || '', alt: img.title, class: 'quiz-image' });
+            imageWrapper.append(i);
+
+            // Labels below the image
             const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
             const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
 
             if (img.used_count && img.used_count > 0) {
                 card.addClass('is-picked');
                 const badge = $('<div/>', { 'class': 'll-aim-badge', text: `Picked${img.used_count > 1 ? ` ×${img.used_count}` : ''}` });
-                card.append(badge);
+                imageWrapper.append(badge);
             }
 
-            card.append(i, t, s);
+            card.append(imageWrapper, t, s);
             card.on('click', () => assign(img.id, card));
             $images.append(card);
         });

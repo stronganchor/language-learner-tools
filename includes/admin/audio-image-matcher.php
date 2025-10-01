@@ -24,10 +24,14 @@ add_action('admin_menu', 'll_register_audio_image_matcher_admin_page');
 function ll_aim_enqueue_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-image-matcher') return;
 
-    ll_enqueue_asset_by_timestamp('/assets/css/audio-image-matcher.css', 'll-aim-admin-css', [], false);
+    // Enqueue flashcard styles so we can reuse those classes
+    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style', [], false);
+
+    // Then our matcher-specific overrides
+    ll_enqueue_asset_by_timestamp('/css/audio-image-matcher.css', 'll-aim-admin-css', ['ll-tools-flashcard-style'], false);
+
     ll_enqueue_asset_by_timestamp('/js/audio-image-matcher.js', 'll-audio-image-matcher', ['jquery'], true);
 
-    // Ensure ajaxurl exists
     wp_add_inline_script(
         'll-audio-image-matcher',
         'window.ajaxurl = window.ajaxurl || "'.esc_js(admin_url('admin-ajax.php')).'";',
@@ -68,6 +72,7 @@ add_action('wp_ajax_ll_aim_get_images', function() {
     $images = get_posts([
         'post_type'      => 'word_images',
         'posts_per_page' => -1,
+        'post_status'    => 'publish',
         'tax_query'      => [[
             'taxonomy' => 'word-category',
             'field'    => 'term_id',
@@ -82,21 +87,21 @@ add_action('wp_ajax_ll_aim_get_images', function() {
         $thumb_id  = get_post_thumbnail_id($img_post->ID);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
-        // Prefer meta counter if recorded; otherwise do a lightweight "is it used?" check
-        $used_count = (int) get_post_meta($img_post->ID, '_ll_picked_count', true);
-        if ($used_count < 1 && $thumb_id) {
+        // Always count actual published words using this image (ignore cached meta)
+        $used_count = 0;
+        if ($thumb_id) {
             $q = new WP_Query([
                 'post_type'      => 'words',
-                'posts_per_page' => 1,
+                'post_status'    => 'publish',
+                'posts_per_page' => -1,
                 'meta_query'     => [[ 'key' => '_thumbnail_id', 'value' => $thumb_id, 'compare' => '=' ]],
                 'fields'         => 'ids',
-                'no_found_rows'  => true,
+                'no_found_rows'  => false,
             ]);
-            $used_count = $q->have_posts() ? 1 : 0;
+            $used_count = $q->found_posts;
             wp_reset_postdata();
         }
 
-        // NEW: skip used images if requested
         if ($hide_used && $used_count > 0) {
             continue;
         }
@@ -120,7 +125,6 @@ add_action('wp_ajax_ll_aim_get_next', function() {
     $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
-    // Accept exclude as array "exclude[]" or scalar/comma string
     $exclude = [];
     if (isset($_GET['exclude'])) {
         $raw = $_GET['exclude'];
@@ -136,6 +140,7 @@ add_action('wp_ajax_ll_aim_get_next', function() {
 
     $q = new WP_Query([
         'post_type'      => 'words',
+        'post_status'    => 'publish', // Only published words
         'posts_per_page' => 10,
         'post__not_in'   => $exclude,
         'tax_query'      => [[
