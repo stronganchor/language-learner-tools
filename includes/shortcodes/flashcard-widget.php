@@ -160,7 +160,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'firstCategoryName'    => $firstCategoryName,
         'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
         'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
-        'wordset'              => $atts['wordset'],
+        'wordset'              => isset($atts['wordset']) ? sanitize_text_field($atts['wordset']) : '',
     ];
 
     wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
