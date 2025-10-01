@@ -134,6 +134,7 @@
             }
 
             const displayMode = window.getCategoryDisplayMode(categoryName);
+            const wordset = window.llToolsFlashcardsData?.wordset || '';
 
             $.ajax({
                 url: llToolsFlashcardsData.ajaxurl,
@@ -141,7 +142,8 @@
                 data: {
                     action: 'll_get_words_by_category',
                     category: categoryName,
-                    display_mode: displayMode
+                    display_mode: displayMode,
+                    wordset: wordset
                 },
                 success: function (response) {
                     if (response.success) {

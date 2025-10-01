@@ -319,20 +319,20 @@ function ll_get_category_depth($category_id, $depth = 0) {
 /**
  * Retrieves words that belong to a category (and optionally to one word-set).
  *
- * @param string       $category_name  The category’s name.
+ * @param string       $category_name  The category's name.
  * @param string       $display_mode   'image' | 'text'.  Default 'image'.
  * @param int|null|0   $wordset_id     >0  → restrict to that word-set
  *                                      0  → ignore word-set (global)
- *                                    null → use the site’s “active” word-set (if any)
+ *                                    null → use the site's "active" word-set (if any)
  * @return array                      Array of word data.
  */
 function ll_get_words_by_category( $category_name,
                                    $display_mode = 'image',
-                                   $wordset_id   = 0 ) {
+                                   $wordset_id   = null ) {
 
     /* ---------- figure out which word-set (if any) ---------- */
     if ( $wordset_id === null ) {
-        // “null” means “whatever is currently active on the site”.
+        // "null" means "whatever is currently active on the site".
         $wordset_id = ll_tools_get_active_wordset_id();
     }
 

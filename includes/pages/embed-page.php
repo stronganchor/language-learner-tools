@@ -35,9 +35,16 @@
     <div class="entry-content" style="display: flex; justify-content: center; align-items: center; min-height: 90vh;">
         <?php
         $embed_category = get_query_var('embed_category');
+        $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
+
         $term = get_term_by('slug', $embed_category, 'word-category');
         if ($term && !is_wp_error($term)) {
-            echo do_shortcode('[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"]');
+            $shortcode = '[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"';
+            if (!empty($wordset)) {
+                $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
+            }
+            $shortcode .= ']';
+            echo do_shortcode($shortcode);
         } else {
             echo '<p>' . esc_html__('Invalid category specified.', 'll-tools-text-domain') . '</p>';
         }

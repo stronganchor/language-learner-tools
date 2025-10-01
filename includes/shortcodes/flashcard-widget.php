@@ -65,7 +65,7 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations): a
  * Pick an initial category and fetch its words (so first render isn’t empty).
  * Returns [$selected_category_data, $firstCategoryName, $words_data]
  */
-function ll_flashcards_pick_initial_batch(array $categories): array {
+function ll_flashcards_pick_initial_batch(array $categories, string $wordset_spec = ''): array {
     $words_data = [];
     $firstCategoryName = '';
     $selected_category_data = null;
@@ -82,7 +82,15 @@ function ll_flashcards_pick_initial_batch(array $categories): array {
             if ($cat['name'] === $random) { $selected_category_data = $cat; break; }
         }
         $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
-        $words_data = ll_get_words_by_category($random, $mode);
+
+        // Determine wordset_id from spec
+        $wordset_id = null;
+        if (!empty($wordset_spec)) {
+            $ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
+            $wordset_id = !empty($ids) ? $ids[0] : null;
+        }
+
+        $words_data = ll_get_words_by_category($random, $mode, $wordset_id);
         $firstCategoryName = $random;
     }
 
@@ -152,6 +160,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'firstCategoryName'    => $firstCategoryName,
         'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
         'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
+        'wordset'              => $atts['wordset'],
     ];
 
     wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
@@ -173,6 +182,7 @@ function ll_tools_flashcard_widget($atts) {
         'category' => '',
         'mode'     => 'random',
         'embed'    => 'false',
+        'wordset'  => '',  // NEW
     ], $atts);
 
     $embed     = strtolower((string)$atts['embed']) === 'true';
@@ -184,18 +194,17 @@ function ll_tools_flashcard_widget($atts) {
     // 2) categories list (+ whether they were preselected)
     [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations);
 
-    // 3) initial words batch so the UI isn’t empty
-    [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories);
+    // 3) initial words batch so the UI isn't empty - NOW WORDSET AWARE
+    [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $atts['wordset']);
 
     // 4) label shown above play button
     $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed);
 
-    // 5) assets + localized data for JS
+    // 5) assets + localized data for JS - NOW INCLUDES WORDSET
     ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
 
     // 6) render the template (single source of truth for markup)
     if (!function_exists('ll_tools_render_template')) {
-        // If the loader somehow isn’t loaded, require it (no markup fallback)
         require_once LL_TOOLS_BASE_PATH . 'includes/template-loader.php';
     }
 
@@ -205,7 +214,6 @@ function ll_tools_flashcard_widget($atts) {
         'category_label_text' => $category_label_text,
         'quiz_font'           => $quiz_font,
     ]);
-    // (Optional) tiny post-render tweak you had before:
     echo "<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('ll-tools-flashcard-container');if(c){c.removeAttribute('style');}});</script>";
     return (string) ob_get_clean();
 }
@@ -265,8 +273,18 @@ add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_
 function ll_get_words_by_category_ajax() {
     $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
+    $wordset_spec = isset($_POST['wordset'])      ? sanitize_text_field($_POST['wordset'])      : '';
+
     if (!$category) { wp_send_json_error('Invalid category.'); }
-    wp_send_json_success(ll_get_words_by_category($category, $display_mode));
+
+    // Resolve wordset to ID
+    $wordset_id = null;
+    if (!empty($wordset_spec)) {
+        $ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
+        $wordset_id = !empty($ids) ? $ids[0] : null;
+    }
+
+    wp_send_json_success(ll_get_words_by_category($category, $display_mode, $wordset_id));
 }
 
 function ll_tools_register_flashcard_widget_shortcode() {
