@@ -228,3 +228,10 @@
     font-size: 1.5rem;
     color: #666;
 }
+
+.ll-image-category {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0.5rem 0 0.25rem;
+    font-weight: 500;
+}

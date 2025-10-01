@@ -109,6 +109,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_spec = '') {
     $image_posts = get_posts($args);
     $result = [];
 
+    // Group images by category
+    $images_by_category = [];
+
     foreach ($image_posts as $img_id) {
         // Check if this image already has audio for this wordset
         $has_audio = ll_image_has_audio_for_wordset($img_id, $wordset_term_ids);
@@ -116,12 +119,45 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_spec = '') {
         if (!$has_audio) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
-                $result[] = [
+                // Get the categories for this image
+                $categories = wp_get_post_terms($img_id, 'word-category');
+
+                if (!empty($categories) && !is_wp_error($categories)) {
+                    // Use the first category (or you could use the deepest category)
+                    $category = $categories[0];
+                    $category_name = $category->name;
+                    $category_id = $category->term_id;
+                } else {
+                    $category_name = 'Uncategorized';
+                    $category_id = 0;
+                }
+
+                if (!isset($images_by_category[$category_id])) {
+                    $images_by_category[$category_id] = [
+                        'name' => $category_name,
+                        'images' => []
+                    ];
+                }
+
+                $images_by_category[$category_id]['images'][] = [
                     'id' => $img_id,
                     'title' => get_the_title($img_id),
                     'image_url' => $thumb_url,
+                    'category_name' => $category_name,
                 ];
             }
+        }
+    }
+
+    // Sort categories by name
+    uasort($images_by_category, function($a, $b) {
+        return strcasecmp($a['name'], $b['name']);
+    });
+
+    // Flatten the array while maintaining category order
+    foreach ($images_by_category as $category_data) {
+        foreach ($category_data['images'] as $image) {
+            $result[] = $image;
         }
     }
 

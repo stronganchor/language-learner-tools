@@ -73,6 +73,16 @@
         el.title.textContent = img.title;
         el.currentNum.textContent = index + 1;
 
+        // Display category name
+        let categoryEl = document.getElementById('ll-image-category');
+        if (!categoryEl) {
+            categoryEl = document.createElement('p');
+            categoryEl.id = 'll-image-category';
+            categoryEl.className = 'll-image-category';
+            el.title.parentNode.insertBefore(categoryEl, el.title.nextSibling);
+        }
+        categoryEl.textContent = 'Category: ' + (img.category_name || 'Uncategorized');
+
         resetRecordingState();
     }
 
