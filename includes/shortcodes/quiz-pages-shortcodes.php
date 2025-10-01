@@ -354,24 +354,22 @@ function ll_qpg_print_flashcard_shell_once() {
         window.llOpenFlashcardForCategory = function(catName, wordset){
             if (!catName) return;
 
+            // Normalize wordset values (treat undefined/null/empty as same)
+            var previousWordset = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordset) || '';
+            var currentWordset = wordset || '';
+            var wordsetChanged = (previousWordset !== currentWordset);
+
             // Update the wordset parameter for future AJAX calls
             if (window.llToolsFlashcardsData) {
-                window.llToolsFlashcardsData.wordset = wordset || '';
+                window.llToolsFlashcardsData.wordset = currentWordset;
             }
 
-            // Mark the specific category as not loaded so it gets re-fetched with the new wordset
-            // Only clear if the wordset has actually changed
-            if (window.FlashcardLoader && Array.isArray(window.FlashcardLoader.loadedCategories)) {
-                var catIndex = window.FlashcardLoader.loadedCategories.indexOf(catName);
-                if (catIndex > -1) {
-                    window.FlashcardLoader.loadedCategories.splice(catIndex, 1);
-                }
-                // Also clear the cached word data for this specific category
-                if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.wordsByCategory) {
-                    delete window.LLFlashcards.State.wordsByCategory[catName];
-                }
-                if (window.wordsByCategory) {
-                    delete window.wordsByCategory[catName];
+            // If wordset changed, clear the entire loader cache
+            // This ensures all categories get re-fetched with the new wordset
+            if (wordsetChanged && window.FlashcardLoader) {
+                if (Array.isArray(window.FlashcardLoader.loadedCategories)) {
+                    // Clear the entire array
+                    window.FlashcardLoader.loadedCategories.length = 0;
                 }
             }
 

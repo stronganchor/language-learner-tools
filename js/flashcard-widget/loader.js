@@ -108,9 +108,9 @@
          * @param {string} categoryName - The name of the category.
          */
         function processFetchedWordData(wordData, categoryName) {
-            if (!window.wordsByCategory[categoryName]) {
-                window.wordsByCategory[categoryName] = [];
-            }
+            // IMPORTANT: Replace existing data instead of appending to avoid mixing wordsets
+            window.wordsByCategory[categoryName] = [];
+
             if (!window.categoryRoundCount[categoryName]) {
                 window.categoryRoundCount[categoryName] = 0;
             }
