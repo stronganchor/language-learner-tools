@@ -40,6 +40,54 @@ function ll_tools_register_word_category_taxonomy() {
 add_action('init', 'll_tools_register_word_category_taxonomy');
 
 /**
+ * Override the term count for word-category to show only published words.
+ * This runs before the terms are displayed in the admin table.
+ *
+ * @param array $terms Array of term objects.
+ * @param array $taxonomies Array of taxonomy names.
+ * @param array $args Query arguments.
+ * @return array Modified terms with accurate counts.
+ */
+function ll_fix_word_category_counts_in_admin($terms, $taxonomies, $args) {
+    // Only apply to word-category taxonomy in admin
+    if (!is_admin() || !in_array('word-category', (array)$taxonomies, true)) {
+        return $terms;
+    }
+
+    // Only fix counts on the edit-tags.php page
+    global $pagenow;
+    if ($pagenow !== 'edit-tags.php' && $pagenow !== 'term.php') {
+        return $terms;
+    }
+
+    foreach ($terms as $term) {
+        if (!is_object($term) || !isset($term->term_id)) {
+            continue;
+        }
+
+        // Count only published words in this category
+        $q = new WP_Query([
+            'post_type'      => 'words',
+            'post_status'    => 'publish',
+            'tax_query'      => [[
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => $term->term_id,
+            ]],
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => false,
+        ]);
+
+        $term->count = $q->found_posts;
+        wp_reset_postdata();
+    }
+
+    return $terms;
+}
+add_filter('get_terms', 'll_fix_word_category_counts_in_admin', 10, 3);
+
+/**
  * Initializes custom meta fields for the "word-category" taxonomy.
  *
  * @return void
