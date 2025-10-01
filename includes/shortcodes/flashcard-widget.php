@@ -277,11 +277,15 @@ function ll_get_words_by_category_ajax() {
 
     if (!$category) { wp_send_json_error('Invalid category.'); }
 
-    // Resolve wordset to ID
+    // Resolve wordset to ID - use explicit ID if provided, otherwise get active wordset
     $wordset_id = null;
     if (!empty($wordset_spec)) {
         $ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
-        $wordset_id = !empty($ids) ? $ids[0] : null;
+        // IMPORTANT: Use the first ID if found, otherwise fall back to active wordset
+        $wordset_id = !empty($ids) ? $ids[0] : ll_tools_get_active_wordset_id();
+    } else {
+        // No wordset specified - use the active wordset for the site
+        $wordset_id = ll_tools_get_active_wordset_id();
     }
 
     wp_send_json_success(ll_get_words_by_category($category, $display_mode, $wordset_id));

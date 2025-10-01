@@ -122,11 +122,11 @@
         }
 
         /**
-         * Loads resources for a specific category via AJAX.
-         *
-         * @param {string} categoryName - The name of the category.
-         * @param {function} callback - Callback to execute after loading.
-         */
+ * Loads resources for a specific category via AJAX.
+ *
+ * @param {string} categoryName - The name of the category.
+ * @param {function} callback - Callback to execute after loading.
+ */
         function loadResourcesForCategory(categoryName, callback) {
             if (loadedCategories.includes(categoryName)) {
                 if (typeof callback === 'function') callback();
@@ -143,7 +143,7 @@
                     action: 'll_get_words_by_category',
                     category: categoryName,
                     display_mode: displayMode,
-                    wordset: wordset
+                    wordset: wordset  // This ensures wordset is always passed
                 },
                 success: function (response) {
                     if (response.success) {

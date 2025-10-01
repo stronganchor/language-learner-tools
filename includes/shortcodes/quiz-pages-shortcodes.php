@@ -247,13 +247,14 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
     <script>
     (function(){
       function openFromAnchor(a){
-        var cat = a.getAttribute('data-category') || '';
-        if (!cat) return;
-        if (typeof window.llOpenFlashcardForCategory === 'function') {
-          window.llOpenFlashcardForCategory(cat);
-        } else {
-          console.error('llOpenFlashcardForCategory not found');
-        }
+            var cat = a.getAttribute('data-category') || '';
+            var wordset = a.getAttribute('data-wordset') || '';
+            if (!cat) return;
+            if (typeof window.llOpenFlashcardForCategory === 'function') {
+                window.llOpenFlashcardForCategory(cat, wordset);
+            } else {
+                console.error('llOpenFlashcardForCategory not found');
+            }
       }
 
       // Vanilla JS delegation
@@ -350,8 +351,14 @@ function ll_qpg_print_flashcard_shell_once() {
         initPlayIcon();
 
         // Called by the grid link
-        window.llOpenFlashcardForCategory = function(catName){
+        window.llOpenFlashcardForCategory = function(catName, wordset){
             if (!catName) return;
+
+            // Store wordset in the global data if provided
+            if (wordset && window.llToolsFlashcardsData) {
+                window.llToolsFlashcardsData.wordset = wordset;
+            }
+
             $('#ll-tools-flashcard-container').show();
             $('#ll-tools-flashcard-popup').show();
             $('#ll-tools-flashcard-quiz-popup').show();
@@ -420,18 +427,25 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $raw_name  = $it['name'];         // untranslated category name
 
         if ($use_popup) {
+            // Pass wordset parameter if it was used for filtering
+            $data_wordset_attr = '';
+            if (!empty($atts['wordset'])) {
+                $data_wordset_attr = ' data-wordset="' . esc_attr($atts['wordset']) . '"';
+            }
+
             // IMPORTANT: provide data-url so JS can load the true page in iframe
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
-               . ' href="#" role="button"'
-               . ' aria-label="Start ' . esc_attr($title) . '"'
-               . ' data-category="' . esc_attr($raw_name) . '"'
-               . ' data-url="' . esc_url($permalink) . '">';
+            . ' href="#" role="button"'
+            . ' aria-label="Start ' . esc_attr($title) . '"'
+            . ' data-category="' . esc_attr($raw_name) . '"'
+            . ' data-url="' . esc_url($permalink) . '"'
+            . $data_wordset_attr . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         } else {
             echo '<a class="ll-quiz-page-card ll-quiz-page-link"'
-               . ' href="' . esc_url($permalink) . '"'
-               . ' aria-label="' . esc_attr($title) . '">';
+            . ' href="' . esc_url($permalink) . '"'
+            . ' aria-label="' . esc_attr($title) . '">';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         }
