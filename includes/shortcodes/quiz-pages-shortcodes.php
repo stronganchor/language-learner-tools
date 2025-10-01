@@ -354,9 +354,23 @@ function ll_qpg_print_flashcard_shell_once() {
         window.llOpenFlashcardForCategory = function(catName, wordset){
             if (!catName) return;
 
-            // Store wordset in the global data if provided
-            if (wordset && window.llToolsFlashcardsData) {
-                window.llToolsFlashcardsData.wordset = wordset;
+            // IMPORTANT: Always update the wordset, even if it's empty
+            // This ensures switching between different wordset-filtered grids works correctly
+            if (window.llToolsFlashcardsData) {
+                window.llToolsFlashcardsData.wordset = wordset || '';
+            }
+
+            // Reset the widget state before opening with new parameters
+            if (window.LLFlashcards && window.LLFlashcards.State && typeof window.LLFlashcards.State.reset === 'function') {
+                window.LLFlashcards.State.reset();
+            }
+
+            // Clear any previously loaded category data to force fresh loads with the new wordset
+            if (window.FlashcardLoader && window.FlashcardLoader.loadedCategories) {
+                window.FlashcardLoader.loadedCategories.length = 0;
+            }
+            if (window.LLFlashcards && window.LLFlashcards.State) {
+                window.LLFlashcards.State.wordsByCategory = {};
             }
 
             $('#ll-tools-flashcard-container').show();
