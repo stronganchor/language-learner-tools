@@ -69,6 +69,16 @@
         $('body').addClass('ll-tools-flashcard-open');
     }
 
+    // Eagerly preload icons before widget initializes
+    (function preloadIcons(){
+        var base = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.plugin_dir) || '';
+        if (!base) return;
+        ['play-symbol.svg', 'stop-symbol.svg'].forEach(function(fn){
+            var img = new Image();
+            img.src = base + 'media/' + fn;
+        });
+    })();
+
     function waitAndInit() {
         if (window.__llFlashcardInitOnce) return;
 
