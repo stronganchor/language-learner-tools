@@ -1,15 +1,18 @@
 (function (root, $) {
     'use strict';
+    const base = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.plugin_dir) || '';
+    const playIconHTML = '<span class="icon-container"><img src="' + base + 'media/play-symbol.svg" alt="Play"></span>';
+    const stopIconHTML = '<span class="icon-container"><img src="' + base + 'media/stop-symbol.svg" alt="Stop"></span>';
+
     const Dom = {
         setRepeatButton(state) {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
-            const base = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.plugin_dir) || '';
             if (state === 'stop') {
-                $btn.html('<span class="icon-container"><img src="' + base + 'media/stop-symbol.svg" alt="Stop"></span>');
+                $btn.html(stopIconHTML);
                 $btn.removeClass('play-mode').addClass('stop-mode');
             } else {
-                $btn.html('<span class="icon-container"><img src="' + base + 'media/play-symbol.svg" alt="Play"></span>');
+                $btn.html(playIconHTML);
                 $btn.removeClass('stop-mode').addClass('play-mode');
             }
             $btn.show();
