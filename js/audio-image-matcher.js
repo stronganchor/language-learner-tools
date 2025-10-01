@@ -139,32 +139,88 @@
             }
 
             card.append(i, t, s);
-            card.on('click', () => assign(img.id));
+            card.on('click', () => assign(img.id, card));
             $images.append(card);
         });
     }
 
-    async function assign(imageId) {
+    async function assign(imageId, $card) {
         if (!currentWord) return;
+
+        // --- Optimistic UI: immediate feedback ---
+        let removed = false;
+        let addedBadge = null;
+
+        if ($hideUsed.is(':checked')) {
+            // Hide immediately (and drop from DOM) when "hide used" is on
+            removed = true;
+            $card.stop(true, true).fadeOut(120, () => $card.remove());
+        } else {
+            // Mark as picked immediately
+            if (!$card.hasClass('is-picked')) {
+                $card.addClass('is-picked');
+                // add a lightweight badge once
+                addedBadge = $('<div/>', { 'class': 'll-aim-badge', text: 'Picked' });
+                $card.append(addedBadge);
+            }
+        }
+
+        // Keep local cache consistent right away so future rebuilds reflect the pick
+        cachedImages = cachedImages.map(img =>
+            img.id === imageId ? { ...img, used_count: (img.used_count || 0) + 1 } : img
+        );
+
+        // Show status and send request
         uiLoading('Saving match…');
+
         const body = new URLSearchParams();
         body.set('action', 'll_aim_assign');
         body.set('word_id', currentWord.id);
         body.set('image_id', imageId);
-        const res = await fetch(getAjaxBase(), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-        const json = await res.json();
-        if (json && json.success) {
-            // Mark used locally so we can hide it immediately (no extra fetch needed)
-            cachedImages = cachedImages.map(img => img.id === imageId ? { ...img, used_count: (img.used_count || 0) + 1 } : img);
-            excludeIds.push(currentWord.id);
-            await fetchNext();
-        } else {
+
+        try {
+            const res = await fetch(getAjaxBase(), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body.toString()
+            });
+            const json = await res.json();
+
+            if (json && json.success) {
+                // Move to next word (and keep our optimistic UI as-is)
+                if (!excludeIds.includes(currentWord.id)) excludeIds.push(currentWord.id);
+                await fetchNext();
+            } else {
+                // Roll back optimistic UI on failure
+                if (removed) {
+                    // If we removed the card, rebuild the grid to bring it back
+                    // (cheapest consistent way without tracking its index)
+                    buildImageGrid();
+                } else {
+                    $card.removeClass('is-picked');
+                    if (addedBadge) addedBadge.remove();
+                }
+                // Revert cache bump for this image
+                cachedImages = cachedImages.map(img =>
+                    img.id === imageId ? { ...img, used_count: Math.max(0, (img.used_count || 1) - 1) } : img
+                );
+                $status.text('Error saving match.');
+                uiReady();
+            }
+        } catch (e) {
+            // Network/other error: same rollback as above
+            if (removed) {
+                buildImageGrid();
+            } else {
+                $card.removeClass('is-picked');
+                if (addedBadge) addedBadge.remove();
+            }
+            cachedImages = cachedImages.map(img =>
+                img.id === imageId ? { ...img, used_count: Math.max(0, (img.used_count || 1) - 1) } : img
+            );
             $status.text('Error saving match.');
+            uiReady();
         }
     }
 
