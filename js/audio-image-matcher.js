@@ -231,21 +231,27 @@
 
     $skip.on('click', async () => {
         if (currentWord && currentWord.id) {
-            // ensure unique entries in excludeIds
             if (!excludeIds.includes(currentWord.id)) excludeIds.push(currentWord.id);
         }
         await fetchNext();
     });
 
     $catSel.on('change', () => {
-        // Changing category invalidates cache
         cachedImages = [];
         excludeIds = [];
         uiIdle();
     });
 
+    // When rematch is checked, uncheck and disable "hide used"
+    $rematch.on('change', function () {
+        if ($(this).is(':checked')) {
+            $hideUsed.prop('checked', false).prop('disabled', true);
+        } else {
+            $hideUsed.prop('disabled', false);
+        }
+    });
+
     $hideUsed.on('change', async () => {
-        // Re-fetch from server for efficiency (but we also filter client-side)
         cachedImages = [];
         await fetchImagesOnce();
         buildImageGrid();
@@ -264,11 +270,9 @@
             if ($catSel.find(`option[value="${v}"]`).length) val = v;
         } else if (slug) {
             const s = String(slug).toLowerCase();
-            // prefer data-slug match
             const byData = $catSel.find(`option[data-slug="${s}"]`);
             if (byData.length) val = byData.val();
             else {
-                // strict text match, case-insensitive
                 const byText = $catSel.find('option').filter(function () {
                     return $(this).text().trim().toLowerCase() === s;
                 });
