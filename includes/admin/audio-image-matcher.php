@@ -44,20 +44,33 @@ add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
  * Render UI
  */
 function ll_render_audio_image_matcher_page() {
+    // Categories for the Category select
     $cats = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
     ]);
 
-    $pre_term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+    // Wordsets for the new Word Set select
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+    ]);
+
+    // Preselects (allow URL override for auto-launch use cases)
+    $pre_term_id      = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+    $explicit_ws_id   = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $pre_wordset_id   = function_exists('ll_tools_get_active_wordset_id')
+        ? ll_tools_get_active_wordset_id($explicit_ws_id)
+        : ( $explicit_ws_id ?: 0 );
+
     $pre_rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
-    // Include template
+    // Include template (now expects $wordsets and $pre_wordset_id as well)
     $template = LL_TOOLS_BASE_PATH . '/templates/audio-image-matcher-template.php';
     if (file_exists($template)) {
-        include $template; // expects $cats, $pre_term_id, $pre_rematch in scope
+        include $template; // expects $cats, $wordsets, $pre_term_id, $pre_wordset_id, $pre_rematch
     } else {
-        echo '<div class="notice notice-error"><p>Template not found: <code>' . $template . '</code></p></div>';
+        echo '<div class="notice notice-error"><p>Template not found: <code>' . esc_html($template) . '</code></p></div>';
     }
 }
 
@@ -122,8 +135,14 @@ add_action('wp_ajax_ll_aim_get_images', function() {
 add_action('wp_ajax_ll_aim_get_next', function() {
     if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
 
-    $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
-    $rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
+    $term_id    = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+    $rematch    = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
+
+    // NEW: capture/resolve wordset
+    $explicit_ws_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $wordset_id = function_exists('ll_tools_get_active_wordset_id')
+        ? ll_tools_get_active_wordset_id($explicit_ws_id) // uses default if 0, else respects explicit
+        : ( $explicit_ws_id ?: 0 );
 
     $exclude = [];
     if (isset($_GET['exclude'])) {
@@ -138,24 +157,32 @@ add_action('wp_ajax_ll_aim_get_next', function() {
 
     if (!$term_id) wp_send_json_success(['item' => null]);
 
+    // Build tax_query: always category; add wordset filter when available
+    $tax_query = [[
+        'taxonomy' => 'word-category',
+        'field'    => 'term_id',
+        'terms'    => [$term_id],
+    ]];
+
+    if ($wordset_id > 0) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => [$wordset_id],
+        ];
+    }
+
     $q = new WP_Query([
         'post_type'      => 'words',
         'post_status'    => 'publish', // Only published words
         'posts_per_page' => 10,
         'post__not_in'   => $exclude,
-        'tax_query'      => [[
-            'taxonomy' => 'word-category',
-            'field'    => 'term_id',
-            'terms'    => [$term_id],
-        ]],
-        'meta_query'     => [[
-            'key'     => 'word_audio_file',
-            'compare' => 'EXISTS',
-        ]],
-        'orderby' => 'ID',
-        'order'   => 'ASC',
-        'no_found_rows' => true,
-        'fields' => 'ids',
+        'tax_query'      => $tax_query,
+        'meta_query'     => [[ 'key' => 'word_audio_file', 'compare' => 'EXISTS' ]],
+        'orderby'        => 'ID',
+        'order'          => 'ASC',
+        'no_found_rows'  => true,
+        'fields'         => 'ids',
     ]);
 
     $item = null;
@@ -165,7 +192,7 @@ add_action('wp_ajax_ll_aim_get_next', function() {
             if (!$rematch && $has_thumb) { continue; }
 
             $audio_rel = get_post_meta($pid, 'word_audio_file', true);
-            $audio_url = $audio_rel ? ( (0 === strpos($audio_rel, 'http')) ? $audio_rel : site_url($audio_rel) ) : '';
+            $audio_url = $audio_rel ? ((0 === strpos($audio_rel, 'http')) ? $audio_rel : site_url($audio_rel)) : '';
 
             $item = [
                 'id'            => $pid,

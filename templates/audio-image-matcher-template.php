@@ -4,18 +4,30 @@ if (!defined('WPINC')) { die; }
 /**
  * Variables expected in scope:
  *   - $cats (array of WP_Term)
+ *   - $wordsets (array of WP_Term)
  *   - $pre_term_id (int)
+ *   - $pre_wordset_id (int)
  *   - $pre_rematch (bool)
  */
 ?>
 <div class="wrap">
     <h1>Audio ↔ Image Matcher</h1>
     <p>
-        Select a category, then click <em>Start Matching</em>.
+        Select a word set and category, then click <em>Start Matching</em>.
         In <strong>Rematch mode</strong>, already-matched words are included and picking an image will replace the current featured image.
     </p>
 
     <div id="ll-aim-controls" style="margin:16px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+        <label for="ll-aim-wordset"><strong>Word Set:</strong></label>
+        <select id="ll-aim-wordset">
+            <option value="0">— Default / Auto —</option>
+            <?php foreach ($wordsets as $ws): ?>
+                <option value="<?php echo esc_attr($ws->term_id); ?>" <?php selected($pre_wordset_id, $ws->term_id); ?>>
+                    <?php echo esc_html($ws->name . ' ('.$ws->slug.')'); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+
         <label for="ll-aim-category"><strong>Category:</strong></label>
         <select id="ll-aim-category">
             <option value="">— Select —</option>
@@ -31,7 +43,6 @@ if (!defined('WPINC')) { die; }
             Rematch mode (include already-matched words)
         </label>
 
-        <!-- NEW: Hide used images toggle (default ON) -->
         <label style="display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="ll-aim-hide-used" checked />
             Hide images already matched

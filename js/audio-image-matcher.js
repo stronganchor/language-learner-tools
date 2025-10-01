@@ -9,6 +9,7 @@
     const $extra = $('#ll-aim-extra');
     const $status = $('#ll-aim-status');
     const $catSel = $('#ll-aim-category');
+    const $wsSel = $('#ll-aim-wordset');
     const $rematch = $('#ll-aim-rematch');
     const $currentWrap = $('#ll-aim-current-thumb');
     const $currentImg = $('#ll-aim-current-thumb img');
@@ -16,6 +17,7 @@
     const $hideUsed = $('#ll-aim-hide-used');
 
     let termId = 0;
+    let wordsetId = 0;
     let excludeIds = [];
     let cachedImages = [];
     let currentWord = null;
@@ -49,6 +51,7 @@
         u.searchParams.set('action', 'll_aim_get_next');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('rematch', $rematch.is(':checked') ? '1' : '0');
+        if (wordsetId > 0) u.searchParams.set('wordset_id', String(wordsetId));
         excludeIds.forEach(id => u.searchParams.append('exclude[]', id));
 
         const res = await fetch(u.toString(), { credentials: 'same-origin' });
@@ -107,22 +110,11 @@
         const imageSize = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.imageSize) || 'small';
 
         list.forEach(img => {
-            // Outer wrapper
-            const card = $('<div/>', {
-                'class': 'll-aim-card',
-                'data-img-id': img.id,
-                title: img.title
-            });
-
-            // Inner image container - uses exact quiz classes
-            const imageWrapper = $('<div/>', {
-                'class': `ll-aim-image-wrapper flashcard-container flashcard-size-${imageSize}`
-            });
-
+            const card = $('<div/>', { 'class': 'll-aim-card', 'data-img-id': img.id, title: img.title });
+            const imageWrapper = $('<div/>', { 'class': `ll-aim-image-wrapper flashcard-container flashcard-size-${imageSize}` });
             const i = $('<img/>', { src: img.thumb || '', alt: img.title, class: 'quiz-image' });
             imageWrapper.append(i);
 
-            // Labels below the image
             const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
             const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
 
@@ -141,30 +133,24 @@
     async function assign(imageId, $card) {
         if (!currentWord) return;
 
-        // --- Optimistic UI: immediate feedback ---
         let removed = false;
         let addedBadge = null;
 
         if ($hideUsed.is(':checked')) {
-            // Hide immediately (and drop from DOM) when "hide used" is on
             removed = true;
             $card.stop(true, true).fadeOut(120, () => $card.remove());
         } else {
-            // Mark as picked immediately
             if (!$card.hasClass('is-picked')) {
                 $card.addClass('is-picked');
-                // add a lightweight badge once
                 addedBadge = $('<div/>', { 'class': 'll-aim-badge', text: 'Picked' });
                 $card.append(addedBadge);
             }
         }
 
-        // Keep local cache consistent right away so future rebuilds reflect the pick
         cachedImages = cachedImages.map(img =>
             img.id === imageId ? { ...img, used_count: (img.used_count || 0) + 1 } : img
         );
 
-        // Show status and send request
         uiLoading('Saving match…');
 
         const body = new URLSearchParams();
@@ -182,20 +168,15 @@
             const json = await res.json();
 
             if (json && json.success) {
-                // Move to next word (and keep our optimistic UI as-is)
                 if (!excludeIds.includes(currentWord.id)) excludeIds.push(currentWord.id);
                 await fetchNext();
             } else {
-                // Roll back optimistic UI on failure
                 if (removed) {
-                    // If we removed the card, rebuild the grid to bring it back
-                    // (cheapest consistent way without tracking its index)
                     buildImageGrid();
                 } else {
                     $card.removeClass('is-picked');
                     if (addedBadge) addedBadge.remove();
                 }
-                // Revert cache bump for this image
                 cachedImages = cachedImages.map(img =>
                     img.id === imageId ? { ...img, used_count: Math.max(0, (img.used_count || 1) - 1) } : img
                 );
@@ -203,7 +184,6 @@
                 uiReady();
             }
         } catch (e) {
-            // Network/other error: same rollback as above
             if (removed) {
                 buildImageGrid();
             } else {
@@ -218,13 +198,20 @@
         }
     }
 
-    // Wire up controls
+    // Start button wiring — captures both category and wordset, (re)loads data
     $start.on('click', async () => {
-        termId = parseInt(String($catSel.val() || '0'), 10) || 0;
-        if (!termId) { $status.text('Please choose a category.'); return; }
+        termId = parseInt(($catSel.val() || '0'), 10) || 0;
+        wordsetId = parseInt((($wsSel.val() || '0')), 10) || 0;
+
         excludeIds = [];
         cachedImages = [];
         uiIdle();
+
+        if (!termId) {
+            $status.text('Please select a category.');
+            return;
+        }
+
         await fetchImagesOnce();
         await fetchNext();
     });
