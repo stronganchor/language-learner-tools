@@ -398,26 +398,6 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
 
-    // If popup, ensure overlay/assets are bootstrapped.
-    if ($use_popup) {
-        $popup_url = $permalink;
-
-        // If there's a wordset filter, append it to the embed URL
-        if (!empty($filter['wordset'])) {
-            // The permalink is already the quiz page; we need the embed URL with wordset
-            $embed_url = home_url('/embed/' . $it['slug']);
-            $popup_url = add_query_arg('wordset', $filter['wordset'], $embed_url);
-        }
-
-        echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
-        . ' href="#" role="button"'
-        . ' aria-label="Start ' . esc_attr($title) . '"'
-        . ' data-category="' . esc_attr($raw_name) . '"'
-        . ' data-url="' . esc_url($popup_url) . '">';
-        echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
-        echo '</a>';
-    }
-
     // Optional fixed columns override.
     $style = '';
     if ($atts['columns'] !== '' && is_numeric($atts['columns']) && (int)$atts['columns'] > 0) {
@@ -435,7 +415,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $raw_name  = $it['name'];         // untranslated category name
 
         if ($use_popup) {
-            // IMPORTANT: provide data-url so JS can load the true page in iframe
+            // Provide data-url so JS can load the true page in an iframe
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
                . ' href="#" role="button"'
                . ' aria-label="Start ' . esc_attr($title) . '"'
