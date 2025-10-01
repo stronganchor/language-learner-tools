@@ -35,9 +35,6 @@
           </span>
           <?php endif; ?>
           <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
-            <span class="icon-container">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><path d="M10 6v20l16-10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            </span>
           </button>
         </div>
         <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
@@ -61,4 +58,24 @@
       </div>
     </div>
   </div>
+<script>
+(function() {
+  // Initialize the play button icon once DOM module is loaded
+  function initPlayIcon() {
+    if (window.LLFlashcards && window.LLFlashcards.Dom) {
+      var btn = document.getElementById('ll-tools-repeat-flashcard');
+      if (btn && !btn.querySelector('.icon-container')) {
+        btn.innerHTML = window.LLFlashcards.Dom.getPlayIconHTML();
+      }
+    } else {
+      setTimeout(initPlayIcon, 50);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPlayIcon);
+  } else {
+    initPlayIcon();
+  }
+})();
+</script>
 </div>

@@ -310,10 +310,7 @@ function ll_qpg_print_flashcard_shell_once() {
           <div id="ll-tools-flashcard-header" class="ll-tools-category-stack" style="display:none;">
             <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
             <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
-            <span class="icon-container">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><path d="M10 6v20l16-10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            </span>
-          </button>
+            </button>
             <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
             <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
           </div>
@@ -339,15 +336,28 @@ function ll_qpg_print_flashcard_shell_once() {
 
     <script>
     (function($){
-      // Called by the grid link: onclick="llOpenFlashcardForCategory('...')"
-      window.llOpenFlashcardForCategory = function(catName){
-        if (!catName) return;
-        $('#ll-tools-flashcard-container').show();
-        $('#ll-tools-flashcard-popup').show();
-        $('#ll-tools-flashcard-quiz-popup').show();
-        $('body').addClass('ll-tools-flashcard-open');
-        try { initFlashcardWidget([catName]); } catch (e) { console.error('initFlashcardWidget failed', e); }
-      };
+        // Initialize play icon
+        function initPlayIcon() {
+            if (window.LLFlashcards && window.LLFlashcards.Dom) {
+            var btn = document.getElementById('ll-tools-repeat-flashcard');
+            if (btn && !btn.querySelector('.icon-container')) {
+                btn.innerHTML = window.LLFlashcards.Dom.getPlayIconHTML();
+            }
+            } else {
+            setTimeout(initPlayIcon, 50);
+            }
+        }
+        initPlayIcon();
+
+        // Called by the grid link
+        window.llOpenFlashcardForCategory = function(catName){
+            if (!catName) return;
+            $('#ll-tools-flashcard-container').show();
+            $('#ll-tools-flashcard-popup').show();
+            $('#ll-tools-flashcard-quiz-popup').show();
+            $('body').addClass('ll-tools-flashcard-open');
+            try { initFlashcardWidget([catName]); } catch (e) { console.error('initFlashcardWidget failed', e); }
+        };
     })(jQuery);
     </script>
     <?php

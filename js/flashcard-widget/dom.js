@@ -1,9 +1,24 @@
 (function (root, $) {
     'use strict';
 
-    // Inline SVG icons - larger size
-    const playIconHTML = '<span class="icon-container"><svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><path d="M10 6v20l16-10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>';
-    const stopIconHTML = '<span class="icon-container"><svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><rect x="8" y="8" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/></svg></span>';
+    // Centralized icon configuration
+    const ICON_CONFIG = {
+        size: 32,
+        color: '#000000', // Change this single value to update all icons
+        strokeWidth: 2
+    };
+
+    // Icon generator functions
+    function createPlayIcon() {
+        return `<span class="icon-container"><svg width="${ICON_CONFIG.size}" height="${ICON_CONFIG.size}" viewBox="0 0 32 32" fill="${ICON_CONFIG.color}"><path d="M10 6v20l16-10z" stroke="${ICON_CONFIG.color}" stroke-width="${ICON_CONFIG.strokeWidth}" stroke-linejoin="round"/></svg></span>`;
+    }
+
+    function createStopIcon() {
+        return `<span class="icon-container"><svg width="${ICON_CONFIG.size}" height="${ICON_CONFIG.size}" viewBox="0 0 32 32" fill="${ICON_CONFIG.color}"><rect x="8" y="8" width="16" height="16" rx="2" stroke="${ICON_CONFIG.color}" stroke-width="${ICON_CONFIG.strokeWidth}"/></svg></span>`;
+    }
+
+    const playIconHTML = createPlayIcon();
+    const stopIconHTML = createStopIcon();
 
     const Dom = {
         setRepeatButton(state) {
@@ -30,6 +45,9 @@
         },
         showLoading() { $('#ll-tools-loading-animation').show(); },
         hideLoading() { $('#ll-tools-loading-animation').hide(); },
+        // Export icon generators for use in templates
+        getPlayIconHTML() { return createPlayIcon(); },
+        getStopIconHTML() { return createStopIcon(); }
     };
 
     // legacy alias some code expects:
