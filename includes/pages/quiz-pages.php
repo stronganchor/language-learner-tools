@@ -74,6 +74,16 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
 
     $vh           = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
     $src          = home_url('/embed/' . $term->slug);
+
+    // Append wordset if one is active
+    $active_wordset_id = ll_tools_get_active_wordset_id();
+    if ($active_wordset_id > 0) {
+        $wordset_term = get_term($active_wordset_id, 'wordset');
+        if ($wordset_term && !is_wp_error($wordset_term)) {
+            $src = add_query_arg('wordset', $wordset_term->slug, $src);
+        }
+    }
+
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? ll_tools_get_category_display_name($term)
         : $term->name;

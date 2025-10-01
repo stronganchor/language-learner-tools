@@ -400,11 +400,22 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     // If popup, ensure overlay/assets are bootstrapped.
     if ($use_popup) {
-        if (function_exists('ll_qpg_bootstrap_flashcards_for_grid')) {
-            ll_qpg_bootstrap_flashcards_for_grid();
+        $popup_url = $permalink;
+
+        // If there's a wordset filter, append it to the embed URL
+        if (!empty($filter['wordset'])) {
+            // The permalink is already the quiz page; we need the embed URL with wordset
+            $embed_url = home_url('/embed/' . $it['slug']);
+            $popup_url = add_query_arg('wordset', $filter['wordset'], $embed_url);
         }
-        // Also ensure our delegated handler is enqueued (if you register this file via WP).
-        // wp_enqueue_script('ll-quiz-pages-js'); // leave commented if you enqueue elsewhere
+
+        echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
+        . ' href="#" role="button"'
+        . ' aria-label="Start ' . esc_attr($title) . '"'
+        . ' data-category="' . esc_attr($raw_name) . '"'
+        . ' data-url="' . esc_url($popup_url) . '">';
+        echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
+        echo '</a>';
     }
 
     // Optional fixed columns override.
