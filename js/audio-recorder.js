@@ -29,6 +29,11 @@
         setupElements();
         loadImage(0);
         setupEventListeners();
+
+        // Set initial record icon
+        if (window.llRecorder && window.llRecorder.recordBtn) {
+            window.llRecorder.recordBtn.innerHTML = icons.record;
+        }
     }
 
     function setupElements() {
