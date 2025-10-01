@@ -36,7 +36,7 @@
           <?php endif; ?>
           <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
             <span class="icon-container">
-              <img src="<?php echo esc_url(LL_TOOLS_BASE_URL . 'media/play-symbol.svg'); ?>" alt="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><path d="M10 6v20l16-10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
             </span>
           </button>
         </div>

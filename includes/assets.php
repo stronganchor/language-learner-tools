@@ -26,13 +26,3 @@ function ll_tools_enqueue_non_admin_assets($hook = '') {
     ll_enqueue_asset_by_timestamp('/css/non-admin-style.css', 'll-tools-nonadmin-style');
 }
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_non_admin_assets');
-
-// /includes/assets.php  (or a small new helper file)
-function ll_tools_preload_quiz_icons() {
-    if ( ! is_admin() ) {
-        // Use LL_TOOLS_BASE_URL constant for absolute paths
-        echo '<link rel="preload" as="image" type="image/svg+xml" href="'. esc_url( LL_TOOLS_BASE_URL . 'media/play-symbol.svg' ) .'" />' . "\n";
-        echo '<link rel="preload" as="image" type="image/svg+xml" href="'. esc_url( LL_TOOLS_BASE_URL . 'media/stop-symbol.svg' ) .'" />' . "\n";
-    }
-}
-add_action( 'wp_head', 'll_tools_preload_quiz_icons', 5 );
