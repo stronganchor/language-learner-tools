@@ -218,25 +218,53 @@ function ll_aim_term_has_posttype($term_id, $post_type) {
     return $has;
 }
 
+/**
+ * Helper: Check if a category has unmatched work (words with audio but no thumbnail).
+ */
+function ll_aim_category_has_unmatched_work($term_id) {
+    // 1) Must have at least one word_images post
+    if (!ll_aim_term_has_posttype($term_id, 'word_images')) {
+        return false;
+    }
+
+    // 2) Must have at least one words post with audio but no thumbnail
+    $q = new WP_Query([
+        'post_type'      => 'words',
+        'posts_per_page' => 1,
+        'tax_query'      => [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => [$term_id],
+        ]],
+        'meta_query'     => [
+            ['key' => 'word_audio_file', 'compare' => 'EXISTS'],
+            ['key' => '_thumbnail_id', 'compare' => 'NOT EXISTS'],
+        ],
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ]);
+    $has_work = $q->have_posts();
+    wp_reset_postdata();
+
+    return $has_work;
+}
+
 function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
     if ($post->post_type !== 'words') return;
     if (wp_is_post_revision($post_id)) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 
-    // If the post is being trashed/deleted or is an auto-draft/inherit, skip queuing
     $status = get_post_status($post_id);
     if (in_array($status, ['trash','auto-draft','inherit'], true)) return;
 
-    // Must actually have audio to match
     $audio = get_post_meta($post_id, 'word_audio_file', true);
     if (!$audio) return;
 
-    // Require at least one relevant image in the same category
     $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (empty($terms)) return;
 
     foreach ($terms as $tid) {
-        if (ll_aim_term_has_posttype($tid, 'word_images')) {
+        if (ll_aim_category_has_unmatched_work($tid)) {
             if (is_user_logged_in()) {
                 $key = 'll_aim_autolaunch_' . get_current_user_id();
                 set_transient($key, (int) $tid, 120);
@@ -252,7 +280,6 @@ function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) 
     if (wp_is_post_revision($post_id)) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 
-    // Skip while trashing/auto-drafts to avoid false positives during delete flows
     $status = get_post_status($post_id);
     if (in_array($status, ['trash','auto-draft','inherit'], true)) return;
 
@@ -260,23 +287,7 @@ function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) 
     if (empty($terms)) return;
 
     foreach ($terms as $tid) {
-        // Only queue if there’s at least one word in that category that has audio
-        $q = new WP_Query([
-            'post_type'      => 'words',
-            'posts_per_page' => 1,
-            'tax_query'      => [[
-                'taxonomy' => 'word-category',
-                'field'    => 'term_id',
-                'terms'    => [$tid],
-            ]],
-            'meta_query'     => [[ 'key' => 'word_audio_file', 'compare' => 'EXISTS' ]],
-            'fields'         => 'ids',
-            'no_found_rows'  => true,
-        ]);
-        $has_words_with_audio = $q->have_posts();
-        wp_reset_postdata();
-
-        if ($has_words_with_audio) {
+        if (ll_aim_category_has_unmatched_work($tid)) {
             if (is_user_logged_in()) {
                 $key = 'll_aim_autolaunch_' . get_current_user_id();
                 set_transient($key, (int) $tid, 120);

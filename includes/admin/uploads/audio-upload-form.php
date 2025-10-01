@@ -168,47 +168,26 @@ function ll_handle_audio_file_uploads() {
     }
 
     // If we succeeded on at least one file, try to jump straight into the matcher.
-    // Pick the first selected category that *already has* word_images, so the grid isn't empty.
+    // Pick the first selected category that has images AND unmatched words.
     $redirect_term_id = 0;
     if (!empty($success_matches) && !empty($selected_categories)) {
         foreach ($selected_categories as $maybe_tid) {
             $maybe_tid = intval($maybe_tid);
 
-            // Use existing helper if loaded; otherwise do a lightweight check inline.
-            if (function_exists('ll_aim_term_has_posttype')) {
-                if (ll_aim_term_has_posttype($maybe_tid, 'word_images')) {
+            // Check if this category has work to do
+            if (function_exists('ll_aim_category_has_unmatched_work')) {
+                if (ll_aim_category_has_unmatched_work($maybe_tid)) {
                     $redirect_term_id = $maybe_tid;
                     break;
                 }
-            } else {
-                // Fallback: check for at least one word_images post in this term
-                $q = new WP_Query([
-                    'post_type'      => 'word_images',
-                    'posts_per_page' => 1,
-                    'tax_query'      => [[
-                        'taxonomy' => 'word-category',
-                        'field'    => 'term_id',
-                        'terms'    => [$maybe_tid],
-                    ]],
-                    'fields'        => 'ids',
-                    'no_found_rows' => true,
-                ]);
-                if ($q->have_posts()) {
-                    $redirect_term_id = $maybe_tid;
-                    wp_reset_postdata();
-                    break;
-                }
-                wp_reset_postdata();
             }
         }
     }
 
     if ($redirect_term_id && is_user_logged_in()) {
-        // Prime the same transient the admin_init hook looks for
         $key = 'll_aim_autolaunch_' . get_current_user_id();
         set_transient($key, intval($redirect_term_id), 120);
 
-        // Send them directly to the matcher with autostart
         $url = add_query_arg(
             ['page' => 'll-audio-image-matcher', 'term_id' => intval($redirect_term_id), 'autostart' => 1],
             admin_url('tools.php')
