@@ -377,8 +377,8 @@ function ll_quiz_pages_grid_shortcode($atts) {
             'wordset'   => '',      // filter by word set (id|slug|name)
             'columns'   => '',
             'popup'     => 'no',
-            'order'     => 'title',
-            'order_dir' => 'ASC',
+            'order'     => 'title', // kept for backward compat; ignored
+            'order_dir' => 'ASC',   // kept for backward compat; ignored
         ],
         $atts,
         'quiz_pages_grid'
@@ -398,6 +398,11 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
 
+    // If popup, ensure overlay/assets are bootstrapped (prints shell, z-fix CSS, and delegated click handler).
+    if ($use_popup) {
+        ll_qpg_bootstrap_flashcards_for_grid(); // <-- this was missing
+    }
+
     // Optional fixed columns override.
     $style = '';
     if ($atts['columns'] !== '' && is_numeric($atts['columns']) && (int)$atts['columns'] > 0) {
@@ -415,7 +420,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $raw_name  = $it['name'];         // untranslated category name
 
         if ($use_popup) {
-            // Provide data-url so JS can load the true page in an iframe
+            // IMPORTANT: provide data-url so JS can load the true page in iframe
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
                . ' href="#" role="button"'
                . ' aria-label="Start ' . esc_attr($title) . '"'
