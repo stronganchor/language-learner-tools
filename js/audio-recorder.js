@@ -14,6 +14,15 @@
 
     if (images.length === 0) return;
 
+    // SVG icons
+    const icons = {
+        record: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
+        stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+        check: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        redo: '<svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>',
+        skip: '<svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>',
+    };
+
     document.addEventListener('DOMContentLoaded', init);
 
     function init() {
@@ -23,11 +32,9 @@
     }
 
     function setupElements() {
-        // Cache DOM elements
         window.llRecorder = {
             image: document.getElementById('ll-current-image'),
             title: document.getElementById('ll-image-title'),
-            prompt: document.getElementById('ll-image-prompt'),
             recordBtn: document.getElementById('ll-record-btn'),
             indicator: document.getElementById('ll-recording-indicator'),
             timer: document.getElementById('ll-recording-timer'),
@@ -35,6 +42,7 @@
             playbackAudio: document.getElementById('ll-playback-audio'),
             redoBtn: document.getElementById('ll-redo-btn'),
             submitBtn: document.getElementById('ll-submit-btn'),
+            skipBtn: document.getElementById('ll-skip-btn'),
             status: document.getElementById('ll-upload-status'),
             currentNum: document.querySelector('.ll-current-num'),
             completeScreen: document.querySelector('.ll-recording-complete'),
@@ -48,6 +56,7 @@
         el.recordBtn.addEventListener('click', toggleRecording);
         el.redoBtn.addEventListener('click', redo);
         el.submitBtn.addEventListener('click', submitAndNext);
+        el.skipBtn.addEventListener('click', skipToNext);
     }
 
     function loadImage(index) {
@@ -62,7 +71,6 @@
 
         el.image.src = img.image_url;
         el.title.textContent = img.title;
-        el.prompt.textContent = `Please record: "${img.title}"`;
         el.currentNum.textContent = index + 1;
 
         resetRecordingState();
@@ -70,7 +78,11 @@
 
     function resetRecordingState() {
         const el = window.llRecorder;
-        el.recordBtn.style.display = 'inline-block';
+        el.recordBtn.style.display = 'inline-flex';
+        el.recordBtn.innerHTML = icons.record;
+        el.recordBtn.classList.remove('recording');
+        el.recordBtn.disabled = false;
+        el.skipBtn.disabled = false;
         el.indicator.style.display = 'none';
         el.playbackControls.style.display = 'none';
         el.status.textContent = '';
@@ -93,7 +105,6 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Use webm with opus codec for good compression
             const options = { mimeType: 'audio/webm;codecs=opus' };
             mediaRecorder = new MediaRecorder(stream, options);
 
@@ -104,15 +115,16 @@
             mediaRecorder.start();
             recordingStartTime = Date.now();
 
-            el.recordBtn.textContent = 'Stop Recording';
+            el.recordBtn.innerHTML = icons.stop;
             el.recordBtn.classList.add('recording');
             el.indicator.style.display = 'block';
+            el.skipBtn.disabled = true;
 
             timerInterval = setInterval(updateTimer, 100);
 
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            showStatus('Error: Could not access microphone. Please check permissions.', 'error');
+            showStatus('Error: Could not access microphone', 'error');
         }
     }
 
@@ -141,10 +153,18 @@
         el.recordBtn.style.display = 'none';
         el.indicator.style.display = 'none';
         el.playbackControls.style.display = 'block';
+        el.skipBtn.disabled = false;
+
+        el.redoBtn.innerHTML = icons.redo;
+        el.submitBtn.innerHTML = icons.check;
     }
 
     function redo() {
         resetRecordingState();
+    }
+
+    function skipToNext() {
+        loadImage(currentImageIndex + 1);
     }
 
     async function submitAndNext() {
@@ -155,6 +175,8 @@
 
         showStatus('Uploading...', 'uploading');
         el.submitBtn.disabled = true;
+        el.redoBtn.disabled = true;
+        el.skipBtn.disabled = true;
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
@@ -171,19 +193,23 @@
             const data = await response.json();
 
             if (data.success) {
-                showStatus('Uploaded successfully!', 'success');
+                showStatus('Success!', 'success');
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
-                }, 1000);
+                }, 800);
             } else {
-                showStatus('Upload failed: ' + (data.data || 'Unknown error'), 'error');
+                showStatus('Error: ' + (data.data || 'Unknown error'), 'error');
                 el.submitBtn.disabled = false;
+                el.redoBtn.disabled = false;
+                el.skipBtn.disabled = false;
             }
 
         } catch (err) {
             console.error('Upload error:', err);
-            showStatus('Upload failed. Please try again.', 'error');
+            showStatus('Upload failed', 'error');
             el.submitBtn.disabled = false;
+            el.redoBtn.disabled = false;
+            el.skipBtn.disabled = false;
         }
     }
 

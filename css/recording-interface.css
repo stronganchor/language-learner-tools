@@ -43,42 +43,46 @@
     color: #1a1a1a;
 }
 
-.ll-image-prompt {
-    font-size: 1.1rem;
-    color: #666;
-    font-style: italic;
-}
-
 .ll-recording-controls {
     text-align: center;
 }
 
 .ll-btn {
-    padding: 1rem 2rem;
-    font-size: 1.1rem;
     border: none;
-    border-radius: 8px;
     cursor: pointer;
-    font-weight: 600;
     transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ll-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .ll-btn-record {
     background: #e74c3c;
-    color: white;
-    font-size: 1.3rem;
-    padding: 1.5rem 3rem;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
 }
 
-.ll-btn-record:hover {
+.ll-btn-record:hover:not(:disabled) {
     background: #c0392b;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+    transform: scale(1.05);
 }
 
 .ll-btn-record.recording {
     background: #27ae60;
     animation: pulse 1.5s infinite;
+}
+
+.ll-btn-record svg {
+    width: 32px;
+    height: 32px;
+    fill: white;
 }
 
 @keyframes pulse {
@@ -93,23 +97,58 @@
     }
 }
 
-.ll-btn-primary {
-    background: #2271b1;
+.ll-btn-skip {
+    background: #95a5a6;
     color: white;
+    padding: 0.75rem 1.25rem;
     margin-left: 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
 }
 
-.ll-btn-primary:hover {
-    background: #135e96;
+.ll-btn-skip svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+.ll-btn-skip:hover:not(:disabled) {
+    background: #7f8c8d;
+}
+
+.ll-btn-primary {
+    background: #27ae60;
+    color: white;
+    margin-left: 1rem;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+}
+
+.ll-btn-primary svg {
+    width: 24px;
+    height: 24px;
+    fill: white;
+}
+
+.ll-btn-primary:hover:not(:disabled) {
+    background: #229954;
 }
 
 .ll-btn-secondary {
-    background: #ddd;
-    color: #333;
+    background: #f39c12;
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
 }
 
-.ll-btn-secondary:hover {
-    background: #ccc;
+.ll-btn-secondary svg {
+    width: 24px;
+    height: 24px;
+    fill: white;
+}
+
+.ll-btn-secondary:hover:not(:disabled) {
+    background: #d68910;
 }
 
 .ll-recording-indicator {
@@ -156,6 +195,7 @@
     padding: 1rem;
     border-radius: 6px;
     font-weight: 500;
+    font-size: 1.2rem;
 }
 
 .ll-upload-status.success {
@@ -180,6 +220,11 @@
 
 .ll-recording-complete h2 {
     color: #27ae60;
-    font-size: 2rem;
+    font-size: 4rem;
     margin-bottom: 1rem;
+}
+
+.ll-recording-complete p {
+    font-size: 1.5rem;
+    color: #666;
 }

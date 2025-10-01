@@ -41,25 +41,25 @@ function ll_audio_recording_interface_shortcode($atts) {
             <div class="ll-recording-image-container">
                 <img id="ll-current-image" src="" alt="">
                 <p id="ll-image-title" class="ll-image-title"></p>
-                <p id="ll-image-prompt" class="ll-image-prompt"></p>
             </div>
 
             <div class="ll-recording-controls">
-                <button id="ll-record-btn" class="ll-btn ll-btn-record">
-                    <span class="ll-btn-icon">🎤</span>
-                    <span class="ll-btn-text">Press to Record</span>
+                <button id="ll-record-btn" class="ll-btn ll-btn-record" title="Record"></button>
+
+                <button id="ll-skip-btn" class="ll-btn ll-btn-skip" title="Skip">
+                    <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
                 </button>
 
                 <div id="ll-recording-indicator" class="ll-recording-indicator" style="display:none;">
                     <span class="ll-recording-dot"></span>
-                    Recording... <span id="ll-recording-timer">0:00</span>
+                    <span id="ll-recording-timer">0:00</span>
                 </div>
 
                 <div id="ll-playback-controls" style="display:none;">
                     <audio id="ll-playback-audio" controls></audio>
                     <div class="ll-playback-actions">
-                        <button id="ll-redo-btn" class="ll-btn ll-btn-secondary">Re-record</button>
-                        <button id="ll-submit-btn" class="ll-btn ll-btn-primary">Submit & Next</button>
+                        <button id="ll-redo-btn" class="ll-btn ll-btn-secondary" title="Record again"></button>
+                        <button id="ll-submit-btn" class="ll-btn ll-btn-primary" title="Save and continue"></button>
                     </div>
                 </div>
 
@@ -68,8 +68,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
 
         <div class="ll-recording-complete" style="display:none;">
-            <h2>All Done!</h2>
-            <p>Thank you for recording <span class="ll-completed-count"></span> audio clips.</p>
+            <h2>✓</h2>
+            <p><span class="ll-completed-count"></span> recordings completed</p>
         </div>
     </div>
     <?php
@@ -102,10 +102,10 @@ function ll_get_images_needing_audio($category_slug = '') {
     $result = [];
 
     foreach ($image_posts as $img_id) {
-        // Check if this image already has a word post with audio
-        $has_audio = ll_image_has_word_with_audio($img_id);
+        // Check if this image already has a PROCESSED word post with audio
+        $has_processed_audio = ll_image_has_processed_audio($img_id);
 
-        if (!$has_audio) {
+        if (!$has_processed_audio) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
                 $result[] = [
@@ -118,6 +118,45 @@ function ll_get_images_needing_audio($category_slug = '') {
     }
 
     return $result;
+}
+
+/**
+ * Check if an image already has a word post with PROCESSED audio
+ */
+function ll_image_has_processed_audio($image_post_id) {
+    $attachment_id = get_post_thumbnail_id($image_post_id);
+    if (!$attachment_id) {
+        return false;
+    }
+
+    // Find words using this image
+    $words = get_posts([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'meta_query' => [[
+            'key' => '_thumbnail_id',
+            'value' => $attachment_id,
+        ]],
+    ]);
+
+    if (empty($words)) {
+        return false;
+    }
+
+    // Check if any of these words have audio that's been processed
+    foreach ($words as $word_id) {
+        $audio = get_post_meta($word_id, 'word_audio_file', true);
+        $needs_processing = get_post_meta($word_id, '_ll_needs_audio_processing', true);
+
+        // If it has audio AND doesn't need processing, it's done
+        if (!empty($audio) && $needs_processing !== '1') {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
