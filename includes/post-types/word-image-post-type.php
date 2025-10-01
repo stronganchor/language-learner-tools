@@ -114,6 +114,84 @@ function ll_modify_word_images_admin_page() {
 
     // Action: Render the custom column content
     add_action('manage_word_images_posts_custom_column', 'll_render_word_images_columns', 10, 2);
+
+    // Add filter dropdown for categories
+    add_action('restrict_manage_posts', 'll_add_word_images_category_filter');
+
+    // Apply the category filter to the query
+    add_filter('parse_query', 'll_filter_word_images_by_category');
+}
+
+/**
+ * Add a category filter dropdown to the Word Images admin page
+ */
+function ll_add_word_images_category_filter() {
+    global $typenow, $wpdb;
+
+    if ($typenow === 'word_images') {
+        $selected_category = isset($_GET['word_category_filter']) ? $_GET['word_category_filter'] : '';
+
+        // Get categories with accurate counts for word_images only
+        $categories = get_terms(array(
+            'taxonomy' => 'word-category',
+            'hide_empty' => false,
+            'hierarchical' => true,
+        ));
+
+        echo '<select name="word_category_filter" id="word_category_filter">';
+        echo '<option value="">' . __('All Categories', 'll-tools-text-domain') . '</option>';
+
+        foreach ($categories as $category) {
+            // Count word_images posts in this category
+            $count_query = new WP_Query(array(
+                'post_type' => 'word_images',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'tax_query' => array(
+                    array(
+                        'taxonomy' => 'word-category',
+                        'field' => 'term_id',
+                        'terms' => $category->term_id,
+                    )
+                ),
+            ));
+            $count = $count_query->found_posts;
+
+            $indent = str_repeat('&nbsp;&nbsp;', ll_get_category_depth($category->term_id));
+            printf(
+                '<option value="%d" %s>%s%s (%d)</option>',
+                $category->term_id,
+                selected($selected_category, $category->term_id, false),
+                $indent,
+                esc_html($category->name),
+                $count
+            );
+        }
+
+        echo '</select>';
+    }
+}
+
+/**
+ * Filter Word Images by selected category
+ */
+function ll_filter_word_images_by_category($query) {
+    global $pagenow, $typenow;
+
+    if ($pagenow === 'edit.php' && $typenow === 'word_images' && is_admin() && $query->is_main_query()) {
+        // Only apply filter if a specific category is selected (not empty string or 0)
+        if (isset($_GET['word_category_filter']) && $_GET['word_category_filter'] != '' && $_GET['word_category_filter'] != '0') {
+            $category_id = intval($_GET['word_category_filter']);
+
+            $query->set('tax_query', array(
+                array(
+                    'taxonomy' => 'word-category',
+                    'field' => 'term_id',
+                    'terms' => $category_id,
+                )
+            ));
+        }
+    }
 }
 
 /**
@@ -134,8 +212,64 @@ function ll_modify_word_images_columns($columns) {
         }
     }
 
-    // Return the modified array
     return $new_columns;
+}
+
+/**
+ * Make the category column sortable
+ */
+add_filter('manage_edit-word_images_sortable_columns', 'll_word_images_sortable_columns');
+function ll_word_images_sortable_columns($columns) {
+    $columns['word_categories'] = 'word_categories';
+    return $columns;
+}
+
+/**
+ * Handle sorting by category
+ */
+add_action('pre_get_posts', 'll_word_images_sort_by_category');
+function ll_word_images_sort_by_category($query) {
+    if (!is_admin() || !$query->is_main_query()) {
+        return;
+    }
+
+    // Check if we're on the word_images post type list
+    if ($query->get('post_type') !== 'word_images') {
+        return;
+    }
+
+    // Check if sorting by categories (WordPress passes this from the URL)
+    $orderby = $query->get('orderby');
+    if ($orderby === 'word_categories') {
+        // Don't set orderby here, let the clauses filter handle it
+        add_filter('posts_clauses', 'll_sort_word_images_by_category_clauses', 10, 2);
+    }
+}
+
+function ll_sort_word_images_by_category_clauses($clauses, $query) {
+    global $wpdb;
+
+    // Only apply if we're sorting by categories
+    if (!is_admin() || $query->get('orderby') !== 'word_categories') {
+        return $clauses;
+    }
+
+    // Join with term tables
+    $clauses['join'] .= " LEFT JOIN {$wpdb->term_relationships} AS tr ON {$wpdb->posts}.ID = tr.object_id";
+    $clauses['join'] .= " LEFT JOIN {$wpdb->term_taxonomy} AS tt ON tr.term_taxonomy_id = tt.term_taxonomy_id AND tt.taxonomy = 'word-category'";
+    $clauses['join'] .= " LEFT JOIN {$wpdb->terms} AS t ON tt.term_id = t.term_id";
+
+    // Group by post ID to avoid duplicates
+    $clauses['groupby'] = "{$wpdb->posts}.ID";
+
+    // Order by the minimum (alphabetically first) category name
+    $order = ($query->get('order') === 'DESC' || strtoupper($query->get('order')) === 'DESC') ? 'DESC' : 'ASC';
+    $clauses['orderby'] = "MIN(t.name) " . $order;
+
+    // Remove this filter after it runs once
+    remove_filter('posts_clauses', 'll_sort_word_images_by_category_clauses', 10);
+
+    return $clauses;
 }
 
 /**
