@@ -64,22 +64,22 @@ body.ll-tools-flashcard-open {
 /* Fixed container for icons so layout doesn't shift */
 #ll-tools-repeat-flashcard .icon-container {
     display: inline-block;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     position: relative;
 }
 
-/* By default, fill container for the play icon */
-#ll-tools-repeat-flashcard.play-mode .icon-container img {
+#ll-tools-repeat-flashcard.play-mode .icon-container img,
+#ll-tools-repeat-flashcard.play-mode .icon-container svg {
     width: 100%;
     height: 100%;
     display: block;
 }
 
-/* For the stop icon, keep container the same size but scale down the icon */
-#ll-tools-repeat-flashcard.stop-mode .icon-container img {
-    width: 80%;
-    height: 80%;
+#ll-tools-repeat-flashcard.stop-mode .icon-container img,
+#ll-tools-repeat-flashcard.stop-mode .icon-container svg {
+    width: 100%;
+    height: 100%;
     margin: auto;
     display: block;
 }

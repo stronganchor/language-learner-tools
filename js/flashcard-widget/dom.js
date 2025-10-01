@@ -1,8 +1,9 @@
 (function (root, $) {
     'use strict';
-    const base = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.plugin_dir) || '';
-    const playIconHTML = '<span class="icon-container"><img src="' + base + 'media/play-symbol.svg" alt="Play"></span>';
-    const stopIconHTML = '<span class="icon-container"><img src="' + base + 'media/stop-symbol.svg" alt="Stop"></span>';
+
+    // Inline SVG icons - larger size
+    const playIconHTML = '<span class="icon-container"><svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><path d="M10 6v20l16-10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>';
+    const stopIconHTML = '<span class="icon-container"><svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><rect x="8" y="8" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/></svg></span>';
 
     const Dom = {
         setRepeatButton(state) {
