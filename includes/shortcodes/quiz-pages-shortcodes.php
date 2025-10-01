@@ -354,23 +354,25 @@ function ll_qpg_print_flashcard_shell_once() {
         window.llOpenFlashcardForCategory = function(catName, wordset){
             if (!catName) return;
 
-            // IMPORTANT: Always update the wordset, even if it's empty
-            // This ensures switching between different wordset-filtered grids works correctly
+            // Update the wordset parameter for future AJAX calls
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = wordset || '';
             }
 
-            // Reset the widget state before opening with new parameters
-            if (window.LLFlashcards && window.LLFlashcards.State && typeof window.LLFlashcards.State.reset === 'function') {
-                window.LLFlashcards.State.reset();
-            }
-
-            // Clear any previously loaded category data to force fresh loads with the new wordset
-            if (window.FlashcardLoader && window.FlashcardLoader.loadedCategories) {
-                window.FlashcardLoader.loadedCategories.length = 0;
-            }
-            if (window.LLFlashcards && window.LLFlashcards.State) {
-                window.LLFlashcards.State.wordsByCategory = {};
+            // Mark the specific category as not loaded so it gets re-fetched with the new wordset
+            // Only clear if the wordset has actually changed
+            if (window.FlashcardLoader && Array.isArray(window.FlashcardLoader.loadedCategories)) {
+                var catIndex = window.FlashcardLoader.loadedCategories.indexOf(catName);
+                if (catIndex > -1) {
+                    window.FlashcardLoader.loadedCategories.splice(catIndex, 1);
+                }
+                // Also clear the cached word data for this specific category
+                if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.wordsByCategory) {
+                    delete window.LLFlashcards.State.wordsByCategory[catName];
+                }
+                if (window.wordsByCategory) {
+                    delete window.wordsByCategory[catName];
+                }
             }
 
             $('#ll-tools-flashcard-container').show();
