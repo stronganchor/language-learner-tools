@@ -293,17 +293,11 @@ function ll_add_words_filters() {
         $selected_category = isset($_GET['word_category']) ? $_GET['word_category'] : '';
         $selected_image = isset($_GET['has_image']) ? $_GET['has_image'] : '';
 
-        // Category filter
-        wp_dropdown_categories(array(
-            'show_option_all' => __('All Categories', 'll-tools-text-domain'),
-            'taxonomy' => 'word-category',
-            'name' => 'word_category',
-            'selected' => $selected_category,
-            'hierarchical' => true,
-            'depth' => 3,
-            'show_count' => true,
-            'hide_empty' => false,
-        ));
+        // Category filter with accurate counts
+        echo '<select name="word_category">';
+        echo '<option value="">' . __('All Categories', 'll-tools-text-domain') . '</option>';
+        ll_render_category_dropdown_with_counts('word-category', 'words', $selected_category);
+        echo '</select>';
 
         // Word set filter
         $selected_wordset = isset($_GET['wordset']) ? $_GET['wordset'] : '';
@@ -325,6 +319,59 @@ function ll_add_words_filters() {
         echo '<option value="yes"' . selected($selected_image, 'yes', false) . '>' . __('Yes', 'll-tools-text-domain') . '</option>';
         echo '<option value="no"' . selected($selected_image, 'no', false) . '>' . __('No', 'll-tools-text-domain') . '</option>';
         echo '</select>';
+    }
+}
+
+/**
+ * Renders category dropdown options with accurate published post counts
+ *
+ * @param string $taxonomy  Taxonomy slug (always 'word-category').
+ * @param string $post_type Post type to count (e.g. 'words').
+ * @param string $selected  Currently selected term ID.
+ * @param int    $parent    Parent term ID for recursion.
+ * @param int    $level     Depth level for indentation.
+ */
+function ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selected = '', $parent = 0, $level = 0) {
+    $terms = get_terms([
+        'taxonomy'   => $taxonomy,
+        'hide_empty' => false,
+        'parent'     => $parent,
+    ]);
+    if (is_wp_error($terms)) {
+        return;
+    }
+
+    foreach ($terms as $term) {
+        // Count only published posts of this type in this term
+        $q = new WP_Query([
+            'post_type'      => $post_type,
+            'post_status'    => 'publish',
+            'tax_query'      => [[
+                'taxonomy' => $taxonomy,
+                'field'    => 'term_id',
+                'terms'    => $term->term_id,
+            ]],
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => false,
+        ]);
+        $count = $q->found_posts;
+        wp_reset_postdata();
+
+        $indent = str_repeat('&nbsp;&nbsp;', $level);
+        $is_selected = selected($selected, $term->term_id, false);
+
+        printf(
+            '<option value="%d"%s>%s%s (%d)</option>',
+            esc_attr($term->term_id),
+            $is_selected,
+            $indent,
+            esc_html($term->name),
+            intval($count)
+        );
+
+        // Recurse into children
+        ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selected, $term->term_id, $level + 1);
     }
 }
 
