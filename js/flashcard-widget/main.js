@@ -7,14 +7,6 @@
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
-    // Preload quiz icons with explicit load handling
-    ['play-symbol.svg', 'stop-symbol.svg'].forEach(fn => {
-        const img = new Image();
-        img.onload = function () { /* preloaded */ };
-        img.onerror = function () { console.warn('Failed to preload:', fn); };
-        img.src = llToolsFlashcardsData.plugin_dir + 'media/' + fn;
-    });
-
     function onCorrectAnswer(targetWord, $correctCard) {
         if (State.userClickedCorrectAnswer) return;
         $correctCard.addClass('correct-answer');
