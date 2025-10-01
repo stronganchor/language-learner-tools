@@ -11,6 +11,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'category' => '',  // optional: filter by category slug
         'wordset' => '',   // optional: filter by wordset slug/id/name
         'language' => '',  // optional: show prompts in this language
+        'hide_name' => 'no', // optional: hide image name (yes/no)
     ], $atts);
 
     // Get images that need audio
@@ -29,7 +30,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'nonce' => wp_create_nonce('ll_upload_recording'),
         'images' => $images_needing_audio,
         'language' => $atts['language'],
-        'wordset' => $atts['wordset'], // pass to AJAX handler
+        'wordset' => $atts['wordset'],
+        'hide_name' => strtolower($atts['hide_name']) === 'yes', // pass boolean
     ]);
 
     ob_start();

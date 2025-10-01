@@ -75,8 +75,17 @@
         const el = window.llRecorder;
 
         el.image.src = img.image_url;
-        el.title.textContent = img.title;
         el.currentNum.textContent = index + 1;
+
+        // Conditionally show/hide the title based on hide_name setting
+        const hideName = window.ll_recorder_data?.hide_name || false;
+        if (hideName) {
+            el.title.textContent = '';
+            el.title.style.display = 'none';
+        } else {
+            el.title.textContent = img.title;
+            el.title.style.display = '';
+        }
 
         // Display category name
         let categoryEl = document.getElementById('ll-image-category');
