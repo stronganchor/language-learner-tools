@@ -121,7 +121,7 @@ function ll_get_images_needing_audio($category_slug = '') {
 }
 
 /**
- * Check if an image already has a word post with PROCESSED audio
+ * Check if an image already has a word post with audio (any audio, processed or not)
  */
 function ll_image_has_processed_audio($image_post_id) {
     $attachment_id = get_post_thumbnail_id($image_post_id);
@@ -145,13 +145,10 @@ function ll_image_has_processed_audio($image_post_id) {
         return false;
     }
 
-    // Check if any of these words have audio that's been processed
+    // Check if any of these words have audio (processed or not)
     foreach ($words as $word_id) {
         $audio = get_post_meta($word_id, 'word_audio_file', true);
-        $needs_processing = get_post_meta($word_id, '_ll_needs_audio_processing', true);
-
-        // If it has audio AND doesn't need processing, it's done
-        if (!empty($audio) && $needs_processing !== '1') {
+        if (!empty($audio)) {
             return true;
         }
     }

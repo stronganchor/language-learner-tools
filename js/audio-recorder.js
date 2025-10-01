@@ -83,6 +83,8 @@
         el.recordBtn.classList.remove('recording');
         el.recordBtn.disabled = false;
         el.skipBtn.disabled = false;
+        el.redoBtn.disabled = false;
+        el.submitBtn.disabled = false;
         el.indicator.style.display = 'none';
         el.playbackControls.style.display = 'none';
         el.status.textContent = '';
@@ -157,6 +159,11 @@
 
         el.redoBtn.innerHTML = icons.redo;
         el.submitBtn.innerHTML = icons.check;
+
+        // Auto-play the recording
+        el.playbackAudio.play().catch(err => {
+            console.log('Auto-play prevented by browser:', err);
+        });
     }
 
     function redo() {
@@ -168,10 +175,15 @@
     }
 
     async function submitAndNext() {
-        if (!currentBlob) return;
+        if (!currentBlob) {
+            console.error('No audio blob to submit');
+            return;
+        }
 
         const el = window.llRecorder;
         const img = images[currentImageIndex];
+
+        console.log('Starting upload for image:', img.id, img.title);
 
         showStatus('Uploading...', 'uploading');
         el.submitBtn.disabled = true;
@@ -190,15 +202,34 @@
                 body: formData,
             });
 
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('Non-JSON response:', text.substring(0, 500));
+                throw new Error('Server returned invalid response format');
+            }
+
             const data = await response.json();
+            console.log('Upload response:', data);
 
             if (data.success) {
                 showStatus('Success!', 'success');
+                // Move to next image immediately, resetRecordingState will re-enable buttons
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
                 }, 800);
             } else {
-                showStatus('Error: ' + (data.data || 'Unknown error'), 'error');
+                const errorMsg = data.data || data.message || 'Unknown error';
+                console.error('Upload failed:', errorMsg);
+                showStatus('Error: ' + errorMsg, 'error');
+
+                // Re-enable buttons
                 el.submitBtn.disabled = false;
                 el.redoBtn.disabled = false;
                 el.skipBtn.disabled = false;
@@ -206,7 +237,9 @@
 
         } catch (err) {
             console.error('Upload error:', err);
-            showStatus('Upload failed', 'error');
+            showStatus('Upload failed: ' + err.message, 'error');
+
+            // Always re-enable buttons on error
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
             el.skipBtn.disabled = false;
