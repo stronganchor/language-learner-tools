@@ -182,6 +182,7 @@
 
         const el = window.llRecorder;
         const img = images[currentImageIndex];
+        const wordset = window.ll_recorder_data?.wordset || '';
 
         console.log('Starting upload for image:', img.id, img.title);
 
@@ -195,6 +196,9 @@
         formData.append('nonce', nonce);
         formData.append('image_id', img.id);
         formData.append('audio', currentBlob, `${img.title}.webm`);
+        if (wordset) {
+            formData.append('wordset', wordset);
+        }
 
         try {
             const response = await fetch(ajaxUrl, {
@@ -220,7 +224,6 @@
 
             if (data.success) {
                 showStatus('Success!', 'success');
-                // Move to next image immediately, resetRecordingState will re-enable buttons
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
                 }, 800);
@@ -229,7 +232,6 @@
                 console.error('Upload failed:', errorMsg);
                 showStatus('Error: ' + errorMsg, 'error');
 
-                // Re-enable buttons
                 el.submitBtn.disabled = false;
                 el.redoBtn.disabled = false;
                 el.skipBtn.disabled = false;
@@ -239,7 +241,6 @@
             console.error('Upload error:', err);
             showStatus('Upload failed: ' + err.message, 'error');
 
-            // Always re-enable buttons on error
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
             el.skipBtn.disabled = false;

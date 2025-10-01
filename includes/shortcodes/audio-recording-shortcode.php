@@ -9,11 +9,12 @@ if (!defined('WPINC')) { die; }
 function ll_audio_recording_interface_shortcode($atts) {
     $atts = shortcode_atts([
         'category' => '',  // optional: filter by category slug
+        'wordset' => '',   // optional: filter by wordset slug/id/name
         'language' => '',  // optional: show prompts in this language
     ], $atts);
 
     // Get images that need audio
-    $images_needing_audio = ll_get_images_needing_audio($atts['category']);
+    $images_needing_audio = ll_get_images_needing_audio($atts['category'], $atts['wordset']);
 
     if (empty($images_needing_audio)) {
         return '<div class="ll-recording-interface"><p>No images need audio recordings at this time. Thank you!</p></div>';
@@ -28,6 +29,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'nonce' => wp_create_nonce('ll_upload_recording'),
         'images' => $images_needing_audio,
         'language' => $atts['language'],
+        'wordset' => $atts['wordset'], // pass to AJAX handler
     ]);
 
     ob_start();
@@ -78,9 +80,9 @@ function ll_audio_recording_interface_shortcode($atts) {
 add_shortcode('audio_recording_interface', 'll_audio_recording_interface_shortcode');
 
 /**
- * Get word images that need audio recordings
+ * Get word images that need audio recordings for a specific wordset
  */
-function ll_get_images_needing_audio($category_slug = '') {
+function ll_get_images_needing_audio($category_slug = '', $wordset_spec = '') {
     $args = [
         'post_type' => 'word_images',
         'post_status' => 'publish',
@@ -98,14 +100,20 @@ function ll_get_images_needing_audio($category_slug = '') {
         ]];
     }
 
+    // Resolve wordset to term_id(s)
+    $wordset_term_ids = [];
+    if (!empty($wordset_spec)) {
+        $wordset_term_ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
+    }
+
     $image_posts = get_posts($args);
     $result = [];
 
     foreach ($image_posts as $img_id) {
-        // Check if this image already has a PROCESSED word post with audio
-        $has_processed_audio = ll_image_has_processed_audio($img_id);
+        // Check if this image already has audio for this wordset
+        $has_audio = ll_image_has_audio_for_wordset($img_id, $wordset_term_ids);
 
-        if (!$has_processed_audio) {
+        if (!$has_audio) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
                 $result[] = [
@@ -118,6 +126,53 @@ function ll_get_images_needing_audio($category_slug = '') {
     }
 
     return $result;
+}
+
+/**
+ * Check if an image has audio for a specific wordset
+ */
+function ll_image_has_audio_for_wordset($image_post_id, $wordset_term_ids = []) {
+    $attachment_id = get_post_thumbnail_id($image_post_id);
+    if (!$attachment_id) {
+        return false;
+    }
+
+    // Find words using this image
+    $query_args = [
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'meta_query' => [[
+            'key' => '_thumbnail_id',
+            'value' => $attachment_id,
+        ]],
+    ];
+
+    // If wordset specified, filter by it
+    if (!empty($wordset_term_ids)) {
+        $query_args['tax_query'] = [[
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => $wordset_term_ids,
+        ]];
+    }
+
+    $words = get_posts($query_args);
+
+    if (empty($words)) {
+        return false;
+    }
+
+    // Check if any have audio
+    foreach ($words as $word_id) {
+        $audio = get_post_meta($word_id, 'word_audio_file', true);
+        if (!empty($audio)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -226,6 +281,8 @@ function ll_handle_recording_upload() {
     }
 
     $image_id = intval($_POST['image_id']);
+    $wordset_spec = isset($_POST['wordset']) ? sanitize_text_field($_POST['wordset']) : '';
+
     $image_post = get_post($image_id);
 
     if (!$image_post || $image_post->post_type !== 'word_images') {
@@ -274,6 +331,14 @@ function ll_handle_recording_upload() {
     $categories = wp_get_post_terms($image_id, 'word-category', ['fields' => 'ids']);
     if (!is_wp_error($categories) && !empty($categories)) {
         wp_set_object_terms($word_id, $categories, 'word-category');
+    }
+
+    // Assign to wordset if specified
+    if (!empty($wordset_spec)) {
+        $wordset_term_ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
+        if (!empty($wordset_term_ids)) {
+            wp_set_object_terms($word_id, $wordset_term_ids, 'wordset');
+        }
     }
 
     // Store the raw audio file path
