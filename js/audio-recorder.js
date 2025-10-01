@@ -206,7 +206,12 @@
 
         const el = window.llRecorder;
         const img = images[currentImageIndex];
-        const wordset = window.ll_recorder_data?.wordset || '';
+
+        // Prefer canonical IDs from localized data; keep legacy 'wordset' for compatibility
+        const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
+            ? window.ll_recorder_data.wordset_ids
+            : [];
+        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
 
         console.log('Starting upload for image:', img.id, img.title);
 
@@ -217,15 +222,16 @@
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
-        formData.append('nonce', nonce);
+        formData.append('nonce', window.ll_recorder_data?.nonce);
         formData.append('image_id', img.id);
         formData.append('audio', currentBlob, `${img.title}.webm`);
-        if (wordset) {
-            formData.append('wordset', wordset);
-        }
+
+        // Always send canonical wordset IDs; also include legacy spec for older handlers
+        formData.append('wordset_ids', JSON.stringify(wordsetIds));
+        formData.append('wordset', wordsetLegacy);
 
         try {
-            const response = await fetch(ajaxUrl, {
+            const response = await fetch(window.ll_recorder_data?.ajax_url, {
                 method: 'POST',
                 body: formData,
             });
