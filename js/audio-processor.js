@@ -158,13 +158,12 @@
     function trimSilence(audioBuffer) {
         const channelData = audioBuffer.getChannelData(0);
         const sampleRate = audioBuffer.sampleRate;
-        const threshold = 0.02; // Increased from 0.01 - less sensitive
-        const windowSize = Math.floor(0.01 * sampleRate); // 10ms window for smoother detection
+        const threshold = 0.02;
+        const windowSize = Math.floor(0.01 * sampleRate);
 
         // Find start of audio (trim leading silence)
         let startIndex = 0;
         for (let i = 0; i < channelData.length - windowSize; i++) {
-            // Check average level over a small window
             let sum = 0;
             for (let j = 0; j < windowSize; j++) {
                 sum += Math.abs(channelData[i + j]);
@@ -172,13 +171,13 @@
             const average = sum / windowSize;
 
             if (average > threshold) {
-                // Back up slightly to avoid cutting into the audio
-                startIndex = Math.max(0, i - Math.floor(0.05 * sampleRate)); // 50ms padding
+                // Back up more to avoid cutting into the audio
+                startIndex = Math.max(0, i - Math.floor(0.1 * sampleRate)); // 100ms padding (was 50ms)
                 break;
             }
         }
 
-        // Find end of audio (trim trailing silence)
+        // Find end of audio (trim trailing silence) - be very conservative
         let endIndex = channelData.length;
         for (let i = channelData.length - windowSize; i >= 0; i--) {
             let sum = 0;
@@ -188,8 +187,8 @@
             const average = sum / windowSize;
 
             if (average > threshold) {
-                // Add slight padding to avoid cutting off
-                endIndex = Math.min(channelData.length, i + windowSize + Math.floor(0.05 * sampleRate));
+                // Add generous padding to keep some silence at the end
+                endIndex = Math.min(channelData.length, i + windowSize + Math.floor(0.3 * sampleRate)); // 300ms padding (was 50ms)
                 break;
             }
         }
