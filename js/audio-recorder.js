@@ -131,7 +131,18 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            const options = { mimeType: 'audio/webm;codecs=opus' };
+            // Use WAV-compatible format for better editing
+            const options = { mimeType: 'audio/wav' };
+            // Fallback for browsers that don't support audio/wav directly
+            if (!MediaRecorder.isTypeSupported('audio/wav')) {
+                // Use uncompressed audio - we'll handle format client-side
+                if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
+                    options.mimeType = 'audio/webm;codecs=pcm';
+                } else {
+                    options.mimeType = 'audio/webm'; // Last resort, but mark for processing
+                }
+            }
+
             mediaRecorder = new MediaRecorder(stream, options);
 
             audioChunks = [];
@@ -172,7 +183,9 @@
     function handleRecordingStopped() {
         const el = window.llRecorder;
 
-        currentBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        // Create blob with appropriate MIME type
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        currentBlob = new Blob(audioChunks, { type: mimeType });
         const url = URL.createObjectURL(currentBlob);
 
         el.playbackAudio.src = url;
