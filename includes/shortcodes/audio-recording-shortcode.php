@@ -34,6 +34,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'language'    => $atts['language'],
         'wordset'     => $atts['wordset'],         // keep for compatibility
         'wordset_ids' => $wordset_term_ids,        // canonical + enforced on server
+        'hide_name'   => get_option('ll_hide_recording_titles', 0), 
     ]);
 
     ob_start();
@@ -380,7 +381,19 @@ function ll_handle_recording_upload() {
 
     $image_title = sanitize_file_name($image_post->post_title);
     $timestamp   = time();
-    $filename    = $image_title . '_' . $timestamp . '.webm';
+
+    // Determine file extension based on uploaded type
+    $mime_type = $file['type'];
+    $extension = '.webm'; // default
+    if (strpos($mime_type, 'wav') !== false) {
+        $extension = '.wav';
+    } elseif (strpos($mime_type, 'mp3') !== false) {
+        $extension = '.mp3';
+    } elseif (strpos($mime_type, 'webm') !== false && strpos($mime_type, 'pcm') !== false) {
+        $extension = '.wav'; // PCM WebM is essentially WAV
+    }
+
+    $filename    = $image_title . '_' . $timestamp . $extension;
     $filepath    = trailingslashit($upload_dir['path']) . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
@@ -424,9 +437,10 @@ function ll_handle_recording_upload() {
     update_post_meta($word_id, 'word_audio_file', $relative_path);
     update_post_meta($word_id, '_ll_needs_audio_processing', '1');
     update_post_meta($word_id, '_ll_raw_recording_date', current_time('mysql'));
+    update_post_meta($word_id, '_ll_raw_recording_format', $extension);
 
     wp_send_json_success([
         'word_id' => $word_id,
-        'message' => 'Recording uploaded successfully',
+        'message' => 'Recording uploaded successfully - pending processing',
     ]);
 }

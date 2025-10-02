@@ -237,7 +237,18 @@
         formData.append('action', 'll_upload_recording');
         formData.append('nonce', window.ll_recorder_data?.nonce);
         formData.append('image_id', img.id);
-        formData.append('audio', currentBlob, `${img.title}.webm`);
+
+        // Determine file extension from blob type
+        let extension = '.webm';
+        if (currentBlob.type.includes('wav')) {
+            extension = '.wav';
+        } else if (currentBlob.type.includes('mp3')) {
+            extension = '.mp3';
+        } else if (currentBlob.type.includes('pcm')) {
+            extension = '.wav';
+        }
+
+        formData.append('audio', currentBlob, `${img.title}${extension}`);
 
         // Always send canonical wordset IDs; also include legacy spec for older handlers
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
@@ -266,7 +277,7 @@
             console.log('Upload response:', data);
 
             if (data.success) {
-                showStatus('Success!', 'success');
+                showStatus('Success! Recording will be processed later.', 'success');
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
                 }, 800);
