@@ -119,22 +119,31 @@ add_filter('manage_wordset_custom_column', 'display_wordset_columns', 10, 3);
 
 // Only show the word sets that the user created or is managing
 function filter_wordset_by_user($query) {
-    // Only filter for non-admins
-    if (!current_user_can('manage_options')) {
-        $user_id = get_current_user_id();
-        $query->query_vars['meta_query'] = array(
-            'relation' => 'OR',
-            array(
-                'key' => 'manager_user_id',
-                'compare' => 'NOT EXISTS', // If the field doesn't exist, it's probably not the wordset taxonomy
-            ),
-            array(
-                'key' => 'manager_user_id',
-                'value' => $user_id,
-                'compare' => '=',
-            ),
-        );
+    // Don't filter for administrators
+    if (current_user_can('manage_options')) {
+        return;
     }
+
+    // Don't filter for guests viewing public content (frontend queries)
+    // Only apply this filter in admin context
+    if (!is_admin()) {
+        return;
+    }
+
+    // For non-admin users in the admin area, filter by their managed wordsets
+    $user_id = get_current_user_id();
+    $query->query_vars['meta_query'] = array(
+        'relation' => 'OR',
+        array(
+            'key' => 'manager_user_id',
+            'compare' => 'NOT EXISTS',
+        ),
+        array(
+            'key' => 'manager_user_id',
+            'value' => $user_id,
+            'compare' => '=',
+        ),
+    );
 }
 add_action('pre_get_terms', 'filter_wordset_by_user');
 
