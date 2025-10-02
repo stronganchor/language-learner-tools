@@ -124,8 +124,12 @@ function filter_wordset_by_user($query) {
         return;
     }
 
-    // Don't filter for guests viewing public content (frontend queries)
-    // Only apply this filter in admin context
+    // Don't filter for AJAX requests (public quizzes)
+    if (wp_doing_ajax()) {
+        return;
+    }
+
+    // Don't filter for frontend queries (public quizzes)
     if (!is_admin()) {
         return;
     }
