@@ -1,0 +1,112 @@
+.ll-audio-review-wrap {
+    max-width: 900px;
+}
+
+.ll-review-stats {
+    background: #f0f0f1;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+
+.ll-stat {
+    margin-right: 20px;
+}
+
+#ll-review-stage {
+    margin-top: 30px;
+}
+
+.ll-review-header {
+    margin-bottom: 20px;
+}
+
+#ll-review-title {
+    margin: 0 0 10px;
+}
+
+.ll-review-meta {
+    color: #666;
+    font-size: 14px;
+}
+
+.ll-review-meta span {
+    margin-right: 15px;
+}
+
+.ll-review-content {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.ll-review-image {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.ll-review-image img {
+    max-width: 400px;
+    max-height: 400px;
+    border-radius: 4px;
+}
+
+.ll-review-audio-section {
+    text-align: center;
+    margin: 20px 0;
+}
+
+#ll-review-audio {
+    width: 100%;
+    max-width: 500px;
+}
+
+.ll-review-hint {
+    color: #666;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.ll-review-translation {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dcdcde;
+}
+
+.ll-review-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+#ll-review-status {
+    margin-top: 15px;
+    text-align: center;
+    font-weight: 600;
+}
+
+#ll-review-status.success {
+    color: #00a32a;
+}
+
+#ll-review-status.error {
+    color: #d63638;
+}
+
+.ll-review-complete-message {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.ll-review-complete-message h2 {
+    color: #00a32a;
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+#ll-review-start {
+    text-align: center;
+    padding: 40px 20px;
+}

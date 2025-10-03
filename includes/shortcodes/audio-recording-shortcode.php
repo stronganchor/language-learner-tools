@@ -410,8 +410,9 @@ function ll_handle_recording_upload() {
     $word_id = wp_insert_post([
         'post_title'  => $image_post->post_title,
         'post_type'   => 'words',
-        'post_status' => 'publish',
+        'post_status' => 'draft',
     ]);
+
     if (is_wp_error($word_id)) {
         wp_send_json_error('Failed to create word post');
     }
@@ -436,6 +437,7 @@ function ll_handle_recording_upload() {
     // Store the raw audio file path + processing flags
     update_post_meta($word_id, 'word_audio_file', $relative_path);
     update_post_meta($word_id, '_ll_needs_audio_processing', '1');
+    update_post_meta($word_id, '_ll_needs_audio_review', '1');
     update_post_meta($word_id, '_ll_raw_recording_date', current_time('mysql'));
     update_post_meta($word_id, '_ll_raw_recording_format', $extension);
 

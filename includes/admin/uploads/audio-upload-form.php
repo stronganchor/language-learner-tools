@@ -329,15 +329,18 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     $post_id = wp_insert_post([
         'post_title'    => $title,
         'post_content'  => '',
-        'post_status'   => 'publish',
+        'post_status'   => 'draft',
         'post_type'     => 'words',
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
-        // 1) Save the relative path of the audio file
+        // Save the relative path of the audio file
         update_post_meta($post_id, 'word_audio_file', $relative_path);
 
-        // 2) Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
+        // Mark as needing review
+        update_post_meta($post_id, '_ll_needs_audio_review', '1');
+
+        // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
         $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
 
         // Back-compat: if older field exists, allow it as a fallback
