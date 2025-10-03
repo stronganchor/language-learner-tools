@@ -6,7 +6,7 @@
         selected: new Set(),
         processing: false,
         audioContext: null,
-        reviewData: new Map(), // Map of postId -> { buffer, trimStart, trimEnd, options }
+        reviewData: new Map(),
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -14,16 +14,16 @@
         }
     };
 
+    const TARGET_LUFS = -18.0;
+
     document.addEventListener('DOMContentLoaded', init);
 
     function init() {
         if (!window.llAudioProcessor || !window.llAudioProcessor.recordings) {
             return;
         }
-
         state.recordings = window.llAudioProcessor.recordings;
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
         wireEventListeners();
         updateSelectedCount();
     }
@@ -34,7 +34,6 @@
         const processBtn = document.getElementById('ll-process-selected');
         const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
 
-        // Global options
         const enableTrim = document.getElementById('ll-enable-trim');
         const enableNoise = document.getElementById('ll-enable-noise');
         const enableLoudness = document.getElementById('ll-enable-loudness');
@@ -44,13 +43,11 @@
                 state.globalOptions.enableTrim = e.target.checked;
             });
         }
-
         if (enableNoise) {
             enableNoise.addEventListener('change', (e) => {
                 state.globalOptions.enableNoise = e.target.checked;
             });
         }
-
         if (enableLoudness) {
             enableLoudness.addEventListener('change', (e) => {
                 state.globalOptions.enableLoudness = e.target.checked;
@@ -93,7 +90,6 @@
             processBtn.addEventListener('click', processSelectedRecordings);
         }
 
-        // Review interface buttons
         document.addEventListener('click', (e) => {
             if (e.target.id === 'll-save-all') {
                 saveAllProcessedAudio();
@@ -104,16 +100,29 @@
                 reprocessSingleFile(postId);
             }
         });
+
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('ll-file-trim') ||
+                e.target.classList.contains('ll-file-noise') ||
+                e.target.classList.contains('ll-file-loudness')) {
+                const container = e.target.closest('.ll-review-file');
+                if (container) {
+                    const postId = parseInt(container.dataset.postId);
+                    const data = state.reviewData.get(postId);
+                    if (data) {
+                        updateProcessedAudio(postId, data);
+                    }
+                }
+            }
+        });
     }
 
     function updateSelectedCount() {
         const countEl = document.getElementById('ll-selected-count');
         const processBtn = document.getElementById('ll-process-selected');
-
         if (countEl) {
             countEl.textContent = state.selected.size;
         }
-
         if (processBtn) {
             processBtn.disabled = state.selected.size === 0 || state.processing;
         }
@@ -142,7 +151,6 @@
 
                 const processedData = await processAudioFile(recording.audioUrl, state.globalOptions);
 
-                // Store in review data
                 state.reviewData.set(recording.id, {
                     recording: recording,
                     originalBuffer: processedData.originalBuffer,
@@ -156,7 +164,6 @@
                 if (progressBar) {
                     progressBar.style.width = `${(completed / selectedRecordings.length) * 100}%`;
                 }
-
             } catch (error) {
                 console.error(`Failed to process ${recording.title}:`, error);
                 if (statusText) {
@@ -171,7 +178,6 @@
         }
 
         state.processing = false;
-
         setTimeout(() => {
             if (statusDiv) statusDiv.style.display = 'none';
             showReviewInterface();
@@ -179,7 +185,6 @@
     }
 
     async function processAudioFile(url, options) {
-        // Load audio file
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
         const originalBuffer = await state.audioContext.decodeAudioData(arrayBuffer.slice(0));
@@ -188,7 +193,6 @@
         let trimStart = 0;
         let trimEnd = originalBuffer.length;
 
-        // Trim silence if enabled
         if (options.enableTrim) {
             const trimResult = detectSilenceBoundaries(originalBuffer);
             trimStart = trimResult.start;
@@ -196,14 +200,12 @@
             processedBuffer = trimSilence(originalBuffer, trimStart, trimEnd);
         }
 
-        // Reduce noise if enabled
         if (options.enableNoise) {
             processedBuffer = await reduceNoise(processedBuffer);
         }
 
-        // Normalize loudness if enabled
         if (options.enableLoudness) {
-            processedBuffer = normalizeLoudness(processedBuffer);
+            processedBuffer = await normalizeLoudness(processedBuffer);
         }
 
         return {
@@ -227,7 +229,6 @@
                 sum += Math.abs(channelData[i + j]);
             }
             const average = sum / windowSize;
-
             if (average > threshold) {
                 startIndex = Math.max(0, i - Math.floor(0.1 * sampleRate));
                 break;
@@ -241,7 +242,6 @@
                 sum += Math.abs(channelData[i + j]);
             }
             const average = sum / windowSize;
-
             if (average > threshold) {
                 endIndex = Math.min(channelData.length, i + windowSize + Math.floor(0.3 * sampleRate));
                 break;
@@ -297,23 +297,12 @@
         lowpass.connect(offlineContext.destination);
 
         source.start();
-
         return await offlineContext.startRendering();
     }
 
-    function normalizeLoudness(audioBuffer) {
-        let peak = 0;
-        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-            const channelData = audioBuffer.getChannelData(channel);
-            for (let i = 0; i < channelData.length; i++) {
-                peak = Math.max(peak, Math.abs(channelData[i]));
-            }
-        }
-
-        if (peak === 0) return audioBuffer;
-
-        const targetPeak = 0.707;
-        const gain = targetPeak / peak;
+    async function normalizeLoudness(audioBuffer) {
+        const currentLUFS = calculateLUFS(audioBuffer);
+        const targetGain = Math.pow(10, (TARGET_LUFS - currentLUFS) / 20);
 
         const normalizedBuffer = state.audioContext.createBuffer(
             audioBuffer.numberOfChannels,
@@ -325,17 +314,60 @@
             const sourceData = audioBuffer.getChannelData(channel);
             const targetData = normalizedBuffer.getChannelData(channel);
             for (let i = 0; i < sourceData.length; i++) {
-                targetData[i] = sourceData[i] * gain;
+                targetData[i] = Math.max(-1, Math.min(1, sourceData[i] * targetGain));
             }
         }
 
         return normalizedBuffer;
     }
 
+    function calculateLUFS(audioBuffer) {
+        const sampleRate = audioBuffer.sampleRate;
+        const channelData = audioBuffer.getChannelData(0);
+
+        const blockSize = Math.floor(0.4 * sampleRate);
+        const hopSize = Math.floor(0.1 * sampleRate);
+
+        const gatingThreshold = -70;
+        const relativeThreshold = -10;
+
+        let blockLoudnesses = [];
+
+        for (let i = 0; i + blockSize < channelData.length; i += hopSize) {
+            let sumSquares = 0;
+            for (let j = 0; j < blockSize; j++) {
+                const sample = channelData[i + j];
+                sumSquares += sample * sample;
+            }
+
+            const meanSquare = sumSquares / blockSize;
+            const loudness = -0.691 + 10 * Math.log10(meanSquare);
+
+            if (loudness > gatingThreshold) {
+                blockLoudnesses.push(loudness);
+            }
+        }
+
+        if (blockLoudnesses.length === 0) {
+            return -70;
+        }
+
+        const avgLoudness = blockLoudnesses.reduce((a, b) => a + b, 0) / blockLoudnesses.length;
+        const relThreshold = avgLoudness + relativeThreshold;
+
+        const gatedLoudnesses = blockLoudnesses.filter(l => l >= relThreshold);
+
+        if (gatedLoudnesses.length === 0) {
+            return avgLoudness;
+        }
+
+        const gatedAvg = gatedLoudnesses.reduce((a, b) => a + b, 0) / gatedLoudnesses.length;
+        return gatedAvg;
+    }
+
     function showReviewInterface() {
         const reviewInterface = document.getElementById('ll-review-interface');
         const container = document.getElementById('ll-review-files-container');
-
         if (!reviewInterface || !container) return;
 
         container.innerHTML = '';
@@ -383,7 +415,6 @@
             </div>
         `;
 
-        // Render waveform
         setTimeout(() => {
             renderWaveform(div, originalBuffer, trimStart, trimEnd);
             setupAudioPlayback(div, processedBuffer);
@@ -396,12 +427,10 @@
     function renderWaveform(container, audioBuffer, trimStart, trimEnd) {
         const canvas = container.querySelector('.ll-waveform-canvas');
         const waveformContainer = container.querySelector('.ll-waveform-container');
-
         if (!canvas || !waveformContainer) return;
 
         const dpr = window.devicePixelRatio || 1;
         const rect = waveformContainer.getBoundingClientRect();
-
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         canvas.style.width = rect.width + 'px';
@@ -410,7 +439,6 @@
         const ctx = canvas.getContext('2d');
         ctx.scale(dpr, dpr);
 
-        // Draw waveform
         const channelData = audioBuffer.getChannelData(0);
         const samplesPerPixel = Math.floor(channelData.length / rect.width);
         const centerY = rect.height / 2;
@@ -422,7 +450,6 @@
         for (let x = 0; x < rect.width; x++) {
             const start = x * samplesPerPixel;
             const end = start + samplesPerPixel;
-
             let min = 1;
             let max = -1;
 
@@ -439,7 +466,6 @@
             ctx.fillRect(x, yTop, 1, height);
         }
 
-        // Add trim boundaries
         addTrimBoundaries(waveformContainer, trimStart, trimEnd, audioBuffer.length);
     }
 
@@ -447,24 +473,20 @@
         const startPercent = (trimStart / totalSamples) * 100;
         const endPercent = (trimEnd / totalSamples) * 100;
 
-        // Remove existing boundaries
         container.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
 
-        // Start boundary
         const startBoundary = document.createElement('div');
         startBoundary.className = 'll-trim-boundary ll-start';
         startBoundary.style.left = startPercent + '%';
         startBoundary.dataset.position = trimStart;
         container.appendChild(startBoundary);
 
-        // End boundary
         const endBoundary = document.createElement('div');
         endBoundary.className = 'll-trim-boundary ll-end';
         endBoundary.style.left = endPercent + '%';
         endBoundary.dataset.position = trimEnd;
         container.appendChild(endBoundary);
 
-        // Trimmed regions
         if (trimStart > 0) {
             const startRegion = document.createElement('div');
             startRegion.className = 'll-trimmed-region ll-start';
@@ -485,7 +507,6 @@
         const audio = container.querySelector('audio');
         if (!audio) return;
 
-        // Convert buffer to blob and set as audio source
         const blob = audioBufferToWav(audioBuffer);
         const url = URL.createObjectURL(blob);
         audio.src = url;
@@ -497,7 +518,6 @@
 
         const startBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-start');
         const endBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-end');
-
         if (!startBoundary || !endBoundary) return;
 
         let isDragging = false;
@@ -508,7 +528,6 @@
             isDragging = true;
             currentBoundary = boundary;
             containerRect = waveformContainer.getBoundingClientRect();
-
             waveformContainer.style.cursor = 'ew-resize';
             e.preventDefault();
         };
@@ -524,7 +543,6 @@
             const otherBoundary = isStart ? endBoundary : startBoundary;
             const otherPercent = parseFloat(otherBoundary.style.left);
 
-            // Prevent boundaries from crossing
             let constrainedPercent = percent;
             if (isStart && percent >= otherPercent - 1) {
                 constrainedPercent = otherPercent - 1;
@@ -533,35 +551,26 @@
             }
 
             currentBoundary.style.left = constrainedPercent + '%';
-
-            // Update sample position
             const samplePosition = Math.floor((constrainedPercent / 100) * audioBuffer.length);
             currentBoundary.dataset.position = samplePosition;
 
-            // Update trimmed regions
             updateTrimmedRegions(waveformContainer, startBoundary, endBoundary);
-
             e.preventDefault();
         };
 
         const endDrag = () => {
             if (!isDragging) return;
-
             isDragging = false;
             waveformContainer.style.cursor = '';
 
-            // Get new trim positions
             const newTrimStart = parseInt(startBoundary.dataset.position);
             const newTrimEnd = parseInt(endBoundary.dataset.position);
 
-            // Update review data
             const data = state.reviewData.get(postId);
             if (data) {
                 data.trimStart = newTrimStart;
                 data.trimEnd = newTrimEnd;
-                data.manualBoundaries = true; // Mark as manually adjusted
-
-                // Reprocess audio with new boundaries
+                data.manualBoundaries = true;
                 updateProcessedAudio(postId, data);
             }
 
@@ -569,21 +578,16 @@
             containerRect = null;
         };
 
-        // Mouse events
         startBoundary.addEventListener('mousedown', (e) => startDrag(e, startBoundary));
         endBoundary.addEventListener('mousedown', (e) => startDrag(e, endBoundary));
-
         document.addEventListener('mousemove', onDrag);
         document.addEventListener('mouseup', endDrag);
 
-        // Touch events
         startBoundary.addEventListener('touchstart', (e) => startDrag(e, startBoundary));
         endBoundary.addEventListener('touchstart', (e) => startDrag(e, endBoundary));
-
         document.addEventListener('touchmove', onDrag, { passive: false });
         document.addEventListener('touchend', endDrag);
 
-        // Cleanup on container removal
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.removedNodes.forEach((node) => {
@@ -597,7 +601,6 @@
                 });
             });
         });
-
         observer.observe(container.parentNode, { childList: true });
     }
 
@@ -605,10 +608,8 @@
         const startPercent = parseFloat(startBoundary.style.left);
         const endPercent = parseFloat(endBoundary.style.left);
 
-        // Remove old regions
         container.querySelectorAll('.ll-trimmed-region').forEach(el => el.remove());
 
-        // Add updated regions
         if (startPercent > 0) {
             const startRegion = document.createElement('div');
             startRegion.className = 'll-trimmed-region ll-start';
@@ -632,39 +633,31 @@
         const audioElement = container.querySelector('audio');
         if (!audioElement) return;
 
-        // Show processing indicator
         audioElement.style.opacity = '0.5';
 
         try {
-            // Get current options
             const enableTrim = container.querySelector('.ll-file-trim').checked;
             const enableNoise = container.querySelector('.ll-file-noise').checked;
             const enableLoudness = container.querySelector('.ll-file-loudness').checked;
 
             let processedBuffer = data.originalBuffer;
 
-            // Apply trim with current boundaries (preserve manual adjustments)
             if (enableTrim) {
                 processedBuffer = trimSilence(data.originalBuffer, data.trimStart, data.trimEnd);
             }
 
-            // Apply noise reduction
             if (enableNoise) {
                 processedBuffer = await reduceNoise(processedBuffer);
             }
 
-            // Apply loudness normalization
             if (enableLoudness) {
-                processedBuffer = normalizeLoudness(processedBuffer);
+                processedBuffer = await normalizeLoudness(processedBuffer);
             }
 
-            // Update stored data (preserve manualBoundaries flag)
             data.processedBuffer = processedBuffer;
             data.options = { enableTrim, enableNoise, enableLoudness };
 
-            // Update audio playback
             setupAudioPlayback(container, processedBuffer);
-
         } catch (error) {
             console.error('Error updating processed audio:', error);
         } finally {
@@ -679,24 +672,19 @@
         const container = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
         if (!container) return;
 
-        // Get current options
         const enableTrim = container.querySelector('.ll-file-trim').checked;
         const enableNoise = container.querySelector('.ll-file-noise').checked;
         const enableLoudness = container.querySelector('.ll-file-loudness').checked;
 
-        // Show processing indicator
         const reprocessBtn = container.querySelector('.ll-reprocess-btn');
         const originalText = reprocessBtn.textContent;
         reprocessBtn.textContent = 'Processing...';
         reprocessBtn.disabled = true;
 
         try {
-            // Use existing trim boundaries (user may have adjusted them)
             let trimStart = data.trimStart;
             let trimEnd = data.trimEnd;
 
-            // Only re-detect boundaries if trim option changed from off to on
-            // and we don't have manual boundaries set
             if (enableTrim && !data.manualBoundaries && (!data.options || !data.options.enableTrim)) {
                 const detected = detectSilenceBoundaries(data.originalBuffer);
                 trimStart = detected.start;
@@ -705,39 +693,30 @@
 
             let processedBuffer = data.originalBuffer;
 
-            // Apply trim with current boundaries
             if (enableTrim) {
                 processedBuffer = trimSilence(data.originalBuffer, trimStart, trimEnd);
             }
 
-            // Apply noise reduction
             if (enableNoise) {
                 processedBuffer = await reduceNoise(processedBuffer);
             }
 
-            // Apply loudness normalization
             if (enableLoudness) {
-                processedBuffer = normalizeLoudness(processedBuffer);
+                processedBuffer = await normalizeLoudness(processedBuffer);
             }
 
-            // Update review data
             data.processedBuffer = processedBuffer;
             data.trimStart = trimStart;
             data.trimEnd = trimEnd;
             data.options = { enableTrim, enableNoise, enableLoudness };
 
-            // Re-render waveform and audio
             const waveformContainer = container.querySelector('.ll-waveform-container');
             if (waveformContainer) {
-                // Clear old boundaries
                 waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
-
-                // Re-render
                 renderWaveform(container, data.originalBuffer, data.trimStart, data.trimEnd);
                 setupAudioPlayback(container, data.processedBuffer);
                 setupBoundaryDragging(container, postId, data.originalBuffer);
             }
-
         } catch (error) {
             console.error('Error reprocessing file:', error);
             alert('Error reprocessing file: ' + error.message);
@@ -750,9 +729,8 @@
     function audioBufferToWav(audioBuffer) {
         const numChannels = audioBuffer.numberOfChannels;
         const sampleRate = audioBuffer.sampleRate;
-        const format = 1; // PCM
+        const format = 1;
         const bitDepth = 16;
-
         const bytesPerSample = bitDepth / 8;
         const blockAlign = numChannels * bytesPerSample;
 
@@ -803,101 +781,6 @@
         return div.innerHTML;
     }
 
-    function wireEventListeners() {
-        const selectAll = document.getElementById('ll-select-all');
-        const deselectAll = document.getElementById('ll-deselect-all');
-        const processBtn = document.getElementById('ll-process-selected');
-        const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
-
-        // Global options
-        const enableTrim = document.getElementById('ll-enable-trim');
-        const enableNoise = document.getElementById('ll-enable-noise');
-        const enableLoudness = document.getElementById('ll-enable-loudness');
-
-        if (enableTrim) {
-            enableTrim.addEventListener('change', (e) => {
-                state.globalOptions.enableTrim = e.target.checked;
-            });
-        }
-
-        if (enableNoise) {
-            enableNoise.addEventListener('change', (e) => {
-                state.globalOptions.enableNoise = e.target.checked;
-            });
-        }
-
-        if (enableLoudness) {
-            enableLoudness.addEventListener('change', (e) => {
-                state.globalOptions.enableLoudness = e.target.checked;
-            });
-        }
-
-        if (selectAll) {
-            selectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
-                    cb.checked = true;
-                    state.selected.add(parseInt(cb.value));
-                });
-                updateSelectedCount();
-            });
-        }
-
-        if (deselectAll) {
-            deselectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
-                    cb.checked = false;
-                    state.selected.delete(parseInt(cb.value));
-                });
-                updateSelectedCount();
-            });
-        }
-
-        checkboxes.forEach(cb => {
-            cb.addEventListener('change', (e) => {
-                const id = parseInt(e.target.value);
-                if (e.target.checked) {
-                    state.selected.add(id);
-                } else {
-                    state.selected.delete(id);
-                }
-                updateSelectedCount();
-            });
-        });
-
-        if (processBtn) {
-            processBtn.addEventListener('click', processSelectedRecordings);
-        }
-
-        // Review interface buttons
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'll-save-all') {
-                saveAllProcessedAudio();
-            } else if (e.target.id === 'll-cancel-review') {
-                cancelReview();
-            } else if (e.target.classList.contains('ll-reprocess-btn')) {
-                const postId = parseInt(e.target.dataset.postId);
-                reprocessSingleFile(postId);
-            }
-        });
-
-        // Per-file option changes
-        document.addEventListener('change', (e) => {
-            if (e.target.classList.contains('ll-file-trim') ||
-                e.target.classList.contains('ll-file-noise') ||
-                e.target.classList.contains('ll-file-loudness')) {
-
-                const container = e.target.closest('.ll-review-file');
-                if (container) {
-                    const postId = parseInt(container.dataset.postId);
-                    const data = state.reviewData.get(postId);
-                    if (data) {
-                        updateProcessedAudio(postId, data);
-                    }
-                }
-            }
-        });
-    }
-
     async function saveAllProcessedAudio() {
         if (state.reviewData.size === 0) {
             alert('No files to save.');
@@ -932,17 +815,21 @@
                     statusText.textContent = `Saving: ${data.recording.title} (${saved + failed + 1}/${total})`;
                 }
 
-                await saveProcessedAudio(postId, data);
+                // Apply second pass of loudness normalization before saving
+                let finalBuffer = data.processedBuffer;
+                if (data.options.enableLoudness) {
+                    finalBuffer = await normalizeLoudness(data.processedBuffer);
+                }
+
+                await saveProcessedAudio(postId, data, finalBuffer);
                 saved++;
 
-                // Mark the recording item as processed
                 const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
                 if (item) {
                     item.classList.add('ll-processed');
                     const checkbox = item.querySelector('.ll-recording-checkbox');
                     if (checkbox) checkbox.disabled = true;
                 }
-
             } catch (error) {
                 console.error(`Failed to save ${data.recording.title}:`, error);
                 failed++;
@@ -975,18 +862,17 @@
         }, 2000);
     }
 
-    async function saveProcessedAudio(postId, data) {
-        const { recording, processedBuffer } = data;
+    async function saveProcessedAudio(postId, data, finalBuffer) {
+        const { recording } = data;
 
-        // Convert to MP3 if lamejs is available, otherwise WAV
         let audioBlob;
         let filename;
 
         if (window.lamejs) {
-            audioBlob = await encodeToMP3(processedBuffer);
+            audioBlob = await encodeToMP3(finalBuffer);
             filename = `${sanitizeFilename(recording.title)}_processed.mp3`;
         } else {
-            audioBlob = audioBufferToWav(processedBuffer);
+            audioBlob = audioBufferToWav(finalBuffer);
             filename = `${sanitizeFilename(recording.title)}_processed.wav`;
         }
 
@@ -1011,7 +897,6 @@
     }
 
     async function encodeToMP3(audioBuffer) {
-        // Load lamejs if not already loaded
         if (!window.lamejs) {
             await loadLameJS();
         }
@@ -1079,5 +964,4 @@
             location.reload();
         }
     }
-
 })();

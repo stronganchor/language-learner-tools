@@ -431,3 +431,104 @@ function ll_apply_words_filters($query) {
         $query->set('orderby', 'meta_value');
     }
 }
+
+/**
+ * Register bulk action for marking words for reprocessing
+ */
+function ll_words_register_bulk_reprocess_action($bulk_actions) {
+    $bulk_actions['ll_mark_reprocess'] = __('Mark for Audio Reprocessing', 'll-tools-text-domain');
+    return $bulk_actions;
+}
+add_filter('bulk_actions-edit-words', 'll_words_register_bulk_reprocess_action');
+
+/**
+ * Handle bulk action for marking words for reprocessing
+ */
+function ll_words_handle_bulk_reprocess_action($redirect_to, $doaction, $post_ids) {
+    if ($doaction !== 'll_mark_reprocess') {
+        return $redirect_to;
+    }
+
+    $processed = 0;
+    $skipped = 0;
+
+    foreach ($post_ids as $post_id) {
+        // Only process if the word has an audio file
+        $audio_file = get_post_meta($post_id, 'word_audio_file', true);
+
+        if ($audio_file) {
+            // Mark for reprocessing
+            update_post_meta($post_id, '_ll_needs_audio_processing', '1');
+            $processed++;
+        } else {
+            $skipped++;
+        }
+    }
+
+    $redirect_to = add_query_arg([
+        'll_reprocess_marked' => $processed,
+        'll_reprocess_skipped' => $skipped
+    ], $redirect_to);
+
+    return $redirect_to;
+}
+add_filter('handle_bulk_actions-edit-words', 'll_words_handle_bulk_reprocess_action', 10, 3);
+
+/**
+ * Display admin notice after bulk reprocessing action
+ */
+function ll_words_bulk_reprocess_admin_notice() {
+    if (!isset($_GET['ll_reprocess_marked'])) {
+        return;
+    }
+
+    $processed = intval($_GET['ll_reprocess_marked']);
+    $skipped = isset($_GET['ll_reprocess_skipped']) ? intval($_GET['ll_reprocess_skipped']) : 0;
+
+    if ($processed > 0) {
+        $message = sprintf(
+            _n(
+                '%d word marked for audio reprocessing.',
+                '%d words marked for audio reprocessing.',
+                $processed,
+                'll-tools-text-domain'
+            ),
+            $processed
+        );
+
+        if ($skipped > 0) {
+            $message .= ' ' . sprintf(
+                _n(
+                    '%d word skipped (no audio file).',
+                    '%d words skipped (no audio file).',
+                    $skipped,
+                    'll-tools-text-domain'
+                ),
+                $skipped
+            );
+        }
+
+        $processor_url = admin_url('tools.php?page=ll-audio-processor');
+        $message .= sprintf(
+            ' <a href="%s">%s</a>',
+            esc_url($processor_url),
+            __('Go to Audio Processor', 'll-tools-text-domain')
+        );
+
+        printf('<div class="notice notice-success is-dismissible"><p>%s</p></div>', $message);
+    } elseif ($skipped > 0) {
+        printf(
+            '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+            sprintf(
+                _n(
+                    '%d word skipped (no audio file).',
+                    '%d words skipped (no audio files).',
+                    $skipped,
+                    'll-tools-text-domain'
+                ),
+                $skipped
+            )
+        );
+    }
+}
+add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
