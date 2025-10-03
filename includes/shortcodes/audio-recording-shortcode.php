@@ -7,34 +7,56 @@
 if (!defined('WPINC')) { die; }
 
 function ll_audio_recording_interface_shortcode($atts) {
+    // Require user to be logged in
+    if (!is_user_logged_in()) {
+        return '<div class="ll-recording-interface"><p>' .
+               __('You must be logged in to record audio.', 'll-tools-text-domain') .
+               ' <a href="' . wp_login_url(get_permalink()) . '">' . __('Log in', 'll-tools-text-domain') . '</a></p></div>';
+    }
+
+    // Optional: check for specific capability
+    if (!current_user_can('upload_files')) {
+        return '<div class="ll-recording-interface"><p>' .
+               __('You do not have permission to record audio.', 'll-tools-text-domain') . '</p></div>';
+    }
+
     $atts = shortcode_atts([
         'category' => '',
         'wordset'  => '',
         'language' => '',
     ], $atts);
 
-    // Resolve wordset term IDs (fallback to default if missing)
+    // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
 
-    // Get images that need audio FOR THIS WORDSET
+    // Get images that need audio
     $images_needing_audio = ll_get_images_needing_audio($atts['category'], $wordset_term_ids);
 
     if (empty($images_needing_audio)) {
         return '<div class="ll-recording-interface"><p>No images need audio recordings at this time. Thank you!</p></div>';
     }
 
-    // Enqueue assets
     ll_enqueue_recording_assets();
 
-    // Pass data to JavaScript (include canonical wordset_ids)
+    // Get recording types for dropdown
+    $recording_types = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+    ]);
+
+    // Get current user info for display
+    $current_user = wp_get_current_user();
+
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'    => admin_url('admin-ajax.php'),
         'nonce'       => wp_create_nonce('ll_upload_recording'),
         'images'      => $images_needing_audio,
         'language'    => $atts['language'],
-        'wordset'     => $atts['wordset'],         // keep for compatibility
-        'wordset_ids' => $wordset_term_ids,        // canonical + enforced on server
-        'hide_name'   => get_option('ll_hide_recording_titles', 0), 
+        'wordset'     => $atts['wordset'],
+        'wordset_ids' => $wordset_term_ids,
+        'hide_name'   => get_option('ll_hide_recording_titles', 0),
+        'recording_types' => $recording_types,
+        'user_display_name' => $current_user->display_name, // For UI display
     ]);
 
     ob_start();
@@ -44,7 +66,32 @@ function ll_audio_recording_interface_shortcode($atts) {
             <span class="ll-current-num">1</span> / <span class="ll-total-num"><?php echo count($images_needing_audio); ?></span>
         </div>
 
+        <!-- Show who's recording -->
+        <div class="ll-recorder-info">
+            <?php printf(__('Recording as: %s', 'll-tools-text-domain'), '<strong>' . esc_html($current_user->display_name) . '</strong>'); ?>
+        </div>
+
         <div class="ll-recording-main">
+            <!-- Recording type selector -->
+            <div class="ll-recording-type-selector">
+                <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
+                <select id="ll-recording-type">
+                    <?php
+                    if (!empty($recording_types) && !is_wp_error($recording_types)) {
+                        foreach ($recording_types as $type) {
+                            $selected = ($type->slug === 'isolation') ? 'selected' : '';
+                            printf(
+                                '<option value="%s" %s>%s</option>',
+                                esc_attr($type->slug),
+                                $selected,
+                                esc_html($type->name)
+                            );
+                        }
+                    }
+                    ?>
+                </select>
+            </div>
+
             <div class="ll-recording-image-container">
                 <img id="ll-current-image" src="" alt="">
                 <p id="ll-image-title" class="ll-image-title"></p>
@@ -342,7 +389,7 @@ function ll_enqueue_recording_assets() {
 }
 
 /**
- * AJAX handler: Upload recording and create word post
+ * AJAX handler: Upload recording and create word_audio post
  */
 add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
 add_action('wp_ajax_nopriv_ll_upload_recording', 'll_handle_recording_upload');
@@ -350,13 +397,21 @@ add_action('wp_ajax_nopriv_ll_upload_recording', 'll_handle_recording_upload');
 function ll_handle_recording_upload() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
+    // Require logged-in user
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in to upload recordings');
+    }
+
+    $current_user_id = get_current_user_id();
+
     if (!isset($_FILES['audio']) || !isset($_POST['image_id'])) {
         wp_send_json_error('Missing data');
     }
 
     $image_id = intval($_POST['image_id']);
+    $recording_type = isset($_POST['recording_type']) ? sanitize_text_field($_POST['recording_type']) : 'isolation';
 
-    // Prefer explicit wordset_ids from client; else resolve from 'wordset'; else default
+    // Prefer explicit wordset_ids from client
     $posted_ids = [];
     if (isset($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -382,15 +437,15 @@ function ll_handle_recording_upload() {
     $image_title = sanitize_file_name($image_post->post_title);
     $timestamp   = time();
 
-    // Determine file extension based on uploaded type
+    // Determine file extension
     $mime_type = $file['type'];
-    $extension = '.webm'; // default
+    $extension = '.webm';
     if (strpos($mime_type, 'wav') !== false) {
         $extension = '.wav';
     } elseif (strpos($mime_type, 'mp3') !== false) {
         $extension = '.mp3';
     } elseif (strpos($mime_type, 'webm') !== false && strpos($mime_type, 'pcm') !== false) {
-        $extension = '.wav'; // PCM WebM is essentially WAV
+        $extension = '.wav';
     }
 
     $filename    = $image_title . '_' . $timestamp . $extension;
@@ -406,7 +461,79 @@ function ll_handle_recording_upload() {
         wp_normalize_path($filepath)
     );
 
-    // Create word post
+    // Find or create the parent word post
+    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
+
+    if (is_wp_error($word_id)) {
+        wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+    }
+
+    // Create word_audio post
+    $audio_post_id = wp_insert_post([
+        'post_title'  => $image_post->post_title,
+        'post_type'   => 'word_audio',
+        'post_status' => 'draft',
+        'post_parent' => $word_id,
+        'post_author' => $current_user_id, // WordPress native author field
+    ]);
+
+    if (is_wp_error($audio_post_id)) {
+        wp_send_json_error('Failed to create word_audio post');
+    }
+
+    // Store audio metadata
+    update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+    update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
+    update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
+    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
+    update_post_meta($audio_post_id, '_ll_raw_recording_format', $extension);
+
+    // Assign recording type taxonomy
+    if (!empty($recording_type)) {
+        wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
+    }
+
+    // Backward compatibility: update parent word's legacy audio field
+    $existing_audio = get_post_meta($word_id, 'word_audio_file', true);
+    if (empty($existing_audio)) {
+        update_post_meta($word_id, 'word_audio_file', $relative_path);
+    }
+
+    wp_send_json_success([
+        'word_audio_id' => $audio_post_id,
+        'word_id' => $word_id,
+        'message' => 'Recording uploaded successfully - pending processing',
+    ]);
+}
+
+/**
+ * Find existing word post for an image, or create one
+ */
+function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) {
+    $attachment_id = get_post_thumbnail_id($image_id);
+
+    if (!$attachment_id) {
+        return new WP_Error('no_attachment', 'Image has no attachment');
+    }
+
+    // Check if a word already exists with this image
+    $existing_words = get_posts([
+        'post_type' => 'words',
+        'post_status' => ['publish', 'draft'],
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'meta_query' => [[
+            'key' => '_thumbnail_id',
+            'value' => $attachment_id,
+        ]],
+    ]);
+
+    if (!empty($existing_words)) {
+        return (int) $existing_words[0];
+    }
+
+    // Create new word post
     $word_id = wp_insert_post([
         'post_title'  => $image_post->post_title,
         'post_type'   => 'words',
@@ -414,14 +541,11 @@ function ll_handle_recording_upload() {
     ]);
 
     if (is_wp_error($word_id)) {
-        wp_send_json_error('Failed to create word post');
+        return $word_id;
     }
 
-    // Set the featured image (same as the word_image)
-    $image_attachment_id = get_post_thumbnail_id($image_id);
-    if ($image_attachment_id) {
-        set_post_thumbnail($word_id, $image_attachment_id);
-    }
+    // Set the featured image
+    set_post_thumbnail($word_id, $attachment_id);
 
     // Copy categories from image to word
     $categories = wp_get_post_terms($image_id, 'word-category', ['fields' => 'ids']);
@@ -429,20 +553,10 @@ function ll_handle_recording_upload() {
         wp_set_object_terms($word_id, $categories, 'word-category');
     }
 
-    // ALWAYS assign to a wordset (posted_ids is guaranteed to have fallback if needed)
-    if (!empty($posted_ids)) {
-        wp_set_object_terms($word_id, $posted_ids, 'wordset');
+    // Assign to wordset
+    if (!empty($wordset_ids)) {
+        wp_set_object_terms($word_id, $wordset_ids, 'wordset');
     }
 
-    // Store the raw audio file path + processing flags
-    update_post_meta($word_id, 'word_audio_file', $relative_path);
-    update_post_meta($word_id, '_ll_needs_audio_processing', '1');
-    update_post_meta($word_id, '_ll_needs_audio_review', '1');
-    update_post_meta($word_id, '_ll_raw_recording_date', current_time('mysql'));
-    update_post_meta($word_id, '_ll_raw_recording_format', $extension);
-
-    wp_send_json_success([
-        'word_id' => $word_id,
-        'message' => 'Recording uploaded successfully - pending processing',
-    ]);
+    return $word_id;
 }

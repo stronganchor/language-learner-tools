@@ -12,6 +12,44 @@
     color: #666;
 }
 
+.ll-recorder-info {
+    max-width: 800px;
+    margin: 0 auto 1.5rem;
+    padding: 1rem 2rem;
+    background: #f0f0f1;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.95rem;
+    color: #50575e;
+}
+
+.ll-recording-type-selector {
+    max-width: 800px;
+    margin: 0 auto 1rem;
+    padding: 0 2rem;
+}
+
+.ll-recording-type-selector label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #1a1a1a;
+}
+
+.ll-recording-type-selector select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.ll-recording-type-selector select:focus {
+    outline: none;
+    border-color: #2271b1;
+}
+
 .ll-current-num {
     font-weight: bold;
     color: #2271b1;

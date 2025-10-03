@@ -10,12 +10,14 @@ require_once __DIR__ . '/template-loader.php';
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
+require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 
 // Include taxonomies
 require_once(__DIR__ . '/taxonomies/word-category-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/wordset-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/language-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
+require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
 
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');

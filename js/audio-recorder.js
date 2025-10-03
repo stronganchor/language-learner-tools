@@ -220,7 +220,9 @@
         const el = window.llRecorder;
         const img = images[currentImageIndex];
 
-        // Prefer canonical IDs from localized data; keep legacy 'wordset' for compatibility
+        // Get recording type (no speaker name needed - handled server-side via current user)
+        const recordingType = document.getElementById('ll-recording-type')?.value || 'isolation';
+
         const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
             ? window.ll_recorder_data.wordset_ids
             : [];
@@ -237,6 +239,7 @@
         formData.append('action', 'll_upload_recording');
         formData.append('nonce', window.ll_recorder_data?.nonce);
         formData.append('image_id', img.id);
+        formData.append('recording_type', recordingType);
 
         // Determine file extension from blob type
         let extension = '.webm';
@@ -249,8 +252,6 @@
         }
 
         formData.append('audio', currentBlob, `${img.title}${extension}`);
-
-        // Always send canonical wordset IDs; also include legacy spec for older handlers
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
 
@@ -299,19 +300,6 @@
             el.redoBtn.disabled = false;
             el.skipBtn.disabled = false;
         }
-    }
-
-    function showStatus(message, type) {
-        const el = window.llRecorder.status;
-        el.textContent = message;
-        el.className = 'll-upload-status ' + type;
-    }
-
-    function showComplete() {
-        const el = window.llRecorder;
-        el.mainScreen.style.display = 'none';
-        el.completeScreen.style.display = 'block';
-        el.completedCount.textContent = images.length;
     }
 
 })();
