@@ -48,8 +48,8 @@ add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
 
 function ll_get_unprocessed_recordings() {
     $args = [
-        'post_type' => 'words',
-        'post_status' => ['publish', 'draft'],  // Include both published and draft posts
+        'post_type' => 'word_audio',
+        'post_status' => ['publish', 'draft'],
         'posts_per_page' => -1,
         'meta_query' => [
             [
@@ -68,16 +68,20 @@ function ll_get_unprocessed_recordings() {
     if ($query->have_posts()) {
         while ($query->have_posts()) {
             $query->the_post();
-            $post_id = get_the_ID();
-            $audio_file = get_post_meta($post_id, 'word_audio_file', true);
+            $audio_post_id = get_the_ID();
+            $audio_file = get_post_meta($audio_post_id, 'audio_file_path', true);
+            $parent_word_id = wp_get_post_parent_id($audio_post_id);
 
-            if ($audio_file) {
+            if ($audio_file && $parent_word_id) {
+                $word_title = get_the_title($parent_word_id);
+                $categories = wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']);
+
                 $recordings[] = [
-                    'id' => $post_id,
-                    'title' => get_the_title(),
+                    'id' => $audio_post_id,
+                    'title' => $word_title,
                     'audioUrl' => site_url($audio_file),
-                    'uploadDate' => get_post_meta($post_id, '_ll_raw_recording_date', true),
-                    'categories' => wp_get_post_terms($post_id, 'word-category', ['fields' => 'names']),
+                    'uploadDate' => get_post_meta($audio_post_id, 'recording_date', true),
+                    'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
                 ];
             }
         }
@@ -178,41 +182,51 @@ function ll_save_processed_audio_handler() {
         wp_send_json_error('Permission denied');
     }
 
-    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
 
-    if (!$post_id || !isset($_FILES['audio'])) {
+    if (!$audio_post_id || !isset($_FILES['audio'])) {
         wp_send_json_error('Missing required data');
     }
 
-    $post = get_post($post_id);
-    if (!$post || $post->post_type !== 'words') {
-        wp_send_json_error('Invalid post');
+    $audio_post = get_post($audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        wp_send_json_error('Invalid audio post');
+    }
+
+    $parent_word_id = wp_get_post_parent_id($audio_post_id);
+    if (!$parent_word_id) {
+        wp_send_json_error('No parent word post found');
+    }
+
+    $parent_word = get_post($parent_word_id);
+    if (!$parent_word || $parent_word->post_type !== 'words') {
+        wp_send_json_error('Invalid parent word post');
     }
 
     $file = $_FILES['audio'];
     $upload_dir = wp_upload_dir();
 
-    // Generate filename
-    $title = sanitize_file_name($post->post_title);
+    $title = sanitize_file_name($parent_word->post_title);
     $filename = $title . '_processed_' . time() . '.mp3';
     $filepath = trailingslashit($upload_dir['path']) . $filename;
 
-    // Save file
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
         wp_send_json_error('Failed to save file');
     }
 
-    // Get relative path
     $relative_path = str_replace(
         wp_normalize_path(untrailingslashit(ABSPATH)),
         '',
         wp_normalize_path($filepath)
     );
 
-    // Update post meta
-    update_post_meta($post_id, 'word_audio_file', $relative_path);
-    delete_post_meta($post_id, '_ll_needs_audio_processing');
-    update_post_meta($post_id, '_ll_processed_audio_date', current_time('mysql'));
+    // Update the word_audio post
+    update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+    delete_post_meta($audio_post_id, '_ll_needs_audio_processing');
+    update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
+
+    // Also update the parent word's legacy field for backward compatibility
+    update_post_meta($parent_word_id, 'word_audio_file', $relative_path);
 
     wp_send_json_success([
         'message' => 'Audio processed successfully',
@@ -232,12 +246,12 @@ function ll_audio_processor_admin_notice() {
 
     $screen = get_current_screen();
     if ($screen && $screen->id === 'tools_page_ll-audio-processor') {
-        return; // Don't show on the processor page itself
+        return;
     }
 
     $args = [
-        'post_type' => 'words',
-        'post_status' => ['publish', 'draft'],  // Include both
+        'post_type' => 'word_audio',
+        'post_status' => ['publish', 'draft'],
         'posts_per_page' => 1,
         'meta_query' => [
             [

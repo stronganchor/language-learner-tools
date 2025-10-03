@@ -136,15 +136,11 @@ function ll_render_audio_review_page() {
  */
 function ll_get_pending_audio_review_count() {
     $query = new WP_Query([
-        'post_type'      => 'words',
-        'post_status'    => 'draft',
+        'post_type'      => 'word_audio',
+        'post_status'    => ['publish', 'draft'],
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'meta_query'     => [
-            [
-                'key'     => 'word_audio_file',
-                'compare' => 'EXISTS',
-            ],
             [
                 'key'     => '_ll_needs_audio_review',
                 'value'   => '1',
@@ -169,17 +165,13 @@ add_action('wp_ajax_ll_get_next_audio_review', function() {
     $exclude = isset($_POST['exclude']) ? array_map('intval', (array)$_POST['exclude']) : [];
 
     $query = new WP_Query([
-        'post_type'      => 'words',
-        'post_status'    => 'draft',
+        'post_type'      => 'word_audio',
+        'post_status'    => ['publish', 'draft'],
         'posts_per_page' => 1,
         'post__not_in'   => $exclude,
         'orderby'        => 'date',
         'order'          => 'ASC',
         'meta_query'     => [
-            [
-                'key'     => 'word_audio_file',
-                'compare' => 'EXISTS',
-            ],
             [
                 'key'     => '_ll_needs_audio_review',
                 'value'   => '1',
@@ -192,19 +184,24 @@ add_action('wp_ajax_ll_get_next_audio_review', function() {
         wp_send_json_success(['item' => null]);
     }
 
-    $post_id = $query->posts[0]->ID;
-    $audio_path = get_post_meta($post_id, 'word_audio_file', true);
+    $audio_post_id = $query->posts[0]->ID;
+    $audio_path = get_post_meta($audio_post_id, 'audio_file_path', true);
     $audio_url = $audio_path ? ((0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path)) : '';
 
-    $categories = wp_get_post_terms($post_id, 'word-category', ['fields' => 'names']);
-    $wordsets = wp_get_post_terms($post_id, 'wordset', ['fields' => 'names']);
+    $parent_word_id = wp_get_post_parent_id($audio_post_id);
+    $word_title = $parent_word_id ? get_the_title($parent_word_id) : get_the_title($audio_post_id);
+
+    $categories = $parent_word_id ? wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']) : [];
+    $wordsets = $parent_word_id ? wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'names']) : [];
+    $translation = $parent_word_id ? get_post_meta($parent_word_id, 'word_english_meaning', true) : '';
+    $image_url = $parent_word_id ? get_the_post_thumbnail_url($parent_word_id, 'medium') : '';
 
     $item = [
-        'id'          => $post_id,
-        'title'       => get_the_title($post_id),
+        'id'          => $audio_post_id,
+        'title'       => $word_title,
         'audio_url'   => $audio_url,
-        'image_url'   => get_the_post_thumbnail_url($post_id, 'medium'),
-        'translation' => get_post_meta($post_id, 'word_english_meaning', true),
+        'image_url'   => $image_url,
+        'translation' => $translation,
         'categories'  => $categories ? implode(', ', $categories) : '',
         'wordsets'    => $wordsets ? implode(', ', $wordsets) : '',
     ];
@@ -222,20 +219,37 @@ add_action('wp_ajax_ll_approve_audio', function() {
         wp_send_json_error('Permission denied');
     }
 
-    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
 
-    if (!$post_id) {
+    if (!$audio_post_id) {
         wp_send_json_error('Invalid post ID');
     }
 
-    // Publish the post
+    $audio_post = get_post($audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        wp_send_json_error('Invalid audio post');
+    }
+
+    // Publish the word_audio post
     wp_update_post([
-        'ID'          => $post_id,
+        'ID'          => $audio_post_id,
         'post_status' => 'publish',
     ]);
 
     // Remove review flag
-    delete_post_meta($post_id, '_ll_needs_audio_review');
+    delete_post_meta($audio_post_id, '_ll_needs_audio_review');
+
+    // Publish the parent word post if it's still a draft
+    $parent_word_id = wp_get_post_parent_id($audio_post_id);
+    if ($parent_word_id) {
+        $parent_word = get_post($parent_word_id);
+        if ($parent_word && $parent_word->post_status === 'draft') {
+            wp_update_post([
+                'ID'          => $parent_word_id,
+                'post_status' => 'publish',
+            ]);
+        }
+    }
 
     wp_send_json_success(['message' => 'Audio approved and post published']);
 });
@@ -250,17 +264,19 @@ add_action('wp_ajax_ll_mark_for_reprocessing', function() {
         wp_send_json_error('Permission denied');
     }
 
-    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
 
-    if (!$post_id) {
+    if (!$audio_post_id) {
         wp_send_json_error('Invalid post ID');
     }
 
-    // Mark the audio as needing processing again
-    update_post_meta($post_id, '_ll_needs_audio_processing', '1');
+    $audio_post = get_post($audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        wp_send_json_error('Invalid audio post');
+    }
 
-    // Keep the review flag so it comes back to review after reprocessing
-    // _ll_needs_audio_review stays at '1'
+    // Mark the audio_post for processing
+    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
 
     wp_send_json_success(['message' => 'Audio marked for reprocessing']);
 });

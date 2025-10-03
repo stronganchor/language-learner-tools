@@ -334,10 +334,28 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
-        // Save the relative path of the audio file
-        update_post_meta($post_id, 'word_audio_file', $relative_path);
+        // Create word_audio post
+        $audio_post_id = wp_insert_post([
+            'post_title' => $title,
+            'post_type' => 'word_audio',
+            'post_status' => 'draft',
+            'post_parent' => $post_id,
+            'post_author' => get_current_user_id(),
+        ]);
 
-        // Mark as needing review
+        if (!is_wp_error($audio_post_id)) {
+            update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+            update_post_meta($audio_post_id, 'speaker_user_id', get_current_user_id());
+            update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
+            update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+            update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
+
+            // Assign default recording type
+            wp_set_object_terms($audio_post_id, 'isolation', 'recording_type');
+        }
+
+        // Also update legacy field for backward compatibility
+        update_post_meta($post_id, 'word_audio_file', $relative_path);
         update_post_meta($post_id, '_ll_needs_audio_review', '1');
 
         // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)

@@ -452,16 +452,41 @@ function ll_words_handle_bulk_reprocess_action($redirect_to, $doaction, $post_id
     $processed = 0;
     $skipped = 0;
 
-    foreach ($post_ids as $post_id) {
-        // Only process if the word has an audio file
-        $audio_file = get_post_meta($post_id, 'word_audio_file', true);
+    foreach ($post_ids as $word_post_id) {
+        // Find all word_audio children of this word
+        $audio_posts = get_posts([
+            'post_type' => 'word_audio',
+            'post_parent' => $word_post_id,
+            'post_status' => ['publish', 'draft'],
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
 
-        if ($audio_file) {
-            // Mark for reprocessing
-            update_post_meta($post_id, '_ll_needs_audio_processing', '1');
-            $processed++;
+        if (!empty($audio_posts)) {
+            foreach ($audio_posts as $audio_post_id) {
+                update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+                $processed++;
+            }
         } else {
-            $skipped++;
+            // Fallback: check if the word has legacy audio
+            $audio_file = get_post_meta($word_post_id, 'word_audio_file', true);
+            if ($audio_file) {
+                // Create a word_audio post for the legacy audio
+                $audio_post_id = wp_insert_post([
+                    'post_title' => get_the_title($word_post_id),
+                    'post_type' => 'word_audio',
+                    'post_status' => 'draft',
+                    'post_parent' => $word_post_id,
+                ]);
+
+                if (!is_wp_error($audio_post_id)) {
+                    update_post_meta($audio_post_id, 'audio_file_path', $audio_file);
+                    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+                    $processed++;
+                }
+            } else {
+                $skipped++;
+            }
         }
     }
 
