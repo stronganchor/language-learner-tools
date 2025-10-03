@@ -98,6 +98,9 @@ function ll_render_audio_review_page() {
                     <button class="button button-primary button-large" id="ll-approve-btn">
                         ✓ Approve & Publish
                     </button>
+                    <button class="button button-secondary button-large" id="ll-reprocess-btn">
+                        ⟲ Mark for Reprocessing
+                    </button>
                     <button class="button button-large" id="ll-skip-btn">
                         Skip for Now
                     </button>
@@ -235,4 +238,29 @@ add_action('wp_ajax_ll_approve_audio', function() {
     delete_post_meta($post_id, '_ll_needs_audio_review');
 
     wp_send_json_success(['message' => 'Audio approved and post published']);
+});
+
+/**
+ * AJAX: Mark audio for reprocessing
+ */
+add_action('wp_ajax_ll_mark_for_reprocessing', function() {
+    check_ajax_referer('ll_audio_review', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error('Permission denied');
+    }
+
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
+    if (!$post_id) {
+        wp_send_json_error('Invalid post ID');
+    }
+
+    // Mark the audio as needing processing again
+    update_post_meta($post_id, '_ll_needs_audio_processing', '1');
+
+    // Keep the review flag so it comes back to review after reprocessing
+    // _ll_needs_audio_review stays at '1'
+
+    wp_send_json_success(['message' => 'Audio marked for reprocessing']);
 });

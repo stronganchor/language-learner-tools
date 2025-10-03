@@ -49,7 +49,7 @@ add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
 function ll_get_unprocessed_recordings() {
     $args = [
         'post_type' => 'words',
-        'post_status' => 'publish',
+        'post_status' => ['publish', 'draft'],  // Include both published and draft posts
         'posts_per_page' => -1,
         'meta_query' => [
             [
@@ -235,10 +235,9 @@ function ll_audio_processor_admin_notice() {
         return; // Don't show on the processor page itself
     }
 
-    $count = wp_count_posts('words');
     $args = [
         'post_type' => 'words',
-        'post_status' => 'publish',
+        'post_status' => ['publish', 'draft'],  // Include both
         'posts_per_page' => 1,
         'meta_query' => [
             [

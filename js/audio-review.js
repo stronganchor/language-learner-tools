@@ -106,6 +106,42 @@
         });
     }
 
+    function markForReprocessing() {
+        if (!currentPostId) return;
+
+        showStatus('Marking for reprocessing...', '');
+        $('#ll-approve-btn, #ll-reprocess-btn, #ll-skip-btn').prop('disabled', true);
+
+        $.ajax({
+            url: llAudioReview.ajaxurl,
+            method: 'POST',
+            data: {
+                action: 'll_mark_for_reprocessing',
+                nonce: llAudioReview.nonce,
+                post_id: currentPostId
+            },
+            success: function (response) {
+                if (response.success) {
+                    showStatus('✓ Marked for reprocessing', 'success');
+                    updatePendingCount();
+                    excludedIds.push(currentPostId);
+
+                    setTimeout(function () {
+                        $('#ll-approve-btn, #ll-reprocess-btn, #ll-skip-btn').prop('disabled', false);
+                        loadNextWord();
+                    }, 800);
+                } else {
+                    showStatus('Error: ' + (response.data || 'Unknown error'), 'error');
+                    $('#ll-approve-btn, #ll-reprocess-btn, #ll-skip-btn').prop('disabled', false);
+                }
+            },
+            error: function () {
+                showStatus('Network error', 'error');
+                $('#ll-approve-btn, #ll-reprocess-btn, #ll-skip-btn').prop('disabled', false);
+            }
+        });
+    }
+
     function skipWord() {
         if (!currentPostId) return;
         excludedIds.push(currentPostId);
@@ -115,6 +151,7 @@
     // Event handlers
     $('#ll-start-review').on('click', loadNextWord);
     $('#ll-approve-btn').on('click', approveAudio);
+    $('#ll-reprocess-btn').on('click', markForReprocessing);
     $('#ll-skip-btn').on('click', skipWord);
     $('#ll-review-refresh').on('click', function () {
         location.reload();
