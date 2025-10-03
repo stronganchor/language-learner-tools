@@ -1,108 +1,230 @@
-.ll-audio-processor-wrap {
-    max-width: 1200px;
-}
-
-.ll-processor-controls {
-    margin: 20px 0;
-    padding: 15px;
-    background: #f5f5f5;
-    border-radius: 4px;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.ll-processor-status {
-    margin: 20px 0;
-    padding: 15px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-.ll-progress-bar {
-    width: 100%;
-    height: 30px;
-    background: #f0f0f0;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 10px;
-}
-
-.ll-progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #2271b1, #135e96);
-    transition: width 0.3s ease;
-}
-
-.ll-status-text {
-    margin: 0;
-    font-weight: 500;
-}
-
-.ll-recordings-list {
-    margin-top: 20px;
-}
-
-.ll-recording-item {
-    padding: 15px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 10px;
-    transition: background 0.2s;
-}
-
-.ll-recording-item:hover {
+/* Processing Options Panel */
+.ll-processing-options {
     background: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px 0;
+    border: 1px solid #ddd;
 }
 
-.ll-recording-item.ll-processed {
-    background: #e8f5e9;
-    border-color: #4caf50;
+.ll-processing-options h3 {
+    margin-top: 0;
+    font-size: 14px;
+    font-weight: 600;
 }
 
-.ll-recording-label {
+.ll-processing-options label {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
     cursor: pointer;
 }
 
-.ll-recording-checkbox {
-    margin-top: 4px;
+.ll-processing-options input[type="checkbox"] {
+    margin: 0;
 }
 
-.ll-recording-info {
-    flex: 1;
+/* Review Interface */
+.ll-review-interface {
+    display: none;
+    margin-top: 30px;
+}
+
+.ll-review-file {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.ll-review-file.ll-active {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.ll-review-header {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.ll-review-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.ll-file-options {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+}
+
+.ll-file-options label {
+    display: flex;
+    align-items: center;
     gap: 5px;
 }
 
-.ll-recording-info strong {
-    font-size: 14px;
-    color: #1a1a1a;
+/* Waveform Display */
+.ll-waveform-container {
+    position: relative;
+    background: #1a1a1a;
+    border-radius: 4px;
+    margin: 15px 0;
+    height: 120px;
+    overflow: hidden;
 }
 
-.ll-recording-categories {
-    font-size: 12px;
-    color: #666;
-}
-
-.ll-recording-date {
-    font-size: 11px;
-    color: #999;
-}
-
-.ll-recording-item audio {
+.ll-waveform-canvas {
     width: 100%;
-    max-width: 400px;
-    margin-top: 10px;
-    margin-left: 30px;
+    height: 100%;
+    display: block;
 }
 
-#ll-selected-count {
-    font-weight: bold;
-    color: #2271b1;
+.ll-trim-boundary {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #00a0d2;
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+.ll-trim-boundary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 30px;
+    background: #00a0d2;
+    border-radius: 3px;
+}
+
+.ll-trim-boundary.ll-start {
+    left: 0;
+}
+
+.ll-trim-boundary.ll-end {
+    right: 0;
+}
+
+.ll-trim-boundary:hover {
+    background: #0073aa;
+}
+
+.ll-trim-boundary:hover::before {
+    background: #0073aa;
+}
+
+.ll-trimmed-region {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.ll-trimmed-region.ll-start {
+    left: 0;
+}
+
+.ll-trimmed-region.ll-end {
+    right: 0;
+}
+
+/* Playback Controls */
+.ll-playback-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.ll-playback-controls audio {
+    flex: 1;
+}
+
+.ll-reprocess-btn {
+    white-space: nowrap;
+}
+
+/* Action Buttons */
+.ll-review-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #ddd;
+}
+
+.ll-btn-save-all {
+    background: #00a32a;
+    color: white;
+    border: none;
+    padding: 10px 30px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ll-btn-save-all:hover {
+    background: #008a20;
+}
+
+.ll-btn-cancel {
+    background: #ddd;
+    color: #333;
+    border: none;
+    padding: 10px 30px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ll-btn-cancel:hover {
+    background: #ccc;
+}
+
+/* Dragging states */
+.ll-waveform-container {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+.ll-trim-boundary {
+    transition: background-color 0.15s ease;
+}
+
+.ll-trim-boundary:active {
+    background: #005177;
+}
+
+.ll-trim-boundary:active::before {
+    background: #005177;
+}
+
+/* Processing state */
+audio[style*="opacity: 0.5"] {
+    pointer-events: none;
+}
+
+.ll-reprocess-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Visual feedback for trim regions */
+.ll-trimmed-region {
+    transition: width 0.05s ease, left 0.05s ease;
 }

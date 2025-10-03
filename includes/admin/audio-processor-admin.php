@@ -92,13 +92,29 @@ function ll_render_audio_processor_page() {
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1>Audio Processor</h1>
-        <p>Process uploaded audio recordings with noise reduction, loudness normalization, and silence trimming.</p>
+        <p>Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.</p>
 
         <?php if (empty($recordings)): ?>
             <div class="notice notice-info">
                 <p>No unprocessed audio recordings found.</p>
             </div>
         <?php else: ?>
+            <div class="ll-processing-options">
+                <h3>Processing Options</h3>
+                <label>
+                    <input type="checkbox" id="ll-enable-trim" checked>
+                    <span>Trim silence from start and end</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="ll-enable-noise" checked>
+                    <span>Apply noise reduction</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="ll-enable-loudness" checked>
+                    <span>Normalize loudness</span>
+                </label>
+            </div>
+
             <div class="ll-processor-controls">
                 <button id="ll-select-all" class="button">Select All</button>
                 <button id="ll-deselect-all" class="button">Deselect All</button>
@@ -134,6 +150,16 @@ function ll_render_audio_processor_page() {
                         <audio controls preload="none" src="<?php echo esc_url($recording['audioUrl']); ?>"></audio>
                     </div>
                 <?php endforeach; ?>
+            </div>
+
+            <!-- Review Interface (shown after processing) -->
+            <div id="ll-review-interface" class="ll-review-interface">
+                <h2>Review Processed Audio</h2>
+                <div id="ll-review-files-container"></div>
+                <div class="ll-review-actions">
+                    <button id="ll-save-all" class="ll-btn-save-all">Save All Changes</button>
+                    <button id="ll-cancel-review" class="ll-btn-cancel">Cancel</button>
+                </div>
             </div>
         <?php endif; ?>
     </div>
