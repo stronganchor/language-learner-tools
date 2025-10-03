@@ -11,6 +11,7 @@
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
     const nonce = window.ll_recorder_data?.nonce;
+    const requireAll = !!window.ll_recorder_data?.require_all_types;
 
     if (images.length === 0) return;
 
@@ -54,6 +55,17 @@
             completedCount: document.querySelector('.ll-completed-count'),
             mainScreen: document.querySelector('.ll-recording-main'),
         };
+    }
+
+    // ADD: keep the type selector in sync with the next missing type for the current image
+    function setTypeForCurrentImage() {
+        const sel = document.getElementById('ll-recording-type');
+        if (!sel) return;
+        const img = images[currentImageIndex];
+        const next = (img && Array.isArray(img.missing_types) && img.missing_types.length)
+            ? img.missing_types[0]
+            : sel.value;
+        if (next && sel.value !== next) sel.value = next;
     }
 
     function showStatus(message, type) {
@@ -105,6 +117,7 @@
         }
         categoryEl.textContent = 'Category: ' + (img.category_name || 'Uncategorized');
 
+        setTypeForCurrentImage(); // ADD: set the next needed type for this image
         resetRecordingState();
     }
 
@@ -215,11 +228,30 @@
         resetRecordingState();
     }
 
-    function skipToNext() {
-        loadImage(currentImageIndex + 1);
+    function skipToNext() { // CHANGE: allow skipping just the current TYPE if requireAll
+        if (!requireAll) {
+            loadImage(currentImageIndex + 1);
+            return;
+        }
+        const sel = document.getElementById('ll-recording-type');
+        const img = images[currentImageIndex];
+        if (!img || !Array.isArray(img.missing_types) || img.missing_types.length === 0) {
+            loadImage(currentImageIndex + 1);
+            return;
+        }
+        const curType = (sel && sel.value) || img.missing_types[0];
+        img.missing_types = img.missing_types.filter(t => t !== curType);
+
+        if (img.missing_types.length > 0) {
+            setTypeForCurrentImage();
+            resetRecordingState();
+            showStatus('Skipped this type. Next type selected.', 'info');
+        } else {
+            loadImage(currentImageIndex + 1);
+        }
     }
 
-    async function submitAndNext() {
+    async function submitAndNext() { // CHANGE: stay on same image if remaining types exist
         if (!currentBlob) {
             console.error('No audio blob to submit');
             return;
@@ -286,6 +318,24 @@
             console.log('Upload response:', data);
 
             if (data.success) {
+                const remaining = (data.data && Array.isArray(data.data.remaining_types)) ? data.data.remaining_types : [];
+
+                if (requireAll && remaining.length > 0) {
+                    // Update current image state and stay on it
+                    images[currentImageIndex].missing_types = remaining.slice();
+                    images[currentImageIndex].existing_types = Array.isArray(images[currentImageIndex].existing_types)
+                        ? images[currentImageIndex].existing_types
+                        : [];
+                    if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
+                        images[currentImageIndex].existing_types.push(recordingType);
+                    }
+
+                    resetRecordingState();
+                    setTypeForCurrentImage();
+                    showStatus(`Saved ${recordingType}. Next type selected.`, 'success');
+                    return; // do NOT advance image
+                }
+
                 showStatus('Success! Recording will be processed later.', 'success');
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
@@ -307,6 +357,20 @@
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
             el.skipBtn.disabled = false;
+        }
+    }
+
+    function showComplete() {
+        const el = window.llRecorder;
+        if (el.mainScreen) el.mainScreen.style.display = 'none';
+        if (el.completeScreen) {
+            el.completeScreen.style.display = 'block';
+            if (el.completedCount) el.completedCount.textContent = String(images.length);
+        } else {
+            // Fallback message
+            const p = document.createElement('p');
+            p.textContent = 'All recordings completed for the selected set. Thank you!';
+            document.querySelector('.ll-recording-wrapper')?.appendChild(p);
         }
     }
 
