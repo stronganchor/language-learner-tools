@@ -16,6 +16,18 @@ function ll_audio_upload_form_shortcode() {
         return 'You do not have permission to upload files.';
     }
 
+    // Get recording types
+    $recording_types = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+    ]);
+
+    // Get users for speaker assignment
+    $users = get_users([
+        'orderby' => 'display_name',
+        'order' => 'ASC',
+    ]);
+
     ob_start();
     ?>
     <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" enctype="multipart/form-data">
@@ -31,6 +43,46 @@ function ll_audio_upload_form_shortcode() {
             <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
             <?php esc_html_e( 'Match images based on translation instead of original word', 'll-tools-text-domain' ); ?>
         </label><br>
+
+        <div style="margin-top:10px;">
+            <label><?php esc_html_e( 'Recording Type', 'll-tools-text-domain' ); ?>:</label><br>
+            <select name="ll_recording_type" required>
+                <?php
+                if (!empty($recording_types) && !is_wp_error($recording_types)) {
+                    foreach ($recording_types as $type) {
+                        $selected = ($type->slug === 'isolation') ? 'selected' : '';
+                        printf(
+                            '<option value="%s" %s>%s</option>',
+                            esc_attr($type->slug),
+                            $selected,
+                            esc_html($type->name)
+                        );
+                    }
+                } else {
+                    echo '<option value="isolation">' . esc_html__('Isolation', 'll-tools-text-domain') . '</option>';
+                }
+                ?>
+            </select>
+        </div>
+
+        <div style="margin-top:10px;">
+            <label><?php esc_html_e( 'Speaker Assignment', 'll-tools-text-domain' ); ?>:</label><br>
+            <select name="ll_speaker_assignment" required>
+                <option value="current"><?php esc_html_e( 'Current User', 'll-tools-text-domain'); ?> (<?php echo esc_html(wp_get_current_user()->display_name); ?>)</option>
+                <option value="unassigned"><?php esc_html_e( 'Unassigned', 'll-tools-text-domain' ); ?></option>
+                <?php if (!empty($users)): ?>
+                    <optgroup label="<?php esc_attr_e('Other Users', 'll-tools-text-domain'); ?>">
+                        <?php foreach ($users as $user): ?>
+                            <?php if ($user->ID !== get_current_user_id()): ?>
+                                <option value="<?php echo esc_attr($user->ID); ?>">
+                                    <?php echo esc_html($user->display_name . ' (' . $user->user_email . ')'); ?>
+                                </option>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </optgroup>
+                <?php endif; ?>
+            </select>
+        </div>
 
         <div>
             <label><?php esc_html_e( 'Select Categories', 'll-tools-text-domain' ); ?>:</label><br>
@@ -334,14 +386,50 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
+        // Determine speaker assignment
+        $speaker_assignment = isset($post_data['ll_speaker_assignment']) ? $post_data['ll_speaker_assignment'] : 'current';
+        $speaker_user_id = null;
+
+        if ($speaker_assignment === 'current') {
+            $speaker_user_id = get_current_user_id();
+        } elseif ($speaker_assignment === 'unassigned') {
+            $speaker_user_id = null;
+        } elseif (is_numeric($speaker_assignment)) {
+            $speaker_user_id = (int) $speaker_assignment;
+        }
+
+        // Get selected recording type
+        $recording_type = isset($post_data['ll_recording_type']) ? sanitize_text_field($post_data['ll_recording_type']) : 'isolation';
+
         // Create word_audio post
-        $audio_post_id = wp_insert_post([
+        $audio_post_args = [
             'post_title' => $title,
             'post_type' => 'word_audio',
             'post_status' => 'draft',
             'post_parent' => $post_id,
-            'post_author' => get_current_user_id(),
-        ]);
+        ];
+
+        // Only set post_author if speaker is assigned
+        if ($speaker_user_id) {
+            $audio_post_args['post_author'] = $speaker_user_id;
+        }
+
+        $audio_post_id = wp_insert_post($audio_post_args);
+
+        if (!is_wp_error($audio_post_id)) {
+            update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+            update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
+            update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+            update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
+
+            // Store speaker_user_id (can be null for unassigned)
+            if ($speaker_user_id) {
+                update_post_meta($audio_post_id, 'speaker_user_id', $speaker_user_id);
+            }
+
+            // Assign recording type taxonomy
+            wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
+        }
 
         if (!is_wp_error($audio_post_id)) {
             update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
