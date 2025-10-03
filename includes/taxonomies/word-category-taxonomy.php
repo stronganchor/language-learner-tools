@@ -332,7 +332,6 @@ function ll_get_words_by_category( $category_name,
 
     /* ---------- figure out which word-set (if any) ---------- */
     if ( $wordset_id === null ) {
-        // "null" means "whatever is currently active on the site".
         $wordset_id = ll_tools_get_active_wordset_id();
     }
 
@@ -376,19 +375,53 @@ function ll_get_words_by_category( $category_name,
     $out = [];
     while ( $q->have_posts() ) {
         $q->the_post();
+        $post_id = get_the_ID();
+
+        $audio_url = ll_get_word_audio_url($post_id);
+
         $out[] = [
-            'id'    => get_the_ID(),
+            'id'    => $post_id,
             'title' => get_the_title(),
             'image' => wp_get_attachment_url( get_post_thumbnail_id() ),
-            'audio' => get_post_meta( get_the_ID(), 'word_audio_file', true ),
+            'audio' => $audio_url,
             'label' => $use_titles
                         ? get_the_title()
-                        : get_post_meta( get_the_ID(), 'word_english_meaning', true ),
+                        : get_post_meta( $post_id, 'word_english_meaning', true ),
         ];
     }
     wp_reset_postdata();
 
     return $out;
+}
+
+/**
+ * Get audio URL for a word - queries word_audio posts with fallback to meta
+ */
+function ll_get_word_audio_url($word_id) {
+    // First, try to get from word_audio child posts
+    $audio_posts = get_posts([
+        'post_type' => 'word_audio',
+        'post_parent' => $word_id,
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'orderby' => 'date',
+        'order' => 'DESC',
+    ]);
+
+    if (!empty($audio_posts)) {
+        $audio_path = get_post_meta($audio_posts[0]->ID, 'audio_file_path', true);
+        if ($audio_path) {
+            return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+        }
+    }
+
+    // Fallback to legacy meta
+    $legacy_audio = get_post_meta($word_id, 'word_audio_file', true);
+    if ($legacy_audio) {
+        return (0 === strpos($legacy_audio, 'http')) ? $legacy_audio : site_url($legacy_audio);
+    }
+
+    return '';
 }
 
 /**

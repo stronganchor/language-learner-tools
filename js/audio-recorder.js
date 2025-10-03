@@ -56,6 +56,14 @@
         };
     }
 
+    function showStatus(message, type) {
+        const el = window.llRecorder;
+        if (!el || !el.status) return;
+        el.status.textContent = message;
+        el.status.className = 'll-upload-status';
+        if (type) el.status.classList.add(type);
+    }
+
     function setupEventListeners() {
         const el = window.llRecorder;
         el.recordBtn.addEventListener('click', toggleRecording);
