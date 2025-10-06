@@ -50,6 +50,7 @@ require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
+require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 
 // Include the plugin update checker
 require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';
