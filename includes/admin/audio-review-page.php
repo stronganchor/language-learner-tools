@@ -1,4 +1,4 @@
-<?php
+<?php // File: includes/admin/audio-review-page.php
 /**
  * Audio Review Admin Page
  * Allows admins to review and approve draft word posts with audio
@@ -53,7 +53,6 @@ add_action('admin_enqueue_scripts', 'll_audio_review_enqueue_assets');
  * Render the audio review page
  */
 function ll_render_audio_review_page() {
-    // Get counts
     $pending_count = ll_get_pending_audio_review_count();
 
     ?>
@@ -75,6 +74,10 @@ function ll_render_audio_review_page() {
                     <div class="ll-review-meta">
                         <span id="ll-review-category"></span>
                         <span id="ll-review-wordset"></span>
+                        <span id="ll-review-recording-type" style="color: #2271b1; font-weight: bold;"></span>
+                    </div>
+                    <div class="ll-review-debug">
+                        <small>Audio Post ID: <span id="ll-review-post-id"></span> | Path: <span id="ll-review-audio-path"></span></small>
                     </div>
                 </div>
 
@@ -196,14 +199,20 @@ add_action('wp_ajax_ll_get_next_audio_review', function() {
     $translation = $parent_word_id ? get_post_meta($parent_word_id, 'word_english_meaning', true) : '';
     $image_url = $parent_word_id ? get_the_post_thumbnail_url($parent_word_id, 'medium') : '';
 
+    // Get recording type for this specific audio post
+    $recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'names']);
+    $recording_type_label = !is_wp_error($recording_types) && !empty($recording_types) ? implode(', ', $recording_types) : 'Unknown';
+
     $item = [
-        'id'          => $audio_post_id,
-        'title'       => $word_title,
-        'audio_url'   => $audio_url,
-        'image_url'   => $image_url,
-        'translation' => $translation,
-        'categories'  => $categories ? implode(', ', $categories) : '',
-        'wordsets'    => $wordsets ? implode(', ', $wordsets) : '',
+        'id'             => $audio_post_id,
+        'title'          => $word_title,
+        'audio_url'      => $audio_url,
+        'audio_path'     => $audio_path, // Include raw path for debugging
+        'image_url'      => $image_url,
+        'translation'    => $translation,
+        'categories'     => $categories ? implode(', ', $categories) : '',
+        'wordsets'       => $wordsets ? implode(', ', $wordsets) : '',
+        'recording_type' => $recording_type_label,
     ];
 
     wp_send_json_success(['item' => $item]);

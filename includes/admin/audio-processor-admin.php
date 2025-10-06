@@ -207,7 +207,13 @@ function ll_save_processed_audio_handler() {
     $upload_dir = wp_upload_dir();
 
     $title = sanitize_file_name($parent_word->post_title);
-    $filename = $title . '_processed_' . time() . '.mp3';
+
+    // Get recording type to make filename unique
+    $recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'slugs']);
+    $type_suffix = (!is_wp_error($recording_types) && !empty($recording_types)) ? '_' . $recording_types[0] : '';
+
+    // Include audio_post_id to ensure absolute uniqueness
+    $filename = $title . $type_suffix . '_' . $audio_post_id . '_' . time() . '.mp3';
     $filepath = trailingslashit($upload_dir['path']) . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
@@ -220,20 +226,21 @@ function ll_save_processed_audio_handler() {
         wp_normalize_path($filepath)
     );
 
-    // Update the word_audio post
+    // Update ONLY this specific word_audio post
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     delete_post_meta($audio_post_id, '_ll_needs_audio_processing');
     update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
     update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
-    // Also update the parent word's legacy field for backward compatibility
-    update_post_meta($parent_word_id, 'word_audio_file', $relative_path);
+    // Don't update parent word's legacy field - that should use the prioritized audio
 
     wp_send_json_success([
         'message' => 'Audio processed successfully and marked for review',
-        'file_path' => $relative_path
+        'file_path' => $relative_path,
+        'audio_post_id' => $audio_post_id
     ]);
 }
+
 /**
  * Show admin notice if there are unprocessed recordings
  */

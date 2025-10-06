@@ -45,7 +45,12 @@
         $('#ll-review-title').text(item.title);
         $('#ll-review-category').text('Category: ' + (item.categories || 'None'));
         $('#ll-review-wordset').text('Word Set: ' + (item.wordsets || 'None'));
+        $('#ll-review-recording-type').text('Recording Type: ' + (item.recording_type || 'Unknown'));
         $('#ll-review-translation-text').text(item.translation || 'No translation');
+
+        // Debug info
+        $('#ll-review-post-id').text(item.id);
+        $('#ll-review-audio-path').text(item.audio_path || 'N/A');
 
         if (item.image_url) {
             $('#ll-review-img').attr('src', item.image_url).show();
@@ -86,7 +91,7 @@
             },
             success: function (response) {
                 if (response.success) {
-                    showStatus('✓ Approved', 'success');
+                    showStatus('✓ Approved (Post ID: ' + currentPostId + ')', 'success');
                     updatePendingCount();
                     excludedIds.push(currentPostId);
 
