@@ -277,6 +277,7 @@ add_action('wp_ajax_ll_mark_for_reprocessing', function() {
 
     // Mark the audio_post for processing
     update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+    delete_post_meta($audio_post_id, '_ll_needs_audio_review');
 
     wp_send_json_success(['message' => 'Audio marked for reprocessing']);
 });

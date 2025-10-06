@@ -1,4 +1,4 @@
-<?php
+<?php // File: includes/post-types/words-post-type.php
 /** 
  * Register the "words" custom post type and the "word-category" custom taxonomy.
  * 
@@ -671,3 +671,116 @@ function ll_words_handle_bulk_edit_categories($post_id) {
     }
 }
 add_action('edit_post', 'll_words_handle_bulk_edit_categories', 999, 1);
+
+/**
+ * Prevent publishing a words post without at least one published word_audio
+ */
+add_action('save_post_words', 'll_validate_word_audio_before_publish', 10, 3);
+function ll_validate_word_audio_before_publish($post_id, $post, $update) {
+    if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) {
+        return;
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    // Only intervene if trying to publish
+    if ($post->post_status !== 'publish') {
+        return;
+    }
+
+    // Check if there's at least one published word_audio
+    $published_audio = get_posts([
+        'post_type' => 'word_audio',
+        'post_parent' => $post_id,
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+    ]);
+
+    if (empty($published_audio)) {
+        // Revert to draft status
+        remove_action('save_post_words', 'll_validate_word_audio_before_publish', 10);
+        wp_update_post([
+            'ID' => $post_id,
+            'post_status' => 'draft',
+        ]);
+        add_action('save_post_words', 'll_validate_word_audio_before_publish', 10, 3);
+
+        // Set a transient to show admin notice
+        set_transient('ll_word_publish_blocked_' . get_current_user_id(), $post_id, 60);
+    }
+}
+
+/**
+ * Show admin notice when word publishing is blocked
+ */
+add_action('admin_notices', 'll_show_word_publish_blocked_notice');
+function ll_show_word_publish_blocked_notice() {
+    $post_id = get_transient('ll_word_publish_blocked_' . get_current_user_id());
+    if (!$post_id) {
+        return;
+    }
+
+    delete_transient('ll_word_publish_blocked_' . get_current_user_id());
+
+    $edit_url = get_edit_post_link($post_id);
+    $title = get_the_title($post_id);
+
+    printf(
+        '<div class="notice notice-warning is-dismissible"><p><strong>Publishing Blocked:</strong> "%s" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href="%s">Edit post</a></p></div>',
+        esc_html($title),
+        esc_url($edit_url)
+    );
+}
+
+/**
+ * Filter words queries to only include posts with published audio
+ * This ensures unpublished words don't appear in quizzes/frontend
+ */
+add_action('pre_get_posts', 'll_filter_words_by_audio_status');
+function ll_filter_words_by_audio_status($query) {
+    // Only filter frontend queries for words post type
+    if (is_admin() || !$query->is_main_query()) {
+        return;
+    }
+
+    if ($query->get('post_type') !== 'words') {
+        return;
+    }
+
+    // Add a meta query to check for published audio
+    $existing_meta_query = $query->get('meta_query') ?: [];
+
+    // We can't directly join to word_audio in meta_query, so we'll use a different approach
+    // We'll filter in a more direct way using posts_where
+    add_filter('posts_where', 'll_filter_words_with_audio_where', 10, 2);
+}
+
+/**
+ * SQL WHERE clause to filter words with published audio
+ */
+function ll_filter_words_with_audio_where($where, $query) {
+    global $wpdb;
+
+    // Only apply to our specific query
+    if (is_admin() || $query->get('post_type') !== 'words') {
+        return $where;
+    }
+
+    // Remove this filter after use to prevent affecting other queries
+    remove_filter('posts_where', 'll_filter_words_with_audio_where', 10);
+
+    // Add condition: words post must have at least one published word_audio child
+    $where .= " AND {$wpdb->posts}.ID IN (
+        SELECT DISTINCT post_parent
+        FROM {$wpdb->posts}
+        WHERE post_type = 'word_audio'
+        AND post_status = 'publish'
+        AND post_parent IS NOT NULL
+        AND post_parent > 0
+    )";
+
+    return $where;
+}

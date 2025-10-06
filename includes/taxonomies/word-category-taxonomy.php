@@ -368,6 +368,7 @@ function ll_get_words_by_category( $category_name,
     $q = new WP_Query( [
         'post_type'      => 'words',
         'posts_per_page' => -1,
+        'post_status'    => 'publish',
         'tax_query'      => $tax_query,
         'meta_query'     => $meta_query,
     ] );
@@ -376,6 +377,19 @@ function ll_get_words_by_category( $category_name,
     while ( $q->have_posts() ) {
         $q->the_post();
         $post_id = get_the_ID();
+
+        // ADDED: Skip words without published audio
+        $has_published_audio = get_posts([
+            'post_type' => 'word_audio',
+            'post_parent' => $post_id,
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+        ]);
+
+        if (empty($has_published_audio)) {
+            continue;
+        }
 
         $audio_url = ll_get_word_audio_url($post_id);
 
@@ -395,23 +409,27 @@ function ll_get_words_by_category( $category_name,
 }
 
 /**
- * Get audio URL for a word - queries word_audio posts with fallback to meta
+ * Get audio URL for a word - prioritizes by recording type
+ * Priority: question > introduction > isolation > in sentence > any other
  */
 function ll_get_word_audio_url($word_id) {
-    // First, try to get from word_audio child posts
+    // Get all word_audio child posts
     $audio_posts = get_posts([
         'post_type' => 'word_audio',
         'post_parent' => $word_id,
         'post_status' => 'publish',
-        'posts_per_page' => 1,
+        'posts_per_page' => -1,
         'orderby' => 'date',
         'order' => 'DESC',
     ]);
 
     if (!empty($audio_posts)) {
-        $audio_path = get_post_meta($audio_posts[0]->ID, 'audio_file_path', true);
-        if ($audio_path) {
-            return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+        $prioritized_audio = ll_get_prioritized_audio($audio_posts);
+        if ($prioritized_audio) {
+            $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
+            if ($audio_path) {
+                return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+            }
         }
     }
 
@@ -422,6 +440,63 @@ function ll_get_word_audio_url($word_id) {
     }
 
     return '';
+}
+
+/**
+ * Select the highest priority audio from an array of word_audio posts
+ * Priority: question > introduction > isolation > in sentence > any other
+ *
+ * @param array $audio_posts Array of word_audio post objects
+ * @return WP_Post|null The highest priority audio post or null
+ */
+function ll_get_prioritized_audio($audio_posts) {
+    if (empty($audio_posts)) {
+        return null;
+    }
+
+    $priority_order = ['question', 'introduction', 'isolation', 'in sentence'];
+
+    // Build a map of recording type => audio posts
+    $audio_by_type = [];
+    $audio_without_type = [];
+
+    foreach ($audio_posts as $audio_post) {
+        $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+
+        if (is_wp_error($recording_types) || empty($recording_types)) {
+            $audio_without_type[] = $audio_post;
+            continue;
+        }
+
+        foreach ($recording_types as $type_slug) {
+            if (!isset($audio_by_type[$type_slug])) {
+                $audio_by_type[$type_slug] = [];
+            }
+            $audio_by_type[$type_slug][] = $audio_post;
+        }
+    }
+
+    // Check each priority level in order
+    foreach ($priority_order as $type) {
+        if (!empty($audio_by_type[$type])) {
+            return $audio_by_type[$type][0];
+        }
+    }
+
+    // If no priority types found, check for any other typed audio
+    foreach ($audio_by_type as $type => $posts) {
+        if (!empty($posts)) {
+            return $posts[0];
+        }
+    }
+
+    // Last resort: return first audio without type
+    if (!empty($audio_without_type)) {
+        return $audio_without_type[0];
+    }
+
+    // Fallback: return the first audio post
+    return $audio_posts[0];
 }
 
 /**

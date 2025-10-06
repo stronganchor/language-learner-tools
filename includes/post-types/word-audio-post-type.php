@@ -70,7 +70,6 @@ function ll_word_audio_column_content($column, $post_id) {
                     echo '—';
                 }
             } else {
-                // Fallback for legacy speaker_name field
                 $speaker_name = get_post_meta($post_id, 'speaker_name', true);
                 echo $speaker_name ? esc_html($speaker_name) : '—';
             }
@@ -83,7 +82,12 @@ function ll_word_audio_column_content($column, $post_id) {
 
         case 'audio_file':
             $audio = get_post_meta($post_id, 'audio_file_path', true);
-            echo $audio ? basename($audio) : '—';
+            if ($audio) {
+                $audio_url = (0 === strpos($audio, 'http')) ? $audio : site_url($audio);
+                echo '<audio controls preload="none" style="height:30px;max-width:200px;" src="' . esc_url($audio_url) . '"></audio>';
+            } else {
+                echo '—';
+            }
             break;
     }
 }

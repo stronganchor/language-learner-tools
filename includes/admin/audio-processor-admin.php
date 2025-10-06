@@ -224,16 +224,16 @@ function ll_save_processed_audio_handler() {
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     delete_post_meta($audio_post_id, '_ll_needs_audio_processing');
     update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
+    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
     // Also update the parent word's legacy field for backward compatibility
     update_post_meta($parent_word_id, 'word_audio_file', $relative_path);
 
     wp_send_json_success([
-        'message' => 'Audio processed successfully',
+        'message' => 'Audio processed successfully and marked for review',
         'file_path' => $relative_path
     ]);
 }
-
 /**
  * Show admin notice if there are unprocessed recordings
  */
