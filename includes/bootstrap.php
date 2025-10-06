@@ -58,3 +58,6 @@ require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-ch
 
 // Include other utility files
 require_once(__DIR__ . '/i18n/language-switcher.php');
+
+// TEMPORARY INCLUSION - legacy audio migrator
+require_once __DIR__ . '/admin/legacy-audio-migrator.php';
