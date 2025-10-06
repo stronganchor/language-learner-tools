@@ -12,10 +12,10 @@
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
     const nonce = window.ll_recorder_data?.nonce;
     const requireAll = !!window.ll_recorder_data?.require_all_types;
+    const i18n = window.ll_recorder_data?.i18n || {};
 
     if (images.length === 0) return;
 
-    // SVG icons
     const icons = {
         record: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
         stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
@@ -31,7 +31,6 @@
         loadImage(0);
         setupEventListeners();
 
-        // Set initial record icon
         if (window.llRecorder && window.llRecorder.recordBtn) {
             window.llRecorder.recordBtn.innerHTML = icons.record;
         }
@@ -57,7 +56,6 @@
         };
     }
 
-    // ADD: keep the type selector in sync with the next missing type for the current image
     function setTypeForCurrentImage() {
         const sel = document.getElementById('ll-recording-type');
         if (!sel) return;
@@ -97,7 +95,6 @@
         el.image.src = img.image_url;
         el.currentNum.textContent = index + 1;
 
-        // Conditionally show/hide the title based on hide_name setting
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
             el.title.textContent = '';
@@ -107,7 +104,6 @@
             el.title.style.display = '';
         }
 
-        // Display category name
         let categoryEl = document.getElementById('ll-image-category');
         if (!categoryEl) {
             categoryEl = document.createElement('p');
@@ -115,9 +111,10 @@
             categoryEl.className = 'll-image-category';
             el.title.parentNode.insertBefore(categoryEl, el.title.nextSibling);
         }
-        categoryEl.textContent = 'Category: ' + (img.category_name || 'Uncategorized');
+        categoryEl.textContent = (i18n.category || 'Category:') + ' ' +
+            (img.category_name || i18n.uncategorized || 'Uncategorized');
 
-        setTypeForCurrentImage(); // ADD: set the next needed type for this image
+        setTypeForCurrentImage();
         resetRecordingState();
     }
 
@@ -152,15 +149,12 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Use WAV-compatible format for better editing
             const options = { mimeType: 'audio/wav' };
-            // Fallback for browsers that don't support audio/wav directly
             if (!MediaRecorder.isTypeSupported('audio/wav')) {
-                // Use uncompressed audio - we'll handle format client-side
                 if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
                     options.mimeType = 'audio/webm;codecs=pcm';
                 } else {
-                    options.mimeType = 'audio/webm'; // Last resort, but mark for processing
+                    options.mimeType = 'audio/webm';
                 }
             }
 
@@ -182,7 +176,7 @@
 
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            showStatus('Error: Could not access microphone', 'error');
+            showStatus(i18n.microphone_error || 'Error: Could not access microphone', 'error');
         }
     }
 
@@ -204,7 +198,6 @@
     function handleRecordingStopped() {
         const el = window.llRecorder;
 
-        // Create blob with appropriate MIME type
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         currentBlob = new Blob(audioChunks, { type: mimeType });
         const url = URL.createObjectURL(currentBlob);
@@ -218,7 +211,6 @@
         el.redoBtn.innerHTML = icons.redo;
         el.submitBtn.innerHTML = icons.check;
 
-        // Auto-play the recording
         el.playbackAudio.play().catch(err => {
             console.log('Auto-play prevented by browser:', err);
         });
@@ -228,7 +220,7 @@
         resetRecordingState();
     }
 
-    function skipToNext() { // CHANGE: allow skipping just the current TYPE if requireAll
+    function skipToNext() {
         if (!requireAll) {
             loadImage(currentImageIndex + 1);
             return;
@@ -245,22 +237,21 @@
         if (img.missing_types.length > 0) {
             setTypeForCurrentImage();
             resetRecordingState();
-            showStatus('Skipped this type. Next type selected.', 'info');
+            showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
         } else {
             loadImage(currentImageIndex + 1);
         }
     }
 
-    async function submitAndNext() { // CHANGE: stay on same image if remaining types exist
+    async function submitAndNext() {
         if (!currentBlob) {
-            console.error('No audio blob to submit');
+            console.error(i18n.no_blob || 'No audio blob to submit');
             return;
         }
 
         const el = window.llRecorder;
         const img = images[currentImageIndex];
 
-        // Get recording type (no speaker name needed - handled server-side via current user)
         const recordingType = document.getElementById('ll-recording-type')?.value || 'isolation';
 
         const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
@@ -268,9 +259,9 @@
             : [];
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
 
-        console.log('Starting upload for image:', img.id, img.title);
+        console.log((i18n.starting_upload || 'Starting upload for image:'), img.id, img.title);
 
-        showStatus('Uploading...', 'uploading');
+        showStatus(i18n.uploading || 'Uploading...', 'uploading');
         el.submitBtn.disabled = true;
         el.redoBtn.disabled = true;
         el.skipBtn.disabled = true;
@@ -281,7 +272,6 @@
         formData.append('image_id', img.id);
         formData.append('recording_type', recordingType);
 
-        // Determine file extension from blob type
         let extension = '.webm';
         if (currentBlob.type.includes('wav')) {
             extension = '.wav';
@@ -304,14 +294,17 @@
             console.log('Response status:', response.status);
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorMsg = i18n.http_error
+                    ? i18n.http_error.replace('%d', response.status).replace('%s', response.statusText)
+                    : `HTTP ${response.status}: ${response.statusText}`;
+                throw new Error(errorMsg);
             }
 
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 console.error('Non-JSON response:', text.substring(0, 500));
-                throw new Error('Server returned invalid response format');
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
             }
 
             const data = await response.json();
@@ -321,7 +314,6 @@
                 const remaining = (data.data && Array.isArray(data.data.remaining_types)) ? data.data.remaining_types : [];
 
                 if (requireAll && remaining.length > 0) {
-                    // Update current image state and stay on it
                     images[currentImageIndex].missing_types = remaining.slice();
                     images[currentImageIndex].existing_types = Array.isArray(images[currentImageIndex].existing_types)
                         ? images[currentImageIndex].existing_types
@@ -332,18 +324,21 @@
 
                     resetRecordingState();
                     setTypeForCurrentImage();
-                    showStatus(`Saved ${recordingType}. Next type selected.`, 'success');
-                    return; // do NOT advance image
+                    const savedMsg = i18n.saved_type
+                        ? i18n.saved_type.replace('%s', recordingType)
+                        : `Saved ${recordingType}. Next type selected.`;
+                    showStatus(savedMsg, 'success');
+                    return;
                 }
 
-                showStatus('Success! Recording will be processed later.', 'success');
+                showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
                 setTimeout(() => {
                     loadImage(currentImageIndex + 1);
                 }, 800);
             } else {
                 const errorMsg = data.data || data.message || 'Unknown error';
                 console.error('Upload failed:', errorMsg);
-                showStatus('Error: ' + errorMsg, 'error');
+                showStatus((i18n.error_prefix || 'Error:') + ' ' + errorMsg, 'error');
 
                 el.submitBtn.disabled = false;
                 el.redoBtn.disabled = false;
@@ -352,7 +347,8 @@
 
         } catch (err) {
             console.error('Upload error:', err);
-            showStatus('Upload failed: ' + err.message, 'error');
+            const failMsg = (i18n.upload_failed || 'Upload failed:') + ' ' + err.message;
+            showStatus(failMsg, 'error');
 
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
@@ -367,9 +363,8 @@
             el.completeScreen.style.display = 'block';
             if (el.completedCount) el.completedCount.textContent = String(images.length);
         } else {
-            // Fallback message
             const p = document.createElement('p');
-            p.textContent = 'All recordings completed for the selected set. Thank you!';
+            p.textContent = i18n.all_complete || 'All recordings completed for the selected set. Thank you!';
             document.querySelector('.ll-recording-wrapper')?.appendChild(p);
         }
     }

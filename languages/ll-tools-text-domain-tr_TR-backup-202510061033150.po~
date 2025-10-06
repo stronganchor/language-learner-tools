@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-10-06 10:33+0000\n"
+"PO-Revision-Date: 2025-10-06 10:32+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -248,7 +248,7 @@ msgstr "Örnek cümle içinde"
 
 #: includes/taxonomies/recording-type-taxonomy.php:39
 msgid "Introduction"
-msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
+msgstr "Giriş"
 
 #: includes/pages/embed-page.php:49
 msgid "Invalid category specified."
@@ -357,7 +357,7 @@ msgstr "Oyun"
 
 #: includes/taxonomies/recording-type-taxonomy.php:38
 msgid "Question"
-msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
+msgstr "Soru"
 
 #: templates/flashcard-widget-template.php:50
 #: includes/shortcodes/quiz-pages-shortcodes.php:325

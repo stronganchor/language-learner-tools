@@ -33,7 +33,9 @@ function ll_audio_recording_interface_shortcode($atts) {
     $images_needing_audio = ll_get_images_needing_audio($atts['category'], $wordset_term_ids);
 
     if (empty($images_needing_audio)) {
-        return '<div class="ll-recording-interface"><p>No images need audio recordings at this time. Thank you!</p></div>';
+        return '<div class="ll-recording-interface"><p>' .
+               __('No images need audio recordings at this time. Thank you!', 'll-tools-text-domain') .
+               '</p></div>';
     }
 
     ll_enqueue_recording_assets();
@@ -50,14 +52,30 @@ function ll_audio_recording_interface_shortcode($atts) {
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
         'nonce'           => wp_create_nonce('ll_upload_recording'),
-        'images'          => $images_needing_audio,   // now includes per-image missing_types + existing_types
+        'images'          => $images_needing_audio,
         'language'        => $atts['language'],
         'wordset'         => $atts['wordset'],
         'wordset_ids'     => $wordset_term_ids,
         'hide_name'       => get_option('ll_hide_recording_titles', 0),
         'recording_types' => $recording_types,
         'user_display_name' => $current_user->display_name,
-        'require_all_types' => true, // tells JS to keep same image until all types are recorded
+        'require_all_types' => true,
+        'i18n' => [
+            'uploading' => __('Uploading...', 'll-tools-text-domain'),
+            'success' => __('Success! Recording will be processed later.', 'll-tools-text-domain'),
+            'error_prefix' => __('Error:', 'll-tools-text-domain'),
+            'upload_failed' => __('Upload failed:', 'll-tools-text-domain'),
+            'saved_type' => __('Saved %s. Next type selected.', 'll-tools-text-domain'),
+            'skipped_type' => __('Skipped this type. Next type selected.', 'll-tools-text-domain'),
+            'all_complete' => __('All recordings completed for the selected set. Thank you!', 'll-tools-text-domain'),
+            'category' => __('Category:', 'll-tools-text-domain'),
+            'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
+            'no_blob' => __('No audio blob to submit', 'll-tools-text-domain'),
+            'microphone_error' => __('Error: Could not access microphone', 'll-tools-text-domain'),
+            'starting_upload' => __('Starting upload for image:', 'll-tools-text-domain'),
+            'http_error' => __('HTTP %d: %s', 'll-tools-text-domain'),
+            'invalid_response' => __('Server returned invalid response format', 'll-tools-text-domain'),
+        ],
     ]);
 
     ob_start();
@@ -67,13 +85,16 @@ function ll_audio_recording_interface_shortcode($atts) {
             <span class="ll-current-num">1</span> / <span class="ll-total-num"><?php echo count($images_needing_audio); ?></span>
         </div>
 
-        <!-- Show who's recording -->
         <div class="ll-recorder-info">
-            <?php printf(__('Recording as: %s', 'll-tools-text-domain'), '<strong>' . esc_html($current_user->display_name) . '</strong>'); ?>
+            <?php
+            printf(
+                __('Recording as: %s', 'll-tools-text-domain'),
+                '<strong>' . esc_html($current_user->display_name) . '</strong>'
+            );
+            ?>
         </div>
 
         <div class="ll-recording-main">
-            <!-- Recording type selector -->
             <div class="ll-recording-type-selector">
                 <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
                 <select id="ll-recording-type">
@@ -99,9 +120,11 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
 
             <div class="ll-recording-controls">
-                <button id="ll-record-btn" class="ll-btn ll-btn-record" title="Record"></button>
+                <button id="ll-record-btn" class="ll-btn ll-btn-record"
+                        title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
 
-                <button id="ll-skip-btn" class="ll-btn ll-btn-skip" title="Skip">
+                <button id="ll-skip-btn" class="ll-btn ll-btn-skip"
+                        title="<?php esc_attr_e('Skip', 'll-tools-text-domain'); ?>">
                     <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
                 </button>
 
@@ -113,8 +136,10 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <div id="ll-playback-controls" style="display:none;">
                     <audio id="ll-playback-audio" controls></audio>
                     <div class="ll-playback-actions">
-                        <button id="ll-redo-btn" class="ll-btn ll-btn-secondary" title="Record again"></button>
-                        <button id="ll-submit-btn" class="ll-btn ll-btn-primary" title="Save and continue"></button>
+                        <button id="ll-redo-btn" class="ll-btn ll-btn-secondary"
+                                title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                        <button id="ll-submit-btn" class="ll-btn ll-btn-primary"
+                                title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
                     </div>
                 </div>
 
@@ -124,7 +149,7 @@ function ll_audio_recording_interface_shortcode($atts) {
 
         <div class="ll-recording-complete" style="display:none;">
             <h2>✓</h2>
-            <p><span class="ll-completed-count"></span> recordings completed</p>
+            <p><span class="ll-completed-count"></span> <?php _e('recordings completed', 'll-tools-text-domain'); ?></p>
         </div>
     </div>
     <?php
