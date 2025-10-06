@@ -110,28 +110,38 @@
     function selectLearningModeWord() {
         const State = root.LLFlashcards.State;
 
-        // Check if any introduced words still need to reach MIN_CORRECT_COUNT
-        const needMorePractice = State.introducedWordIDs.filter(id => {
-            return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
-        });
-
-        // If we have fewer than 2 introduced words, introduce new ones
+        // 1. If we have fewer than 2 introduced words, introduce them
         if (State.introducedWordIDs.length < 2) {
             return getNextWordToIntroduce();
         }
 
-        // Once we have 2+ words introduced, quiz them until they reach MIN_CORRECT_COUNT
-        // Only introduce new words once all current words have at least 1 correct answer
+        // 2. Check the repetition queue first (handles wrong answers automatically)
+        const queue = State.categoryRepetitionQueues[State.currentCategoryName];
+        if (queue && queue.length > 0) {
+            // Quiz words from the repetition queue (these had wrong answers)
+            const queuedWord = queue[0];
+            queue.shift();
+            return queuedWord.wordData;
+        }
+
+        // 3. Check which words still need practice
+        const needMorePractice = State.introducedWordIDs.filter(id => {
+            return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
+        });
+
+        // 4. If all introduced words have been answered correctly at least once,
+        //    introduce a new word
         const allHaveOneCorrect = State.introducedWordIDs.every(id =>
             (State.wordCorrectCounts[id] || 0) >= 1
         );
 
-        // Add new words one at a time after initial introduction
-        if (allHaveOneCorrect && State.wordsToIntroduce.length > 0 && State.introducedWordIDs.length < 12) {
+        if (allHaveOneCorrect &&
+            State.wordsToIntroduce.length > 0 &&
+            State.introducedWordIDs.length < 12) {
             return getNextWordToIntroduce();
         }
 
-        // Quiz on introduced words
+        // 5. Otherwise, quiz on introduced words that need practice
         if (needMorePractice.length > 0) {
             const sortedByCount = needMorePractice.sort((a, b) => {
                 const countA = State.wordCorrectCounts[a] || 0;
@@ -139,11 +149,15 @@
                 return countA - countB;
             });
 
+            const pickFromCount = Math.max(1, Math.ceil(sortedByCount.length / 2));
+            const randomIndex = Math.floor(Math.random() * pickFromCount);
+            const wordId = sortedByCount[randomIndex];
+
             for (let name of State.categoryNames) {
                 const words = State.wordsByCategory[name];
                 if (!words) continue;
 
-                const word = words.find(w => w.id === sortedByCount[0]);
+                const word = words.find(w => w.id === wordId);
                 if (word) {
                     State.currentCategoryName = name;
                     State.currentCategory = words;
@@ -152,6 +166,7 @@
             }
         }
 
+        // 6. Fallback: introduce new word if available
         return getNextWordToIntroduce();
     }
 
