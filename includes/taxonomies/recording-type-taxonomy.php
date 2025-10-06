@@ -1,4 +1,4 @@
-<?php
+<?php // File: includes/taxonomies/recording-type-taxonomy.php
 /**
  * Register the "recording_type" taxonomy for word_audio
  */
@@ -32,7 +32,11 @@ function ll_tools_register_recording_type_taxonomy() {
 
     register_taxonomy('recording_type', ['word_audio'], $args);
 
-    // Insert default recording types
+    // Only seed defaults once
+    if (get_option('ll_recording_types_seeded')) {
+        return;
+    }
+
     $default_types = [
         'isolation' => __('Isolation', 'll-tools-text-domain'),
         'question' => __('Question', 'll-tools-text-domain'),
@@ -41,9 +45,11 @@ function ll_tools_register_recording_type_taxonomy() {
     ];
 
     foreach ($default_types as $slug => $name) {
-        if (!term_exists($name, 'recording_type')) {
+        if (!term_exists($slug, 'recording_type')) {
             wp_insert_term($name, 'recording_type', ['slug' => $slug]);
         }
     }
+
+    update_option('ll_recording_types_seeded', true);
 }
 add_action('init', 'll_tools_register_recording_type_taxonomy');

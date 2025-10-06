@@ -32,6 +32,7 @@ require_once(__DIR__ . '/admin/audio-image-matcher.php');
 require_once(__DIR__ . '/admin/settings.php');
 require_once(__DIR__ . '/admin/audio-processor-admin.php');
 require_once(__DIR__ . '/admin/audio-review-page.php');
+require_once(__DIR__ . '/admin/recording-types-admin.php');
 
 // Include API integrations
 require_once(__DIR__ . '/admin/api/deepl-api.php');

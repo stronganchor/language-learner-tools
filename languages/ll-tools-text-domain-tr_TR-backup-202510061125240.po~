@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-10-06 11:25+0000\n"
+"PO-Revision-Date: 2025-10-06 10:33+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -383,7 +383,7 @@ msgstr "Tarafından kaydedildi"
 #: includes/shortcodes/audio-recording-shortcode.php:91
 #, php-format
 msgid "Recording as: %s"
-msgstr "%s olarak kaydediliyor"
+msgstr "Olarak kaydediliyor: %s"
 
 #: includes/post-types/word-audio-post-type.php:164
 msgid "Recording Date"

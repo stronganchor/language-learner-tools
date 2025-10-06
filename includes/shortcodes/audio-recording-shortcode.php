@@ -6,6 +6,20 @@
 
 if (!defined('WPINC')) { die; }
 
+/**
+ * Get translatable name for a recording type by slug
+ */
+function ll_get_recording_type_name($slug) {
+    $names = [
+        'isolation'     => __('Isolation', 'll-tools-text-domain'),
+        'question'      => __('Question', 'll-tools-text-domain'),
+        'introduction'  => __('Introduction', 'll-tools-text-domain'),
+        'sentence'      => __('In Sentence', 'll-tools-text-domain'),
+    ];
+
+    return isset($names[$slug]) ? $names[$slug] : ucfirst($slug);
+}
+
 function ll_audio_recording_interface_shortcode($atts) {
     // Require user to be logged in
     if (!is_user_logged_in()) {
@@ -106,7 +120,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                                 '<option value="%s" %s>%s</option>',
                                 esc_attr($type->slug),
                                 $selected,
-                                esc_html($type->name)
+                                esc_html(ll_get_recording_type_name($type->slug))
                             );
                         }
                     }
