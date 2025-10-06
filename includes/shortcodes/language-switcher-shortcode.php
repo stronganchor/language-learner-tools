@@ -157,7 +157,7 @@ function ll_tools_filter_locale($locale) {
     }
     return $locale;
 }
-
+add_filter('locale', 'll_tools_filter_locale');
 
 /**
  * Shortcode: [ll_language_switcher show_flags="1" style="native" class=""]
