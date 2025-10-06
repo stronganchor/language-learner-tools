@@ -6,13 +6,13 @@
 (function ($) {
 
     // ---- tiny shim: safely call init no matter load order ----
-    function startWidget(selectedCategories) {
+    function startWidget(selectedCategories, mode) {  // ADD mode parameter
         // wait until either the namespaced or legacy global init is available
         (function wait() {
             if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
-                window.LLFlashcards.Main.initFlashcardWidget(selectedCategories);
+                window.LLFlashcards.Main.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
             } else if (typeof window.initFlashcardWidget === 'function') {
-                window.initFlashcardWidget(selectedCategories);
+                window.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
             } else {
                 setTimeout(wait, 30);
             }
@@ -21,8 +21,8 @@
 
     // Also expose a legacy global stub so any inline callers don't explode.
     if (typeof window.initFlashcardWidget !== 'function') {
-        window.initFlashcardWidget = function (selectedCategories) {
-            startWidget(selectedCategories);
+        window.initFlashcardWidget = function (selectedCategories, mode) {  // ADD mode parameter
+            startWidget(selectedCategories, mode);  // PASS mode through
         };
     }
 
@@ -81,13 +81,13 @@
     // Event handler for the "Start Quiz" button
     $('#ll-tools-start-selected-quiz').on('click', function () {
         var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function () {
-            return $(this).val(); // Pass untranslated category names
+            return $(this).val();
         }).get();
 
         if (selectedCategories.length > 0) {
             $('#ll-tools-category-selection-popup').hide();
             $('#ll-tools-flashcard-quiz-popup').show();
-            startWidget(selectedCategories);
+            startWidget(selectedCategories, llToolsFlashcardsData.quiz_mode);
         }
     });
 
@@ -103,7 +103,7 @@
 
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
-            startWidget(preselectedCategories);
+            startWidget(preselectedCategories, llToolsFlashcardsData.quiz_mode);
         } else {
             $('#ll-tools-category-selection-popup').show();
             showCategorySelection();

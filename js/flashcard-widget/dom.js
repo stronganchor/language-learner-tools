@@ -45,6 +45,20 @@
         },
         showLoading() { $('#ll-tools-loading-animation').show(); },
         hideLoading() { $('#ll-tools-loading-animation').hide(); },
+        updateLearningProgress(introducedCount, totalCount, wordCorrectCounts) {
+            const $progress = $('#ll-tools-learning-progress');
+            if (!$progress.length) return;
+
+            // Count how many words have reached the goal
+            const completedWords = Object.values(wordCorrectCounts).filter(count => count >= 3).length;
+
+            $progress.html(`
+                <span class="progress-text">
+                    Progress: ${completedWords}/${totalCount} complete |
+                    ${introducedCount} introduced
+                </span>
+            `).show();
+        },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },
         getStopIconHTML() { return createStopIcon(); }

@@ -109,6 +109,13 @@
          * @returns {number} The calculated number of options for the round.
          */
         function calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName) {
+            // Learning mode always uses 2 options
+            if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.isLearningMode) {
+                categoryOptionsCount[currentCategoryName] = 2;
+                wrongIndexes.length = 0;
+                return 2;
+            }
+
             let numberOfOptions = categoryOptionsCount[currentCategoryName];
             numberOfOptions = checkMinMax(numberOfOptions, currentCategoryName);
 

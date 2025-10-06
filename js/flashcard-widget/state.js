@@ -20,6 +20,15 @@
         userClickedCorrectAnswer: false,
         quizResults: { correctOnFirstTry: 0, incorrect: [] },
 
+        // Learning mode state
+        isLearningMode: false,
+        introducedWordIDs: [],
+        wordCorrectCounts: {},  // { wordId: count }
+        wordsToIntroduce: [],
+        isIntroducingWord: false,
+        currentIntroductionAudio: null,
+        MIN_CORRECT_COUNT: 3,
+
         reset() {
             this.widgetActive = false;
             this.usedWordIDs = [];
@@ -32,6 +41,14 @@
             this.categoryRepetitionQueues = {};
             this.userClickedCorrectAnswer = false;
             this.quizResults = { correctOnFirstTry: 0, incorrect: [] };
+
+            // Reset learning mode state
+            this.isLearningMode = false;
+            this.introducedWordIDs = [];
+            this.wordCorrectCounts = {};
+            this.wordsToIntroduce = [];
+            this.isIntroducingWord = false;
+            this.currentIntroductionAudio = null;
         },
     };
 

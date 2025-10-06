@@ -104,6 +104,108 @@
         return selected;
     }
 
+    /**
+ * Learning Mode: Select next word to introduce or quiz
+ */
+    function selectLearningModeWord() {
+        const State = root.LLFlashcards.State;
+
+        // Check if any introduced words still need to reach MIN_CORRECT_COUNT
+        const needMorePractice = State.introducedWordIDs.filter(id => {
+            return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
+        });
+
+        // If we have fewer than 2 introduced words, introduce a new one
+        if (State.introducedWordIDs.length < 2) {
+            return getNextWordToIntroduce();
+        }
+
+        // If all introduced words have reached the goal, introduce a new one
+        if (needMorePractice.length === 0 && State.wordsToIntroduce.length > 0) {
+            return getNextWordToIntroduce();
+        }
+
+        // Otherwise, quiz on an already-introduced word that needs practice
+        if (needMorePractice.length > 0) {
+            // Prioritize words with fewer correct answers and from the repetition queue
+            const sortedByCount = needMorePractice.sort((a, b) => {
+                const countA = State.wordCorrectCounts[a] || 0;
+                const countB = State.wordCorrectCounts[b] || 0;
+                return countA - countB;
+            });
+
+            // Find the word data
+            for (let name of State.categoryNames) {
+                const words = State.wordsByCategory[name];
+                if (!words) continue;
+
+                const word = words.find(w => w.id === sortedByCount[0]);
+                if (word) {
+                    State.currentCategoryName = name;
+                    State.currentCategory = words;
+                    return word;
+                }
+            }
+        }
+
+        // Fallback: introduce new word if available
+        return getNextWordToIntroduce();
+    }
+
+    /**
+     * Get the next word to introduce
+     */
+    function getNextWordToIntroduce() {
+        const State = root.LLFlashcards.State;
+
+        if (State.wordsToIntroduce.length === 0) {
+            return null; // All words introduced
+        }
+
+        const wordId = State.wordsToIntroduce.shift();
+
+        // Find the word in our categories
+        for (let name of State.categoryNames) {
+            const words = State.wordsByCategory[name];
+            if (!words) continue;
+
+            const word = words.find(w => w.id === wordId);
+            if (word) {
+                State.introducedWordIDs.push(wordId);
+                State.wordCorrectCounts[wordId] = 0;
+                State.currentCategoryName = name;
+                State.currentCategory = words;
+                State.isIntroducingWord = true;
+                return word;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Initialize learning mode word list
+     */
+    function initializeLearningMode() {
+        const State = root.LLFlashcards.State;
+        State.wordsToIntroduce = [];
+
+        // Collect all word IDs from all categories
+        for (let name of State.categoryNames) {
+            const words = State.wordsByCategory[name];
+            if (words) {
+                words.forEach(word => {
+                    if (!State.wordsToIntroduce.includes(word.id)) {
+                        State.wordsToIntroduce.push(word.id);
+                    }
+                });
+            }
+        }
+
+        // Shuffle the words
+        State.wordsToIntroduce = Util.randomlySort(State.wordsToIntroduce);
+    }
+
     function fillQuizOptions(targetWord) {
         let chosen = [];
         const order = [];
@@ -137,7 +239,8 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
         getCategoryDisplayMode, getCurrentDisplayMode,
-        selectTargetWordAndCategory, fillQuizOptions
+        selectTargetWordAndCategory, fillQuizOptions,
+        selectLearningModeWord, initializeLearningMode
     };
 
     // legacy exports

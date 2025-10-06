@@ -316,96 +316,81 @@ function ll_get_category_depth($category_id, $depth = 0) {
     return $depth;
 }
 
-/**
- * Retrieves words that belong to a category (and optionally to one word-set).
- *
- * @param string       $category_name  The category's name.
- * @param string       $display_mode   'image' | 'text'.  Default 'image'.
- * @param int|null|0   $wordset_id     >0  → restrict to that word-set
- *                                      0  → ignore word-set (global)
- *                                    null → use the site's "active" word-set (if any)
- * @return array                      Array of word data.
- */
-function ll_get_words_by_category( $category_name,
-                                   $display_mode = 'image',
-                                   $wordset_id   = null ) {
-
-    /* ---------- figure out which word-set (if any) ---------- */
-    if ( $wordset_id === null ) {
-        $wordset_id = ll_tools_get_active_wordset_id();
-    }
-
-    $tax_query = [
-        [
+function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null) {
+    $args = [
+        'post_type' => 'words',
+        'posts_per_page' => -1,
+        'tax_query' => [[
             'taxonomy' => 'word-category',
-            'field'    => 'name',
-            'terms'    => $category_name,
-        ],
+            'field' => 'name',
+            'terms' => $categoryName,
+        ]],
     ];
 
-    if ( $wordset_id > 0 ) {
-        $tax_query[] = [
+    if ($wordset_id) {
+        $args['tax_query'][] = [
             'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [ $wordset_id ],
+            'field' => 'term_id',
+            'terms' => $wordset_id,
         ];
+        $args['tax_query']['relation'] = 'AND';
     }
 
-    /* ---------- mode-specific meta checks ---------- */
-    $cat_term   = get_term_by( 'name', $category_name, 'word-category' );
-    $use_titles = $cat_term && get_term_meta( $cat_term->term_id,
-                                             'use_word_titles_for_audio',
-                                             true ) === '1';
+    $query = new WP_Query($args);
+    $words = [];
 
-    $meta_query = [];
-    if ( ! $use_titles ) {
-        $meta_query[] = ( $display_mode === 'image' )
-            ? [ 'key' => '_thumbnail_id',       'compare' => 'EXISTS' ]
-            : [ 'key' => 'word_english_meaning','compare' => 'EXISTS' ];
-    }
+    foreach ($query->posts as $post) {
+        $word_id = $post->ID;
+        $image = get_the_post_thumbnail_url($word_id, 'full');
 
-    /* ---------- main query ---------- */
-    $q = new WP_Query( [
-        'post_type'      => 'words',
-        'posts_per_page' => -1,
-        'post_status'    => 'publish',
-        'tax_query'      => $tax_query,
-        'meta_query'     => $meta_query,
-    ] );
-
-    $out = [];
-    while ( $q->have_posts() ) {
-        $q->the_post();
-        $post_id = get_the_ID();
-
-        // ADDED: Skip words without published audio
-        $has_published_audio = get_posts([
+        // Get all audio files for this word
+        $audio_files = [];
+        $audio_posts = get_posts([
             'post_type' => 'word_audio',
-            'post_parent' => $post_id,
-            'post_status' => 'publish',
-            'posts_per_page' => 1,
-            'fields' => 'ids',
+            'post_parent' => $word_id,
+            'posts_per_page' => -1,
         ]);
 
-        if (empty($has_published_audio)) {
-            continue;
+        foreach ($audio_posts as $audio_post) {
+            $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
+            if ($audio_path) {
+                $audio_url = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+
+                $audio_files[] = [
+                    'url' => $audio_url,
+                    'recording_type' => !empty($recording_types) ? $recording_types[0] : 'unknown',
+                ];
+            }
         }
 
-        $audio_url = ll_get_word_audio_url($post_id);
+        // Keep backward compatibility - primary audio is first available or empty
+        $primary_audio = !empty($audio_files) ? $audio_files[0]['url'] : '';
 
-        $out[] = [
-            'id'    => $post_id,
-            'title' => get_the_title(),
-            'image' => wp_get_attachment_url( get_post_thumbnail_id() ),
-            'audio' => $audio_url,
-            'label' => $use_titles
-                        ? get_the_title()
-                        : get_post_meta( $post_id, 'word_english_meaning', true ),
+        $all_categories = wp_get_post_terms($word_id, 'word-category', ['fields' => 'names']);
+        $similar_word_id = get_post_meta($word_id, '_ll_similar_word_id', true);
+
+        $word_data = [
+            'id' => $word_id,
+            'title' => html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8'),
+            'label' => html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8'),
+            'audio' => $primary_audio,
+            'audio_files' => $audio_files,  // NEW: all audio files with types
+            'image' => $image ?: '',
+            'all_categories' => $all_categories,
+            'similar_word_id' => $similar_word_id ?: '',
         ];
-    }
-    wp_reset_postdata();
 
-    return $out;
+        if ($displayMode === 'image' && !empty($image)) {
+            $words[] = $word_data;
+        } elseif ($displayMode === 'text') {
+            $words[] = $word_data;
+        } elseif ($displayMode === 'random') {
+            $words[] = $word_data;
+        }
+    }
+
+    return $words;
 }
 
 /**

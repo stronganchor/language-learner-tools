@@ -15,6 +15,13 @@
         Effects.startConfetti({ particleCount: 20, angle: 90, spread: 60, origin: { x: (rect.left + rect.width / 2) / window.innerWidth, y: (rect.top + rect.height / 2) / window.innerHeight }, duration: 50 });
 
         State.userClickedCorrectAnswer = true;
+
+        // Learning mode: track correct count
+        if (State.isLearningMode) {
+            State.wordCorrectCounts[targetWord.id] = (State.wordCorrectCounts[targetWord.id] || 0) + 1;
+            State.isIntroducingWord = false;
+        }
+
         root.FlashcardAudio.playFeedback(true, null, function () {
             if (State.wrongIndexes.length > 0) {
                 State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
@@ -59,6 +66,12 @@
             const firstThree = State.categoryNames.slice(0, 3);
             root.FlashcardLoader.loadResourcesForCategory(firstThree[0], function () {
                 root.FlashcardOptions.initializeOptionsCount(number_of_options);
+
+                // Initialize learning mode if enabled
+                if (State.isLearningMode) {
+                    Selection.initializeLearningMode();
+                }
+
                 runQuizRound();
             });
             for (let i = 1; i < firstThree.length; i++) root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
@@ -75,19 +88,112 @@
         Dom.showLoading();
         root.FlashcardAudio.setTargetAudioHasPlayed(false);
 
-        root.FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
+        console.log('runQuizRound - isLearningMode:', State.isLearningMode);
 
-        const target = Selection.selectTargetWordAndCategory();
-        if (!target) { Results.showResults(); return; }
+        // Learning mode uses different selection logic
+        let target;
+        if (State.isLearningMode) {
+            console.log('Using learning mode selection');
+            target = Selection.selectLearningModeWord();
+            console.log('Selected target in learning mode:', target);
+
+            // Update progress display
+            const totalWords = State.introducedWordIDs.length + State.wordsToIntroduce.length;
+            Dom.updateLearningProgress(
+                State.introducedWordIDs.length,
+                totalWords,
+                State.wordCorrectCounts
+            );
+
+            // Check if quiz is complete
+            if (!target) {
+                Results.showResults();
+                return;
+            }
+
+            // Handle introduction phase
+            if (State.isIntroducingWord) {
+                handleWordIntroduction(target);
+                return;
+            }
+        } else {
+            // Regular mode
+            root.FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
+            target = Selection.selectTargetWordAndCategory();
+
+            if (!target) {
+                Results.showResults();
+                return;
+            }
+        }
 
         root.FlashcardLoader.loadResourcesForWord(target, Selection.getCurrentDisplayMode()).then(function () {
             Selection.fillQuizOptions(target);
+
+            // Learning mode: use question audio if available, otherwise primary
+            if (State.isLearningMode && !State.isIntroducingWord) {
+                const questionAudio = root.FlashcardAudio.selectBestAudio(target, ['question', 'isolation']);
+                if (questionAudio) {
+                    target.audio = questionAudio;
+                }
+            }
+
             root.FlashcardAudio.setTargetWordAudio(target);
             Dom.hideLoading();
         });
     }
 
-    function initFlashcardWidget(selectedCategories) {
+    function handleWordIntroduction(word) {
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+
+        // Select introduction audio: introduction > isolation > any
+        const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction', 'isolation']);
+        if (introAudio) {
+            word.audio = introAudio;
+        }
+
+        // Show only the word being introduced
+        const mode = Selection.getCurrentDisplayMode();
+        root.FlashcardLoader.loadResourcesForWord(word, mode).then(function () {
+            Cards.appendWordToContainer(word);
+
+            // Add visual indicator for introduction phase
+            $('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
+
+            root.FlashcardAudio.setTargetWordAudio(word);
+
+            // Wait for audio to finish, then make clickable and move to next round
+            const audio = root.FlashcardAudio.getCurrentTargetAudio();
+            if (audio) {
+                audio.onended = function () {
+                    $('.flashcard-container').removeClass('introducing').css('pointer-events', 'auto');
+
+                    // Add click handler to proceed
+                    $('.flashcard-container').off('click').on('click', function () {
+                        State.isIntroducingWord = false;
+                        $(this).addClass('fade-out');
+                        setTimeout(function () {
+                            startQuizRound();
+                        }, 300);
+                    });
+                };
+            }
+
+            Dom.hideLoading();
+            $('.flashcard-container').fadeIn(600);
+        });
+    }
+
+    function initFlashcardWidget(selectedCategories, mode) {
+        console.log('initFlashcardWidget called with mode:', mode);
+
+        // Set learning mode if specified
+        if (mode === 'learning') {
+            State.isLearningMode = true;
+            console.log('Learning mode activated! State.isLearningMode:', State.isLearningMode);
+        }
+
         // Guard: bail out if one instance is already active
         if (State.widgetActive) {
             return;

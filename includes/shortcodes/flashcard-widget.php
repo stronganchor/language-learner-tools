@@ -151,6 +151,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     // Data: print early on 'options' and again on 'main' (belt & suspenders)
     $localized_data = [
         'mode'                 => $atts['mode'],
+        'quiz_mode'            => $atts['quiz_mode'],
         'plugin_dir'           => LL_TOOLS_BASE_URL,
         'ajaxurl'              => admin_url('admin-ajax.php'),
         'categories'           => $categories,
@@ -165,6 +166,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-flc-main',                'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data); 
 }
 
 /** ---------------------------
@@ -182,7 +184,8 @@ function ll_tools_flashcard_widget($atts) {
         'category' => '',
         'mode'     => 'random',
         'embed'    => 'false',
-        'wordset'  => '',  // NEW
+        'wordset'  => '',
+        'quiz_mode' => 'standard',
     ], $atts);
 
     $embed     = strtolower((string)$atts['embed']) === 'true';

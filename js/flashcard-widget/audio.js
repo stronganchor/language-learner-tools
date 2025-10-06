@@ -130,6 +130,31 @@
             targetAudioHasPlayed = false;
         }
 
+        /**
+         * Selects the best audio for a word based on recording type priority.
+         * Priority: introduction > isolation > question > any available
+         *
+         * @param {Object} word - The word object with audio_files array
+         * @param {Array} preferredTypes - Array of recording types in priority order
+         * @returns {string|null} - URL of the best audio file
+         */
+        function selectBestAudio(word, preferredTypes) {
+            if (!word || !word.audio_files || !Array.isArray(word.audio_files) || word.audio_files.length === 0) {
+                return word.audio || null;
+            }
+
+            // Try each preferred type in order
+            for (let type of preferredTypes) {
+                const audioFile = word.audio_files.find(af => af.recording_type === type);
+                if (audioFile && audioFile.url) {
+                    return audioFile.url;
+                }
+            }
+
+            // Fallback to first available audio
+            return word.audio_files[0].url || word.audio || null;
+        }
+
         // Expose public methods
         return {
             initializeAudio: initializeAudio,
@@ -142,7 +167,8 @@
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },
             getCorrectAudioURL: function () { return correctAudio.src; },
-            getWrongAudioURL: function () { return wrongAudio.src; }
+            getWrongAudioURL: function () { return wrongAudio.src; },
+            selectBestAudio: selectBestAudio
         };
     })();
 

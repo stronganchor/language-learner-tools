@@ -405,3 +405,25 @@ body.ll-tools-flashcard-open {
     /* These are defensive and won’t override strong existing rules */
     gap: 0.5rem;
 }
+
+#ll-tools-learning-progress {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+#ll-tools-learning-progress .progress-text {
+    font-weight: 500;
+}
+
+/* Learning mode: dim cards during introduction */
+.flashcard-container.introducing {
+    opacity: 0.9;
+    cursor: pointer;
+}
+
+.flashcard-container.introducing:hover {
+    opacity: 1;
+    transform: scale(1.02);
+}
