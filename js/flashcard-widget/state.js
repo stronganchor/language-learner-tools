@@ -23,11 +23,14 @@
         // Learning mode state
         isLearningMode: false,
         introducedWordIDs: [],
-        wordCorrectCounts: {},  // { wordId: count }
+        wordCorrectCounts: {},
         wordsToIntroduce: [],
         isIntroducingWord: false,
         currentIntroductionAudio: null,
         MIN_CORRECT_COUNT: 3,
+        INITIAL_INTRODUCTION_COUNT: 2,
+        AUDIO_REPETITIONS: 3,
+        currentIntroductionRound: 0,
 
         reset() {
             this.widgetActive = false;
@@ -49,6 +52,7 @@
             this.wordsToIntroduce = [];
             this.isIntroducingWord = false;
             this.currentIntroductionAudio = null;
+            this.currentIntroductionRound = 0;
         },
     };
 

@@ -105,8 +105,8 @@
     }
 
     /**
- * Learning Mode: Select next word to introduce or quiz
- */
+     * Learning Mode: Select next word to introduce or quiz
+     */
     function selectLearningModeWord() {
         const State = root.LLFlashcards.State;
 
@@ -115,26 +115,30 @@
             return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
         });
 
-        // If we have fewer than 2 introduced words, introduce a new one
+        // If we have fewer than 2 introduced words, introduce new ones
         if (State.introducedWordIDs.length < 2) {
             return getNextWordToIntroduce();
         }
 
-        // If all introduced words have reached the goal, introduce a new one
-        if (needMorePractice.length === 0 && State.wordsToIntroduce.length > 0) {
+        // Once we have 2+ words introduced, quiz them until they reach MIN_CORRECT_COUNT
+        // Only introduce new words once all current words have at least 1 correct answer
+        const allHaveOneCorrect = State.introducedWordIDs.every(id =>
+            (State.wordCorrectCounts[id] || 0) >= 1
+        );
+
+        // Add new words one at a time after initial introduction
+        if (allHaveOneCorrect && State.wordsToIntroduce.length > 0 && State.introducedWordIDs.length < 12) {
             return getNextWordToIntroduce();
         }
 
-        // Otherwise, quiz on an already-introduced word that needs practice
+        // Quiz on introduced words
         if (needMorePractice.length > 0) {
-            // Prioritize words with fewer correct answers and from the repetition queue
             const sortedByCount = needMorePractice.sort((a, b) => {
                 const countA = State.wordCorrectCounts[a] || 0;
                 const countB = State.wordCorrectCounts[b] || 0;
                 return countA - countB;
             });
 
-            // Find the word data
             for (let name of State.categoryNames) {
                 const words = State.wordsByCategory[name];
                 if (!words) continue;
@@ -148,7 +152,6 @@
             }
         }
 
-        // Fallback: introduce new word if available
         return getNextWordToIntroduce();
     }
 
@@ -159,25 +162,41 @@
         const State = root.LLFlashcards.State;
 
         if (State.wordsToIntroduce.length === 0) {
-            return null; // All words introduced
+            return null;
         }
 
-        const wordId = State.wordsToIntroduce.shift();
+        // On first introduction round, get 2 words at once
+        const wordsToIntroduceNow = (State.introducedWordIDs.length === 0)
+            ? Math.min(2, State.wordsToIntroduce.length)
+            : 1;
 
-        // Find the word in our categories
-        for (let name of State.categoryNames) {
-            const words = State.wordsByCategory[name];
-            if (!words) continue;
+        const words = [];
+        for (let i = 0; i < wordsToIntroduceNow; i++) {
+            const wordId = State.wordsToIntroduce.shift();
 
-            const word = words.find(w => w.id === wordId);
-            if (word) {
-                State.introducedWordIDs.push(wordId);
-                State.wordCorrectCounts[wordId] = 0;
-                State.currentCategoryName = name;
-                State.currentCategory = words;
-                State.isIntroducingWord = true;
-                return word;
+            // Find the word in our categories
+            for (let name of State.categoryNames) {
+                const categoryWords = State.wordsByCategory[name];
+                if (!categoryWords) continue;
+
+                const word = categoryWords.find(w => w.id === wordId);
+                if (word) {
+                    State.introducedWordIDs.push(wordId);
+                    State.wordCorrectCounts[wordId] = 0;
+                    if (!State.currentCategoryName) {
+                        State.currentCategoryName = name;
+                        State.currentCategory = categoryWords;
+                    }
+                    words.push(word);
+                    break;
+                }
             }
+        }
+
+        if (words.length > 0) {
+            State.isIntroducingWord = true;
+            State.currentIntroductionRound = 0;
+            return words; // Return array for multiple words
         }
 
         return null;

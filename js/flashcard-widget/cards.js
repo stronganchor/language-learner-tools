@@ -49,6 +49,7 @@
         const mode = root.LLFlashcards.Selection.getCurrentDisplayMode();
         const $card = (mode === 'image') ? createImageCard(word) : createTextCard(word);
         insertContainerAtRandom($card);
+        return $card;
     }
 
     function addClickEventToCard($card, index, targetWord) {

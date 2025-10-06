@@ -143,46 +143,94 @@
         });
     }
 
-    function handleWordIntroduction(word) {
+    function handleWordIntroduction(words) {
+        // Ensure words is an array
+        const wordsArray = Array.isArray(words) ? words : [words];
+
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
 
-        // Select introduction audio: introduction > isolation > any
-        const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction', 'isolation']);
-        if (introAudio) {
-            word.audio = introAudio;
-        }
-
-        // Show only the word being introduced
         const mode = Selection.getCurrentDisplayMode();
-        root.FlashcardLoader.loadResourcesForWord(word, mode).then(function () {
-            Cards.appendWordToContainer(word);
 
-            // Add visual indicator for introduction phase
-            $('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
-
-            root.FlashcardAudio.setTargetWordAudio(word);
-
-            // Wait for audio to finish, then make clickable and move to next round
-            const audio = root.FlashcardAudio.getCurrentTargetAudio();
-            if (audio) {
-                audio.onended = function () {
-                    $('.flashcard-container').removeClass('introducing').css('pointer-events', 'auto');
-
-                    // Add click handler to proceed
-                    $('.flashcard-container').off('click').on('click', function () {
-                        State.isIntroducingWord = false;
-                        $(this).addClass('fade-out');
-                        setTimeout(function () {
-                            startQuizRound();
-                        }, 300);
-                    });
-                };
+        // Load all words
+        Promise.all(wordsArray.map(word => {
+            const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction', 'isolation']);
+            if (introAudio) {
+                word.audio = introAudio;
             }
+            return root.FlashcardLoader.loadResourcesForWord(word, mode);
+        })).then(function () {
+            // Show all words being introduced
+            wordsArray.forEach((word, index) => {
+                const $card = Cards.appendWordToContainer(word);
+                // Store word index AND audio URL as data attributes IMMEDIATELY
+                $card.attr('data-word-index', index);
+                $card.attr('data-word-audio', word.audio);
+            });
+
+            // Make non-clickable during introduction
+            $('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
 
             Dom.hideLoading();
             $('.flashcard-container').fadeIn(600);
+
+            // Wait for fade-in to complete, then start the audio sequence
+            setTimeout(() => {
+                playIntroductionSequence(wordsArray, 0, 0);
+            }, 650);
         });
+    }
+
+    function playIntroductionSequence(words, wordIndex, repetition) {
+        if (wordIndex >= words.length) {
+            // All words have been introduced with all repetitions
+            // Remove all introduction classes
+            $('.flashcard-container').removeClass('introducing introducing-active introducing-waiting')
+                .css('pointer-events', 'auto');
+
+            // Add click handler to proceed to quiz
+            $('.flashcard-container').off('click').on('click', function () {
+                State.isIntroducingWord = false;
+                $('.flashcard-container').addClass('fade-out');
+                setTimeout(function () {
+                    startQuizRound();
+                }, 300);
+            });
+            return;
+        }
+
+        const currentWord = words[wordIndex];
+        const $currentCard = $('.flashcard-container[data-word-index="' + wordIndex + '"]');
+
+        // Set up visual state BEFORE playing audio
+        $('.flashcard-container').removeClass('introducing-active');
+        $('.flashcard-container').not($currentCard).addClass('introducing-waiting');
+        $currentCard.removeClass('introducing-waiting').addClass('introducing-active');
+
+        // Small delay to ensure CSS updates, then play audio
+        setTimeout(() => {
+            // Get audio URL from the card's data attribute (more reliable)
+            const audioUrl = $currentCard.attr('data-word-audio');
+            const audio = new Audio(audioUrl);
+
+            console.log('Playing audio for word', wordIndex, ':', audioUrl); // Debug
+
+            audio.play();
+            audio.onended = function () {
+                if (repetition < State.AUDIO_REPETITIONS - 1) {
+                    // Play this word again with animation
+                    $currentCard.removeClass('introducing-active');
+                    setTimeout(() => {
+                        playIntroductionSequence(words, wordIndex, repetition + 1);
+                    }, 300);
+                } else {
+                    // Move to next word
+                    setTimeout(() => {
+                        playIntroductionSequence(words, wordIndex + 1, 0);
+                    }, 600);
+                }
+            };
+        }, 100);
     }
 
     function initFlashcardWidget(selectedCategories, mode) {

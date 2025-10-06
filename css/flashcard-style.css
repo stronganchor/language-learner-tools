@@ -427,3 +427,27 @@ body.ll-tools-flashcard-open {
     opacity: 1;
     transform: scale(1.02);
 }
+
+/* Learning mode: card being actively introduced */
+.flashcard-container.introducing-active {
+    animation: pulse-card 1s ease-in-out;
+    transform-origin: center;
+    box-shadow: 0 0 20px rgba(0, 123, 255, 0.6);
+}
+
+@keyframes pulse-card {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+/* Learning mode: cards waiting to be introduced */
+.flashcard-container.introducing-waiting {
+    opacity: 0.5;
+}
