@@ -35,6 +35,7 @@
         learningModeConsecutiveCorrect: 0,
         wordsAnsweredSinceLastIntro: new Set(),
         lastWordShownId: null,
+        learningModeRepetitionQueue: [],
 
         reset() {
             this.widgetActive = false;
@@ -61,6 +62,7 @@
             this.learningModeConsecutiveCorrect = 0;
             this.wordsAnsweredSinceLastIntro = new Set();
             this.lastWordShownId = null;
+            this.learningModeRepetitionQueue = [];
         },
     };
 

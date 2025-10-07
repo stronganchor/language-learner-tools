@@ -107,9 +107,6 @@
     /**
      * Learning Mode: Select next word to introduce or quiz
      */
-    /**
- * Learning Mode: Select next word to introduce or quiz
- */
     function selectLearningModeWord() {
         const State = root.LLFlashcards.State;
 
@@ -118,7 +115,35 @@
             return getNextWordToIntroduce();
         }
 
-        // 2. Don't use repetition queue in learning mode - we manage cycling differently
+        // 2. Check repetition queue first - decrement skip counters and return words ready to reappear
+        if (State.learningModeRepetitionQueue.length > 0) {
+            for (let i = 0; i < State.learningModeRepetitionQueue.length; i++) {
+                const item = State.learningModeRepetitionQueue[i];
+
+                if (item.skipRounds <= 0) {
+                    // Remove from queue and return this word
+                    const wordData = item.wordData;
+                    State.learningModeRepetitionQueue.splice(i, 1);
+
+                    // Don't count it as answered this cycle since it's a retry
+                    State.wordsAnsweredSinceLastIntro.delete(wordData.id);
+
+                    // Find and set the category
+                    for (let name of State.categoryNames) {
+                        const words = State.wordsByCategory[name];
+                        if (words && words.some(w => w.id === wordData.id)) {
+                            State.currentCategoryName = name;
+                            State.currentCategory = words;
+                            State.lastWordShownId = wordData.id;
+                            return wordData;
+                        }
+                    }
+                } else {
+                    // Decrement skip counter
+                    item.skipRounds--;
+                }
+            }
+        }
 
         // 3. Check which words still need practice
         const needMorePractice = State.introducedWordIDs.filter(id => {
@@ -130,8 +155,13 @@
             State.wordsAnsweredSinceLastIntro.has(id)
         );
 
-        // 5. Only introduce new word if all current words have been answered in this cycle
+        // 5. Only introduce new word if:
+        //    - All current words have been answered in this cycle
+        //    - No words in repetition queue
+        //    - We have words to introduce
+        //    - We haven't hit the limit
         if (allAnsweredThisCycle &&
+            State.learningModeRepetitionQueue.length === 0 &&
             State.wordsToIntroduce.length > 0 &&
             State.introducedWordIDs.length < 12) {
             return getNextWordToIntroduce();

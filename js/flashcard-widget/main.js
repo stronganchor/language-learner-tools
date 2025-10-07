@@ -16,11 +16,23 @@
 
         State.userClickedCorrectAnswer = true;
 
-        // Learning mode: track correct count AND mark as answered this cycle
+        // Learning mode: track correct count AND handle wrong answer queue
         if (State.isLearningMode) {
             State.wordCorrectCounts[targetWord.id] = (State.wordCorrectCounts[targetWord.id] || 0) + 1;
             State.wordsAnsweredSinceLastIntro.add(targetWord.id);
             State.isIntroducingWord = false;
+
+            // If there were wrong answers, add to repetition queue
+            if (State.wrongIndexes.length > 0) {
+                // Remove from queue if already there to avoid duplicates
+                State.learningModeRepetitionQueue = State.learningModeRepetitionQueue.filter(w => w.id !== targetWord.id);
+
+                // Add to queue with a skip counter to avoid showing it immediately
+                State.learningModeRepetitionQueue.push({
+                    wordData: targetWord,
+                    skipRounds: Util.randomInt(1, 2)
+                });
+            }
         } else {
             // Standard mode: use repetition queue for wrong answers
             if (State.wrongIndexes.length > 0) {
