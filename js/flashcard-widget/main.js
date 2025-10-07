@@ -12,29 +12,28 @@
         $correctCard.addClass('correct-answer');
 
         const rect = $correctCard[0].getBoundingClientRect();
-        Effects.startConfetti({ particleCount: 20, angle: 90, spread: 60, origin: { x: (rect.left + rect.width / 2) / window.innerWidth, y: (rect.top + rect.height / 2) / window.innerHeight }, duration: 50 });
+        Effects.startConfetti({
+            particleCount: 20,
+            angle: 90,
+            spread: 60,
+            origin: {
+                x: (rect.left + rect.width / 2) / window.innerWidth,
+                y: (rect.top + rect.height / 2) / window.innerHeight
+            },
+            duration: 50
+        });
 
         State.userClickedCorrectAnswer = true;
 
-        // Learning mode: track correct count AND handle wrong answer queue
         if (State.isLearningMode) {
-            State.wordCorrectCounts[targetWord.id] = (State.wordCorrectCounts[targetWord.id] || 0) + 1;
-            State.wordsAnsweredSinceLastIntro.add(targetWord.id);
-            State.isIntroducingWord = false;
-
-            // If there were wrong answers, add to repetition queue
-            if (State.wrongIndexes.length > 0) {
-                // Remove from queue if already there to avoid duplicates
-                State.learningModeRepetitionQueue = State.learningModeRepetitionQueue.filter(w => w.id !== targetWord.id);
-
-                // Add to queue with a skip counter to avoid showing it immediately
-                State.learningModeRepetitionQueue.push({
-                    wordData: targetWord,
-                    skipRounds: Util.randomInt(1, 2)
-                });
+            // Delegate all streak/queue/progress tracking to the LearningMode API
+            if (root.LLFlashcards?.LearningMode) {
+                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, true);
             }
+            // Ensure we're out of intro phase once a card is answered
+            State.isIntroducingWord = false;
         } else {
-            // Standard mode: use repetition queue for wrong answers
+            // Standard mode keeps its own repetition queue logic
             if (State.wrongIndexes.length > 0) {
                 State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
                 State.categoryRepetitionQueues[State.currentCategoryName].push({
@@ -60,11 +59,13 @@
     function onWrongAnswer(targetWord, index, $wrong) {
         if (State.userClickedCorrectAnswer) return;
 
-        // Learning mode: reset consecutive correct counter AND add to repetition queue
         if (State.isLearningMode) {
-            State.learningModeConsecutiveCorrect = 0;
-
-            // Add to repetition queue just like standard mode
+            // Learning mode: push into the wrong-answer queue & reset streak via API
+            if (root.LLFlashcards?.LearningMode) {
+                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, false);
+            }
+        } else {
+            // Standard mode: category repetition queue as before
             State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
             State.categoryRepetitionQueues[State.currentCategoryName].push({
                 wordData: targetWord,
@@ -155,6 +156,15 @@
         }
 
         root.FlashcardLoader.loadResourcesForWord(target, Selection.getCurrentDisplayMode()).then(function () {
+            // Dynamically set the number of options in learning mode based on streak
+            if (State.isLearningMode && root.LLFlashcards?.LearningMode) {
+                const choiceCount = root.LLFlashcards.LearningMode.getChoiceCount(); // 2..5 (or your cap)
+                State.currentChoiceCount = choiceCount; // Selection.fillQuizOptions should read this
+                // If your options module needs an explicit set, keep this too:
+                if (root.FlashcardOptions?.initializeOptionsCount) {
+                    root.FlashcardOptions.initializeOptionsCount(choiceCount);
+                }
+            }
             Selection.fillQuizOptions(target);
 
             // Learning mode: use question audio if available, otherwise primary

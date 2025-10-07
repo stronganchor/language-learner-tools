@@ -108,169 +108,135 @@
      * Learning Mode: Select next word to introduce or quiz
      */
     function selectLearningModeWord() {
-        const State = root.LLFlashcards.State;
+        const S = window.LLFlashcards.State;
+        ensureLearningDefaults();
+        S.turnIndex++;
 
-        // 1. Check repetition queue FIRST (words that were answered incorrectly)
-        const queue = State.categoryRepetitionQueues[State.currentCategoryName];
-        if (queue && queue.length) {
-            const currentRound = State.categoryRoundCount[State.currentCategoryName] || 0;
-
-            // Find words that are ready to reappear
-            for (let i = 0; i < queue.length; i++) {
-                if (queue[i].reappearRound <= currentRound) {
-                    const target = queue[i].wordData;
-
-                    // Remove from queue
-                    queue.splice(i, 1);
-
-                    // Update tracking for round counting
-                    State.categoryRoundCount[State.currentCategoryName] = currentRound + 1;
-                    State.lastWordShownId = target.id;
-
-                    return target;
-                }
-            }
-        }
-
-        // 2. If we have fewer than 2 introduced words, introduce them
-        if (State.introducedWordIDs.length < 2) {
+        // 0) Intro bootstrap: until we have two, keep introducing
+        if (S.introducedWordIDs.length < 2) {
             return getNextWordToIntroduce();
         }
 
-        // 3. Check which words still need practice
-        const needMorePractice = State.introducedWordIDs.filter(id => {
-            return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
-        });
+        // 1) Current status flags
+        const hasPendingWrongs = (S.wrongAnswerQueue.length > 0);
+        const everyoneAnsweredThisCycle = S.introducedWordIDs.length > 0 &&
+            S.introducedWordIDs.every(id => S.wordsAnsweredSinceLastIntro.has(id));
 
-        // 4. Check if all introduced words have been answered correctly since last intro
-        const allAnsweredThisCycle = State.introducedWordIDs.every(id =>
-            State.wordsAnsweredSinceLastIntro.has(id)
-        );
+        const nothingLeftToIntroduce = (S.wordsToIntroduce.length === 0);
 
-        // 5. Only introduce new word if all current words have been answered in this cycle
-        // AND there are no pending words in the repetition queue
-        if (allAnsweredThisCycle &&
-            State.wordsToIntroduce.length > 0 &&
-            State.introducedWordIDs.length < 12 &&
-            (!queue || queue.length === 0)) {
+        // 2) ✅ FINISH CONDITION (prevents endless loop)
+        // After last introduction, we require one full "correct once" pass over all introduced
+        // and no wrongs pending. Then we're done.
+        if (nothingLeftToIntroduce && !hasPendingWrongs && everyoneAnsweredThisCycle) {
+            return null; // main.js will call Results.showResults()
+        }
+
+        // 3) May we introduce a new word this turn?
+        const canIntroduceMore = (S.introducedWordIDs.length < 12);
+        const mayIntroduce = !hasPendingWrongs &&
+            everyoneAnsweredThisCycle &&
+            !nothingLeftToIntroduce &&
+            canIntroduceMore;
+
+        if (mayIntroduce) {
             return getNextWordToIntroduce();
         }
 
-        // 6. Quiz on introduced words, prioritizing those not answered this cycle
-        if (needMorePractice.length > 0) {
-            // Prioritize words not answered this cycle
-            let notAnsweredThisCycle = State.introducedWordIDs.filter(id =>
-                !State.wordsAnsweredSinceLastIntro.has(id)
-            );
+        // 4) Choose a practice target
+        let wordId = null;
 
-            // Filter out the last word shown (unless it's the only option)
-            if (notAnsweredThisCycle.length > 1 && State.lastWordShownId) {
-                const filtered = notAnsweredThisCycle.filter(id => id !== State.lastWordShownId);
-                if (filtered.length > 0) {
-                    notAnsweredThisCycle = filtered;
+        if (hasPendingWrongs) {
+            // Prefer a wrong, but avoid immediate repeats when possible
+            const wrongId = pickWrongWithSpacing();
+
+            if (wrongId === S.lastWordShownId) {
+                const altPool = S.introducedWordIDs.filter(id => id !== wrongId && id !== S.lastWordShownId);
+                if (altPool.length) {
+                    const shuffled = window.LLFlashcards.Util.randomlySort(altPool);
+                    wordId = shuffled[0]; // interleave once before we show the wrong again
+                } else {
+                    wordId = wrongId;
                 }
-            }
-
-            let targetWords;
-            if (notAnsweredThisCycle.length > 0) {
-                // Focus on words not yet answered this cycle
-                targetWords = notAnsweredThisCycle;
             } else {
-                // All answered this cycle, pick from those needing more practice
-                targetWords = needMorePractice.sort((a, b) => {
-                    const countA = State.wordCorrectCounts[a] || 0;
-                    const countB = State.wordCorrectCounts[b] || 0;
-                    return countA - countB;
-                });
+                wordId = wrongId;
+            }
+        } else {
+            // No wrongs pending: prioritize those not yet answered (correct) this cycle
+            let pool = S.introducedWordIDs.filter(id => !S.wordsAnsweredSinceLastIntro.has(id));
 
-                // Filter out last word shown (unless it's the only option)
-                if (targetWords.length > 1 && State.lastWordShownId) {
-                    const filtered = targetWords.filter(id => id !== State.lastWordShownId);
-                    if (filtered.length > 0) {
-                        targetWords = filtered;
-                    }
+            if (pool.length === 0) {
+                // Everyone has at least one correct this cycle; bias toward least-known if any < MIN_CORRECT_COUNT
+                const needMorePractice = S.introducedWordIDs.filter(
+                    id => (S.wordCorrectCounts[id] || 0) < S.MIN_CORRECT_COUNT
+                );
+                if (needMorePractice.length > 0) {
+                    const minCount = Math.min(...needMorePractice.map(id => S.wordCorrectCounts[id] || 0));
+                    pool = needMorePractice.filter(id => (S.wordCorrectCounts[id] || 0) === minCount);
+                } else {
+                    // All meet the minimum: just use all introduced to finish the cycle
+                    pool = [...S.introducedWordIDs];
                 }
             }
 
-            // Pick randomly from the top candidates
-            const pickFromCount = Math.max(1, Math.ceil(targetWords.length / 2));
-            const randomIndex = Math.floor(Math.random() * pickFromCount);
-            const wordId = targetWords[randomIndex];
-
-            // Store this as the last word shown
-            State.lastWordShownId = wordId;
-
-            // Increment round counter for learning mode
-            State.categoryRoundCount[State.currentCategoryName] = (State.categoryRoundCount[State.currentCategoryName] || 0) + 1;
-
-            for (let name of State.categoryNames) {
-                const words = State.wordsByCategory[name];
-                if (!words) continue;
-
-                const word = words.find(w => w.id === wordId);
-                if (word) {
-                    State.currentCategoryName = name;
-                    State.currentCategory = words;
-                    return word;
-                }
+            // Avoid immediate repeat if possible
+            if (pool.length > 1 && S.lastWordShownId) {
+                const filtered = pool.filter(id => id !== S.lastWordShownId);
+                if (filtered.length) pool = filtered;
             }
+
+            pool = window.LLFlashcards.Util.randomlySort(pool);
+            wordId = pool[Math.floor(Math.random() * pool.length)];
         }
 
-        // 7. Fallback: introduce new word if available (unless there are pending words in queue)
-        if (!queue || queue.length === 0) {
-            return getNextWordToIntroduce();
-        }
+        S.lastWordShownId = wordId;
+        const word = wordObjectById(wordId);
+        if (word) return word;
 
-        return null;
+        // 5) Fallback — try introducing if we somehow couldn't resolve a word
+        return getNextWordToIntroduce();
     }
 
     /**
      * Get the next word to introduce
      */
     function getNextWordToIntroduce() {
-        const State = root.LLFlashcards.State;
+        const S = window.LLFlashcards.State;
+        ensureLearningDefaults();
 
-        if (State.wordsToIntroduce.length === 0) {
-            return null;
+        // Never re-introduce already introduced IDs
+        while (S.wordsToIntroduce.length &&
+            S.introducedWordIDs.includes(S.wordsToIntroduce[0])) {
+            S.wordsToIntroduce.shift();
         }
+        if (S.wordsToIntroduce.length === 0) return null;
 
-        // Clear the "answered this cycle" tracking when introducing new word(s)
-        State.wordsAnsweredSinceLastIntro.clear();
+        // New cycle begins on intro: user must answer all introduced words correctly again
+        S.wordsAnsweredSinceLastIntro.clear();
 
-        // On first introduction round, get 2 words at once
-        const wordsToIntroduceNow = (State.introducedWordIDs.length === 0)
-            ? Math.min(2, State.wordsToIntroduce.length)
-            : 1;
+        // First intro: 2 words; thereafter: 1 at a time
+        const introduceNow = (S.introducedWordIDs.length === 0) ? Math.min(2, S.wordsToIntroduce.length) : 1;
 
-        const words = [];
-        for (let i = 0; i < wordsToIntroduceNow; i++) {
-            const wordId = State.wordsToIntroduce.shift();
+        const batch = [];
+        for (let i = 0; i < introduceNow; i++) {
+            while (S.wordsToIntroduce.length &&
+                S.introducedWordIDs.includes(S.wordsToIntroduce[0])) {
+                S.wordsToIntroduce.shift();
+            }
+            if (!S.wordsToIntroduce.length) break;
 
-            // Find the word in our categories
-            for (let name of State.categoryNames) {
-                const categoryWords = State.wordsByCategory[name];
-                if (!categoryWords) continue;
-
-                const word = categoryWords.find(w => w.id === wordId);
-                if (word) {
-                    // DON'T add to introducedWordIDs yet - wait until after introduction
-                    State.wordCorrectCounts[wordId] = 0;
-                    if (!State.currentCategoryName) {
-                        State.currentCategoryName = name;
-                        State.currentCategory = categoryWords;
-                    }
-                    words.push(word);
-                    break;
-                }
+            const wordId = S.wordsToIntroduce.shift();
+            const word = wordObjectById(wordId);
+            if (word) {
+                S.wordCorrectCounts[wordId] = S.wordCorrectCounts[wordId] || 0;
+                batch.push(word);
             }
         }
 
-        if (words.length > 0) {
-            State.isIntroducingWord = true;
-            State.currentIntroductionRound = 0;
-            return words;
+        if (batch.length > 0) {
+            S.isIntroducingWord = true;
+            S.currentIntroductionRound = 0;
+            return (batch.length === 1 ? batch[0] : batch); // array only on very first pass
         }
-
         return null;
     }
 
@@ -278,23 +244,21 @@
      * Initialize learning mode word list
      */
     function initializeLearningMode() {
-        const State = root.LLFlashcards.State;
+        const State = window.LLFlashcards.State;
         State.wordsToIntroduce = [];
+        const seen = new Set();
 
-        // Collect all word IDs from all categories
         for (let name of State.categoryNames) {
             const words = State.wordsByCategory[name];
-            if (words) {
-                words.forEach(word => {
-                    if (!State.wordsToIntroduce.includes(word.id)) {
-                        State.wordsToIntroduce.push(word.id);
-                    }
-                });
+            if (!words) continue;
+            for (const w of words) {
+                if (!seen.has(w.id)) {
+                    seen.add(w.id);
+                    State.wordsToIntroduce.push(w.id);
+                }
             }
         }
-
-        // Shuffle the words
-        State.wordsToIntroduce = Util.randomlySort(State.wordsToIntroduce);
+        State.wordsToIntroduce = window.LLFlashcards.Util.randomlySort(State.wordsToIntroduce);
     }
 
     function fillQuizOptions(targetWord) {
@@ -362,6 +326,102 @@
             root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord);
         });
         jQuery('.flashcard-container').hide().fadeIn(600);
+    }
+
+    window.LLFlashcards = window.LLFlashcards || {};
+    window.LLFlashcards.LearningMode = {
+        // Call this right after the user answers a card in learning mode.
+        // wordId: numeric/string ID of the target word
+        // isCorrect: boolean
+        recordAnswerResult(wordId, isCorrect) {
+            const S = window.LLFlashcards.State;
+            ensureLearningDefaults();
+
+            if (isCorrect) {
+                // Track corrects
+                S.wordCorrectCounts[wordId] = (S.wordCorrectCounts[wordId] || 0) + 1;
+                S.wordsAnsweredSinceLastIntro.add(wordId);
+
+                // If this card was in the wrong queue, remove it (we "redeemed" it)
+                removeFromWrongQueue(wordId);
+
+                // Streak up => maybe grow choices
+                S.learningCorrectStreak += 1;
+                // thresholds: 3→3 options, 6→4 options, 10→5 options (cap at MAX)
+                const t = S.learningCorrectStreak;
+                const target =
+                    (t >= 10) ? 5 :
+                        (t >= 6) ? 4 :
+                            (t >= 3) ? 3 : 2;
+                S.learningChoiceCount = Math.min(target, S.MAX_CHOICE_COUNT);
+
+            } else {
+                // Miss ⇒ queue it (if not already queued)
+                if (!S.wrongAnswerQueue.includes(wordId)) {
+                    S.wrongAnswerQueue.push(wordId);
+                }
+                // Streak reset and make the task a little easier
+                S.learningCorrectStreak = 0;
+                S.learningChoiceCount = Math.max(S.MIN_CHOICE_COUNT, S.learningChoiceCount - 1);
+
+                // Do NOT add to wordsAnsweredSinceLastIntro on a miss:
+                // the round should extend until they answer this one correctly.
+            }
+
+            // Optional: expose current choice count for any UI that reads it
+            S.currentChoiceCount = S.learningChoiceCount;
+        },
+
+        // Use this when rendering choices for learning mode
+        getChoiceCount() {
+            const S = window.LLFlashcards.State;
+            ensureLearningDefaults();
+            return S.learningChoiceCount;
+        }
+    };
+
+    // ---- Learning mode helpers (idempotent) ------------------------------------
+    function ensureLearningDefaults() {
+        const S = window.LLFlashcards.State;
+        if (!S.wordsAnsweredSinceLastIntro) S.wordsAnsweredSinceLastIntro = new Set();
+        if (!S.wordCorrectCounts) S.wordCorrectCounts = {};
+        if (!Array.isArray(S.wrongAnswerQueue)) S.wrongAnswerQueue = [];
+        if (typeof S.turnIndex !== 'number') S.turnIndex = 0;
+        if (typeof S.learningCorrectStreak !== 'number') S.learningCorrectStreak = 0;
+        if (typeof S.learningChoiceCount !== 'number') S.learningChoiceCount = 2;
+        if (typeof S.MIN_CHOICE_COUNT !== 'number') S.MIN_CHOICE_COUNT = 2;
+        if (typeof S.MAX_CHOICE_COUNT !== 'number') S.MAX_CHOICE_COUNT = 5;
+        if (!S.MIN_CORRECT_COUNT) S.MIN_CORRECT_COUNT = 1;
+    }
+
+    function removeFromWrongQueue(id) {
+        const S = window.LLFlashcards.State;
+        S.wrongAnswerQueue = S.wrongAnswerQueue.filter(x => x !== id);
+    }
+
+    function pickWrongWithSpacing() {
+        const S = window.LLFlashcards.State;
+        // Prefer the first wrong that isn't the same as last shown
+        for (let i = 0; i < S.wrongAnswerQueue.length; i++) {
+            if (S.wrongAnswerQueue[i] !== S.lastWordShownId) return S.wrongAnswerQueue[i];
+        }
+        // If unavoidable, take the head
+        return S.wrongAnswerQueue[0];
+    }
+
+    function wordObjectById(wordId) {
+        const S = window.LLFlashcards.State;
+        for (let name of S.categoryNames) {
+            const words = S.wordsByCategory[name];
+            if (!words) continue;
+            const word = words.find(w => w.id === wordId);
+            if (word) {
+                S.currentCategoryName = name;
+                S.currentCategory = words;
+                return word;
+            }
+        }
+        return null;
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
