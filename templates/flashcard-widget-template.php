@@ -28,7 +28,10 @@
 
     <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
       <div id="ll-tools-flashcard-header" style="display:none;">
+        <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
+
         <div id="ll-tools-learning-progress" style="display:none;"></div>
+
         <div id="ll-tools-category-stack" class="ll-tools-category-stack">
           <?php if (!$embed): ?>
           <span id="ll-tools-category-display" class="ll-tools-category-display">
@@ -38,8 +41,8 @@
           <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
           </button>
         </div>
+
         <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
-        <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
       </div>
 
       <div id="ll-tools-flashcard-content">
