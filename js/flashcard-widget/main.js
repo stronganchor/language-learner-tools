@@ -60,9 +60,16 @@
     function onWrongAnswer(targetWord, index, $wrong) {
         if (State.userClickedCorrectAnswer) return;
 
-        // Learning mode: reset consecutive correct counter
+        // Learning mode: reset consecutive correct counter AND add to repetition queue
         if (State.isLearningMode) {
             State.learningModeConsecutiveCorrect = 0;
+
+            // Add to repetition queue just like standard mode
+            State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
+            State.categoryRepetitionQueues[State.currentCategoryName].push({
+                wordData: targetWord,
+                reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
+            });
         }
 
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);

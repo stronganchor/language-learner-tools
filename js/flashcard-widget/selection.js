@@ -110,39 +110,31 @@
     function selectLearningModeWord() {
         const State = root.LLFlashcards.State;
 
-        // 1. If we have fewer than 2 introduced words, introduce them
-        if (State.introducedWordIDs.length < 2) {
-            return getNextWordToIntroduce();
-        }
+        // 1. Check repetition queue FIRST (words that were answered incorrectly)
+        const queue = State.categoryRepetitionQueues[State.currentCategoryName];
+        if (queue && queue.length) {
+            const currentRound = State.categoryRoundCount[State.currentCategoryName] || 0;
 
-        // 2. Check repetition queue first - decrement skip counters and return words ready to reappear
-        if (State.learningModeRepetitionQueue.length > 0) {
-            for (let i = 0; i < State.learningModeRepetitionQueue.length; i++) {
-                const item = State.learningModeRepetitionQueue[i];
+            // Find words that are ready to reappear
+            for (let i = 0; i < queue.length; i++) {
+                if (queue[i].reappearRound <= currentRound) {
+                    const target = queue[i].wordData;
 
-                if (item.skipRounds <= 0) {
-                    // Remove from queue and return this word
-                    const wordData = item.wordData;
-                    State.learningModeRepetitionQueue.splice(i, 1);
+                    // Remove from queue
+                    queue.splice(i, 1);
 
-                    // Don't count it as answered this cycle since it's a retry
-                    State.wordsAnsweredSinceLastIntro.delete(wordData.id);
+                    // Update tracking for round counting
+                    State.categoryRoundCount[State.currentCategoryName] = currentRound + 1;
+                    State.lastWordShownId = target.id;
 
-                    // Find and set the category
-                    for (let name of State.categoryNames) {
-                        const words = State.wordsByCategory[name];
-                        if (words && words.some(w => w.id === wordData.id)) {
-                            State.currentCategoryName = name;
-                            State.currentCategory = words;
-                            State.lastWordShownId = wordData.id;
-                            return wordData;
-                        }
-                    }
-                } else {
-                    // Decrement skip counter
-                    item.skipRounds--;
+                    return target;
                 }
             }
+        }
+
+        // 2. If we have fewer than 2 introduced words, introduce them
+        if (State.introducedWordIDs.length < 2) {
+            return getNextWordToIntroduce();
         }
 
         // 3. Check which words still need practice
@@ -155,15 +147,12 @@
             State.wordsAnsweredSinceLastIntro.has(id)
         );
 
-        // 5. Only introduce new word if:
-        //    - All current words have been answered in this cycle
-        //    - No words in repetition queue
-        //    - We have words to introduce
-        //    - We haven't hit the limit
+        // 5. Only introduce new word if all current words have been answered in this cycle
+        // AND there are no pending words in the repetition queue
         if (allAnsweredThisCycle &&
-            State.learningModeRepetitionQueue.length === 0 &&
             State.wordsToIntroduce.length > 0 &&
-            State.introducedWordIDs.length < 12) {
+            State.introducedWordIDs.length < 12 &&
+            (!queue || queue.length === 0)) {
             return getNextWordToIntroduce();
         }
 
@@ -211,6 +200,9 @@
             // Store this as the last word shown
             State.lastWordShownId = wordId;
 
+            // Increment round counter for learning mode
+            State.categoryRoundCount[State.currentCategoryName] = (State.categoryRoundCount[State.currentCategoryName] || 0) + 1;
+
             for (let name of State.categoryNames) {
                 const words = State.wordsByCategory[name];
                 if (!words) continue;
@@ -224,8 +216,12 @@
             }
         }
 
-        // 7. Fallback: introduce new word if available
-        return getNextWordToIntroduce();
+        // 7. Fallback: introduce new word if available (unless there are pending words in queue)
+        if (!queue || queue.length === 0) {
+            return getNextWordToIntroduce();
+        }
+
+        return null;
     }
 
     /**
