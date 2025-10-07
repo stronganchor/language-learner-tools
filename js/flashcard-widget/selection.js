@@ -107,6 +107,9 @@
     /**
      * Learning Mode: Select next word to introduce or quiz
      */
+    /**
+ * Learning Mode: Select next word to introduce or quiz
+ */
     function selectLearningModeWord() {
         const State = root.LLFlashcards.State;
 
@@ -115,43 +118,68 @@
             return getNextWordToIntroduce();
         }
 
-        // 2. Check the repetition queue first (handles wrong answers automatically)
-        const queue = State.categoryRepetitionQueues[State.currentCategoryName];
-        if (queue && queue.length > 0) {
-            // Quiz words from the repetition queue (these had wrong answers)
-            const queuedWord = queue[0];
-            queue.shift();
-            return queuedWord.wordData;
-        }
+        // 2. Don't use repetition queue in learning mode - we manage cycling differently
 
         // 3. Check which words still need practice
         const needMorePractice = State.introducedWordIDs.filter(id => {
             return (State.wordCorrectCounts[id] || 0) < State.MIN_CORRECT_COUNT;
         });
 
-        // 4. If all introduced words have been answered correctly at least once,
-        //    introduce a new word
-        const allHaveOneCorrect = State.introducedWordIDs.every(id =>
-            (State.wordCorrectCounts[id] || 0) >= 1
+        // 4. Check if all introduced words have been answered correctly since last intro
+        const allAnsweredThisCycle = State.introducedWordIDs.every(id =>
+            State.wordsAnsweredSinceLastIntro.has(id)
         );
 
-        if (allHaveOneCorrect &&
+        // 5. Only introduce new word if all current words have been answered in this cycle
+        if (allAnsweredThisCycle &&
             State.wordsToIntroduce.length > 0 &&
             State.introducedWordIDs.length < 12) {
             return getNextWordToIntroduce();
         }
 
-        // 5. Otherwise, quiz on introduced words that need practice
+        // 6. Quiz on introduced words, prioritizing those not answered this cycle
         if (needMorePractice.length > 0) {
-            const sortedByCount = needMorePractice.sort((a, b) => {
-                const countA = State.wordCorrectCounts[a] || 0;
-                const countB = State.wordCorrectCounts[b] || 0;
-                return countA - countB;
-            });
+            // Prioritize words not answered this cycle
+            let notAnsweredThisCycle = State.introducedWordIDs.filter(id =>
+                !State.wordsAnsweredSinceLastIntro.has(id)
+            );
 
-            const pickFromCount = Math.max(1, Math.ceil(sortedByCount.length / 2));
+            // Filter out the last word shown (unless it's the only option)
+            if (notAnsweredThisCycle.length > 1 && State.lastWordShownId) {
+                const filtered = notAnsweredThisCycle.filter(id => id !== State.lastWordShownId);
+                if (filtered.length > 0) {
+                    notAnsweredThisCycle = filtered;
+                }
+            }
+
+            let targetWords;
+            if (notAnsweredThisCycle.length > 0) {
+                // Focus on words not yet answered this cycle
+                targetWords = notAnsweredThisCycle;
+            } else {
+                // All answered this cycle, pick from those needing more practice
+                targetWords = needMorePractice.sort((a, b) => {
+                    const countA = State.wordCorrectCounts[a] || 0;
+                    const countB = State.wordCorrectCounts[b] || 0;
+                    return countA - countB;
+                });
+
+                // Filter out last word shown (unless it's the only option)
+                if (targetWords.length > 1 && State.lastWordShownId) {
+                    const filtered = targetWords.filter(id => id !== State.lastWordShownId);
+                    if (filtered.length > 0) {
+                        targetWords = filtered;
+                    }
+                }
+            }
+
+            // Pick randomly from the top candidates
+            const pickFromCount = Math.max(1, Math.ceil(targetWords.length / 2));
             const randomIndex = Math.floor(Math.random() * pickFromCount);
-            const wordId = sortedByCount[randomIndex];
+            const wordId = targetWords[randomIndex];
+
+            // Store this as the last word shown
+            State.lastWordShownId = wordId;
 
             for (let name of State.categoryNames) {
                 const words = State.wordsByCategory[name];
@@ -166,7 +194,7 @@
             }
         }
 
-        // 6. Fallback: introduce new word if available
+        // 7. Fallback: introduce new word if available
         return getNextWordToIntroduce();
     }
 
@@ -179,6 +207,9 @@
         if (State.wordsToIntroduce.length === 0) {
             return null;
         }
+
+        // Clear the "answered this cycle" tracking when introducing new word(s)
+        State.wordsAnsweredSinceLastIntro.clear();
 
         // On first introduction round, get 2 words at once
         const wordsToIntroduceNow = (State.introducedWordIDs.length === 0)
@@ -196,7 +227,7 @@
 
                 const word = categoryWords.find(w => w.id === wordId);
                 if (word) {
-                    State.introducedWordIDs.push(wordId);
+                    // DON'T add to introducedWordIDs yet - wait until after introduction
                     State.wordCorrectCounts[wordId] = 0;
                     if (!State.currentCategoryName) {
                         State.currentCategoryName = name;
@@ -211,7 +242,7 @@
         if (words.length > 0) {
             State.isIntroducingWord = true;
             State.currentIntroductionRound = 0;
-            return words; // Return array for multiple words
+            return words;
         }
 
         return null;

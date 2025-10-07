@@ -16,25 +16,13 @@
 
         State.userClickedCorrectAnswer = true;
 
-        // Learning mode: track correct count
+        // Learning mode: track correct count AND mark as answered this cycle
         if (State.isLearningMode) {
             State.wordCorrectCounts[targetWord.id] = (State.wordCorrectCounts[targetWord.id] || 0) + 1;
+            State.wordsAnsweredSinceLastIntro.add(targetWord.id);
             State.isIntroducingWord = false;
-
-            // Track consecutive correct answers
-            State.learningModeConsecutiveCorrect = (State.learningModeConsecutiveCorrect || 0) + 1;
-
-            // Increase options after 3 consecutive correct answers
-            if (State.learningModeConsecutiveCorrect >= 3) {
-                const maxByIntroduced = State.introducedWordIDs.length;
-                const maxByScreen = root.FlashcardOptions.canAddMoreCards() ?
-                    (State.learningModeOptionsCount || 2) + 1 : (State.learningModeOptionsCount || 2);
-                State.learningModeOptionsCount = Math.min(maxByIntroduced, maxByScreen, 6); // Cap at 6
-                State.learningModeConsecutiveCorrect = 0; // Reset counter
-            }
-        }
-
-        root.FlashcardAudio.playFeedback(true, null, function () {
+        } else {
+            // Standard mode: use repetition queue for wrong answers
             if (State.wrongIndexes.length > 0) {
                 State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
                 State.categoryRepetitionQueues[State.currentCategoryName].push({
@@ -42,6 +30,9 @@
                     reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
                 });
             }
+        }
+
+        root.FlashcardAudio.playFeedback(true, null, function () {
             if (!State.quizResults.incorrect.includes(targetWord.id)) {
                 State.quizResults.correctOnFirstTry += 1;
             }
@@ -164,6 +155,13 @@
         // Ensure words is an array
         const wordsArray = Array.isArray(words) ? words : [words];
 
+        // Mark words as introduced NOW (at start of introduction sequence)
+        wordsArray.forEach(word => {
+            if (!State.introducedWordIDs.includes(word.id)) {
+                State.introducedWordIDs.push(word.id);
+            }
+        });
+
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
 
@@ -180,6 +178,7 @@
             // Show all words being introduced
             wordsArray.forEach((word, index) => {
                 const $card = Cards.appendWordToContainer(word);
+                // Store word index AND audio URL as data attributes IMMEDIATELY
                 $card.attr('data-word-index', index);
                 $card.attr('data-word-audio', word.audio);
             });

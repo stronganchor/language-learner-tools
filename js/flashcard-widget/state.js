@@ -33,6 +33,8 @@
         currentIntroductionRound: 0,
         learningModeOptionsCount: 2,
         learningModeConsecutiveCorrect: 0,
+        wordsAnsweredSinceLastIntro: new Set(),
+        lastWordShownId: null,
 
         reset() {
             this.widgetActive = false;
@@ -57,6 +59,7 @@
             this.currentIntroductionRound = 0;
             this.learningModeOptionsCount = 2;
             this.learningModeConsecutiveCorrect = 0;
+            this.wordsAnsweredSinceLastIntro = new Set();
         },
     };
 
