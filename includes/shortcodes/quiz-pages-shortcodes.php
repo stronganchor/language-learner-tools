@@ -249,9 +249,10 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
       function openFromAnchor(a){
             var cat = a.getAttribute('data-category') || '';
             var wordset = a.getAttribute('data-wordset') || '';
+            var mode = a.getAttribute('data-mode') || 'standard';
             if (!cat) return;
             if (typeof window.llOpenFlashcardForCategory === 'function') {
-                window.llOpenFlashcardForCategory(cat, wordset);
+                window.llOpenFlashcardForCategory(cat, wordset, mode);
             } else {
                 console.error('llOpenFlashcardForCategory not found');
             }
@@ -351,24 +352,22 @@ function ll_qpg_print_flashcard_shell_once() {
         initPlayIcon();
 
         // Called by the grid link
-        window.llOpenFlashcardForCategory = function(catName, wordset){
+        window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
-            // Normalize wordset values (treat undefined/null/empty as same)
+            mode = mode || 'standard';
+
             var previousWordset = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordset) || '';
             var currentWordset = wordset || '';
             var wordsetChanged = (previousWordset !== currentWordset);
 
-            // Update the wordset parameter for future AJAX calls
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
+                window.llToolsFlashcardsData.quiz_mode = mode;
             }
 
-            // If wordset changed, clear the entire loader cache
-            // This ensures all categories get re-fetched with the new wordset
             if (wordsetChanged && window.FlashcardLoader) {
                 if (Array.isArray(window.FlashcardLoader.loadedCategories)) {
-                    // Clear the entire array
                     window.FlashcardLoader.loadedCategories.length = 0;
                 }
             }
@@ -377,7 +376,7 @@ function ll_qpg_print_flashcard_shell_once() {
             $('#ll-tools-flashcard-popup').show();
             $('#ll-tools-flashcard-quiz-popup').show();
             $('body').addClass('ll-tools-flashcard-open');
-            try { initFlashcardWidget([catName]); } catch (e) { console.error('initFlashcardWidget failed', e); }
+            try { initFlashcardWidget([catName], mode); } catch (e) { console.error('initFlashcardWidget failed', e); }
         };
     })(jQuery);
     </script>
@@ -395,11 +394,12 @@ function ll_qpg_print_flashcard_shell_once() {
 function ll_quiz_pages_grid_shortcode($atts) {
     $atts = shortcode_atts(
         [
-            'wordset'   => '',      // filter by word set (id|slug|name)
+            'wordset'   => '',
             'columns'   => '',
             'popup'     => 'no',
-            'order'     => 'title', // kept for backward compat; ignored
-            'order_dir' => 'ASC',   // kept for backward compat; ignored
+            'mode'      => 'standard',  // NEW: default to standard mode
+            'order'     => 'title',
+            'order_dir' => 'ASC',
         ],
         $atts,
         'quiz_pages_grid'
@@ -410,7 +410,6 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $filter['wordset'] = $atts['wordset'];
     }
 
-    // Use helper so translated display names are respected.
     $items = ll_get_all_quiz_pages_data($filter);
     if (empty($items)) {
         return '<p>' . esc_html__('No quizzes found.', 'll-tools-text-domain') . '</p>';
@@ -418,13 +417,12 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
+    $quiz_mode = in_array($atts['mode'], ['standard', 'learning']) ? $atts['mode'] : 'standard';
 
-    // If popup, ensure overlay/assets are bootstrapped (prints shell, z-fix CSS, and delegated click handler).
     if ($use_popup) {
-        ll_qpg_bootstrap_flashcards_for_grid(); // <-- this was missing
+        ll_qpg_bootstrap_flashcards_for_grid();
     }
 
-    // Optional fixed columns override.
     $style = '';
     if ($atts['columns'] !== '' && is_numeric($atts['columns']) && (int)$atts['columns'] > 0) {
         $cols  = (int) $atts['columns'];
@@ -436,24 +434,33 @@ function ll_quiz_pages_grid_shortcode($atts) {
     echo '<div id="' . esc_attr($grid_id) . '" class="ll-quiz-pages-grid"' . $style . '>';
 
     foreach ($items as $it) {
-        $title     = $it['display_name']; // translated when enabled
-        $permalink = $it['permalink'];    // real URL we can load in iframe
-        $raw_name  = $it['name'];         // untranslated category name
+        $title     = $it['display_name'];
+        $permalink = $it['permalink'];
+        $raw_name  = $it['name'];
+
+        // Add mode parameter to permalink for non-popup links
+        if (!$use_popup && $quiz_mode !== 'standard') {
+            $permalink = add_query_arg('mode', $quiz_mode, $permalink);
+        }
 
         if ($use_popup) {
-            // Pass wordset parameter if it was used for filtering
             $data_wordset_attr = '';
             if (!empty($atts['wordset'])) {
                 $data_wordset_attr = ' data-wordset="' . esc_attr($atts['wordset']) . '"';
             }
 
-            // IMPORTANT: provide data-url so JS can load the true page in iframe
+            $data_mode_attr = '';
+            if ($quiz_mode !== 'standard') {
+                $data_mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
+            }
+
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
             . ' aria-label="Start ' . esc_attr($title) . '"'
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
-            . $data_wordset_attr . '>';
+            . $data_wordset_attr
+            . $data_mode_attr . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         } else {

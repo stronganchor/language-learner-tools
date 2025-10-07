@@ -50,6 +50,11 @@
         <audio controls class="hidden"></audio>
       </div>
 
+      <!-- Mode Switcher Button -->
+      <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>" style="display:none;">
+        <span class="mode-icon"></span>
+      </button>
+
       <div id="quiz-results" style="display:none;">
         <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
         <p id="quiz-results-message" style="display:none;"></p>
@@ -58,6 +63,16 @@
           <span id="correct-count">0</span> / <span id="total-questions">0</span>
         </p>
         <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
+        <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
+          <button id="restart-standard-mode" class="quiz-button quiz-mode-button">
+            <span class="button-icon">❓</span>
+            <?php echo esc_html__('Standard Quiz', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
+            <span class="button-icon">🎓</span>
+            <?php echo esc_html__('Learning Mode', 'll-tools-text-domain'); ?>
+          </button>
+        </div>
         <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
       </div>
     </div>

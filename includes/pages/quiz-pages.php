@@ -84,6 +84,11 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
         }
     }
 
+    // Check for mode parameter in URL
+    if (isset($_GET['mode']) && in_array($_GET['mode'], ['standard', 'learning'])) {
+        $src = add_query_arg('mode', sanitize_text_field($_GET['mode']), $src);
+    }
+
     $display_name = function_exists('ll_tools_get_category_display_name')
         ? ll_tools_get_category_display_name($term)
         : $term->name;

@@ -36,12 +36,16 @@
         <?php
         $embed_category = get_query_var('embed_category');
         $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
+        $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'standard';
 
         $term = get_term_by('slug', $embed_category, 'word-category');
         if ($term && !is_wp_error($term)) {
             $shortcode = '[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"';
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
+            }
+            if (!empty($mode) && in_array($mode, ['standard', 'learning'])) {
+                $shortcode .= ' quiz_mode="' . esc_attr($mode) . '"';
             }
             $shortcode .= ']';
             echo do_shortcode($shortcode);
@@ -81,11 +85,12 @@
 
             window.__llFlashcardInitOnce = true;
             var cats = selectedCategories();
+            var mode = window.llToolsFlashcardsData?.quiz_mode || 'standard';
 
             if (hasNew) {
-                LLFlashcards.Main.initFlashcardWidget(cats);
+                LLFlashcards.Main.initFlashcardWidget(cats, mode);
             } else {
-                window.initFlashcardWidget(cats);
+                window.initFlashcardWidget(cats, mode);
             }
 
             // Tell the parent that the embed is initialized so it can hide its spinner
