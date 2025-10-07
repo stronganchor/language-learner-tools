@@ -242,26 +242,63 @@
 
     function fillQuizOptions(targetWord) {
         let chosen = [];
-        const order = [];
-        order.push(State.currentCategoryName);
-        if (targetWord.all_categories) {
-            for (let c of targetWord.all_categories) if (!order.includes(c)) order.push(c);
-        }
-        State.categoryNames.forEach(c => { if (!order.includes(c)) order.push(c); });
+        const mode = getCurrentDisplayMode();
 
-        root.FlashcardLoader.loadResourcesForWord(targetWord, getCategoryDisplayMode());
+        // In learning mode, only select from introduced words
+        let availableWords = [];
+        if (State.isLearningMode) {
+            // Collect all introduced words from all categories
+            State.categoryNames.forEach(catName => {
+                const catWords = State.wordsByCategory[catName] || [];
+                catWords.forEach(word => {
+                    if (State.introducedWordIDs.includes(word.id)) {
+                        availableWords.push(word);
+                    }
+                });
+            });
+        } else {
+            // Standard mode: build order as before
+            const order = [];
+            order.push(State.currentCategoryName);
+            if (targetWord.all_categories) {
+                for (let c of targetWord.all_categories) if (!order.includes(c)) order.push(c);
+            }
+            State.categoryNames.forEach(c => { if (!order.includes(c)) order.push(c); });
+
+            // Flatten to availableWords
+            order.forEach(catName => {
+                const catWords = State.wordsByCategory[catName] || [];
+                availableWords.push(...catWords);
+            });
+        }
+
+        // Shuffle available words
+        availableWords = Util.randomlySort(availableWords);
+
+        // Add target word first
+        root.FlashcardLoader.loadResourcesForWord(targetWord, mode);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord);
 
-        while (chosen.length < root.FlashcardOptions.categoryOptionsCount[State.currentCategoryName] &&
-            root.FlashcardOptions.canAddMoreCards()) {
-            if (!order.length) break;
-            const candidateName = order.shift();
-            if (!State.wordsByCategory[candidateName] || root.FlashcardLoader.loadedCategories.includes(candidateName)) {
-                root.FlashcardLoader.loadResourcesForCategory(candidateName);
+        // Determine how many options to show
+        let targetCount = State.isLearningMode ?
+            (State.learningModeOptionsCount || 2) :
+            root.FlashcardOptions.categoryOptionsCount[State.currentCategoryName];
+
+        // Fill remaining options from available words
+        for (let candidate of availableWords) {
+            if (chosen.length >= targetCount) break;
+            if (!root.FlashcardOptions.canAddMoreCards()) break;
+
+            const isDup = chosen.some(w => w.id === candidate.id);
+            const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
+            const sameImg = (mode === 'image') && chosen.some(w => w.image === candidate.image);
+
+            if (!isDup && !isSim && !sameImg) {
+                chosen.push(candidate);
+                root.FlashcardLoader.loadResourcesForWord(candidate, mode);
+                root.LLFlashcards.Cards.appendWordToContainer(candidate);
             }
-            State.wordsByCategory[candidateName] = Util.randomlySort(State.wordsByCategory[candidateName]);
-            chosen = selectWordsFromCategory(candidateName, chosen);
         }
 
         jQuery('.flashcard-container').each(function (idx) {

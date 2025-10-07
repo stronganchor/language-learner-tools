@@ -20,6 +20,18 @@
         if (State.isLearningMode) {
             State.wordCorrectCounts[targetWord.id] = (State.wordCorrectCounts[targetWord.id] || 0) + 1;
             State.isIntroducingWord = false;
+
+            // Track consecutive correct answers
+            State.learningModeConsecutiveCorrect = (State.learningModeConsecutiveCorrect || 0) + 1;
+
+            // Increase options after 3 consecutive correct answers
+            if (State.learningModeConsecutiveCorrect >= 3) {
+                const maxByIntroduced = State.introducedWordIDs.length;
+                const maxByScreen = root.FlashcardOptions.canAddMoreCards() ?
+                    (State.learningModeOptionsCount || 2) + 1 : (State.learningModeOptionsCount || 2);
+                State.learningModeOptionsCount = Math.min(maxByIntroduced, maxByScreen, 6); // Cap at 6
+                State.learningModeConsecutiveCorrect = 0; // Reset counter
+            }
         }
 
         root.FlashcardAudio.playFeedback(true, null, function () {
@@ -44,6 +56,11 @@
 
     function onWrongAnswer(targetWord, index, $wrong) {
         if (State.userClickedCorrectAnswer) return;
+
+        // Learning mode: reset consecutive correct counter
+        if (State.isLearningMode) {
+            State.learningModeConsecutiveCorrect = 0;
+        }
 
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
         $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
@@ -163,7 +180,6 @@
             // Show all words being introduced
             wordsArray.forEach((word, index) => {
                 const $card = Cards.appendWordToContainer(word);
-                // Store word index AND audio URL as data attributes IMMEDIATELY
                 $card.attr('data-word-index', index);
                 $card.attr('data-word-audio', word.audio);
             });
@@ -184,18 +200,15 @@
     function playIntroductionSequence(words, wordIndex, repetition) {
         if (wordIndex >= words.length) {
             // All words have been introduced with all repetitions
-            // Remove all introduction classes
+            // Automatically proceed to quiz without waiting for click
             $('.flashcard-container').removeClass('introducing introducing-active introducing-waiting')
-                .css('pointer-events', 'auto');
+                .addClass('fade-out');
 
-            // Add click handler to proceed to quiz
-            $('.flashcard-container').off('click').on('click', function () {
-                State.isIntroducingWord = false;
-                $('.flashcard-container').addClass('fade-out');
-                setTimeout(function () {
-                    startQuizRound();
-                }, 300);
-            });
+            State.isIntroducingWord = false;
+
+            setTimeout(function () {
+                startQuizRound();
+            }, 300);
             return;
         }
 
@@ -209,11 +222,10 @@
 
         // Small delay to ensure CSS updates, then play audio
         setTimeout(() => {
-            // Get audio URL from the card's data attribute (more reliable)
             const audioUrl = $currentCard.attr('data-word-audio');
             const audio = new Audio(audioUrl);
 
-            console.log('Playing audio for word', wordIndex, ':', audioUrl); // Debug
+            console.log('Playing audio for word', wordIndex, ':', audioUrl);
 
             audio.play();
             audio.onended = function () {
@@ -296,7 +308,6 @@
         $('body').removeClass('ll-tools-flashcard-open');
     }
 
-    // Replace the entire function
     function restartQuiz() {
         State.reset();
         // make sure the results overlay is hidden before starting again

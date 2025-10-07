@@ -109,11 +109,10 @@
          * @returns {number} The calculated number of options for the round.
          */
         function calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName) {
-            // Learning mode always uses 2 options
+            // Learning mode uses its own counter
             if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.isLearningMode) {
-                categoryOptionsCount[currentCategoryName] = 2;
                 wrongIndexes.length = 0;
-                return 2;
+                return window.LLFlashcards.State.learningModeOptionsCount || 2;
             }
 
             let numberOfOptions = categoryOptionsCount[currentCategoryName];

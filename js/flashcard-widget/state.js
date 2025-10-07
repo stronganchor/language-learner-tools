@@ -31,6 +31,8 @@
         INITIAL_INTRODUCTION_COUNT: 2,
         AUDIO_REPETITIONS: 3,
         currentIntroductionRound: 0,
+        learningModeOptionsCount: 2,
+        learningModeConsecutiveCorrect: 0,
 
         reset() {
             this.widgetActive = false;
@@ -53,6 +55,8 @@
             this.isIntroducingWord = false;
             this.currentIntroductionAudio = null;
             this.currentIntroductionRound = 0;
+            this.learningModeOptionsCount = 2;
+            this.learningModeConsecutiveCorrect = 0;
         },
     };
 
