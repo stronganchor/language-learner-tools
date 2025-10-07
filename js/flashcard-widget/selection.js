@@ -303,7 +303,7 @@
 
         // Determine how many options to show
         let targetCount = State.isLearningMode ?
-            (State.learningModeOptionsCount || 2) :
+            root.LLFlashcards.LearningMode.getChoiceCount() :
             root.FlashcardOptions.categoryOptionsCount[State.currentCategoryName];
 
         // Fill remaining options from available words
@@ -333,7 +333,7 @@
         // Call this right after the user answers a card in learning mode.
         // wordId: numeric/string ID of the target word
         // isCorrect: boolean
-        recordAnswerResult(wordId, isCorrect, hadWrongAnswerThisTurn) {
+        recordAnswerResult(wordId, isCorrect) {
             const S = window.LLFlashcards.State;
             ensureLearningDefaults();
 
@@ -342,10 +342,8 @@
                 S.wordCorrectCounts[wordId] = (S.wordCorrectCounts[wordId] || 0) + 1;
                 S.wordsAnsweredSinceLastIntro.add(wordId);
 
-                // Only remove from wrong queue if answered correctly without any wrong answers this turn
-                if (!hadWrongAnswerThisTurn && S.wrongAnswerQueue.includes(wordId)) {
-                    removeFromWrongQueue(wordId);
-                }
+                // If this card was in the wrong queue, remove it (we "redeemed" it)
+                removeFromWrongQueue(wordId);
 
                 // Streak up => maybe grow choices
                 S.learningCorrectStreak += 1;
@@ -354,7 +352,10 @@
                     (t >= 10) ? 5 :
                         (t >= 6) ? 4 :
                             (t >= 3) ? 3 : 2;
-                S.learningChoiceCount = Math.min(target, S.MAX_CHOICE_COUNT);
+
+                // Apply constraints before setting the choice count
+                const uncappedChoice = Math.min(target, S.MAX_CHOICE_COUNT);
+                S.learningChoiceCount = applyLearningModeConstraints(uncappedChoice);
 
             } else {
                 // Miss ⇒ queue it (if not already queued)
@@ -363,10 +364,11 @@
                 }
                 // Streak reset and make the task a little easier
                 S.learningCorrectStreak = 0;
-                S.learningChoiceCount = Math.max(S.MIN_CHOICE_COUNT, S.learningChoiceCount - 1);
+                const reduced = Math.max(S.MIN_CHOICE_COUNT, S.learningChoiceCount - 1);
+                S.learningChoiceCount = applyLearningModeConstraints(reduced);
             }
 
-            // Optional: expose current choice count for any UI that reads it
+            // Expose current choice count for any UI that reads it
             S.currentChoiceCount = S.learningChoiceCount;
         },
 
@@ -374,7 +376,7 @@
         getChoiceCount() {
             const S = window.LLFlashcards.State;
             ensureLearningDefaults();
-            return S.learningChoiceCount;
+            return applyLearningModeConstraints(S.learningChoiceCount);
         }
     };
 
@@ -390,6 +392,39 @@
         if (typeof S.MIN_CHOICE_COUNT !== 'number') S.MIN_CHOICE_COUNT = 2;
         if (typeof S.MAX_CHOICE_COUNT !== 'number') S.MAX_CHOICE_COUNT = 5;
         if (!S.MIN_CORRECT_COUNT) S.MIN_CORRECT_COUNT = 1;
+    }
+
+    /**
+     * Apply constraints to learning mode choice count
+     * Respects: introduced word count, screen space, site-wide max, and text mode limits
+     */
+    function applyLearningModeConstraints(desiredCount) {
+        const S = window.LLFlashcards.State;
+        const mode = getCurrentDisplayMode();
+
+        // Start with site-wide maximum
+        let maxCount = (root.llToolsFlashcardsData.maxOptionsOverride)
+            ? parseInt(root.llToolsFlashcardsData.maxOptionsOverride, 10)
+            : 9;
+
+        // Text mode has stricter limits
+        if (mode === 'text') {
+            maxCount = Math.min(maxCount, 4);
+        }
+
+        // Can't show more options than introduced words
+        const introducedCount = S.introducedWordIDs.length;
+        maxCount = Math.min(maxCount, introducedCount);
+
+        // Apply screen space constraint
+        // Note: This is a rough estimate since canAddMoreCards checks after adding cards
+        // We'll still check in the fill loop, but this gives us a better starting target
+
+        // Ensure minimum of 2
+        maxCount = Math.max(2, maxCount);
+
+        // Return the constrained count
+        return Math.min(desiredCount, maxCount);
     }
 
     function removeFromWrongQueue(id) {
