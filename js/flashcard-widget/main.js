@@ -172,7 +172,7 @@
 
             // Learning mode: use question audio if available, otherwise primary
             if (State.isLearningMode && !State.isIntroducingWord) {
-                const questionAudio = root.FlashcardAudio.selectBestAudio(target, ['question', 'isolation']);
+                const questionAudio = root.FlashcardAudio.selectBestAudio(target, ['question', 'isolation', 'introduction']);
                 if (questionAudio) {
                     target.audio = questionAudio;
                 }
@@ -201,18 +201,35 @@
 
         // Load all words
         Promise.all(wordsArray.map(word => {
-            const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction', 'isolation']);
-            if (introAudio) {
-                word.audio = introAudio;
-            }
             return root.FlashcardLoader.loadResourcesForWord(word, mode);
         })).then(function () {
             // Show all words being introduced
             wordsArray.forEach((word, index) => {
                 const $card = Cards.appendWordToContainer(word);
-                // Store word index AND audio URL as data attributes IMMEDIATELY
                 $card.attr('data-word-index', index);
-                $card.attr('data-word-audio', word.audio);
+
+                // Get both introduction and isolation audio if available
+                const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction']);
+                const isoAudio = root.FlashcardAudio.selectBestAudio(word, ['isolation']);
+
+                // Determine the audio pattern
+                let audioPattern;
+                if (introAudio && isoAudio && introAudio !== isoAudio) {
+                    // Both types available - randomly choose one of two patterns
+                    const useIntroFirst = Math.random() < 0.5;
+                    if (useIntroFirst) {
+                        audioPattern = [introAudio, isoAudio, introAudio]; // intro-iso-intro
+                    } else {
+                        audioPattern = [isoAudio, introAudio, isoAudio]; // iso-intro-iso
+                    }
+                } else {
+                    // Only one type available - use it 3 times
+                    const singleAudio = introAudio || isoAudio || word.audio;
+                    audioPattern = [singleAudio, singleAudio, singleAudio];
+                }
+
+                // Store the pattern as JSON string
+                $card.attr('data-audio-pattern', JSON.stringify(audioPattern));
             });
 
             // Make non-clickable during introduction
@@ -253,8 +270,13 @@
 
         // Small delay to ensure CSS updates, then play audio
         setTimeout(() => {
-            const audioUrl = $currentCard.attr('data-word-audio');
+            // Get the audio pattern for this word
+            const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
+            const audioUrl = audioPattern[repetition] || audioPattern[0];
+
             const audio = new Audio(audioUrl);
+
+            console.log('Playing audio for word', wordIndex, 'repetition', repetition, ':', audioUrl);
 
             audio.play();
             audio.onended = function () {
