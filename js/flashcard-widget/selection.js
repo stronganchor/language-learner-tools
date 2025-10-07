@@ -176,15 +176,16 @@
                     const minCount = Math.min(...needMorePractice.map(id => S.wordCorrectCounts[id] || 0));
                     pool = needMorePractice.filter(id => (S.wordCorrectCounts[id] || 0) === minCount);
 
-                    // Sprinkle in completed words to avoid consecutive repeats
-                    if (pool.length === 1 && pool[0] === S.lastWordShownId) {
-                        const completedWords = S.introducedWordIDs.filter(id =>
-                            (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT &&
-                            id !== S.lastWordShownId
-                        );
-                        if (completedWords.length > 0) {
-                            pool = [...pool, ...completedWords];
-                        }
+                    // Randomly sprinkle in 1-3 completed words to make practice less predictable
+                    const completedWords = S.introducedWordIDs.filter(id =>
+                        (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT
+                    );
+                    if (completedWords.length > 0) {
+                        // Randomly decide how many completed words to sprinkle (1-3)
+                        const sprinkleCount = Math.floor(Math.random() * 3) + 1; // 1, 2, or 3
+                        const shuffled = window.LLFlashcards.Util.randomlySort(completedWords);
+                        const toSprinkle = shuffled.slice(0, Math.min(sprinkleCount, completedWords.length));
+                        pool = [...pool, ...toSprinkle];
                     }
                 } else {
                     // All meet the minimum: just use all introduced to finish the cycle
