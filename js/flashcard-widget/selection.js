@@ -434,7 +434,7 @@
         if (typeof S.learningChoiceCount !== 'number') S.learningChoiceCount = 2;
         if (typeof S.MIN_CHOICE_COUNT !== 'number') S.MIN_CHOICE_COUNT = 2;
         if (typeof S.MAX_CHOICE_COUNT !== 'number') S.MAX_CHOICE_COUNT = 5;
-        if (!S.MIN_CORRECT_COUNT) S.MIN_CORRECT_COUNT = 1;
+        if (typeof S.MIN_CORRECT_COUNT !== 'number') S.MIN_CORRECT_COUNT = 3;
     }
 
     /**
