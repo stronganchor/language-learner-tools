@@ -124,13 +124,11 @@
 
         const nothingLeftToIntroduce = (S.wordsToIntroduce.length === 0);
 
-        // 2) FINISH CONDITION (prevents endless loop)
-        // After last introduction, all words must reach MIN_CORRECT_COUNT with no wrongs pending
-        const allWordsComplete = S.introducedWordIDs.every(id =>
-            (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT
-        );
+        // 2) ✅ FINISH CONDITION
+        // Quiz is complete when all words have been introduced AND all have reached MIN_CORRECT_COUNT
+        const allWordsCompleted = S.introducedWordIDs.every(id => (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT);
 
-        if (nothingLeftToIntroduce && !hasPendingWrongs && allWordsComplete) {
+        if (nothingLeftToIntroduce && !hasPendingWrongs && allWordsCompleted) {
             return null; // main.js will call Results.showResults()
         }
 
@@ -274,6 +272,9 @@
             }
         }
         State.wordsToIntroduce = window.LLFlashcards.Util.randomlySort(State.wordsToIntroduce);
+
+        // Set the fixed total word count - this should never change after initialization
+        State.totalWordCount = State.wordsToIntroduce.length;
     }
 
     function fillQuizOptions(targetWord) {
@@ -348,7 +349,7 @@
         // Call this right after the user answers a card in learning mode.
         // wordId: numeric/string ID of the target word
         // isCorrect: boolean
-        recordAnswerResult(wordId, isCorrect) {
+        recordAnswerResult(wordId, isCorrect, hadWrongThisTurn = false) {
             const S = window.LLFlashcards.State;
             ensureLearningDefaults();
 
@@ -358,7 +359,9 @@
                 S.wordsAnsweredSinceLastIntro.add(wordId);
 
                 // If this card was in the wrong queue, remove it (we "redeemed" it)
-                removeFromWrongQueue(wordId);
+                if (!hadWrongThisTurn) {
+                    removeFromWrongQueue(wordId);
+                }
 
                 // Streak up => maybe grow choices
                 S.learningCorrectStreak += 1;

@@ -25,6 +25,7 @@
         introducedWordIDs: [],
         wordCorrectCounts: {},
         wordsToIntroduce: [],
+        totalWordCount: 0,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,
@@ -57,6 +58,7 @@
             this.introducedWordIDs = [];
             this.wordCorrectCounts = {};
             this.wordsToIntroduce = [];
+            this.totalWordCount = 0;
             this.wrongAnswerQueue = [];
             this.hadWrongAnswerThisTurn = false;
             this.isIntroducingWord = false;

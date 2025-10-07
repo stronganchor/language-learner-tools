@@ -28,7 +28,7 @@
 
     <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
       <div id="ll-tools-flashcard-header" style="display:none;">
-        <div id="ll-tools-learning-progress" style="display:none; padding: 5px 10px; font-size: 14px; color: #666;"></div>
+        <div id="ll-tools-learning-progress" style="display:none;"></div>
         <div id="ll-tools-category-stack" class="ll-tools-category-stack">
           <?php if (!$embed): ?>
           <span id="ll-tools-category-display" class="ll-tools-category-display">

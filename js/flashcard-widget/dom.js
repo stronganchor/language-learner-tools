@@ -49,14 +49,15 @@
             const $progress = $('#ll-tools-learning-progress');
             if (!$progress.length) return;
 
-            // Count how many words have reached the goal
             const completedWords = Object.values(wordCorrectCounts).filter(count => count >= 3).length;
+            const completedPercentage = totalCount > 0 ? Math.round((completedWords / totalCount) * 100) : 0;
+            const introducedPercentage = totalCount > 0 ? Math.round((introducedCount / totalCount) * 100) : 0;
 
             $progress.html(`
-                <span class="progress-text">
-                    Progress: ${completedWords}/${totalCount} complete |
-                    ${introducedCount} introduced
-                </span>
+                <div class="learning-progress-bar">
+                    <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
+                    <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
+                </div>
             `).show();
         },
         // Export icon generators for use in templates

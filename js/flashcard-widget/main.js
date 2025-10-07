@@ -60,8 +60,6 @@
         if (State.userClickedCorrectAnswer) return;
 
         if (State.isLearningMode) {
-            // Learning mode: push into the wrong-answer queue & reset streak via API
-            State.hadWrongAnswerThisTurn = true;
             if (root.LLFlashcards?.LearningMode) {
                 root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, false);
             }
@@ -74,6 +72,8 @@
                 reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
             });
         }
+
+        State.hadWrongAnswerThisTurn = true;
 
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
         $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
@@ -117,22 +117,17 @@
         root.FlashcardAudio.pauseAllAudio();
         Dom.showLoading();
         root.FlashcardAudio.setTargetAudioHasPlayed(false);
-
-        // Reset the wrong answer flag for this turn
-        if (State.isLearningMode) {
-            State.hadWrongAnswerThisTurn = false;
-        }
+        State.hadWrongAnswerThisTurn = false;
 
         // Learning mode uses different selection logic
         let target;
         if (State.isLearningMode) {
             target = Selection.selectLearningModeWord();
 
-            // Update progress display
-            const totalWords = State.introducedWordIDs.length + State.wordsToIntroduce.length;
+            // Update progress display - use fixed total from State
             Dom.updateLearningProgress(
                 State.introducedWordIDs.length,
-                totalWords,
+                State.totalWordCount,
                 State.wordCorrectCounts
             );
 
@@ -274,8 +269,6 @@
             const audioUrl = audioPattern[repetition] || audioPattern[0];
 
             const audio = new Audio(audioUrl);
-
-            console.log('Playing audio for word', wordIndex, 'repetition', repetition, ':', audioUrl);
 
             audio.play();
             audio.onended = function () {
