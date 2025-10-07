@@ -432,7 +432,7 @@ body.ll-tools-flashcard-open {
 .flashcard-container.introducing-active {
     animation: pulse-card 1s ease-in-out;
     transform-origin: center;
-    box-shadow: 0 0 20px rgba(0, 123, 255, 0.6);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
 }
 
 @keyframes pulse-card {
@@ -445,9 +445,4 @@ body.ll-tools-flashcard-open {
     50% {
         transform: scale(1.08);
     }
-}
-
-/* Learning mode: cards waiting to be introduced */
-.flashcard-container.introducing-waiting {
-    opacity: 0.5;
 }

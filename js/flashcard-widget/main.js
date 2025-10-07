@@ -249,7 +249,7 @@
         if (wordIndex >= words.length) {
             // All words have been introduced with all repetitions
             // Automatically proceed to quiz without waiting for click
-            $('.flashcard-container').removeClass('introducing introducing-active introducing-waiting')
+            $('.flashcard-container').removeClass('introducing introducing-active')
                 .addClass('fade-out');
 
             State.isIntroducingWord = false;
@@ -265,8 +265,7 @@
 
         // Set up visual state BEFORE playing audio
         $('.flashcard-container').removeClass('introducing-active');
-        $('.flashcard-container').not($currentCard).addClass('introducing-waiting');
-        $currentCard.removeClass('introducing-waiting').addClass('introducing-active');
+        $currentCard.addClass('introducing-active');
 
         // Small delay to ensure CSS updates, then play audio
         setTimeout(() => {
