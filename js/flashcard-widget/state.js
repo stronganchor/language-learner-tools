@@ -60,6 +60,7 @@
             this.learningModeOptionsCount = 2;
             this.learningModeConsecutiveCorrect = 0;
             this.wordsAnsweredSinceLastIntro = new Set();
+            this.lastWordShownId = null;
         },
     };
 
