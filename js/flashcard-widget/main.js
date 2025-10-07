@@ -161,6 +161,10 @@
             );
 
             if (!target) {
+                if (State.isFirstRound && State.totalWordCount === 0) {
+                    showLoadingError();
+                    return;
+                }
                 Results.showResults();
                 return;
             }
@@ -174,6 +178,19 @@
             target = Selection.selectTargetWordAndCategory();
 
             if (!target) {
+                if (State.isFirstRound) {
+                    let hasWords = false;
+                    for (let catName of State.categoryNames) {
+                        if (State.wordsByCategory[catName] && State.wordsByCategory[catName].length > 0) {
+                            hasWords = true;
+                            break;
+                        }
+                    }
+                    if (!hasWords) {
+                        showLoadingError();
+                        return;
+                    }
+                }
                 Results.showResults();
                 return;
             }
@@ -199,6 +216,25 @@
             root.FlashcardAudio.setTargetWordAudio(target);
             Dom.hideLoading();
         });
+    }
+
+    function showLoadingError() {
+        const msgs = root.llToolsFlashcardsMessages || {};
+        $('#quiz-results-title').text(msgs.loadingError || 'Loading Error');
+        $('#quiz-results-message').html(
+            msgs.noWordsFound ||
+            'No words could be loaded for this quiz. Please check that:<br>' +
+            '• The category exists and has words<br>' +
+            '• Words are properly assigned to the category<br>' +
+            '• If using wordsets, the wordset contains words for this category'
+        ).show();
+        $('#quiz-results').show();
+        $('#correct-count').parent().hide();
+        $('#restart-quiz').hide();
+        $('#quiz-mode-buttons').hide();
+        Dom.hideLoading();
+        $('#ll-tools-repeat-flashcard').hide();
+        $('#ll-tools-category-stack, #ll-tools-category-display').hide();
     }
 
     function handleWordIntroduction(words) {
