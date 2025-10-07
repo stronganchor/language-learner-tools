@@ -205,9 +205,34 @@
         const word = wordObjectById(wordId);
         if (word) return word;
 
-        // 5) Fallback — try introducing if we somehow couldn't resolve a word
-        return getNextWordToIntroduce();
+        // 5) Fallback - if we couldn't resolve a word, force selection from introduced words
+        // IMPORTANT: NEVER return null unless quiz is truly complete
+        const allIntroduced = (S.wordsToIntroduce.length === 0);
+        const allCompleted = S.introducedWordIDs.every(id => (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT);
+
+        if (allIntroduced && allCompleted && S.wrongAnswerQueue.length === 0) {
+            return null; // Quiz is truly complete
+        }
+
+        // Try to introduce if possible
+        if (S.wordsToIntroduce.length > 0) {
+            return getNextWordToIntroduce();
+        }
+
+        // Force selection from introduced words that need practice
+        const needsPractice = S.introducedWordIDs.filter(id =>
+            (S.wordCorrectCounts[id] || 0) < S.MIN_CORRECT_COUNT
+        );
+
+        if (needsPractice.length > 0) {
+            const randomId = needsPractice[Math.floor(Math.random() * needsPractice.length)];
+            return wordObjectById(randomId);
+        }
+
+        // Absolutely all words are complete - return null to show results
+        return null;
     }
+
 
     /**
      * Get the next word to introduce
