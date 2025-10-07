@@ -28,7 +28,7 @@
         if (State.isLearningMode) {
             // Delegate all streak/queue/progress tracking to the LearningMode API
             if (root.LLFlashcards?.LearningMode) {
-                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, true);
+                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, true, State.hadWrongAnswerThisTurn);
             }
             // Ensure we're out of intro phase once a card is answered
             State.isIntroducingWord = false;
@@ -61,9 +61,11 @@
 
         if (State.isLearningMode) {
             // Learning mode: push into the wrong-answer queue & reset streak via API
+            State.hadWrongAnswerThisTurn = true;
             if (root.LLFlashcards?.LearningMode) {
                 root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, false);
             }
+            // Don't return - fall through to standard card removal behavior
         } else {
             // Standard mode: category repetition queue as before
             State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
@@ -116,14 +118,15 @@
         Dom.showLoading();
         root.FlashcardAudio.setTargetAudioHasPlayed(false);
 
-        console.log('runQuizRound - isLearningMode:', State.isLearningMode);
+        // Reset the wrong answer flag for this turn
+        if (State.isLearningMode) {
+            State.hadWrongAnswerThisTurn = false;
+        }
 
         // Learning mode uses different selection logic
         let target;
         if (State.isLearningMode) {
-            console.log('Using learning mode selection');
             target = Selection.selectLearningModeWord();
-            console.log('Selected target in learning mode:', target);
 
             // Update progress display
             const totalWords = State.introducedWordIDs.length + State.wordsToIntroduce.length;
@@ -253,8 +256,6 @@
             const audioUrl = $currentCard.attr('data-word-audio');
             const audio = new Audio(audioUrl);
 
-            console.log('Playing audio for word', wordIndex, ':', audioUrl);
-
             audio.play();
             audio.onended = function () {
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
@@ -274,12 +275,9 @@
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
-        console.log('initFlashcardWidget called with mode:', mode);
-
         // Set learning mode if specified
         if (mode === 'learning') {
             State.isLearningMode = true;
-            console.log('Learning mode activated! State.isLearningMode:', State.isLearningMode);
         }
 
         // Guard: bail out if one instance is already active

@@ -333,7 +333,7 @@
         // Call this right after the user answers a card in learning mode.
         // wordId: numeric/string ID of the target word
         // isCorrect: boolean
-        recordAnswerResult(wordId, isCorrect) {
+        recordAnswerResult(wordId, isCorrect, hadWrongAnswerThisTurn) {
             const S = window.LLFlashcards.State;
             ensureLearningDefaults();
 
@@ -342,12 +342,13 @@
                 S.wordCorrectCounts[wordId] = (S.wordCorrectCounts[wordId] || 0) + 1;
                 S.wordsAnsweredSinceLastIntro.add(wordId);
 
-                // If this card was in the wrong queue, remove it (we "redeemed" it)
-                removeFromWrongQueue(wordId);
+                // Only remove from wrong queue if answered correctly without any wrong answers this turn
+                if (!hadWrongAnswerThisTurn && S.wrongAnswerQueue.includes(wordId)) {
+                    removeFromWrongQueue(wordId);
+                }
 
                 // Streak up => maybe grow choices
                 S.learningCorrectStreak += 1;
-                // thresholds: 3→3 options, 6→4 options, 10→5 options (cap at MAX)
                 const t = S.learningCorrectStreak;
                 const target =
                     (t >= 10) ? 5 :
@@ -363,9 +364,6 @@
                 // Streak reset and make the task a little easier
                 S.learningCorrectStreak = 0;
                 S.learningChoiceCount = Math.max(S.MIN_CHOICE_COUNT, S.learningChoiceCount - 1);
-
-                // Do NOT add to wordsAnsweredSinceLastIntro on a miss:
-                // the round should extend until they answer this one correctly.
             }
 
             // Optional: expose current choice count for any UI that reads it
