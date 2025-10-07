@@ -33,6 +33,8 @@
         }
 
         // Standard mode (existing code)
+        $('#ll-tools-learning-progress').hide();  // Hide progress bar in standard mode
+
         const total = State.quizResults.correctOnFirstTry + State.quizResults.incorrect.length;
 
         if (total === 0) {

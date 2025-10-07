@@ -36,6 +36,7 @@
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
             $('#ll-tools-category-stack, #ll-tools-category-display').show();
+            $('#ll-tools-learning-progress').hide();
             Dom.setRepeatButton('play');
         },
         updateCategoryNameDisplay(name) {

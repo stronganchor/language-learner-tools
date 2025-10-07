@@ -28,10 +28,9 @@ function ll_audio_recording_interface_shortcode($atts) {
                ' <a href="' . wp_login_url(get_permalink()) . '">' . __('Log in', 'll-tools-text-domain') . '</a></p></div>';
     }
 
-    // Optional: check for specific capability
-    if (!current_user_can('upload_files')) {
+    if (!ll_tools_user_can_record()) {
         return '<div class="ll-recording-interface"><p>' .
-               __('You do not have permission to record audio.', 'll-tools-text-domain') . '</p></div>';
+               __('You do not have permission to record audio. If you think this is a mistake, ask for the "Audio Recorder" user role to be added to your user account.', 'll-tools-text-domain') . '</p></div>';
     }
 
     $atts = shortcode_atts([
