@@ -179,10 +179,6 @@ body.ll-tools-flashcard-open {
 /* Loading Animation Styles */
 .ll-tools-loading-animation {
     display: none;
-    position: absolute;
-    top: 25%;
-    left: 50%;
-    transform: translate(-50%, -50%);
     width: 40px;
     height: 40px;
     border: 4px solid #f3f3f3;
@@ -190,15 +186,16 @@ body.ll-tools-flashcard-open {
     border-radius: 50%;
     animation: ll-tools-spin 2s linear infinite;
     order: 3;
+    margin-top: 10px;
 }
 
 @keyframes ll-tools-spin {
     0% {
-        transform: translate(-50%, -50%) rotate(0deg);
+        transform: rotate(0deg);
     }
 
     100% {
-        transform: translate(-50%, -50%) rotate(360deg);
+        transform: rotate(360deg);
     }
 }
 
