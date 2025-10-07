@@ -33,6 +33,16 @@
             }
             $btn.show();
         },
+        disableRepeatButton() {
+            const $btn = $('#ll-tools-repeat-flashcard');
+            if (!$btn.length) return;
+            $btn.addClass('disabled').prop('disabled', true);
+        },
+        enableRepeatButton() {
+            const $btn = $('#ll-tools-repeat-flashcard');
+            if (!$btn.length) return;
+            $btn.removeClass('disabled').prop('disabled', false);
+        },
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
             $('#ll-tools-category-stack, #ll-tools-category-display').show();
@@ -55,11 +65,11 @@
             const introducedPercentage = totalCount > 0 ? Math.round((introducedCount / totalCount) * 100) : 0;
 
             $progress.html(`
-                <div class="learning-progress-bar">
-                    <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
-                    <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
-                </div>
-            `).show();
+            <div class="learning-progress-bar">
+                <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
+                <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
+            </div>
+        `).show();
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },

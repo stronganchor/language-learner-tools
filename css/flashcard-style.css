@@ -86,6 +86,16 @@ body.ll-tools-flashcard-open {
     display: block;
 }
 
+#ll-tools-repeat-flashcard.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#ll-tools-repeat-flashcard.disabled .icon-container {
+    opacity: 0.5;
+}
+
 #ll-tools-start-flashcard {
     display: block;
     margin-bottom: 40px;
