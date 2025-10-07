@@ -308,7 +308,7 @@ function ll_qpg_print_flashcard_shell_once() {
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
 
-          <div id="ll-tools-flashcard-header" class="ll-tools-category-stack" style="display:none;">
+          <div id="ll-tools-flashcard-header" style="display:none;">
             <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
             <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
             </button>

@@ -182,15 +182,17 @@
         // Ensure words is an array
         const wordsArray = Array.isArray(words) ? words : [words];
 
-        // Mark words as introduced NOW (at start of introduction sequence)
-        wordsArray.forEach(word => {
-            if (!State.introducedWordIDs.includes(word.id)) {
-                State.introducedWordIDs.push(word.id);
-            }
-        });
-
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
+
+        // Restore progress bar display for learning mode
+        if (State.isLearningMode) {
+            Dom.updateLearningProgress(
+                State.introducedWordIDs.length,
+                State.totalWordCount,
+                State.wordCorrectCounts
+            );
+        }
 
         const mode = Selection.getCurrentDisplayMode();
 
@@ -279,6 +281,20 @@
                         playIntroductionSequence(words, wordIndex, repetition + 1);
                     }, 300);
                 } else {
+                    // This word's introduction is complete - mark it as introduced NOW
+                    if (!State.introducedWordIDs.includes(currentWord.id)) {
+                        State.introducedWordIDs.push(currentWord.id);
+
+                        // Update progress bar after marking as introduced
+                        if (State.isLearningMode) {
+                            Dom.updateLearningProgress(
+                                State.introducedWordIDs.length,
+                                State.totalWordCount,
+                                State.wordCorrectCounts
+                            );
+                        }
+                    }
+
                     // Move to next word
                     setTimeout(() => {
                         playIntroductionSequence(words, wordIndex + 1, 0);
