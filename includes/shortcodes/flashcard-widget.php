@@ -113,6 +113,11 @@ function ll_flashcards_category_label(?array $selected_category_data, string $fi
 function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): void {
     wp_enqueue_script('jquery');
 
+    // ---- Robust defaults to avoid "Undefined array key" notices ----
+    $mode      = isset($atts['mode']) ? sanitize_text_field((string) $atts['mode']) : 'random';
+    $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'standard';
+    $wordset   = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
+
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
 
     $shortcode_folder = '/js/flashcard-widget/';
@@ -130,7 +135,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state','ll-flc-dom','ll-flc-effects'], true);
 
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'main.js',      'll-flc-main',
+    ll_enqueue_asset_by_timestamp(
+        $shortcode_folder . 'main.js',
+        'll-flc-main',
         ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'],
         true
     );
@@ -150,23 +157,23 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     // Data: print early on 'options' and again on 'main' (belt & suspenders)
     $localized_data = [
-        'mode'                 => $atts['mode'],
-        'quiz_mode'            => $atts['quiz_mode'],
-        'plugin_dir'           => LL_TOOLS_BASE_URL,
-        'ajaxurl'              => admin_url('admin-ajax.php'),
-        'categories'           => $categories,
-        'isUserLoggedIn'       => is_user_logged_in(),
-        'categoriesPreselected'=> $preselected,
-        'firstCategoryData'    => $initial_words,
-        'firstCategoryName'    => $firstCategoryName,
-        'imageSize'            => get_option('ll_flashcard_image_size', 'small'),
-        'maxOptionsOverride'   => get_option('ll_max_options_override', 9),
-        'wordset'              => isset($atts['wordset']) ? sanitize_text_field($atts['wordset']) : '',
+        'mode'                  => $mode,
+        'quiz_mode'             => $quiz_mode,
+        'plugin_dir'            => LL_TOOLS_BASE_URL,
+        'ajaxurl'               => admin_url('admin-ajax.php'),
+        'categories'            => $categories,
+        'isUserLoggedIn'        => is_user_logged_in(),
+        'categoriesPreselected' => $preselected,
+        'firstCategoryData'     => $initial_words,
+        'firstCategoryName'     => $firstCategoryName,
+        'imageSize'             => get_option('ll_flashcard_image_size', 'small'),
+        'maxOptionsOverride'    => get_option('ll_max_options_override', 9),
+        'wordset'               => $wordset,
     ];
 
-    wp_localize_script('ll-tools-flashcard-options', 'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-flc-main',                'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data); 
+    wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-flc-main',                        'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data);
 }
 
 /** ---------------------------
