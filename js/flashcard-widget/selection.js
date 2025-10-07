@@ -124,10 +124,13 @@
 
         const nothingLeftToIntroduce = (S.wordsToIntroduce.length === 0);
 
-        // 2) ✅ FINISH CONDITION (prevents endless loop)
-        // After last introduction, we require one full "correct once" pass over all introduced
-        // and no wrongs pending. Then we're done.
-        if (nothingLeftToIntroduce && !hasPendingWrongs && everyoneAnsweredThisCycle) {
+        // 2) FINISH CONDITION (prevents endless loop)
+        // After last introduction, all words must reach MIN_CORRECT_COUNT with no wrongs pending
+        const allWordsComplete = S.introducedWordIDs.every(id =>
+            (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT
+        );
+
+        if (nothingLeftToIntroduce && !hasPendingWrongs && allWordsComplete) {
             return null; // main.js will call Results.showResults()
         }
 
@@ -172,6 +175,17 @@
                 if (needMorePractice.length > 0) {
                     const minCount = Math.min(...needMorePractice.map(id => S.wordCorrectCounts[id] || 0));
                     pool = needMorePractice.filter(id => (S.wordCorrectCounts[id] || 0) === minCount);
+
+                    // Sprinkle in completed words to avoid consecutive repeats
+                    if (pool.length === 1 && pool[0] === S.lastWordShownId) {
+                        const completedWords = S.introducedWordIDs.filter(id =>
+                            (S.wordCorrectCounts[id] || 0) >= S.MIN_CORRECT_COUNT &&
+                            id !== S.lastWordShownId
+                        );
+                        if (completedWords.length > 0) {
+                            pool = [...pool, ...completedWords];
+                        }
+                    }
                 } else {
                     // All meet the minimum: just use all introduced to finish the cycle
                     pool = [...S.introducedWordIDs];
