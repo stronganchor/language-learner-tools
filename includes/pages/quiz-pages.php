@@ -75,12 +75,13 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
     $vh           = (int) apply_filters('ll_tools_quiz_iframe_vh', 95);
     $src          = home_url('/embed/' . $term->slug);
 
-    // Append wordset if one is active
-    $active_wordset_id = ll_tools_get_active_wordset_id();
-    if ($active_wordset_id > 0) {
-        $wordset_term = get_term($active_wordset_id, 'wordset');
-        if ($wordset_term && !is_wp_error($wordset_term)) {
-            $src = add_query_arg('wordset', $wordset_term->slug, $src);
+    if (function_exists('ll_get_default_wordset_id_for_category')) {
+        $default_ws_id = ll_get_default_wordset_id_for_category($term->name, 5);
+        if ($default_ws_id > 0) {
+            $wordset_term = get_term($default_ws_id, 'wordset');
+            if ($wordset_term && !is_wp_error($wordset_term)) {
+                $src = add_query_arg('wordset', $wordset_term->slug, $src);
+            }
         }
     }
 

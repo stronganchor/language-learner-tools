@@ -167,11 +167,10 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
-    $seen_term_ids = [];  // Track seen term_ids for deduplication
 
     foreach ($pages as $post_id) {
         $term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
-        if ($term_id <= 0 || isset($seen_term_ids[$term_id])) continue;  // Skip duplicates
+        if ($term_id <= 0) continue;
 
         if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true)) {
             continue;
@@ -180,13 +179,27 @@ function ll_get_all_quiz_pages_data($opts = []) {
         $term = get_term($term_id, 'word-category');
         if (!$term || is_wp_error($term)) continue;
 
-        $seen_term_ids[$term_id] = true;  // Mark as seen to prevent dupes
-
         $name        = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
         $translation = '';
         if ($enable_translation) {
             $t = get_term_meta($term_id, 'term_translation', true);
             if (!empty($t)) $translation = html_entity_decode($t, ENT_QUOTES, 'UTF-8');
+        }
+
+        // Determine wordset slug
+        $wordset_slug = '';
+        if (!empty($opts['wordset'])) {
+            // If filtered by wordset, use that slug
+            $wordset_slug = sanitize_text_field($opts['wordset']);
+        } else {
+            // No filter: select default wordset for this category
+            $default_ws_id = ll_get_default_wordset_id_for_category($name);
+            if ($default_ws_id > 0) {
+                $default_term = get_term($default_ws_id, 'wordset');
+                if ($default_term && !is_wp_error($default_term)) {
+                    $wordset_slug = $default_term->slug;
+                }
+            }
         }
 
         $items[] = [
@@ -197,6 +210,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'name'         => $name,
             'translation'  => $translation,
             'display_name' => ($translation !== '' ? $translation : $name),
+            'wordset_slug' => $wordset_slug,  // Added key
         ];
     }
 
@@ -205,6 +219,48 @@ function ll_get_all_quiz_pages_data($opts = []) {
     });
 
     return $items;
+}
+
+/**
+ * Finds the wordset ID with the earliest creation date (lowest term_id) that has enough published words for a category.
+ * @param string $category_name
+ * @param int $min_word_count Minimum words required
+ * @return int Wordset ID or 0 if none found
+ */
+function ll_get_default_wordset_id_for_category(string $category_name, int $min_word_count = 5): int {
+    global $wpdb;
+    $cat_term = get_term_by('name', $category_name, 'word-category');
+    if (!$cat_term) return 0;
+    $cat_id = (int)$cat_term->term_id;
+
+    // Get all wordset IDs ordered by term_id (assuming lower IDs are older)
+    $wordsets = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'orderby' => 'term_id',
+        'order' => 'ASC',
+        'fields' => 'ids',
+    ]);
+    if (empty($wordsets) || is_wp_error($wordsets)) return 0;
+
+    foreach ($wordsets as $ws_id) {
+        $count = (int)$wpdb->get_var($wpdb->prepare("
+            SELECT COUNT(DISTINCT p.ID)
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            WHERE p.post_type = 'words'
+              AND p.post_status = 'publish'
+              AND tt_cat.term_id = %d
+              AND tt_ws.term_id = %d
+              AND tt_cat.taxonomy = 'word-category'
+              AND tt_ws.taxonomy = 'wordset'
+        ", $cat_id, $ws_id));
+        if ($count >= $min_word_count) return (int)$ws_id;
+    }
+    return 0;
 }
 
 /**
@@ -307,8 +363,6 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
     <?php
 }
 
-
-/** Prints the flashcard overlay DOM (same IDs the widget expects) once. */
 /** Prints the flashcard overlay DOM (same IDs the widget expects) once. */
 function ll_qpg_print_flashcard_shell_once() {
     static $printed = false;
@@ -469,35 +523,24 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $permalink = $it['permalink'];
         $raw_name  = $it['name'];
 
-        // Add mode parameter to permalink for non-popup links
-        if (!$use_popup && $quiz_mode !== 'standard') {
-            $permalink = add_query_arg('mode', $quiz_mode, $permalink);
-        }
-
-        if ($use_popup) {
-            $data_wordset_attr = '';
-            if (!empty($atts['wordset'])) {
-                $data_wordset_attr = ' data-wordset="' . esc_attr($atts['wordset']) . '"';
-            }
-
-            $data_mode_attr = '';
-            if ($quiz_mode !== 'standard') {
-                $data_mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
-            }
-
+        if (!$use_popup) {
+            // Non-popup: standard link to quiz page
+            $qs = ($quiz_mode !== 'standard') ? '?mode=' . esc_attr($quiz_mode) : '';
+            echo '<a class="ll-quiz-page-card ll-quiz-page-link"'
+            . ' href="' . esc_url($permalink . $qs) . '"'
+            . ' aria-label="' . esc_attr($title) . '">';
+            echo '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
+            echo '</a>';
+        } else {
+            // For popup, add wordset data attribute if set
+            $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
             . ' aria-label="Start ' . esc_attr($title) . '"'
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
-            . $data_wordset_attr
-            . $data_mode_attr . '>';
-            echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
-            echo '</a>';
-        } else {
-            echo '<a class="ll-quiz-page-card ll-quiz-page-link"'
-            . ' href="' . esc_url($permalink) . '"'
-            . ' aria-label="' . esc_attr($title) . '">';
+            . $ws_attr  // Added
+            . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         }
@@ -588,4 +631,4 @@ function ll_maybe_enqueue_quiz_pages_styles() {
         ll_enqueue_asset_by_timestamp('/css/quiz-pages-style.css', 'll-quiz-pages-style');
     }
 }
-add_action('wp_enqueue_scripts', 'll_maybe_enqueue_quiz_pages_styles'); // already present. :contentReference[oaicite:5]{index=5}
+add_action('wp_enqueue_scripts', 'll_maybe_enqueue_quiz_pages_styles');
