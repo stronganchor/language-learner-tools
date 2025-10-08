@@ -2,6 +2,11 @@
     'use strict';
     const { Util, State, Dom, Effects, Selection, Cards, Results } = root.LLFlashcards;
 
+    // Prevent double-trigger when user taps mode switch rapidly
+    let MODE_SWITCHING = false;
+    let MODE_LAST_SWITCH_TS = 0;
+    const MODE_SWITCH_COOLDOWN_MS = 1500;
+
     // init shared audio bits early
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -26,39 +31,51 @@
     }
 
     function switchMode(newMode) {
-        // Debounce ultra-rapid clicks on the mode switcher
+        const now = Date.now();
+        // Re-entrancy + cooldown guard
+        if (MODE_SWITCHING || (now - MODE_LAST_SWITCH_TS) < MODE_SWITCH_COOLDOWN_MS) {
+            return; // ignore rapid re-clicks
+        }
+        MODE_SWITCHING = true;
+
         const $btn = $('#ll-tools-mode-switcher');
-        if ($btn.length) { $btn.prop('disabled', true); }
+        if ($btn.length) {
+            $btn.prop('disabled', true).attr('aria-busy', 'true');
+        }
 
-        // 1) HARD STOP all audio before touching DOM or State
         try {
-            root.FlashcardAudio.resetAudioState(); // pauses all, clears onended, removes <audio>
-        } catch (e) {
-            // Fallback: at least pause what we can
-            try { root.FlashcardAudio.pauseAllAudio(); } catch (e2) { }
+            // HARD STOP all audio first
+            try { root.FlashcardAudio.resetAudioState(); }
+            catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
+
+            // Flip mode atomically
+            const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
+            State.reset();
+            State.isLearningMode = (targetMode === 'learning');
+
+            // Hide any results that may be visible
+            if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+                root.LLFlashcards.Results.hideResults();
+            }
+
+            // Rebuild UI
+            $('#ll-tools-flashcard').empty();
+            Dom.restoreHeaderUI();
+            updateModeSwitcherButton();
+
+            // Fresh round
+            startQuizRound();
+        } finally {
+            MODE_LAST_SWITCH_TS = Date.now();
+            // Release the guard after a short cooldown
+            setTimeout(function () {
+                MODE_SWITCHING = false;
+                if ($btn && $btn.length) {
+                    $btn.prop('disabled', false).removeAttr('aria-busy');
+                }
+            }, MODE_SWITCH_COOLDOWN_MS);
         }
-
-        // 2) Reset state and set the new mode
-        const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
-        State.reset();
-        State.isLearningMode = (targetMode === 'learning');
-
-        // 3) Hide any results screen that may be visible
-        if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
-            root.LLFlashcards.Results.hideResults();
-        }
-
-        // 4) Clear the stage and rebuild header UI
-        $('#ll-tools-flashcard').empty();
-        Dom.restoreHeaderUI();
-        updateModeSwitcherButton();
-
-        // 5) Start fresh round in the new mode
-        startQuizRound();
-
-        if ($btn.length) { $btn.prop('disabled', false); }
     }
-
 
     function onCorrectAnswer(targetWord, $correctCard) {
         if (State.userClickedCorrectAnswer) return;
