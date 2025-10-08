@@ -18,6 +18,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__)); 
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
+define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 

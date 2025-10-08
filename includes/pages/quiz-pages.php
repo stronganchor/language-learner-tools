@@ -353,7 +353,7 @@ function ll_tools_force_quiz_cleanup() {
         admin_url('edit.php?post_type=page')
     ));
 }
-add_action('admin_init', 'll_tools_force_quiz_cleanup', 5);
+add_action('admin_init', 'll_tools_force_quiz_cleanup', LL_TOOLS_MIN_WORDS_PER_QUIZ);
 
 /** Resync when source files change (this file, template, JS, CSS) */
 add_action('admin_init', function () {

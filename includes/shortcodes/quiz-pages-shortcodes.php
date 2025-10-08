@@ -97,7 +97,7 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
     $placeholders = implode(',', array_fill(0, count($wordset_term_ids), '%d'));
 
     // Get minimum word count (default 5)
-    $min_words = (int) apply_filters('ll_tools_quiz_min_words', 5);
+    $min_words = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
 
     // First, get word counts per category for this wordset
     $sql = $wpdb->prepare("

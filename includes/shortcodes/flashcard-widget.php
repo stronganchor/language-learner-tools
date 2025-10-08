@@ -228,16 +228,10 @@ function ll_tools_flashcard_widget($atts) {
     return (string) ob_get_clean();
 }
 
-/** ---------------------------
- *  Existing helpers you already had
- *  (keeping them here for now to avoid extra files)
- *  ---------------------------
- */
-
 /**
  * Determines display mode by counts.
  */
-function ll_determine_display_mode($categoryName, $min_word_count = 5) {
+function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ) {
     $image_count = count(ll_get_words_by_category($categoryName, 'image'));
     $text_count  = count(ll_get_words_by_category($categoryName, 'text'));
 
@@ -250,7 +244,7 @@ function ll_determine_display_mode($categoryName, $min_word_count = 5) {
 /**
  * Processes categories (unchanged from your version).
  */
-function ll_process_categories($categories, $use_translations, $min_word_count = 5) {
+function ll_process_categories($categories, $use_translations, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ) {
     $processed = [];
     foreach ($categories as $category) {
         if (!ll_can_category_generate_quiz($category, $min_word_count)) continue;
