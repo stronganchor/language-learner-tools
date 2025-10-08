@@ -108,6 +108,11 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
 
         <div class="ll-recording-main">
+            <div class="ll-recording-image-container">
+                <img id="ll-current-image" src="" alt="">
+                <p id="ll-image-title" class="ll-image-title"></p>
+            </div>
+
             <div class="ll-recording-type-selector">
                 <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
                 <select id="ll-recording-type">
@@ -125,11 +130,6 @@ function ll_audio_recording_interface_shortcode($atts) {
                     }
                     ?>
                 </select>
-            </div>
-
-            <div class="ll-recording-image-container">
-                <img id="ll-current-image" src="" alt="">
-                <p id="ll-image-title" class="ll-image-title"></p>
             </div>
 
             <div class="ll-recording-controls">
