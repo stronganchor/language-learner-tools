@@ -213,6 +213,27 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
 }
 
 /**
+ * For a given word (parent of word_audio), return the recording_type slugs missing (not recorded and not skipped).
+ */
+function ll_get_missing_recording_types_for_word(int $word_id): array {
+    $all_types = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+        'fields'     => 'slugs',
+    ]);
+    if (is_wp_error($all_types) || empty($all_types)) {
+        $all_types = [];
+    }
+
+    $existing = ll_get_existing_recording_types_for_word($word_id);
+    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
+    $skipped = is_array($skipped) ? $skipped : [];
+
+    $missing = array_values(array_diff($all_types, $existing, $skipped));
+    return $missing;
+}
+
+/**
  * Get word images that need audio recordings for a specific wordset (by term IDs),
  * returning per-image missing/existing recording types so the UI can prompt for each type.
  *
@@ -275,10 +296,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         // Find the word in THIS wordset that uses this image (if any)
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
 
-        // If no word exists in this wordset yet, we still want to record audio (the upload will create the word).
-        // In that case, none of the types exist yet.
+        if ($word_id) {
+            $missing_types = ll_get_missing_recording_types_for_word($word_id);
+        } else {
+            $missing_types = $all_types;
+        }
         $existing_types = $word_id ? ll_get_existing_recording_types_for_word($word_id) : [];
-        $missing_types  = array_values(array_diff($all_types, $existing_types));
 
         // Only include the image if at least one type is missing
         if (!empty($missing_types)) {
@@ -542,6 +565,65 @@ function ll_enqueue_recording_assets() {
 }
 
 /**
+ * AJAX handler: Skip recording a type for a word
+ */
+add_action('wp_ajax_ll_skip_recording_type', 'll_skip_recording_type_handler');
+add_action('wp_ajax_nopriv_ll_skip_recording_type', 'll_skip_recording_type_handler');
+
+function ll_skip_recording_type_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    // Require logged-in user
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in to skip recordings');
+    }
+
+    $image_id = intval($_POST['image_id']);
+    $recording_type = isset($_POST['recording_type']) ? sanitize_text_field($_POST['recording_type']) : '';
+
+    // Prefer explicit wordset_ids from client
+    $posted_ids = [];
+    if (isset($_POST['wordset_ids'])) {
+        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
+        if (is_array($decoded)) {
+            $posted_ids = array_map('intval', $decoded);
+        }
+    }
+
+    $wordset_spec = isset($_POST['wordset']) ? sanitize_text_field($_POST['wordset']) : '';
+    if (empty($posted_ids)) {
+        $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    $image_post = get_post($image_id);
+    if (!$image_post || $image_post->post_type !== 'word_images') {
+        wp_send_json_error('Invalid image ID');
+    }
+
+    // Find or create the parent word post
+    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
+
+    if (is_wp_error($word_id)) {
+        wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+    }
+
+    // Add to skipped meta if not already
+    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
+    $skipped = is_array($skipped) ? $skipped : [];
+    if (!in_array($recording_type, $skipped)) {
+        $skipped[] = $recording_type;
+        update_post_meta($word_id, 'll_skipped_recording_types', $skipped);
+    }
+
+    // Recompute remaining missing types
+    $remaining_missing = ll_get_missing_recording_types_for_word((int)$word_id);
+
+    wp_send_json_success([
+        'remaining_types' => $remaining_missing,
+    ]);
+}
+
+/**
  * AJAX handler: Upload recording and create word_audio post
  */
 add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
@@ -647,6 +729,14 @@ function ll_handle_recording_upload() {
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
     }
 
+    // If recording a previously skipped type, remove it from skipped to allow "unskipping"
+    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
+    $skipped = is_array($skipped) ? $skipped : [];
+    if (($key = array_search($recording_type, $skipped)) !== false) {
+        unset($skipped[$key]);
+        update_post_meta($word_id, 'll_skipped_recording_types', $skipped);
+    }
+
     // Backward compatibility: update parent word's legacy audio field
     $existing_audio = get_post_meta($word_id, 'word_audio_file', true);
     if (empty($existing_audio)) {
@@ -654,18 +744,7 @@ function ll_handle_recording_upload() {
     }
 
     // Compute remaining missing types for this image+wordset (stick with the same word)
-    $remaining_missing = [];
-    if (!empty($word_id)) {
-        $all_types = get_terms([
-            'taxonomy'   => 'recording_type',
-            'hide_empty' => false,
-            'fields'     => 'slugs',
-        ]);
-        if (!is_wp_error($all_types) && !empty($all_types)) {
-            $existing = ll_get_existing_recording_types_for_word((int)$word_id);
-            $remaining_missing = array_values(array_diff($all_types, $existing));
-        }
-    }
+    $remaining_missing = ll_get_missing_recording_types_for_word((int)$word_id);
 
     // Respond with remaining types so the UI can prompt for the next one without reloading
     wp_send_json_success([

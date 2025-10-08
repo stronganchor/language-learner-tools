@@ -220,26 +220,73 @@
         resetRecordingState();
     }
 
-    function skipToNext() {
+    async function skipToNext() {
         if (!requireAll) {
             loadImage(currentImageIndex + 1);
             return;
         }
         const sel = document.getElementById('ll-recording-type');
+        if (!sel) return;
         const img = images[currentImageIndex];
         if (!img || !Array.isArray(img.missing_types) || img.missing_types.length === 0) {
             loadImage(currentImageIndex + 1);
             return;
         }
-        const curType = (sel && sel.value) || img.missing_types[0];
-        img.missing_types = img.missing_types.filter(t => t !== curType);
+        const curType = sel.value;
+        if (!curType) return;
 
-        if (img.missing_types.length > 0) {
-            setTypeForCurrentImage();
-            resetRecordingState();
-            showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
-        } else {
-            loadImage(currentImageIndex + 1);
+        const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
+            ? window.ll_recorder_data.wordset_ids
+            : [];
+        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
+
+        console.log('Skipping type:', curType, 'for image:', img.id);
+
+        showStatus('Skipping...', 'info');
+        const formData = new FormData();
+        formData.append('action', 'll_skip_recording_type');
+        formData.append('nonce', nonce);
+        formData.append('image_id', img.id);
+        formData.append('recording_type', curType);
+        formData.append('wordset_ids', JSON.stringify(wordsetIds));
+        formData.append('wordset', wordsetLegacy);
+
+        try {
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+                throw new Error(errorMsg);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned invalid response format');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                const remaining = data.data?.remaining_types || [];
+                images[currentImageIndex].missing_types = remaining.slice();
+
+                if (remaining.length > 0) {
+                    setTypeForCurrentImage();
+                    resetRecordingState();
+                    showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
+                } else {
+                    loadImage(currentImageIndex + 1);
+                }
+            } else {
+                const errorMsg = data.data || data.message || 'Skip failed';
+                showStatus(`Skip failed: ${errorMsg}`, 'error');
+            }
+        } catch (err) {
+            console.error('Skip error:', err);
+            showStatus(`Skip failed: ${err.message}`, 'error');
         }
     }
 
@@ -268,7 +315,7 @@
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
-        formData.append('nonce', window.ll_recorder_data?.nonce);
+        formData.append('nonce', nonce);
         formData.append('image_id', img.id);
         formData.append('recording_type', recordingType);
 
@@ -286,7 +333,7 @@
         formData.append('wordset', wordsetLegacy);
 
         try {
-            const response = await fetch(window.ll_recorder_data?.ajax_url, {
+            const response = await fetch(ajaxUrl, {
                 method: 'POST',
                 body: formData,
             });
@@ -361,7 +408,7 @@
         if (el.mainScreen) el.mainScreen.style.display = 'none';
         if (el.completeScreen) {
             el.completeScreen.style.display = 'block';
-            if (el.completedCount) el.completedCount.textContent = String(images.length);
+            if (el.completedCount) el.completedCount.textContent = images.length;
         } else {
             const p = document.createElement('p');
             p.textContent = i18n.all_complete || 'All recordings completed for the selected set. Thank you!';
