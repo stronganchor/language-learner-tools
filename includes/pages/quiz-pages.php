@@ -113,7 +113,7 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
     $parent_id  = ll_tools_get_or_create_quiz_parent_page();
     $child_slug = apply_filters('ll_tools_quiz_child_slug', sanitize_title($term->slug), $term);
 
-    // Find by our meta marker
+    // Find by our meta marker (first match only for update check)
     $existing = get_posts([
         'post_type'   => 'page',
         'post_status' => ['publish','draft','pending','private'],
@@ -146,23 +146,40 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
                 $child_slug, $post_id, $existing_post->post_status, 'page', $parent_id
             );
         }
-        return wp_update_post($update, true);
-    }
-
-    // New under /quiz/
-    $unique_slug = wp_unique_post_slug($child_slug, 0, 'publish', 'page', $parent_id);
-    $postarr = [
-        'post_title'   => $title,
-        'post_name'    => $unique_slug,
-        'post_content' => $content,
-        'post_status'  => 'publish',
-        'post_type'    => 'page',
-        'post_parent'  => $parent_id,
-    ];
-    $post_id = wp_insert_post($postarr, true);
-    if (!is_wp_error($post_id)) {
+        $updated_id = wp_update_post($update, true);
+        if (is_wp_error($updated_id)) return $updated_id;
+        $post_id = $updated_id;
+    } else {
+        // New under /quiz/
+        $unique_slug = wp_unique_post_slug($child_slug, 0, 'publish', 'page', $parent_id);
+        $postarr = [
+            'post_title'   => $title,
+            'post_name'    => $unique_slug,
+            'post_content' => $content,
+            'post_status'  => 'publish',
+            'post_type'    => 'page',
+            'post_parent'  => $parent_id,
+        ];
+        $post_id = wp_insert_post($postarr, true);
+        if (is_wp_error($post_id)) return $post_id;
         update_post_meta($post_id, '_ll_tools_word_category_id', (string) $term->term_id);
     }
+
+    // Clean up any duplicate pages for this category (keep only the current $post_id)
+    $all_pages = get_posts([
+        'post_type'   => 'page',
+        'post_status' => ['publish','draft','pending','private'],
+        'meta_key'    => '_ll_tools_word_category_id',
+        'meta_value'  => (string) $term->term_id,
+        'numberposts' => -1,
+        'fields'      => 'ids',
+    ]);
+    foreach ($all_pages as $pid) {
+        if ((int) $pid !== (int) $post_id) {
+            wp_trash_post((int) $pid);
+        }
+    }
+
     return $post_id;
 }
 

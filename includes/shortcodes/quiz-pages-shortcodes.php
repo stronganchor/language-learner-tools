@@ -78,8 +78,8 @@ function ll_raw_resolve_wordset_term_ids($spec) {
 }
 
 /**
- * Collect all word-category IDs used by at least one published "words" post
- * that belongs to ANY of the provided wordset term IDs. Uses direct SQL.
+ * Collect all word-category IDs used by at least MINIMUM published "words" posts
+ * that belong to ANY of the provided wordset term IDs. Uses direct SQL.
  * Includes ancestor categories so parents appear.
  */
 function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
@@ -96,8 +96,12 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
 
     $placeholders = implode(',', array_fill(0, count($wordset_term_ids), '%d'));
 
+    // Get minimum word count (default 5)
+    $min_words = (int) apply_filters('ll_tools_quiz_min_words', 5);
+
+    // First, get word counts per category for this wordset
     $sql = $wpdb->prepare("
-        SELECT DISTINCT tt_cat.term_id
+        SELECT tt_cat.term_id, COUNT(DISTINCT p.ID) as word_count
         FROM {$wpdb->posts}                p
         INNER JOIN {$wpdb->term_relationships} tr_ws  ON tr_ws.object_id = p.ID
         INNER JOIN {$wpdb->term_taxonomy}      tt_ws  ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
@@ -108,7 +112,9 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
           AND tt_ws.taxonomy  = %s
           AND tt_ws.term_id  IN ($placeholders)
           AND tt_cat.taxonomy = %s
-    ", array_merge(['words','publish','wordset'], $wordset_term_ids, ['word-category']));
+        GROUP BY tt_cat.term_id
+        HAVING word_count >= %d
+    ", array_merge(['words','publish','wordset'], $wordset_term_ids, ['word-category', $min_words]));
 
     $cat_ids = array_map('intval', (array) $wpdb->get_col($sql));
     if (empty($cat_ids)) {
@@ -145,7 +151,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
         'posts_per_page'   => -1,
         'fields'           => 'ids',
         'meta_key'         => '_ll_tools_word_category_id',
-        'orderby'          => 'title',
+        'orderby'          => 'ID',  // Ensure consistent ordering for deduplication
         'order'            => 'ASC',
     ]);
     if (empty($pages)) return [];
@@ -161,10 +167,11 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
+    $seen_term_ids = [];  // Track seen term_ids for deduplication
 
     foreach ($pages as $post_id) {
         $term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
-        if ($term_id <= 0) continue;
+        if ($term_id <= 0 || isset($seen_term_ids[$term_id])) continue;  // Skip duplicates
 
         if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true)) {
             continue;
@@ -172,6 +179,8 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
         $term = get_term($term_id, 'word-category');
         if (!$term || is_wp_error($term)) continue;
+
+        $seen_term_ids[$term_id] = true;  // Mark as seen to prevent dupes
 
         $name        = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
         $translation = '';
