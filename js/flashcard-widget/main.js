@@ -26,22 +26,39 @@
     }
 
     function switchMode(newMode) {
-        const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
+        // Debounce ultra-rapid clicks on the mode switcher
+        const $btn = $('#ll-tools-mode-switcher');
+        if ($btn.length) { $btn.prop('disabled', true); }
 
-        // Reset state and restart with new mode
+        // 1) HARD STOP all audio before touching DOM or State
+        try {
+            root.FlashcardAudio.resetAudioState(); // pauses all, clears onended, removes <audio>
+        } catch (e) {
+            // Fallback: at least pause what we can
+            try { root.FlashcardAudio.pauseAllAudio(); } catch (e2) { }
+        }
+
+        // 2) Reset state and set the new mode
+        const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
         State.reset();
         State.isLearningMode = (targetMode === 'learning');
 
-        // Hide results if showing
+        // 3) Hide any results screen that may be visible
         if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
             root.LLFlashcards.Results.hideResults();
         }
 
+        // 4) Clear the stage and rebuild header UI
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
         updateModeSwitcherButton();
+
+        // 5) Start fresh round in the new mode
         startQuizRound();
+
+        if ($btn.length) { $btn.prop('disabled', false); }
     }
+
 
     function onCorrectAnswer(targetWord, $correctCard) {
         if (State.userClickedCorrectAnswer) return;

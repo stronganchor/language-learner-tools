@@ -124,10 +124,34 @@
          * Resets the audio state so that the quiz can be restarted.
          */
         function resetAudioState() {
-            pauseAllAudio();
-            activeAudios = [];
-            currentTargetAudio = null;
-            targetAudioHasPlayed = false;
+            try {
+                // Stop and clear any actively tracked audios
+                pauseAllAudio();
+                activeAudios = [];
+
+                // Stop and sanitize the feedback sounds
+                if (correctAudio) {
+                    try { correctAudio.pause(); correctAudio.currentTime = 0; } catch (e) { }
+                    // Prevent stale chains from firing after a mode switch
+                    try { correctAudio.onended = null; } catch (e) { }
+                }
+                if (wrongAudio) {
+                    try { wrongAudio.pause(); wrongAudio.currentTime = 0; } catch (e) { }
+                    // Prevent stale chains from firing after a mode switch
+                    try { wrongAudio.onended = null; } catch (e) { }
+                }
+
+                // Drop current target audio reference/state
+                currentTargetAudio = null;
+                targetAudioHasPlayed = false;
+
+                // Proactively remove any <audio> elements we created inside the widget
+                try { jQuery && jQuery('#ll-tools-flashcard audio').remove(); } catch (e) { }
+
+            } catch (e) {
+                // no-op; we never want a reset failure to break the UI
+                console.error('resetAudioState() failed', e);
+            }
         }
 
         /**
