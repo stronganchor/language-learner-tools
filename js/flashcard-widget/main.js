@@ -157,7 +157,8 @@
             Dom.updateLearningProgress(
                 State.introducedWordIDs.length,
                 State.totalWordCount,
-                State.wordCorrectCounts
+                State.wordCorrectCounts,
+                State.wordIntroductionProgress
             );
 
             if (!target) {
@@ -252,7 +253,8 @@
             Dom.updateLearningProgress(
                 State.introducedWordIDs.length,
                 State.totalWordCount,
-                State.wordCorrectCounts
+                State.wordCorrectCounts,
+                State.wordIntroductionProgress
             );
         }
 
@@ -339,6 +341,17 @@
 
             audio.play();
             audio.onended = function () {
+                // Increment introduction progress after each repetition
+                State.wordIntroductionProgress[currentWord.id] = (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+
+                // Update progress bar after each repetition
+                Dom.updateLearningProgress(
+                    State.introducedWordIDs.length,
+                    State.totalWordCount,
+                    State.wordCorrectCounts,
+                    State.wordIntroductionProgress
+                );
+
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
                     // Play this word again with animation
                     $currentCard.removeClass('introducing-active');
@@ -349,15 +362,6 @@
                     // This word's introduction is complete - mark it as introduced NOW
                     if (!State.introducedWordIDs.includes(currentWord.id)) {
                         State.introducedWordIDs.push(currentWord.id);
-
-                        // Update progress bar after marking as introduced
-                        if (State.isLearningMode) {
-                            Dom.updateLearningProgress(
-                                State.introducedWordIDs.length,
-                                State.totalWordCount,
-                                State.wordCorrectCounts
-                            );
-                        }
                     }
 
                     // Move to next word

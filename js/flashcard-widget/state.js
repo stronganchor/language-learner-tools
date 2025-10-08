@@ -23,6 +23,7 @@
         // Learning mode state
         isLearningMode: false,
         introducedWordIDs: [],
+        wordIntroductionProgress: {},
         wordCorrectCounts: {},
         wordsToIntroduce: [],
         totalWordCount: 0,
@@ -56,6 +57,7 @@
             // Reset learning mode state
             this.isLearningMode = false;
             this.introducedWordIDs = [];
+            this.wordIntroductionProgress = {};
             this.wordCorrectCounts = {};
             this.wordsToIntroduce = [];
             this.totalWordCount = 0;

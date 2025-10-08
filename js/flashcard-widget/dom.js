@@ -56,20 +56,26 @@
         },
         showLoading() { $('#ll-tools-loading-animation').show(); },
         hideLoading() { $('#ll-tools-loading-animation').hide(); },
-        updateLearningProgress(introducedCount, totalCount, wordCorrectCounts) {
+        updateLearningProgress(introducedCount, totalCount, wordCorrectCounts, wordIntroductionProgress) {
             const $progress = $('#ll-tools-learning-progress');
             if (!$progress.length) return;
 
-            const completedWords = Object.values(wordCorrectCounts).filter(count => count >= 3).length;
-            const completedPercentage = totalCount > 0 ? Math.round((completedWords / totalCount) * 100) : 0;
-            const introducedPercentage = totalCount > 0 ? Math.round((introducedCount / totalCount) * 100) : 0;
+            // Calculate granular completion based on total correct answers (capped at 3 per word)
+            const totalCorrectAnswers = Object.values(wordCorrectCounts).reduce((sum, count) => sum + Math.min(count, 3), 0);
+            const maxPossibleAnswers = totalCount * 3;
+            const completedPercentage = maxPossibleAnswers > 0 ? Math.round((totalCorrectAnswers / maxPossibleAnswers) * 100) : 0;
+
+            // Calculate granular introduction progress (3 repetitions per word)
+            const totalIntroductionRepetitions = Object.values(wordIntroductionProgress || {}).reduce((sum, count) => sum + Math.min(count, 3), 0);
+            const maxPossibleIntroductions = totalCount * 3;
+            const introducedPercentage = maxPossibleIntroductions > 0 ? Math.round((totalIntroductionRepetitions / maxPossibleIntroductions) * 100) : 0;
 
             $progress.html(`
-            <div class="learning-progress-bar">
-                <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
-                <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
-            </div>
-        `).show();
+                <div class="learning-progress-bar">
+                    <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
+                    <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
+                </div>
+            `).show();
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },
