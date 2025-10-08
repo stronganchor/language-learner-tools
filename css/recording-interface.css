@@ -65,13 +65,9 @@
 .ll-recording-image-container {
     text-align: center;
     margin-bottom: 2rem;
-}
-
-#ll-current-image {
-    max-width: 100%;
-    max-height: 400px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .ll-image-title {

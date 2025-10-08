@@ -108,8 +108,16 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
 
         <div class="ll-recording-main">
+            <?php
+            // Get the site-wide flashcard size setting
+            $flashcard_size = get_option('ll_flashcard_image_size', 'small');
+            $size_class = 'flashcard-size-' . sanitize_html_class($flashcard_size);
+            ?>
+
             <div class="ll-recording-image-container">
-                <img id="ll-current-image" src="" alt="">
+                <div class="flashcard-container <?php echo esc_attr($size_class); ?>">
+                    <img id="ll-current-image" class="quiz-image" src="" alt="">
+                </div>
                 <p id="ll-image-title" class="ll-image-title"></p>
             </div>
 
@@ -509,10 +517,18 @@ function ll_image_has_word_with_audio($image_post_id) {
  * Enqueue recording interface assets
  */
 function ll_enqueue_recording_assets() {
+    // Enqueue flashcard styles first so recording interface can use them
+    wp_enqueue_style(
+        'll-flashcard-style',
+        plugins_url('css/flashcard-style.css', LL_TOOLS_MAIN_FILE),
+        [],
+        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard-style.css')
+    );
+
     wp_enqueue_style(
         'll-recording-interface',
         plugins_url('css/recording-interface.css', LL_TOOLS_MAIN_FILE),
-        [],
+        ['ll-flashcard-style'],
         filemtime(LL_TOOLS_BASE_PATH . 'css/recording-interface.css')
     );
 
