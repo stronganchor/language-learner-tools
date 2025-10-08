@@ -28,6 +28,7 @@
 
     function init() {
         setupElements();
+        setupCategorySelector();
         loadImage(0);
         setupEventListeners();
 
@@ -50,20 +51,32 @@
             skipBtn: document.getElementById('ll-skip-btn'),
             status: document.getElementById('ll-upload-status'),
             currentNum: document.querySelector('.ll-current-num'),
+            totalNum: document.querySelector('.ll-total-num'),
             completeScreen: document.querySelector('.ll-recording-complete'),
             completedCount: document.querySelector('.ll-completed-count'),
             mainScreen: document.querySelector('.ll-recording-main'),
+            categorySelect: document.getElementById('ll-category-select'),
+            recordingTypeSelect: document.getElementById('ll-recording-type'),
         };
     }
 
+    function setupCategorySelector() {
+        const el = window.llRecorder;
+        if (el.categorySelect) {
+            el.categorySelect.addEventListener('change', switchCategory);
+        }
+    }
+
     function setTypeForCurrentImage() {
-        const sel = document.getElementById('ll-recording-type');
-        if (!sel) return;
+        const el = window.llRecorder;
+        if (!el.recordingTypeSelect) return;
         const img = images[currentImageIndex];
         const next = (img && Array.isArray(img.missing_types) && img.missing_types.length)
             ? img.missing_types[0]
-            : sel.value;
-        if (next && sel.value !== next) sel.value = next;
+            : el.recordingTypeSelect.value;
+        if (next && el.recordingTypeSelect.value !== next) {
+            el.recordingTypeSelect.value = next;
+        }
     }
 
     function showStatus(message, type) {
@@ -94,6 +107,7 @@
 
         el.image.src = img.image_url;
         el.currentNum.textContent = index + 1;
+        el.totalNum.textContent = images.length;
 
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
@@ -225,14 +239,14 @@
             loadImage(currentImageIndex + 1);
             return;
         }
-        const sel = document.getElementById('ll-recording-type');
-        if (!sel) return;
+        const el = window.llRecorder;
+        if (!el.recordingTypeSelect) return;
         const img = images[currentImageIndex];
         if (!img || !Array.isArray(img.missing_types) || img.missing_types.length === 0) {
             loadImage(currentImageIndex + 1);
             return;
         }
-        const curType = sel.value;
+        const curType = el.recordingTypeSelect.value;
         if (!curType) return;
 
         const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
@@ -299,7 +313,7 @@
         const el = window.llRecorder;
         const img = images[currentImageIndex];
 
-        const recordingType = document.getElementById('ll-recording-type')?.value || 'isolation';
+        const recordingType = el.recordingTypeSelect?.value || 'isolation';
 
         const wordsetIds = (window.ll_recorder_data && Array.isArray(window.ll_recorder_data.wordset_ids))
             ? window.ll_recorder_data.wordset_ids
@@ -311,7 +325,7 @@
         showStatus(i18n.uploading || 'Uploading...', 'uploading');
         el.submitBtn.disabled = true;
         el.redoBtn.disabled = true;
-        el.skipBtn.disabled = true;
+        el.skipBtn.disabled = false;
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
@@ -389,9 +403,7 @@
 
                 el.submitBtn.disabled = false;
                 el.redoBtn.disabled = false;
-                el.skipBtn.disabled = false;
             }
-
         } catch (err) {
             console.error('Upload error:', err);
             const failMsg = (i18n.upload_failed || 'Upload failed:') + ' ' + err.message;
@@ -399,6 +411,83 @@
 
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
+        }
+    }
+
+    async function switchCategory() {
+        const el = window.llRecorder;
+        if (!el.categorySelect) return;
+
+        const newCategory = el.categorySelect.value;
+        if (!newCategory) return;
+
+        showStatus(i18n.switching_category || 'Switching category...', 'info');
+        el.categorySelect.disabled = true;
+        el.recordBtn.disabled = true;
+        el.skipBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('action', 'll_get_images_for_recording');
+        formData.append('nonce', nonce);
+        formData.append('category', newCategory);
+        formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
+        formData.append('include_types', window.ll_recorder_data?.include_types || '');
+        formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
+
+        try {
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned invalid response format');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                const newImages = data.data?.images || [];
+                if (newImages.length === 0) {
+                    showStatus('No images need audio in this category.', 'error');
+                    el.categorySelect.disabled = false;
+                    return;
+                }
+
+                // Update global images and reset indexer
+                window.ll_recorder_data.images = newImages;
+                images.length = 0;
+                images.push(...newImages);
+                currentImageIndex = 0;
+
+                // Update recording type dropdown options
+                const newTypes = data.data?.recording_types || [];
+                el.recordingTypeSelect.innerHTML = '';
+                newTypes.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.slug;
+                    option.textContent = type.name || type.slug;
+                    el.recordingTypeSelect.appendChild(option);
+                });
+
+                // Reset and load first image
+                loadImage(0);
+                showStatus('Category switched. Ready to record.', 'success');
+            } else {
+                const errorMsg = data.data || data.message || 'Switch failed';
+                showStatus(`Switch failed: ${errorMsg}`, 'error');
+            }
+        } catch (err) {
+            console.error('Category switch error:', err);
+            showStatus(`Switch failed: ${err.message}`, 'error');
+        } finally {
+            el.categorySelect.disabled = false;
+            el.recordBtn.disabled = false;
             el.skipBtn.disabled = false;
         }
     }
