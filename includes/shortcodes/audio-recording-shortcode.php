@@ -37,13 +37,15 @@ function ll_audio_recording_interface_shortcode($atts) {
         'category' => '',
         'wordset'  => '',
         'language' => '',
+        'include_recording_types' => '',
+        'exclude_recording_types' => '',
     ], $atts);
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
 
     // Get images that need audio
-    $images_needing_audio = ll_get_images_needing_audio($atts['category'], $wordset_term_ids);
+    $images_needing_audio = ll_get_images_needing_audio($atts['category'], $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
 
     if (empty($images_needing_audio)) {
         return '<div class="ll-recording-interface"><p>' .
@@ -53,11 +55,27 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     ll_enqueue_recording_assets();
 
-    // Get recording types for dropdown
-    $recording_types = get_terms([
-        'taxonomy' => 'recording_type',
-        'hide_empty' => false,
-    ]);
+    // Get all defined recording types, but we compute filtered ones server-side; client gets what's in missing_types
+    $recording_types = [];
+    foreach ($images_needing_audio as $img) {
+        if (is_array($img['missing_types'])) {
+            $recording_types = array_merge($recording_types, $img['missing_types']);
+        }
+        if (is_array($img['existing_types'])) {
+            $recording_types = array_merge($recording_types, $img['existing_types']);
+        }
+    }
+    $recording_types = array_unique($recording_types);
+    // Build terms array for dropdown
+    $dropdown_types = [];
+    if (!empty($recording_types)) {
+        foreach ($recording_types as $slug) {
+            $term = get_term_by('slug', $slug, 'recording_type');
+            if ($term && !is_wp_error($term)) {
+                $dropdown_types[] = $term;
+            }
+        }
+    }
 
     // Get current user info for display
     $current_user = wp_get_current_user();
@@ -70,7 +88,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'wordset'         => $atts['wordset'],
         'wordset_ids'     => $wordset_term_ids,
         'hide_name'       => get_option('ll_hide_recording_titles', 0),
-        'recording_types' => $recording_types,
+        'recording_types' => $dropdown_types,
         'user_display_name' => $current_user->display_name,
         'require_all_types' => true,
         'i18n' => [
@@ -125,9 +143,9 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
                 <select id="ll-recording-type">
                     <?php
-                    if (!empty($recording_types) && !is_wp_error($recording_types)) {
-                        foreach ($recording_types as $type) {
-                            $selected = ($type->slug === 'isolation') ? 'selected' : '';
+                    if (!empty($dropdown_types) && !is_wp_error($dropdown_types)) {
+                        foreach ($dropdown_types as $type) {
+                            $selected = ($type->slug === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type->slug === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
                             printf(
                                 '<option value="%s" %s>%s</option>',
                                 esc_attr($type->slug),
@@ -213,32 +231,13 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
 }
 
 /**
- * For a given word (parent of word_audio), return the recording_type slugs missing (not recorded and not skipped).
- */
-function ll_get_missing_recording_types_for_word(int $word_id): array {
-    $all_types = get_terms([
-        'taxonomy'   => 'recording_type',
-        'hide_empty' => false,
-        'fields'     => 'slugs',
-    ]);
-    if (is_wp_error($all_types) || empty($all_types)) {
-        $all_types = [];
-    }
-
-    $existing = ll_get_existing_recording_types_for_word($word_id);
-    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
-    $skipped = is_array($skipped) ? $skipped : [];
-
-    $missing = array_values(array_diff($all_types, $existing, $skipped));
-    return $missing;
-}
-
-/**
  * Get word images that need audio recordings for a specific wordset (by term IDs),
  * returning per-image missing/existing recording types so the UI can prompt for each type.
  *
  * @param string $category_slug
  * @param array  $wordset_term_ids
+ * @param string $include_types_csv Comma-separated slugs to include
+ * @param string $exclude_types_csv Comma-separated slugs to exclude
  * @return array [
  *   [
  *     'id'            => int,
@@ -246,13 +245,13 @@ function ll_get_missing_recording_types_for_word(int $word_id): array {
  *     'image_url'     => string,
  *     'category_name' => string,
  *     'word_id'       => int|null,      // the word in this wordset that uses the image (if any)
- *     'missing_types' => string[],       // recording_type slugs still needed
- *     'existing_types'=> string[],       // recording_type slugs already present
+ *     'missing_types' => string[],       // recording_type slugs still needed (filtered)
+ *     'existing_types'=> string[],       // recording_type slugs already present (not filtered, all)
  *   ],
  *   ...
  * ]
  */
-function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []) {
+function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '') {
     // If nothing provided, fall back to default wordset so guests never see "all images"
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
@@ -269,6 +268,17 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     ]);
     if (is_wp_error($all_types) || empty($all_types)) {
         $all_types = [];
+    }
+
+    // Parse and apply filters
+    $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
+    $exclude_types = !empty($exclude_types_csv) ? array_map('trim', explode(',', $exclude_types_csv)) : [];
+
+    $filtered_types = $all_types;
+    if (!empty($include_types)) {
+        $filtered_types = array_intersect($filtered_types, $include_types);
+    } elseif (!empty($exclude_types)) {
+        $filtered_types = array_diff($filtered_types, $exclude_types);
     }
 
     $args = [
@@ -297,9 +307,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
 
         if ($word_id) {
-            $missing_types = ll_get_missing_recording_types_for_word($word_id);
+            $missing_types = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
         } else {
-            $missing_types = $all_types;
+            $missing_types = $filtered_types;
         }
         $existing_types = $word_id ? ll_get_existing_recording_types_for_word($word_id) : [];
 
@@ -415,6 +425,22 @@ function ll_get_existing_recording_types_for_word(int $word_id): array {
         }
     }
     return array_values(array_unique($existing));
+}
+
+/**
+ * For a given word (parent of word_audio), return the recording_type slugs missing (not recorded and not skipped), limited to provided filtered types.
+ *
+ * @param int $word_id
+ * @param array $filtered_types Slugs available for this shortcode instance
+ * @return array
+ */
+function ll_get_missing_recording_types_for_word(int $word_id, array $filtered_types): array {
+    $existing = ll_get_existing_recording_types_for_word($word_id);
+    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
+    $skipped = is_array($skipped) ? $skipped : [];
+
+    $missing = array_values(array_diff($filtered_types, $existing, $skipped));
+    return $missing;
 }
 
 /**
