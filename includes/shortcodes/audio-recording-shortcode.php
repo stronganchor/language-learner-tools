@@ -328,6 +328,92 @@ function ll_get_images_for_recording_handler() {
     ]);
 }
 
+// AJAX: verify a recording exists after a possibly misleading 500
+add_action('wp_ajax_ll_verify_recording', 'll_verify_recording_handler');
+add_action('wp_ajax_nopriv_ll_verify_recording', 'll_verify_recording_handler');
+
+function ll_verify_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in to verify recordings');
+    }
+
+    $image_id       = intval($_POST['image_id'] ?? 0);
+    $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
+    $include_types  = sanitize_text_field($_POST['include_types'] ?? '');
+    $exclude_types  = sanitize_text_field($_POST['exclude_types'] ?? '');
+    $wordset_ids    = [];
+
+    if (!empty($_POST['wordset_ids'])) {
+        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
+        if (is_array($decoded)) $wordset_ids = array_map('intval', $decoded);
+    }
+    $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
+    if (empty($wordset_ids)) {
+        $wordset_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    $image_post = get_post($image_id);
+    if (!$image_post || $image_post->post_type !== 'word_images') {
+        wp_send_json_error('Invalid image ID');
+    }
+
+    // Rebuild filtered type list just like the UI
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+    if (is_wp_error($all_types) || empty($all_types)) { $all_types = []; }
+
+    $inc = $include_types ? array_map('trim', explode(',', $include_types)) : [];
+    $exc = $exclude_types ? array_map('trim', explode(',', $exclude_types)) : [];
+
+    $filtered_types = $all_types;
+    if (!empty($inc))  $filtered_types = array_values(array_intersect($filtered_types, $inc));
+    elseif (!empty($exc)) $filtered_types = array_values(array_diff($filtered_types, $exc));
+
+    // Find the word
+    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids);
+    if (is_wp_error($word_id)) {
+        wp_send_json_error('Failed to find/create word: ' . $word_id->get_error_message());
+    }
+    $word_id = (int) $word_id;
+
+    // Look for a recent child "word_audio" with this type
+    $args = [
+        'post_type'      => 'word_audio',
+        'post_status'    => ['draft','pending','publish'],
+        'posts_per_page' => 1,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'post_parent'    => $word_id,
+        'tax_query'      => [[
+            'taxonomy' => 'recording_type',
+            'field'    => 'slug',
+            'terms'    => $recording_type ? [$recording_type] : $filtered_types,
+        ]],
+    ];
+    $latest = get_posts($args);
+    $audio_post_id = !empty($latest) ? (int) $latest[0] : 0;
+
+    // Remaining types (computed with the same filtered list)
+    $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+
+    // If this exact type was requested and it still appears in remaining, then treat as not found.
+    $found = 0;
+    if ($audio_post_id) {
+        if ($recording_type && in_array($recording_type, $remaining_missing, true)) {
+            $found = 0;
+        } else {
+            $found = $audio_post_id;
+        }
+    }
+
+    wp_send_json_success([
+        'found_audio_post_id' => $found,
+        'word_id'             => $word_id,
+        'remaining_types'     => array_values($remaining_missing),
+    ]);
+}
+
 /**
  * Return the earliest-created wordset term_id (approximate via lowest term_id).
  */

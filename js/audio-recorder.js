@@ -343,23 +343,24 @@
         if (currentBlob.type.includes('wav')) extension = '.wav';
         else if (currentBlob.type.includes('mp3')) extension = '.mp3';
         else if (currentBlob.type.includes('pcm')) extension = '.wav';
-
         formData.append('audio', currentBlob, `${img.title}${extension}`);
 
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
-            if (!response.ok) {
-                const errorMsg = i18n.http_error
-                    ? i18n.http_error.replace('%d', response.status).replace('%s', response.statusText)
-                    : `HTTP ${response.status}: ${response.statusText}`;
-                throw new Error(errorMsg);
+
+            // If server throws after doing the work, response.ok may be false or content may be non-JSON.
+            let data;
+            const contentType = response.headers.get('content-type') || '';
+            if (response.ok && contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                // Try verification path before giving up
+                return await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
             }
 
-            const data = await response.json();
             if (data.success) {
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
 
-                // Update local caches for this image
                 if (!Array.isArray(images[currentImageIndex].existing_types)) {
                     images[currentImageIndex].existing_types = [];
                 }
@@ -369,7 +370,6 @@
                 images[currentImageIndex].missing_types = remaining.slice();
 
                 if (requireAll && remaining.length > 0) {
-                    // Make sure dropdown visibly moves to the next type
                     setTypeForCurrentImage();
                     resetRecordingState();
                     const savedMsg = i18n.saved_type
@@ -382,15 +382,64 @@
                 showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
                 setTimeout(() => loadImage(currentImageIndex + 1), 800);
             } else {
-                const errorMsg = data.data || data.message || 'Unknown error';
-                console.error('Upload failed:', errorMsg);
-                showStatus((i18n.error_prefix || 'Error:') + ' ' + errorMsg, 'error');
-                el.submitBtn.disabled = false;
-                el.redoBtn.disabled = false;
+                // Non-success payload: verify before failing
+                await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
             }
         } catch (err) {
-            console.error('Upload error:', err);
-            showStatus((i18n.upload_failed || 'Upload failed:') + ' ' + err.message, 'error');
+            // Network/parse error: verify before failing
+            await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
+        }
+    }
+
+    async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes }) {
+        try {
+            const fd = new FormData();
+            fd.append('action', 'll_verify_recording');
+            fd.append('nonce', nonce);
+            fd.append('image_id', img.id);
+            fd.append('recording_type', recordingType);
+            fd.append('wordset_ids', JSON.stringify(wordsetIds));
+            fd.append('wordset', wordsetLegacy);
+            fd.append('include_types', includeTypes);
+            fd.append('exclude_types', excludeTypes);
+
+            const verifyResp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+            if (!verifyResp.ok) throw new Error(`HTTP ${verifyResp.status}: ${verifyResp.statusText}`);
+            const verifyData = await verifyResp.json();
+
+            if (verifyData?.success && verifyData.data?.found_audio_post_id) {
+                const remaining = Array.isArray(verifyData.data.remaining_types) ? verifyData.data.remaining_types : [];
+
+                if (!Array.isArray(images[currentImageIndex].existing_types)) {
+                    images[currentImageIndex].existing_types = [];
+                }
+                if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
+                    images[currentImageIndex].existing_types.push(recordingType);
+                }
+                images[currentImageIndex].missing_types = remaining.slice();
+
+                if (requireAll && remaining.length > 0) {
+                    setTypeForCurrentImage();
+                    resetRecordingState();
+                    const savedMsg = i18n.saved_type
+                        ? i18n.saved_type.replace('%s', recordingType)
+                        : `Saved ${recordingType}. Next type selected.`;
+                    showStatus(savedMsg, 'success');
+                    return;
+                }
+
+                showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
+                setTimeout(() => loadImage(currentImageIndex + 1), 600);
+                return;
+            }
+
+            // Really not there — show error
+            showStatus((i18n.upload_failed || 'Upload failed:') + ' HTTP 500 (no recording found)', 'error');
+        } catch (e) {
+            console.error('Verify error:', e);
+            showStatus((i18n.upload_failed || 'Upload failed:') + ' ' + (e.message || 'Verify failed'), 'error');
+        } finally {
+            const el = window.llRecorder;
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
         }
