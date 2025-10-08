@@ -384,11 +384,12 @@ body.ll-tools-flashcard-open {
     width: 100%;
     max-width: 600px;
     text-align: center;
-    padding: 8px 15px;
+    padding: 8px 60px 8px 15px;
     font-size: 14px;
     color: #666;
     order: 1;
     margin-bottom: 8px;
+    margin-top: -5px;
 }
 
 #ll-tools-learning-progress .progress-text {
@@ -584,5 +585,17 @@ body.ll-tools-flashcard-open {
 
     .quiz-mode-button .button-icon {
         font-size: 18px;
+    }
+
+    /* Constrain progress bar width on mobile to avoid close button */
+    #ll-tools-learning-progress {
+        max-width: calc(100% - 50px);
+        width: calc(100% - 50px);
+        padding: 8px 10px 8px 10px;
+        margin-right: 50px;
+    }
+
+    .learning-progress-bar {
+        height: 10px;
     }
 }
