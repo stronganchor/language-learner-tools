@@ -532,14 +532,16 @@ function ll_quiz_pages_grid_shortcode($atts) {
             echo '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
         } else {
-            // For popup, add wordset data attribute if set
+            // For popup, add wordset and mode data attributes if set
             $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
+            $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
             . ' aria-label="Start ' . esc_attr($title) . '"'
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
-            . $ws_attr  // Added
+            . $ws_attr
+            . $mode_attr
             . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';
