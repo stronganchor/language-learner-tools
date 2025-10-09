@@ -52,7 +52,18 @@
         updateCategoryNameDisplay(name) {
             if (!name) return;
             const $el = $('#ll-tools-category-display');
-            if ($el.length) $el.text(String(name));
+            if (!$el.length) return;
+
+            // Look up translation if available
+            let displayName = name;
+            if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.categories) {
+                const category = root.llToolsFlashcardsData.categories.find(c => c.name === name);
+                if (category && category.translation) {
+                    displayName = category.translation;
+                }
+            }
+
+            $el.text(String(displayName));
         },
         showLoading() { $('#ll-tools-loading-animation').show(); },
         hideLoading() { $('#ll-tools-loading-animation').hide(); },
