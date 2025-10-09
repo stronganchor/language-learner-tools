@@ -14,31 +14,61 @@
         let target = null;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
 
+        // First, try to find a word from the repetition queue that's ready to reappear
+        // and ISN'T the same as the last word shown
         if (queue && queue.length) {
             for (let i = 0; i < queue.length; i++) {
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
-                    target = queue[i].wordData; queue.splice(i, 1); break;
+                    // Skip if this is the same word we just showed
+                    if (queue[i].wordData.id !== State.lastWordShownId) {
+                        target = queue[i].wordData;
+                        queue.splice(i, 1);
+                        break;
+                    }
                 }
             }
         }
+
+        // If no target from queue, try to find an unused word (and not the last shown)
         if (!target) {
             for (let i = 0; i < candidateCategory.length; i++) {
-                if (!State.usedWordIDs.includes(candidateCategory[i].id)) {
-                    target = candidateCategory[i]; State.usedWordIDs.push(target.id); break;
+                if (!State.usedWordIDs.includes(candidateCategory[i].id) &&
+                    candidateCategory[i].id !== State.lastWordShownId) {
+                    target = candidateCategory[i];
+                    State.usedWordIDs.push(target.id);
+                    break;
                 }
             }
         }
+
+        // Fallback: if still no target and queue exists, pick from queue but avoid last shown
         if (!target && queue && queue.length) {
-            target = queue[0].wordData;
-            if (target.id === State.usedWordIDs[State.usedWordIDs.length - 1]) {
-                const others = candidateCategory.filter(w => w.id !== target.id);
-                if (others.length) target = others[Math.floor(Math.random() * others.length)];
+            // Try to find a word that isn't the last shown
+            let queueCandidate = queue.find(item => item.wordData.id !== State.lastWordShownId);
+
+            if (!queueCandidate && queue.length > 0) {
+                // All queue items are the last shown word, or only one word in queue
+                // Try to find any other word from the category
+                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId);
+                if (others.length) {
+                    target = others[Math.floor(Math.random() * others.length)];
+                } else {
+                    // No choice but to use the queue item (only happens with very small word sets)
+                    queueCandidate = queue[0];
+                }
             }
-            const qi = queue.findIndex(it => it.wordData.id === target.id);
-            if (qi !== -1) queue.splice(qi, 1);
+
+            if (queueCandidate) {
+                target = queueCandidate.wordData;
+                const qi = queue.findIndex(it => it.wordData.id === target.id);
+                if (qi !== -1) queue.splice(qi, 1);
+            }
         }
 
         if (target) {
+            // Update last shown word ID to prevent consecutive duplicates
+            State.lastWordShownId = target.id;
+
             if (State.currentCategoryName !== candidateCategoryName) {
                 State.currentCategoryName = candidateCategoryName;
                 State.currentCategoryRoundCount = 0;

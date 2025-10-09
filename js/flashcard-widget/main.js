@@ -110,12 +110,22 @@
             }
             State.isIntroducingWord = false;
         } else {
+            // Only queue if there were wrong answers AND the word isn't already in the queue
             if (State.wrongIndexes.length > 0) {
                 State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
-                State.categoryRepetitionQueues[State.currentCategoryName].push({
-                    wordData: targetWord,
-                    reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
-                });
+
+                // Check if this word is already in the queue
+                const alreadyQueued = State.categoryRepetitionQueues[State.currentCategoryName].some(
+                    item => item.wordData.id === targetWord.id
+                );
+
+                // Only add if not already queued
+                if (!alreadyQueued) {
+                    State.categoryRepetitionQueues[State.currentCategoryName].push({
+                        wordData: targetWord,
+                        reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
+                    });
+                }
             }
         }
 
