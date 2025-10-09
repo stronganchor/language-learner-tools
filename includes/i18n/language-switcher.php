@@ -36,52 +36,60 @@ function switch_language() {
 }
 
 /**
- * Auto-route users to the TranslatePress URL that matches their language.
- * Works regardless of TP's internal state by checking the actual URL path.
+ * Auto-route visitors to the correct TranslatePress URL (/tr/ vs /),
+ * but NEVER touch Elementor editor/preview or other special requests.
  */
 add_action('template_redirect', function () {
-    // Only front-end HTML requests
+    // 1) Hard skips: admin, AJAX
     if ( is_admin() || wp_doing_ajax() ) return;
 
+    // 2) Elementor editor / preview / CSS / REST / heartbeat
+    //    (Editor loads the front-end with ?elementor-preview=ID)
+    $q = $_GET;
     $uri = $_SERVER['REQUEST_URI'] ?? '/';
+    $is_elementor =
+        (isset($q['elementor-preview'])) ||                // front-end preview frame
+        (isset($q['elementor_library'])) ||                // library routes
+        (isset($q['action']) && $q['action'] === 'elementor') ||
+        (isset($q['elementor']) || isset($q['elementor_css'])) ||
+        (strpos($uri, '/wp-json/elementor/') === 0) ||     // REST endpoints
+        (strpos($uri, '/?rest_route=/elementor/') !== false);
 
-    // Skip REST, cron, feeds, previews, file requests, and login
+    if ( $is_elementor ) return;
+
+    // 3) Other non-HTML or sensitive routes we should never redirect
     if (
         strpos($uri, '/wp-json/') === 0 ||
         strpos($uri, '/wp-cron.php') === 0 ||
+        strpos($uri, '/wp-login.php') === 0 ||
         is_feed() ||
-        (isset($_GET['preview']) && $_GET['preview']=='true') ||
-        preg_match('~\.(css|js|jpg|jpeg|png|gif|svg|webp|ico|woff2?|ttf|eot|mp3|mp4|wav)$~i', $uri) ||
-        strpos($uri, '/wp-login.php') === 0
+        (isset($q['preview']) && $q['preview'] === 'true') ||
+        preg_match('~\.(css|js|jpg|jpeg|png|gif|svg|webp|ico|woff2?|ttf|eot|mp3|mp4|wav)$~i', $uri)
     ) {
         return;
     }
 
-    // ----- Decide the desired language (swap this with your own logic if you have it) -----
-    // Basic device/browser detection:
-    $accept = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
+    // 4) Decide desired language (swap with your own logic if you have one)
+    //    Example: browser pref. Use your plugin's function instead if available.
+    $accept   = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
     $wants_tr = (strpos($accept, 'tr') === 0 || preg_match('/(^|,)\s*tr\b/', $accept));
-
-    // If YOUR plugin has a function/setting, prefer it:
-    // $wants_tr = function_exists('ll_user_wants_turkish') ? ll_user_wants_turkish() : $wants_tr;
+    // e.g. if you already have this: $wants_tr = (ll_get_current_language() === 'tr_TR');
 
     $desired = $wants_tr ? 'tr' : 'en';
 
-    // Is current URL already Turkish?
+    // 5) Are we already on the TR route?
     $on_tr = preg_match('#^/tr(?:/|$)#i', $uri) === 1;
 
-    // If desired is TR but URL isn’t /tr/, redirect to the TR version of THIS page.
+    // 6) Redirect only when URL route and desired language disagree
     if ($desired === 'tr' && !$on_tr) {
+        // Ask TP for the current URL in TR if possible
         if (class_exists('TRP_Translate_Press')) {
             $trp = TRP_Translate_Press::get_trp_instance();
             $url_converter = $trp->get_component('url_converter');
-            $target = $url_converter->get_url_for_language('tr'); // current URL in TR
+            $target = $url_converter->get_url_for_language('tr');
         } else {
-            // Fallback: prefix /tr/ manually
             $target = home_url('/tr' . $uri);
         }
-
-        // Set TP cookie and redirect
         if (!headers_sent()) {
             setcookie('trp_language', 'tr', time()+YEAR_IN_SECONDS, '/', parse_url(home_url(), PHP_URL_HOST) ?: '');
         }
@@ -89,17 +97,14 @@ add_action('template_redirect', function () {
         exit;
     }
 
-    // If desired is EN but URL is /tr/..., send to EN version (no /tr/ prefix)
     if ($desired === 'en' && $on_tr) {
         if (class_exists('TRP_Translate_Press')) {
             $trp = TRP_Translate_Press::get_trp_instance();
             $url_converter = $trp->get_component('url_converter');
-            $target = $url_converter->get_url_for_language('en'); // current URL in EN
+            $target = $url_converter->get_url_for_language('en');
         } else {
-            // Fallback: strip the /tr prefix
-            $target = home_url( preg_replace('#^/tr#i', '', $uri) ?: '/' );
+            $target = home_url(preg_replace('#^/tr#i', '', $uri) ?: '/');
         }
-
         if (!headers_sent()) {
             setcookie('trp_language', 'en', time()+YEAR_IN_SECONDS, '/', parse_url(home_url(), PHP_URL_HOST) ?: '');
         }
