@@ -1,118 +1,54 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 /**
- * Automatically switches the site language based on the user's browser language settings.
+ * Only auto-detect on first visit, never in admin/AJAX/REST,
+ * and never if a language was already chosen (our cookie or TP).
+ * If TranslatePress is active, redirect to its proper language URL.
  */
-function switch_language() {
-    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+function ll_tools_maybe_autodetect_language() {
+    // Frontend only; do not interfere with editors/REST/AJAX.
+    if (
+        is_admin() ||
+        (defined('DOING_AJAX') && DOING_AJAX) ||
+        (defined('REST_REQUEST') && REST_REQUEST) ||
+        (function_exists('wp_is_json_request') && wp_is_json_request())
+    ) {
         return;
     }
 
-    // Get the list of available languages in your WordPress site
-    $available_languages = get_available_languages(); // Returns an array of installed language codes (e.g., 'en_US')
+    // Respect an explicit manual choice or an existing preference.
+    if (!empty($_GET['ll_locale'])) return; // manual switch in progress
+    if (!empty($_COOKIE['ll_locale'])) return; // our cookie already set
+    if (!empty($_COOKIE['trp_language'])) return; // TranslatePress cookie set
 
-    // Extract the preferred language from the browser
-    $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2); // This gets the 2-letter language code
+    // Basic Accept-Language → WP locale mapping.
+    $http = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? $_SERVER['HTTP_ACCEPT_LANGUAGE'] : '';
+    if (!$http) return;
 
-    // Convert browser language to WordPress format (e.g., 'en' to 'en_US')
-    // This part may require customization based on your specific available languages and default language format
-    switch ($browser_lang) {
-        case 'en':
-            $wp_lang = 'en_US';
-            break;
-        case 'tr':
-            $wp_lang = 'tr_TR';
-            break;
-        // Add more cases as needed for your site's languages
-        default:
-            $wp_lang = ''; // Default language set in WordPress settings
-            break;
+    $lang2 = strtolower(substr($http, 0, 2));
+    $wp_locale = '';
+    if ($lang2 === 'tr') $wp_locale = 'tr_TR';
+    elseif ($lang2 === 'en') $wp_locale = 'en_US';
+    if (!$wp_locale) return;
+
+    // If TranslatePress is active, redirect to its language URL.
+    if (class_exists('TRP_Translate_Press')) {
+        $current_url = home_url(add_query_arg([]));
+        $trp         = \TRP_Translate_Press::get_trp_instance();
+        $url_conv    = $trp->get_component('url_converter');
+        $target      = $url_conv->get_url_for_language($wp_locale, $current_url, '');
+        if ($target && is_string($target)) {
+            nocache_headers();
+            wp_safe_redirect($target, 302);
+            exit;
+        }
+        return;
     }
 
-    // Check if the browser language is available in your site and switch
-    if (in_array($wp_lang, $available_languages)) {
-        switch_to_locale($wp_lang);
-    }
+    // No TP → persist our cookie for the frontend.
+    $expire      = time() + YEAR_IN_SECONDS;
+    $cookie_path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+    setcookie('ll_locale', $wp_locale, $expire, $cookie_path, COOKIE_DOMAIN, is_ssl(), true);
 }
-
-/**
- * Automatically redirects to the appropriate TranslatePress language URL
- * based on the user's browser language settings (one-time redirect).
- */
-function ll_tools_maybe_redirect_to_preferred_language() {
-    // Only run on front-end, non-AJAX, first page load
-    if (is_admin() ||
-        wp_doing_ajax() ||
-        wp_doing_cron() ||
-        (defined('REST_REQUEST') && REST_REQUEST)) {
-        return;
-    }
-
-    // Don't run in Elementor editor or preview mode
-    if (isset($_GET['elementor-preview']) ||
-        isset($_GET['elementor_library']) ||
-        (isset($_GET['action']) && $_GET['action'] === 'elementor')) {
-        return;
-    }
-
-    // Check if TranslatePress is active
-    if (!function_exists('trp_enable_translatepress')) {
-        return;
-    }
-
-    // Check if user already has a language preference cookie (TranslatePress sets this)
-    if (isset($_COOKIE['pll_language']) || isset($_COOKIE['trp-form-language'])) {
-        return;
-    }
-
-    // Check if we're already on a language-specific URL
-    $current_path = trim($_SERVER['REQUEST_URI'], '/');
-    $path_parts = explode('/', $current_path);
-    if (!empty($path_parts[0]) && strlen($path_parts[0]) === 2) {
-        // Likely already on a language path like /tr/ or /en/
-        return;
-    }
-
-    // Get browser language preference
-    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-        return;
-    }
-
-    $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
-
-    // Map browser languages to TranslatePress URL slugs
-    $language_mapping = array(
-        'tr' => 'tr',  // Turkish
-        // Add more mappings as needed
-        // 'de' => 'de',  // German
-        // 'fr' => 'fr',  // French
-    );
-
-    // Only redirect if we have a mapping for this language and it's not English
-    if (!isset($language_mapping[$browser_lang]) || $browser_lang === 'en') {
-        return;
-    }
-
-    $lang_slug = $language_mapping[$browser_lang];
-
-    // Get TranslatePress settings to verify the language is actually enabled
-    $trp_settings = get_option('trp_settings');
-    if (empty($trp_settings['publish-languages']) ||
-        !in_array($browser_lang, $trp_settings['publish-languages'])) {
-        return;
-    }
-
-    // Build the redirect URL
-    $redirect_url = home_url('/' . $lang_slug . '/' . ltrim($_SERVER['REQUEST_URI'], '/'));
-
-    // Perform the redirect (302 temporary redirect)
-    wp_safe_redirect($redirect_url, 302);
-    exit;
-}
-
-// Hook to template_redirect (runs after query is set up, but before template loads)
-add_action('template_redirect', 'll_tools_maybe_redirect_to_preferred_language');
-
-// Hook the function to an action that runs early in the WordPress initialization process
-add_action('init', 'switch_language');
-?>
+add_action('template_redirect', 'll_tools_maybe_autodetect_language', 1);

@@ -109,30 +109,45 @@ function ll_tools_locale_flag($locale) {
  * Handle ?ll_locale=xx_XX switches and persist to a cookie, then redirect.
  */
 function ll_tools_handle_locale_switch() {
-    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
-        return; // front-end only
+    // Frontend only; do not break editors/REST/AJAX.
+    if (
+        is_admin() ||
+        (defined('DOING_AJAX') && DOING_AJAX) ||
+        (defined('REST_REQUEST') && REST_REQUEST) ||
+        (function_exists('wp_is_json_request') && wp_is_json_request())
+    ) {
+        return;
     }
     if (!isset($_GET['ll_locale'])) return;
 
     $requested = sanitize_text_field(wp_unslash($_GET['ll_locale']));
     $available = ll_tools_get_plugin_locales();
-
     if (!in_array($requested, $available, true)) return;
 
-    // Persist for 1 year, site-wide path
-    $expire = time() + YEAR_IN_SECONDS;
-    // Fallback to '/' if COOKIEPATH is empty
+    // Always set our cookie so WP gettext uses the right .mo when TP isn't active.
+    $expire      = time() + YEAR_IN_SECONDS;
     $cookie_path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
     setcookie(LL_TOOLS_I18N_COOKIE, $requested, $expire, $cookie_path, COOKIE_DOMAIN, is_ssl(), true);
 
-    // Redirect to a clean URL (remove the param). Use current URL as base safely.
-    $target = remove_query_arg('ll_locale');
-    if (!$target) {
-        // very defensive fallback
-        $target = home_url(add_query_arg([], wp_parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/'));
+    $current_url = home_url(add_query_arg([]));
+
+    // If TranslatePress is active, redirect to its canonical URL for the target language.
+    if (class_exists('TRP_Translate_Press')) {
+        $trp      = \TRP_Translate_Press::get_trp_instance();
+        $url_conv = $trp->get_component('url_converter');
+        $target   = $url_conv->get_url_for_language($requested, $current_url, '');
+        if ($target && is_string($target)) {
+            nocache_headers();
+            wp_safe_redirect($target, 302);
+            exit;
+        }
     }
 
-    // Prevent any output + send no-cache headers before redirect
+    // Fallback: clean the param and stay on the same path.
+    $target = remove_query_arg('ll_locale');
+    if (!$target) {
+        $target = $current_url;
+    }
     nocache_headers();
     wp_safe_redirect($target, 302);
     exit;
@@ -143,15 +158,23 @@ add_action('template_redirect', 'll_tools_handle_locale_switch');
  * Apply the chosen locale (from cookie) to all requests, if it's allowed.
  */
 function ll_tools_filter_locale($locale) {
-    // Only front-end cookie override; never run in admin/AJAX/REST.
-    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
+    if (
+        is_admin() ||
+        (defined('DOING_AJAX') && DOING_AJAX) ||
+        (defined('REST_REQUEST') && REST_REQUEST) ||
+        (function_exists('wp_is_json_request') && wp_is_json_request())
+    ) {
         return $locale;
     }
+
+    // If TranslatePress is active, let it drive the locale.
+    if (class_exists('TRP_Translate_Press')) {
+        return $locale;
+    }
+
     if (empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) return $locale;
 
     $chosen = sanitize_text_field(wp_unslash($_COOKIE[LL_TOOLS_I18N_COOKIE]));
-
-    // Accept only well-formed locales; DO NOT scan files or call get_locale() here.
     if (preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/', $chosen)) {
         return $chosen;
     }
@@ -172,38 +195,69 @@ function ll_language_switcher_shortcode($atts) {
         'class'      => '',
     ], $atts, 'll_language_switcher');
 
+    $show_flags  = $atts['show_flags'] !== '0';
+    $style       = in_array($atts['style'], ['native','english','code'], true) ? $atts['style'] : 'native';
+    $extra_class = sanitize_html_class($atts['class']);
+
+    // If TranslatePress is active, use its API to get correct per-language URLs.
+    $tp_languages = [];
+    if (function_exists('trp_custom_language_switcher')) {
+        $tp_languages = trp_custom_language_switcher(); // has keys: 'current_language', 'languages' => [ [ 'language_code', 'url', ... ], ... ]
+    }
+
+    // Our fallback locales list (plugin translation presence + site default).
     $available = ll_tools_get_plugin_locales();
     if (empty($available)) return '';
 
     $current = get_locale();
-    $show_flags = $atts['show_flags'] !== '0';
-    $style = in_array($atts['style'], ['native','english','code'], true) ? $atts['style'] : 'native';
-    $extra_class = sanitize_html_class($atts['class']);
 
-    ob_start();
-    ?>
-    <nav class="ll-lang-switcher <?php echo esc_attr($extra_class); ?>">
+    ob_start(); ?>
+    <nav class="ll-lang-switcher <?php echo esc_attr($extra_class); ?>" data-no-translation>
         <ul>
-            <?php foreach ($available as $loc):
-                $is_current = ($loc === $current);
-                $label = ll_tools_locale_label($loc, $style);
-                $flag  = $show_flags ? ll_tools_locale_flag($loc) : '';
-                $url   = esc_url(add_query_arg('ll_locale', $loc));
-            ?>
-                <li class="<?php echo $is_current ? 'is-current' : ''; ?>">
-                    <?php if ($is_current): ?>
-                        <span aria-current="true" class="ll-lang-current">
-                            <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
-                            <span class="ll-label"><?php echo esc_html($label); ?></span>
-                        </span>
-                    <?php else: ?>
-                        <a href="<?php echo $url; ?>" class="ll-lang-link">
-                            <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
-                            <span class="ll-label"><?php echo esc_html($label); ?></span>
-                        </a>
-                    <?php endif; ?>
-                </li>
-            <?php endforeach; ?>
+            <?php if (!empty($tp_languages) && !empty($tp_languages['languages'])): ?>
+                <?php foreach ($tp_languages['languages'] as $lang):
+                    $loc        = isset($lang['language_code']) ? $lang['language_code'] : '';
+                    $is_current = ($loc === $tp_languages['current_language']);
+                    $label      = ll_tools_locale_label($loc, $style);
+                    $flag       = $show_flags ? ll_tools_locale_flag($loc) : '';
+                    $url        = isset($lang['url']) ? esc_url($lang['url']) : '#';
+                ?>
+                    <li class="<?php echo $is_current ? 'is-current' : ''; ?>">
+                        <?php if ($is_current): ?>
+                            <span aria-current="true" class="ll-lang-current">
+                                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                                <span class="ll-label"><?php echo esc_html($label); ?></span>
+                            </span>
+                        <?php else: ?>
+                            <a href="<?php echo $url; ?>" class="ll-lang-link">
+                                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                                <span class="ll-label"><?php echo esc_html($label); ?></span>
+                            </a>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <?php foreach ($available as $loc):
+                    $is_current = ($loc === $current);
+                    $label      = ll_tools_locale_label($loc, $style);
+                    $flag       = $show_flags ? ll_tools_locale_flag($loc) : '';
+                    $url        = esc_url(add_query_arg('ll_locale', $loc));
+                ?>
+                    <li class="<?php echo $is_current ? 'is-current' : ''; ?>">
+                        <?php if ($is_current): ?>
+                            <span aria-current="true" class="ll-lang-current">
+                                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                                <span class="ll-label"><?php echo esc_html($label); ?></span>
+                            </span>
+                        <?php else: ?>
+                            <a href="<?php echo $url; ?>" class="ll-lang-link">
+                                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                                <span class="ll-label"><?php echo esc_html($label); ?></span>
+                            </a>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </ul>
     </nav>
     <style>
