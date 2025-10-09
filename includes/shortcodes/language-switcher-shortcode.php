@@ -109,30 +109,20 @@ function ll_tools_locale_flag($locale) {
  * Handle ?ll_locale=xx_XX switches and persist to a cookie, then redirect.
  */
 function ll_tools_handle_locale_switch() {
-    // Frontend only; do not break editors/REST/AJAX.
-    if (
-        is_admin() ||
-        (defined('DOING_AJAX') && DOING_AJAX) ||
-        (defined('REST_REQUEST') && REST_REQUEST) ||
-        (function_exists('wp_is_json_request') && wp_is_json_request())
+    if (is_admin()
+        || (defined('DOING_AJAX') && DOING_AJAX)
+        || (defined('REST_REQUEST') && REST_REQUEST)
+        || (function_exists('wp_is_json_request') && wp_is_json_request())
     ) {
         return;
     }
     if (!isset($_GET['ll_locale'])) return;
 
-    $requested = sanitize_text_field(wp_unslash($_GET['ll_locale']));
-    $available = ll_tools_get_plugin_locales();
-    if (!in_array($requested, $available, true)) return;
-
-    // Always set our cookie so WP gettext uses the right .mo when TP isn't active.
-    $expire      = time() + YEAR_IN_SECONDS;
-    $cookie_path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
-    setcookie(LL_TOOLS_I18N_COOKIE, $requested, $expire, $cookie_path, COOKIE_DOMAIN, is_ssl(), true);
-
+    $requested   = sanitize_text_field(wp_unslash($_GET['ll_locale']));
     $current_url = home_url(add_query_arg([]));
 
-    // If TranslatePress is active, redirect to its canonical URL for the target language.
     if (class_exists('TRP_Translate_Press')) {
+        // Under TP we DO NOT touch WP locale or our cookie; we only redirect to TP’s URL.
         $trp      = \TRP_Translate_Press::get_trp_instance();
         $url_conv = $trp->get_component('url_converter');
         $target   = $url_conv->get_url_for_language($requested, $current_url, '');
@@ -141,18 +131,21 @@ function ll_tools_handle_locale_switch() {
             wp_safe_redirect($target, 302);
             exit;
         }
+        return;
     }
 
-    // Fallback: clean the param and stay on the same path.
-    $target = remove_query_arg('ll_locale');
-    if (!$target) {
-        $target = $current_url;
-    }
+    // No TP → set our cookie, then clean URL
+    if (!defined('LL_TOOLS_I18N_COOKIE')) define('LL_TOOLS_I18N_COOKIE', 'll_locale');
+    $expire      = time() + YEAR_IN_SECONDS;
+    $cookie_path = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+    setcookie(LL_TOOLS_I18N_COOKIE, $requested, $expire, $cookie_path, COOKIE_DOMAIN, is_ssl(), true);
+
+    $target = remove_query_arg('ll_locale', $current_url);
     nocache_headers();
     wp_safe_redirect($target, 302);
     exit;
 }
-add_action('template_redirect', 'll_tools_handle_locale_switch');
+add_action('template_redirect', 'll_tools_handle_locale_switch', 0);
 
 /**
  * Apply the chosen locale (from cookie) to all requests, if it's allowed.
