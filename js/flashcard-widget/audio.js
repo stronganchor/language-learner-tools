@@ -14,6 +14,7 @@
         var currentTargetAudio = null;
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
+        var autoplayBlocked = false;
 
         /**
          * Initializes the correct and wrong answer audio files.
@@ -38,6 +39,15 @@
                 activeAudios.push(audio);
                 audio.play().catch(function (e) {
                     console.error("Audio play failed for:", audio.src, e);
+
+                    // Check if it's an autoplay NotAllowedError
+                    if (e.name === 'NotAllowedError' && !autoplayBlocked) {
+                        autoplayBlocked = true;
+                        // Emit event for UI to handle
+                        if (window.LLFlashcards && window.LLFlashcards.Dom) {
+                            window.LLFlashcards.Dom.showAutoplayBlockedOverlay();
+                        }
+                    }
                 });
             } catch (e) {
                 console.error("Audio pause/play error for:", audio?.src, e);
@@ -61,7 +71,7 @@
 
         /**
          * Plays feedback audio based on whether the answer is correct or wrong.
-         * Optionally chains to the target word’s audio or executes a callback after playback.
+         * Optionally chains to the target word's audio or executes a callback after playback.
          *
          * @param {boolean} isCorrect - Indicates if the answer was correct.
          * @param {string} targetWordAudio - URL of the target word's audio file.
@@ -70,7 +80,7 @@
         function playFeedback(isCorrect, targetWordAudio, callback) {
             var audioToPlay = isCorrect ? correctAudio : wrongAudio;
 
-            // Proceed only if the target word’s audio has played sufficiently
+            // Proceed only if the target word's audio has played sufficiently
             if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
                 return;
             }
@@ -78,7 +88,7 @@
             playAudio(audioToPlay);
 
             if (!isCorrect && targetWordAudio) {
-                // After the “wrong” sound finishes, play the target word’s audio
+                // After the "wrong" sound finishes, play the target word's audio
                 wrongAudio.onended = function () {
                     playAudio(currentTargetAudio);
                 };
@@ -89,7 +99,7 @@
         }
 
         /**
-         * Sets up and plays the target word’s audio by creating a new <audio> element.
+         * Sets up and plays the target word's audio by creating a new <audio> element.
          *
          * @param {Object} targetWord - The target word object containing audio URL.
          */
@@ -198,6 +208,13 @@
             return word.audio_files[0].url || word.audio || null;
         }
 
+        /**
+         * Clears the autoplay blocked flag (used after user interaction)
+         */
+        function clearAutoplayBlock() {
+            autoplayBlocked = false;
+        }
+
         // Expose public methods
         return {
             initializeAudio: initializeAudio,
@@ -211,7 +228,8 @@
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },
             getCorrectAudioURL: function () { return correctAudio.src; },
             getWrongAudioURL: function () { return wrongAudio.src; },
-            selectBestAudio: selectBestAudio
+            selectBestAudio: selectBestAudio,
+            clearAutoplayBlock: clearAutoplayBlock
         };
     })();
 

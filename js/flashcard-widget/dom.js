@@ -88,6 +88,62 @@
                 </div>
             `).show();
         },
+        showAutoplayBlockedOverlay() {
+            // Check if overlay already exists
+            let $overlay = $('#ll-tools-autoplay-overlay');
+            if ($overlay.length) {
+                $overlay.show();
+                return;
+            }
+
+            // Create overlay
+            $overlay = $('<div>', {
+                id: 'll-tools-autoplay-overlay',
+                class: 'll-tools-autoplay-overlay'
+            });
+
+            const $button = $('<button>', {
+                class: 'll-tools-autoplay-button',
+                'aria-label': 'Click to start quiz',
+                html: `
+                    <svg width="80" height="80" viewBox="0 0 80 80" fill="white">
+                        <circle cx="40" cy="40" r="35" stroke="white" stroke-width="3" fill="rgba(255,255,255,0.1)"/>
+                        <path d="M30 20 L30 60 L60 40 Z" fill="white"/>
+                    </svg>
+                    <span>Click to Start</span>
+                `
+            });
+
+            $button.on('click', function () {
+                // Clear the autoplay block flag
+                if (root.FlashcardAudio && root.FlashcardAudio.clearAutoplayBlock) {
+                    root.FlashcardAudio.clearAutoplayBlock();
+                }
+
+                // Hide overlay
+                $overlay.fadeOut(300, function () {
+                    $(this).remove();
+                });
+
+                // Try to play the audio again
+                const audio = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio();
+                if (audio) {
+                    audio.play().catch(e => console.error('Still cannot play:', e));
+                }
+
+                // Enable interactions
+                $('#ll-tools-flashcard').css('pointer-events', 'auto');
+            });
+
+            $overlay.append($button);
+            $('#ll-tools-flashcard-content').prepend($overlay);
+            $overlay.fadeIn(300);
+        },
+        hideAutoplayBlockedOverlay() {
+            $('#ll-tools-autoplay-overlay').fadeOut(300, function () {
+                $(this).remove();
+            });
+        },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },
         getStopIconHTML() { return createStopIcon(); }

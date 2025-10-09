@@ -60,6 +60,7 @@
         // Prevent double-init no matter how many times this runs
         if (window.__llFlashcardInitOnce) return;
         window.__llFlashcardInitOnce = false;
+        var quizInitialized = false;
 
         function selectedCategories() {
             var d = window.llToolsFlashcardsData;
@@ -74,18 +75,22 @@
             $('body').addClass('ll-tools-flashcard-open');
         }
 
-        function waitAndInit() {
-            if (window.__llFlashcardInitOnce) return;
+        function initializeQuiz() {
+            if (quizInitialized) return;
 
             var hasNew   = window.LLFlashcards && LLFlashcards.Main && typeof LLFlashcards.Main.initFlashcardWidget === 'function';
             var hasLegacy = typeof window.initFlashcardWidget === 'function';
-            var ready = (hasNew || hasLegacy) && window.jQuery && document.getElementById('ll-tools-flashcard');
 
-            if (!ready) return setTimeout(waitAndInit, 30);
+            if (!hasNew && !hasLegacy) {
+                console.error('Quiz initialization functions not found');
+                return;
+            }
 
-            window.__llFlashcardInitOnce = true;
+            quizInitialized = true;
             var cats = selectedCategories();
             var mode = window.llToolsFlashcardsData?.quiz_mode || 'standard';
+
+            console.log('Initializing quiz after user interaction', cats, mode);
 
             if (hasNew) {
                 LLFlashcards.Main.initFlashcardWidget(cats, mode);
@@ -93,42 +98,115 @@
                 window.initFlashcardWidget(cats, mode);
             }
 
-            // Tell the parent that the embed is initialized so it can hide its spinner
+            // Tell parent we're ready
             try {
                 var targetOrigin = document.referrer ? new URL(document.referrer).origin : window.location.origin;
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'll-embed-ready' }, targetOrigin);
                 }
             } catch (e) {
-                // Fallback if referrer parsing is blocked
                 try { window.parent && window.parent.postMessage({ type: 'll-embed-ready' }, '*'); } catch (_e) {}
             }
+        }
 
-            // Lock pointer events briefly until audio plays a bit
-            try {
-                var $ = window.jQuery;
-                $('#ll-tools-flashcard').css('pointer-events', 'none');
-                var obs = new MutationObserver(function (_, observer) {
-                    var audio = document.querySelector('#ll-tools-flashcard audio');
-                    if (!audio) return;
-                    observer.disconnect();
-                    function onTU() {
-                        if (this.currentTime > 0.4) {
-                            $('#ll-tools-flashcard').css('pointer-events', 'auto');
-                            audio.removeEventListener('timeupdate', onTU);
-                        }
-                    }
-                    audio.addEventListener('timeupdate', onTU);
-                });
-                obs.observe(document.getElementById('ll-tools-flashcard'), { childList: true, subtree: true });
-            } catch (_) {}
+        // Show autoplay prompt overlay
+        function showAutoplayPrompt() {
+            var $ = window.jQuery;
+            if (!$) return setTimeout(showAutoplayPrompt, 16);
+
+            var $body = $('body');
+            if (!$body.length) return setTimeout(showAutoplayPrompt, 16);
+
+            // Check if overlay already exists
+            if ($('#ll-tools-autoplay-overlay').length) return;
+
+            var $overlay = $('<div>', {
+                id: 'll-tools-autoplay-overlay',
+                class: 'll-tools-autoplay-overlay'
+            }).css({
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 999999,
+                backdropFilter: 'blur(3px)'
+            });
+
+            var $button = $('<button>', {
+                class: 'll-tools-autoplay-button',
+                'aria-label': 'Click to start',
+                html: '<svg width="120" height="120" viewBox="0 0 120 120" fill="white"><circle cx="60" cy="60" r="55" stroke="white" stroke-width="4" fill="rgba(255,255,255,0.15)"/><path d="M45 30 L45 90 L90 60 Z" fill="white"/></svg>'
+            }).css({
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '20px'
+            });
+
+            // Add pulsing animation
+            var style = $('<style>').text(`
+                @keyframes llAutoplayPulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.85; transform: scale(1.08); }
+                }
+                .ll-tools-autoplay-button {
+                    animation: llAutoplayPulse 2s ease-in-out infinite;
+                }
+                .ll-tools-autoplay-button:hover {
+                    transform: scale(1.12) !important;
+                    animation: none;
+                }
+                .ll-tools-autoplay-button:active {
+                    transform: scale(0.95) !important;
+                }
+            `);
+            $('head').append(style);
+
+            $button.on('click', function() {
+                console.log('Autoplay overlay clicked - starting quiz');
+                $overlay.fadeOut(300, function() { $(this).remove(); });
+
+                // Enable interactions
+                $('#ll-tools-flashcard').css('pointer-events', 'auto');
+
+                // Initialize the quiz NOW (not before)
+                initializeQuiz();
+            });
+
+            $overlay.append($button);
+            $body.append($overlay);
+
+            // Initially disable interactions
+            $('#ll-tools-flashcard').css('pointer-events', 'none');
+        }
+
+        function waitForDependencies() {
+            if (window.__llFlashcardInitOnce) return;
+
+            var ready = window.jQuery && document.getElementById('ll-tools-flashcard');
+
+            if (!ready) return setTimeout(waitForDependencies, 30);
+
+            window.__llFlashcardInitOnce = true;
+
+            // DON'T initialize the quiz yet - just show the UI and overlay
+            showQuizUI();
+            showAutoplayPrompt();
         }
 
         // Kick off
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function(){ showQuizUI(); waitAndInit(); });
+            document.addEventListener('DOMContentLoaded', waitForDependencies);
         } else {
-            showQuizUI(); waitAndInit();
+            waitForDependencies();
         }
     })();
     </script>
