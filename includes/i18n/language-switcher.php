@@ -36,82 +36,82 @@ function switch_language() {
 }
 
 /**
- * Auto-route visitors to the correct TranslatePress URL (/tr/ vs /),
- * but NEVER touch Elementor editor/preview or other special requests.
+ * Automatically redirects to the appropriate TranslatePress language URL
+ * based on the user's browser language settings (one-time redirect).
  */
-add_action('template_redirect', function () {
-    // 1) Hard skips: admin, AJAX
-    if ( is_admin() || wp_doing_ajax() ) return;
-
-    // 2) Elementor editor / preview / CSS / REST / heartbeat
-    //    (Editor loads the front-end with ?elementor-preview=ID)
-    $q = $_GET;
-    $uri = $_SERVER['REQUEST_URI'] ?? '/';
-    $is_elementor =
-        (isset($q['elementor-preview'])) ||                // front-end preview frame
-        (isset($q['elementor_library'])) ||                // library routes
-        (isset($q['action']) && $q['action'] === 'elementor') ||
-        (isset($q['elementor']) || isset($q['elementor_css'])) ||
-        (strpos($uri, '/wp-json/elementor/') === 0) ||     // REST endpoints
-        (strpos($uri, '/?rest_route=/elementor/') !== false);
-
-    if ( $is_elementor ) return;
-
-    // 3) Other non-HTML or sensitive routes we should never redirect
-    if (
-        strpos($uri, '/wp-json/') === 0 ||
-        strpos($uri, '/wp-cron.php') === 0 ||
-        strpos($uri, '/wp-login.php') === 0 ||
-        is_feed() ||
-        (isset($q['preview']) && $q['preview'] === 'true') ||
-        preg_match('~\.(css|js|jpg|jpeg|png|gif|svg|webp|ico|woff2?|ttf|eot|mp3|mp4|wav)$~i', $uri)
-    ) {
+function ll_tools_maybe_redirect_to_preferred_language() {
+    // Only run on front-end, non-AJAX, first page load
+    if (is_admin() ||
+        wp_doing_ajax() ||
+        wp_doing_cron() ||
+        (defined('REST_REQUEST') && REST_REQUEST)) {
         return;
     }
 
-    // 4) Decide desired language (swap with your own logic if you have one)
-    //    Example: browser pref. Use your plugin's function instead if available.
-    $accept   = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
-    $wants_tr = (strpos($accept, 'tr') === 0 || preg_match('/(^|,)\s*tr\b/', $accept));
-    // e.g. if you already have this: $wants_tr = (ll_get_current_language() === 'tr_TR');
-
-    $desired = $wants_tr ? 'tr' : 'en';
-
-    // 5) Are we already on the TR route?
-    $on_tr = preg_match('#^/tr(?:/|$)#i', $uri) === 1;
-
-    // 6) Redirect only when URL route and desired language disagree
-    if ($desired === 'tr' && !$on_tr) {
-        // Ask TP for the current URL in TR if possible
-        if (class_exists('TRP_Translate_Press')) {
-            $trp = TRP_Translate_Press::get_trp_instance();
-            $url_converter = $trp->get_component('url_converter');
-            $target = $url_converter->get_url_for_language('tr');
-        } else {
-            $target = home_url('/tr' . $uri);
-        }
-        if (!headers_sent()) {
-            setcookie('trp_language', 'tr', time()+YEAR_IN_SECONDS, '/', parse_url(home_url(), PHP_URL_HOST) ?: '');
-        }
-        wp_safe_redirect($target, 302);
-        exit;
+    // Don't run in Elementor editor or preview mode
+    if (isset($_GET['elementor-preview']) ||
+        isset($_GET['elementor_library']) ||
+        (isset($_GET['action']) && $_GET['action'] === 'elementor')) {
+        return;
     }
 
-    if ($desired === 'en' && $on_tr) {
-        if (class_exists('TRP_Translate_Press')) {
-            $trp = TRP_Translate_Press::get_trp_instance();
-            $url_converter = $trp->get_component('url_converter');
-            $target = $url_converter->get_url_for_language('en');
-        } else {
-            $target = home_url(preg_replace('#^/tr#i', '', $uri) ?: '/');
-        }
-        if (!headers_sent()) {
-            setcookie('trp_language', 'en', time()+YEAR_IN_SECONDS, '/', parse_url(home_url(), PHP_URL_HOST) ?: '');
-        }
-        wp_safe_redirect($target, 302);
-        exit;
+    // Check if TranslatePress is active
+    if (!function_exists('trp_enable_translatepress')) {
+        return;
     }
-}, 1);
+
+    // Check if user already has a language preference cookie (TranslatePress sets this)
+    if (isset($_COOKIE['pll_language']) || isset($_COOKIE['trp-form-language'])) {
+        return;
+    }
+
+    // Check if we're already on a language-specific URL
+    $current_path = trim($_SERVER['REQUEST_URI'], '/');
+    $path_parts = explode('/', $current_path);
+    if (!empty($path_parts[0]) && strlen($path_parts[0]) === 2) {
+        // Likely already on a language path like /tr/ or /en/
+        return;
+    }
+
+    // Get browser language preference
+    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+        return;
+    }
+
+    $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
+
+    // Map browser languages to TranslatePress URL slugs
+    $language_mapping = array(
+        'tr' => 'tr',  // Turkish
+        // Add more mappings as needed
+        // 'de' => 'de',  // German
+        // 'fr' => 'fr',  // French
+    );
+
+    // Only redirect if we have a mapping for this language and it's not English
+    if (!isset($language_mapping[$browser_lang]) || $browser_lang === 'en') {
+        return;
+    }
+
+    $lang_slug = $language_mapping[$browser_lang];
+
+    // Get TranslatePress settings to verify the language is actually enabled
+    $trp_settings = get_option('trp_settings');
+    if (empty($trp_settings['publish-languages']) ||
+        !in_array($browser_lang, $trp_settings['publish-languages'])) {
+        return;
+    }
+
+    // Build the redirect URL
+    $redirect_url = home_url('/' . $lang_slug . '/' . ltrim($_SERVER['REQUEST_URI'], '/'));
+
+    // Perform the redirect (302 temporary redirect)
+    wp_safe_redirect($redirect_url, 302);
+    exit;
+}
+
+// Hook to template_redirect (runs after query is set up, but before template loads)
+add_action('template_redirect', 'll_tools_maybe_redirect_to_preferred_language');
 
 // Hook the function to an action that runs early in the WordPress initialization process
 add_action('init', 'switch_language');
