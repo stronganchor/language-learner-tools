@@ -391,10 +391,13 @@
                 // Streak up => maybe grow choices
                 S.learningCorrectStreak += 1;
                 const t = S.learningCorrectStreak;
+
+                // Allow up to 6 choices at higher streaks
                 const target =
-                    (t >= 10) ? 5 :
-                        (t >= 6) ? 4 :
-                            (t >= 3) ? 3 : 2;
+                    (t >= 13) ? 6 :
+                        (t >= 10) ? 5 :
+                            (t >= 6) ? 4 :
+                                (t >= 3) ? 3 : 2;
 
                 // Apply constraints before setting the choice count
                 const uncappedChoice = Math.min(target, S.MAX_CHOICE_COUNT);
@@ -433,7 +436,7 @@
         if (typeof S.learningCorrectStreak !== 'number') S.learningCorrectStreak = 0;
         if (typeof S.learningChoiceCount !== 'number') S.learningChoiceCount = 2;
         if (typeof S.MIN_CHOICE_COUNT !== 'number') S.MIN_CHOICE_COUNT = 2;
-        if (typeof S.MAX_CHOICE_COUNT !== 'number') S.MAX_CHOICE_COUNT = 5;
+        if (typeof S.MAX_CHOICE_COUNT !== 'number') S.MAX_CHOICE_COUNT = 6;
         if (typeof S.MIN_CORRECT_COUNT !== 'number') S.MIN_CORRECT_COUNT = 3;
     }
 
