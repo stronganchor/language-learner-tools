@@ -131,17 +131,36 @@
 
                 // Stop and sanitize the feedback sounds
                 if (correctAudio) {
-                    try { correctAudio.pause(); correctAudio.currentTime = 0; } catch (e) { }
-                    // Prevent stale chains from firing after a mode switch
-                    try { correctAudio.onended = null; } catch (e) { }
+                    try {
+                        correctAudio.pause();
+                        correctAudio.currentTime = 0;
+                        // Clear ALL event handlers to prevent late firing
+                        correctAudio.onended = null;
+                        correctAudio.onerror = null;
+                        correctAudio.oncanplaythrough = null;
+                    } catch (e) { }
                 }
                 if (wrongAudio) {
-                    try { wrongAudio.pause(); wrongAudio.currentTime = 0; } catch (e) { }
-                    // Prevent stale chains from firing after a mode switch
-                    try { wrongAudio.onended = null; } catch (e) { }
+                    try {
+                        wrongAudio.pause();
+                        wrongAudio.currentTime = 0;
+                        // Clear ALL event handlers to prevent late firing
+                        wrongAudio.onended = null;
+                        wrongAudio.onerror = null;
+                        wrongAudio.oncanplaythrough = null;
+                    } catch (e) { }
                 }
 
                 // Drop current target audio reference/state
+                if (currentTargetAudio) {
+                    try {
+                        currentTargetAudio.pause();
+                        currentTargetAudio.currentTime = 0;
+                        currentTargetAudio.onended = null;
+                        currentTargetAudio.onerror = null;
+                        currentTargetAudio.ontimeupdate = null;
+                    } catch (e) { }
+                }
                 currentTargetAudio = null;
                 targetAudioHasPlayed = false;
 
