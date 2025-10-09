@@ -265,13 +265,17 @@
     function showLoadingError() {
         const msgs = root.llToolsFlashcardsMessages || {};
         $('#quiz-results-title').text(msgs.loadingError || 'Loading Error');
-        $('#quiz-results-message').html(
-            msgs.noWordsFound ||
-            'No words could be loaded for this quiz. Please check that:<br>' +
-            '• The category exists and has words<br>' +
-            '• Words are properly assigned to the category<br>' +
-            '• If using wordsets, the wordset contains words for this category'
-        ).show();
+
+        const errorBullets = [
+            msgs.checkCategoryExists || 'The category exists and has words',
+            msgs.checkWordsAssigned || 'Words are properly assigned to the category',
+            msgs.checkWordsetFilter || 'If using wordsets, the wordset contains words for this category'
+        ];
+
+        const errorMessage = (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
+            '<br>• ' + errorBullets.join('<br>• ');
+
+        $('#quiz-results-message').html(errorMessage).show();
         $('#quiz-results').show();
         $('#correct-count').parent().hide();
         $('#restart-quiz').hide();

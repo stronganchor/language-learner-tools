@@ -249,6 +249,7 @@ msgstr ""
 "eşleşme olarak gönderi başlığı kelimesini kullanacaktır."
 
 #: includes/shortcodes/flashcard-widget.php:130
+#, fuzzy
 msgid "If using wordsets, the wordset contains words for this category"
 msgstr ""
 "Sözcük kümeleri kullanılıyorsa, sözcük kümesi bu kategori için sözcükler "
@@ -654,5 +655,6 @@ msgid "— Select —"
 msgstr "- Seçiniz -"
 
 #: includes/shortcodes/flashcard-widget.php:117
+#, fuzzy
 msgid "✓"
 msgstr "✓"

@@ -654,5 +654,6 @@ msgid "— Select —"
 msgstr "- Seçiniz -"
 
 #: includes/shortcodes/flashcard-widget.php:117
+#, fuzzy
 msgid "✓"
 msgstr "✓"

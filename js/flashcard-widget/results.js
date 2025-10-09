@@ -16,14 +16,9 @@
         $('#ll-tools-mode-switcher').hide();
 
         if (State.isLearningMode) {
-            const totalWords = Object.keys(State.wordCorrectCounts).length;
-            const completedWords = Object.values(State.wordCorrectCounts).filter(count => count >= State.MIN_CORRECT_COUNT).length;
-
+            // Simple, concise learning mode completion message
             $('#quiz-results-title').text(msgs.learningComplete || 'Learning Complete!');
-            $('#quiz-results-message').html(`
-            You've successfully learned ${completedWords} out of ${totalWords} words!<br>
-            <span style="font-size: 12px; color: #666;">Each word was correctly identified ${State.MIN_CORRECT_COUNT} times.</span>
-        `).show();
+            $('#quiz-results-message').text(msgs.learningCompleteMessage || 'âœ"').show();
             $('#correct-count').parent().hide();
             $('#quiz-results').show();
             $('#restart-quiz').hide();
@@ -32,6 +27,9 @@
             $('#ll-tools-repeat-flashcard').hide();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
+
+            const totalWords = Object.keys(State.wordCorrectCounts).length;
+            const completedWords = Object.values(State.wordCorrectCounts).filter(count => count >= State.MIN_CORRECT_COUNT).length;
 
             if (completedWords === totalWords) {
                 Effects.startConfetti();
@@ -66,7 +64,8 @@
         $('#quiz-mode-buttons').show();
 
         if (Array.isArray(State.categoryNames) && State.categoryNames.length) {
-            $('#quiz-results-categories').text('Categories: ' + State.categoryNames.join(', ')).show();
+            const categoriesLabel = msgs.categoriesLabel || 'Categories';
+            $('#quiz-results-categories').text(categoriesLabel + ': ' + State.categoryNames.join(', ')).show();
         }
 
         const ratio = total > 0 ? (State.quizResults.correctOnFirstTry / total) : 0;

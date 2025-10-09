@@ -109,6 +109,28 @@ function ll_flashcards_category_label(?array $selected_category_data, string $fi
     return '';
 }
 
+/** Prepare translatable UI messages for JavaScript */
+function ll_flashcards_get_messages(): array {
+    return [
+        // Results page messages
+        'learningComplete'        => __('Learning Complete!', 'll-tools-text-domain'),
+        'learningCompleteMessage' => __('✓', 'll-tools-text-domain'),
+        'perfect'                 => __('Perfect!', 'll-tools-text-domain'),
+        'goodJob'                 => __('Good job!', 'll-tools-text-domain'),
+        'keepPracticingTitle'     => __('Keep practicing!', 'll-tools-text-domain'),
+        'keepPracticingMessage'   => __("You're on the right track...", 'll-tools-text-domain'),
+        'categoriesLabel'         => __('Categories', 'll-tools-text-domain'),
+
+        // Error messages
+        'loadingError'            => __('Loading Error', 'll-tools-text-domain'),
+        'somethingWentWrong'      => __('Something went wrong', 'll-tools-text-domain'),
+        'noWordsFound'            => __('No words could be loaded for this quiz. Please check that:', 'll-tools-text-domain'),
+        'checkCategoryExists'     => __('The category exists and has words', 'll-tools-text-domain'),
+        'checkWordsAssigned'      => __('Words are properly assigned to the category', 'll-tools-text-domain'),
+        'checkWordsetFilter'      => __('If using wordsets, the wordset contains words for this category', 'll-tools-text-domain'),
+    ];
+}
+
 /** Enqueue styles/scripts and localize data */
 function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): void {
     wp_enqueue_script('jquery');
@@ -122,7 +144,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     $shortcode_folder = '/js/flashcard-widget/';
 
-    // Core & modules
+    // Core & modules - enqueue in dependency order
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
@@ -174,6 +196,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-flc-main',                        'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data);
+
+    // Localize translatable messages (must happen after scripts are enqueued)
+    $messages = ll_flashcards_get_messages();
+    wp_localize_script('ll-flc-results', 'llToolsFlashcardsMessages', $messages);
+    wp_localize_script('ll-flc-main',    'llToolsFlashcardsMessages', $messages);
 }
 
 /** ---------------------------
