@@ -2,6 +2,15 @@
     'use strict';
     const { Util, State, Dom, Effects, Selection, Cards, Results } = root.LLFlashcards;
 
+    // --- Learning-mode introduction pacing (new) ---
+    const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introSilenceMs
+        : 800;   // gap in ms between the 3 plays of the same word
+
+    const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introWordSilenceMs
+        : 800;  // gap in ms before moving to next word
+
     // Prevent double-trigger when user taps mode switch rapidly
     let MODE_SWITCHING = false;
     let MODE_LAST_SWITCH_TS = 0;
@@ -343,7 +352,6 @@
     function playIntroductionSequence(words, wordIndex, repetition) {
         if (wordIndex >= words.length) {
             // All words have been introduced with all repetitions
-            // Re-enable the repeat button
             Dom.enableRepeatButton();
 
             // Automatically proceed to quiz without waiting for click
@@ -371,12 +379,28 @@
             const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
             const audioUrl = audioPattern[repetition] || audioPattern[0];
 
+            // Create & play the audio
             const audio = new Audio(audioUrl);
 
-            audio.play();
-            audio.onended = function () {
+            // Watchdog in case onended never fires (bad file metadata, etc.)
+            const WATCHDOG_MAX_MS = 15000; // hard cap so we don't get stuck forever
+            const watchdog = setTimeout(() => {
+                try { audio.pause(); } catch (e) { }
+                handleEnd();
+            }, WATCHDOG_MAX_MS);
+
+            audio.onended = handleEnd;
+            audio.onerror = handleEnd;
+
+            // Begin playback
+            try { audio.play(); } catch (e) { handleEnd(); }
+
+            function handleEnd() {
+                clearTimeout(watchdog);
+
                 // Increment introduction progress after each repetition
-                State.wordIntroductionProgress[currentWord.id] = (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+                State.wordIntroductionProgress[currentWord.id] =
+                    (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
 
                 // Update progress bar after each repetition
                 Dom.updateLearningProgress(
@@ -387,23 +411,26 @@
                 );
 
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
-                    // Play this word again with animation
+                    // Next repetition of the SAME word
                     $currentCard.removeClass('introducing-active');
+
+                    // Add deliberate silence gap before replaying this word
                     setTimeout(() => {
                         playIntroductionSequence(words, wordIndex, repetition + 1);
-                    }, 300);
+                    }, INTRO_GAP_MS);
+
                 } else {
                     // This word's introduction is complete - mark it as introduced NOW
                     if (!State.introducedWordIDs.includes(currentWord.id)) {
                         State.introducedWordIDs.push(currentWord.id);
                     }
 
-                    // Move to next word
+                    // Move to the NEXT word after a slightly longer pause
                     setTimeout(() => {
                         playIntroductionSequence(words, wordIndex + 1, 0);
-                    }, 600);
+                    }, INTRO_WORD_GAP_MS);
                 }
-            };
+            }
         }, 100);
     }
 
