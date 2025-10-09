@@ -151,10 +151,19 @@
             }
         } else {
             State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
-            State.categoryRepetitionQueues[State.currentCategoryName].push({
-                wordData: targetWord,
-                reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
-            });
+
+            // Check if this word is already in the queue
+            const alreadyQueued = State.categoryRepetitionQueues[State.currentCategoryName].some(
+                item => item.wordData.id === targetWord.id
+            );
+
+            // Only add if not already queued
+            if (!alreadyQueued) {
+                State.categoryRepetitionQueues[State.currentCategoryName].push({
+                    wordData: targetWord,
+                    reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
+                });
+            }
         }
 
         State.hadWrongAnswerThisTurn = true;
