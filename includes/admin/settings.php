@@ -164,6 +164,7 @@ function ll_render_settings_page() {
                         <p class="description">Choose whether category names are originally written in <strong><?php echo esc_html($target_language_name); ?></strong> or <strong><?php echo esc_html($translation_language_name); ?></strong>.</p>
                     </td>
                 </tr>
+                <?php do_action('ll_tools_settings_after_translations'); ?>
             </table>
 
             <?php submit_button(); ?>

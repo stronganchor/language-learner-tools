@@ -33,13 +33,23 @@ function ll_audio_recording_interface_shortcode($atts) {
                __('You do not have permission to record audio. If you think this is a mistake, ask for the "Audio Recorder" user role to be added to your user account.', 'll-tools-text-domain') . '</p></div>';
     }
 
-    $atts = shortcode_atts([
+    // Get user-specific configuration from meta (if exists)
+    $current_user_id = get_current_user_id();
+    $user_config = get_user_meta($current_user_id, 'll_recording_config', true);
+
+    // Merge user config with shortcode attributes (shortcode takes precedence if specified)
+    $defaults = [];
+    if (is_array($user_config)) {
+        $defaults = $user_config;
+    }
+
+    $atts = shortcode_atts(array_merge([
         'category' => '',
         'wordset'  => '',
         'language' => '',
         'include_recording_types' => '',
         'exclude_recording_types' => '',
-    ], $atts);
+    ], $defaults), $atts);
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
