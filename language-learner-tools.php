@@ -40,6 +40,8 @@ register_activation_hook(__FILE__, function () {
     // Flag post-activation tasks to run on the next init (after taxonomies are available).
     set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
     set_transient('ll_tools_create_recording_page', 1, 10 * MINUTE_IN_SECONDS);
+    // Safeguard to skip quiz page sync until seeding completes
+    set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).

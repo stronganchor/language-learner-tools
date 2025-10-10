@@ -114,10 +114,10 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
     $parent_id  = ll_tools_get_or_create_quiz_parent_page();
     $child_slug = apply_filters('ll_tools_quiz_child_slug', sanitize_title($term->slug), $term);
 
-    // Find by our meta marker (first match only for update check)
+    // Find by our meta marker, including trashed pages to allow un-trashing
     $existing = get_posts([
         'post_type'   => 'page',
-        'post_status' => ['publish','draft','pending','private'],
+        'post_status' => ['publish','draft','pending','private', 'trash'], // Include trash for un-trashing
         'meta_key'    => '_ll_tools_word_category_id',
         'meta_value'  => (string) $term->term_id,
         'numberposts' => 1,
@@ -125,20 +125,27 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
     ]);
     $post_id = $existing ? (int) $existing[0] : 0;
 
-    $title   = $term->name;
-    $content = ll_tools_build_quiz_page_content($term);
-
     if ($post_id) {
         $existing_post = get_post($post_id);
         if (!$existing_post) return new WP_Error('missing_post', 'Could not load existing quiz page.');
+
+        // If trashed, untrash instead of updating
+        if ($existing_post->post_status === 'trash') {
+            wp_untrash_post($post_id);
+            wp_update_post([
+                'ID'         => $post_id,
+                'post_status' => 'publish',
+            ]);
+            return $post_id;
+        }
 
         $needs_parent = ((int) $existing_post->post_parent !== (int) $parent_id);
         $needs_slug   = ($existing_post->post_name !== $child_slug);
 
         $update = [
             'ID'           => $post_id,
-            'post_title'   => $title,
-            'post_content' => $content,
+            'post_title'   => $term->name,
+            'post_content' => ll_tools_build_quiz_page_content($term),
             'post_status'  => 'publish',
         ];
         if ($needs_parent) $update['post_parent'] = $parent_id;
@@ -154,9 +161,8 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
         // New under /quiz/
         $unique_slug = wp_unique_post_slug($child_slug, 0, 'publish', 'page', $parent_id);
         $postarr = [
-            'post_title'   => $title,
-            'post_name'    => $unique_slug,
-            'post_content' => $content,
+            'post_title'   => $term->name,
+            'post_content' => ll_tools_build_quiz_page_content($term),
             'post_status'  => 'publish',
             'post_type'    => 'page',
             'post_parent'  => $parent_id,
@@ -166,10 +172,10 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
         update_post_meta($post_id, '_ll_tools_word_category_id', (string) $term->term_id);
     }
 
-    // Clean up any duplicate pages for this category (keep only the current $post_id)
+    // Clean up any duplicate pages for this category, including trashed
     $all_pages = get_posts([
         'post_type'   => 'page',
-        'post_status' => ['publish','draft','pending','private'],
+        'post_status' => ['publish','draft','pending','private', 'trash'],
         'meta_key'    => '_ll_tools_word_category_id',
         'meta_value'  => (string) $term->term_id,
         'numberposts' => -1,
@@ -230,26 +236,86 @@ function ll_tools_cleanup_invalid_quiz_pages() : int {
     foreach ($pages as $p) {
         $term_id = get_post_meta($p->ID, '_ll_tools_word_category_id', true);
         $term    = get_term($term_id, 'word-category');
-        $ok      = $term && !is_wp_error($term) && (function_exists('ll_can_category_generate_quiz') ? ll_can_category_generate_quiz($term) : true);
-        if (!$ok) { wp_trash_post($p->ID); $removed++; }
+
+        // Add safeguards: skip cleanup if term is invalid to avoid aggression during init/activation
+        if (!$term || is_wp_error($term)) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log("LL Tools: Skipping cleanup for invalid term ID $term_id on page {$p->ID}");
+            }
+            continue;
+        }
+
+        if (function_exists('ll_can_category_generate_quiz')) {
+            $ok = ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        } else {
+            // Fallback if function not available (shouldn't happen)
+            $ok = false;
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log("LL Tools: ll_can_category_generate_quiz not available, defaulting to false for term {$term->term_id}");
+            }
+        }
+
+        if (!$ok) {
+            wp_trash_post($p->ID);
+            $removed++;
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log("LL Tools: Trashed page {$p->ID} for category '{$term->name}' due to insufficient words (< " . LL_TOOLS_MIN_WORDS_PER_QUIZ . ")");
+            }
+        }
     }
     return $removed;
 }
 
 /** Full backfill of all pages */
 function ll_tools_sync_quiz_pages() {
+    // Add transient check to prevent overly aggressive sync during early init (e.g., insufficient word seeding)
+    if (get_transient('ll_tools_skip_sync_until_seeded')) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("LL Tools: Skipping quiz page sync due to 'skip until seeded' transient");
+        }
+        return;
+    }
+
     $removed = ll_tools_cleanup_invalid_quiz_pages();
     if (defined('WP_DEBUG') && WP_DEBUG) {
         error_log("LL Tools: Cleaned up $removed invalid quiz pages");
     }
 
     $terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false, 'fields' => 'all']);
-    if (is_wp_error($terms)) return;
-
-    foreach ($terms as $term) {
-        $ok = function_exists('ll_can_category_generate_quiz') ? ll_can_category_generate_quiz($term) : true;
-        if ($ok) ll_tools_get_or_create_quiz_page_for_category($term->term_id);
+    if (is_wp_error($terms)) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("LL Tools: Failed to fetch word-category terms: " . $terms->get_error_message());
+        }
+        return;
     }
+
+    $total_created = 0;
+    foreach ($terms as $term) {
+        if (function_exists('ll_can_category_generate_quiz')) {
+            $ok = ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        } else {
+            $ok = false;
+        }
+
+        if ($ok) {
+            $result = ll_tools_get_or_create_quiz_page_for_category($term->term_id);
+            if (!is_wp_error($result)) {
+                $total_created++;
+            } elseif (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log("LL Tools: Failed to create/sync page for category '{$term->name}': " . $result->get_error_message());
+            }
+        } else {
+            // Log decision for debugging
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log("LL Tools: Skipping page creation for category '{$term->name}' (ID {$term->term_id}): insufficient words");
+            }
+        }
+    }
+
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log("LL Tools: Sync completed - $removed removed, $total_created created/updated");
+    }
+
     update_option('ll_tools_quiz_page_sync_last', time(), false);
 }
 
@@ -260,6 +326,11 @@ add_action('delete_word-category',  'll_tools_handle_category_delete', 10, 1);
 
 /** Daily safety net (admin only) */
 add_action('admin_init', function () {
+    // Remove transient after seeding completes to allow normal sync
+    if (get_transient('ll_tools_seed_default_wordset')) {
+        delete_transient('ll_tools_skip_sync_until_seeded');
+    }
+
     $last = (int) get_option('ll_tools_quiz_page_sync_last', 0);
     if ($last < (time() - DAY_IN_SECONDS)) {
         ll_tools_sync_quiz_pages();
@@ -324,14 +395,18 @@ function ll_qp_enqueue_assets() {
 }
 add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
 
-/** Manual cleanup UI on the word-category admin screen */
+/** Manual cleanup UI on admin pages */
 function ll_tools_add_manual_cleanup_button() {
+    if (!current_user_can('manage_options')) return;
+
     $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-    if (!$screen || $screen->id !== 'edit-word-category') return;
+    // Allow on multiple screens for broader access (e.g., during troubleshooting)
+    $allowed_screens = defined('WP_DEBUG') && WP_DEBUG ? ['edit-word-category', 'tools_page_ll-tools', 'dashboard', 'plugins'] : ['edit-word-category'];
+    if (!$screen || !in_array($screen->id, $allowed_screens, true)) return;
 
     if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($_POST['ll_cleanup_nonce'] ?? '', 'll_cleanup_quiz_pages')) {
         $removed = ll_tools_cleanup_invalid_quiz_pages();
-        ll_tools_sync_quiz_pages();
+        ll_tools_sync_quiz_pages(); // This will force re-creation/un-trashing if categories are valid
         printf('<div class="notice notice-success"><p>Quiz page cleanup completed. %d invalid pages removed and valid pages synced.</p></div>', $removed);
     }
 
@@ -372,7 +447,7 @@ add_action('admin_init', function () {
 
     $opt_key    = 'll_tools_autopage_source_mtime';
     $last_mtime = (int) get_option($opt_key, 0);
-    $force = ( isset($_GET['lltools-resync']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'lltools-resync') );
+    $force = ( isset($_GET['lltools-resync']) && wp_create_nonce('lltools-resync') === ($_GET['_wpnonce'] ?? '') ); // Fixed nonce check
 
     if (!$force && $current_mtime === $last_mtime) return;
     if (get_transient('ll_tools_autopage_resync_running')) return;
@@ -381,7 +456,14 @@ add_action('admin_init', function () {
 
     // Run sync
     $terms = get_terms(['taxonomy' => 'word-category','hide_empty' => false]);
-    if (!is_wp_error($terms)) foreach ($terms as $t) ll_tools_handle_category_sync($t->term_id);
+    if (!is_wp_error($terms)) foreach ($terms as $t) {
+        if (function_exists('ll_can_category_generate_quiz')) {
+            $ok = ll_can_category_generate_quiz($t, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        } else {
+            $ok = false;
+        }
+        if ($ok) ll_tools_handle_category_sync($t->term_id);
+    }
 
     // Remove orphaned pages
     $orphan_pages = get_posts([
@@ -408,6 +490,36 @@ add_action('admin_init', function () {
 /** Allow bootstrap to register an activation hook */
 function ll_tools_register_autopage_activation($main_file) {
     if (function_exists('register_activation_hook')) {
-        register_activation_hook($main_file, 'll_tools_sync_quiz_pages');
+        register_activation_hook($main_file, function() {
+            // Set transient to skip aggressive sync until seeding completes
+            set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
+            // Delay sync to after all taxonomies and settings are loaded
+            add_action('init', function() {
+                if (did_action('wp_loaded')) {
+                    ll_tools_sync_quiz_pages();
+                } else {
+                    add_action('wp_loaded', 'll_tools_sync_quiz_pages', 100);
+                }
+            }, 25);
+        });
     }
 }
+
+/** Manual cleanup UI on admin pages (expanded from just category edit) */
+add_action('admin_notices', function() {
+    $screen = get_current_screen();
+    // Allow on category terms and tools page for broader access
+    if (!$screen || !in_array($screen->id, ['edit-word-category', 'tools_page_ll-tools'])) return;
+
+    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($_POST['ll_cleanup_nonce'] ?? '', 'll_cleanup_quiz_pages')) {
+        $removed = ll_tools_cleanup_invalid_quiz_pages();
+        ll_tools_sync_quiz_pages();
+        printf('<div class="notice notice-success"><p>Quiz page cleanup completed. %d invalid pages removed and valid pages synced.</p></div>', $removed);
+    }
+
+    echo '<div class="wrap"><h2>Quiz Page Management</h2>
+          <p>Clean up quiz pages for categories that can no longer generate valid quizzes and sync pages for valid categories.</p>
+          <form method="post">';
+    wp_nonce_field('ll_cleanup_quiz_pages', 'll_cleanup_nonce');
+    echo '<input type="submit" name="ll_cleanup_quiz_pages" class="button button-secondary" value="Clean Up & Sync Quiz Pages"></form></div>';
+});
