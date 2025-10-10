@@ -272,3 +272,19 @@
     margin: 0.5rem 0 0.25rem;
     font-weight: 500;
 }
+
+.ll-next-category-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.ll-next-category-btn svg {
+    flex-shrink: 0;
+}
+
+.ll-next-category-btn:hover:not(:disabled) svg {
+    transform: translateX(4px);
+    transition: transform 0.2s ease;
+}

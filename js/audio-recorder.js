@@ -506,6 +506,14 @@
                     el.recordingTypeSelect.appendChild(option);
                 });
 
+                // Reset interface visibility in case completion screen was showing
+                if (el.completeScreen) {
+                    el.completeScreen.style.display = 'none';
+                }
+                if (el.mainScreen) {
+                    el.mainScreen.style.display = 'block';
+                }
+
                 // Reset and load first image
                 loadImage(0);
                 showStatus('Category switched. Ready to record.', 'success');
@@ -526,14 +534,73 @@
     function showComplete() {
         const el = window.llRecorder;
         if (el.mainScreen) el.mainScreen.style.display = 'none';
+
         if (el.completeScreen) {
             el.completeScreen.style.display = 'block';
             if (el.completedCount) el.completedCount.textContent = images.length;
+
+            // Add next category button if there are other categories
+            const nextCategory = getNextCategory();
+            let nextCategoryBtn = el.completeScreen.querySelector('.ll-next-category-btn');
+
+            if (nextCategory) {
+                if (!nextCategoryBtn) {
+                    nextCategoryBtn = document.createElement('button');
+                    nextCategoryBtn.className = 'll-btn ll-btn-primary ll-next-category-btn';
+                    nextCategoryBtn.style.marginTop = '20px';
+                    nextCategoryBtn.innerHTML = `
+                    <span>${nextCategory.name}</span>
+                    <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
+                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
+                    </svg>
+                `;
+                    el.completeScreen.querySelector('p').insertAdjacentElement('afterend', nextCategoryBtn);
+
+                    nextCategoryBtn.addEventListener('click', () => {
+                        if (el.categorySelect) {
+                            el.categorySelect.value = nextCategory.slug;
+                            el.categorySelect.dispatchEvent(new Event('change'));
+                        }
+                    });
+                } else {
+                    // Update existing button with new category
+                    nextCategoryBtn.innerHTML = `
+                    <span>${nextCategory.name}</span>
+                    <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
+                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
+                    </svg>
+                `;
+                }
+            } else if (nextCategoryBtn) {
+                // Remove button if no next category
+                nextCategoryBtn.remove();
+            }
         } else {
             const p = document.createElement('p');
             p.textContent = i18n.all_complete || 'All recordings completed for the selected set. Thank you!';
             document.querySelector('.ll-recording-wrapper')?.appendChild(p);
         }
+    }
+
+    function getNextCategory() {
+        const el = window.llRecorder;
+        if (!el.categorySelect) return null;
+
+        const availableCategories = window.ll_recorder_data?.available_categories || {};
+        const categoryEntries = Object.entries(availableCategories);
+
+        if (categoryEntries.length <= 1) return null;
+
+        const currentCategory = el.categorySelect.value;
+        const currentIndex = categoryEntries.findIndex(([slug]) => slug === currentCategory);
+
+        if (currentIndex === -1) return null;
+
+        // Get next category, or wrap to first if at end
+        const nextIndex = (currentIndex + 1) % categoryEntries.length;
+        const [slug, name] = categoryEntries[nextIndex];
+
+        return { slug, name };
     }
 
 })();

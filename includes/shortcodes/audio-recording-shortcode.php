@@ -589,7 +589,7 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
 
     $query_args = [
         'post_type'      => 'words',
-        'post_status'    => 'publish',
+        'post_status'    => ['publish', 'draft', 'pending'], // Include draft/pending words
         'posts_per_page' => 1,
         'fields'         => 'ids',
         'meta_query'     => [[
@@ -1032,17 +1032,28 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
         return new WP_Error('no_attachment', 'Image has no attachment');
     }
 
-    // Check if a word already exists with this image
-    $existing_words = get_posts([
+    // Check if a word already exists with this image IN THE SPECIFIED WORDSET
+    $query_args = [
         'post_type' => 'words',
-        'post_status' => ['publish', 'draft'],
+        'post_status' => ['publish', 'draft', 'pending'],
         'posts_per_page' => 1,
         'fields' => 'ids',
         'meta_query' => [[
             'key' => '_thumbnail_id',
             'value' => $attachment_id,
         ]],
-    ]);
+    ];
+
+    // Filter by wordset if specified
+    if (!empty($wordset_ids)) {
+        $query_args['tax_query'] = [[
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => array_map('intval', $wordset_ids),
+        ]];
+    }
+
+    $existing_words = get_posts($query_args);
 
     if (!empty($existing_words)) {
         return (int) $existing_words[0];
