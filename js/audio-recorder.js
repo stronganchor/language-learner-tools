@@ -294,7 +294,7 @@
         const includeTypes = window.ll_recorder_data?.include_types || '';
         const excludeTypes = window.ll_recorder_data?.exclude_types || '';
 
-        showStatus('Skipping...', 'info');
+        showStatus(i18n.skipping || 'Skipping...', 'info');
 
         const formData = new FormData();
         formData.append('action', 'll_skip_recording_type');
@@ -322,11 +322,11 @@
                     loadImage(currentImageIndex + 1);
                 }
             } else {
-                showStatus(`Skip failed: ${data.data || data.message || 'Skip failed'}`, 'error');
+                showStatus((i18n.skip_failed || 'Skip failed:') + ' ' + (data.data || data.message || 'Skip failed'), 'error');
             }
         } catch (err) {
             console.error('Skip error:', err);
-            showStatus(`Skip failed: ${err.message}`, 'error');
+            showStatus((i18n.skip_failed || 'Skip failed:') + ' ' + err.message, 'error');
         }
     }
 
@@ -443,18 +443,14 @@
         formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
 
         try {
-            const response = await fetch(ajaxUrl, {
-                method: 'POST',
-                body: formData,
-            });
-
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Server returned invalid response format');
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
             }
 
             const data = await response.json();
@@ -462,7 +458,7 @@
             if (data.success) {
                 const newImages = data.data?.images || [];
                 if (newImages.length === 0) {
-                    showStatus('No images need audio in this category.', 'error');
+                    showStatus(i18n.no_images_in_category || 'No images need audio in this category.', 'error');
                     el.categorySelect.disabled = false;
                     return;
                 }
@@ -483,24 +479,19 @@
                     el.recordingTypeSelect.appendChild(option);
                 });
 
-                // Reset interface visibility in case completion screen was showing
-                if (el.completeScreen) {
-                    el.completeScreen.style.display = 'none';
-                }
-                if (el.mainScreen) {
-                    el.mainScreen.style.display = 'block';
-                }
-
                 // Reset and load first image
+                if (el.completeScreen) el.completeScreen.style.display = 'none';
+                if (el.mainScreen) el.mainScreen.style.display = 'block';
                 loadImage(0);
-                showStatus('Category switched. Ready to record.', 'success');
+
+                showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
             } else {
                 const errorMsg = data.data || data.message || 'Switch failed';
-                showStatus(`Switch failed: ${errorMsg}`, 'error');
+                showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + errorMsg, 'error');
             }
         } catch (err) {
             console.error('Category switch error:', err);
-            showStatus(`Switch failed: ${err.message}`, 'error');
+            showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
         } finally {
             el.categorySelect.disabled = false;
             el.recordBtn.disabled = false;

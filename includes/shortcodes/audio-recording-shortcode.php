@@ -131,6 +131,11 @@ function ll_audio_recording_interface_shortcode($atts) {
             'http_error' => __('HTTP %d: %s', 'll-tools-text-domain'),
             'invalid_response' => __('Server returned invalid response format', 'll-tools-text-domain'),
             'switching_category' => __('Switching category...', 'll-tools-text-domain'),
+            'skipping'            => __('Skipping...', 'll-tools-text-domain'),
+            'skip_failed'         => __('Skip failed:', 'll-tools-text-domain'),
+            'no_images_in_category'=> __('No images need audio in this category.', 'll-tools-text-domain'),
+            'category_switched'   => __('Category switched. Ready to record.', 'll-tools-text-domain'),
+            'switch_failed'       => __('Switch failed:', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display

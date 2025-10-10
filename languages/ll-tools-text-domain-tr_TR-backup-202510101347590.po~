@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-10-09 13:19+0000\n"
+"PO-Revision-Date: 2025-10-10 13:42+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -42,6 +42,16 @@ msgstr "%s'den %s'ye"
 #: includes/post-types/word-audio-post-type.php:161
 msgid "(legacy)"
 msgstr "(eski)"
+
+#: includes/user-roles/audio-recorder-role.php:126
+#: includes/user-roles/audio-recorder-role.php:224
+msgid "-- Default --"
+msgstr "-- Varsayılan --"
+
+#: includes/pages/recording-page.php:96
+#, php-format
+msgid "A default recording page has been created at %s"
+msgstr "%s adresinde varsayılan bir kayıt sayfası oluşturuldu"
 
 #. Description of the plugin
 msgid ""
@@ -83,7 +93,7 @@ msgstr "Tüm Kategoriler"
 msgid "All Recording Types"
 msgstr "Tüm Kayıt Türleri"
 
-#: includes/shortcodes/audio-recording-shortcode.php:115
+#: includes/shortcodes/audio-recording-shortcode.php:125
 msgid "All recordings completed for the selected set. Thank you!"
 msgstr "Seçilen set için tüm kayıtlar tamamlandı. Teşekkürler!"
 
@@ -108,9 +118,18 @@ msgstr "Ses Dosyası Yolu"
 msgid "Audio Recording"
 msgstr "Ses Kaydı"
 
+#: includes/user-roles/audio-recorder-role.php:116
+#: includes/user-roles/audio-recorder-role.php:214
+msgid "Audio Recording Configuration"
+msgstr "Ses Kaydı Yapılandırması"
+
 #: includes/post-types/word-audio-post-type.php:102
 msgid "Audio Recording Details"
 msgstr "Ses Kaydı Detayları"
+
+#: includes/pages/recording-page.php:94
+msgid "Audio Recording Page Created!"
+msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
 #: includes/admin/uploads/audio-upload-form.php:111
 msgid "Bulk Add Audio"
@@ -131,8 +150,7 @@ msgstr "Toplu Resim Ekleme"
 msgid "Categories"
 msgstr "Kategoriler"
 
-#: includes/shortcodes/audio-recording-shortcode.php:116
-#: includes/shortcodes/audio-recording-shortcode.php:144
+#: includes/shortcodes/audio-recording-shortcode.php:126
 msgid "Category:"
 msgstr "Kategori:"
 
@@ -146,6 +164,15 @@ msgstr "Tümünü Seç"
 msgid "Close"
 msgstr "Kapat"
 
+#: includes/user-roles/audio-recorder-role.php:118
+#: includes/user-roles/audio-recorder-role.php:216
+msgid ""
+"Configure what this user should record when they use the audio recording "
+"interface."
+msgstr ""
+"Bu kullanıcının ses kayıt arayüzünü kullandığında ne kaydetmesi gerektiğini "
+"yapılandırın."
+
 #: includes/post-types/word-image-post-type.php:210
 msgid "Copyright Info"
 msgstr "Telif Hakkı Bilgisi"
@@ -155,19 +182,41 @@ msgstr "Telif Hakkı Bilgisi"
 msgid "Correct:"
 msgstr "Doğru: "
 
+#: includes/pages/recording-page.php:144
+msgid "Create a new recording page?"
+msgstr "Yeni bir kayıt sayfası mı oluşturuyorsunuz?"
+
+#: includes/pages/recording-page.php:137
+msgid "Create Recording Page"
+msgstr "Kayıt Sayfası Oluştur"
+
 #: includes/admin/uploads/audio-upload-form.php:71
 msgid "Current User"
 msgstr "Mevcut Kullanıcı"
+
+#: includes/pages/recording-page.php:120
+msgid "Current:"
+msgstr "Şu anda:"
+
+#: includes/user-roles/audio-recorder-role.php:175
+#: includes/user-roles/audio-recorder-role.php:264
+msgid "Custom Recording Page URL"
+msgstr "Özel Kayıt Sayfası URL'si"
 
 #: includes/post-types/word-audio-post-type.php:56
 #: includes/post-types/words-post-type.php:223
 msgid "Date"
 msgstr "Tarih"
 
+#: includes/pages/recording-page.php:116
+msgid "Default Recording Page"
+msgstr "Varsayılan Kayıt Sayfası"
+
 #: includes/taxonomies/wordset-taxonomy.php:290
 msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
+#: includes/pages/recording-page.php:126
 #: includes/post-types/word-audio-post-type.php:127
 msgid "Edit"
 msgstr "Düzenle"
@@ -175,6 +224,10 @@ msgstr "Düzenle"
 #: includes/post-types/word-audio-post-type.php:15
 msgid "Edit Audio Recording"
 msgstr "Ses Kaydını Düzenleme"
+
+#: includes/pages/recording-page.php:100
+msgid "Edit Page"
+msgstr "Sayfayı Düzenle"
 
 #: includes/taxonomies/recording-type-taxonomy.php:14
 msgid "Edit Recording Type"
@@ -193,13 +246,18 @@ msgstr "Bu kelime seti için dili girin."
 msgid "Enter the translated name for this category."
 msgstr "Bu kategori için çevrilmiş adı girin."
 
-#: includes/shortcodes/audio-recording-shortcode.php:111
+#: includes/shortcodes/audio-recording-shortcode.php:121
 msgid "Error:"
 msgstr "Hata:"
 
-#: includes/shortcodes/audio-recording-shortcode.php:119
+#: includes/shortcodes/audio-recording-shortcode.php:129
 msgid "Error: Could not access microphone"
 msgstr "Hata: Mikrofona erişilemedi"
+
+#: includes/user-roles/audio-recorder-role.php:157
+#: includes/user-roles/audio-recorder-role.php:250
+msgid "Exclude Recording Types"
+msgstr "Kayıt Türlerini Hariç Tut"
 
 #: includes/post-types/word-image-post-type.php:211
 #: includes/post-types/words-post-type.php:220
@@ -227,7 +285,7 @@ msgstr "Aferin!"
 msgid "Has Featured Image"
 msgstr "Öne Çıkan Görsele Sahip"
 
-#: includes/shortcodes/audio-recording-shortcode.php:121
+#: includes/shortcodes/audio-recording-shortcode.php:131
 #, php-format
 msgid "HTTP %d: %s"
 msgstr "HTTP %d: %s"
@@ -249,7 +307,6 @@ msgstr ""
 "eşleşme olarak gönderi başlığı kelimesini kullanacaktır."
 
 #: includes/shortcodes/flashcard-widget.php:130
-#, fuzzy
 msgid "If using wordsets, the wordset contains words for this category"
 msgstr ""
 "Sözcük kümeleri kullanılıyorsa, sözcük kümesi bu kategori için sözcükler "
@@ -259,6 +316,11 @@ msgstr ""
 #: includes/taxonomies/recording-type-taxonomy.php:44
 msgid "In Sentence"
 msgstr "Örnek cümle içinde"
+
+#: includes/user-roles/audio-recorder-role.php:139
+#: includes/user-roles/audio-recorder-role.php:236
+msgid "Include Recording Types"
+msgstr "Kayıt Türlerini Dahil Et"
 
 #: includes/shortcodes/audio-recording-shortcode.php:16
 #: includes/taxonomies/recording-type-taxonomy.php:43
@@ -302,6 +364,16 @@ msgstr "Öğrenme Tamamlandı!"
 msgid "Learning Mode"
 msgstr "Öğrenme Modu"
 
+#: includes/user-roles/audio-recorder-role.php:152
+#: includes/user-roles/audio-recorder-role.php:245
+msgid ""
+"Leave empty to allow all types. Select specific types to limit what they "
+"record. Hold Ctrl/Cmd to select multiple."
+msgstr ""
+"Tüm türlere izin vermek için boş bırakın. Kaydettiklerini sınırlamak için "
+"belirli türleri seçin. Birden fazla seçmek için Ctrl/Cmd tuşlarını basılı "
+"tutun."
+
 #: includes/shortcodes/flashcard-widget.php:125
 msgid "Loading Error"
 msgstr "Yükleme Hatası"
@@ -338,7 +410,7 @@ msgstr "Yeni Kayıt Tipi Adı"
 msgid "No"
 msgstr "Hayır"
 
-#: includes/shortcodes/audio-recording-shortcode.php:118
+#: includes/shortcodes/audio-recording-shortcode.php:128
 msgid "No audio blob to submit"
 msgstr "Gönderilecek ses bloğu yok"
 
@@ -350,11 +422,11 @@ msgstr "Ses kaydı bulunamadı"
 msgid "No audio recordings found in trash"
 msgstr "Çöp kutusunda ses kaydı bulunamadı"
 
-#: includes/shortcodes/audio-recording-shortcode.php:53
+#: includes/shortcodes/audio-recording-shortcode.php:63
 msgid "No categories available for audio recordings at this time. Thank you!"
 msgstr "Şu anda ses kayıtları için kategori bulunmamaktadır. Teşekkürler!"
 
-#: includes/shortcodes/audio-recording-shortcode.php:63
+#: includes/shortcodes/audio-recording-shortcode.php:73
 msgid ""
 "No images need audio recordings in the selected category at this time. Thank "
 "you!"
@@ -370,9 +442,22 @@ msgstr "Henüz sınav sayfası bulunmamaktadır."
 msgid "No quizzes found."
 msgstr "Sınav bulunamadı."
 
+#: includes/pages/recording-page.php:131
+msgid "No recording page found."
+msgstr "Kayıt sayfası bulunamadı."
+
 #: includes/shortcodes/flashcard-widget.php:127
 msgid "No words could be loaded for this quiz. Please check that:"
 msgstr "Bu test için hiçbir kelime yüklenemedi. Lütfen kontrol edin:"
+
+#: includes/user-roles/audio-recorder-role.php:180
+#: includes/user-roles/audio-recorder-role.php:268
+msgid ""
+"Optional: Specify a custom URL to redirect this user to on login. Leave "
+"empty to use the default recording page."
+msgstr ""
+"İsteğe bağlı: Bu kullanıcıyı oturum açtığında yönlendirmek için özel bir URL "
+"belirtin. Varsayılan kayıt sayfasını kullanmak için boş bırakın."
 
 #: includes/admin/uploads/audio-upload-form.php:74
 msgid "Other Users"
@@ -417,22 +502,21 @@ msgstr "Sonuçlar"
 msgid "Quiz selection"
 msgstr "Sınav seçimi"
 
-#: includes/shortcodes/audio-recording-shortcode.php:195
+#: includes/shortcodes/audio-recording-shortcode.php:221
 msgid "Record"
 msgstr "Kayıt"
 
-#: includes/shortcodes/audio-recording-shortcode.php:211
+#: includes/shortcodes/audio-recording-shortcode.php:240
 msgid "Record again"
 msgstr "Tekrar kaydedin"
+
+#: includes/pages/recording-page.php:56
+msgid "Record Audio"
+msgstr "Ses Kaydet"
 
 #: includes/post-types/word-audio-post-type.php:148
 msgid "Recorded By"
 msgstr "Tarafından kaydedildi"
-
-#: includes/shortcodes/audio-recording-shortcode.php:137
-#, php-format
-msgid "Recording as: %s"
-msgstr "%s olarak kaydediliyor"
 
 #: includes/post-types/word-audio-post-type.php:168
 msgid "Recording Date"
@@ -443,7 +527,7 @@ msgstr "Kayıt Tarihi"
 msgid "Recording Type"
 msgstr "Kayıt Türü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:175
+#: includes/shortcodes/audio-recording-shortcode.php:201
 msgid "Recording Type:"
 msgstr "Kayıt Türü:"
 
@@ -452,23 +536,27 @@ msgstr "Kayıt Türü:"
 msgid "Recording Types"
 msgstr "Kayıt Türleri"
 
-#: includes/shortcodes/audio-recording-shortcode.php:223
+#: includes/shortcodes/audio-recording-shortcode.php:252
 msgid "recordings completed"
 msgstr "kayıtlar tamamlandı"
+
+#: includes/pages/recording-page.php:137
+msgid "Recreate Recording Page"
+msgstr "Kayıt Sayfasını Yeniden Oluştur"
 
 #: templates/flashcard-widget-template.php:76
 #: includes/shortcodes/quiz-pages-shortcodes.php:417
 msgid "Restart Quiz"
 msgstr "Yeniden Başla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:213
+#: includes/shortcodes/audio-recording-shortcode.php:242
 msgid "Save and continue"
 msgstr "Kaydet ve devam et"
 
-#: includes/shortcodes/audio-recording-shortcode.php:113
-#, php-format
-msgid "Saved %s. Next type selected."
-msgstr "Kaydedildi %s. Sonraki tip seçildi."
+#: includes/shortcodes/audio-recording-shortcode.php:123
+#| msgid "Saved %s. Next type selected."
+msgid "Saved. Next type selected."
+msgstr "Kaydedildi. Sonraki tip seçildi."
 
 #: includes/post-types/word-audio-post-type.php:18
 msgid "Search Audio Recordings"
@@ -488,15 +576,19 @@ msgstr "Bir sınav seçin.."
 msgid "Select Categories"
 msgstr "Kategorileri Seç"
 
-#: includes/shortcodes/audio-recording-shortcode.php:122
+#: includes/shortcodes/audio-recording-shortcode.php:132
 msgid "Server returned invalid response format"
 msgstr "Sunucu geçersiz yanıt biçimi döndürdü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:198
+#: includes/shortcodes/audio-recording-shortcode.php:172
+msgid "Set:"
+msgstr "Set:"
+
+#: includes/shortcodes/audio-recording-shortcode.php:224
 msgid "Skip"
 msgstr "Atla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:114
+#: includes/shortcodes/audio-recording-shortcode.php:124
 msgid "Skipped this type. Next type selected."
 msgstr "Bu tür atlandı. Sonraki tip seçildi."
 
@@ -525,7 +617,7 @@ msgstr "Başla"
 msgid "Start Quiz"
 msgstr "Başla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:120
+#: includes/shortcodes/audio-recording-shortcode.php:130
 msgid "Starting upload for image:"
 msgstr "Görüntü için yükleme başlatılıyor:"
 
@@ -533,7 +625,7 @@ msgstr "Görüntü için yükleme başlatılıyor:"
 msgid "Strong Anchor Tech"
 msgstr "Strong Anchor Tech"
 
-#: includes/shortcodes/audio-recording-shortcode.php:110
+#: includes/shortcodes/audio-recording-shortcode.php:120
 msgid "Success! Recording will be processed later."
 msgstr "Başarılı! Kayıt daha sonra işlenecektir."
 
@@ -548,7 +640,7 @@ msgstr[1] "Başarıyla %d kategori eklendi."
 msgid "Switch Mode"
 msgstr "Modu Değiştir"
 
-#: includes/shortcodes/audio-recording-shortcode.php:123
+#: includes/shortcodes/audio-recording-shortcode.php:133
 msgid "Switching category..."
 msgstr "Kategori değiştiriliyor..."
 
@@ -577,11 +669,19 @@ msgstr "Çeviri Dili"
 msgid "Type"
 msgstr "Tip"
 
+#: includes/user-roles/audio-recorder-role.php:170
+#: includes/user-roles/audio-recorder-role.php:259
+msgid ""
+"Types to exclude from this user. Only used if \"Include Types\" is empty."
+msgstr ""
+"Bu kullanıcıdan hariç tutulacak türler. Yalnızca \"Türleri Dahil Et\" boşsa "
+"kullanılır."
+
 #: includes/admin/uploads/audio-upload-form.php:72
 msgid "Unassigned"
 msgstr "Atanmamış"
 
-#: includes/shortcodes/audio-recording-shortcode.php:117
+#: includes/shortcodes/audio-recording-shortcode.php:127
 msgid "Uncategorized"
 msgstr "Uncategorized"
 
@@ -593,11 +693,11 @@ msgstr "Seçimleri Kaldır"
 msgid "Update Recording Type"
 msgstr "Kayıt Türünü Güncelle"
 
-#: includes/shortcodes/audio-recording-shortcode.php:112
+#: includes/shortcodes/audio-recording-shortcode.php:122
 msgid "Upload failed:"
 msgstr "Yükleme başarısız oldu:"
 
-#: includes/shortcodes/audio-recording-shortcode.php:109
+#: includes/shortcodes/audio-recording-shortcode.php:119
 msgid "Uploading..."
 msgstr "Yükleniyor..."
 
@@ -613,6 +713,11 @@ msgstr "Ses Kaydını Görüntüle"
 msgid "View User Profile"
 msgstr "Kullanıcı Profilini Görüntüle"
 
+#: includes/user-roles/audio-recorder-role.php:134
+#: includes/user-roles/audio-recorder-role.php:231
+msgid "Which word set should this user record?"
+msgstr "Bu kullanıcı hangi kelime kümesini kaydetmelidir?"
+
 #: includes/post-types/word-audio-post-type.php:52
 msgid "Word"
 msgstr "Kelime"
@@ -622,6 +727,8 @@ msgid "Word Audio"
 msgstr "Word Audio"
 
 #: includes/post-types/words-post-type.php:221
+#: includes/user-roles/audio-recorder-role.php:123
+#: includes/user-roles/audio-recorder-role.php:221
 #: includes/admin/uploads/audio-upload-form.php:93
 msgid "Word Set"
 msgstr "Kelime Seti"
@@ -655,6 +762,5 @@ msgid "— Select —"
 msgstr "- Seçiniz -"
 
 #: includes/shortcodes/flashcard-widget.php:117
-#, fuzzy
 msgid "✓"
 msgstr "✓"
