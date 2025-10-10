@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-10-09 13:18+0000\n"
+"PO-Revision-Date: 2025-10-09 13:19+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -249,7 +249,6 @@ msgstr ""
 "eşleşme olarak gönderi başlığı kelimesini kullanacaktır."
 
 #: includes/shortcodes/flashcard-widget.php:130
-#, fuzzy
 msgid "If using wordsets, the wordset contains words for this category"
 msgstr ""
 "Sözcük kümeleri kullanılıyorsa, sözcük kümesi bu kategori için sözcükler "
@@ -276,7 +275,6 @@ msgid "Isolation"
 msgstr "Kelimeyi tek başına kaydet"
 
 #: includes/shortcodes/flashcard-widget.php:120
-#, fuzzy
 msgid "Keep practicing!"
 msgstr "Çalışmaya devam edin!"
 
@@ -286,7 +284,6 @@ msgid "Language"
 msgstr "Dil"
 
 #. Name of the plugin
-#, fuzzy
 #| msgid "* Language Learner Tools"
 msgid "Language Learner Tools"
 msgstr "Dil Eğitimi Araçları"
@@ -657,6 +654,5 @@ msgid "— Select —"
 msgstr "- Seçiniz -"
 
 #: includes/shortcodes/flashcard-widget.php:117
-#, fuzzy
 msgid "✓"
 msgstr "✓"

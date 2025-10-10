@@ -120,7 +120,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             'success' => __('Success! Recording will be processed later.', 'll-tools-text-domain'),
             'error_prefix' => __('Error:', 'll-tools-text-domain'),
             'upload_failed' => __('Upload failed:', 'll-tools-text-domain'),
-            'saved_type' => __('Saved %s. Next type selected.', 'll-tools-text-domain'),
+            'saved_next_type' => __('Saved. Next type selected.', 'll-tools-text-domain'),
             'skipped_type' => __('Skipped this type. Next type selected.', 'll-tools-text-domain'),
             'all_complete' => __('All recordings completed for the selected set. Thank you!', 'll-tools-text-domain'),
             'category' => __('Category:', 'll-tools-text-domain'),
@@ -133,88 +133,107 @@ function ll_audio_recording_interface_shortcode($atts) {
             'switching_category' => __('Switching category...', 'll-tools-text-domain'),
         ],
     ]);
+    // Get wordset name for display
+    $wordset_name = '';
+    if (!empty($wordset_term_ids)) {
+        $wordset_term = get_term($wordset_term_ids[0], 'wordset');
+        if ($wordset_term && !is_wp_error($wordset_term)) {
+            $wordset_name = $wordset_term->name;
+        }
+    }
 
     ob_start();
     ?>
     <div class="ll-recording-interface">
-        <div class="ll-recording-progress">
-            <span class="ll-current-num">1</span> / <span class="ll-total-num"><?php echo count($images_needing_audio); ?></span>
-        </div>
-
-        <div class="ll-recorder-info">
-            <?php
-            printf(
-                __('Recording as: %s', 'll-tools-text-domain'),
-                '<strong>' . esc_html($current_user->display_name) . '</strong>'
-            );
-            ?>
-        </div>
-
-        <div class="ll-category-selector">
-            <label for="ll-category-select"><?php _e('Category:', 'll-tools-text-domain'); ?></label>
-            <select id="ll-category-select">
-                <?php
-                foreach ($available_categories as $slug => $name) {
-                    $selected = ($slug === $initial_category) ? 'selected' : '';
-                    printf(
-                        '<option value="%s" %s>%s</option>',
-                        esc_attr($slug),
-                        $selected,
-                        esc_html($name)
-                    );
-                }
-                ?>
-            </select>
-        </div>
-
-        <div class="ll-recording-main">
-            <?php
-            // Get the site-wide flashcard size setting
-            $flashcard_size = get_option('ll_flashcard_image_size', 'small');
-            $size_class = 'flashcard-size-' . sanitize_html_class($flashcard_size);
-            ?>
-
-            <div class="ll-recording-image-container">
-                <div class="flashcard-container <?php echo esc_attr($size_class); ?>">
-                    <img id="ll-current-image" class="quiz-image" src="" alt="">
-                </div>
-                <p id="ll-image-title" class="ll-image-title"></p>
+        <!-- Compact header - progress, category, wordset, user -->
+        <div class="ll-recording-header">
+            <div class="ll-recording-progress">
+                <span class="ll-current-num">1</span> / <span class="ll-total-num"><?php echo count($images_needing_audio); ?></span>
             </div>
 
-            <div class="ll-recording-type-selector">
-                <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
-                <select id="ll-recording-type">
+            <div class="ll-category-selector">
+                <select id="ll-category-select">
                     <?php
-                    if (!empty($dropdown_types) && !is_wp_error($dropdown_types)) {
-                        foreach ($dropdown_types as $type) {
-                            $selected = ($type->slug === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type->slug === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
-                            printf(
-                                '<option value="%s" %s>%s</option>',
-                                esc_attr($type->slug),
-                                $selected,
-                                esc_html(ll_get_recording_type_name($type->slug))
-                            );
-                        }
+                    foreach ($available_categories as $slug => $name) {
+                        $selected = ($slug === $initial_category) ? 'selected' : '';
+                        printf(
+                            '<option value="%s" %s>%s</option>',
+                            esc_attr($slug),
+                            $selected,
+                            esc_html($name)
+                        );
                     }
                     ?>
                 </select>
             </div>
 
-            <div class="ll-recording-controls">
-                <button id="ll-record-btn" class="ll-btn ll-btn-record"
-                        title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
+            <?php if ($wordset_name): ?>
+            <div class="ll-wordset-display">
+                <span><?php _e('Set:', 'll-tools-text-domain'); ?></span>
+                <strong><?php echo esc_html($wordset_name); ?></strong>
+            </div>
+            <?php endif; ?>
 
-                <button id="ll-skip-btn" class="ll-btn ll-btn-skip"
-                        title="<?php esc_attr_e('Skip', 'll-tools-text-domain'); ?>">
-                    <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                </button>
+            <div class="ll-recorder-info">
+                <?php echo esc_html($current_user->display_name); ?>
+            </div>
+        </div>
+
+        <div class="ll-recording-main">
+            <?php
+            $flashcard_size = get_option('ll_flashcard_image_size', 'small');
+            $size_class = 'flashcard-size-' . sanitize_html_class($flashcard_size);
+            ?>
+
+            <!-- Image on left -->
+            <div class="ll-recording-image-container">
+                <div class="flashcard-container <?php echo esc_attr($size_class); ?>">
+                    <img id="ll-current-image" class="quiz-image" src="" alt="">
+                </div>
+                <p id="ll-image-title" class="ll-image-title"></p>
+                <p id="ll-image-category" class="ll-image-category"></p>
+            </div>
+
+            <!-- Controls on right -->
+            <div class="ll-recording-controls-column">
+                <!-- Recording type moved here for better visibility and more space -->
+                <div class="ll-recording-type-selector">
+                    <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-recording-type">
+                        <?php
+                        if (!empty($dropdown_types) && !is_wp_error($dropdown_types)) {
+                            foreach ($dropdown_types as $type) {
+                                $selected = ($type->slug === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type->slug === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
+                                printf(
+                                    '<option value="%s" %s>%s</option>',
+                                    esc_attr($type->slug),
+                                    $selected,
+                                    esc_html(ll_get_recording_type_name($type->slug))
+                                );
+                            }
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div class="ll-recording-buttons">
+                    <button id="ll-record-btn" class="ll-btn ll-btn-record"
+                            title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
+
+                    <button id="ll-skip-btn" class="ll-btn ll-btn-skip"
+                            title="<?php esc_attr_e('Skip', 'll-tools-text-domain'); ?>">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                        </svg>
+                    </button>
+                </div>
 
                 <div id="ll-recording-indicator" class="ll-recording-indicator" style="display:none;">
                     <span class="ll-recording-dot"></span>
                     <span id="ll-recording-timer">0:00</span>
                 </div>
 
-                <div id="ll-playback-controls" style="display:none;">
+                <div id="ll-playback-controls" class="ll-playback-controls" style="display:none;">
                     <audio id="ll-playback-audio" controls></audio>
                     <div class="ll-playback-actions">
                         <button id="ll-redo-btn" class="ll-btn ll-btn-secondary"

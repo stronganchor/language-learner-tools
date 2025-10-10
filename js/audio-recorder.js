@@ -104,6 +104,27 @@
         if (type) el.status.classList.add(type);
     }
 
+    function handleSuccessfulUpload(recordingType, remaining) {
+        if (!Array.isArray(images[currentImageIndex].existing_types)) {
+            images[currentImageIndex].existing_types = [];
+        }
+        if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
+            images[currentImageIndex].existing_types.push(recordingType);
+        }
+        images[currentImageIndex].missing_types = remaining.slice();
+
+        if (requireAll && remaining.length > 0) {
+            setTypeForCurrentImage();
+            resetRecordingState();
+            showStatus(i18n.saved_next_type || 'Saved. Next type selected.', 'success');
+            return true; // Signal that we're staying on this image
+        }
+
+        showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
+        setTimeout(() => loadImage(currentImageIndex + 1), 800);
+        return false; // Signal that we're moving to next image
+    }
+
     function setupEventListeners() {
         const el = window.llRecorder;
         el.recordBtn.addEventListener('click', toggleRecording);
@@ -348,45 +369,21 @@
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
 
-            // If server throws after doing the work, response.ok may be false or content may be non-JSON.
             let data;
             const contentType = response.headers.get('content-type') || '';
             if (response.ok && contentType.includes('application/json')) {
                 data = await response.json();
             } else {
-                // Try verification path before giving up
                 return await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
             }
 
             if (data.success) {
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
-
-                if (!Array.isArray(images[currentImageIndex].existing_types)) {
-                    images[currentImageIndex].existing_types = [];
-                }
-                if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
-                    images[currentImageIndex].existing_types.push(recordingType);
-                }
-                images[currentImageIndex].missing_types = remaining.slice();
-
-                if (requireAll && remaining.length > 0) {
-                    setTypeForCurrentImage();
-                    resetRecordingState();
-                    const savedMsg = i18n.saved_type
-                        ? i18n.saved_type.replace('%s', recordingType)
-                        : `Saved ${recordingType}. Next type selected.`;
-                    showStatus(savedMsg, 'success');
-                    return;
-                }
-
-                showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
-                setTimeout(() => loadImage(currentImageIndex + 1), 800);
+                handleSuccessfulUpload(recordingType, remaining);
             } else {
-                // Non-success payload: verify before failing
                 await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
             }
         } catch (err) {
-            // Network/parse error: verify before failing
             await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
         }
     }
@@ -409,27 +406,7 @@
 
             if (verifyData?.success && verifyData.data?.found_audio_post_id) {
                 const remaining = Array.isArray(verifyData.data.remaining_types) ? verifyData.data.remaining_types : [];
-
-                if (!Array.isArray(images[currentImageIndex].existing_types)) {
-                    images[currentImageIndex].existing_types = [];
-                }
-                if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
-                    images[currentImageIndex].existing_types.push(recordingType);
-                }
-                images[currentImageIndex].missing_types = remaining.slice();
-
-                if (requireAll && remaining.length > 0) {
-                    setTypeForCurrentImage();
-                    resetRecordingState();
-                    const savedMsg = i18n.saved_type
-                        ? i18n.saved_type.replace('%s', recordingType)
-                        : `Saved ${recordingType}. Next type selected.`;
-                    showStatus(savedMsg, 'success');
-                    return;
-                }
-
-                showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
-                setTimeout(() => loadImage(currentImageIndex + 1), 600);
+                handleSuccessfulUpload(recordingType, remaining);
                 return;
             }
 
