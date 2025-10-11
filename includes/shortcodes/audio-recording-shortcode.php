@@ -92,7 +92,11 @@ function ll_audio_recording_interface_shortcode($atts) {
         foreach ($recording_types as $slug) {
             $term = get_term_by('slug', $slug, 'recording_type');
             if ($term && !is_wp_error($term)) {
-                $dropdown_types[] = $term;
+                $dropdown_types[] = [
+                    'slug' => $term->slug,
+                    'name' => ll_get_recording_type_name($term->slug),
+                    'term_id' => $term->term_id,
+                ];
             }
         }
     }
@@ -208,12 +212,12 @@ function ll_audio_recording_interface_shortcode($atts) {
                         <?php
                         if (!empty($dropdown_types) && !is_wp_error($dropdown_types)) {
                             foreach ($dropdown_types as $type) {
-                                $selected = ($type->slug === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type->slug === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
+                                $selected = ($type['slug'] === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type['slug'] === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
                                 printf(
                                     '<option value="%s" %s>%s</option>',
-                                    esc_attr($type->slug),
+                                    esc_attr($type['slug']),
                                     $selected,
-                                    esc_html(ll_get_recording_type_name($type->slug))
+                                    esc_html($type['name'])
                                 );
                             }
                         }
@@ -353,7 +357,13 @@ function ll_get_images_for_recording_handler() {
     $dropdown_types = [];
     foreach ($recording_types as $slug) {
         $term = get_term_by('slug', $slug, 'recording_type');
-        if ($term) $dropdown_types[] = $term;
+        if ($term) {
+            $dropdown_types[] = [
+                'slug' => $term->slug,
+                'name' => ll_get_recording_type_name($term->slug),
+                'term_id' => $term->term_id,
+            ];
+        }
     }
 
     wp_send_json_success([
