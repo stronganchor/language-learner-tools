@@ -43,6 +43,11 @@ function ll_register_settings() {
         'default' => 'small',
         'sanitize_callback' => 'sanitize_text_field',
     ]);
+    register_setting('language-learning-tools-options', 'll_hide_recording_titles', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'absint',
+        'default' => 0,
+    ]);
     // Settings for quiz font name and URL.
     register_setting('language-learning-tools-options', 'll_quiz_font', array(
         'type' => 'string',
@@ -117,7 +122,7 @@ function ll_render_settings_page() {
                 <tr valign="top">
                     <th scope="row">Flashcard Image Size:</th>
                     <td>
-                        <?php 
+                        <?php
                         $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
                         ?>
                         <select name="ll_flashcard_image_size" id="ll_flashcard_image_size">
@@ -125,6 +130,13 @@ function ll_render_settings_page() {
                             <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>>Medium (200×200)</option>
                             <option value="large" <?php selected($flashcard_image_size, 'large'); ?>>Large (250×250)</option>
                         </select>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Hide Word Titles in Recording Interface:</th>
+                    <td>
+                        <input type="checkbox" name="ll_hide_recording_titles" id="ll_hide_recording_titles" value="1" <?php checked(1, get_option('ll_hide_recording_titles', 0), true); ?> />
+                        <p class="description">Check this box to hide word titles from audio recorders by default. This helps prevent pronunciation bias from reading the word.</p>
                     </td>
                 </tr>
                 <tr valign="top">

@@ -108,7 +108,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'language'        => $atts['language'],
         'wordset'         => $atts['wordset'],
         'wordset_ids'     => $wordset_term_ids,
-        'hide_name'       => get_option('ll_hide_recording_titles', 0),
+        'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
         'recording_types' => $dropdown_types,
         'user_display_name' => $current_user->display_name,
         'require_all_types' => true,
