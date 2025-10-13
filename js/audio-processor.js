@@ -95,9 +95,15 @@
                 saveAllProcessedAudio();
             } else if (e.target.id === 'll-cancel-review') {
                 cancelReview();
+            } else if (e.target.id === 'll-delete-all-review') {
+                deleteAllReviewRecordings();
             } else if (e.target.classList.contains('ll-reprocess-btn')) {
                 const postId = parseInt(e.target.dataset.postId);
                 reprocessSingleFile(postId);
+            } else if (e.target.classList.contains('ll-delete-review-btn') || e.target.closest('.ll-delete-review-btn')) {
+                const btn = e.target.classList.contains('ll-delete-review-btn') ? e.target : e.target.closest('.ll-delete-review-btn');
+                const postId = parseInt(btn.dataset.postId);
+                deleteReviewRecording(postId);
             }
         });
 
@@ -113,6 +119,21 @@
                         updateProcessedAudio(postId, data);
                     }
                 }
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'll-save-all') {
+                saveAllProcessedAudio();
+            } else if (e.target.id === 'll-cancel-review') {
+                cancelReview();
+            } else if (e.target.classList.contains('ll-reprocess-btn')) {
+                const postId = parseInt(e.target.dataset.postId);
+                reprocessSingleFile(postId);
+            } else if (e.target.classList.contains('ll-delete-recording') || e.target.closest('.ll-delete-recording')) {
+                const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
+                const postId = parseInt(btn.dataset.id);
+                deleteRecording(postId, btn);
             }
         });
     }
@@ -372,10 +393,41 @@
 
         container.innerHTML = '';
 
+        // Add global skip review option
+        const globalOptions = document.createElement('div');
+        globalOptions.className = 'll-review-global-options';
+        globalOptions.innerHTML = `
+            <label class="ll-skip-all-review">
+                <input type="checkbox" id="ll-skip-all-review-checkbox">
+                <strong>Skip review for all files and publish immediately</strong>
+            </label>
+        `;
+        container.appendChild(globalOptions);
+
         state.reviewData.forEach((data, postId) => {
             const fileDiv = createReviewFileElement(postId, data);
             container.appendChild(fileDiv);
         });
+
+        // Handle "skip all" checkbox
+        const skipAllCheckbox = document.getElementById('ll-skip-all-review-checkbox');
+        if (skipAllCheckbox) {
+            skipAllCheckbox.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                document.querySelectorAll('.ll-file-skip-review').forEach(cb => {
+                    cb.checked = checked;
+                });
+            });
+        }
+
+        // Hide the initial selection interface
+        const recordingsList = document.querySelector('.ll-recordings-list');
+        const processorControls = document.querySelector('.ll-processor-controls');
+        const processingOptions = document.querySelector('.ll-processing-options');
+
+        if (recordingsList) recordingsList.style.display = 'none';
+        if (processorControls) processorControls.style.display = 'none';
+        if (processingOptions) processingOptions.style.display = 'none';
 
         reviewInterface.style.display = 'block';
         reviewInterface.scrollIntoView({ behavior: 'smooth' });
@@ -388,22 +440,62 @@
 
         const { recording, originalBuffer, processedBuffer, trimStart, trimEnd, options } = data;
 
+        const imageHtml = recording.imageUrl
+            ? `<img src="${escapeHtml(recording.imageUrl)}" alt="${escapeHtml(recording.title)}" class="ll-review-thumbnail">`
+            : '';
+
+        const wordsetHtml = recording.wordsets && recording.wordsets.length > 0
+            ? `<span class="ll-review-wordset"><strong>Wordset:</strong> ${escapeHtml(recording.wordsets.join(', '))}</span>`
+            : '';
+
+        const recordingTypeHtml = recording.recordingTypes && recording.recordingTypes.length > 0
+            ? `<span class="ll-review-recording-type"><strong>Type:</strong> ${escapeHtml(recording.recordingTypes.join(', '))}</span>`
+            : '';
+
+        const categoryHtml = recording.categories && recording.categories.length > 0
+            ? `<span class="ll-review-category"><strong>Category:</strong> ${escapeHtml(recording.categories.join(', '))}</span>`
+            : '';
+
         div.innerHTML = `
             <div class="ll-review-header">
-                <h3 class="ll-review-title">${escapeHtml(recording.title)}</h3>
-                <div class="ll-file-options">
-                    <label>
-                        <input type="checkbox" class="ll-file-trim" ${options.enableTrim ? 'checked' : ''}>
-                        Trim
-                    </label>
-                    <label>
-                        <input type="checkbox" class="ll-file-noise" ${options.enableNoise ? 'checked' : ''}>
-                        Noise Reduction
-                    </label>
-                    <label>
-                        <input type="checkbox" class="ll-file-loudness" ${options.enableLoudness ? 'checked' : ''}>
-                        Loudness
-                    </label>
+                <div class="ll-review-title-section">
+                    ${imageHtml}
+                    <div class="ll-review-title-info">
+                        <h3 class="ll-review-title">${escapeHtml(recording.title)}</h3>
+                        <div class="ll-review-metadata">
+                            ${categoryHtml}
+                            ${wordsetHtml}
+                            ${recordingTypeHtml}
+                        </div>
+                    </div>
+                </div>
+                <div class="ll-review-header-actions">
+                    <div class="ll-file-options">
+                        <label>
+                            <input type="checkbox" class="ll-file-trim" ${options.enableTrim ? 'checked' : ''}>
+                            Trim
+                        </label>
+                        <label>
+                            <input type="checkbox" class="ll-file-noise" ${options.enableNoise ? 'checked' : ''}>
+                            Noise Reduction
+                        </label>
+                        <label>
+                            <input type="checkbox" class="ll-file-loudness" ${options.enableLoudness ? 'checked' : ''}>
+                            Loudness
+                        </label>
+                    </div>
+                    <div class="ll-review-options">
+                        <label class="ll-skip-review-label">
+                            <input type="checkbox" class="ll-file-skip-review" data-post-id="${postId}">
+                            Skip review and publish immediately
+                        </label>
+                    </div>
+                    <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="Delete this recording">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        Delete
+                    </button>
                 </div>
             </div>
             <div class="ll-waveform-container" data-post-id="${postId}">
@@ -775,6 +867,182 @@
         return new Blob([buffer], { type: 'audio/wav' });
     }
 
+    function deleteRecording(postId, button) {
+        const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
+        if (!item) return;
+
+        const title = item.querySelector('strong')?.textContent || 'this recording';
+
+        if (!confirm(`Delete "${title}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        button.disabled = true;
+        button.style.opacity = '0.5';
+
+        fetch(window.llAudioProcessor.ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'll_delete_audio_recording',
+                nonce: window.llAudioProcessor.nonce,
+                post_id: postId
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(-20px)';
+                    item.style.transition = 'all 0.3s ease';
+
+                    setTimeout(() => {
+                        item.remove();
+
+                        const checkbox = item.querySelector('.ll-recording-checkbox');
+                        if (checkbox && checkbox.checked) {
+                            state.selected.delete(postId);
+                            updateSelectedCount();
+                        }
+
+                        const remainingItems = document.querySelectorAll('.ll-recording-item');
+                        if (remainingItems.length === 0) {
+                            location.reload();
+                        }
+                    }, 300);
+                } else {
+                    alert('Error: ' + (data.data || 'Failed to delete recording'));
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                }
+            })
+            .catch(error => {
+                console.error('Delete error:', error);
+                alert('Error deleting recording: ' + error.message);
+                button.disabled = false;
+                button.style.opacity = '1';
+            });
+    }
+
+    function deleteReviewRecording(postId) {
+        const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
+        if (!reviewFile) return;
+
+        const data = state.reviewData.get(postId);
+        const title = data ? data.recording.title : 'this recording';
+
+        if (!confirm(`Delete "${title}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        const deleteBtn = reviewFile.querySelector('.ll-delete-review-btn');
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.style.opacity = '0.5';
+        }
+
+        fetch(window.llAudioProcessor.ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'll_delete_audio_recording',
+                nonce: window.llAudioProcessor.nonce,
+                post_id: postId
+            })
+        })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    reviewFile.style.opacity = '0';
+                    reviewFile.style.transform = 'translateY(-10px)';
+                    reviewFile.style.transition = 'all 0.3s ease';
+
+                    setTimeout(() => {
+                        reviewFile.remove();
+                        state.reviewData.delete(postId);
+
+                        if (state.reviewData.size === 0) {
+                            location.reload();
+                        }
+                    }, 300);
+                } else {
+                    alert('Error: ' + (result.data || 'Failed to delete recording'));
+                    if (deleteBtn) {
+                        deleteBtn.disabled = false;
+                        deleteBtn.style.opacity = '1';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Delete error:', error);
+                alert('Error deleting recording: ' + error.message);
+                if (deleteBtn) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.style.opacity = '1';
+                }
+            });
+    }
+
+    function deleteAllReviewRecordings() {
+        const count = state.reviewData.size;
+        if (count === 0) return;
+
+        if (!confirm(`Delete all ${count} recording(s)? This action cannot be undone.`)) {
+            return;
+        }
+
+        const deleteBtn = document.getElementById('ll-delete-all-review');
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Deleting...';
+        }
+
+        const postIds = Array.from(state.reviewData.keys());
+        let deleted = 0;
+        let failed = 0;
+
+        Promise.all(postIds.map(postId => {
+            return fetch(window.llAudioProcessor.ajaxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'll_delete_audio_recording',
+                    nonce: window.llAudioProcessor.nonce,
+                    post_id: postId
+                })
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        deleted++;
+                    } else {
+                        failed++;
+                    }
+                })
+                .catch(() => {
+                    failed++;
+                });
+        }))
+            .then(() => {
+                if (failed === 0) {
+                    alert(`Successfully deleted ${deleted} recording(s)`);
+                    location.reload();
+                } else {
+                    alert(`Deleted ${deleted} recording(s). Failed to delete ${failed}.`);
+                    if (deleteBtn) {
+                        deleteBtn.disabled = false;
+                        deleteBtn.textContent = 'Delete All';
+                    }
+                }
+            });
+    }
+
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -881,6 +1149,11 @@
         formData.append('nonce', window.llAudioProcessor.nonce);
         formData.append('post_id', postId);
         formData.append('audio', audioBlob, filename);
+
+        // Check if skip review is enabled for this file
+        const skipReviewCheckbox = document.querySelector(`.ll-file-skip-review[data-post-id="${postId}"]`);
+        const skipReview = skipReviewCheckbox ? skipReviewCheckbox.checked : false;
+        formData.append('skip_review', skipReview ? '1' : '0');
 
         const response = await fetch(window.llAudioProcessor.ajaxUrl, {
             method: 'POST',

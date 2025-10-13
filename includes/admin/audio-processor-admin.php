@@ -76,12 +76,26 @@ function ll_get_unprocessed_recordings() {
                 $word_title = get_the_title($parent_word_id);
                 $categories = wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']);
 
+                // Get wordset names
+                $wordsets = wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'names']);
+                $wordset_names = (!is_wp_error($wordsets) && !empty($wordsets)) ? $wordsets : [];
+
+                // Get recording type names
+                $recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'names']);
+                $recording_type_names = (!is_wp_error($recording_types) && !empty($recording_types)) ? $recording_types : [];
+
+                // Get image thumbnail
+                $image_url = get_the_post_thumbnail_url($parent_word_id, 'thumbnail');
+
                 $recordings[] = [
                     'id' => $audio_post_id,
                     'title' => $word_title,
                     'audioUrl' => site_url($audio_file),
                     'uploadDate' => get_post_meta($audio_post_id, 'recording_date', true),
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
+                    'wordsets' => $wordset_names,
+                    'recordingTypes' => $recording_type_names,
+                    'imageUrl' => $image_url ?: '',
                 ];
             }
         }
@@ -162,6 +176,7 @@ function ll_render_audio_processor_page() {
                 <div id="ll-review-files-container"></div>
                 <div class="ll-review-actions">
                     <button id="ll-save-all" class="ll-btn-save-all">Save All Changes</button>
+                    <button id="ll-delete-all-review" class="button button-link-delete">Delete All</button>
                     <button id="ll-cancel-review" class="ll-btn-cancel">Cancel</button>
                 </div>
             </div>
@@ -183,6 +198,7 @@ function ll_save_processed_audio_handler() {
     }
 
     $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    $skip_review = isset($_POST['skip_review']) && $_POST['skip_review'] === '1';
 
     if (!$audio_post_id || !isset($_FILES['audio'])) {
         wp_send_json_error('Missing required data');
@@ -226,19 +242,82 @@ function ll_save_processed_audio_handler() {
         wp_normalize_path($filepath)
     );
 
-    // Update ONLY this specific word_audio post
+    // Update this specific word_audio post
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     delete_post_meta($audio_post_id, '_ll_needs_audio_processing');
     update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
-    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
-    // Don't update parent word's legacy field - that should use the prioritized audio
+    if ($skip_review) {
+        // Skip review - publish immediately
+        wp_update_post([
+            'ID'          => $audio_post_id,
+            'post_status' => 'publish',
+        ]);
+        delete_post_meta($audio_post_id, '_ll_needs_audio_review');
+
+        // Also publish the parent word post if it's still a draft
+        if ($parent_word->post_status === 'draft') {
+            wp_update_post([
+                'ID'          => $parent_word_id,
+                'post_status' => 'publish',
+            ]);
+        }
+
+        $message = 'Audio processed and published successfully';
+    } else {
+        // Send to review queue
+        update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
+        $message = 'Audio processed successfully and marked for review';
+    }
 
     wp_send_json_success([
-        'message' => 'Audio processed successfully and marked for review',
+        'message' => $message,
         'file_path' => $relative_path,
-        'audio_post_id' => $audio_post_id
+        'audio_post_id' => $audio_post_id,
+        'skip_review' => $skip_review
     ]);
+}
+
+/**
+ * AJAX handler to delete an audio recording
+ */
+add_action('wp_ajax_ll_delete_audio_recording', 'll_delete_audio_recording_handler');
+
+function ll_delete_audio_recording_handler() {
+    check_ajax_referer('ll_audio_processor', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error('Permission denied');
+    }
+
+    $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
+    if (!$audio_post_id) {
+        wp_send_json_error('Invalid post ID');
+    }
+
+    $audio_post = get_post($audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        wp_send_json_error('Invalid audio post');
+    }
+
+    // Delete the audio file from filesystem
+    $audio_file_path = get_post_meta($audio_post_id, 'audio_file_path', true);
+    if ($audio_file_path) {
+        $full_path = ABSPATH . ltrim($audio_file_path, '/');
+        if (file_exists($full_path)) {
+            @unlink($full_path);
+        }
+    }
+
+    // Delete the post
+    $deleted = wp_delete_post($audio_post_id, true);
+
+    if ($deleted) {
+        wp_send_json_success(['message' => 'Audio recording deleted']);
+    } else {
+        wp_send_json_error('Failed to delete audio recording');
+    }
 }
 
 /**
