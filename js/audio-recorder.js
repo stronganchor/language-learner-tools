@@ -201,14 +201,37 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            const options = { mimeType: 'audio/wav' };
-            if (!MediaRecorder.isTypeSupported('audio/wav')) {
-                if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
-                    options.mimeType = 'audio/webm;codecs=pcm';
-                } else {
-                    options.mimeType = 'audio/webm';
-                }
+            // Prioritize formats by audio processing quality
+            // Avoid Opus (generic webm) - causes issues with noise reduction/processing
+            const options = {};
+
+            // Best: uncompressed WAV (lossless, ideal for processing)
+            if (MediaRecorder.isTypeSupported('audio/wav')) {
+                options.mimeType = 'audio/wav';
             }
+            // Second best: WebM with PCM (lossless)
+            else if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
+                options.mimeType = 'audio/webm;codecs=pcm';
+            }
+            // Good: MP3 (lossy but mature codec, excellent tool support)
+            else if (MediaRecorder.isTypeSupported('audio/mpeg') || MediaRecorder.isTypeSupported('audio/mp3')) {
+                options.mimeType = MediaRecorder.isTypeSupported('audio/mpeg') ? 'audio/mpeg' : 'audio/mp3';
+            }
+            // iOS fallback: MP4 (usually AAC - lossy but good processing support)
+            else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                options.mimeType = 'audio/mp4';
+            }
+            // iOS alternate: AAC (good processing support)
+            else if (MediaRecorder.isTypeSupported('audio/aac')) {
+                options.mimeType = 'audio/aac';
+            }
+            // Note: We intentionally skip audio/webm (Opus) due to processing issues
+            else {
+                console.error('No suitable audio format supported by this browser');
+                throw new Error('Browser does not support required audio formats for recording');
+            }
+
+            console.log('Using MIME type:', options.mimeType);
 
             mediaRecorder = new MediaRecorder(stream, options);
 
@@ -228,7 +251,15 @@
 
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            showStatus(i18n.microphone_error || 'Error: Could not access microphone', 'error');
+            console.error('Error name:', err.name);
+            console.error('Error message:', err.message);
+
+            let errorMsg = i18n.microphone_error || 'Error: Could not access microphone';
+            if (err.message && err.message.includes('audio formats')) {
+                errorMsg = 'Browser does not support required audio formats for recording. Please try a different browser.';
+            }
+
+            showStatus(errorMsg, 'error');
         }
     }
 
@@ -360,10 +391,26 @@
         formData.append('include_types', includeTypes);
         formData.append('exclude_types', excludeTypes);
 
-        let extension = '.webm';
-        if (currentBlob.type.includes('wav')) extension = '.wav';
-        else if (currentBlob.type.includes('mp3')) extension = '.mp3';
-        else if (currentBlob.type.includes('pcm')) extension = '.wav';
+        // Extension detection - prioritize quality formats
+        let extension = '.wav';
+        const blobType = currentBlob.type.toLowerCase();
+        if (blobType.includes('wav')) {
+            extension = '.wav';
+        } else if (blobType.includes('pcm')) {
+            extension = '.wav';  // PCM is essentially WAV data
+        } else if (blobType.includes('mpeg') || blobType.includes('mp3')) {
+            extension = '.mp3';
+        } else if (blobType.includes('mp4')) {
+            extension = '.mp4';
+        } else if (blobType.includes('aac')) {
+            extension = '.aac';
+        } else {
+            // Shouldn't reach here based on our format selection
+            console.warn('Unexpected blob type:', currentBlob.type);
+            extension = '.webm';  // Fallback just in case
+        }
+
+        console.log('Blob type:', currentBlob.type, 'Extension:', extension);
         formData.append('audio', currentBlob, `${img.title}${extension}`);
 
         try {

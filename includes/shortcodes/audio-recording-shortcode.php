@@ -990,10 +990,13 @@ function ll_handle_recording_upload() {
     $timestamp   = time();
 
     $mime_type = $file['type'] ?? '';
-    $extension = '.webm';
+    $extension = '.wav';
     if (strpos($mime_type, 'wav') !== false)       { $extension = '.wav'; }
-    elseif (strpos($mime_type, 'mp3') !== false)   { $extension = '.mp3'; }
     elseif (strpos($mime_type, 'pcm') !== false)   { $extension = '.wav'; }
+    elseif (strpos($mime_type, 'mpeg') !== false || strpos($mime_type, 'mp3') !== false) { $extension = '.mp3'; }
+    elseif (strpos($mime_type, 'mp4') !== false)   { $extension = '.mp4'; }
+    elseif (strpos($mime_type, 'aac') !== false)   { $extension = '.aac'; }
+    else { $extension = '.webm'; } // Shouldn't happen, but failsafe
 
     $filename = $image_title . '_' . $timestamp . $extension;
     $filepath = trailingslashit($upload_dir['path']) . $filename;
