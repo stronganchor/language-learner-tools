@@ -57,6 +57,15 @@
     margin: 0;
 }
 
+.ll-review-thumbnail {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    flex-shrink: 0;
+}
+
 .ll-file-options {
     display: flex;
     gap: 15px;
