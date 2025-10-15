@@ -1,5 +1,5 @@
 .ll-recording-interface {
-    max-width: 900px;
+    max-width: 1100px !important;
     margin: 2rem auto;
     padding: 1rem;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -123,6 +123,7 @@
     flex-direction: column;
     gap: 1rem;
     min-width: 220px;
+    max-width: 350px;
     align-items: center;
     justify-content: flex-start;
     position: relative;
@@ -130,7 +131,7 @@
 
 .ll-recording-type-selector {
     width: 100%;
-    max-width: 320px;
+    max-width: 280px;
 }
 
 .ll-recording-type-selector label {
@@ -439,7 +440,6 @@
 
     .ll-recording-controls-column {
         width: 100%;
-        max-width: 400px;
     }
 
     .ll-recording-type-selector {
