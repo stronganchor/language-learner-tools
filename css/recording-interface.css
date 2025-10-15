@@ -176,44 +176,60 @@
     justify-content: center;
 }
 
-.ll-btn {
-    border: none;
+.ll-recording-interface .ll-btn {
+    border: none !important;
     cursor: pointer;
     transition: all 0.2s;
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
+    box-shadow: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-weight: normal !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    background-image: none !important;
+    outline: none !important;
 }
 
-.ll-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.ll-recording-interface .ll-btn:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
 }
 
-.ll-btn-record {
-    background: #e74c3c;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+.ll-recording-interface .ll-btn:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.3) !important;
 }
 
-.ll-btn-record:hover:not(:disabled) {
-    background: #c0392b;
+.ll-recording-interface .ll-btn-record {
+    background: #e74c3c !important;
+    width: 80px !important;
+    height: 80px !important;
+    min-width: 80px !important;
+    min-height: 80px !important;
+    border-radius: 50% !important;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
+    padding: 0 !important;
+}
+
+.ll-recording-interface .ll-btn-record:hover:not(:disabled) {
+    background: #c0392b !important;
     transform: scale(1.05);
 }
 
-.ll-btn-record.recording {
-    background: #27ae60;
+.ll-recording-interface .ll-btn-record.recording {
+    background: #27ae60 !important;
     animation: pulse 1.5s infinite;
 }
 
-.ll-btn-record svg {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    fill: white;
+.ll-recording-interface .ll-btn-record svg {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    fill: white !important;
     flex-shrink: 0;
 }
 
@@ -229,56 +245,72 @@
     }
 }
 
-.ll-btn-skip {
-    background: #95a5a6;
-    color: white;
-    padding: 0.75rem 1.25rem;
-    border-radius: 8px;
-    font-size: 0.9rem;
+.ll-recording-interface .ll-btn-skip {
+    background: #95a5a6 !important;
+    color: white !important;
+    padding: 0.75rem 1.25rem !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
 }
 
-.ll-btn-skip svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
+.ll-recording-interface .ll-btn-skip svg {
+    width: 20px !important;
+    height: 20px !important;
+    fill: white !important;
 }
 
-.ll-btn-skip:hover:not(:disabled) {
-    background: #7f8c8d;
+.ll-recording-interface .ll-btn-skip:hover:not(:disabled) {
+    background: #7f8c8d !important;
 }
 
-.ll-btn-primary {
-    background: #27ae60;
-    color: white;
-    padding: 0.875rem 1.75rem;
-    border-radius: 8px;
+.ll-recording-interface .ll-btn-primary {
+    background: #27ae60 !important;
+    color: white !important;
+    padding: 0.875rem 1.75rem !important;
+    border-radius: 8px !important;
 }
 
-.ll-btn-primary svg {
-    width: 24px;
-    height: 24px;
-    fill: white;
+.ll-recording-interface .ll-btn-primary svg {
+    width: 24px !important;
+    height: 24px !important;
+    fill: white !important;
 }
 
-.ll-btn-primary:hover:not(:disabled) {
-    background: #229954;
+.ll-recording-interface .ll-btn-primary:hover:not(:disabled) {
+    background: #229954 !important;
 }
 
-.ll-btn-secondary {
-    background: #f39c12;
-    color: white;
-    padding: 0.875rem 1.75rem;
-    border-radius: 8px;
+.ll-recording-interface .ll-btn-secondary {
+    background: #f39c12 !important;
+    color: white !important;
+    padding: 0.875rem 1.75rem !important;
+    border-radius: 8px !important;
 }
 
-.ll-btn-secondary svg {
-    width: 24px;
-    height: 24px;
-    fill: white;
+.ll-recording-interface .ll-btn-secondary svg {
+    width: 24px !important;
+    height: 24px !important;
+    fill: white !important;
 }
 
-.ll-btn-secondary:hover:not(:disabled) {
-    background: #d68910;
+.ll-recording-interface .ll-btn-secondary:hover:not(:disabled) {
+    background: #d68910 !important;
+}
+
+.ll-recording-interface .ll-next-category-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.ll-recording-interface .ll-next-category-btn svg {
+    flex-shrink: 0;
+}
+
+.ll-recording-interface .ll-next-category-btn:hover:not(:disabled) svg {
+    transform: translateX(4px);
+    transition: transform 0.2s ease;
 }
 
 .ll-recording-indicator {
@@ -491,9 +523,11 @@
         font-size: 1.1rem;
     }
 
-    .ll-btn-record {
-        width: 70px;
-        height: 70px;
+    .ll-recording-interface .ll-btn-record {
+        width: 70px !important;
+        height: 70px !important;
+        min-width: 70px !important;
+        min-height: 70px !important;
     }
 
     .ll-playback-actions {
@@ -501,8 +535,8 @@
         gap: 0.5rem;
     }
 
-    .ll-btn-primary,
-    .ll-btn-secondary {
+    .ll-recording-interface .ll-btn-primary,
+    .ll-recording-interface .ll-btn-secondary {
         width: 100%;
     }
 }
