@@ -481,7 +481,7 @@
 
                 // Reset and load first image
                 if (el.completeScreen) el.completeScreen.style.display = 'none';
-                if (el.mainScreen) el.mainScreen.style.display = 'block';
+                if (el.mainScreen) el.mainScreen.style.display = 'flex';
                 loadImage(0);
 
                 showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
