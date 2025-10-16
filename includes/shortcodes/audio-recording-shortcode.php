@@ -287,10 +287,14 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
 
     $image_posts = get_posts($args);
     $categories = [];
+
+    // Get all recording types and apply filters
     $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
     if (is_wp_error($all_types)) $all_types = [];
+
     $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
     $exclude_types = !empty($exclude_types_csv) ? array_map('trim', explode(',', $exclude_types_csv)) : [];
+
     $filtered_types = $all_types;
     if (!empty($include_types)) {
         $filtered_types = array_intersect($filtered_types, $include_types);
@@ -298,10 +302,24 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         $filtered_types = array_diff($filtered_types, $exclude_types);
     }
 
+    // If no recording types available, nothing to record
+    if (empty($filtered_types)) {
+        return $categories;
+    }
+
     foreach ($image_posts as $img_id) {
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
-        // Removed the skip condition so all qualifying images are considered (words are created during recording if needed)
-        $missing = $word_id ? ll_get_missing_recording_types_for_word($word_id, $filtered_types) : $filtered_types;
+
+        // Determine what recording types are missing for this image
+        if (!$word_id) {
+            // NO WORD POST EXISTS: This image needs ALL recording types
+            $missing = $filtered_types;
+        } else {
+            // Word post exists: Check which recording types are missing
+            $missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+        }
+
+        // If there are missing recording types, include this image's categories
         if (!empty($missing)) {
             $terms = wp_get_post_terms($img_id, 'word-category');
             if (!is_wp_error($terms) && !empty($terms)) {
@@ -311,6 +329,7 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
             }
         }
     }
+
     asort($categories);
     return $categories;
 }
