@@ -350,75 +350,102 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
             admin_url('post-new.php?post_type=word_images'),
             __('Create a word image', 'll-tools-text-domain')
         );
-    } else {
-        // Check if images have featured images set
-        $args = [
-            'post_type' => 'word_images',
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'fields' => 'ids',
-        ];
+        return '<p>' . implode('</p><p>', $messages) . '</p>';
+    }
 
-        $all_image_ids = get_posts($args);
-        $images_with_thumbnails = 0;
-        $images_with_categories = 0;
+    // Check what's actually being looked for by the recording interface
+    $args = [
+        'post_type' => 'word_images',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'meta_query' => [
+            [
+                'key' => '_thumbnail_id',
+                'compare' => 'EXISTS',
+            ],
+        ],
+    ];
 
-        foreach ($all_image_ids as $img_id) {
-            if (get_the_post_thumbnail_url($img_id)) {
-                $images_with_thumbnails++;
-            }
+    $images_with_featured = get_posts($args);
 
-            $categories = wp_get_post_terms($img_id, 'word-category');
-            if (!is_wp_error($categories) && !empty($categories)) {
-                $images_with_categories++;
-            }
-        }
+    if (empty($images_with_featured)) {
+        $messages[] = sprintf(
+            __('You have %d word image(s), but none have a featured image set.', 'll-tools-text-domain'),
+            $published_images
+        );
+        $messages[] = __('<strong>To fix this:</strong> Edit each word image and set a featured image using the "Featured Image" panel on the right side of the editor.', 'll-tools-text-domain');
+        $messages[] = sprintf(
+            '<a href="%s" class="button button-primary">%s</a>',
+            admin_url('edit.php?post_type=word_images'),
+            __('Edit Word Images', 'll-tools-text-domain')
+        );
+        return '<p>' . implode('</p><p>', $messages) . '</p>';
+    }
 
-        if ($images_with_thumbnails === 0) {
-            $messages[] = __('You have word images, but none of them have featured images set.', 'll-tools-text-domain');
-            $messages[] = __('Please set a featured image for each word image post.', 'll-tools-text-domain');
-            $messages[] = sprintf(
-                '<a href="%s">%s</a>',
-                admin_url('edit.php?post_type=word_images'),
-                __('Edit word images', 'll-tools-text-domain')
-            );
-        } elseif ($images_with_categories === 0) {
-            $messages[] = __('You have word images with featured images, but none are assigned to any word categories.', 'll-tools-text-domain');
-            $messages[] = __('Please assign your word images to word categories.', 'll-tools-text-domain');
-            $messages[] = sprintf(
-                '<a href="%s">%s</a>',
-                admin_url('edit.php?post_type=word_images'),
-                __('Edit word images', 'll-tools-text-domain')
-            );
-        } else {
-            // Check recording types
-            $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
-            if (is_wp_error($all_types) || empty($all_types)) {
-                $messages[] = __('No recording types are configured.', 'll-tools-text-domain');
-                $messages[] = sprintf(
-                    '<a href="%s">%s</a>',
-                    admin_url('tools.php?page=ll-recording-types'),
-                    __('Set up recording types', 'll-tools-text-domain')
-                );
-            } else {
-                $messages[] = sprintf(
-                    __('You have %d word images with featured images and categories, but none need recordings for the selected wordset/filters.', 'll-tools-text-domain'),
-                    $images_with_categories
-                );
+    // Check if any have categories
+    $images_with_categories = 0;
+    $sample_categories = [];
 
-                if (!empty($wordset_term_ids)) {
-                    $wordset = get_term($wordset_term_ids[0], 'wordset');
-                    if ($wordset && !is_wp_error($wordset)) {
-                        $messages[] = sprintf(__('Current wordset: %s', 'll-tools-text-domain'), $wordset->name);
-                    }
+    foreach ($images_with_featured as $img_id) {
+        $categories = wp_get_post_terms($img_id, 'word-category');
+        if (!is_wp_error($categories) && !empty($categories)) {
+            $images_with_categories++;
+            if (count($sample_categories) < 3) {
+                foreach ($categories as $cat) {
+                    $sample_categories[$cat->slug] = $cat->name;
                 }
             }
         }
     }
 
-    if (empty($messages)) {
-        $messages[] = __('No categories available for audio recordings at this time. Thank you!', 'll-tools-text-domain');
+    if ($images_with_categories === 0) {
+        $messages[] = sprintf(
+            __('You have %d word image(s) with featured images, but none are assigned to any word categories.', 'll-tools-text-domain'),
+            count($images_with_featured)
+        );
+        $messages[] = __('<strong>To fix this:</strong> Edit each word image and assign it to at least one word category.', 'll-tools-text-domain');
+        $messages[] = sprintf(
+            '<a href="%s" class="button button-primary">%s</a>',
+            admin_url('edit.php?post_type=word_images'),
+            __('Edit Word Images', 'll-tools-text-domain')
+        );
+        return '<p>' . implode('</p><p>', $messages) . '</p>';
     }
+
+    // At this point we have images with featured images and categories
+    // Check recording types
+    $all_types = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+        'fields' => 'slugs'
+    ]);
+
+    if (is_wp_error($all_types) || empty($all_types)) {
+        $messages[] = __('No recording types are configured in your system.', 'll-tools-text-domain');
+        $messages[] = sprintf(
+            '<a href="%s" class="button button-primary">%s</a>',
+            admin_url('tools.php?page=ll-recording-types'),
+            __('Set Up Recording Types', 'll-tools-text-domain')
+        );
+        return '<p>' . implode('</p><p>', $messages) . '</p>';
+    }
+
+    // Everything looks good but still no categories showing
+    $messages[] = sprintf(
+        __('You have %d word image(s) with featured images in categories (%s), but all images in the selected wordset already have recordings.', 'll-tools-text-domain'),
+        $images_with_categories,
+        implode(', ', array_slice($sample_categories, 0, 3)) . (count($sample_categories) > 3 ? '...' : '')
+    );
+
+    if (!empty($wordset_term_ids)) {
+        $wordset = get_term($wordset_term_ids[0], 'wordset');
+        if ($wordset && !is_wp_error($wordset)) {
+            $messages[] = sprintf(__('Current wordset filter: <strong>%s</strong>', 'll-tools-text-domain'), $wordset->name);
+        }
+    }
+
+    $messages[] = __('This means all available images already have the required recording types. Great work!', 'll-tools-text-domain');
 
     return '<p>' . implode('</p><p>', $messages) . '</p>';
 }
