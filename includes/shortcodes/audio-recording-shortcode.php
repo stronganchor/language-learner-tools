@@ -288,7 +288,7 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
     $categories = [];
 
     // Get all recording types and apply filters
-    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
     if (is_wp_error($all_types)) $all_types = [];
 
     $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
@@ -539,7 +539,7 @@ function ll_verify_recording_handler() {
     }
 
     // Rebuild filtered type list just like the UI
-    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
     if (is_wp_error($all_types) || empty($all_types)) { $all_types = []; }
 
     $inc = $include_types ? array_map('trim', explode(',', $include_types)) : [];
@@ -1020,7 +1020,7 @@ function ll_skip_recording_type_handler() {
     $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
 
-    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
     if (is_wp_error($all_types) || empty($all_types)) { $all_types = []; }
 
     $include_types = $include_types_csv ? array_map('trim', explode(',', $include_types_csv)) : [];
@@ -1099,7 +1099,7 @@ function ll_handle_recording_upload() {
     $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
 
-    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
     if (is_wp_error($all_types) || empty($all_types)) { $all_types = []; }
 
     $include_types = $include_types_csv ? array_map('trim', explode(',', $include_types_csv)) : [];
