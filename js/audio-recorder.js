@@ -287,6 +287,7 @@
 
         el.playbackAudio.src = url;
         el.recordBtn.style.display = 'none';
+        el.recordBtn.disabled = true;
         el.indicator.style.display = 'none';
         el.playbackControls.style.display = 'block';
         el.skipBtn.disabled = false;
