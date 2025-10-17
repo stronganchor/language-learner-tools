@@ -104,6 +104,10 @@
                 const btn = e.target.classList.contains('ll-delete-review-btn') ? e.target : e.target.closest('.ll-delete-review-btn');
                 const postId = parseInt(btn.dataset.postId);
                 deleteReviewRecording(postId);
+            } else if (e.target.classList.contains('ll-delete-recording') || e.target.closest('.ll-delete-recording')) {
+                const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
+                const postId = parseInt(btn.dataset.id);
+                deleteRecording(postId, btn);
             }
         });
 
@@ -119,21 +123,6 @@
                         updateProcessedAudio(postId, data);
                     }
                 }
-            }
-        });
-
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'll-save-all') {
-                saveAllProcessedAudio();
-            } else if (e.target.id === 'll-cancel-review') {
-                cancelReview();
-            } else if (e.target.classList.contains('ll-reprocess-btn')) {
-                const postId = parseInt(e.target.dataset.postId);
-                reprocessSingleFile(postId);
-            } else if (e.target.classList.contains('ll-delete-recording') || e.target.closest('.ll-delete-recording')) {
-                const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
-                const postId = parseInt(btn.dataset.id);
-                deleteRecording(postId, btn);
             }
         });
     }
@@ -393,34 +382,52 @@
 
         container.innerHTML = '';
 
-        // Add global skip review option
-        const globalOptions = document.createElement('div');
-        globalOptions.className = 'll-review-global-options';
-        globalOptions.innerHTML = `
-            <label class="ll-skip-all-review">
-                <input type="checkbox" id="ll-skip-all-review-checkbox">
-                <strong>Skip review for all files and publish immediately</strong>
-            </label>
-        `;
-        container.appendChild(globalOptions);
+        const globalOptionsTop = document.createElement('div');
+        globalOptionsTop.className = 'll-review-global-options';
+        globalOptionsTop.innerHTML = `
+        <label class="ll-skip-all-review">
+            <input type="checkbox" id="ll-skip-all-review-checkbox">
+            <strong>Skip review for all files and publish immediately</strong>
+        </label>
+    `;
+        container.appendChild(globalOptionsTop);
 
         state.reviewData.forEach((data, postId) => {
             const fileDiv = createReviewFileElement(postId, data);
             container.appendChild(fileDiv);
         });
 
-        // Handle "skip all" checkbox
-        const skipAllCheckbox = document.getElementById('ll-skip-all-review-checkbox');
-        if (skipAllCheckbox) {
-            skipAllCheckbox.addEventListener('change', (e) => {
+        const globalOptionsBottom = document.createElement('div');
+        globalOptionsBottom.className = 'll-review-global-options';
+        globalOptionsBottom.innerHTML = `
+        <label class="ll-skip-all-review">
+            <input type="checkbox" id="ll-skip-all-review-checkbox-bottom">
+            <strong>Skip review for all files and publish immediately</strong>
+        </label>
+    `;
+        container.appendChild(globalOptionsBottom);
+
+        const skipAllCheckboxTop = document.getElementById('ll-skip-all-review-checkbox');
+        const skipAllCheckboxBottom = document.getElementById('ll-skip-all-review-checkbox-bottom');
+
+        if (skipAllCheckboxTop && skipAllCheckboxBottom) {
+            skipAllCheckboxTop.addEventListener('change', (e) => {
                 const checked = e.target.checked;
+                skipAllCheckboxBottom.checked = checked;
+                document.querySelectorAll('.ll-file-skip-review').forEach(cb => {
+                    cb.checked = checked;
+                });
+            });
+
+            skipAllCheckboxBottom.addEventListener('change', (e) => {
+                const checked = e.target.checked;
+                skipAllCheckboxTop.checked = checked;
                 document.querySelectorAll('.ll-file-skip-review').forEach(cb => {
                     cb.checked = checked;
                 });
             });
         }
 
-        // Hide the initial selection interface
         const recordingsList = document.querySelector('.ll-recordings-list');
         const processorControls = document.querySelector('.ll-processor-controls');
         const processingOptions = document.querySelector('.ll-processing-options');
