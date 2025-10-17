@@ -148,6 +148,7 @@
                         correctAudio.onended = null;
                         correctAudio.onerror = null;
                         correctAudio.oncanplaythrough = null;
+                        correctAudio.ontimeupdate = null;
                     } catch (e) { }
                 }
                 if (wrongAudio) {
@@ -158,6 +159,7 @@
                         wrongAudio.onended = null;
                         wrongAudio.onerror = null;
                         wrongAudio.oncanplaythrough = null;
+                        wrongAudio.ontimeupdate = null;
                     } catch (e) { }
                 }
 
@@ -169,13 +171,58 @@
                         currentTargetAudio.onended = null;
                         currentTargetAudio.onerror = null;
                         currentTargetAudio.ontimeupdate = null;
+                        currentTargetAudio.onloadstart = null;
+                        currentTargetAudio.oncanplaythrough = null;
                     } catch (e) { }
                 }
                 currentTargetAudio = null;
                 targetAudioHasPlayed = false;
 
-                // Proactively remove any <audio> elements we created inside the widget
-                try { jQuery && jQuery('#ll-tools-flashcard audio').remove(); } catch (e) { }
+                // Aggressively remove ALL <audio> elements from multiple potential locations
+                try {
+                    if (jQuery) {
+                        // Remove from main flashcard container
+                        jQuery('#ll-tools-flashcard audio').each(function () {
+                            try {
+                                this.pause();
+                                this.currentTime = 0;
+                                this.onended = null;
+                                this.onerror = null;
+                                this.ontimeupdate = null;
+                                this.onloadstart = null;
+                                this.oncanplaythrough = null;
+                            } catch (e) { }
+                        }).remove();
+
+                        // Remove from content wrapper
+                        jQuery('#ll-tools-flashcard-content audio').each(function () {
+                            try {
+                                this.pause();
+                                this.currentTime = 0;
+                                this.onended = null;
+                                this.onerror = null;
+                                this.ontimeupdate = null;
+                                this.onloadstart = null;
+                                this.oncanplaythrough = null;
+                            } catch (e) { }
+                        }).remove();
+
+                        // Remove from entire popup container as last resort
+                        jQuery('#ll-tools-flashcard-popup audio').each(function () {
+                            try {
+                                this.pause();
+                                this.currentTime = 0;
+                                this.onended = null;
+                                this.onerror = null;
+                                this.ontimeupdate = null;
+                                this.onloadstart = null;
+                                this.oncanplaythrough = null;
+                            } catch (e) { }
+                        }).remove();
+                    }
+                } catch (e) {
+                    console.error('Error removing audio elements:', e);
+                }
 
             } catch (e) {
                 // no-op; we never want a reset failure to break the UI

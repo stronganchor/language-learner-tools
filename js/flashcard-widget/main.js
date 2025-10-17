@@ -421,6 +421,16 @@
             function handleEnd() {
                 clearTimeout(watchdog);
 
+                // Clean up the audio object immediately
+                try {
+                    audio.pause();
+                    audio.onended = null;
+                    audio.onerror = null;
+                    audio.ontimeupdate = null;
+                    audio.onloadstart = null;
+                    audio.src = '';
+                } catch (e) { }
+
                 // Increment introduction progress after each repetition
                 State.wordIntroductionProgress[currentWord.id] =
                     (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
@@ -515,6 +525,13 @@
     }
 
     function closeFlashcard() {
+        // CRITICAL: Stop and clean up ALL audio first to prevent rogue playback
+        try {
+            root.FlashcardAudio.resetAudioState();
+        } catch (e) {
+            console.error('Error resetting audio state:', e);
+        }
+
         if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
             root.LLFlashcards.Results.hideResults();
         }
