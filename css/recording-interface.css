@@ -540,3 +540,32 @@
         width: 100%;
     }
 }
+
+.ll-diagnostic-message {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 600px;
+}
+
+.ll-diagnostic-message p {
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+.ll-diagnostic-message p:first-child {
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.ll-diagnostic-message a {
+    color: #0073aa;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ll-diagnostic-message a:hover {
+    text-decoration: underline;
+}

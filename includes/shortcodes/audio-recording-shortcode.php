@@ -57,11 +57,10 @@ function ll_audio_recording_interface_shortcode($atts) {
     // Get available categories for the wordset
     $available_categories = ll_get_categories_for_wordset($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
 
-    // If no categories available, no point showing
+    // If no categories available, provide helpful diagnostics
     if (empty($available_categories)) {
-        return '<div class="ll-recording-interface"><p>' .
-               __('No categories available for audio recordings at this time. Thank you!', 'll-tools-text-domain') .
-               '</p></div>';
+        $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+        return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
     }
 
     // Get images for the initial category (or first if none specified)
@@ -332,6 +331,96 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
 
     asort($categories);
     return $categories;
+}
+
+/**
+ * Diagnose why no categories are available and provide helpful feedback
+ */
+function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclude_types_csv) {
+    $messages = [];
+
+    // Check if any word_images posts exist at all
+    $total_images = wp_count_posts('word_images');
+    $published_images = $total_images->publish ?? 0;
+
+    if ($published_images === 0) {
+        $messages[] = __('No word images have been created yet. Please create some word images first.', 'll-tools-text-domain');
+        $messages[] = sprintf(
+            '<a href="%s">%s</a>',
+            admin_url('post-new.php?post_type=word_images'),
+            __('Create a word image', 'll-tools-text-domain')
+        );
+    } else {
+        // Check if images have featured images set
+        $args = [
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ];
+
+        $all_image_ids = get_posts($args);
+        $images_with_thumbnails = 0;
+        $images_with_categories = 0;
+
+        foreach ($all_image_ids as $img_id) {
+            if (get_the_post_thumbnail_url($img_id)) {
+                $images_with_thumbnails++;
+            }
+
+            $categories = wp_get_post_terms($img_id, 'word-category');
+            if (!is_wp_error($categories) && !empty($categories)) {
+                $images_with_categories++;
+            }
+        }
+
+        if ($images_with_thumbnails === 0) {
+            $messages[] = __('You have word images, but none of them have featured images set.', 'll-tools-text-domain');
+            $messages[] = __('Please set a featured image for each word image post.', 'll-tools-text-domain');
+            $messages[] = sprintf(
+                '<a href="%s">%s</a>',
+                admin_url('edit.php?post_type=word_images'),
+                __('Edit word images', 'll-tools-text-domain')
+            );
+        } elseif ($images_with_categories === 0) {
+            $messages[] = __('You have word images with featured images, but none are assigned to any word categories.', 'll-tools-text-domain');
+            $messages[] = __('Please assign your word images to word categories.', 'll-tools-text-domain');
+            $messages[] = sprintf(
+                '<a href="%s">%s</a>',
+                admin_url('edit.php?post_type=word_images'),
+                __('Edit word images', 'll-tools-text-domain')
+            );
+        } else {
+            // Check recording types
+            $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs']);
+            if (is_wp_error($all_types) || empty($all_types)) {
+                $messages[] = __('No recording types are configured.', 'll-tools-text-domain');
+                $messages[] = sprintf(
+                    '<a href="%s">%s</a>',
+                    admin_url('tools.php?page=ll-recording-types'),
+                    __('Set up recording types', 'll-tools-text-domain')
+                );
+            } else {
+                $messages[] = sprintf(
+                    __('You have %d word images with featured images and categories, but none need recordings for the selected wordset/filters.', 'll-tools-text-domain'),
+                    $images_with_categories
+                );
+
+                if (!empty($wordset_term_ids)) {
+                    $wordset = get_term($wordset_term_ids[0], 'wordset');
+                    if ($wordset && !is_wp_error($wordset)) {
+                        $messages[] = sprintf(__('Current wordset: %s', 'll-tools-text-domain'), $wordset->name);
+                    }
+                }
+            }
+        }
+    }
+
+    if (empty($messages)) {
+        $messages[] = __('No categories available for audio recordings at this time. Thank you!', 'll-tools-text-domain');
+    }
+
+    return '<p>' . implode('</p><p>', $messages) . '</p>';
 }
 
 /**
