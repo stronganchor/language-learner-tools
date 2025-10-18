@@ -204,7 +204,7 @@ function ll_handle_audio_file_uploads() {
         if ($match_existing_posts) {
             $existing_post = ll_find_post_by_exact_title($formatted_title);
             if ($existing_post) {
-                ll_update_existing_post_audio($existing_post->ID, $relative_upload_path);
+                ll_update_existing_post_audio($existing_post->ID, $relative_upload_path, $_POST);
                 $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
             } else {
                 $failed_matches[] = $original_name . ' (No matching post found)';
@@ -358,13 +358,66 @@ function ll_format_title( $original_name ) {
 }
 
 /**
- * Updates the audio file metadata for an existing post.
+ * Updates (legacy) audio and, critically, CREATES a word_audio child in the new paradigm.
  *
- * @param int    $post_id Post ID.
- * @param string $relative_path Relative path to the audio file.
+ * @param int    $post_id        Parent words post ID.
+ * @param string $relative_path  Relative path to the uploaded audio file.
+ * @param array  $post_data      (Optional) $_POST from the form for speaker/type.
  */
-function ll_update_existing_post_audio($post_id, $relative_path) {
-    update_post_meta($post_id, 'word_audio_file', $relative_path);
+function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []) {
+    // Speaker assignment (same logic as create-new path)
+    $speaker_assignment = isset($post_data['ll_speaker_assignment']) ? $post_data['ll_speaker_assignment'] : 'current';
+    $speaker_user_id = null;
+    if ($speaker_assignment === 'current') {
+        $speaker_user_id = get_current_user_id();
+    } elseif ($speaker_assignment === 'unassigned') {
+        $speaker_user_id = null;
+    } elseif (is_numeric($speaker_assignment)) {
+        $speaker_user_id = (int) $speaker_assignment;
+    }
+
+    // Recording type (default to isolation)
+    $recording_type = isset($post_data['ll_recording_type'])
+        ? sanitize_text_field($post_data['ll_recording_type'])
+        : 'isolation';
+
+    // Create the word_audio child post
+    $audio_post_args = [
+        'post_title'  => get_the_title($post_id),
+        'post_type'   => 'word_audio',
+        'post_status' => 'draft',
+        'post_parent' => $post_id,
+    ];
+    if ($speaker_user_id) {
+        $audio_post_args['post_author'] = $speaker_user_id;
+    }
+
+    $audio_post_id = wp_insert_post($audio_post_args);
+    if (is_wp_error($audio_post_id)) {
+        // Keep old behavior as a last resort: write legacy meta so upload isn’t lost
+        update_post_meta($post_id, 'word_audio_file', $relative_path);
+        update_post_meta($post_id, '_ll_needs_audio_review', '1');
+        return;
+    }
+
+    // Store file + review flags on the word_audio child
+    update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+    if ($speaker_user_id) {
+        update_post_meta($audio_post_id, 'speaker_user_id', $speaker_user_id);
+    }
+    update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
+    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
+
+    if (!empty($recording_type)) {
+        wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
+    }
+
+    // Optional back-compat: only mirror to legacy meta for isolation recordings
+    if ($recording_type === 'isolation') {
+        update_post_meta($post_id, 'word_audio_file', $relative_path);
+    }
+    update_post_meta($post_id, '_ll_needs_audio_review', '1');
 }
 
 /**
