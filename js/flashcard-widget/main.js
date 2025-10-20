@@ -228,6 +228,8 @@
                     showLoadingError();
                     return;
                 }
+                // Quiz is ending - cancel any active introductions
+                State.cancelActiveIntroductions();
                 Results.showResults();
                 return;
             }
@@ -254,6 +256,8 @@
                         return;
                     }
                 }
+                // Quiz is ending - cancel any active introductions
+                State.cancelActiveIntroductions();
                 Results.showResults();
                 return;
             }
@@ -305,6 +309,9 @@
     }
 
     function handleWordIntroduction(words) {
+        // Cancel any active introduction sequences before starting a new one
+        State.cancelActiveIntroductions();
+
         // Ensure words is an array
         const wordsArray = Array.isArray(words) ? words : [words];
 
@@ -345,9 +352,9 @@
                     // Both types available - randomly choose one of two patterns
                     const useIntroFirst = Math.random() < 0.5;
                     if (useIntroFirst) {
-                        audioPattern = [introAudio, isoAudio, introAudio]; // intro-iso-intro
+                        audioPattern = [introAudio, isoAudio, introAudio];
                     } else {
-                        audioPattern = [isoAudio, introAudio, isoAudio]; // iso-intro-iso
+                        audioPattern = [isoAudio, introAudio, isoAudio];
                     }
                 } else {
                     // Only one type available - use it 3 times
@@ -365,16 +372,26 @@
             Dom.hideLoading();
             $('.flashcard-container').fadeIn(600);
 
+            // Mark that we're starting an introduction sequence
+            State.isIntroductionSequenceRunning = true;
+
             // Wait for fade-in to complete, then start the audio sequence
-            setTimeout(() => {
+            const startTimer = setTimeout(() => {
                 playIntroductionSequence(wordsArray, 0, 0);
             }, 650);
+            State.activeIntroductionTimers.push(startTimer);
         });
     }
 
     function playIntroductionSequence(words, wordIndex, repetition) {
+        // Check if we should abort (e.g., quiz was closed)
+        if (!State.isIntroductionSequenceRunning) {
+            return;
+        }
+
         if (wordIndex >= words.length) {
             // All words have been introduced with all repetitions
+            State.isIntroductionSequenceRunning = false;
             Dom.enableRepeatButton();
 
             // Automatically proceed to quiz without waiting for click
@@ -383,9 +400,12 @@
 
             State.isIntroducingWord = false;
 
-            setTimeout(function () {
-                startQuizRound();
+            const continueTimer = setTimeout(function () {
+                if (State.widgetActive) {  // Only continue if quiz is still active
+                    startQuizRound();
+                }
             }, 300);
+            State.activeIntroductionTimers.push(continueTimer);
             return;
         }
 
@@ -397,7 +417,12 @@
         $currentCard.addClass('introducing-active');
 
         // Small delay to ensure CSS updates, then play audio
-        setTimeout(() => {
+        const delayTimer = setTimeout(() => {
+            // Check again before playing audio
+            if (!State.isIntroductionSequenceRunning) {
+                return;
+            }
+
             // Get the audio pattern for this word
             const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
             const audioUrl = audioPattern[repetition] || audioPattern[0];
@@ -405,12 +430,19 @@
             // Create & play the audio
             const audio = new Audio(audioUrl);
 
-            // Watchdog in case onended never fires (bad file metadata, etc.)
-            const WATCHDOG_MAX_MS = 15000; // hard cap so we don't get stuck forever
+            // Track this audio object so we can clean it up if needed
+            State.activeIntroductionAudios.push(audio);
+
+            // Watchdog in case onended never fires
+            const WATCHDOG_MAX_MS = 15000;
             const watchdog = setTimeout(() => {
+                if (!State.isIntroductionSequenceRunning) {
+                    return;
+                }
                 try { audio.pause(); } catch (e) { }
                 handleEnd();
             }, WATCHDOG_MAX_MS);
+            State.activeIntroductionTimers.push(watchdog);
 
             audio.onended = handleEnd;
             audio.onerror = handleEnd;
@@ -419,7 +451,18 @@
             try { audio.play(); } catch (e) { handleEnd(); }
 
             function handleEnd() {
+                // Check if we should still continue
+                if (!State.isIntroductionSequenceRunning) {
+                    return;
+                }
+
                 clearTimeout(watchdog);
+
+                // Remove this audio from tracking
+                const audioIndex = State.activeIntroductionAudios.indexOf(audio);
+                if (audioIndex > -1) {
+                    State.activeIntroductionAudios.splice(audioIndex, 1);
+                }
 
                 // Clean up the audio object immediately
                 try {
@@ -448,9 +491,10 @@
                     $currentCard.removeClass('introducing-active');
 
                     // Add deliberate silence gap before replaying this word
-                    setTimeout(() => {
+                    const gapTimer = setTimeout(() => {
                         playIntroductionSequence(words, wordIndex, repetition + 1);
                     }, INTRO_GAP_MS);
+                    State.activeIntroductionTimers.push(gapTimer);
 
                 } else {
                     // This word's introduction is complete - mark it as introduced NOW
@@ -459,12 +503,14 @@
                     }
 
                     // Move to the NEXT word after a slightly longer pause
-                    setTimeout(() => {
+                    const nextWordTimer = setTimeout(() => {
                         playIntroductionSequence(words, wordIndex + 1, 0);
                     }, INTRO_WORD_GAP_MS);
+                    State.activeIntroductionTimers.push(nextWordTimer);
                 }
             }
         }, 100);
+        State.activeIntroductionTimers.push(delayTimer);
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
@@ -525,6 +571,9 @@
     }
 
     function closeFlashcard() {
+        // CRITICAL: Cancel any active introductions first
+        State.cancelActiveIntroductions();
+
         // CRITICAL: Stop and clean up ALL audio first to prevent rogue playback
         try {
             root.FlashcardAudio.resetAudioState();
@@ -546,7 +595,60 @@
         $('body').removeClass('ll-tools-flashcard-open');
     }
 
+    function switchMode(newMode) {
+        const now = Date.now();
+        // Re-entrancy + cooldown guard
+        if (MODE_SWITCHING || (now - MODE_LAST_SWITCH_TS) < MODE_SWITCH_COOLDOWN_MS) {
+            return;
+        }
+        MODE_SWITCHING = true;
+
+        const $btn = $('#ll-tools-mode-switcher');
+        if ($btn.length) {
+            $btn.prop('disabled', true).attr('aria-busy', 'true');
+        }
+
+        try {
+            // Cancel any active introductions first
+            State.cancelActiveIntroductions();
+
+            // HARD STOP all audio
+            try { root.FlashcardAudio.resetAudioState(); }
+            catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
+
+            // Flip mode atomically
+            const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
+            State.reset();
+            State.isLearningMode = (targetMode === 'learning');
+
+            // Hide any results that may be visible
+            if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+                root.LLFlashcards.Results.hideResults();
+            }
+
+            // Rebuild UI
+            $('#ll-tools-flashcard').empty();
+            Dom.restoreHeaderUI();
+            updateModeSwitcherButton();
+
+            // Fresh round
+            startQuizRound();
+        } finally {
+            MODE_LAST_SWITCH_TS = Date.now();
+            // Release the guard after a short cooldown
+            setTimeout(function () {
+                MODE_SWITCHING = false;
+                if ($btn && $btn.length) {
+                    $btn.prop('disabled', false).removeAttr('aria-busy');
+                }
+            }, MODE_SWITCH_COOLDOWN_MS);
+        }
+    }
+
     function restartQuiz() {
+        // Cancel any active introductions before restarting
+        State.cancelActiveIntroductions();
+
         State.reset();
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();

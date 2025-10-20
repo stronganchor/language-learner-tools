@@ -41,7 +41,15 @@
         lastWordShownId: null,
         learningModeRepetitionQueue: [],
 
+        // Track active introduction sequences to prevent race conditions
+        activeIntroductionAudios: [],
+        activeIntroductionTimers: [],
+        isIntroductionSequenceRunning: false,
+
         reset() {
+            // Cancel any active introductions first
+            this.cancelActiveIntroductions();
+
             this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
@@ -71,7 +79,39 @@
             this.wordsAnsweredSinceLastIntro = new Set();
             this.lastWordShownId = null;
             this.learningModeRepetitionQueue = [];
+            this.activeIntroductionAudios = [];
+            this.activeIntroductionTimers = [];
+            this.isIntroductionSequenceRunning = false;
         },
+
+        cancelActiveIntroductions() {
+            // Stop and clean up all active introduction audio objects
+            this.activeIntroductionAudios.forEach(audio => {
+                try {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.onended = null;
+                    audio.onerror = null;
+                    audio.ontimeupdate = null;
+                    audio.src = '';
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+            });
+            this.activeIntroductionAudios = [];
+
+            // Clear all active timers
+            this.activeIntroductionTimers.forEach(timerId => {
+                try {
+                    clearTimeout(timerId);
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+            });
+            this.activeIntroductionTimers = [];
+
+            this.isIntroductionSequenceRunning = false;
+        }
     };
 
     root.LLFlashcards = root.LLFlashcards || {};
