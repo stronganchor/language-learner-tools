@@ -1,5 +1,9 @@
 (function (root, $) {
     'use strict';
+    // Prevent double-loading this file (can happen with some minify/defer stacks)
+    if (window.__LLFlashcardsMainLoaded) { return; }
+    window.__LLFlashcardsMainLoaded = true;
+
     const { Util, State, Dom, Effects, Selection, Cards, Results } = root.LLFlashcards;
 
     // --- Learning-mode introduction pacing (new) ---
