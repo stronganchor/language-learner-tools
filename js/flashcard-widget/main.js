@@ -43,7 +43,7 @@
         const now = Date.now();
         // Re-entrancy + cooldown guard
         if (MODE_SWITCHING || (now - MODE_LAST_SWITCH_TS) < MODE_SWITCH_COOLDOWN_MS) {
-            return; // ignore rapid re-clicks
+            return;
         }
         MODE_SWITCHING = true;
 
@@ -53,7 +53,10 @@
         }
 
         try {
-            // HARD STOP all audio first
+            // Cancel any active introductions first
+            State.cancelActiveIntroductions();
+
+            // HARD STOP all audio
             try { root.FlashcardAudio.resetAudioState(); }
             catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
 
@@ -589,56 +592,6 @@
         $('#ll-tools-flashcard-popup').hide();
         $('#ll-tools-mode-switcher').hide();
         $('body').removeClass('ll-tools-flashcard-open');
-    }
-
-    function switchMode(newMode) {
-        const now = Date.now();
-        // Re-entrancy + cooldown guard
-        if (MODE_SWITCHING || (now - MODE_LAST_SWITCH_TS) < MODE_SWITCH_COOLDOWN_MS) {
-            return;
-        }
-        MODE_SWITCHING = true;
-
-        const $btn = $('#ll-tools-mode-switcher');
-        if ($btn.length) {
-            $btn.prop('disabled', true).attr('aria-busy', 'true');
-        }
-
-        try {
-            // Cancel any active introductions first
-            State.cancelActiveIntroductions();
-
-            // HARD STOP all audio
-            try { root.FlashcardAudio.resetAudioState(); }
-            catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
-
-            // Flip mode atomically
-            const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
-            State.reset();
-            State.isLearningMode = (targetMode === 'learning');
-
-            // Hide any results that may be visible
-            if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
-                root.LLFlashcards.Results.hideResults();
-            }
-
-            // Rebuild UI
-            $('#ll-tools-flashcard').empty();
-            Dom.restoreHeaderUI();
-            updateModeSwitcherButton();
-
-            // Fresh round
-            startQuizRound();
-        } finally {
-            MODE_LAST_SWITCH_TS = Date.now();
-            // Release the guard after a short cooldown
-            setTimeout(function () {
-                MODE_SWITCHING = false;
-                if ($btn && $btn.length) {
-                    $btn.prop('disabled', false).removeAttr('aria-busy');
-                }
-            }, MODE_SWITCH_COOLDOWN_MS);
-        }
     }
 
     function restartQuiz() {
