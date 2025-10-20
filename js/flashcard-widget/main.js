@@ -26,9 +26,9 @@
 
     function newSession() {
         __LLSession++;
-        // cancel any outstanding timers
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
+        try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { }
     }
 
     function setGuardedTimeout(fn, ms) {
@@ -40,6 +40,13 @@
         }, ms);
         __LLTimers.add(id);
         return id;
+    }
+
+    function cancelGuardedTimeout(id) {
+        if (id != null) {
+            clearTimeout(id);
+            __LLTimers.delete(id);
+        }
     }
 
     // init shared audio bits early
@@ -423,17 +430,41 @@
             const audio = new Audio(audioUrl);
 
             const WATCHDOG_MAX_MS = 15000;
+            let ended = false; // <<< one-shot reentrancy guard
             const watchdogId = setGuardedTimeout(() => {
+                if (ended) return;
+                ended = true;
                 try { audio.pause(); } catch (e) { }
-                handleEnd();
+                cleanupAndAdvance();
             }, WATCHDOG_MAX_MS);
 
-            audio.onended = handleEnd;
-            audio.onerror = handleEnd;
+            audio.onended = () => {
+                if (ended) return;
+                ended = true;
+                cleanupAndAdvance();
+            };
 
-            try { audio.play(); } catch (e) { handleEnd(); }
+            audio.onerror = () => {
+                if (ended) return;
+                ended = true;
+                cleanupAndAdvance();
+            };
 
-            function handleEnd() {
+            // Attempt playback (some browsers require user gesture; if it fails, advance)
+            const playPromise = audio.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {
+                    if (ended) return;
+                    ended = true;
+                    cleanupAndAdvance();
+                });
+            }
+
+            function cleanupAndAdvance() {
+                // Stop watchdog & remove it from the guarded set
+                cancelGuardedTimeout(watchdogId);
+
+                // Hard clean the audio element
                 try {
                     audio.pause();
                     audio.onended = null;
@@ -443,10 +474,9 @@
                     audio.src = '';
                 } catch (e) { }
 
-                // We scheduled watchdog with guarded helper; nothing more to clear here.
-
                 // Increment introduction progress after each repetition
-                State.wordIntroductionProgress[currentWord.id] = (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+                State.wordIntroductionProgress[currentWord.id] =
+                    (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
 
                 // Update progress bar
                 Dom.updateLearningProgress(
@@ -457,11 +487,11 @@
                 );
 
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
-                    // Next repetition of the SAME word — use the CORRECT constant name
+                    // Next repetition of the SAME word
                     $('.flashcard-container').removeClass('introducing-active');
                     setGuardedTimeout(() => {
                         playIntroductionSequence(words, wordIndex, repetition + 1);
-                    }, INTRO_WORD_GAP_MS); // <<< was INTRO_GAP_MS (undefined)
+                    }, INTRO_WORD_GAP_MS);
                 } else {
                     if (!State.introducedWordIDs.includes(currentWord.id)) {
                         State.introducedWordIDs.push(currentWord.id);
