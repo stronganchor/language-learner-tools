@@ -41,7 +41,24 @@
         lastWordShownId: null,
         learningModeRepetitionQueue: [],
 
+        // Race condition guards
+        audioSequenceRunning: false,
+        quizRoundRunning: false,
+        activeTimeouts: [],
+        abortAllOperations: false,
+
         reset() {
+            // Set abort flag FIRST to stop any in-flight operations
+            this.abortAllOperations = true;
+
+            // Clear timeouts
+            this.clearActiveTimeouts();
+
+            // Small delay to let abort flag propagate
+            setTimeout(() => {
+                this.abortAllOperations = false;
+            }, 100);
+
             this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
@@ -71,7 +88,20 @@
             this.wordsAnsweredSinceLastIntro = new Set();
             this.lastWordShownId = null;
             this.learningModeRepetitionQueue = [];
+
+            // Clear race condition guards AFTER abort flag is set
+            this.audioSequenceRunning = false;
+            this.quizRoundRunning = false;
         },
+
+        clearActiveTimeouts() {
+            this.activeTimeouts.forEach(id => clearTimeout(id));
+            this.activeTimeouts = [];
+        },
+
+        addTimeout(timeoutId) {
+            this.activeTimeouts.push(timeoutId);
+        }
     };
 
     root.LLFlashcards = root.LLFlashcards || {};

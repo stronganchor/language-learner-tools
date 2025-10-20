@@ -1,8 +1,3 @@
-/**
- * flashcard-audio.js
- *
- * Handles audio playback functionalities for flashcards, including correct and wrong answer feedback.
- */
 (function ($) {
     /**
      * FlashcardAudio Module
@@ -15,6 +10,7 @@
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
         var autoplayBlocked = false;
+        var allAudioElements = []; // Track ALL audio elements created anywhere
 
         /**
          * Initializes the correct and wrong answer audio files.
@@ -22,6 +18,16 @@
         function initializeAudio() {
             correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
             wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
+            allAudioElements.push(correctAudio, wrongAudio);
+        }
+
+        /**
+         * Register an audio element for tracking
+         */
+        function registerAudio(audio) {
+            if (audio && !allAudioElements.includes(audio)) {
+                allAudioElements.push(audio);
+            }
         }
 
         /**
@@ -37,6 +43,7 @@
                     audio.currentTime = 0; // Reset playback
                 }
                 activeAudios.push(audio);
+                registerAudio(audio);
                 audio.play().catch(function (e) {
                     console.error("Audio play failed for:", audio.src, e);
 
@@ -67,6 +74,85 @@
                 }
             });
             activeAudios = [];
+        }
+
+        /**
+         * NUCLEAR OPTION: Stop and cleanup ALL audio elements everywhere
+         * BUT preserve the feedback sounds (correct/wrong)
+         */
+        function killAllAudio() {
+            console.log('killAllAudio called, cleaning up', allAudioElements.length, 'audio elements');
+
+            // Stop all tracked audio EXCEPT feedback sounds
+            allAudioElements.forEach(function (audio) {
+                if (!audio) return;
+                // Skip the feedback sounds - we need those
+                if (audio === correctAudio || audio === wrongAudio) return;
+
+                try {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.onended = null;
+                    audio.onerror = null;
+                    audio.ontimeupdate = null;
+                    audio.onloadstart = null;
+                    audio.oncanplaythrough = null;
+                    audio.removeAttribute('src');
+                    audio.load();
+                } catch (e) {
+                    // Ignore errors during cleanup
+                }
+            });
+
+            // Keep only feedback sounds in tracking
+            allAudioElements = [correctAudio, wrongAudio].filter(Boolean);
+            activeAudios = [];
+
+            // Clean up current target audio reference
+            if (currentTargetAudio && currentTargetAudio !== correctAudio && currentTargetAudio !== wrongAudio) {
+                try {
+                    currentTargetAudio.pause();
+                    currentTargetAudio.currentTime = 0;
+                    currentTargetAudio.onended = null;
+                    currentTargetAudio.onerror = null;
+                    currentTargetAudio.ontimeupdate = null;
+                } catch (e) { }
+            }
+
+            // Remove any audio elements from DOM
+            try {
+                jQuery('#ll-tools-flashcard audio').each(function () {
+                    try {
+                        this.pause();
+                        this.currentTime = 0;
+                        this.onended = null;
+                        this.onerror = null;
+                    } catch (e) { }
+                }).remove();
+
+                jQuery('#ll-tools-flashcard-content audio').each(function () {
+                    try {
+                        this.pause();
+                        this.currentTime = 0;
+                        this.onended = null;
+                        this.onerror = null;
+                    } catch (e) { }
+                }).remove();
+
+                jQuery('#ll-tools-flashcard-popup audio').each(function () {
+                    try {
+                        this.pause();
+                        this.currentTime = 0;
+                        this.onended = null;
+                        this.onerror = null;
+                    } catch (e) { }
+                }).remove();
+            } catch (e) {
+                console.error('Error removing audio elements:', e);
+            }
+
+            currentTargetAudio = null;
+            targetAudioHasPlayed = false;
         }
 
         /**
@@ -114,6 +200,7 @@
             }).appendTo('#ll-tools-flashcard');
 
             currentTargetAudio = audioElement[0];
+            registerAudio(currentTargetAudio);
             playAudio(currentTargetAudio);
 
             // Allow user interaction after approximately 0.4 seconds of playback
@@ -134,100 +221,7 @@
          * Resets the audio state so that the quiz can be restarted.
          */
         function resetAudioState() {
-            try {
-                // Stop and clear any actively tracked audios
-                pauseAllAudio();
-                activeAudios = [];
-
-                // Stop and sanitize the feedback sounds
-                if (correctAudio) {
-                    try {
-                        correctAudio.pause();
-                        correctAudio.currentTime = 0;
-                        // Clear ALL event handlers to prevent late firing
-                        correctAudio.onended = null;
-                        correctAudio.onerror = null;
-                        correctAudio.oncanplaythrough = null;
-                        correctAudio.ontimeupdate = null;
-                    } catch (e) { }
-                }
-                if (wrongAudio) {
-                    try {
-                        wrongAudio.pause();
-                        wrongAudio.currentTime = 0;
-                        // Clear ALL event handlers to prevent late firing
-                        wrongAudio.onended = null;
-                        wrongAudio.onerror = null;
-                        wrongAudio.oncanplaythrough = null;
-                        wrongAudio.ontimeupdate = null;
-                    } catch (e) { }
-                }
-
-                // Drop current target audio reference/state
-                if (currentTargetAudio) {
-                    try {
-                        currentTargetAudio.pause();
-                        currentTargetAudio.currentTime = 0;
-                        currentTargetAudio.onended = null;
-                        currentTargetAudio.onerror = null;
-                        currentTargetAudio.ontimeupdate = null;
-                        currentTargetAudio.onloadstart = null;
-                        currentTargetAudio.oncanplaythrough = null;
-                    } catch (e) { }
-                }
-                currentTargetAudio = null;
-                targetAudioHasPlayed = false;
-
-                // Aggressively remove ALL <audio> elements from multiple potential locations
-                try {
-                    if (jQuery) {
-                        // Remove from main flashcard container
-                        jQuery('#ll-tools-flashcard audio').each(function () {
-                            try {
-                                this.pause();
-                                this.currentTime = 0;
-                                this.onended = null;
-                                this.onerror = null;
-                                this.ontimeupdate = null;
-                                this.onloadstart = null;
-                                this.oncanplaythrough = null;
-                            } catch (e) { }
-                        }).remove();
-
-                        // Remove from content wrapper
-                        jQuery('#ll-tools-flashcard-content audio').each(function () {
-                            try {
-                                this.pause();
-                                this.currentTime = 0;
-                                this.onended = null;
-                                this.onerror = null;
-                                this.ontimeupdate = null;
-                                this.onloadstart = null;
-                                this.oncanplaythrough = null;
-                            } catch (e) { }
-                        }).remove();
-
-                        // Remove from entire popup container as last resort
-                        jQuery('#ll-tools-flashcard-popup audio').each(function () {
-                            try {
-                                this.pause();
-                                this.currentTime = 0;
-                                this.onended = null;
-                                this.onerror = null;
-                                this.ontimeupdate = null;
-                                this.onloadstart = null;
-                                this.oncanplaythrough = null;
-                            } catch (e) { }
-                        }).remove();
-                    }
-                } catch (e) {
-                    console.error('Error removing audio elements:', e);
-                }
-
-            } catch (e) {
-                // no-op; we never want a reset failure to break the UI
-                console.error('resetAudioState() failed', e);
-            }
+            killAllAudio();
         }
 
         /**
@@ -270,6 +264,8 @@
             playFeedback: playFeedback,
             setTargetWordAudio: setTargetWordAudio,
             resetAudioState: resetAudioState,
+            killAllAudio: killAllAudio,
+            registerAudio: registerAudio,
             getCurrentTargetAudio: function () { return currentTargetAudio; },
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },

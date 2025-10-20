@@ -20,6 +20,11 @@
     let MODE_LAST_SWITCH_TS = 0;
     const MODE_SWITCH_COOLDOWN_MS = 1500;
 
+    // init shared audio bits early
+    root.FlashcardAudio.initializeAudio();
+    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
+    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
+
     // ---- Timer & Session guards (prevents ghost callbacks) ----
     let __LLTimers = new Set();
     let __LLSession = 0;
@@ -86,11 +91,18 @@
         }
 
         try {
-            // HARD STOP all audio first
-            try { root.FlashcardAudio.resetAudioState(); }
-            catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
+            // Set abort flag FIRST
+            State.abortAllOperations = true;
 
-            newSession();
+            // Clear all pending operations
+            State.clearActiveTimeouts();
+            State.audioSequenceRunning = false;
+            State.quizRoundRunning = false;
+
+            // HARD STOP all audio
+            try { root.FlashcardAudio.killAllAudio(); }
+            catch (e) { console.error('Error killing audio:', e); }
+
             // Flip mode atomically
             const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
             State.reset();
@@ -238,6 +250,16 @@
     }
 
     function runQuizRound() {
+        // Guard against concurrent execution
+        if (State.quizRoundRunning) {
+            console.warn('runQuizRound called while already running, ignoring');
+            return;
+        }
+        State.quizRoundRunning = true;
+
+        // Clear any pending timeouts from previous rounds
+        State.clearActiveTimeouts();
+
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
 
@@ -259,14 +281,18 @@
 
             if (!target) {
                 if (State.isFirstRound && State.totalWordCount === 0) {
+                    State.quizRoundRunning = false;
                     showLoadingError();
                     return;
                 }
+                State.quizRoundRunning = false;
                 Results.showResults();
                 return;
             }
 
             if (State.isIntroducingWord) {
+                // Allow introduction to run
+                State.quizRoundRunning = false;
                 handleWordIntroduction(target);
                 return;
             }
@@ -284,10 +310,12 @@
                         }
                     }
                     if (!hasWords) {
+                        State.quizRoundRunning = false;
                         showLoadingError();
                         return;
                     }
                 }
+                State.quizRoundRunning = false;
                 Results.showResults();
                 return;
             }
@@ -312,6 +340,10 @@
 
             root.FlashcardAudio.setTargetWordAudio(target);
             Dom.hideLoading();
+            State.quizRoundRunning = false;
+        }).catch(function (err) {
+            console.error('Error in runQuizRound:', err);
+            State.quizRoundRunning = false;
         });
     }
 
@@ -339,6 +371,13 @@
     }
 
     function handleWordIntroduction(words) {
+        // Guard against concurrent execution
+        if (State.audioSequenceRunning) {
+            console.warn('handleWordIntroduction called while audio sequence running, ignoring');
+            return;
+        }
+
+        // Ensure words is an array
         const wordsArray = Array.isArray(words) ? words : [words];
 
         $('#ll-tools-flashcard').empty();
@@ -347,9 +386,7 @@
         // Disable the repeat button during introduction
         Dom.disableRepeatButton();
 
-        // Mark that we are in an intro sequence now (prevents parallel starts)
-        State.isIntroducingWord = true;
-
+        // Restore progress bar display for learning mode
         if (State.isLearningMode) {
             Dom.updateLearningProgress(
                 State.introducedWordIDs.length,
@@ -365,6 +402,12 @@
         Promise.all(wordsArray.map(word => {
             return root.FlashcardLoader.loadResourcesForWord(word, mode);
         })).then(function () {
+            // Check if state is still valid (user didn't close/reset)
+            if (!State.isLearningMode || !State.isIntroducingWord) {
+                console.warn('State changed during word loading, aborting introduction');
+                return;
+            }
+
             // Show all words being introduced
             wordsArray.forEach((word, index) => {
                 const $card = Cards.appendWordToContainer(word);
@@ -401,70 +444,117 @@
             $('.flashcard-container').fadeIn(600);
 
             // Wait for fade-in to complete, then start the audio sequence
-            setGuardedTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 playIntroductionSequence(wordsArray, 0, 0);
             }, 650);
+            State.addTimeout(timeoutId);
         });
     }
 
     function playIntroductionSequence(words, wordIndex, repetition) {
+        // CRITICAL: Check abort flag first
+        if (State.abortAllOperations) {
+            console.log('Operation aborted by abort flag');
+            State.audioSequenceRunning = false;
+            return;
+        }
+
+        // Guard: check if we should still be running
+        if (State.audioSequenceRunning && repetition === 0 && wordIndex === 0) {
+            console.warn('Audio sequence already running, aborting duplicate call');
+            return;
+        }
+
+        // Set flag on first call
+        if (wordIndex === 0 && repetition === 0) {
+            State.audioSequenceRunning = true;
+        }
+
+        // Check if state is still valid
+        if (!State.isLearningMode || !State.isIntroducingWord) {
+            console.warn('State changed during introduction sequence, aborting');
+            State.audioSequenceRunning = false;
+            return;
+        }
+
         if (wordIndex >= words.length) {
+            // All words have been introduced with all repetitions
+            State.audioSequenceRunning = false;
             Dom.enableRepeatButton();
-            $('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
+
+            // Automatically proceed to quiz without waiting for click
+            $('.flashcard-container').removeClass('introducing introducing-active')
+                .addClass('fade-out');
+
             State.isIntroducingWord = false;
-            setGuardedTimeout(function () {
-                startQuizRound();
+
+            const timeoutId = setTimeout(function () {
+                if (!State.abortAllOperations) {
+                    startQuizRound();
+                }
             }, 300);
+            State.addTimeout(timeoutId);
             return;
         }
 
         const currentWord = words[wordIndex];
         const $currentCard = $('.flashcard-container[data-word-index="' + wordIndex + '"]');
 
+        // Verify card still exists
+        if (!$currentCard.length) {
+            console.warn('Card disappeared during introduction, aborting sequence');
+            State.audioSequenceRunning = false;
+            return;
+        }
+
+        // Set up visual state BEFORE playing audio
         $('.flashcard-container').removeClass('introducing-active');
         $currentCard.addClass('introducing-active');
 
-        setGuardedTimeout(() => {
-            const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
-            const audioUrl = audioPattern[repetition] || audioPattern[0];
-            const audio = new Audio(audioUrl);
-
-            const WATCHDOG_MAX_MS = 15000;
-            let ended = false; // <<< one-shot reentrancy guard
-            const watchdogId = setGuardedTimeout(() => {
-                if (ended) return;
-                ended = true;
-                try { audio.pause(); } catch (e) { }
-                cleanupAndAdvance();
-            }, WATCHDOG_MAX_MS);
-
-            audio.onended = () => {
-                if (ended) return;
-                ended = true;
-                cleanupAndAdvance();
-            };
-
-            audio.onerror = () => {
-                if (ended) return;
-                ended = true;
-                cleanupAndAdvance();
-            };
-
-            // Attempt playback (some browsers require user gesture; if it fails, advance)
-            const playPromise = audio.play();
-            if (playPromise && typeof playPromise.catch === 'function') {
-                playPromise.catch(() => {
-                    if (ended) return;
-                    ended = true;
-                    cleanupAndAdvance();
-                });
+        // Small delay to ensure CSS updates, then play audio
+        const timeoutId = setTimeout(() => {
+            // Check abort flag again
+            if (State.abortAllOperations) {
+                console.log('Operation aborted before audio play');
+                State.audioSequenceRunning = false;
+                return;
             }
 
-            function cleanupAndAdvance() {
-                // Stop watchdog & remove it from the guarded set
-                cancelGuardedTimeout(watchdogId);
+            // Double-check state is still valid
+            if (!State.isLearningMode || !State.isIntroducingWord) {
+                console.warn('State changed before audio play, aborting');
+                State.audioSequenceRunning = false;
+                return;
+            }
 
-                // Hard clean the audio element
+            // Get the audio pattern for this word
+            const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
+            const audioUrl = audioPattern[repetition] || audioPattern[0];
+
+            // Create & play the audio
+            const audio = new Audio(audioUrl);
+
+            // CRITICAL: Register with central audio system
+            if (root.FlashcardAudio && root.FlashcardAudio.registerAudio) {
+                root.FlashcardAudio.registerAudio(audio);
+            }
+
+            // Watchdog in case onended never fires (bad file metadata, etc.)
+            const WATCHDOG_MAX_MS = 15000;
+            let watchdog = setTimeout(() => {
+                handleEnd();
+            }, WATCHDOG_MAX_MS);
+
+            let hasEnded = false; // Prevent double-firing
+
+            function handleEnd() {
+                if (hasEnded) return;
+                hasEnded = true;
+
+                clearTimeout(watchdog);
+                watchdog = null;
+
+                // Clean up the audio object immediately
                 try {
                     audio.pause();
                     audio.onended = null;
@@ -472,13 +562,30 @@
                     audio.ontimeupdate = null;
                     audio.onloadstart = null;
                     audio.src = '';
-                } catch (e) { }
+                    audio.load();
+                } catch (e) {
+                    console.error('Error cleaning up audio:', e);
+                }
+
+                // Check abort flag
+                if (State.abortAllOperations) {
+                    console.log('Operation aborted during audio cleanup');
+                    State.audioSequenceRunning = false;
+                    return;
+                }
+
+                // Check if state is still valid before continuing
+                if (!State.isLearningMode || !State.isIntroducingWord) {
+                    console.warn('State changed during audio playback, stopping sequence');
+                    State.audioSequenceRunning = false;
+                    return;
+                }
 
                 // Increment introduction progress after each repetition
                 State.wordIntroductionProgress[currentWord.id] =
                     (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
 
-                // Update progress bar
+                // Update progress bar after each repetition
                 Dom.updateLearningProgress(
                     State.introducedWordIDs.length,
                     State.totalWordCount,
@@ -488,21 +595,42 @@
 
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
                     // Next repetition of the SAME word
-                    $('.flashcard-container').removeClass('introducing-active');
-                    setGuardedTimeout(() => {
-                        playIntroductionSequence(words, wordIndex, repetition + 1);
-                    }, INTRO_WORD_GAP_MS);
+                    $currentCard.removeClass('introducing-active');
+
+                    // Add deliberate silence gap before replaying this word
+                    const nextTimeoutId = setTimeout(() => {
+                        if (!State.abortAllOperations) {
+                            playIntroductionSequence(words, wordIndex, repetition + 1);
+                        }
+                    }, INTRO_GAP_MS);
+                    State.addTimeout(nextTimeoutId);
+
                 } else {
+                    // This word's introduction is complete - mark it as introduced NOW
                     if (!State.introducedWordIDs.includes(currentWord.id)) {
                         State.introducedWordIDs.push(currentWord.id);
                     }
-                    // Move to next word after the gap
-                    setGuardedTimeout(() => {
-                        playIntroductionSequence(words, wordIndex + 1, 0);
+
+                    // Move to the NEXT word after a slightly longer pause
+                    const nextTimeoutId = setTimeout(() => {
+                        if (!State.abortAllOperations) {
+                            playIntroductionSequence(words, wordIndex + 1, 0);
+                        }
                     }, INTRO_WORD_GAP_MS);
+                    State.addTimeout(nextTimeoutId);
                 }
             }
-        }, 0);
+
+            audio.onended = handleEnd;
+            audio.onerror = handleEnd;
+
+            // Begin playback
+            audio.play().catch(e => {
+                console.error('Audio play failed:', e);
+                handleEnd();
+            });
+        }, 100);
+        State.addTimeout(timeoutId);
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
@@ -564,13 +692,20 @@
     }
 
     function closeFlashcard() {
-        // CRITICAL: Stop and clean up ALL audio first to prevent rogue playback
+        // Set abort flag FIRST
+        State.abortAllOperations = true;
+
+        // Kill ALL audio immediately
         try {
-            root.FlashcardAudio.resetAudioState();
+            root.FlashcardAudio.killAllAudio();
         } catch (e) {
-            console.error('Error resetting audio state:', e);
+            console.error('Error killing all audio:', e);
         }
-        newSession();
+
+        // Clear all pending timeouts and reset guards
+        State.clearActiveTimeouts();
+        State.audioSequenceRunning = false;
+        State.quizRoundRunning = false;
 
         if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
             root.LLFlashcards.Results.hideResults();
