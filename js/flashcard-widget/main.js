@@ -16,6 +16,28 @@
     let MODE_LAST_SWITCH_TS = 0;
     const MODE_SWITCH_COOLDOWN_MS = 1500;
 
+    // ---- Timer & Session guards (prevents ghost callbacks) ----
+    let __LLTimers = new Set();
+    let __LLSession = 0;
+
+    function newSession() {
+        __LLSession++;
+        // cancel any outstanding timers
+        __LLTimers.forEach(id => clearTimeout(id));
+        __LLTimers.clear();
+    }
+
+    function setGuardedTimeout(fn, ms) {
+        const sessionAtSchedule = __LLSession;
+        const id = setTimeout(() => {
+            __LLTimers.delete(id);
+            if (sessionAtSchedule !== __LLSession) return; // stale callback: ignore
+            try { fn(); } catch (e) { /* no-op */ }
+        }, ms);
+        __LLTimers.add(id);
+        return id;
+    }
+
     // init shared audio bits early
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -57,6 +79,7 @@
             try { root.FlashcardAudio.resetAudioState(); }
             catch (e) { try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { } }
 
+            newSession();
             // Flip mode atomically
             const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
             State.reset();
@@ -305,7 +328,6 @@
     }
 
     function handleWordIntroduction(words) {
-        // Ensure words is an array
         const wordsArray = Array.isArray(words) ? words : [words];
 
         $('#ll-tools-flashcard').empty();
@@ -314,7 +336,9 @@
         // Disable the repeat button during introduction
         Dom.disableRepeatButton();
 
-        // Restore progress bar display for learning mode
+        // Mark that we are in an intro sequence now (prevents parallel starts)
+        State.isIntroducingWord = true;
+
         if (State.isLearningMode) {
             Dom.updateLearningProgress(
                 State.introducedWordIDs.length,
@@ -366,7 +390,7 @@
             $('.flashcard-container').fadeIn(600);
 
             // Wait for fade-in to complete, then start the audio sequence
-            setTimeout(() => {
+            setGuardedTimeout(() => {
                 playIntroductionSequence(wordsArray, 0, 0);
             }, 650);
         });
@@ -374,16 +398,10 @@
 
     function playIntroductionSequence(words, wordIndex, repetition) {
         if (wordIndex >= words.length) {
-            // All words have been introduced with all repetitions
             Dom.enableRepeatButton();
-
-            // Automatically proceed to quiz without waiting for click
-            $('.flashcard-container').removeClass('introducing introducing-active')
-                .addClass('fade-out');
-
+            $('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
             State.isIntroducingWord = false;
-
-            setTimeout(function () {
+            setGuardedTimeout(function () {
                 startQuizRound();
             }, 300);
             return;
@@ -392,22 +410,16 @@
         const currentWord = words[wordIndex];
         const $currentCard = $('.flashcard-container[data-word-index="' + wordIndex + '"]');
 
-        // Set up visual state BEFORE playing audio
         $('.flashcard-container').removeClass('introducing-active');
         $currentCard.addClass('introducing-active');
 
-        // Small delay to ensure CSS updates, then play audio
-        setTimeout(() => {
-            // Get the audio pattern for this word
+        setGuardedTimeout(() => {
             const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
             const audioUrl = audioPattern[repetition] || audioPattern[0];
-
-            // Create & play the audio
             const audio = new Audio(audioUrl);
 
-            // Watchdog in case onended never fires (bad file metadata, etc.)
-            const WATCHDOG_MAX_MS = 15000; // hard cap so we don't get stuck forever
-            const watchdog = setTimeout(() => {
+            const WATCHDOG_MAX_MS = 15000;
+            const watchdogId = setGuardedTimeout(() => {
                 try { audio.pause(); } catch (e) { }
                 handleEnd();
             }, WATCHDOG_MAX_MS);
@@ -415,13 +427,9 @@
             audio.onended = handleEnd;
             audio.onerror = handleEnd;
 
-            // Begin playback
             try { audio.play(); } catch (e) { handleEnd(); }
 
             function handleEnd() {
-                clearTimeout(watchdog);
-
-                // Clean up the audio object immediately
                 try {
                     audio.pause();
                     audio.onended = null;
@@ -431,11 +439,12 @@
                     audio.src = '';
                 } catch (e) { }
 
-                // Increment introduction progress after each repetition
-                State.wordIntroductionProgress[currentWord.id] =
-                    (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+                // We scheduled watchdog with guarded helper; nothing more to clear here.
 
-                // Update progress bar after each repetition
+                // Increment introduction progress after each repetition
+                State.wordIntroductionProgress[currentWord.id] = (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+
+                // Update progress bar
                 Dom.updateLearningProgress(
                     State.introducedWordIDs.length,
                     State.totalWordCount,
@@ -444,30 +453,26 @@
                 );
 
                 if (repetition < State.AUDIO_REPETITIONS - 1) {
-                    // Next repetition of the SAME word
-                    $currentCard.removeClass('introducing-active');
-
-                    // Add deliberate silence gap before replaying this word
-                    setTimeout(() => {
+                    // Next repetition of the SAME word — use the CORRECT constant name
+                    $('.flashcard-container').removeClass('introducing-active');
+                    setGuardedTimeout(() => {
                         playIntroductionSequence(words, wordIndex, repetition + 1);
-                    }, INTRO_GAP_MS);
-
+                    }, INTRO_WORD_GAP_MS); // <<< was INTRO_GAP_MS (undefined)
                 } else {
-                    // This word's introduction is complete - mark it as introduced NOW
                     if (!State.introducedWordIDs.includes(currentWord.id)) {
                         State.introducedWordIDs.push(currentWord.id);
                     }
-
-                    // Move to the NEXT word after a slightly longer pause
-                    setTimeout(() => {
+                    // Move to next word after the gap
+                    setGuardedTimeout(() => {
                         playIntroductionSequence(words, wordIndex + 1, 0);
                     }, INTRO_WORD_GAP_MS);
                 }
             }
-        }, 100);
+        }, 0);
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
+        newSession();
         if (mode === 'learning') {
             State.isLearningMode = true;
         }
@@ -531,6 +536,7 @@
         } catch (e) {
             console.error('Error resetting audio state:', e);
         }
+        newSession();
 
         if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
             root.LLFlashcards.Results.hideResults();
@@ -547,6 +553,7 @@
     }
 
     function restartQuiz() {
+        newSession();
         State.reset();
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();
