@@ -718,6 +718,7 @@
         $('#ll-tools-flashcard-quiz-popup').hide();
         $('#ll-tools-flashcard-popup').hide();
         $('#ll-tools-mode-switcher').hide();
+        $('#ll-tools-learning-progress').hide().empty();
         $('body').removeClass('ll-tools-flashcard-open');
     }
 
