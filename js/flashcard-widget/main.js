@@ -20,11 +20,6 @@
     let MODE_LAST_SWITCH_TS = 0;
     const MODE_SWITCH_COOLDOWN_MS = 1500;
 
-    // init shared audio bits early
-    root.FlashcardAudio.initializeAudio();
-    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
-    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
-
     // ---- Timer & Session guards (prevents ghost callbacks) ----
     let __LLTimers = new Set();
     let __LLSession = 0;
@@ -90,25 +85,26 @@
             $btn.prop('disabled', true).attr('aria-busy', 'true');
         }
 
-        try {
-            // Set abort flag FIRST
-            State.abortAllOperations = true;
+        // Set abort flag
+        State.abortAllOperations = true;
 
-            // Clear all pending operations
-            State.clearActiveTimeouts();
-            State.audioSequenceRunning = false;
-            State.quizRoundRunning = false;
+        // Clear all pending operations
+        State.clearActiveTimeouts();
+        State.audioSequenceRunning = false;
+        State.quizRoundRunning = false;
 
-            // HARD STOP all audio
-            try { root.FlashcardAudio.killAllAudio(); }
-            catch (e) { console.error('Error killing audio:', e); }
 
+        // Explicitly hide and clear progress bar
+        $('#ll-tools-learning-progress').hide().empty();
+
+        // Start new audio session (cleans up old one via promise)
+        root.FlashcardAudio.startNewSession().then(function () {
             // Flip mode atomically
             const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
             State.reset();
             State.isLearningMode = (targetMode === 'learning');
 
-            // Hide any results that may be visible
+            // Hide any results
             if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
                 root.LLFlashcards.Results.hideResults();
             }
@@ -120,16 +116,21 @@
 
             // Fresh round
             startQuizRound();
-        } finally {
+
             MODE_LAST_SWITCH_TS = Date.now();
-            // Release the guard after a short cooldown
             setTimeout(function () {
                 MODE_SWITCHING = false;
                 if ($btn && $btn.length) {
                     $btn.prop('disabled', false).removeAttr('aria-busy');
                 }
             }, MODE_SWITCH_COOLDOWN_MS);
-        }
+        }).catch(function (err) {
+            console.error('Error during mode switch:', err);
+            MODE_SWITCHING = false;
+            if ($btn && $btn.length) {
+                $btn.prop('disabled', false).removeAttr('aria-busy');
+            }
+        });
     }
 
     function onCorrectAnswer(targetWord, $correctCard) {
@@ -531,199 +532,180 @@
             const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
             const audioUrl = audioPattern[repetition] || audioPattern[0];
 
-            // Create & play the audio
-            const audio = new Audio(audioUrl);
+            // Create managed audio via FlashcardAudio
+            const managedAudio = root.FlashcardAudio.createIntroductionAudio(audioUrl);
 
-            // CRITICAL: Register with central audio system
-            if (root.FlashcardAudio && root.FlashcardAudio.registerAudio) {
-                root.FlashcardAudio.registerAudio(audio);
+            if (!managedAudio) {
+                console.error('Failed to create introduction audio');
+                State.audioSequenceRunning = false;
+                return;
             }
 
-            // Watchdog in case onended never fires (bad file metadata, etc.)
-            const WATCHDOG_MAX_MS = 15000;
-            let watchdog = setTimeout(() => {
-                handleEnd();
-            }, WATCHDOG_MAX_MS);
-
-            let hasEnded = false; // Prevent double-firing
-
-            function handleEnd() {
-                if (hasEnded) return;
-                hasEnded = true;
-
-                clearTimeout(watchdog);
-                watchdog = null;
-
-                // Clean up the audio object immediately
-                try {
-                    audio.pause();
-                    audio.onended = null;
-                    audio.onerror = null;
-                    audio.ontimeupdate = null;
-                    audio.onloadstart = null;
-                    audio.src = '';
-                    audio.load();
-                } catch (e) {
-                    console.error('Error cleaning up audio:', e);
-                }
-
-                // Check abort flag
-                if (State.abortAllOperations) {
-                    console.log('Operation aborted during audio cleanup');
-                    State.audioSequenceRunning = false;
-                    return;
-                }
-
-                // Check if state is still valid before continuing
-                if (!State.isLearningMode || !State.isIntroducingWord) {
-                    console.warn('State changed during audio playback, stopping sequence');
-                    State.audioSequenceRunning = false;
-                    return;
-                }
-
-                // Increment introduction progress after each repetition
-                State.wordIntroductionProgress[currentWord.id] =
-                    (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
-
-                // Update progress bar after each repetition
-                Dom.updateLearningProgress(
-                    State.introducedWordIDs.length,
-                    State.totalWordCount,
-                    State.wordCorrectCounts,
-                    State.wordIntroductionProgress
-                );
-
-                if (repetition < State.AUDIO_REPETITIONS - 1) {
-                    // Next repetition of the SAME word
-                    $currentCard.removeClass('introducing-active');
-
-                    // Add deliberate silence gap before replaying this word
-                    const nextTimeoutId = setTimeout(() => {
-                        if (!State.abortAllOperations) {
-                            playIntroductionSequence(words, wordIndex, repetition + 1);
-                        }
-                    }, INTRO_GAP_MS);
-                    State.addTimeout(nextTimeoutId);
-
-                } else {
-                    // This word's introduction is complete - mark it as introduced NOW
-                    if (!State.introducedWordIDs.includes(currentWord.id)) {
-                        State.introducedWordIDs.push(currentWord.id);
+            // Play until end (includes watchdog timer)
+            managedAudio.playUntilEnd()
+                .then(() => {
+                    // Check abort flag and session validity
+                    if (State.abortAllOperations || !managedAudio.isValid()) {
+                        console.log('Audio completed but operation aborted or session invalid');
+                        State.audioSequenceRunning = false;
+                        managedAudio.cleanup();
+                        return;
                     }
 
-                    // Move to the NEXT word after a slightly longer pause
-                    const nextTimeoutId = setTimeout(() => {
-                        if (!State.abortAllOperations) {
-                            playIntroductionSequence(words, wordIndex + 1, 0);
+                    // Check if state is still valid
+                    if (!State.isLearningMode || !State.isIntroducingWord) {
+                        console.warn('State changed during audio playback, stopping sequence');
+                        State.audioSequenceRunning = false;
+                        managedAudio.cleanup();
+                        return;
+                    }
+
+                    // Increment introduction progress after each repetition
+                    State.wordIntroductionProgress[currentWord.id] =
+                        (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+
+                    // Update progress bar after each repetition
+                    Dom.updateLearningProgress(
+                        State.introducedWordIDs.length,
+                        State.totalWordCount,
+                        State.wordCorrectCounts,
+                        State.wordIntroductionProgress
+                    );
+
+                    // Cleanup this audio
+                    managedAudio.cleanup();
+
+                    if (repetition < State.AUDIO_REPETITIONS - 1) {
+                        // Next repetition of the SAME word
+                        $currentCard.removeClass('introducing-active');
+
+                        const nextTimeoutId = setTimeout(() => {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex, repetition + 1);
+                            }
+                        }, INTRO_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+
+                    } else {
+                        // This word's introduction is complete
+                        if (!State.introducedWordIDs.includes(currentWord.id)) {
+                            State.introducedWordIDs.push(currentWord.id);
                         }
-                    }, INTRO_WORD_GAP_MS);
-                    State.addTimeout(nextTimeoutId);
-                }
-            }
 
-            audio.onended = handleEnd;
-            audio.onerror = handleEnd;
-
-            // Begin playback
-            audio.play().catch(e => {
-                console.error('Audio play failed:', e);
-                handleEnd();
-            });
+                        const nextTimeoutId = setTimeout(() => {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex + 1, 0);
+                            }
+                        }, INTRO_WORD_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+                    }
+                })
+                .catch(err => {
+                    console.error('Audio play failed:', err);
+                    managedAudio.cleanup();
+                    State.audioSequenceRunning = false;
+                });
         }, 100);
         State.addTimeout(timeoutId);
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
         newSession();
-        if (mode === 'learning') {
-            State.isLearningMode = true;
-        }
 
-        if (State.widgetActive) {
-            return;
-        }
-        State.widgetActive = true;
+        // Clear any lingering progress bar immediately
+        $('#ll-tools-learning-progress').hide().empty();
 
-        if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
-            root.LLFlashcards.Results.hideResults();
-        }
-
-        State.categoryNames = Util.randomlySort(selectedCategories || []);
-        root.categoryNames = State.categoryNames;
-        State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
-        root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
-        Dom.updateCategoryNameDisplay(State.firstCategoryName);
-
-        $('body').addClass('ll-tools-flashcard-open');
-        $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
-        $('#ll-tools-flashcard-header').show();
-
-        $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
-            const btn = $(this);
-            const audio = root.FlashcardAudio.getCurrentTargetAudio();
-            if (!audio) return;
-            if (!audio.paused) {
-                audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
-            } else {
-                audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
-                audio.onended = function () { Dom.setRepeatButton('play'); };
+        // Start fresh audio session with promise-based cleanup
+        root.FlashcardAudio.startNewSession().then(function () {
+            if (mode === 'learning') {
+                State.isLearningMode = true;
             }
+
+            if (State.widgetActive) {
+                return;
+            }
+            State.widgetActive = true;
+
+            if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+                root.LLFlashcards.Results.hideResults();
+            }
+
+            State.categoryNames = Util.randomlySort(selectedCategories || []);
+            root.categoryNames = State.categoryNames;
+            State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
+            root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
+            Dom.updateCategoryNameDisplay(State.firstCategoryName);
+
+            $('body').addClass('ll-tools-flashcard-open');
+            $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
+            $('#ll-tools-flashcard-header').show();
+
+            $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
+                const btn = $(this);
+                const audio = root.FlashcardAudio.getCurrentTargetAudio();
+                if (!audio) return;
+                if (!audio.paused) {
+                    audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
+                } else {
+                    audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
+                    audio.onended = function () { Dom.setRepeatButton('play'); };
+                }
+            });
+
+            // Mode switcher button handler
+            $('#ll-tools-mode-switcher').off('click').on('click', function () {
+                switchMode();
+            });
+
+            // Results mode buttons
+            $('#restart-standard-mode').off('click').on('click', function () {
+                switchMode('standard');
+            });
+
+            $('#restart-learning-mode').off('click').on('click', function () {
+                switchMode('learning');
+            });
+
+            $('#restart-quiz').off('click').on('click', restartQuiz);
+
+            Dom.showLoading();
+            updateModeSwitcherButton();
+            startQuizRound();
+        }).catch(function (err) {
+            console.error('Failed to start audio session:', err);
         });
-
-        // Mode switcher button handler
-        $('#ll-tools-mode-switcher').off('click').on('click', function () {
-            switchMode();
-        });
-
-        // Results mode buttons
-        $('#restart-standard-mode').off('click').on('click', function () {
-            switchMode('standard');
-        });
-
-        $('#restart-learning-mode').off('click').on('click', function () {
-            switchMode('learning');
-        });
-
-        $('#restart-quiz').off('click').on('click', restartQuiz);
-
-        Dom.showLoading();
-        updateModeSwitcherButton();
-        startQuizRound();
     }
 
     function closeFlashcard() {
         // Set abort flag FIRST
         State.abortAllOperations = true;
 
-        // Kill ALL audio immediately
-        try {
-            root.FlashcardAudio.killAllAudio();
-        } catch (e) {
-            console.error('Error killing all audio:', e);
-        }
-
         // Clear all pending timeouts and reset guards
         State.clearActiveTimeouts();
         State.audioSequenceRunning = false;
         State.quizRoundRunning = false;
 
-        if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
-            root.LLFlashcards.Results.hideResults();
-        }
+        // Start new audio session (this cleans up old one via promise)
+        root.FlashcardAudio.startNewSession().then(function () {
+            if (root.LLFlashcards && root.LLFlashcards.Results && typeof root.LLFlashcards.Results.hideResults === 'function') {
+                root.LLFlashcards.Results.hideResults();
+            }
 
-        State.reset();
-        State.categoryNames = [];
-        $('#ll-tools-flashcard').empty();
-        $('#ll-tools-flashcard-header').hide();
-        $('#ll-tools-flashcard-quiz-popup').hide();
-        $('#ll-tools-flashcard-popup').hide();
-        $('#ll-tools-mode-switcher').hide();
-        $('#ll-tools-learning-progress').hide().empty();
-        $('body').removeClass('ll-tools-flashcard-open');
+            State.reset();
+            State.categoryNames = [];
+            $('#ll-tools-flashcard').empty();
+            $('#ll-tools-flashcard-header').hide();
+            $('#ll-tools-flashcard-quiz-popup').hide();
+            $('#ll-tools-flashcard-popup').hide();
+            $('#ll-tools-mode-switcher').hide();
+            $('#ll-tools-learning-progress').hide().empty();
+            $('body').removeClass('ll-tools-flashcard-open');
+        });
     }
 
     function restartQuiz() {
         newSession();
+        $('#ll-tools-learning-progress').hide().empty();
         State.reset();
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();

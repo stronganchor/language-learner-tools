@@ -1,94 +1,165 @@
 (function ($) {
     /**
-     * FlashcardAudio Module
+     * FlashcardAudio Module - Centralized audio lifecycle management
      *
-     * Manages audio playback for flashcards, including playing correct/wrong sounds and target word audio.
+     * Manages audio sessions, playback, and cleanup with promise-based operations
      */
     var FlashcardAudio = (function () {
-        var activeAudios = [];
+        // Session tracking
+        var currentSession = 0;
+        var activeAudioElements = new Map(); // Map<Audio, sessionId>
         var currentTargetAudio = null;
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
         var autoplayBlocked = false;
-        var allAudioElements = []; // Track ALL audio elements created anywhere
+
+        // Cleanup tracking
+        var pendingCleanup = null;
 
         /**
-         * Initializes the correct and wrong answer audio files.
+         * Initialize feedback sounds (persist across sessions)
          */
         function initializeAudio() {
             correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
             wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
-            allAudioElements.push(correctAudio, wrongAudio);
+
+            // Mark feedback audio with special session ID so they're never cleaned up
+            correctAudio.__sessionId = -1;
+            wrongAudio.__sessionId = -1;
+
+            activeAudioElements.set(correctAudio, -1);
+            activeAudioElements.set(wrongAudio, -1);
         }
 
         /**
-         * Register an audio element for tracking
+         * Start a new audio session - invalidates all previous audio
+         * Returns a promise that resolves when cleanup is complete
          */
-        function registerAudio(audio) {
-            if (audio && !allAudioElements.includes(audio)) {
-                allAudioElements.push(audio);
-            }
+        function startNewSession() {
+            var previousSession = currentSession;
+            currentSession++;
+
+            console.log('Audio: Starting session ' + currentSession + ' (was ' + previousSession + ')');
+
+            return cleanupSession(previousSession).then(function () {
+                console.log('Audio: Session ' + currentSession + ' ready');
+            });
         }
 
         /**
-         * Plays a given Audio object and handles any playback errors.
-         *
-         * @param {HTMLAudioElement} audio - The audio element to play.
+         * Create a new audio element tied to current session
+         */
+        function createAudio(url, options) {
+            options = options || {};
+
+            if (!url) {
+                console.warn('Audio: Cannot create audio without URL');
+                return null;
+            }
+
+            var audio = new Audio(url);
+            audio.__sessionId = currentSession;
+            audio.__options = options;
+
+            // Register it
+            activeAudioElements.set(audio, currentSession);
+
+            // Auto-cleanup on error
+            audio.addEventListener('error', function onError() {
+                console.error('Audio: Error for', url);
+                cleanupSingleAudio(audio);
+            }, { once: true });
+
+            return audio;
+        }
+
+        /**
+         * Check if audio belongs to current session
+         */
+        function isCurrentSession(audio) {
+            if (!audio) return false;
+            if (audio.__sessionId === -1) return true; // Feedback audio always valid
+            return audio.__sessionId === currentSession;
+        }
+
+        /**
+         * Play audio with session validation
          */
         function playAudio(audio) {
-            if (!audio) return;
+            if (!audio) {
+                console.warn('Audio: Cannot play null audio');
+                return Promise.reject(new Error('No audio element'));
+            }
+
+            // Check session validity
+            if (!isCurrentSession(audio)) {
+                console.log('Audio: Ignoring play from old session');
+                return Promise.resolve();
+            }
+
             try {
+                // Reset if already playing
                 if (!audio.paused) {
                     audio.pause();
-                    audio.currentTime = 0; // Reset playback
+                    audio.currentTime = 0;
                 }
-                activeAudios.push(audio);
-                registerAudio(audio);
-                audio.play().catch(function (e) {
-                    console.error("Audio play failed for:", audio.src, e);
 
-                    // Check if it's an autoplay NotAllowedError
+                return audio.play().catch(function (e) {
                     if (e.name === 'NotAllowedError' && !autoplayBlocked) {
                         autoplayBlocked = true;
-                        // Emit event for UI to handle
                         if (window.LLFlashcards && window.LLFlashcards.Dom) {
                             window.LLFlashcards.Dom.showAutoplayBlockedOverlay();
                         }
                     }
+                    console.error('Audio: Play failed', e);
+                    throw e;
                 });
             } catch (e) {
-                console.error("Audio pause/play error for:", audio?.src, e);
+                console.error('Audio: Play error', e);
+                return Promise.reject(e);
             }
         }
 
         /**
-         * Pauses all currently active audio elements and resets their playback.
+         * Stop a specific audio element
          */
-        function pauseAllAudio() {
-            activeAudios.forEach(function (audio) {
+        function stopAudio(audio) {
+            if (!audio) return Promise.resolve();
+
+            return new Promise(function (resolve) {
                 try {
                     audio.pause();
                     audio.currentTime = 0;
+                    resolve();
                 } catch (e) {
-                    console.error("Audio pause error for:", audio?.src, e);
+                    console.error('Audio: Stop error', e);
+                    resolve(); // Don't reject
                 }
             });
-            activeAudios = [];
         }
 
         /**
-         * NUCLEAR OPTION: Stop and cleanup ALL audio elements everywhere
-         * BUT preserve the feedback sounds (correct/wrong)
+         * Stop all audio in current session
          */
-        function killAllAudio() {
-            console.log('killAllAudio called, cleaning up', allAudioElements.length, 'audio elements');
+        function pauseAllAudio() {
+            var promises = [];
 
-            // Stop all tracked audio EXCEPT feedback sounds
-            allAudioElements.forEach(function (audio) {
-                if (!audio) return;
-                // Skip the feedback sounds - we need those
-                if (audio === correctAudio || audio === wrongAudio) return;
+            activeAudioElements.forEach(function (sessionId, audio) {
+                if (sessionId === currentSession) {
+                    promises.push(stopAudio(audio));
+                }
+            });
 
+            return Promise.all(promises);
+        }
+
+        /**
+         * Cleanup a single audio element
+         */
+        function cleanupSingleAudio(audio) {
+            if (!audio) return Promise.resolve();
+
+            return new Promise(function (resolve) {
                 try {
                     audio.pause();
                     audio.currentTime = 0;
@@ -99,183 +170,267 @@
                     audio.oncanplaythrough = null;
                     audio.removeAttribute('src');
                     audio.load();
+                    activeAudioElements.delete(audio);
+                    resolve();
                 } catch (e) {
-                    // Ignore errors during cleanup
+                    console.error('Audio: Cleanup error', e);
+                    resolve();
+                }
+            });
+        }
+
+        /**
+         * Cleanup all audio from a specific session (or older)
+         */
+        function cleanupSession(sessionId) {
+            // If cleanup already in progress, chain after it
+            if (pendingCleanup) {
+                return pendingCleanup.then(function () {
+                    return cleanupSession(sessionId);
+                });
+            }
+
+            console.log('Audio: Cleaning up session ' + sessionId);
+
+            var promises = [];
+            var toRemove = [];
+
+            // Collect audio to cleanup (skip feedback audio with sessionId -1)
+            activeAudioElements.forEach(function (audioSessionId, audio) {
+                if (audioSessionId !== -1 && audioSessionId <= sessionId) {
+                    promises.push(cleanupSingleAudio(audio));
+                    toRemove.push(audio);
                 }
             });
 
-            // Keep only feedback sounds in tracking
-            allAudioElements = [correctAudio, wrongAudio].filter(Boolean);
-            activeAudios = [];
-
-            // Clean up current target audio reference
-            if (currentTargetAudio && currentTargetAudio !== correctAudio && currentTargetAudio !== wrongAudio) {
+            // Cleanup DOM audio elements
+            promises.push(new Promise(function (resolve) {
                 try {
-                    currentTargetAudio.pause();
-                    currentTargetAudio.currentTime = 0;
-                    currentTargetAudio.onended = null;
-                    currentTargetAudio.onerror = null;
-                    currentTargetAudio.ontimeupdate = null;
-                } catch (e) { }
-            }
+                    $('#ll-tools-flashcard audio, #ll-tools-flashcard-content audio, #ll-tools-flashcard-popup audio')
+                        .each(function () {
+                            try {
+                                this.pause();
+                                this.currentTime = 0;
+                                this.onended = null;
+                                this.onerror = null;
+                            } catch (e) {
+                                // Ignore
+                            }
+                        })
+                        .remove();
+                    resolve();
+                } catch (e) {
+                    console.error('Audio: DOM cleanup error', e);
+                    resolve();
+                }
+            }));
 
-            // Remove any audio elements from DOM
-            try {
-                jQuery('#ll-tools-flashcard audio').each(function () {
-                    try {
-                        this.pause();
-                        this.currentTime = 0;
-                        this.onended = null;
-                        this.onerror = null;
-                    } catch (e) { }
-                }).remove();
+            pendingCleanup = Promise.all(promises).then(function () {
+                toRemove.forEach(function (audio) {
+                    activeAudioElements.delete(audio);
+                });
 
-                jQuery('#ll-tools-flashcard-content audio').each(function () {
-                    try {
-                        this.pause();
-                        this.currentTime = 0;
-                        this.onended = null;
-                        this.onerror = null;
-                    } catch (e) { }
-                }).remove();
+                if (currentTargetAudio && !isCurrentSession(currentTargetAudio)) {
+                    currentTargetAudio = null;
+                    targetAudioHasPlayed = false;
+                }
 
-                jQuery('#ll-tools-flashcard-popup audio').each(function () {
-                    try {
-                        this.pause();
-                        this.currentTime = 0;
-                        this.onended = null;
-                        this.onerror = null;
-                    } catch (e) { }
-                }).remove();
-            } catch (e) {
-                console.error('Error removing audio elements:', e);
-            }
+                pendingCleanup = null;
+                console.log('Audio: Cleanup complete for session ' + sessionId);
+            });
 
-            currentTargetAudio = null;
-            targetAudioHasPlayed = false;
+            return pendingCleanup;
         }
 
         /**
-         * Plays feedback audio based on whether the answer is correct or wrong.
-         * Optionally chains to the target word's audio or executes a callback after playback.
-         *
-         * @param {boolean} isCorrect - Indicates if the answer was correct.
-         * @param {string} targetWordAudio - URL of the target word's audio file.
-         * @param {Function} callback - Function to execute after correct audio playback.
+         * Nuclear option - cleanup everything except feedback audio
          */
-        function playFeedback(isCorrect, targetWordAudio, callback) {
-            var audioToPlay = isCorrect ? correctAudio : wrongAudio;
-
-            // Proceed only if the target word's audio has played sufficiently
-            if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
-                return;
-            }
-
-            playAudio(audioToPlay);
-
-            if (!isCorrect && targetWordAudio) {
-                // After the "wrong" sound finishes, play the target word's audio
-                wrongAudio.onended = function () {
-                    playAudio(currentTargetAudio);
-                };
-            } else if (isCorrect && typeof callback === 'function') {
-                // If correct, execute the callback after the correct sound finishes
-                correctAudio.onended = callback;
-            }
+        function killAllAudio() {
+            console.log('Audio: killAllAudio called');
+            return cleanupSession(currentSession);
         }
 
         /**
-         * Sets up and plays the target word's audio by creating a new <audio> element.
-         *
-         * @param {Object} targetWord - The target word object containing audio URL.
+         * Set target word audio (for quiz questions)
          */
         function setTargetWordAudio(targetWord) {
-            // Remove any existing audio elements from previous rounds
+            if (!targetWord || !targetWord.audio) {
+                console.warn('Audio: No audio for word');
+                return Promise.reject(new Error('No audio'));
+            }
+
+            // Remove old target audio from DOM
             $('#ll-tools-flashcard audio').remove();
 
-            // Create a new <audio> element for the target word
+            // Create new audio in DOM
             var audioElement = $('<audio>', {
                 src: targetWord.audio,
                 controls: true
             }).appendTo('#ll-tools-flashcard');
 
             currentTargetAudio = audioElement[0];
-            registerAudio(currentTargetAudio);
-            playAudio(currentTargetAudio);
+            currentTargetAudio.__sessionId = currentSession;
+            activeAudioElements.set(currentTargetAudio, currentSession);
 
-            // Allow user interaction after approximately 0.4 seconds of playback
-            currentTargetAudio.addEventListener('timeupdate', function timeUpdateListener() {
+            targetAudioHasPlayed = false;
+
+            // Track when audio has played enough
+            currentTargetAudio.addEventListener('timeupdate', function onTimeUpdate() {
                 if (this.currentTime > 0.4 || this.ended) {
                     targetAudioHasPlayed = true;
-                    this.removeEventListener('timeupdate', timeUpdateListener);
+                    this.removeEventListener('timeupdate', onTimeUpdate);
                 }
             });
 
-            // Log any errors encountered during audio playback
             currentTargetAudio.onerror = function (e) {
                 console.error("Error playing target audio file:", currentTargetAudio.src, e);
+            };
+
+            return playAudio(currentTargetAudio);
+        }
+
+        /**
+         * Play feedback sound (correct/wrong)
+         */
+        function playFeedback(isCorrect, targetWordAudio, callback) {
+            var audioToPlay = isCorrect ? correctAudio : wrongAudio;
+
+            if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
+                return Promise.resolve();
+            }
+
+            if (!isCorrect && targetWordAudio) {
+                // Wrong answer: play wrong sound, then target audio
+                wrongAudio.onended = function () {
+                    playAudio(currentTargetAudio);
+                };
+                return playAudio(audioToPlay);
+            } else if (isCorrect && typeof callback === 'function') {
+                // Correct answer: play correct sound, then callback
+                correctAudio.onended = callback;
+                return playAudio(audioToPlay);
+            } else {
+                return playAudio(audioToPlay);
+            }
+        }
+
+        /**
+         * Create managed audio for introduction sequences
+         * Returns an object with play/stop/cleanup methods
+         */
+        function createIntroductionAudio(url) {
+            var audio = createAudio(url, { type: 'introduction' });
+
+            return {
+                audio: audio,
+                play: function () {
+                    return playAudio(audio);
+                },
+                stop: function () {
+                    return stopAudio(audio);
+                },
+                cleanup: function () {
+                    return cleanupSingleAudio(audio);
+                },
+                isValid: function () {
+                    return isCurrentSession(audio);
+                },
+                // Play until audio ends (includes watchdog timer)
+                playUntilEnd: function () {
+                    return new Promise(function (resolve, reject) {
+                        if (!isCurrentSession(audio)) {
+                            resolve(); // Not an error, just outdated
+                            return;
+                        }
+
+                        var resolved = false;
+                        var watchdog = null;
+
+                        function onEnd() {
+                            if (resolved) return;
+                            resolved = true;
+                            if (watchdog) clearTimeout(watchdog);
+                            audio.onended = null;
+                            audio.onerror = null;
+                            resolve();
+                        }
+
+                        audio.onended = onEnd;
+                        audio.onerror = onEnd;
+
+                        // Watchdog: force end after 15 seconds
+                        watchdog = setTimeout(onEnd, 15000);
+
+                        playAudio(audio).catch(function (err) {
+                            if (!resolved) {
+                                resolved = true;
+                                if (watchdog) clearTimeout(watchdog);
+                                reject(err);
+                            }
+                        });
+                    });
+                }
             };
         }
 
         /**
-         * Resets the audio state so that the quiz can be restarted.
-         */
-        function resetAudioState() {
-            killAllAudio();
-        }
-
-        /**
-         * Selects the best audio for a word based on recording type priority.
-         * Priority: introduction > isolation > question > any available
-         *
-         * @param {Object} word - The word object with audio_files array
-         * @param {Array} preferredTypes - Array of recording types in priority order
-         * @returns {string|null} - URL of the best audio file
+         * Select best audio for a word based on recording type priority
          */
         function selectBestAudio(word, preferredTypes) {
             if (!word || !word.audio_files || !Array.isArray(word.audio_files) || word.audio_files.length === 0) {
                 return word.audio || null;
             }
 
-            // Try each preferred type in order
-            for (let type of preferredTypes) {
-                const audioFile = word.audio_files.find(af => af.recording_type === type);
+            for (var i = 0; i < preferredTypes.length; i++) {
+                var type = preferredTypes[i];
+                var audioFile = word.audio_files.find(function (af) {
+                    return af.recording_type === type;
+                });
                 if (audioFile && audioFile.url) {
                     return audioFile.url;
                 }
             }
 
-            // Fallback to first available audio
             return word.audio_files[0].url || word.audio || null;
         }
 
         /**
-         * Clears the autoplay blocked flag (used after user interaction)
+         * Reset audio state (start new session and cleanup old)
+         */
+        function resetAudioState() {
+            return startNewSession();
+        }
+
+        /**
+         * Clear autoplay block flag
          */
         function clearAutoplayBlock() {
             autoplayBlocked = false;
         }
 
-        // Expose public methods
+        // Public API
         return {
             initializeAudio: initializeAudio,
+            startNewSession: startNewSession,
+            createAudio: createAudio,
+            createIntroductionAudio: createIntroductionAudio,
+            isCurrentSession: isCurrentSession,
             playAudio: playAudio,
             pauseAllAudio: pauseAllAudio,
-            playFeedback: playFeedback,
-            setTargetWordAudio: setTargetWordAudio,
-            resetAudioState: resetAudioState,
             killAllAudio: killAllAudio,
-            registerAudio: registerAudio,
+            setTargetWordAudio: setTargetWordAudio,
+            playFeedback: playFeedback,
+            selectBestAudio: selectBestAudio,
+            resetAudioState: resetAudioState,
+            clearAutoplayBlock: clearAutoplayBlock,
             getCurrentTargetAudio: function () { return currentTargetAudio; },
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },
-            getCorrectAudioURL: function () { return correctAudio.src; },
-            getWrongAudioURL: function () { return wrongAudio.src; },
-            selectBestAudio: selectBestAudio,
-            clearAutoplayBlock: clearAutoplayBlock
+            getCorrectAudioURL: function () { return correctAudio ? correctAudio.src : ''; },
+            getWrongAudioURL: function () { return wrongAudio ? wrongAudio.src : ''; }
         };
     })();
 
-    // Expose the FlashcardAudio module globally
+    // Expose globally
     window.FlashcardAudio = FlashcardAudio;
 })(jQuery);

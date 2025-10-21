@@ -51,14 +51,19 @@
             // Set abort flag FIRST to stop any in-flight operations
             this.abortAllOperations = true;
 
-            // Clear timeouts
+            // Clear timeouts immediately
             this.clearActiveTimeouts();
 
-            // Small delay to let abort flag propagate
-            setTimeout(() => {
-                this.abortAllOperations = false;
-            }, 100);
+            // Set guards to prevent new operations
+            this.audioSequenceRunning = false;
+            this.quizRoundRunning = false;
 
+            // Immediately hide learning progress bar to prevent flash
+            if (typeof jQuery !== 'undefined') {
+                jQuery('#ll-tools-learning-progress').hide().empty();
+            }
+
+            // Reset all state immediately (no setTimeout)
             this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
@@ -89,9 +94,11 @@
             this.lastWordShownId = null;
             this.learningModeRepetitionQueue = [];
 
-            // Clear race condition guards AFTER abort flag is set
-            this.audioSequenceRunning = false;
-            this.quizRoundRunning = false;
+            // Schedule clearing the abort flag after a short delay
+            // This gives time for any in-flight checks to see the flag
+            setTimeout(() => {
+                this.abortAllOperations = false;
+            }, 200);
         },
 
         clearActiveTimeouts() {
