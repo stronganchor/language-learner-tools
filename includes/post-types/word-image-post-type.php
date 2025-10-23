@@ -314,3 +314,31 @@ function ll_render_word_images_columns($column, $post_id) {
             break;
     }
 }
+
+/**
+ * BULK EDIT CATEGORY FUNCTIONALITY FOR WORD IMAGES
+ */
+
+/**
+ * Enqueue admin script for bulk edit category handling
+ */
+function ll_word_images_enqueue_bulk_edit_script($hook) {
+    ll_enqueue_bulk_category_edit_script('word_images', 'll-word-images-bulk-edit', 'js/word-images-bulk-edit.js');
+}
+add_action('admin_enqueue_scripts', 'll_word_images_enqueue_bulk_edit_script');
+
+/**
+ * AJAX handler to get common categories for selected word images
+ */
+function ll_word_images_get_common_categories() {
+    ll_get_common_categories_for_post_type('word_images');
+}
+add_action('wp_ajax_ll_word_images_get_common_categories', 'll_word_images_get_common_categories');
+
+/**
+ * Handle bulk edit category removal for word images
+ */
+function ll_word_images_handle_bulk_edit_categories($post_id) {
+    ll_handle_bulk_category_edit($post_id, 'word_images');
+}
+add_action('edit_post', 'll_word_images_handle_bulk_edit_categories', 999, 1);

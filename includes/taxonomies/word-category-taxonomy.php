@@ -756,3 +756,131 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5) {
     // If both image and text counts are below the minimum, can't generate quiz
     return !($image_count < $min_word_count && $text_count < $min_word_count);
 }
+
+/**
+ * SHARED BULK EDIT FUNCTIONS FOR WORD-CATEGORY TAXONOMY
+ * Used by both 'words' and 'word_images' post types
+ */
+
+/**
+ * Enqueue bulk edit script for a specific post type
+ *
+ * @param string $post_type The post type slug ('words' or 'word_images')
+ * @param string $script_handle The script handle
+ * @param string $script_path Relative path to the JS file
+ */
+function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $script_path) {
+    global $pagenow, $typenow;
+
+    if ($pagenow !== 'edit.php' || $typenow !== $post_type) {
+        return;
+    }
+
+    wp_enqueue_script(
+        $script_handle,
+        plugins_url($script_path, LL_TOOLS_MAIN_FILE),
+        ['jquery', 'inline-edit-post'],
+        filemtime(LL_TOOLS_BASE_PATH . $script_path),
+        true
+    );
+
+    wp_localize_script($script_handle, 'llBulkEditData', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ll_bulk_category_edit_' . $post_type),
+        'postType' => $post_type,
+    ]);
+}
+
+/**
+ * AJAX handler to get common categories for selected posts
+ *
+ * @param string $post_type The post type to check ('words' or 'word_images')
+ */
+function ll_get_common_categories_for_post_type($post_type) {
+    check_ajax_referer('ll_bulk_category_edit_' . $post_type, 'nonce');
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error('Permission denied');
+    }
+
+    $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+
+    if (empty($post_ids)) {
+        wp_send_json_error('No posts selected');
+    }
+
+    // Get categories for each post
+    $all_categories = [];
+    foreach ($post_ids as $post_id) {
+        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($terms)) {
+            $all_categories[$post_id] = $terms;
+        }
+    }
+
+    if (empty($all_categories)) {
+        wp_send_json_success(['common' => []]);
+    }
+
+    // Find categories common to ALL selected posts
+    $common = array_shift($all_categories);
+    foreach ($all_categories as $post_cats) {
+        $common = array_intersect($common, $post_cats);
+    }
+
+    wp_send_json_success(['common' => array_values($common)]);
+}
+
+/**
+ * Handle bulk edit category removal for a specific post type
+ *
+ * @param int $post_id The post ID being edited
+ * @param string $post_type The post type to handle ('words' or 'word_images')
+ */
+function ll_handle_bulk_category_edit($post_id, $post_type) {
+    // Only run if this is part of a bulk edit
+    if (!isset($_REQUEST['bulk_edit'])) {
+        return;
+    }
+
+    // Only for specified post type
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== $post_type) {
+        return;
+    }
+
+    // Security check
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    // Check if we have categories to remove
+    if (!isset($_REQUEST['ll_bulk_categories_to_remove']) || empty($_REQUEST['ll_bulk_categories_to_remove'])) {
+        return;
+    }
+
+    $categories_to_remove = array_map('intval', (array)$_REQUEST['ll_bulk_categories_to_remove']);
+
+    if (empty($categories_to_remove)) {
+        return;
+    }
+
+    // Get current categories AFTER WordPress has processed the bulk edit
+    $current_terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+
+    if (is_wp_error($current_terms)) {
+        return;
+    }
+
+    // Remove the specified categories
+    $new_terms = array_diff($current_terms, $categories_to_remove);
+
+    // Only update if something changed
+    if (count($new_terms) !== count($current_terms)) {
+        wp_set_object_terms($post_id, array_values($new_terms), 'word-category', false);
+
+        // Log for debugging
+        error_log("LL Tools: $post_type post $post_id - Removed categories: " . implode(',', $categories_to_remove));
+        error_log("LL Tools: $post_type post $post_id - New categories: " . implode(',', $new_terms));
+    }
+}

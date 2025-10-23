@@ -562,22 +562,7 @@ add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
  * Enqueue admin script for bulk edit category handling
  */
 function ll_words_enqueue_bulk_edit_script($hook) {
-    if ($hook !== 'edit.php' || !isset($_GET['post_type']) || $_GET['post_type'] !== 'words') {
-        return;
-    }
-
-    wp_enqueue_script(
-        'll-words-bulk-edit',
-        plugins_url('js/words-bulk-edit.js', LL_TOOLS_MAIN_FILE),
-        ['jquery', 'inline-edit-post'],
-        filemtime(LL_TOOLS_BASE_PATH . 'js/words-bulk-edit.js'),
-        true
-    );
-
-    wp_localize_script('ll-words-bulk-edit', 'llWordsBulkEdit', [
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('ll_words_bulk_edit'),
-    ]);
+    ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/words-bulk-edit.js');
 }
 add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
 
@@ -585,38 +570,7 @@ add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
  * AJAX handler to get common categories for selected posts
  */
 function ll_words_get_common_categories() {
-    check_ajax_referer('ll_words_bulk_edit', 'nonce');
-
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error('Permission denied');
-    }
-
-    $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
-
-    if (empty($post_ids)) {
-        wp_send_json_error('No posts selected');
-    }
-
-    // Get categories for each post
-    $all_categories = [];
-    foreach ($post_ids as $post_id) {
-        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($terms)) {
-            $all_categories[$post_id] = $terms;
-        }
-    }
-
-    if (empty($all_categories)) {
-        wp_send_json_success(['common' => []]);
-    }
-
-    // Find categories common to ALL selected posts
-    $common = array_shift($all_categories);
-    foreach ($all_categories as $post_cats) {
-        $common = array_intersect($common, $post_cats);
-    }
-
-    wp_send_json_success(['common' => array_values($common)]);
+    ll_get_common_categories_for_post_type('words');
 }
 add_action('wp_ajax_ll_words_get_common_categories', 'll_words_get_common_categories');
 
@@ -624,51 +578,7 @@ add_action('wp_ajax_ll_words_get_common_categories', 'll_words_get_common_catego
  * Handle bulk edit category removal - runs after WordPress processes bulk edit
  */
 function ll_words_handle_bulk_edit_categories($post_id) {
-    // Only run if this is part of a bulk edit
-    if (!isset($_REQUEST['bulk_edit'])) {
-        return;
-    }
-
-    // Only for words post type
-    $post = get_post($post_id);
-    if (!$post || $post->post_type !== 'words') {
-        return;
-    }
-
-    // Security check
-    if (!current_user_can('edit_post', $post_id)) {
-        return;
-    }
-
-    // Check if we have categories to remove
-    if (!isset($_REQUEST['ll_bulk_categories_to_remove']) || empty($_REQUEST['ll_bulk_categories_to_remove'])) {
-        return;
-    }
-
-    $categories_to_remove = array_map('intval', (array)$_REQUEST['ll_bulk_categories_to_remove']);
-
-    if (empty($categories_to_remove)) {
-        return;
-    }
-
-    // Get current categories AFTER WordPress has processed the bulk edit
-    $current_terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-
-    if (is_wp_error($current_terms)) {
-        return;
-    }
-
-    // Remove the specified categories
-    $new_terms = array_diff($current_terms, $categories_to_remove);
-
-    // Only update if something changed
-    if (count($new_terms) !== count($current_terms)) {
-        wp_set_object_terms($post_id, array_values($new_terms), 'word-category', false);
-
-        // Log for debugging
-        error_log("LL Tools: Post $post_id - Removed categories: " . implode(',', $categories_to_remove));
-        error_log("LL Tools: Post $post_id - New categories: " . implode(',', $new_terms));
-    }
+    ll_handle_bulk_category_edit($post_id, 'words');
 }
 add_action('edit_post', 'll_words_handle_bulk_edit_categories', 999, 1);
 

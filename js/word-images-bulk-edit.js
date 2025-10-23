@@ -63,7 +63,7 @@
             url: llBulkEditData.ajaxurl,
             type: 'POST',
             data: {
-                action: 'll_words_get_common_categories',
+                action: 'll_word_images_get_common_categories',
                 nonce: llBulkEditData.nonce,
                 post_ids: postIds
             },
@@ -86,7 +86,7 @@
                         $(this).prop('checked', isCommon);
                     });
 
-                    console.log('Pre-checked common categories:', commonCategories);
+                    console.log('Pre-checked common categories for word images:', commonCategories);
 
                     // Watch for checkbox changes and update hidden inputs
                     checkboxes.off('change.llbulk').on('change.llbulk', function () {
@@ -120,7 +120,7 @@
 
         // Add new hidden inputs
         if (categoriesToRemove.length > 0) {
-            console.log('Will remove categories:', categoriesToRemove);
+            console.log('Will remove categories from word images:', categoriesToRemove);
 
             categoriesToRemove.forEach(function (termId) {
                 $('#bulk-edit').append(
@@ -132,7 +132,7 @@
                 );
             });
         } else {
-            console.log('No categories to remove');
+            console.log('No categories to remove from word images');
         }
     }
 
