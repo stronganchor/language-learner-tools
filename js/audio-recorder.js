@@ -40,6 +40,7 @@
     function setupElements() {
         window.llRecorder = {
             image: document.getElementById('ll-current-image'),
+            imageContainer: document.querySelector('.ll-recording-image-container'),
             title: document.getElementById('ll-image-title'),
             recordBtn: document.getElementById('ll-record-btn'),
             indicator: document.getElementById('ll-recording-indicator'),
@@ -143,9 +144,25 @@
         const img = images[index];
         const el = window.llRecorder;
 
-        el.image.src = img.image_url;
         el.currentNum.textContent = index + 1;
         el.totalNum.textContent = images.length;
+
+        if (img.is_text_only) {
+            el.image.style.display = 'none';
+            if (!el.textDisplay) {
+                el.textDisplay = document.createElement('div');
+                el.textDisplay.className = 'll-text-display';
+                el.imageContainer.querySelector('.flashcard-container').appendChild(el.textDisplay);
+            }
+            el.textDisplay.style.display = 'flex';
+            el.textDisplay.textContent = img.title;
+        } else {
+            if (el.textDisplay) {
+                el.textDisplay.style.display = 'none';
+            }
+            el.image.style.display = 'block';
+            el.image.src = img.image_url;
+        }
 
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
@@ -331,7 +348,8 @@
         const formData = new FormData();
         formData.append('action', 'll_skip_recording_type');
         formData.append('nonce', nonce);
-        formData.append('image_id', img.id);
+        formData.append('image_id', img.id || 0);
+        formData.append('word_id', img.word_id || 0);
         formData.append('recording_type', curType);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
@@ -385,7 +403,8 @@
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
         formData.append('nonce', nonce);
-        formData.append('image_id', img.id);
+        formData.append('image_id', img.id || 0);
+        formData.append('word_id', img.word_id || 0);
         formData.append('recording_type', recordingType);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
@@ -441,7 +460,8 @@
             const fd = new FormData();
             fd.append('action', 'll_verify_recording');
             fd.append('nonce', nonce);
-            fd.append('image_id', img.id);
+            fd.append('image_id', img.id || 0);
+            fd.append('word_id', img.word_id || 0);
             fd.append('recording_type', recordingType);
             fd.append('wordset_ids', JSON.stringify(wordsetIds));
             fd.append('wordset', wordsetLegacy);

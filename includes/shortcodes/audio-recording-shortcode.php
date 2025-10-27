@@ -265,11 +265,27 @@ function ll_audio_recording_interface_shortcode($atts) {
 }
 add_shortcode('audio_recording_interface', 'll_audio_recording_interface_shortcode');
 
-/**
- * Get categories (slugs => names) that have images needing audio in the given wordset, with type filters applied.
- */
 function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $exclude_types_csv) {
-    $args = [
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
+    if (is_wp_error($all_types)) $all_types = [];
+
+    $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
+    $exclude_types = !empty($exclude_types_csv) ? array_map('trim', explode(',', $exclude_types_csv)) : [];
+
+    $filtered_types = $all_types;
+    if (!empty($include_types)) {
+        $filtered_types = array_intersect($filtered_types, $include_types);
+    } elseif (!empty($exclude_types)) {
+        $filtered_types = array_diff($filtered_types, $exclude_types);
+    }
+
+    if (empty($filtered_types)) {
+        return [];
+    }
+
+    $categories = [];
+
+    $image_args = [
         'post_type'      => 'word_images',
         'post_status'    => 'publish',
         'posts_per_page' => -1,
@@ -284,52 +300,66 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         ],
     ];
 
-    $image_posts = get_posts($args);
-    $categories = [];
-
-    // Get all recording types and apply filters
-    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
-    if (is_wp_error($all_types)) $all_types = [];
-
-    $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
-    $exclude_types = !empty($exclude_types_csv) ? array_map('trim', explode(',', $exclude_types_csv)) : [];
-
-    $filtered_types = $all_types;
-    if (!empty($include_types)) {
-        $filtered_types = array_intersect($filtered_types, $include_types);
-    } elseif (!empty($exclude_types)) {
-        $filtered_types = array_diff($filtered_types, $exclude_types);
-    }
-
-    // If no recording types available, nothing to record
-    if (empty($filtered_types)) {
-        return $categories;
-    }
+    $image_posts = get_posts($image_args);
 
     foreach ($image_posts as $img_id) {
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
-
-        // Determine what recording types are missing for this image
-        if (!$word_id) {
-            // NO WORD POST EXISTS: This image needs ALL recording types
-            $missing = $filtered_types;
-        } else {
-            // Word post exists: Check which recording types are missing
+        if ($word_id) {
             $missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+        } else {
+            $missing = $filtered_types;
         }
 
-        // If there are missing recording types, include this image's categories
         if (!empty($missing)) {
-            $terms = wp_get_post_terms($img_id, 'word-category');
-            if (!is_wp_error($terms) && !empty($terms)) {
-                foreach ($terms as $term) {
-                    $categories[$term->slug] = $term->name;
-                }
+            $cats = wp_get_post_terms($img_id, 'word-category');
+            if (!empty($cats) && !is_wp_error($cats)) {
+                $categories[$cats[0]->slug] = $cats[0]->name;
             }
         }
     }
 
-    asort($categories);
+    $word_args = [
+        'post_type'      => 'words',
+        'post_status'    => ['publish', 'draft'],
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'fields'         => 'ids',
+        'meta_query'     => [
+            'relation' => 'OR',
+            [
+                'key'     => '_thumbnail_id',
+                'compare' => 'NOT EXISTS',
+            ],
+            [
+                'key'     => '_thumbnail_id',
+                'value'   => '',
+                'compare' => '=',
+            ],
+        ],
+    ];
+
+    if (!empty($wordset_term_ids)) {
+        $word_args['tax_query'] = [[
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => array_map('intval', $wordset_term_ids),
+        ]];
+    }
+
+    $text_words = get_posts($word_args);
+
+    foreach ($text_words as $word_id) {
+        $missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+
+        if (!empty($missing)) {
+            $cats = wp_get_post_terms($word_id, 'word-category');
+            if (!empty($cats) && !is_wp_error($cats)) {
+                $categories[$cats[0]->slug] = $cats[0]->name;
+            }
+        }
+    }
+
     return $categories;
 }
 
@@ -519,10 +549,15 @@ function ll_verify_recording_handler() {
     }
 
     $image_id       = intval($_POST['image_id'] ?? 0);
+    $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
     $include_types  = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types  = sanitize_text_field($_POST['exclude_types'] ?? '');
     $wordset_ids    = [];
+
+    if (!$image_id && !$word_id) {
+        wp_send_json_error('Missing image_id or word_id');
+    }
 
     if (!empty($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -533,9 +568,21 @@ function ll_verify_recording_handler() {
         $wordset_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
     }
 
-    $image_post = get_post($image_id);
-    if (!$image_post || $image_post->post_type !== 'word_images') {
-        wp_send_json_error('Invalid image ID');
+    if ($image_id) {
+        $image_post = get_post($image_id);
+        if (!$image_post || $image_post->post_type !== 'word_images') {
+            wp_send_json_error('Invalid image ID');
+        }
+        $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids);
+        if (is_wp_error($word_id)) {
+            wp_send_json_error('Failed to find/create word: ' . $word_id->get_error_message());
+        }
+        $word_id = (int) $word_id;
+    } else {
+        $word_post = get_post($word_id);
+        if (!$word_post || $word_post->post_type !== 'words') {
+            wp_send_json_error('Invalid word ID');
+        }
     }
 
     // Rebuild filtered type list just like the UI
@@ -649,7 +696,6 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  * ]
  */
 function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '') {
-    // If nothing provided, fall back to default wordset so guests never see "all images"
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
         if ($default_id) {
@@ -657,7 +703,6 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
 
-    // All defined recording types (slugs)
     $all_types = get_terms([
         'taxonomy'   => 'recording_type',
         'hide_empty' => false,
@@ -667,7 +712,6 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $all_types = [];
     }
 
-    // Parse and apply filters
     $include_types = !empty($include_types_csv) ? array_map('trim', explode(',', $include_types_csv)) : [];
     $exclude_types = !empty($exclude_types_csv) ? array_map('trim', explode(',', $exclude_types_csv)) : [];
 
@@ -678,7 +722,10 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $filtered_types = array_diff($filtered_types, $exclude_types);
     }
 
-    $args = [
+    $result = [];
+    $items_by_category = [];
+
+    $image_args = [
         'post_type'      => 'word_images',
         'post_status'    => 'publish',
         'posts_per_page' => -1,
@@ -688,19 +735,16 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     ];
 
     if (!empty($category_slug)) {
-        $args['tax_query'] = [[
+        $image_args['tax_query'] = [[
             'taxonomy' => 'word-category',
             'field'    => 'slug',
             'terms'    => $category_slug,
         ]];
     }
 
-    $image_posts = get_posts($args);
-    $result = [];
-    $images_by_category = [];
+    $image_posts = get_posts($image_args);
 
     foreach ($image_posts as $img_id) {
-        // Find the word in THIS wordset that uses this image (if any)
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
 
         if ($word_id) {
@@ -710,7 +754,6 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
         $existing_types = $word_id ? ll_get_existing_recording_types_for_word($word_id) : [];
 
-        // Only include the image if at least one type is missing
         if (!empty($missing_types)) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
@@ -724,14 +767,14 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     $category_id   = 0;
                 }
 
-                if (!isset($images_by_category[$category_id])) {
-                    $images_by_category[$category_id] = [
-                        'name'   => $category_name,
-                        'images' => [],
+                if (!isset($items_by_category[$category_id])) {
+                    $items_by_category[$category_id] = [
+                        'name'  => $category_name,
+                        'items' => [],
                     ];
                 }
 
-                $images_by_category[$category_id]['images'][] = [
+                $items_by_category[$category_id]['items'][] = [
                     'id'             => $img_id,
                     'title'          => get_the_title($img_id),
                     'image_url'      => $thumb_url,
@@ -739,18 +782,99 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     'word_id'        => $word_id ?: 0,
                     'missing_types'  => $missing_types,
                     'existing_types' => $existing_types,
+                    'is_text_only'   => false,
                 ];
             }
         }
     }
 
-    uasort($images_by_category, function($a, $b) {
+    $word_args = [
+        'post_type'      => 'words',
+        'post_status'    => ['publish', 'draft'],
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'fields'         => 'ids',
+        'meta_query'     => [
+            'relation' => 'OR',
+            [
+                'key'     => '_thumbnail_id',
+                'compare' => 'NOT EXISTS',
+            ],
+            [
+                'key'     => '_thumbnail_id',
+                'value'   => '',
+                'compare' => '=',
+            ],
+        ],
+    ];
+
+    if (!empty($wordset_term_ids)) {
+        $word_args['tax_query'] = [[
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => array_map('intval', $wordset_term_ids),
+        ]];
+    }
+
+    if (!empty($category_slug)) {
+        if (empty($word_args['tax_query'])) {
+            $word_args['tax_query'] = [];
+        }
+        $word_args['tax_query'][] = [
+            'taxonomy' => 'word-category',
+            'field'    => 'slug',
+            'terms'    => $category_slug,
+        ];
+        if (count($word_args['tax_query']) > 1) {
+            $word_args['tax_query']['relation'] = 'AND';
+        }
+    }
+
+    $text_words = get_posts($word_args);
+
+    foreach ($text_words as $word_id) {
+        $missing_types = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+        $existing_types = ll_get_existing_recording_types_for_word($word_id);
+
+        if (!empty($missing_types)) {
+            $categories = wp_get_post_terms($word_id, 'word-category');
+            if (!empty($categories) && !is_wp_error($categories)) {
+                $category      = $categories[0];
+                $category_name = $category->name;
+                $category_id   = $category->term_id;
+            } else {
+                $category_name = 'Uncategorized';
+                $category_id   = 0;
+            }
+
+            if (!isset($items_by_category[$category_id])) {
+                $items_by_category[$category_id] = [
+                    'name'  => $category_name,
+                    'items' => [],
+                ];
+            }
+
+            $items_by_category[$category_id]['items'][] = [
+                'id'             => 0,
+                'title'          => get_the_title($word_id),
+                'image_url'      => '',
+                'category_name'  => $category_name,
+                'word_id'        => $word_id,
+                'missing_types'  => $missing_types,
+                'existing_types' => $existing_types,
+                'is_text_only'   => true,
+            ];
+        }
+    }
+
+    uasort($items_by_category, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
     });
 
-    foreach ($images_by_category as $category_data) {
-        foreach ($category_data['images'] as $image) {
-            $result[] = $image;
+    foreach ($items_by_category as $category_data) {
+        foreach ($category_data['items'] as $item) {
+            $result[] = $item;
         }
     }
 
@@ -1000,10 +1124,14 @@ function ll_skip_recording_type_handler() {
         wp_send_json_error('You must be logged in to skip recordings');
     }
 
-    $image_id      = intval($_POST['image_id'] ?? 0);
+    $image_id       = intval($_POST['image_id'] ?? 0);
+    $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
 
-    // Wordset resolution (explicit first, then fallback)
+    if (!$image_id && !$word_id) {
+        wp_send_json_error('Missing image_id or word_id');
+    }
+
     $posted_ids = [];
     if (isset($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -1016,7 +1144,6 @@ function ll_skip_recording_type_handler() {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
     }
 
-    // Include/exclude filters (used to compute the same filtered set the UI is using)
     $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
 
@@ -1033,19 +1160,23 @@ function ll_skip_recording_type_handler() {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
 
-    $image_post = get_post($image_id);
-    if (!$image_post || $image_post->post_type !== 'word_images') {
-        wp_send_json_error('Invalid image ID');
+    if ($image_id) {
+        $image_post = get_post($image_id);
+        if (!$image_post || $image_post->post_type !== 'word_images') {
+            wp_send_json_error('Invalid image ID');
+        }
+        $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
+        if (is_wp_error($word_id)) {
+            wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+        }
+        $word_id = (int) $word_id;
+    } else {
+        $word_post = get_post($word_id);
+        if (!$word_post || $word_post->post_type !== 'words') {
+            wp_send_json_error('Invalid word ID');
+        }
     }
 
-    // Find or create parent word
-    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
-    if (is_wp_error($word_id)) {
-        wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
-    }
-    $word_id = (int) $word_id;
-
-    // Mark this type as skipped
     $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
     $skipped = is_array($skipped) ? $skipped : [];
     if ($recording_type && !in_array($recording_type, $skipped, true)) {
@@ -1053,7 +1184,6 @@ function ll_skip_recording_type_handler() {
         update_post_meta($word_id, 'll_skipped_recording_types', $skipped);
     }
 
-    // Compute remaining based on the SAME filtered set the UI is using
     $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
 
     wp_send_json_success([
@@ -1075,14 +1205,19 @@ function ll_handle_recording_upload() {
     }
 
     $current_user_id = get_current_user_id();
-    if (empty($_FILES['audio']) || empty($_POST['image_id'])) {
+
+    if (empty($_FILES['audio'])) {
         wp_send_json_error('Missing data');
     }
 
-    $image_id       = intval($_POST['image_id']);
+    $image_id       = intval($_POST['image_id'] ?? 0);
+    $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? 'isolation');
 
-    // Wordset resolution (explicit first, then fallback)
+    if (!$image_id && !$word_id) {
+        wp_send_json_error('Missing image_id or word_id');
+    }
+
     $posted_ids = [];
     if (isset($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -1095,7 +1230,6 @@ function ll_handle_recording_upload() {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
     }
 
-    // Include/exclude filters (used to compute the same filtered set the UI is using)
     $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
 
@@ -1112,17 +1246,32 @@ function ll_handle_recording_upload() {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
 
-    $image_post = get_post($image_id);
-    if (!$image_post || $image_post->post_type !== 'word_images') {
-        error_log('Upload step: Invalid image ID');
-        wp_send_json_error('Invalid image ID');
+    if ($image_id) {
+        $image_post = get_post($image_id);
+        if (!$image_post || $image_post->post_type !== 'word_images') {
+            error_log('Upload step: Invalid image ID');
+            wp_send_json_error('Invalid image ID');
+        }
+        $title = $image_post->post_title;
+        $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
+        if (is_wp_error($word_id)) {
+            error_log('Upload step: Failed to find/create word post: ' . $word_id->get_error_message());
+            wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+        }
+        $word_id = (int) $word_id;
+    } else {
+        $word_post = get_post($word_id);
+        if (!$word_post || $word_post->post_type !== 'words') {
+            error_log('Upload step: Invalid word ID');
+            wp_send_json_error('Invalid word ID');
+        }
+        $title = $word_post->post_title;
     }
 
-    // Save file
     $file       = $_FILES['audio'];
     $upload_dir = wp_upload_dir();
-    $image_title = sanitize_file_name($image_post->post_title);
-    $timestamp   = time();
+    $safe_title = sanitize_file_name($title);
+    $timestamp  = time();
 
     $mime_type = $file['type'] ?? '';
     $extension = '.wav';
@@ -1131,9 +1280,9 @@ function ll_handle_recording_upload() {
     elseif (strpos($mime_type, 'mpeg') !== false || strpos($mime_type, 'mp3') !== false) { $extension = '.mp3'; }
     elseif (strpos($mime_type, 'mp4') !== false)   { $extension = '.mp4'; }
     elseif (strpos($mime_type, 'aac') !== false)   { $extension = '.aac'; }
-    else { $extension = '.webm'; } // Shouldn't happen, but failsafe
+    else { $extension = '.webm'; }
 
-    $filename = $image_title . '_' . $timestamp . $extension;
+    $filename = $safe_title . '_' . $timestamp . $extension;
     $filepath = trailingslashit($upload_dir['path']) . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
@@ -1147,17 +1296,8 @@ function ll_handle_recording_upload() {
         wp_normalize_path($filepath)
     );
 
-    // Find or create parent word
-    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
-    if (is_wp_error($word_id)) {
-        error_log('Upload step: Failed to find/create word post: ' . $word_id->get_error_message());
-        wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
-    }
-    $word_id = (int) $word_id;
-
-    // Create word_audio post
     $audio_post_id = wp_insert_post([
-        'post_title'  => $image_post->post_title,
+        'post_title'  => $title,
         'post_type'   => 'word_audio',
         'post_status' => 'draft',
         'post_parent' => $word_id,
@@ -1168,7 +1308,6 @@ function ll_handle_recording_upload() {
         wp_send_json_error('Failed to create word_audio post');
     }
 
-    // Meta + taxonomy
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
@@ -1180,7 +1319,6 @@ function ll_handle_recording_upload() {
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
     }
 
-    // If this type had been skipped earlier, unskip it now
     $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
     $skipped = is_array($skipped) ? $skipped : [];
     if (($key = array_search($recording_type, $skipped, true)) !== false) {
@@ -1188,12 +1326,10 @@ function ll_handle_recording_upload() {
         update_post_meta($word_id, 'll_skipped_recording_types', array_values($skipped));
     }
 
-    // Legacy compatibility
     if (!get_post_meta($word_id, 'word_audio_file', true)) {
         update_post_meta($word_id, 'word_audio_file', $relative_path);
     }
 
-    // Compute remaining based on same filtered set the UI is using
     $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
 
     wp_send_json_success([

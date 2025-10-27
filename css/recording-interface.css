@@ -220,7 +220,7 @@
 }
 
 .ll-recording-interface .ll-btn-record.recording {
-    background: #27ae60 !important;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     animation: pulse 1.5s infinite;
 }
 
