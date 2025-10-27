@@ -317,17 +317,15 @@ function ll_get_category_depth($category_id, $depth = 0) {
 }
 
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null) {
-    // Resolve the term to check the per-category matching rule
     $term = get_term_by('name', $categoryName, 'word-category');
     $use_titles = false;
     if ($term && !is_wp_error($term)) {
         $use_titles = (get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1');
     }
 
-    // Fetch ONLY published words in this category (and wordset if provided)
     $args = [
         'post_type'      => 'words',
-        'post_status'    => 'publish', 
+        'post_status'    => 'publish',
         'posts_per_page' => -1,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
@@ -351,7 +349,6 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $words = [];
 
     foreach ($query->posts as $post) {
-        // Guard (belt-and-suspenders): only proceed if the word itself is published
         if (get_post_status($post->ID) !== 'publish') {
             continue;
         }
@@ -359,12 +356,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $word_id = $post->ID;
         $image   = get_the_post_thumbnail_url($word_id, 'full');
 
-        // Collect published child audio posts only
         $audio_files = [];
         $audio_posts = get_posts([
             'post_type'      => 'word_audio',
             'post_parent'    => $word_id,
-            'post_status'    => 'publish', // <-- exclude draft/trashed audio
+            'post_status'    => 'publish',
             'posts_per_page' => -1,
             'orderby'        => 'date',
             'order'          => 'DESC',
@@ -382,14 +378,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
         }
 
-        $primary_audio = !empty($audio_files) ? $audio_files[0]['url'] : '';
+        $prioritized_audio = ll_get_prioritized_audio($audio_posts);
+        $primary_audio = '';
+        if ($prioritized_audio) {
+            $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
+            if ($audio_path) {
+                $primary_audio = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+            }
+        }
 
-        // Compute label:
-        // - If the category is explicitly set to "use titles", label = title.
-        // - Otherwise, in text mode prefer translation meta; fall back to title if missing.
         $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
-        $label = $title; // default
+        $label = $title;
         if (!$use_titles && $displayMode === 'text') {
             $candidate_keys = [
                 'word_english_meaning',
@@ -421,7 +421,6 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'similar_word_id' => $similar_word_id ?: '',
         ];
 
-        // Include word depending on requested display mode
         if ($displayMode === 'image' && !empty($image)) {
             $words[] = $word_data;
         } elseif ($displayMode === 'text') {
