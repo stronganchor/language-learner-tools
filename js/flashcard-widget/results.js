@@ -16,9 +16,22 @@
         $('#ll-tools-mode-switcher').hide();
 
         if (State.isLearningMode) {
-            // Simple, concise learning mode completion message
+            // Create animated SVG checkmark
+            const checkmarkSVG = `
+                <svg class="ll-learning-checkmark" width="80" height="80" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="ll-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="ll-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                </svg>
+            `;
+
+            // Insert checkmark BEFORE the title
             $('#quiz-results-title').text(msgs.learningComplete || 'Learning Complete!');
-            $('#quiz-results-message').text(msgs.learningCompleteMessage || 'âœ"').show();
+
+            // Remove any existing checkmark first, then insert new one before title
+            $('.ll-learning-checkmark').remove();
+            $('#quiz-results-title').before(checkmarkSVG);
+
+            $('#quiz-results-message').hide();
             $('#correct-count').parent().hide();
             $('#quiz-results').show();
             $('#restart-quiz').hide();
