@@ -4,6 +4,7 @@
     let mediaRecorder = null;
     let audioChunks = [];
     let currentImageIndex = 0;
+    let exhaustedCategories = new Set();
     let recordingStartTime = 0;
     let timerInterval = null;
     let currentBlob = null;
@@ -526,9 +527,24 @@
             if (data.success) {
                 const newImages = data.data?.images || [];
                 if (newImages.length === 0) {
-                    showStatus(i18n.no_images_in_category || 'No images need audio in this category.', 'error');
-                    el.categorySelect.disabled = false;
-                    return;
+                    // Mark this category as exhausted
+                    exhaustedCategories.add(newCategory);
+
+                    // This category has no images - try the next one
+                    const nextCategory = getNextCategoryAfter(newCategory);
+                    if (nextCategory && nextCategory.slug !== newCategory) {
+                        el.categorySelect.value = nextCategory.slug;
+                        el.categorySelect.disabled = false;
+                        el.recordBtn.disabled = false;
+                        el.skipBtn.disabled = false;
+                        // Recursively try the next category
+                        return switchCategory();
+                    } else {
+                        // No more categories to try
+                        showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
+                        el.categorySelect.disabled = false;
+                        return;
+                    }
                 }
 
                 // Update global images and reset indexer
@@ -567,9 +583,36 @@
         }
     }
 
+    // Add this new helper function after getNextCategory()
+    function getNextCategoryAfter(currentSlug) {
+        const el = window.llRecorder;
+        if (!el.categorySelect) return null;
+
+        const availableCategories = window.ll_recorder_data?.available_categories || {};
+        const categoryEntries = Object.entries(availableCategories);
+
+        if (categoryEntries.length <= 1) return null;
+
+        const currentIndex = categoryEntries.findIndex(([slug]) => slug === currentSlug);
+
+        if (currentIndex === -1) return null;
+
+        // Get next category, or wrap to first if at end
+        const nextIndex = (currentIndex + 1) % categoryEntries.length;
+        const [slug, name] = categoryEntries[nextIndex];
+
+        return { slug, name };
+    }
+
     function showComplete() {
         const el = window.llRecorder;
         if (el.mainScreen) el.mainScreen.style.display = 'none';
+
+        // Mark current category as exhausted since we completed all its images
+        const currentCategory = el.categorySelect?.value;
+        if (currentCategory) {
+            exhaustedCategories.add(currentCategory);
+        }
 
         if (el.completeScreen) {
             el.completeScreen.style.display = 'block';
@@ -585,11 +628,11 @@
                     nextCategoryBtn.className = 'll-btn ll-btn-primary ll-next-category-btn';
                     nextCategoryBtn.style.marginTop = '20px';
                     nextCategoryBtn.innerHTML = `
-                    <span>${nextCategory.name}</span>
-                    <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
-                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
-                    </svg>
-                `;
+                <span>${nextCategory.name}</span>
+                <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
+                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
+                </svg>
+            `;
                     el.completeScreen.querySelector('p').insertAdjacentElement('afterend', nextCategoryBtn);
 
                     nextCategoryBtn.addEventListener('click', () => {
@@ -601,11 +644,11 @@
                 } else {
                     // Update existing button with new category
                     nextCategoryBtn.innerHTML = `
-                    <span>${nextCategory.name}</span>
-                    <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
-                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
-                    </svg>
-                `;
+                <span>${nextCategory.name}</span>
+                <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
+                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
+                </svg>
+            `;
                 }
             } else if (nextCategoryBtn) {
                 // Remove button if no next category
@@ -632,11 +675,24 @@
 
         if (currentIndex === -1) return null;
 
-        // Get next category, or wrap to first if at end
-        const nextIndex = (currentIndex + 1) % categoryEntries.length;
-        const [slug, name] = categoryEntries[nextIndex];
+        // Search for next non-exhausted category
+        let attempts = 0;
+        let nextIndex = currentIndex;
 
-        return { slug, name };
+        while (attempts < categoryEntries.length) {
+            nextIndex = (nextIndex + 1) % categoryEntries.length;
+            const [slug, name] = categoryEntries[nextIndex];
+
+            // Skip if this is the current category or if it's exhausted
+            if (slug !== currentCategory && !exhaustedCategories.has(slug)) {
+                return { slug, name };
+            }
+
+            attempts++;
+        }
+
+        // All categories are exhausted
+        return null;
     }
 
 })();
