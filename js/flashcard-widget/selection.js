@@ -409,8 +409,10 @@
             ensureLearningDefaults();
 
             if (isCorrect) {
-                // Track corrects
-                S.wordCorrectCounts[wordId] = (S.wordCorrectCounts[wordId] || 0) + 1;
+                // Only count toward mastery goal if answered correctly on first try
+                if (!hadWrongThisTurn) {
+                    S.wordCorrectCounts[wordId] = (S.wordCorrectCounts[wordId] || 0) + 1;
+                }
                 S.wordsAnsweredSinceLastIntro.add(wordId);
 
                 // If this card was in the wrong queue, remove it (we "redeemed" it)
