@@ -310,6 +310,7 @@
 
             root.FlashcardAudio.setTargetWordAudio(target);
             Dom.hideLoading();
+            Dom.enableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
