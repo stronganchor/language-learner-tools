@@ -140,27 +140,47 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'standard';
     $wordset   = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
 
-    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
+    // Enqueue flashcard styles in dependency order
+    ll_enqueue_asset_by_timestamp('/css/flashcard/core.css',  'll-tools-flashcard-core');
+    ll_enqueue_asset_by_timestamp('/css/flashcard/quiz.css',  'll-tools-flashcard-quiz', ['ll-tools-flashcard-core']);
+    ll_enqueue_asset_by_timestamp('/css/flashcard/learn.css', 'll-tools-flashcard-learn', ['ll-tools-flashcard-core']);
 
     $shortcode_folder = '/js/flashcard-widget/';
+    $core_folder = $shortcode_folder . 'core/';
 
-    // Core & modules - enqueue in dependency order
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    // Core modules
+    ll_enqueue_asset_by_timestamp($core_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'util.js',     'll-flc-util',                ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'state.js',    'll-flc-state',               ['ll-flc-util'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'dom.js',      'll-flc-dom',                 ['ll-flc-state'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'effects.js',  'll-flc-effects',             ['ll-flc-dom'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'cards.js',    'll-flc-cards',               ['ll-flc-dom','ll-flc-state','ll-flc-effects'], true);
 
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',      'll-flc-util',      ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',     'll-flc-state',     ['ll-flc-util'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'cards.js',     'll-flc-cards',     ['ll-flc-dom','ll-flc-state','ll-flc-effects'], true);
+    // Generic selection
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state','ll-flc-dom','ll-flc-effects'], true);
 
+    // Mode system
+    ll_enqueue_asset_by_timestamp($core_folder . 'mode-base.js', 'll-flc-mode-base', ['ll-flc-state'], true);
+
+    // Quiz mode
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/quiz/quiz-state.js', 'll-flc-quiz-state', ['ll-flc-state'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/quiz/quiz-selection.js', 'll-flc-quiz-selection', ['ll-flc-selection','ll-flc-quiz-state'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/quiz/quiz-options.js', 'll-flc-quiz-options', ['ll-flc-quiz-state','ll-tools-flashcard-options'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/quiz/quiz-mode.js', 'll-flc-quiz-mode', ['ll-flc-mode-base','ll-flc-quiz-state','ll-flc-quiz-selection','ll-flc-quiz-options'], true);
+    
+    // Learn mode
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learn/learn-state.js', 'll-flc-learn-state', ['ll-flc-state'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learn/learn-selection.js', 'll-flc-learn-selection', ['ll-flc-selection','ll-flc-learn-state'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learn/learn-mode.js', 'll-flc-learn-mode', ['ll-flc-mode-base','ll-flc-learn-state','ll-flc-learn-selection'], true);
+
+    // Main orchestrator
     ll_enqueue_asset_by_timestamp(
         $shortcode_folder . 'main.js',
         'll-flc-main',
-        ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options'],
+        ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options','ll-flc-quiz-mode','ll-flc-learn-mode'],
         true
     );
 
