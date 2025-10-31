@@ -689,6 +689,9 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  *     'image_url'     => string,
  *     'category_name' => string,
  *     'word_id'       => int|null,      // the word in this wordset that uses the image (if any)
+ *     'word_title'    => string|null,   // NEW: word post title (target lang, preferred)
+ *     'word_translation' => string|null, // NEW: word's English meaning (fallback)
+ *     'use_word_display' => bool,       // NEW: true if word data is preferred over image title
  *     'missing_types' => string[],       // recording_type slugs still needed (filtered)
  *     'existing_types'=> string[],       // recording_type slugs already present (not filtered, all)
  *   ],
@@ -722,6 +725,10 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $filtered_types = array_diff($filtered_types, $exclude_types);
     }
 
+    if (empty($filtered_types)) {
+        return [];
+    }
+
     $result = [];
     $items_by_category = [];
 
@@ -746,6 +753,24 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
     foreach ($image_posts as $img_id) {
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
+
+        // NEW: Enrich with word display data (title or translation)
+        $word_title = null;
+        $word_translation = null;
+        $use_word_display = false;
+        if ($word_id) {
+            $word_post = get_post($word_id);
+            if ($word_post && $word_post->post_type === 'words') {
+                $use_word_display = true;
+                $word_title = get_the_title($word_id); // Target lang title, preferred
+                $word_translation = get_post_meta($word_id, 'word_english_meaning', true); // English fallback
+                // Prioritize: if word_translation is in target lang (not English), use it; else use title
+                $target_lang = get_option('ll_target_language', 'TR'); // e.g., 'TR' for Turkish
+                if (!empty($word_translation) && strpos(strtolower($word_translation), strtolower($target_lang)) !== false) {
+                    $word_title = $word_translation;
+                }
+            }
+        }
 
         if ($word_id) {
             $missing_types = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
@@ -775,14 +800,17 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 }
 
                 $items_by_category[$category_id]['items'][] = [
-                    'id'             => $img_id,
-                    'title'          => get_the_title($img_id),
-                    'image_url'      => $thumb_url,
-                    'category_name'  => $category_name,
-                    'word_id'        => $word_id ?: 0,
-                    'missing_types'  => $missing_types,
-                    'existing_types' => $existing_types,
-                    'is_text_only'   => false,
+                    'id'               => $img_id,
+                    'title'            => get_the_title($img_id),
+                    'image_url'        => $thumb_url,
+                    'category_name'    => $category_name,
+                    'word_id'          => $word_id ?: 0,
+                    'word_title'       => $word_title,
+                    'word_translation' => $word_translation,
+                    'use_word_display' => $use_word_display,
+                    'missing_types'    => $missing_types,
+                    'existing_types'   => $existing_types,
+                    'is_text_only'     => false,
                 ];
             }
         }
@@ -861,8 +889,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 'image_url'      => '',
                 'category_name'  => $category_name,
                 'word_id'        => $word_id,
-                'missing_types'  => $missing_types,
-                'existing_types' => $existing_types,
+                // NEW: For text-only (no image), use word's own title and translation
+                'word_title'       => get_the_title($word_id), // Target lang
+                'word_translation' => get_post_meta($word_id, 'word_english_meaning', true),
+                'use_word_display' => true, // Always prefer word data for text-only
+                'missing_types'    => $missing_types,
+                'existing_types'  => $existing_types,
                 'is_text_only'   => true,
             ];
         }

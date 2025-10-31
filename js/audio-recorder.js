@@ -165,12 +165,20 @@
             el.image.src = img.image_url;
         }
 
+        // NEW: Prefer word title over image title if available and matched
+        let displayTitle = img.title; // Default to image title
+        const targetLang = window.ll_recorder_data?.language || 'TR'; // From localized data, e.g., 'TR'
+        if (img.use_word_display && img.word_title) {
+            displayTitle = img.word_title; // Prefer word's target lang title
+        } else if (img.use_word_display && img.word_translation && img.word_translation.toLowerCase().includes(targetLang.toLowerCase())) {
+            displayTitle = img.word_translation; // Use word's translation if it's in target lang
+        }
+
+        el.title.textContent = displayTitle;
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
-            el.title.textContent = '';
             el.title.style.display = 'none';
         } else {
-            el.title.textContent = img.title;
             el.title.style.display = '';
         }
 
