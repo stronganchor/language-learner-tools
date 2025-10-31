@@ -149,11 +149,12 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $core_folder = $shortcode_folder . 'core/';
 
     // Core modules
+    ll_enqueue_asset_by_timestamp($core_folder . 'store.js',    'll-flc-store',              [], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($core_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'loader.js',   'll-tools-flashcard-loader',  ['ll-flc-store','jquery'], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'util.js',     'll-flc-util',                ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($core_folder . 'state.js',    'll-flc-state',               ['ll-flc-util'], true);
+    ll_enqueue_asset_by_timestamp($core_folder . 'state.js',    'll-flc-state',               ['ll-flc-util','ll-flc-store'], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'dom.js',      'll-flc-dom',                 ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'effects.js',  'll-flc-effects',             ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($core_folder . 'cards.js',    'll-flc-cards',               ['ll-flc-dom','ll-flc-state','ll-flc-effects'], true);
@@ -176,11 +177,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learn/learn-selection.js', 'll-flc-learn-selection', ['ll-flc-selection','ll-flc-learn-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learn/learn-mode.js', 'll-flc-learn-mode', ['ll-flc-mode-base','ll-flc-learn-state','ll-flc-learn-selection'], true);
 
-    // Main orchestrator
+        // Main orchestrator
     ll_enqueue_asset_by_timestamp(
         $shortcode_folder . 'main.js',
         'll-flc-main',
-        ['ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options','ll-flc-quiz-mode','ll-flc-learn-mode'],
+        ['ll-flc-store','ll-flc-selection','ll-flc-results','ll-tools-flashcard-audio','ll-tools-flashcard-loader','ll-tools-flashcard-options','ll-flc-quiz-mode','ll-flc-learn-mode'],
         true
     );
 
@@ -221,7 +222,43 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $messages = ll_flashcards_get_messages();
     wp_localize_script('ll-flc-results', 'llToolsFlashcardsMessages', $messages);
     wp_localize_script('ll-flc-main',    'llToolsFlashcardsMessages', $messages);
+
+    // REST config used by popup/grid (safe to call multiple times)
+    wp_localize_script('ll-flc-main', 'LL_FLC', array(
+        'rest'  => array(
+            'base'  => esc_url_raw( rest_url('ll-tools/v1') ),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ),
+        'ajax'  => array('url' => admin_url('admin-ajax.php')),
+        'debug' => (defined('WP_DEBUG') && WP_DEBUG),
+    ));
+
 }
+
+// Ensure LL_FLC is printed whenever ll-flc-main is on the page.
+// Runs very late on enqueue, and again right before footer scripts print.
+function ll_flashcards_localize_rest_config_once() {
+    static $done = false;
+    if ($done) return;
+
+    if (
+        wp_script_is('ll-flc-main', 'enqueued') ||
+        wp_script_is('ll-flc-main', 'to_do')    ||
+        wp_script_is('ll-flc-main', 'registered')
+    ) {
+        wp_localize_script('ll-flc-main', 'LL_FLC', array(
+            'rest'  => array(
+                'base'  => esc_url_raw( rest_url('ll-tools/v1') ),
+                'nonce' => wp_create_nonce('wp_rest'),
+            ),
+            'ajax'  => array('url' => admin_url('admin-ajax.php')),
+            'debug' => (defined('WP_DEBUG') && WP_DEBUG),
+        ));
+        $done = true;
+    }
+}
+add_action('wp_enqueue_scripts',       'll_flashcards_localize_rest_config_once', 9999);
+add_action('wp_print_footer_scripts',  'll_flashcards_localize_rest_config_once', 1);
 
 /** ---------------------------
  *  Shortcode Controller

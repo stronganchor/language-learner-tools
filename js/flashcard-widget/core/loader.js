@@ -108,25 +108,27 @@
          * @param {string} categoryName - The name of the category.
          */
         function processFetchedWordData(wordData, categoryName) {
-            // IMPORTANT: Replace existing data instead of appending to avoid mixing wordsets
-            window.wordsByCategory[categoryName] = [];
+            var S = (window.LLFlashcards && window.LLFlashcards.Store) ? window.LLFlashcards.Store : null;
+            if (!S) throw new Error('LLFlashcards.Store not initialized');
 
-            if (!window.categoryRoundCount[categoryName]) {
-                window.categoryRoundCount[categoryName] = 0;
-            }
+            // Reset current category then fill
+            S.wordsByCategory[categoryName] = [];
+            if (!(categoryName in S.categoryRoundCount)) S.categoryRoundCount[categoryName] = 0;
 
-            window.wordsByCategory[categoryName].push(...wordData);
-            window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
+            if (Array.isArray(wordData)) S.wordsByCategory[categoryName].push(...wordData);
+            else if (wordData) S.wordsByCategory[categoryName].push(wordData);
 
-            loadedCategories.push(categoryName);
+            S.wordsByCategory[categoryName] = randomlySort(S.wordsByCategory[categoryName]);
+
+            if (!S.loadedCategories.includes(categoryName)) S.loadedCategories.push(categoryName);
         }
 
         /**
- * Loads resources for a specific category via AJAX.
- *
- * @param {string} categoryName - The name of the category.
- * @param {function} callback - Callback to execute after loading.
- */
+         * Loads resources for a specific category via AJAX.
+         *
+         * @param {string} categoryName - The name of the category.
+         * @param {function} callback - Callback to execute after loading.
+         */
         function loadResourcesForCategory(categoryName, callback) {
             if (loadedCategories.includes(categoryName)) {
                 if (typeof callback === 'function') callback();
