@@ -268,124 +268,96 @@ function ll_get_default_wordset_id_for_category(string $category_name, int $min_
  * Called only when [quiz_pages_grid popup="yes"] is used.
  */
 function ll_qpg_bootstrap_flashcards_for_grid() {
-    // 1) Scripts for widget
-    wp_enqueue_script('ll-flc-main'); // pulls in store/state/loader/audio via deps
+    $enable_translation = get_option('ll_enable_category_translation', 0);
+    $target_language    = strtolower(get_option('ll_translation_language', 'en'));
+    $site_language      = strtolower(get_locale());
+    $use_translations   = $enable_translation && strpos($site_language, $target_language) === 0;
 
-    // 2) REST config for this page
-    wp_localize_script('ll-flc-main', 'LL_FLC', array(
-        'rest'  => array(
-            'base'  => esc_url_raw( rest_url('ll-tools/v1') ),
-            'nonce' => wp_create_nonce('wp_rest'),
-        ),
-        'ajax'  => array('url' => admin_url('admin-ajax.php')),
-        'debug' => (defined('WP_DEBUG') && WP_DEBUG),
-    ));
+    $all_terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false]);
+    if (is_wp_error($all_terms)) $all_terms = [];
 
-    // 3) Inline opener (FINAL)
+    if (!function_exists('ll_process_categories')) {
+        $categories = array_map(function($t){
+            return [
+                'id'          => $t->term_id,
+                'slug'        => $t->slug,
+                'name'        => html_entity_decode($t->name, ENT_QUOTES, 'UTF-8'),
+                'translation' => html_entity_decode($t->name, ENT_QUOTES, 'UTF-8'),
+                'mode'        => 'image',
+            ];
+        }, $all_terms);
+    } else {
+        $categories = ll_process_categories($all_terms, $use_translations);
+    }
+
+    // Ensure flashcard assets + data are present
+    $atts = ['mode' => 'random'];
+    ll_flashcards_enqueue_and_localize($atts, $categories, false, [], '');
+
+    // Ensure the popup shell is printed late in the page
+    add_action('wp_footer', 'll_qpg_print_flashcard_shell_once');
+
+    // Keep the overlay above anything (incl. WP admin bar)
+    echo '<style id="ll-qpg-popup-zfix">
+      #ll-tools-flashcard-container,
+      #ll-tools-flashcard-popup,
+      #ll-tools-flashcard-quiz-popup{position:fixed;inset:0;z-index:999999}
+      #ll-tools-flashcard-content{height:100%;overflow:auto}
+    </style>';
+
+    // Robust delegated click binding:
+    //  - Works with or without jQuery
+    //  - Prevents href="#" navigation
     ?>
     <script>
     (function(){
-      if (window.__LLQPG_BOUND) return; // bind once across page
-      window.__LLQPG_BOUND = true;
-
-      var BUSY_MS = 900;
-      var busyUntil = 0;
-
-      function getAttr(el, names) {
-        for (var i=0;i<names.length;i++) {
-          var v = el.getAttribute(names[i]);
-          if (v) return v;
-        }
-        return '';
-      }
-
-      function toSlug(s){
-        return String(s || '')
-          .trim().toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      }
-
-      function setPopupTitleFromTrigger(a){
-        var title =
-          getAttr(a, ['data-title','data-category-name','aria-label','title']) ||
-          (a.textContent ? a.textContent.trim() : '');
-        var h = document.querySelector('#ll-tools-flashcard-quiz-popup .ll-flashcard-title');
-        if (h && title) h.textContent = title;
-      }
-
-      function showFail(msg){
-        try {
-          var host = document.getElementById('ll-tools-flashcard-quiz-popup') || document.body;
-          var box = document.querySelector('#ll-tools-flashcard-quiz-popup .ll-flashcard-error');
-          if (!box) {
-            box = document.createElement('div');
-            box.className = 'll-flashcard-error';
-            box.style.cssText = 'padding:12px;margin:8px;border-radius:8px;background:#fee;color:#900;font-weight:600;';
-            host.appendChild(box);
-          }
-          box.textContent = msg;
-        } catch(e) {}
-        console.error('[LL Tools] Flashcard popup:', msg);
-      }
-
       function openFromAnchor(a){
-        var now = Date.now();
-        if (now < busyUntil) return; // prevent double init during LOADING
-
-        // CATEGORY ONLY; never pass wordset here
-        var rawCat = getAttr(a, ['data-category-slug','data-slug','data-category','data-cat']) ||
-                     (a.textContent ? a.textContent.trim() : '');
-        var catSlug = toSlug(rawCat);
-        if (!catSlug) { showFail('Missing category slug on trigger.'); return; }
-
-        var rawMode = getAttr(a, ['data-mode']) || 'standard';
-        var internalMode = (rawMode === 'learning') ? 'learn' : 'quiz';
-
-        // Show overlay
-        var $ = window.jQuery || null;
-        if ($) {
-          $('#ll-tools-flashcard-container').show();
-          $('#ll-tools-flashcard-popup').show();
-          $('#ll-tools-flashcard-quiz-popup').show();
-        }
-        document.body.classList.add('ll-tools-flashcard-open');
-        setPopupTitleFromTrigger(a);
-
-        if (!window.LL_FLC || !LL_FLC.rest || !LL_FLC.rest.base || !LL_FLC.rest.nonce) {
-          showFail('REST config (LL_FLC.rest) missing on this page.');
-          return;
-        }
-
-        var init = (window.LLFlashcards && window.LLFlashcards.Main &&
-                    typeof window.LLFlashcards.Main.initFlashcardWidget === 'function')
-                   ? window.LLFlashcards.Main.initFlashcardWidget
-                   : window.initFlashcardWidget;
-
-        if (typeof init !== 'function') { showFail('initFlashcardWidget not available.'); return; }
-
-        busyUntil = now + BUSY_MS;
-        try { init([catSlug], internalMode); }  // Pass SLUG array
-        catch (e) { showFail('Initialization error: ' + (e && e.message ? e.message : e)); }
-        setTimeout(function(){ busyUntil = 0; }, BUSY_MS);
+            var cat = a.getAttribute('data-category') || '';
+            var wordset = a.getAttribute('data-wordset') || '';
+            var mode = a.getAttribute('data-mode') || 'standard';
+            if (!cat) return;
+            if (typeof window.llOpenFlashcardForCategory === 'function') {
+                window.llOpenFlashcardForCategory(cat, wordset, mode);
+            } else {
+                console.error('llOpenFlashcardForCategory not found');
+            }
       }
 
-      function onClick(e){
+      // Vanilla JS delegation
+      function vanillaBind(){
+        document.removeEventListener('click', vanillaHandler, true);
+        document.addEventListener('click', vanillaHandler, true);
+      }
+      function vanillaHandler(e){
         var a = e.target.closest && e.target.closest('.ll-quiz-page-trigger');
         if (!a) return;
         e.preventDefault(); e.stopPropagation();
         openFromAnchor(a);
       }
-      document.addEventListener('click', onClick, true);
 
-      // Back-compat global
-      window.llOpenFlashcardForCategory = function(cat, mode){
-        openFromAnchor({ getAttribute: function(n){
-          if (n==='data-category' || n==='data-category-slug' || n==='data-slug') return cat;
-          if (n==='data-mode') return mode || 'standard';
-          return '';
-        }, textContent: String(cat) });
-      };
+      // If jQuery exists, also bind via jQuery (nice to have)
+      function jqueryBind($){
+        $(document).off('click.llqpg', '.ll-quiz-page-trigger')
+                   .on('click.llqpg', '.ll-quiz-page-trigger', function(ev){
+                      ev.preventDefault(); ev.stopPropagation();
+                      openFromAnchor(this);
+                   });
+        $(document).off('keydown.llqpg', '.ll-quiz-page-trigger')
+                   .on('keydown.llqpg', '.ll-quiz-page-trigger', function(ev){
+                      if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); $(this).trigger('click'); }
+                   });
+      }
+
+      function init(){
+        vanillaBind();
+        if (window.jQuery) { jqueryBind(window.jQuery); }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
     })();
     </script>
     <?php

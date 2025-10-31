@@ -1,40 +1,76 @@
-(function (root) {
+(function (root, $) {
     'use strict';
 
+    /**
+     * State Module - Unified state management
+     *
+     * Combines quiz data storage with state machine flow control
+     */
     const State = {
+        // State Machine Constants
         STATES: {
-            IDLE: 'IDLE',
-            LOADING: 'LOADING',
-            QUIZ_READY: 'QUIZ_READY',
-            SHOWING_QUESTION: 'SHOWING_QUESTION',
-            INTRODUCING_WORDS: 'INTRODUCING_WORDS',
-            PROCESSING_ANSWER: 'PROCESSING_ANSWER',
-            SHOWING_RESULTS: 'SHOWING_RESULTS',
-            SWITCHING_MODE: 'SWITCHING_MODE',
-            CLOSING: 'CLOSING'
+            IDLE: 'idle',
+            LOADING: 'loading',
+            QUIZ_READY: 'quiz_ready',
+            SHOWING_QUESTION: 'showing_question',
+            INTRODUCING_WORDS: 'introducing_words',
+            PROCESSING_ANSWER: 'processing_answer',
+            SHOWING_RESULTS: 'showing_results',
+            SWITCHING_MODE: 'switching_mode',
+            CLOSING: 'closing'
         },
 
-        AUDIO_REPETITIONS: 3,
+        // Current flow state
+        currentFlowState: 'idle',
 
-        currentFlowState: 'IDLE',
-        _validTransitions: null,
+        // Valid state transitions
+        _validTransitions: null, // Initialized below
+
+        // State change listeners
         _stateListeners: [],
 
+        // Constants
+        ROUNDS_PER_CATEGORY: 6,
+        DEFAULT_DISPLAY_MODE: 'image',
+        MIN_CORRECT_COUNT: 3,
+        INITIAL_INTRODUCTION_COUNT: 2,
+        AUDIO_REPETITIONS: 3,
+
+        // Quiz data state
         widgetActive: false,
         categoryNames: [],
         wordsByCategory: {},
         categoryRoundCount: {},
         firstCategoryName: (root.llToolsFlashcardsData && root.llToolsFlashcardsData.firstCategoryName) || '',
         usedWordIDs: [],
+        wrongIndexes: [],
         currentCategory: null,
         currentCategoryName: null,
         currentCategoryRoundCount: 0,
         isFirstRound: true,
+        categoryRepetitionQueues: {},
         userClickedCorrectAnswer: false,
+        quizResults: { correctOnFirstTry: 0, incorrect: [] },
 
+        // Learning mode data
         isLearningMode: false,
+        introducedWordIDs: [],
+        wordIntroductionProgress: {},
+        wordCorrectCounts: {},
+        wordsToIntroduce: [],
+        totalWordCount: 0,
+        wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
+        isIntroducingWord: false,
+        currentIntroductionAudio: null,
+        currentIntroductionRound: 0,
+        learningModeOptionsCount: 2,
+        learningModeConsecutiveCorrect: 0,
+        wordsAnsweredSinceLastIntro: new Set(),
+        lastWordShownId: null,
+        learningModeRepetitionQueue: [],
 
+        // Timeout management
         activeTimeouts: [],
         abortAllOperations: false,
 
@@ -49,9 +85,9 @@
                 [S.IDLE]: [S.LOADING, S.CLOSING],
                 [S.LOADING]: [S.QUIZ_READY, S.INTRODUCING_WORDS, S.SHOWING_RESULTS, S.SWITCHING_MODE, S.CLOSING],
                 [S.QUIZ_READY]: [S.SHOWING_QUESTION, S.INTRODUCING_WORDS, S.SHOWING_RESULTS, S.SWITCHING_MODE, S.CLOSING],
-                [S.SHOWING_QUESTION]: [S.PROCESSING_ANSWER, S.SWITCHING_MODE, S.CLOSING],
-                [S.INTRODUCING_WORDS]: [S.QUIZ_READY, S.SWITCHING_MODE, S.CLOSING],
-                [S.PROCESSING_ANSWER]: [S.QUIZ_READY, S.SHOWING_RESULTS, S.SWITCHING_MODE, S.CLOSING],
+                [S.SHOWING_QUESTION]: [S.PROCESSING_ANSWER, S.SWITCHING_MODE, S.CLOSING], // Added SWITCHING_MODE
+                [S.INTRODUCING_WORDS]: [S.QUIZ_READY, S.SWITCHING_MODE, S.CLOSING], // Added SWITCHING_MODE
+                [S.PROCESSING_ANSWER]: [S.QUIZ_READY, S.SHOWING_RESULTS, S.SWITCHING_MODE, S.CLOSING], // Added SWITCHING_MODE
                 [S.SHOWING_RESULTS]: [S.SWITCHING_MODE, S.CLOSING, S.IDLE],
                 [S.SWITCHING_MODE]: [S.LOADING, S.CLOSING],
                 [S.CLOSING]: [S.IDLE]
@@ -88,6 +124,7 @@
 
             console.log('State:', oldState, '→', newState, reason ? `(${reason})` : '');
 
+            // Notify listeners
             this._stateListeners.forEach(listener => {
                 try {
                     listener(newState, oldState, reason);
@@ -170,6 +207,7 @@
         },
 
         canSwitchMode() {
+            // Can switch mode from any active state except CLOSING and IDLE
             return this.isAnyOf([
                 this.STATES.LOADING,
                 this.STATES.QUIZ_READY,
@@ -190,34 +228,55 @@
         },
 
         /**
-         * Reset core state (mode-specific state is managed by mode classes)
+         * Reset all state
          */
         reset() {
+            // Set abort flag FIRST
             this.abortAllOperations = true;
+
+            // Clear timeouts immediately
             this.clearActiveTimeouts();
 
+            // Hide learning progress bar
             if (typeof jQuery !== 'undefined') {
                 jQuery('#ll-tools-learning-progress').hide().empty();
             }
 
+            // Reset quiz data
             this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
+            this.wrongIndexes = [];
             this.currentCategory = null;
             this.currentCategoryName = null;
             this.currentCategoryRoundCount = 0;
             this.isFirstRound = true;
+            this.categoryRepetitionQueues = {};
             this.userClickedCorrectAnswer = false;
+            this.quizResults = { correctOnFirstTry: 0, incorrect: [] };
+
+            // Reset learning mode data
+            this.isLearningMode = false;
+            this.introducedWordIDs = [];
+            this.wordIntroductionProgress = {};
+            this.wordCorrectCounts = {};
+            this.wordsToIntroduce = [];
+            this.totalWordCount = 0;
+            this.wrongAnswerQueue = [];
             this.hadWrongAnswerThisTurn = false;
+            this.isIntroducingWord = false;
+            this.currentIntroductionAudio = null;
+            this.currentIntroductionRound = 0;
+            this.learningModeOptionsCount = 2;
+            this.learningModeConsecutiveCorrect = 0;
+            this.wordsAnsweredSinceLastIntro = new Set();
+            this.lastWordShownId = null;
+            this.learningModeRepetitionQueue = [];
 
-            this.abortAllOperations = false;
-        },
-
-        /**
-         * Add a timeout to track
-         */
-        addTimeout(timeoutId) {
-            this.activeTimeouts.push(timeoutId);
+            // Clear abort flag after delay
+            setTimeout(() => {
+                this.abortAllOperations = false;
+            }, 200);
         },
 
         /**
@@ -229,14 +288,23 @@
         },
 
         /**
-         * Clear a specific timeout
+         * Add a timeout to tracking
          */
-        clearTimeout(timeoutId) {
-            clearTimeout(timeoutId);
-            this.activeTimeouts = this.activeTimeouts.filter(id => id !== timeoutId);
+        addTimeout(timeoutId) {
+            this.activeTimeouts.push(timeoutId);
         }
     };
 
+    // Initialize transitions
+    State._initTransitions();
+
+    // Expose globally
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.State = State;
-})(window);
+
+    // Legacy global aliases for modules that still read window.* directly
+    root.wordsByCategory = State.wordsByCategory;
+    root.categoryRoundCount = State.categoryRoundCount;
+    root.categoryNames = State.categoryNames;
+
+})(window, jQuery);

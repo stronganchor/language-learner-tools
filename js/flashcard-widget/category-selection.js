@@ -5,34 +5,19 @@
  */
 (function ($) {
 
-    // ---- Safe global entrypoint (no recursion) + selection coercion ----
-    var __legacyInitFlashcardWidget =
-        (typeof window.initFlashcardWidget === 'function') ? window.initFlashcardWidget : null;
-
-    function __coerceSelectionToStrings(sel) {
-        var list = Array.isArray(sel) ? sel : (sel == null ? [] : [sel]);
-        return list.map(function (x) {
-            if (typeof x === 'string') return x;
-            if (x && typeof x === 'object') { return x.slug || x.name || x.title || x.id || String(x); }
-            return String(x);
-        });
-    }
-
-    function __llStartWidget(selectedCategories, mode) {
-        var coerced = __coerceSelectionToStrings(selectedCategories);
+    // ---- tiny shim: safely call init no matter load order ----
+    function startWidget(selectedCategories, mode) {  // ADD mode parameter
+        // wait until either the namespaced or legacy global init is available
         (function wait() {
-            if (window.LLFlashcards && window.LLFlashcards.Main &&
-                typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
-                window.LLFlashcards.Main.initFlashcardWidget(coerced, mode);
-            } else if (typeof __legacyInitFlashcardWidget === 'function') {
-                __legacyInitFlashcardWidget(coerced, mode);
+            if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
+                window.LLFlashcards.Main.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
+            } else if (typeof window.initFlashcardWidget === 'function') {
+                window.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
             } else {
                 setTimeout(wait, 30);
             }
         })();
     }
-
-    window.initFlashcardWidget = __llStartWidget;
 
     // Also expose a legacy global stub so any inline callers don't explode.
     if (typeof window.initFlashcardWidget !== 'function') {

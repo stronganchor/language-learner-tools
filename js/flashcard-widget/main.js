@@ -1,34 +1,64 @@
 (function (root, $) {
     'use strict';
+    // Prevent double-loading this file
+    if (window.__LLFlashcardsMainLoaded) { return; }
+    window.__LLFlashcardsMainLoaded = true;
 
-    const State = root.LLFlashcards.State;
-    const Dom = root.LLFlashcards.Dom;
-    const Util = root.LLFlashcards.Util;
+    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine } = root.LLFlashcards;
+    const { STATES } = State;
 
-    const STATES = State.STATES;
-    let currentMode = null;
+    // Learning-mode introduction pacing
+    const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introSilenceMs : 800;
+    const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
+
+    // Timer & Session guards
+    let __LLTimers = new Set();
+    let __LLSession = 0;
 
     function newSession() {
-        root.__llFlashcardSessionId = (root.__llFlashcardSessionId || 0) + 1;
-        console.log('New flashcard session:', root.__llFlashcardSessionId);
+        __LLSession++;
+        __LLTimers.forEach(id => clearTimeout(id));
+        __LLTimers.clear();
+        try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { }
     }
+
+    function setGuardedTimeout(fn, ms) {
+        const sessionAtSchedule = __LLSession;
+        const id = setTimeout(() => {
+            __LLTimers.delete(id);
+            if (sessionAtSchedule !== __LLSession) return;
+            try { fn(); } catch (e) { console.error('Timeout error:', e); }
+        }, ms);
+        __LLTimers.add(id);
+        return id;
+    }
+
+    // Init audio
+    root.FlashcardAudio.initializeAudio();
+    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
+    root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
     function updateModeSwitcherButton() {
         const $btn = $('#ll-tools-mode-switcher');
         if (!$btn.length) return;
 
-        const modeName = currentMode ? currentMode.getModeName() : 'quiz';
-        const isLearning = modeName === 'learn';
-
-        const icon = isLearning
-            ? '<span style="font-size: 1.2em;">📝</span>'
-            : '<span style="font-size: 1.2em;">🎓</span>';
-        const text = isLearning ? 'Switch to Quiz' : 'Switch to Learn';
-
-        $btn.html(icon + ' ' + text).show();
+        if (State.isLearningMode) {
+            $btn.removeClass('learning-mode').addClass('standard-mode');
+            $btn.find('.mode-icon').text('❓');
+            $btn.attr('aria-label', 'Switch to Standard Mode');
+            $btn.attr('title', 'Switch to Standard Mode');
+        } else {
+            $btn.removeClass('standard-mode').addClass('learning-mode');
+            $btn.find('.mode-icon').text('🎓');
+            $btn.attr('aria-label', 'Switch to Learning Mode');
+            $btn.attr('title', 'Switch to Learning Mode');
+        }
+        $btn.show();
     }
 
-    async function switchMode(newModeName) {
+    function switchMode(newMode) {
         if (!State.canSwitchMode()) {
             console.warn('Cannot switch mode in state:', State.getState());
             return;
@@ -43,17 +73,10 @@
         State.clearActiveTimeouts();
         $('#ll-tools-learning-progress').hide().empty();
 
-        try {
-            await root.FlashcardAudio.startNewSession();
-
-            if (currentMode) {
-                await currentMode.cleanup();
-            }
-
-            const targetModeName = newModeName || (currentMode?.getModeName() === 'learn' ? 'quiz' : 'learn');
-
+        root.FlashcardAudio.startNewSession().then(function () {
+            const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
             State.reset();
-            State.isLearningMode = (targetModeName === 'learn');
+            State.isLearningMode = (targetMode === 'learning');
 
             if (root.LLFlashcards?.Results?.hideResults) {
                 root.LLFlashcards.Results.hideResults();
@@ -64,63 +87,235 @@
             updateModeSwitcherButton();
 
             State.transitionTo(STATES.LOADING, 'Mode switch complete, reloading');
+            startQuizRound();
 
-            await initializeMode(targetModeName);
-            await currentMode.start();
-
-            setTimeout(() => {
+            setTimeout(function () {
                 if ($btn.length) {
                     $btn.prop('disabled', false).removeAttr('aria-busy');
                 }
             }, 1500);
-        } catch (err) {
+        }).catch(function (err) {
             console.error('Error during mode switch:', err);
             State.forceTransitionTo(STATES.IDLE, 'Mode switch error');
             if ($btn.length) $btn.prop('disabled', false).removeAttr('aria-busy');
-        }
-    }
-
-    async function initializeMode(modeName) {
-        const ModeClass = getModeClass(modeName);
-        currentMode = new ModeClass({
-            selectedCategories: State.categoryNames
         });
-
-        await currentMode.initialize();
-        return currentMode;
-    }
-
-    function getModeClass(modeName) {
-        const modes = {
-            'quiz': root.LLFlashcards.QuizMode,
-            'learn': root.LLFlashcards.LearnMode
-        };
-        return modes[modeName] || modes['quiz'];
     }
 
     function onCorrectAnswer(targetWord, $correctCard) {
-        if (currentMode) {
-            currentMode.handleInteraction('correct-answer', {
-                targetWord: targetWord,
-                $card: $correctCard
-            });
+        if (!State.canProcessAnswer()) {
+            console.warn('Cannot process answer in state:', State.getState());
+            return;
+        }
+        if (State.userClickedCorrectAnswer) return;
+
+        State.transitionTo(STATES.PROCESSING_ANSWER, 'Correct answer');
+        $correctCard.addClass('correct-answer');
+
+        const rect = $correctCard[0].getBoundingClientRect();
+        Effects.startConfetti({
+            particleCount: 20,
+            angle: 90,
+            spread: 60,
+            origin: {
+                x: (rect.left + rect.width / 2) / window.innerWidth,
+                y: (rect.top + rect.height / 2) / window.innerHeight
+            },
+            duration: 50
+        });
+
+        State.userClickedCorrectAnswer = true;
+
+        if (State.isLearningMode) {
+            if (root.LLFlashcards?.LearningMode) {
+                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, true, State.hadWrongAnswerThisTurn);
+            }
+            State.isIntroducingWord = false;
+        } else {
+            if (State.wrongIndexes.length > 0) {
+                State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
+                const alreadyQueued = State.categoryRepetitionQueues[State.currentCategoryName].some(
+                    item => item.wordData.id === targetWord.id
+                );
+                if (!alreadyQueued) {
+                    State.categoryRepetitionQueues[State.currentCategoryName].push({
+                        wordData: targetWord,
+                        reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
+                    });
+                }
+            }
+        }
+
+        root.FlashcardAudio.playFeedback(true, null, function () {
+            if (!State.quizResults.incorrect.includes(targetWord.id)) {
+                State.quizResults.correctOnFirstTry += 1;
+            }
+            $('.flashcard-container').not($correctCard).addClass('fade-out');
+            setTimeout(function () {
+                State.isFirstRound = false;
+                State.userClickedCorrectAnswer = false;
+                State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
+                startQuizRound();
+            }, 600);
+        });
+    }
+
+    function onWrongAnswer(targetWord, index, $wrong) {
+        if (!State.canProcessAnswer()) {
+            console.warn('Cannot process answer in state:', State.getState());
+            return;
+        }
+        if (State.userClickedCorrectAnswer) return;
+
+        if (State.isLearningMode) {
+            if (root.LLFlashcards?.LearningMode) {
+                root.LLFlashcards.LearningMode.recordAnswerResult(targetWord.id, false);
+            }
+        } else {
+            State.categoryRepetitionQueues[State.currentCategoryName] = State.categoryRepetitionQueues[State.currentCategoryName] || [];
+            const alreadyQueued = State.categoryRepetitionQueues[State.currentCategoryName].some(
+                item => item.wordData.id === targetWord.id
+            );
+            if (!alreadyQueued) {
+                State.categoryRepetitionQueues[State.currentCategoryName].push({
+                    wordData: targetWord,
+                    reappearRound: (State.categoryRoundCount[State.currentCategoryName] || 0) + Util.randomInt(1, 3),
+                });
+            }
+        }
+
+        State.hadWrongAnswerThisTurn = true;
+        root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
+        $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+
+        if (!State.quizResults.incorrect.includes(targetWord.id)) State.quizResults.incorrect.push(targetWord.id);
+        State.wrongIndexes.push(index);
+
+        const mode = Selection.getCurrentDisplayMode();
+        if (State.wrongIndexes.length === 2) {
+            $('.flashcard-container').not(function () {
+                return (mode === 'image') ?
+                    ($(this).find('img').attr('src') === targetWord.image) :
+                    ($(this).find('.quiz-text').text() === (targetWord.label || ''));
+            }).remove();
         }
     }
 
-    function onWrongAnswer(targetWord, index, $wrongCard) {
-        if (currentMode) {
-            currentMode.handleInteraction('wrong-answer', {
-                targetWord: targetWord,
-                index: index,
-                $card: $wrongCard
+    function startQuizRound(number_of_options) {
+        if (State.isFirstRound) {
+            if (!State.is(STATES.LOADING)) {
+                State.transitionTo(STATES.LOADING, 'First round initialization');
+            }
+
+            const firstThree = State.categoryNames.slice(0, 3);
+            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], function () {
+                root.FlashcardOptions.initializeOptionsCount(number_of_options);
+
+                if (State.isLearningMode) {
+                    Selection.initializeLearningMode();
+                }
+
+                updateModeSwitcherButton();
+                State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
+                runQuizRound();
             });
+            for (let i = 1; i < firstThree.length; i++) root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
+        } else {
+            runQuizRound();
         }
     }
 
-    function startQuizRound(options) {
-        if (currentMode) {
-            currentMode.startRound(options);
+    function runQuizRound() {
+        if (!State.canStartQuizRound()) {
+            console.warn('Cannot start quiz round in state:', State.getState());
+            return;
         }
+
+        State.clearActiveTimeouts();
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+
+        root.FlashcardAudio.pauseAllAudio();
+        Dom.showLoading();
+        root.FlashcardAudio.setTargetAudioHasPlayed(false);
+        State.hadWrongAnswerThisTurn = false;
+
+        let target;
+        if (State.isLearningMode) {
+            target = Selection.selectLearningModeWord();
+
+            Dom.updateLearningProgress(
+                State.introducedWordIDs.length,
+                State.totalWordCount,
+                State.wordCorrectCounts,
+                State.wordIntroductionProgress
+            );
+
+            if (!target) {
+                if (State.isFirstRound && State.totalWordCount === 0) {
+                    showLoadingError();
+                    return;
+                }
+                State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
+                Results.showResults();
+                return;
+            }
+
+            if (State.isIntroducingWord) {
+                if (!State.canIntroduceWords()) {
+                    console.warn('Cannot introduce words in state:', State.getState());
+                    return;
+                }
+                State.transitionTo(STATES.INTRODUCING_WORDS, 'Starting word introduction');
+                handleWordIntroduction(target);
+                return;
+            }
+        } else {
+            root.FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
+            target = Selection.selectTargetWordAndCategory();
+
+            if (!target) {
+                if (State.isFirstRound) {
+                    let hasWords = false;
+                    for (let catName of State.categoryNames) {
+                        if (State.wordsByCategory[catName] && State.wordsByCategory[catName].length > 0) {
+                            hasWords = true;
+                            break;
+                        }
+                    }
+                    if (!hasWords) {
+                        showLoadingError();
+                        return;
+                    }
+                }
+                State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
+                Results.showResults();
+                return;
+            }
+        }
+
+        root.FlashcardLoader.loadResourcesForWord(target, Selection.getCurrentDisplayMode()).then(function () {
+            if (State.isLearningMode && root.LLFlashcards?.LearningMode) {
+                const choiceCount = root.LLFlashcards.LearningMode.getChoiceCount();
+                State.currentChoiceCount = choiceCount;
+                if (root.FlashcardOptions?.initializeOptionsCount) {
+                    root.FlashcardOptions.initializeOptionsCount(choiceCount);
+                }
+            }
+            Selection.fillQuizOptions(target);
+
+            if (State.isLearningMode && !State.isIntroducingWord) {
+                const questionAudio = root.FlashcardAudio.selectBestAudio(target, ['question', 'isolation', 'introduction']);
+                if (questionAudio) target.audio = questionAudio;
+            }
+
+            root.FlashcardAudio.setTargetWordAudio(target);
+            Dom.hideLoading();
+            Dom.enableRepeatButton();
+            State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
+        }).catch(function (err) {
+            console.error('Error in runQuizRound:', err);
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
+        });
     }
 
     function showLoadingError() {
@@ -147,17 +342,168 @@
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
     }
 
-    async function initFlashcardWidget(selectedCategories, mode) {
+    function handleWordIntroduction(words) {
+        if (!State.isIntroducing()) {
+            console.warn('handleWordIntroduction called but not in INTRODUCING_WORDS state');
+            return;
+        }
+
+        const wordsArray = Array.isArray(words) ? words : [words];
+
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+        Dom.disableRepeatButton();
+
+        if (State.isLearningMode) {
+            Dom.updateLearningProgress(
+                State.introducedWordIDs.length,
+                State.totalWordCount,
+                State.wordCorrectCounts,
+                State.wordIntroductionProgress
+            );
+        }
+
+        const mode = Selection.getCurrentDisplayMode();
+
+        Promise.all(wordsArray.map(word => {
+            return root.FlashcardLoader.loadResourcesForWord(word, mode);
+        })).then(function () {
+            if (!State.isIntroducing()) {
+                console.warn('State changed during word loading, aborting introduction');
+                return;
+            }
+
+            wordsArray.forEach((word, index) => {
+                const $card = Cards.appendWordToContainer(word);
+                $card.attr('data-word-index', index);
+
+                const introAudio = root.FlashcardAudio.selectBestAudio(word, ['introduction']);
+                const isoAudio = root.FlashcardAudio.selectBestAudio(word, ['isolation']);
+
+                let audioPattern;
+                if (introAudio && isoAudio && introAudio !== isoAudio) {
+                    const useIntroFirst = Math.random() < 0.5;
+                    audioPattern = useIntroFirst ? [introAudio, isoAudio, introAudio] : [isoAudio, introAudio, isoAudio];
+                } else {
+                    const singleAudio = introAudio || isoAudio || word.audio;
+                    audioPattern = [singleAudio, singleAudio, singleAudio];
+                }
+
+                $card.attr('data-audio-pattern', JSON.stringify(audioPattern));
+            });
+
+            $('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
+            Dom.hideLoading();
+            $('.flashcard-container').fadeIn(600);
+
+            const timeoutId = setTimeout(() => {
+                playIntroductionSequence(wordsArray, 0, 0);
+            }, 650);
+            State.addTimeout(timeoutId);
+        });
+    }
+
+    function playIntroductionSequence(words, wordIndex, repetition) {
+        if (State.abortAllOperations || !State.isIntroducing()) {
+            console.log('Introduction sequence aborted');
+            return;
+        }
+
+        if (wordIndex >= words.length) {
+            Dom.enableRepeatButton();
+            $('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
+            State.isIntroducingWord = false;
+
+            const timeoutId = setTimeout(function () {
+                if (!State.abortAllOperations) {
+                    State.transitionTo(STATES.QUIZ_READY, 'Introduction complete');
+                    startQuizRound();
+                }
+            }, 300);
+            State.addTimeout(timeoutId);
+            return;
+        }
+
+        const currentWord = words[wordIndex];
+        const $currentCard = $('.flashcard-container[data-word-index="' + wordIndex + '"]');
+
+        if (!$currentCard.length) {
+            console.warn('Card disappeared during introduction');
+            return;
+        }
+
+        $('.flashcard-container').removeClass('introducing-active');
+        $currentCard.addClass('introducing-active');
+
+        const timeoutId = setTimeout(() => {
+            if (State.abortAllOperations || !State.isIntroducing()) return;
+
+            const audioPattern = JSON.parse($currentCard.attr('data-audio-pattern') || '[]');
+            const audioUrl = audioPattern[repetition] || audioPattern[0];
+            const managedAudio = root.FlashcardAudio.createIntroductionAudio(audioUrl);
+
+            if (!managedAudio) {
+                console.error('Failed to create introduction audio');
+                return;
+            }
+
+            managedAudio.playUntilEnd()
+                .then(() => {
+                    if (State.abortAllOperations || !managedAudio.isValid() || !State.isIntroducing()) {
+                        managedAudio.cleanup();
+                        return;
+                    }
+
+                    State.wordIntroductionProgress[currentWord.id] =
+                        (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+
+                    Dom.updateLearningProgress(
+                        State.introducedWordIDs.length,
+                        State.totalWordCount,
+                        State.wordCorrectCounts,
+                        State.wordIntroductionProgress
+                    );
+
+                    managedAudio.cleanup();
+
+                    if (repetition < State.AUDIO_REPETITIONS - 1) {
+                        $currentCard.removeClass('introducing-active');
+                        const nextTimeoutId = setTimeout(() => {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex, repetition + 1);
+                            }
+                        }, INTRO_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+                    } else {
+                        if (!State.introducedWordIDs.includes(currentWord.id)) {
+                            State.introducedWordIDs.push(currentWord.id);
+                        }
+                        const nextTimeoutId = setTimeout(() => {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex + 1, 0);
+                            }
+                        }, INTRO_WORD_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+                    }
+                })
+                .catch(err => {
+                    console.error('Audio play failed:', err);
+                    managedAudio.cleanup();
+                });
+        }, 100);
+        State.addTimeout(timeoutId);
+    }
+
+    function initFlashcardWidget(selectedCategories, mode) {
         newSession();
         $('#ll-tools-learning-progress').hide().empty();
 
         State.transitionTo(STATES.LOADING, 'Widget initialization');
 
-        try {
-            await root.FlashcardAudio.startNewSession();
-
-            const targetMode = mode || 'quiz';
-            State.isLearningMode = (targetMode === 'learn');
+        root.FlashcardAudio.startNewSession().then(function () {
+            if (mode === 'learning') {
+                State.isLearningMode = true;
+            }
 
             if (State.widgetActive) return;
             State.widgetActive = true;
@@ -180,9 +526,7 @@
                 const audio = root.FlashcardAudio.getCurrentTargetAudio();
                 if (!audio) return;
                 if (!audio.paused) {
-                    audio.pause();
-                    audio.currentTime = 0;
-                    Dom.setRepeatButton('play');
+                    audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
                 } else {
                     audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
                     audio.onended = function () { Dom.setRepeatButton('play'); };
@@ -190,19 +534,17 @@
             });
 
             $('#ll-tools-mode-switcher').off('click').on('click', () => switchMode());
-            $('#restart-standard-mode').off('click').on('click', () => switchMode('quiz'));
-            $('#restart-learning-mode').off('click').on('click', () => switchMode('learn'));
+            $('#restart-standard-mode').off('click').on('click', () => switchMode('standard'));
+            $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
             $('#restart-quiz').off('click').on('click', restartQuiz);
 
             Dom.showLoading();
             updateModeSwitcherButton();
-
-            await initializeMode(targetMode);
-            await currentMode.start();
-        } catch (err) {
-            console.error('Failed to start flashcard widget:', err);
+            startQuizRound();
+        }).catch(function (err) {
+            console.error('Failed to start audio session:', err);
             State.forceTransitionTo(STATES.IDLE, 'Initialization error');
-        }
+        });
     }
 
     function closeFlashcard() {
@@ -211,14 +553,9 @@
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
 
-        root.FlashcardAudio.startNewSession().then(async () => {
+        root.FlashcardAudio.startNewSession().then(function () {
             if (root.LLFlashcards?.Results?.hideResults) {
                 root.LLFlashcards.Results.hideResults();
-            }
-
-            if (currentMode) {
-                await currentMode.cleanup();
-                currentMode = null;
             }
 
             State.reset();
@@ -235,29 +572,16 @@
         });
     }
 
-    async function restartQuiz() {
+    function restartQuiz() {
         newSession();
         $('#ll-tools-learning-progress').hide().empty();
-
-        if (currentMode) {
-            await currentMode.cleanup();
-        }
-
         State.reset();
-
-        if (root.LLFlashcards?.Results?.hideResults) {
-            root.LLFlashcards.Results.hideResults();
-        }
-
+        root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
         updateModeSwitcherButton();
-
-        const modeName = State.isLearningMode ? 'learn' : 'quiz';
-        await initializeMode(modeName);
-
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
-        await currentMode.start();
+        startQuizRound();
     }
 
     if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.categoriesPreselected) {
@@ -266,14 +590,6 @@
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Main = {
-        initFlashcardWidget,
-        startQuizRound,
-        onCorrectAnswer,
-        onWrongAnswer,
-        closeFlashcard,
-        restartQuiz,
-        switchMode
-    };
+    root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
