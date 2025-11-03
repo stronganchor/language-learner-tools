@@ -179,7 +179,7 @@ function ll_handle_audio_file_uploads() {
     $success_matches      = [];
     $failed_matches       = [];
 
-    $allowed_audio_types  = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/webm'];
+    $allowed_audio_types  = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/webm', 'video/x-matroska'];
     $max_file_size        = 10 * 1024 * 1024; // 10MB
 
     foreach ($_FILES['ll_audio_files']['tmp_name'] as $key => $tmp_name) {
