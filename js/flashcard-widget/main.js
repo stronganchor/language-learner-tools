@@ -16,6 +16,7 @@
     // Timer & Session guards
     let __LLTimers = new Set();
     let __LLSession = 0;
+    let closingCleanupPromise = null;
 
     function newSession() {
         __LLSession++;
@@ -514,95 +515,120 @@
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
-        newSession();
+        const proceed = () => {
+            newSession();
 
-        // Clear any leftover overlays/flags from a previous popup session
-        try {
-            if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
-                root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
-            }
-            if (root.FlashcardAudio?.clearAutoplayBlock) {
-                root.FlashcardAudio.clearAutoplayBlock();
-            }
-        } catch (_) { }
-        $('#ll-tools-flashcard').css('pointer-events', 'auto');
-
-        $('#ll-tools-learning-progress').hide().empty();
-
-        State.transitionTo(STATES.LOADING, 'Widget initialization');
-
-        root.FlashcardAudio.startNewSession().then(function () {
-            if (mode === 'learning') {
-                State.isLearningMode = true;
-            }
-
-            if (State.widgetActive) return;
-            State.widgetActive = true;
-
-            if (root.LLFlashcards?.Results?.hideResults) {
-                root.LLFlashcards.Results.hideResults();
-            }
-
-            State.categoryNames = Util.randomlySort(selectedCategories || []);
-            root.categoryNames = State.categoryNames;
-            State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
-            root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
-            Dom.updateCategoryNameDisplay(State.firstCategoryName);
-
-            $('body').addClass('ll-tools-flashcard-open');
-            $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
-            $('#ll-tools-flashcard-header').show();
-
-            $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
-                const audio = root.FlashcardAudio.getCurrentTargetAudio();
-                if (!audio) return;
-                if (!audio.paused) {
-                    audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
-                } else {
-                    audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
-                    audio.onended = function () { Dom.setRepeatButton('play'); };
+            // Clear any leftover overlays/flags from a previous popup session
+            try {
+                if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
+                    root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
                 }
-            });
+                if (root.FlashcardAudio?.clearAutoplayBlock) {
+                    root.FlashcardAudio.clearAutoplayBlock();
+                }
+            } catch (_) { }
+            $('#ll-tools-flashcard').css('pointer-events', 'auto');
 
-            $('#ll-tools-mode-switcher').off('click').on('click', () => switchMode());
-            $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
-            $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
-            $('#restart-quiz').off('click').on('click', restartQuiz);
+            $('#ll-tools-learning-progress').hide().empty();
 
-            Dom.showLoading();
-            updateModeSwitcherButton();
-            startQuizRound();
+            if (State.is(STATES.CLOSING)) {
+                State.forceTransitionTo(STATES.IDLE, 'Reopening during close');
+            } else if (!State.canTransitionTo(STATES.LOADING)) {
+                State.forceTransitionTo(STATES.IDLE, 'Resetting before initialization');
+            }
 
-            // One-time "kick" to start audio on first user gesture if autoplay was blocked
-            $('#ll-tools-flashcard-content')
-                .off('.llAutoplayKick')
-                .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
-                    try {
-                        const a = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio
-                            ? root.FlashcardAudio.getCurrentTargetAudio()
-                            : null;
-                        if (a && a.paused) {
-                            a.play().finally(() => {
-                                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
-                            });
-                        } else {
-                            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
-                        }
-                    } catch (_) {
-                        $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+            State.transitionTo(STATES.LOADING, 'Widget initialization');
+
+            return root.FlashcardAudio.startNewSession().then(function () {
+                if (mode === 'learning') {
+                    State.isLearningMode = true;
+                }
+
+                if (State.widgetActive) return;
+                State.widgetActive = true;
+
+                if (root.LLFlashcards?.Results?.hideResults) {
+                    root.LLFlashcards.Results.hideResults();
+                }
+
+                State.categoryNames = Util.randomlySort(selectedCategories || []);
+                root.categoryNames = State.categoryNames;
+                State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
+                root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
+                Dom.updateCategoryNameDisplay(State.firstCategoryName);
+
+                $('body').addClass('ll-tools-flashcard-open');
+                $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
+                $('#ll-tools-flashcard-header').show();
+
+                $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
+                    const audio = root.FlashcardAudio.getCurrentTargetAudio();
+                    if (!audio) return;
+                    if (!audio.paused) {
+                        audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
+                    } else {
+                        audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
+                        audio.onended = function () { Dom.setRepeatButton('play'); };
                     }
                 });
-        }).catch(function (err) {
-            console.error('Failed to start audio session:', err);
-            State.forceTransitionTo(STATES.IDLE, 'Initialization error');
-        });
+
+                $('#ll-tools-mode-switcher').off('click').on('click', () => switchMode());
+                $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
+                $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
+                $('#restart-quiz').off('click').on('click', restartQuiz);
+
+                Dom.showLoading();
+                updateModeSwitcherButton();
+                startQuizRound();
+
+                // One-time "kick" to start audio on first user gesture if autoplay was blocked
+                $('#ll-tools-flashcard-content')
+                    .off('.llAutoplayKick')
+                    .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
+                        try {
+                            const a = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio
+                                ? root.FlashcardAudio.getCurrentTargetAudio()
+                                : null;
+                            if (a && a.paused) {
+                                a.play().finally(() => {
+                                    $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                                });
+                            } else {
+                                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                            }
+                        } catch (_) {
+                            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                        }
+                    });
+            }).catch(function (err) {
+                console.error('Failed to start audio session:', err);
+                State.forceTransitionTo(STATES.IDLE, 'Initialization error');
+            });
+        };
+
+        if (closingCleanupPromise) {
+            return closingCleanupPromise
+                .catch(err => {
+                    console.warn('Waiting for previous flashcard cleanup before reopening', err);
+                })
+                .then(proceed);
+        }
+
+        return proceed();
     }
 
     function closeFlashcard() {
-        State.transitionTo(STATES.CLOSING, 'User closed widget');
+        if (closingCleanupPromise) {
+            return closingCleanupPromise;
+        }
+
+        if (!State.is(STATES.CLOSING)) {
+            State.transitionTo(STATES.CLOSING, 'User closed widget');
+        }
 
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
+        newSession();
 
         // Clean up any overlay/gesture hooks immediately
         try {
@@ -616,23 +642,37 @@
         $('#ll-tools-flashcard-content').off('.llAutoplayKick');
         $('#ll-tools-flashcard').css('pointer-events', 'auto');
 
-        root.FlashcardAudio.startNewSession().then(function () {
-            if (root.LLFlashcards?.Results?.hideResults) {
-                root.LLFlashcards.Results.hideResults();
-            }
+        const cleanupPromise = root.FlashcardAudio.startNewSession()
+            .catch(function (err) {
+                console.error('Failed to start audio cleanup session:', err);
+            })
+            .then(function () {
+                if (root.LLFlashcards?.Results?.hideResults) {
+                    root.LLFlashcards.Results.hideResults();
+                }
 
-            State.reset();
-            State.categoryNames = [];
-            $('#ll-tools-flashcard').empty();
-            $('#ll-tools-flashcard-header').hide();
-            $('#ll-tools-flashcard-quiz-popup').hide();
-            $('#ll-tools-flashcard-popup').hide();
-            $('#ll-tools-mode-switcher').hide();
-            $('#ll-tools-learning-progress').hide().empty();
-            $('body').removeClass('ll-tools-flashcard-open');
+                State.reset();
+                State.categoryNames = [];
+                $('#ll-tools-flashcard').empty();
+                $('#ll-tools-flashcard-header').hide();
+                $('#ll-tools-flashcard-quiz-popup').hide();
+                $('#ll-tools-flashcard-popup').hide();
+                $('#ll-tools-mode-switcher').hide();
+                $('#ll-tools-learning-progress').hide().empty();
+                $('body').removeClass('ll-tools-flashcard-open');
 
-            State.transitionTo(STATES.IDLE, 'Cleanup complete');
+                State.transitionTo(STATES.IDLE, 'Cleanup complete');
+            })
+            .catch(function (err) {
+                console.error('Flashcard cleanup encountered an error:', err);
+                State.forceTransitionTo(STATES.IDLE, 'Cleanup error');
+            });
+
+        closingCleanupPromise = cleanupPromise.finally(function () {
+            closingCleanupPromise = null;
         });
+
+        return closingCleanupPromise;
     }
 
     function restartQuiz() {
