@@ -270,7 +270,7 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
     $mime_type = finfo_file($finfo, $tmp_name);
     finfo_close($finfo);
     if (!in_array($mime_type, $allowed_types)) {
-        return $original_name . ' (Invalid file type)';
+        return $original_name . ' (Invalid file type: ' . esc_html($mime_type) . ')';
     }
 
     // Check if the file size is within the allowed limit
