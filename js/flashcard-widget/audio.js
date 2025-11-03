@@ -253,14 +253,6 @@
         }
 
         /**
-         * Nuclear option - cleanup everything except feedback audio
-         */
-        function killAllAudio() {
-            console.log('Audio: killAllAudio called');
-            return cleanupSession(currentSession);
-        }
-
-        /**
          * Set target word audio (for quiz questions)
          */
         function setTargetWordAudio(targetWord) {
@@ -405,13 +397,6 @@
         }
 
         /**
-         * Reset audio state (start new session and cleanup old)
-         */
-        function resetAudioState() {
-            return startNewSession();
-        }
-
-        /**
          * Clear autoplay block flag
          */
         function clearAutoplayBlock() {
@@ -427,11 +412,9 @@
             isCurrentSession: isCurrentSession,
             playAudio: playAudio,
             pauseAllAudio: pauseAllAudio,
-            killAllAudio: killAllAudio,
             setTargetWordAudio: setTargetWordAudio,
             playFeedback: playFeedback,
             selectBestAudio: selectBestAudio,
-            resetAudioState: resetAudioState,
             clearAutoplayBlock: clearAutoplayBlock,
             getCurrentSessionId: function () { return currentSession; },
             getCurrentTargetAudio: function () { return currentTargetAudio; },
