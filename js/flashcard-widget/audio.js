@@ -83,7 +83,7 @@
         }
 
         /**
-         * Play audio with session validation
+         * Play audio with session validation + AbortError resilience
          */
         function playAudio(audio) {
             if (!audio) {
@@ -105,6 +105,15 @@
                 }
 
                 return audio.play().catch(function (e) {
+                    // Browser-specific interruption when a late pause hits just after play()
+                    if (e && e.name === 'AbortError') {
+                        // Retry once after a short tick *if* we're still in the current session
+                        return new Promise(function (r) { setTimeout(r, 80); }).then(function () {
+                            if (!isCurrentSession(audio)) return;
+                            return audio.play().catch(function () { /* swallow second abort */ });
+                        });
+                    }
+
                     if (e.name === 'NotAllowedError' && !autoplayBlocked) {
                         autoplayBlocked = true;
                         if (window.LLFlashcards && window.LLFlashcards.Dom) {
@@ -139,13 +148,14 @@
         }
 
         /**
-         * Stop all audio in current session
+         * Stop all audio for a given sessionId (defaults to current if not provided)
          */
-        function pauseAllAudio() {
+        function pauseAllAudio(sessionIdParam) {
+            var targetSession = (typeof sessionIdParam === 'number') ? sessionIdParam : currentSession;
             var promises = [];
 
             activeAudioElements.forEach(function (sessionId, audio) {
-                if (sessionId === currentSession) {
+                if (sessionId === targetSession) {
                     promises.push(stopAudio(audio));
                 }
             });
@@ -423,6 +433,7 @@
             selectBestAudio: selectBestAudio,
             resetAudioState: resetAudioState,
             clearAutoplayBlock: clearAutoplayBlock,
+            getCurrentSessionId: function () { return currentSession; },
             getCurrentTargetAudio: function () { return currentTargetAudio; },
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },

@@ -21,8 +21,16 @@
         __LLSession++;
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
-        try { root.FlashcardAudio.pauseAllAudio(); } catch (_) { }
+
+        // IMPORTANT: pause the *previous* audio session (snapshot the id now)
+        try {
+            var sid = (window.FlashcardAudio && typeof window.FlashcardAudio.getCurrentSessionId === 'function')
+                ? window.FlashcardAudio.getCurrentSessionId()
+                : undefined;
+            window.FlashcardAudio.pauseAllAudio(sid);
+        } catch (_) { /* no-op */ }
     }
+
 
     function setGuardedTimeout(fn, ms) {
         const sessionAtSchedule = __LLSession;
@@ -69,13 +77,20 @@
 
         State.transitionTo(STATES.SWITCHING_MODE, 'User requested mode switch');
 
+        // Stop anything in-flight right now.
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
         $('#ll-tools-learning-progress').hide().empty();
 
         root.FlashcardAudio.startNewSession().then(function () {
             const targetMode = newMode || (State.isLearningMode ? 'practice' : 'learning');
+
+            // Full reset for a clean session
             State.reset();
+
+            // IMPORTANT: allow operations again before we start the next round
+            State.abortAllOperations = false;
+
             State.isLearningMode = (targetMode === 'learning');
 
             if (root.LLFlashcards?.Results?.hideResults) {
@@ -86,6 +101,7 @@
             Dom.restoreHeaderUI();
             updateModeSwitcherButton();
 
+            // Kick off fresh load
             State.transitionTo(STATES.LOADING, 'Mode switch complete, reloading');
             startQuizRound();
 
@@ -218,7 +234,10 @@
                 State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
                 runQuizRound();
             });
-            for (let i = 1; i < firstThree.length; i++) root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
+
+            for (let i = 1; i < firstThree.length; i++) {
+                root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
+            }
         } else {
             runQuizRound();
         }
@@ -496,6 +515,18 @@
 
     function initFlashcardWidget(selectedCategories, mode) {
         newSession();
+
+        // Clear any leftover overlays/flags from a previous popup session
+        try {
+            if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
+                root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
+            }
+            if (root.FlashcardAudio?.clearAutoplayBlock) {
+                root.FlashcardAudio.clearAutoplayBlock();
+            }
+        } catch (_) { }
+        $('#ll-tools-flashcard').css('pointer-events', 'auto');
+
         $('#ll-tools-learning-progress').hide().empty();
 
         State.transitionTo(STATES.LOADING, 'Widget initialization');
@@ -541,6 +572,26 @@
             Dom.showLoading();
             updateModeSwitcherButton();
             startQuizRound();
+
+            // One-time "kick" to start audio on first user gesture if autoplay was blocked
+            $('#ll-tools-flashcard-content')
+                .off('.llAutoplayKick')
+                .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
+                    try {
+                        const a = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio
+                            ? root.FlashcardAudio.getCurrentTargetAudio()
+                            : null;
+                        if (a && a.paused) {
+                            a.play().finally(() => {
+                                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                            });
+                        } else {
+                            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                        }
+                    } catch (_) {
+                        $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                    }
+                });
         }).catch(function (err) {
             console.error('Failed to start audio session:', err);
             State.forceTransitionTo(STATES.IDLE, 'Initialization error');
@@ -552,6 +603,18 @@
 
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
+
+        // Clean up any overlay/gesture hooks immediately
+        try {
+            if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
+                root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
+            }
+            if (root.FlashcardAudio?.clearAutoplayBlock) {
+                root.FlashcardAudio.clearAutoplayBlock();
+            }
+        } catch (_) { }
+        $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+        $('#ll-tools-flashcard').css('pointer-events', 'auto');
 
         root.FlashcardAudio.startNewSession().then(function () {
             if (root.LLFlashcards?.Results?.hideResults) {
