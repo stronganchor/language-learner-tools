@@ -137,7 +137,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     // ---- Robust defaults to avoid "Undefined array key" notices ----
     $mode      = isset($atts['mode']) ? sanitize_text_field((string) $atts['mode']) : 'random';
-    $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'standard';
+    $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'practice';
     $wordset   = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
 
     ll_enqueue_asset_by_timestamp('/css/flashcard-style.css',  'll-tools-flashcard-style');
@@ -219,7 +219,7 @@ function ll_tools_flashcard_widget($atts) {
         'mode'     => 'random',
         'embed'    => 'false',
         'wordset'  => '',
-        'quiz_mode' => 'standard',
+        'quiz_mode' => 'practice',
     ], $atts);
 
     $embed     = strtolower((string)$atts['embed']) === 'true';

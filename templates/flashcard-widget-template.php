@@ -64,9 +64,9 @@
         </p>
         <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
         <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
-          <button id="restart-standard-mode" class="quiz-button quiz-mode-button">
+          <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
             <span class="button-icon">❓</span>
-            <?php echo esc_html__('Standard Quiz', 'll-tools-text-domain'); ?>
+            <?php echo esc_html__('Practice Mode', 'll-tools-text-domain'); ?>
           </button>
           <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
             <span class="button-icon">🎓</span>

@@ -45,12 +45,12 @@
         if (!$btn.length) return;
 
         if (State.isLearningMode) {
-            $btn.removeClass('learning-mode').addClass('standard-mode');
+            $btn.removeClass('learning-mode').addClass('practice-mode');
             $btn.find('.mode-icon').text('❓');
-            $btn.attr('aria-label', 'Switch to Standard Mode');
-            $btn.attr('title', 'Switch to Standard Mode');
+            $btn.attr('aria-label', 'Switch to Practice Mode');
+            $btn.attr('title', 'Switch to Practice Mode');
         } else {
-            $btn.removeClass('standard-mode').addClass('learning-mode');
+            $btn.removeClass('practice-mode').addClass('learning-mode');
             $btn.find('.mode-icon').text('🎓');
             $btn.attr('aria-label', 'Switch to Learning Mode');
             $btn.attr('title', 'Switch to Learning Mode');
@@ -74,7 +74,7 @@
         $('#ll-tools-learning-progress').hide().empty();
 
         root.FlashcardAudio.startNewSession().then(function () {
-            const targetMode = newMode || (State.isLearningMode ? 'standard' : 'learning');
+            const targetMode = newMode || (State.isLearningMode ? 'practice' : 'learning');
             State.reset();
             State.isLearningMode = (targetMode === 'learning');
 
@@ -534,7 +534,7 @@
             });
 
             $('#ll-tools-mode-switcher').off('click').on('click', () => switchMode());
-            $('#restart-standard-mode').off('click').on('click', () => switchMode('standard'));
+            $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
             $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
             $('#restart-quiz').off('click').on('click', restartQuiz);
 

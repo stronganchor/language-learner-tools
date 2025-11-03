@@ -9,12 +9,12 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - Taxonomies: `word-category`, `wordset`, `language`, `part-of-speech`, `recording_type`.
 
 - **Flashcard quiz modes**
-  - **Standard Mode**: Traditional quiz with adaptive difficulty based on performance.
+  - **Practice Mode**: Traditional quiz with adaptive difficulty based on performance.
   - **Learning Mode**: Guided learning with word introduction, audio repetition, and progress tracking. Words are introduced gradually, and the system ensures mastery before moving forward.
 
 - **Flashcard quiz shortcode**
   - `[flashcard_widget]` renders an interactive quiz. Attributes:
-    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`standard` | `learning`), `wordset` (filter by wordset).
+    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning`), `wordset` (filter by wordset).
 
 - **Auto quiz pages & embed pages**
   - Auto-generated quiz pages under `/quiz/<category>`.

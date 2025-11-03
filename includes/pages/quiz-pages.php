@@ -86,7 +86,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
     }
 
     // Check for mode parameter in URL
-    if (isset($_GET['mode']) && in_array($_GET['mode'], ['standard', 'learning'])) {
+    if (isset($_GET['mode']) && in_array($_GET['mode'], ['practice', 'learning'])) {
         $src = add_query_arg('mode', sanitize_text_field($_GET['mode']), $src);
     }
 

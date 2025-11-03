@@ -50,7 +50,7 @@
             return;
         }
 
-        // Standard mode
+        // Practice mode: hide learning progress bar
         $('#ll-tools-learning-progress').hide();
 
         const total = State.quizResults.correctOnFirstTry + State.quizResults.incorrect.length;

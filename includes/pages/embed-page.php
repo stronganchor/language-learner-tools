@@ -36,7 +36,7 @@
         <?php
         $embed_category = get_query_var('embed_category');
         $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
-        $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'standard';
+        $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'practice';
 
         $term = get_term_by('slug', $embed_category, 'word-category');
         if ($term && !is_wp_error($term)) {
@@ -44,7 +44,7 @@
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
             }
-            if (!empty($mode) && in_array($mode, ['standard', 'learning'])) {
+            if (!empty($mode) && in_array($mode, ['practice', 'learning'])) {
                 $shortcode .= ' quiz_mode="' . esc_attr($mode) . '"';
             }
             $shortcode .= ']';
@@ -88,7 +88,7 @@
 
             quizInitialized = true;
             var cats = selectedCategories();
-            var mode = window.llToolsFlashcardsData?.quiz_mode || 'standard';
+            var mode = window.llToolsFlashcardsData?.quiz_mode || 'practice';
 
             console.log('Initializing quiz after user interaction', cats, mode);
 

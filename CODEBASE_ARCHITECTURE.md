@@ -17,7 +17,7 @@ read_first:
 Vocabulary platform for WordPress:
 - **CPTs** for words, images, and audio (with multiple recordings per word).
 - **Taxonomies** for word categories, word sets, language, parts of speech, and recording types.
-- **Quizzes** (flashcards) with **two modes**: Standard (adaptive difficulty) and Learning (guided word introduction with mastery tracking).
+- **Quizzes** (flashcards) with **two modes**: Practice (adaptive difficulty) and Learning (guided word introduction with mastery tracking).
 - **Auto-generated pages** (`/quiz/<category>`) and **embeddable pages** (`/embed/<category>`) with wordset filtering and mode selection.
 - **Audio recording & processing workflow**: Recording interface → Audio Processor → Audio Review → Recording Types.
 - **Admin tools** to record/process audio, match audio↔images, review content, manage word sets.
@@ -110,7 +110,7 @@ data/                      # Files containing data (e.g. language codes)
 
 # Shortcodes (user-facing API)
 Located in `includes/shortcodes/`:
-- `flashcard-widget.php` — `[flashcard_widget]` (start popup, category selection, quiz UI; JS in `js/flashcard-widget/`). Supports `quiz_mode` (`standard` | `learning`) and `wordset` filtering.
+- `flashcard-widget.php` — `[flashcard_widget]` (start popup, category selection, quiz UI; JS in `js/flashcard-widget/`). Supports `quiz_mode` (`practice` | `learning`) and `wordset` filtering.
 - `quiz-pages-shortcodes.php` — `[quiz_pages_grid]` and `[quiz_pages_dropdown]` with wordset filtering and popup mode support.
 - `word-audio-shortcode.php` — `[word_audio]` inline audio player markup; paired with `js/word-audio.js`.
 - `word-grid-shortcode.php` — `[word_grid]` grid of word cards with wordset filtering.
@@ -121,7 +121,7 @@ Located in `includes/shortcodes/`:
 # Flashcard widget (module map)
 `js/flashcard-widget/` is split into small modules:
 - **`main.js`** — Bootstrap, mode switching, quiz round orchestration, word introduction handling.
-- **`selection.js`** — Word selection logic for both standard and learning modes. Contains `selectLearningModeWord()` with adaptive introduction and mastery tracking.
+- **`selection.js`** — Word selection logic for both practice and learning modes. Contains `selectLearningModeWord()` with adaptive introduction and mastery tracking.
 - **`state.js`** — Shared state management (categories, rounds, learning mode state, progress tracking).
 - **`audio.js`** — Audio playback, feedback sounds, `selectBestAudio()` for choosing recording type by priority.
 - **`loader.js`** — Resource preloading (audio/images) with chunked loading for performance.
@@ -183,8 +183,8 @@ Dual-progress bar in `dom.js`:
 - **Completed Fill**: Tracks mastery progress (correct answers / total × 3).
 
 # Quizzes & embeds
-- **Embeds**: rewrite rule maps `/embed/<category>` → `includes/pages/embed-page.php`, which renders the in-iframe quiz view. Supports `?wordset=<slug>` and `?mode=<standard|learning>` params.
-- **Standalone quiz pages**: rendered with `templates/quiz-page-template.php` and orchestrated by `includes/pages/quiz-pages.php` (CSS: `css/quiz-pages.css` + `css/quiz-pages-style.css`). Supports `?mode=<standard|learning>` param.
+- **Embeds**: rewrite rule maps `/embed/<category>` → `includes/pages/embed-page.php`, which renders the in-iframe quiz view. Supports `?wordset=<slug>` and `?mode=<practice|learning>` params.
+- **Standalone quiz pages**: rendered with `templates/quiz-page-template.php` and orchestrated by `includes/pages/quiz-pages.php` (CSS: `css/quiz-pages.css` + `css/quiz-pages-style.css`). Supports `?mode=<practice|learning>` param.
 - **Wordset Filtering**: Both quiz pages and grids support wordset filtering via URL param or shortcode attribute.
 
 # Audio Recording & Processing Workflow
@@ -214,7 +214,7 @@ Dual-progress bar in `dom.js`:
 - **Sentence**: Word used in a sentence.
 - Used by `FlashcardAudio.selectBestAudio()` to choose contextually appropriate audio.
 - Learning mode prefers introduction audio during introduction phase, question audio during quiz.
-- Standard mode prefers question/isolation audio.
+- Practice mode prefers question/isolation audio.
 
 # Matching & media notes
 - **Matching heuristics** are centralized in `includes/lib/ll-matching.php` (string normalization, candidate ranking, and "picked" counters to shade used images in the UI).

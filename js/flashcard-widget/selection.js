@@ -349,7 +349,7 @@
                 });
             });
         } else {
-            // Standard mode: build order as before
+            // Practice mode: build order as before
             const order = [];
             order.push(State.currentCategoryName);
             if (targetWord.all_categories) {

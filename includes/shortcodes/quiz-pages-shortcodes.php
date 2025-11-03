@@ -314,7 +314,7 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
       function openFromAnchor(a){
             var cat = a.getAttribute('data-category') || '';
             var wordset = a.getAttribute('data-wordset') || '';
-            var mode = a.getAttribute('data-mode') || 'standard';
+            var mode = a.getAttribute('data-mode') || 'practice';
             if (!cat) return;
             if (typeof window.llOpenFlashcardForCategory === 'function') {
                 window.llOpenFlashcardForCategory(cat, wordset, mode);
@@ -405,14 +405,14 @@ function ll_qpg_print_flashcard_shell_once() {
             </p>
             <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
             <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
-              <button id="restart-standard-mode" class="quiz-button quiz-mode-button">
+            <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
                 <span class="button-icon">❓</span>
-                <?php echo esc_html__('Standard Quiz', 'll-tools-text-domain'); ?>
-              </button>
-              <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
+                <?php echo esc_html__('Practice Mode', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
                 <span class="button-icon">🎓</span>
                 <?php echo esc_html__('Learning Mode', 'll-tools-text-domain'); ?>
-              </button>
+            </button>
             </div>
             <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
           </div>
@@ -440,7 +440,7 @@ function ll_qpg_print_flashcard_shell_once() {
         window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
-            mode = mode || 'standard';
+            mode = mode || 'practice';
 
             var previousWordset = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordset) || '';
             var currentWordset = wordset || '';
@@ -482,7 +482,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             'wordset'   => '',
             'columns'   => '',
             'popup'     => 'no',
-            'mode'      => 'standard',  // NEW: default to standard mode
+            'mode'      => 'practice',
             'order'     => 'title',
             'order_dir' => 'ASC',
         ],
@@ -502,7 +502,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
-    $quiz_mode = in_array($atts['mode'], ['standard', 'learning']) ? $atts['mode'] : 'standard';
+    $quiz_mode = in_array($atts['mode'], ['practice', 'learning']) ? $atts['mode'] : 'practice';
 
     if ($use_popup) {
         ll_qpg_bootstrap_flashcards_for_grid();
@@ -524,8 +524,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
         $raw_name  = $it['name'];
 
         if (!$use_popup) {
-            // Non-popup: standard link to quiz page
-            $qs = ($quiz_mode !== 'standard') ? '?mode=' . esc_attr($quiz_mode) : '';
+            $qs = ($quiz_mode !== 'practice') ? '?mode=' . esc_attr($quiz_mode) : '';
             echo '<a class="ll-quiz-page-card ll-quiz-page-link"'
             . ' href="' . esc_url($permalink . $qs) . '"'
             . ' aria-label="' . esc_attr($title) . '">';
