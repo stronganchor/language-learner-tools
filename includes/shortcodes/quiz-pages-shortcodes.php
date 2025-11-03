@@ -311,6 +311,9 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
     ?>
     <script>
     (function(){
+      // Bind only once across multiple shortcode instances
+      if (window.__LL_QPG_DELEGATED_BOUND) { return; }
+      window.__LL_QPG_DELEGATED_BOUND = true;
       function openFromAnchor(a){
             var cat = a.getAttribute('data-category') || '';
             var wordset = a.getAttribute('data-wordset') || '';
@@ -331,7 +334,13 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
       function vanillaHandler(e){
         var a = e.target.closest && e.target.closest('.ll-quiz-page-trigger');
         if (!a) return;
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        // Stop other capture listeners from also firing
+        if (typeof e.stopImmediatePropagation === 'function') {
+          e.stopImmediatePropagation();
+        } else {
+          e.stopPropagation();
+        }
         openFromAnchor(a);
       }
 
@@ -436,7 +445,7 @@ function ll_qpg_print_flashcard_shell_once() {
         }
         initPlayIcon();
 
-        // Called by the grid link
+        // Called by the grid link (guarded against double-activation)
         window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
@@ -457,11 +466,27 @@ function ll_qpg_print_flashcard_shell_once() {
                 }
             }
 
+            // Prevent multiple rapid opens triggering multiple sessions
+            if (window.__LL_QPG_OPEN_IN_PROGRESS) {
+                return;
+            }
+            window.__LL_QPG_OPEN_IN_PROGRESS = true;
+
             $('#ll-tools-flashcard-container').show();
             $('#ll-tools-flashcard-popup').show();
             $('#ll-tools-flashcard-quiz-popup').show();
             $('body').addClass('ll-tools-flashcard-open');
-            try { initFlashcardWidget([catName], mode); } catch (e) { console.error('initFlashcardWidget failed', e); }
+            try {
+                var p = initFlashcardWidget([catName], mode);
+                if (p && typeof p.finally === 'function') {
+                    p.finally(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; });
+                } else {
+                    setTimeout(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; }, 0);
+                }
+            } catch (e) {
+                console.error('initFlashcardWidget failed', e);
+                window.__LL_QPG_OPEN_IN_PROGRESS = false;
+            }
         };
     })(jQuery);
     </script>

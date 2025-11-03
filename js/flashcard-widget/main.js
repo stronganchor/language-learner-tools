@@ -17,6 +17,7 @@
     let __LLTimers = new Set();
     let __LLSession = 0;
     let closingCleanupPromise = null;
+    let initInProgressPromise = null; // prevents concurrent initializations
 
     function newSession() {
         __LLSession++;
@@ -515,6 +516,11 @@
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
+        // Deduplicate concurrent init calls; reuse in-flight promise
+        if (initInProgressPromise) {
+            return initInProgressPromise;
+        }
+
         const proceed = () => {
             newSession();
 
@@ -606,15 +612,20 @@
             });
         };
 
-        if (closingCleanupPromise) {
-            return closingCleanupPromise
-                .catch(err => {
-                    console.warn('Waiting for previous flashcard cleanup before reopening', err);
-                })
-                .then(proceed);
-        }
+        // If a close is still cleaning up, wait, then proceed once
+        const kickoff = (closingCleanupPromise
+            ? closingCleanupPromise.catch(err => {
+                console.warn('Waiting for previous flashcard cleanup before reopening', err);
+            }).then(proceed)
+            : Promise.resolve().then(proceed)
+        );
 
-        return proceed();
+        // Track in-flight init; clear when finished (success or failure)
+        initInProgressPromise = kickoff.finally(() => {
+            initInProgressPromise = null;
+        });
+
+        return initInProgressPromise;
     }
 
     function closeFlashcard() {
