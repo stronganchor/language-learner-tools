@@ -152,7 +152,6 @@
                         const $overlay = $jq('#ll-tools-flashcard .listening-overlay');
                         if ($overlay.length) {
                             $overlay.fadeOut(200, function () { $jq(this).remove(); });
-                            $jq('#ll-tools-listening-visualizer').fadeOut(150);
                         }
                         State.forceTransitionTo(STATES.QUIZ_READY, 'Listening resume advance');
                         if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
@@ -217,15 +216,9 @@
             class: baseClasses.join(' '),
             css: { display: 'flex' }
         });
-        // Visualizer placeholder inside box
-        const $viz = $jq('<div>', {
-            id: 'll-tools-listening-visualizer',
-            class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer',
-            'aria-hidden': 'true'
-        });
         // Overlay to hide visual content until reveal
         const $overlay = $jq('<div>', { class: 'listening-overlay' });
-        $ph.append($viz, $overlay);
+        $ph.append($overlay);
         $container.append($ph);
         return $ph;
     }
@@ -313,36 +306,42 @@
         } else if ($jq) {
             $jq('#ll-tools-flashcard').empty();
         }
-        ensureControls(utils);
         const hasImage = !!(target && target.image);
-        const $ph = insertPlaceholder($container || ($jq && $jq('#ll-tools-flashcard')), { textBased: !hasImage });
+        // Build a wrapper so placeholder and visualizer act as a single flex item
+        let $stack = null;
+        if ($jq) {
+            $stack = $jq('<div>', { class: 'listening-stack' });
+        }
+        const $ph = insertPlaceholder($stack || ($container || ($jq && $jq('#ll-tools-flashcard'))), { textBased: !hasImage });
+        // Add a dedicated visualizer element BELOW the image/placeholder and ABOVE the controls
+        if ($jq) {
+            // Remove any existing instance (fresh per round)
+            $jq('#ll-tools-listening-visualizer').remove();
+            const $viz = $jq('<div>', {
+                id: 'll-tools-listening-visualizer',
+                class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer',
+                'aria-hidden': 'true'
+            });
+            if ($stack) {
+                $stack.append($viz);
+                ($container || $jq('#ll-tools-flashcard')).append($stack);
+            } else {
+                // Insert visualizer just after the placeholder box
+                ($ph && typeof $ph.after === 'function') ? $ph.after($viz) : ($jq('#ll-tools-flashcard').append($viz));
+            }
+        }
+        // Prepare the visualizer now that the element exists
         try {
             const viz = namespace.AudioVisualizer;
             if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
         } catch (_) {}
-        // Hide header spinner if present; visualizer will target box
+        // Hide header spinner if present
         if ($jq) $jq('#ll-tools-loading-animation').hide();
+        // Ensure controls appear at the bottom (after placeholder and visualizer)
+        ensureControls(utils);
         updateControlsState();
 
         loader.loadResourcesForWord(target, 'image').then(function () {
-            const setAudioPromise = audioApi && typeof audioApi.setTargetWordAudio === 'function'
-                ? audioApi.setTargetWordAudio(target)
-                : Promise.resolve();
-
-            Promise.resolve(setAudioPromise).catch(function (e) {
-                console.warn('No target audio to set:', e);
-                if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
-                    audioVisualizer.stop();
-                }
-            });
-
-            Dom.disableRepeatButton && Dom.disableRepeatButton();
-            State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
-
-            const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
-                ? audioApi.getCurrentTargetAudio()
-                : null;
-
             // Pre-render hidden content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
@@ -360,117 +359,186 @@
                 }
             } catch (_) {}
 
-            if (audio) {
-                if (audioVisualizer && typeof audioVisualizer.followAudio === 'function') {
-                    audioVisualizer.followAudio(audio);
-                }
-                try {
-                    if (!audio.paused && Dom.setRepeatButton) {
-                        Dom.setRepeatButton('stop');
-                    }
-                } catch (_) { /* noop */ }
+            Dom.disableRepeatButton && Dom.disableRepeatButton();
+            State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
 
-                audio.onended = function () {
-                    const revealTimeoutId = scheduleTimeout(utils, function () {
-                        if (State.listeningPaused) { return; }
+            // Determine sequence: isolation -> introduction -> isolation when both available
+            // Otherwise, use whatever is available 3 times. We always begin with a brief
+            // countdown inside the gray box before revealing.
+            const isoUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
+                ? audioApi.selectBestAudio(target, ['isolation']) : null;
+            const introUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
+                ? audioApi.selectBestAudio(target, ['introduction']) : null;
 
-                        // Reveal by removing the gray overlay; hide visualizer
-                        if ($jq) {
-                            const $overlay = $ph ? $ph.find('.listening-overlay') : $jq('#ll-tools-flashcard .listening-overlay');
-                            if ($overlay.length) {
-                                $overlay.fadeOut(200, function () { $jq(this).remove(); });
-                            }
-                            $jq('#ll-tools-listening-visualizer').fadeOut(150);
-                            try { $ph && $ph.addClass('listening-final'); } catch (_) {}
-                        }
-
-                        Dom.hideLoading && Dom.hideLoading();
-                        Dom.setRepeatButton && Dom.setRepeatButton('play');
-
-                        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
-                        const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
-
-                        const advanceTimeoutId = scheduleTimeout(utils, function () {
-                            if (State.listeningPaused) return; // do not advance while paused
-                            if (isLast) {
-                                if (State.listeningLoop) {
-                                    const $jq = getJQuery();
-                                    const doRestart = function () {
-                                        try {
-                                            const Util = (root.LLFlashcards && root.LLFlashcards.Util) || {};
-                                            if (Util && typeof Util.randomlySort === 'function') {
-                                                State.wordsLinear = Util.randomlySort(State.wordsLinear || []);
-                                            }
-                                        } catch (_) {}
-                                        State.listenIndex = 0;
-                                        State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening');
-                                        if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
-                                    };
-
-                                    // Fade out to white then back in to signal restart
-                                    if ($jq) {
-                                        const $content = $jq('#ll-tools-flashcard-content');
-                                        const $ov = $jq('<div>', { class: 'll-listening-loop-overlay' }).css({ display: 'none' });
-                                        $content.append($ov);
-                                        $ov.fadeIn(180, function () {
-                                            doRestart();
-                                            $ov.fadeOut(220, function () { $ov.remove(); });
-                                        });
-                                    } else {
-                                        doRestart();
-                                    }
-                                } else {
-                                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-                                }
-                            } else {
-                                State.forceTransitionTo(STATES.QUIZ_READY, 'Next listening item');
-                                if (typeof utils.runQuizRound === 'function') {
-                                    utils.runQuizRound();
-                                } else if (typeof utils.startQuizRound === 'function') {
-                                    utils.startQuizRound();
-                                }
-                            }
-                        }, 1200);
-                        State.addTimeout(advanceTimeoutId);
-                    }, 600);
-                    State.addTimeout(revealTimeoutId);
-                };
-                audio.addEventListener('error', function () {
-                    if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
-                        audioVisualizer.stop();
-                    }
-                }, { once: true });
+            let sequence = [];
+            if (isoUrl && introUrl && isoUrl !== introUrl) {
+                sequence = [isoUrl, introUrl, isoUrl];
+            } else if (introUrl) {
+                sequence = [introUrl, introUrl, introUrl];
+            } else if (isoUrl) {
+                sequence = [isoUrl, isoUrl, isoUrl];
             } else {
-                if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
-                    audioVisualizer.stop();
+                const fallbackUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
+                    ? audioApi.selectBestAudio(target, ['question'])
+                    : (target && target.audio) || null;
+                if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl, fallbackUrl];
+            }
+
+            const followCurrentTarget = function () {
+                const a = (audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
+                    ? audioApi.getCurrentTargetAudio() : null;
+                if (a && audioVisualizer && typeof audioVisualizer.followAudio === 'function') {
+                    audioVisualizer.followAudio(a);
                 }
+                try { if (a && !a.paused && Dom.setRepeatButton) Dom.setRepeatButton('stop'); } catch (_) {}
+                return a;
+            };
+
+            const setAndPlayUntilEnd = function (url) {
+                target.audio = url;
+                const p = (audioApi && typeof audioApi.setTargetWordAudio === 'function')
+                    ? audioApi.setTargetWordAudio(target)
+                    : Promise.resolve();
+                return Promise.resolve(p).then(function () {
+                    const a = followCurrentTarget();
+                    return new Promise(function (resolve) {
+                        if (!a) { resolve(); return; }
+                        a.onended = resolve;
+                        a.addEventListener('error', resolve, { once: true });
+                    });
+                }).catch(function (e) {
+                    console.warn('Listening: failed to set/play audio', e);
+                    return Promise.resolve();
+                });
+            };
+
+            const revealContent = function () {
+                if (!$jq) return;
+                const $overlay = $ph ? $ph.find('.listening-overlay') : $jq('#ll-tools-flashcard .listening-overlay');
+                if ($overlay.length) {
+                    $overlay.fadeOut(200, function () { $jq(this).remove(); });
+                }
+                try { $ph && $ph.addClass('listening-final'); } catch (_) {}
                 Dom.hideLoading && Dom.hideLoading();
-                // Ensure placeholder + visual content exist
-                try {
-                    if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
-                        if (hasImage) {
-                            const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
-                            $ph.prepend($img);
+            };
+
+            const scheduleAdvance = function () {
+                const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+                const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
+                const advanceTimeoutId = scheduleTimeout(utils, function () {
+                    if (State.listeningPaused) return; // do not advance while paused
+                    if (isLast) {
+                        if (State.listeningLoop) {
+                            const $jq = getJQuery();
+                            const doRestart = function () {
+                                try {
+                                    const Util = (root.LLFlashcards && root.LLFlashcards.Util) || {};
+                                    if (Util && typeof Util.randomlySort === 'function') {
+                                        State.wordsLinear = Util.randomlySort(State.wordsLinear || []);
+                                    }
+                                } catch (_) {}
+                                State.listenIndex = 0;
+                                State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening');
+                                if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
+                            };
+                            if ($jq) {
+                                const $content = $jq('#ll-tools-flashcard-content');
+                                const $ov = $jq('<div>', { class: 'll-listening-loop-overlay' }).css({ display: 'none' });
+                                $content.append($ov);
+                                $ov.fadeIn(180, function () {
+                                    doRestart();
+                                    $ov.fadeOut(220, function () { $ov.remove(); });
+                                });
+                            } else {
+                                doRestart();
+                            }
                         } else {
-                            renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                            State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                            resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                        }
+                    } else {
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Next listening item');
+                        if (typeof utils.runQuizRound === 'function') {
+                            utils.runQuizRound();
+                        } else if (typeof utils.startQuizRound === 'function') {
+                            utils.startQuizRound();
                         }
                     }
-                    // Reveal immediately
+                }, 800);
+                State.addTimeout(advanceTimeoutId);
+            };
+
+            // Countdown helper: show 3-2-1 inside overlay
+            const startCountdown = function () {
+                return new Promise(function (resolve) {
+                    if (!$jq) { resolve(); return; }
                     const $overlay = $ph ? $ph.find('.listening-overlay') : $jq('#ll-tools-flashcard .listening-overlay');
-                    if ($overlay && $overlay.length) $overlay.remove();
-                    try { $ph && $ph.addClass('listening-final'); } catch (_) {}
-                    $jq && $jq('#ll-tools-listening-visualizer').hide();
-                } catch (_) {}
-                const timeoutId = scheduleTimeout(utils, function () {
-                    State.forceTransitionTo(STATES.QUIZ_READY, 'Advance listening (no audio)');
-                    if (typeof utils.runQuizRound === 'function') {
-                        utils.runQuizRound();
-                    } else if (typeof utils.startQuizRound === 'function') {
-                        utils.startQuizRound();
+                    if (!$overlay.length) { resolve(); return; }
+                    let $cd = $overlay.find('.listening-countdown');
+                    if (!$cd.length) {
+                        $cd = $jq('<div>', { class: 'listening-countdown' });
+                        $overlay.append($cd);
                     }
-                }, 1200);
-                State.addTimeout(timeoutId);
+                    let n = 3;
+                    const render = function () {
+                        $cd.empty().append($jq('<span>', { class: 'digit', text: String(n) }));
+                    };
+                    render();
+                    // Tick every ~900ms for a snappy feel
+                    const step = function () {
+                        if (State.listeningPaused) { resolve(); return; }
+                        n -= 1;
+                        if (n <= 0) {
+                            // Brief hold on 1 then resolve
+                            const tid = scheduleTimeout(utils, function () { resolve(); }, 350);
+                            State.addTimeout && State.addTimeout(tid);
+                        } else {
+                            render();
+                            const tid = scheduleTimeout(utils, step, 900);
+                            State.addTimeout && State.addTimeout(tid);
+                        }
+                    };
+                    const tid = scheduleTimeout(utils, step, 900);
+                    State.addTimeout && State.addTimeout(tid);
+                });
+            };
+
+            // Play a sequence of up to 3 audios. Always begin with a countdown while the
+            // first audio (if any) is playing; reveal only when the countdown completes
+            // and the first audio ends.
+            if (!sequence.length) {
+                // Nothing to play: just countdown then reveal
+                startCountdown().then(function () {
+                    revealContent();
+                    const t = scheduleTimeout(utils, scheduleAdvance, 600);
+                    State.addTimeout(t);
+                });
+            } else {
+                const firstDone = setAndPlayUntilEnd(sequence[0]).catch(function () { });
+                const countdownDone = startCountdown();
+                Promise.all([Promise.resolve(firstDone), Promise.resolve(countdownDone)]).then(function () {
+                    if (State.listeningPaused) return;
+                    revealContent();
+                    // Play remaining items sequentially
+                    const playRest = function (idx) {
+                        if (idx >= sequence.length) {
+                            const t = scheduleTimeout(utils, function () {
+                                Dom.setRepeatButton && Dom.setRepeatButton('play');
+                                scheduleAdvance();
+                            }, 300);
+                            State.addTimeout(t);
+                            return;
+                        }
+                        setAndPlayUntilEnd(sequence[idx]).then(function () {
+                            const t = scheduleTimeout(utils, function () {
+                                if (State.listeningPaused) return;
+                                playRest(idx + 1);
+                            }, 150);
+                            State.addTimeout(t);
+                        }).catch(function () { playRest(idx + 1); });
+                    };
+                    playRest(1);
+                });
             }
         }).catch(function (err) {
             console.error('Error in listening run:', err);
