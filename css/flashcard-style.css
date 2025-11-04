@@ -494,9 +494,15 @@ body.ll-tools-flashcard-open {
 }
 
 .ll-tools-mode-switcher .mode-icon {
+    display: block;
+    line-height: 1;
+}
+
+.ll-tools-mode-switcher .mode-icon::before {
+    content: attr(data-emoji);
+    display: block;
     font-size: 28px;
     line-height: 1;
-    display: block;
 }
 
 .ll-tools-mode-switcher.practice-mode {
@@ -535,7 +541,7 @@ body.ll-tools-flashcard-open {
         bottom: 75px;
     }
 
-    .ll-tools-mode-switcher .mode-icon {
+    .ll-tools-mode-switcher .mode-icon::before {
         font-size: 24px;
     }
 }
@@ -562,6 +568,13 @@ body.ll-tools-flashcard-open {
 }
 
 .quiz-mode-button .button-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.quiz-mode-button .button-icon::before {
+    content: attr(data-emoji);
     font-size: 20px;
     line-height: 1;
 }
@@ -606,7 +619,7 @@ body.ll-tools-flashcard-open {
         right: 15px;
     }
 
-    .ll-tools-mode-switcher .mode-icon {
+    .ll-tools-mode-switcher .mode-icon::before {
         font-size: 24px;
     }
 
@@ -616,7 +629,7 @@ body.ll-tools-flashcard-open {
         font-size: 14px;
     }
 
-    .quiz-mode-button .button-icon {
+    .quiz-mode-button .button-icon::before {
         font-size: 18px;
     }
 

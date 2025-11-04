@@ -1,5 +1,9 @@
 <?php
-// Vars: $embed (bool), $category_label_text (string), $quiz_font (string)
+// Vars: $embed (bool), $category_label_text (string), $quiz_font (string), $mode_ui (array)
+$mode_ui = (isset($mode_ui) && is_array($mode_ui)) ? $mode_ui : [];
+$practice_mode_ui = $mode_ui['practice'] ?? [];
+$learning_mode_ui = $mode_ui['learning'] ?? [];
+$listening_mode_ui = $mode_ui['listening'] ?? [];
 ?>
 <?php if (!empty($quiz_font)): ?>
 <style>
@@ -52,10 +56,10 @@
 
       <!-- Mode switch buttons (stacked individually) -->
       <button id="ll-tools-mode-switcher-alt" class="ll-tools-mode-switcher" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>" style="display:none;">
-        <span class="mode-icon"></span>
+        <span class="mode-icon" aria-hidden="true"></span>
       </button>
       <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>" style="display:none;">
-        <span class="mode-icon"></span>
+        <span class="mode-icon" aria-hidden="true"></span>
       </button>
 
       <div id="quiz-results" style="display:none;">
@@ -67,16 +71,28 @@
         </p>
         <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
         <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
+          <?php
+            $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
+            $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
+            $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
+          ?>
           <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
-            <span class="button-icon">❓</span>
-            <?php echo esc_html__('Practice Mode', 'll-tools-text-domain'); ?>
+            <?php if (!empty($practice_mode_ui['icon'])): ?>
+              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($practice_mode_ui['icon']); ?>"></span>
+            <?php endif; ?>
+            <?php echo esc_html($practice_label); ?>
           </button>
           <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
-            <span class="button-icon">🎓</span>
-            <?php echo esc_html__('Learning Mode', 'll-tools-text-domain'); ?>
+            <?php if (!empty($learning_mode_ui['icon'])): ?>
+              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($learning_mode_ui['icon']); ?>"></span>
+            <?php endif; ?>
+            <?php echo esc_html($learning_label); ?>
           </button>
           <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
-            <?php echo esc_html__('Replay Listening', 'll-tools-text-domain'); ?>
+            <?php if (!empty($listening_mode_ui['icon'])): ?>
+              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($listening_mode_ui['icon']); ?>"></span>
+            <?php endif; ?>
+            <?php echo esc_html($listening_label); ?>
           </button>
         </div>
         <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>

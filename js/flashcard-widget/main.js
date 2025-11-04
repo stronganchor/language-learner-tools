@@ -4,7 +4,7 @@
     if (window.__LLFlashcardsMainLoaded) { return; }
     window.__LLFlashcardsMainLoaded = true;
 
-    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine } = root.LLFlashcards;
+    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine, ModeConfig } = root.LLFlashcards;
     const { STATES } = State;
 
     // Learning-mode introduction pacing
@@ -60,23 +60,24 @@
 
 
 
-    const MODE_SWITCH_CONFIG = {
-        practice: {
-            label: 'Switch to Practice Mode',
-            icon: '❓',
-            className: 'practice-mode'
-        },
-        learning: {
-            label: 'Switch to Learning Mode',
-            icon: '🎓',
-            className: 'learning-mode'
-        },
-        listening: {
-            label: 'Switch to Listening Mode',
-            icon: '🎧',
-            className: 'listening-mode'
-        }
-    };
+    const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
+        ModeConfig.getSwitchConfig() : {
+            practice: {
+                label: 'Switch to Practice Mode',
+                icon: '❓',
+                className: 'practice-mode'
+            },
+            learning: {
+                label: 'Switch to Learning Mode',
+                icon: '🎓',
+                className: 'learning-mode'
+            },
+            listening: {
+                label: 'Switch to Listening Mode',
+                icon: '🎧',
+                className: 'listening-mode'
+            }
+        };
 
     function applyModeSwitcherState($btn, target) {
         if (!$btn || !$btn.length) return;
@@ -96,7 +97,14 @@
 
         const $icon = $btn.find('.mode-icon');
         if ($icon.length) {
-            $icon.text(cfg.icon);
+            if (cfg.icon) {
+                $icon.attr('data-emoji', cfg.icon);
+            } else {
+                $icon.removeAttr('data-emoji');
+            }
+            if ($icon.text()) {
+                $icon.text('');
+            }
         }
     }
 

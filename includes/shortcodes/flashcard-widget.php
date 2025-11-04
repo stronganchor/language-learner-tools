@@ -132,6 +132,30 @@ function ll_flashcards_get_messages(): array {
     ];
 }
 
+/** Return UI metadata (icon + labels) for each quiz mode */
+function ll_flashcards_get_mode_ui_config(): array {
+    return [
+        'practice' => [
+            'icon'              => '❓',
+            'className'         => 'practice-mode',
+            'switchLabel'       => __('Switch to Practice Mode', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Practice Mode', 'll-tools-text-domain'),
+        ],
+        'learning' => [
+            'icon'              => '🎓',
+            'className'         => 'learning-mode',
+            'switchLabel'       => __('Switch to Learning Mode', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Learning Mode', 'll-tools-text-domain'),
+        ],
+        'listening' => [
+            'icon'              => '🎧',
+            'className'         => 'listening-mode',
+            'switchLabel'       => __('Switch to Listening Mode', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Replay Listening', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
 /** Enqueue styles/scripts and localize data */
 function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): void {
     wp_enqueue_script('jquery');
@@ -150,8 +174,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
 
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',      'll-flc-util',      ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',     'll-flc-state',     ['ll-flc-util'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'cards.js',     'll-flc-cards',     ['ll-flc-dom', 'll-flc-state', 'll-flc-effects'], true);
@@ -215,9 +240,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'imageSize'             => get_option('ll_flashcard_image_size', 'small'),
         'maxOptionsOverride'    => get_option('ll_max_options_override', 9),
         'wordset'               => $wordset,
+        'modeUi'                => ll_flashcards_get_mode_ui_config(),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-flc-mode-config',                 'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-flc-main',                        'llToolsFlashcardsData', $localized_data);
     wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data);
 
@@ -274,6 +301,7 @@ function ll_tools_flashcard_widget($atts) {
         'embed'               => $embed,
         'category_label_text' => $category_label_text,
         'quiz_font'           => $quiz_font,
+        'mode_ui'             => ll_flashcards_get_mode_ui_config(),
     ]);
     echo "<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('ll-tools-flashcard-container');if(c){c.removeAttribute('style');}});</script>";
     return (string) ob_get_clean();
