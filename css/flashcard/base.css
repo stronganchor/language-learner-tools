@@ -535,10 +535,13 @@ body.ll-tools-flashcard-open {
 }
 
 /* SVG icon support inside mode menu (color follows element color) */
-.ll-tools-mode-option .mode-icon svg {
-    width: 26px;
-    height: 26px;
-    display: block;
+.ll-tools-mode-option .mode-icon svg,
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon svg {
+    width: 26px !important;
+    height: 26px !important;
+    display: block !important;
+    fill: currentColor !important;
+    stroke: currentColor !important;
 }
 
 /* Darken/adjust emoji rendering for better contrast on light backgrounds */
@@ -776,4 +779,78 @@ body.ll-tools-flashcard-open {
     color: #555;
     margin-top: 0;
     text-align: center;
+}
+
+/* =============================
+   Hardening against theme CSS
+   ============================= */
+/* Keep the floating switcher and its menu options perfectly circular */
+#ll-tools-mode-switcher-wrap #ll-tools-mode-switcher.ll-tools-mode-switcher {
+    width: 56px !important;
+    height: 56px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    background: #1d4ed8 !important; /* lock base blue */
+    background-color: #1d4ed8 !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+#ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option,
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option {
+    width: 56px !important;
+    height: 56px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+/* Lock icon sizing/visibility for mode switcher */
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option .mode-icon::before {
+    display: block !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon {
+    display: block !important;
+    font-size: 28px !important;
+    line-height: 1 !important;
+}
+
+/* Keep switcher blue on focus/active/expanded regardless of theme accent */
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:focus,
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:active,
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher[aria-expanded="true"],
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher[aria-pressed="true"] {
+    background: #1d4ed8 !important;
+    background-color: #1d4ed8 !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+/* Hover stays in the same blue family, not theme accent */
+#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:hover {
+    background: #2563eb !important; /* slightly lighter blue */
+    background-color: #2563eb !important;
+}
+
+/* Prefer emoji-capable fonts for the small icons */
+#ll-tools-mode-switcher-wrap .mode-icon,
+#ll-tools-mode-switcher-wrap .mode-icon::before {
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+    -webkit-text-size-adjust: none !important;
 }

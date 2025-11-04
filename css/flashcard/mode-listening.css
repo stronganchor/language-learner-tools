@@ -108,6 +108,40 @@
 
 .ll-listening-controls .ll-listen-btn svg { display: block; }
 
+/* --- Hardening: ensure controls and icons render despite theme overrides --- */
+.ll-listening-controls .ll-listen-btn {
+    width: 42px !important;
+    height: 42px !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+    color: #333 !important; /* fallback for currentColor-driven SVGs */
+}
+
+.ll-listening-controls .ll-listen-btn svg {
+    display: block !important;
+    width: 28px !important;
+    height: 28px !important;
+    overflow: visible !important; /* avoid clipping under theme svg resets */
+}
+
+/* Keep loop icon as stroked outline regardless of theme svg fill rules */
+#ll-listen-loop svg {
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 2 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+}
+
+.ll-listening-controls #ll-listen-loop.active {
+    color: #4f46e5 !important; /* ensure visible active color */
+}
+
 .ll-listening-controls #ll-listen-loop.active {
     border-color: #6366f1;
     background: rgba(99, 102, 241, 0.10);
