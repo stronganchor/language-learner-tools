@@ -458,7 +458,7 @@ body.ll-tools-flashcard-open {
     }
 }
 
-/* Mode Switcher Button */
+/* Floating mode switch buttons */
 .ll-tools-mode-switcher {
     position: fixed;
     bottom: 20px;
@@ -467,25 +467,30 @@ body.ll-tools-flashcard-open {
     height: 56px;
     border-radius: 50%;
     background: #2196F3;
+    color: #ffffff;
     border: none;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    z-index: 10000;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    z-index: 10000;
     padding: 0;
 }
 
-.ll-tools-mode-switcher:hover {
-    background: #1976D2;
-    transform: scale(1.1);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+#ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
+    bottom: 86px;
 }
 
-.ll-tools-mode-switcher:active {
-    transform: scale(0.95);
+.ll-tools-mode-switcher:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+}
+
+.ll-tools-mode-switcher:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: 2px;
 }
 
 .ll-tools-mode-switcher .mode-icon {
@@ -494,7 +499,6 @@ body.ll-tools-flashcard-open {
     display: block;
 }
 
-/* Different colors for different modes */
 .ll-tools-mode-switcher.practice-mode {
     background: #a2a2a2;
 }
@@ -504,11 +508,36 @@ body.ll-tools-flashcard-open {
 }
 
 .ll-tools-mode-switcher.learning-mode {
-    background: #a2a2a2;
+    background: #22c55e;
 }
 
 .ll-tools-mode-switcher.learning-mode:hover {
-    background: #8b8b8b;
+    background: #1ea34f;
+}
+
+.ll-tools-mode-switcher.listening-mode {
+    background: #6366f1;
+}
+
+.ll-tools-mode-switcher.listening-mode:hover {
+    background: #4f46e5;
+}
+
+@media (max-width: 480px) {
+    .ll-tools-mode-switcher {
+        width: 48px;
+        height: 48px;
+        bottom: 15px;
+        right: 15px;
+    }
+
+    #ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
+        bottom: 75px;
+    }
+
+    .ll-tools-mode-switcher .mode-icon {
+        font-size: 24px;
+    }
 }
 
 /* Quiz Mode Buttons on Results Page */
@@ -601,80 +630,6 @@ body.ll-tools-flashcard-open {
 
     .learning-progress-bar {
         height: 10px;
-    }
-}
-
-/* === Theme-proof overrides for the floating mode switcher === */
-#ll-tools-mode-switcher.ll-tools-mode-switcher {
-    /* Reset hostile theme rules and set explicit layout */
-    all: initial;
-    box-sizing: border-box;
-
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 56px !important;
-    height: 56px !important;
-    aspect-ratio: 1 / 1;
-    border-radius: 9999px !important;
-
-    background: #2196F3;
-    color: #ffffff;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    min-width: 0 !important;
-    line-height: 1 !important;
-    text-decoration: none !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 10000;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, .3);
-    transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
-}
-
-#ll-tools-mode-switcher.ll-tools-mode-switcher:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, .35);
-}
-
-#ll-tools-mode-switcher.ll-tools-mode-switcher:focus-visible {
-    outline: 3px solid #38bdf8;
-    outline-offset: 2px;
-}
-
-/* Icon sizing — beat theme typography rules */
-#ll-tools-mode-switcher.ll-tools-mode-switcher .mode-icon {
-    font-size: 28px !important;
-    line-height: 1 !important;
-    display: block !important;
-}
-
-/* Mode colors (keeps your existing learning/standard classes) */
-#ll-tools-mode-switcher.ll-tools-mode-switcher.practice-mode {
-    background: #a2a2a2 !important;
-}
-
-#ll-tools-mode-switcher.ll-tools-mode-switcher.learning-mode {
-    background: #22c55e !important;
-}
-
-/* Mobile tweak to match your earlier responsive sizing */
-@media (max-width: 480px) {
-    #ll-tools-mode-switcher.ll-tools-mode-switcher {
-        width: 48px !important;
-        height: 48px !important;
-        bottom: 15px;
-        right: 15px;
-    }
-
-    #ll-tools-mode-switcher.ll-tools-mode-switcher .mode-icon {
-        font-size: 24px !important;
     }
 }
 

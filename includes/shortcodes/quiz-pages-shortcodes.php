@@ -401,7 +401,10 @@ function ll_qpg_print_flashcard_shell_once() {
             <audio controls class="hidden"></audio>
           </div>
 
-          <!-- Mode Switcher Button -->
+          <!-- Mode switch buttons (stacked individually) -->
+          <button id="ll-tools-mode-switcher-alt" class="ll-tools-mode-switcher" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>" style="display:none;">
+            <span class="mode-icon"></span>
+          </button>
           <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>" style="display:none;">
             <span class="mode-icon"></span>
           </button>
@@ -414,14 +417,17 @@ function ll_qpg_print_flashcard_shell_once() {
             </p>
             <p id="quiz-results-categories" style="margin-top:10px; display:none;"></p>
             <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
-            <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
+              <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
                 <span class="button-icon">❓</span>
                 <?php echo esc_html__('Practice Mode', 'll-tools-text-domain'); ?>
-            </button>
-            <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
+              </button>
+              <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
                 <span class="button-icon">🎓</span>
                 <?php echo esc_html__('Learning Mode', 'll-tools-text-domain'); ?>
-            </button>
+              </button>
+              <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Replay Listening', 'll-tools-text-domain'); ?>
+              </button>
             </div>
             <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
           </div>

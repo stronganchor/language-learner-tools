@@ -6,14 +6,15 @@
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
+        $('#restart-practice-mode, #restart-learning-mode').show();
+        $('#restart-listening-mode').hide();
     }
 
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
 
-        // Hide mode switcher during results
-        $('#ll-tools-mode-switcher').hide();
+        // Keep mode switch buttons available during results
 
         if (State.isLearningMode) {
             // Create animated SVG checkmark
@@ -36,6 +37,8 @@
             $('#quiz-results').show();
             $('#restart-quiz').hide();
             $('#quiz-mode-buttons').show();
+            $('#restart-practice-mode, #restart-learning-mode').show();
+            $('#restart-listening-mode').hide();
             Dom.hideLoading();
             $('#ll-tools-repeat-flashcard').hide();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
@@ -47,6 +50,27 @@
             if (completedWords === totalWords) {
                 Effects.startConfetti();
             }
+            return;
+        }
+
+        // Listening mode: simple results (no confetti)
+        if (State.isListeningMode) {
+            const msgs2 = root.llToolsFlashcardsMessages || {};
+            $('#quiz-results-title').text(msgs2.listeningComplete || 'Listening Complete');
+            $('#quiz-results-message').hide();
+            $('#correct-count').parent().hide();
+            $('#quiz-results-categories').show();
+            $('#quiz-results').show();
+            $('#restart-quiz').hide();
+            // Only show the replay listening button; hide the cross-mode buttons here
+            $('#quiz-mode-buttons').show();
+            $('#restart-practice-mode').hide();
+            $('#restart-learning-mode').hide();
+            $('#restart-listening-mode').show();
+            Dom.hideLoading();
+            $('#ll-tools-repeat-flashcard').hide();
+            $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+            $('#ll-tools-learning-progress').hide();
             return;
         }
 
@@ -75,6 +99,8 @@
         $('#correct-count').parent().show();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').show();
+        $('#restart-practice-mode, #restart-learning-mode').show();
+        $('#restart-listening-mode').hide();
 
         if (Array.isArray(State.categoryNames) && State.categoryNames.length) {
             const categoriesLabel = msgs.categoriesLabel || 'Categories';

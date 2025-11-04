@@ -51,21 +51,90 @@
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
     function updateModeSwitcherButton() {
-        const $btn = $('#ll-tools-mode-switcher');
-        if (!$btn.length) return;
+        updateModeSwitcherButtons();
+    }
 
-        if (State.isLearningMode) {
-            $btn.removeClass('learning-mode').addClass('practice-mode');
-            $btn.find('.mode-icon').text('❓');
-            $btn.attr('aria-label', 'Switch to Practice Mode');
-            $btn.attr('title', 'Switch to Practice Mode');
-        } else {
-            $btn.removeClass('practice-mode').addClass('learning-mode');
-            $btn.find('.mode-icon').text('🎓');
-            $btn.attr('aria-label', 'Switch to Learning Mode');
-            $btn.attr('title', 'Switch to Learning Mode');
+    function updateModeSwitcherPanel() {
+        updateModeSwitcherButtons();
+    }
+
+
+
+    const MODE_SWITCH_CONFIG = {
+        practice: {
+            label: 'Switch to Practice Mode',
+            icon: '❓',
+            className: 'practice-mode'
+        },
+        learning: {
+            label: 'Switch to Learning Mode',
+            icon: '🎓',
+            className: 'learning-mode'
+        },
+        listening: {
+            label: 'Switch to Listening Mode',
+            icon: '🎧',
+            className: 'listening-mode'
         }
-        $btn.show();
+    };
+
+    function applyModeSwitcherState($btn, target) {
+        if (!$btn || !$btn.length) return;
+        const cfg = MODE_SWITCH_CONFIG[target];
+        if (!cfg) {
+            $btn.hide();
+            return;
+        }
+
+        $btn
+            .data('target', target)
+            .attr('aria-label', cfg.label)
+            .attr('title', cfg.label)
+            .removeClass('practice-mode learning-mode listening-mode')
+            .addClass(cfg.className)
+            .css('display', 'inline-flex');
+
+        const $icon = $btn.find('.mode-icon');
+        if ($icon.length) {
+            $icon.text(cfg.icon);
+        }
+    }
+
+    function updateModeSwitcherButtons() {
+        const current = State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice');
+        const others = ['practice', 'learning', 'listening'].filter(mode => mode !== current);
+        const $top = $('#ll-tools-mode-switcher-alt');
+        const $bottom = $('#ll-tools-mode-switcher');
+
+        let topTarget = null;
+        let bottomTarget = null;
+
+        if (others.length >= 2) {
+            topTarget = others[0];
+            bottomTarget = others[1];
+        } else if (others.length === 1) {
+            bottomTarget = others[0];
+        }
+
+        if ($top.length) {
+            if (topTarget) {
+                applyModeSwitcherState($top, topTarget);
+            } else {
+                $top.hide();
+            }
+        }
+
+        if ($bottom.length) {
+            if (bottomTarget) {
+                applyModeSwitcherState($bottom, bottomTarget);
+            } else {
+                $bottom.hide();
+            }
+        }
+
+        if (!topTarget && !bottomTarget) {
+            $('#ll-tools-mode-switcher, #ll-tools-mode-switcher-alt').hide();
+        }
     }
 
     function switchMode(newMode) {
@@ -94,6 +163,7 @@
             State.abortAllOperations = false;
 
             State.isLearningMode = (targetMode === 'learning');
+            State.isListeningMode = (targetMode === 'listening');
 
             if (root.LLFlashcards?.Results?.hideResults) {
                 root.LLFlashcards.Results.hideResults();
@@ -101,7 +171,7 @@
 
             $('#ll-tools-flashcard').empty();
             Dom.restoreHeaderUI();
-            updateModeSwitcherButton();
+            updateModeSwitcherPanel();
 
             // Kick off fresh load
             State.transitionTo(STATES.LOADING, 'Mode switch complete, reloading');
@@ -231,8 +301,11 @@
                 if (State.isLearningMode) {
                     Selection.initializeLearningMode();
                 }
+                if (State.isListeningMode && root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Listening && typeof root.LLFlashcards.Modes.Listening.initialize === 'function') {
+                    root.LLFlashcards.Modes.Listening.initialize();
+                }
 
-                updateModeSwitcherButton();
+                updateModeSwitcherPanel();
                 State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
                 runQuizRound();
             });
@@ -261,6 +334,82 @@
         State.hadWrongAnswerThisTurn = false;
 
         let target;
+        if (State.isListeningMode) {
+            const Modes = root.LLFlashcards && root.LLFlashcards.Modes;
+            const listeningModule = Modes && Modes.Listening;
+            if (!listeningModule) {
+                console.warn('Listening mode module not available');
+                State.transitionTo(STATES.SHOWING_RESULTS, 'Listening module missing');
+                Results.showResults();
+                return;
+            }
+
+            target = listeningModule.selectTargetWord();
+            if (!target) {
+                if (State.isFirstRound) {
+                    showLoadingError();
+                    return;
+                }
+                State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                Results.showResults();
+                return;
+            }
+
+            // Prefer isolation audio for listening mode
+            const audioUrl = root.FlashcardAudio.selectBestAudio(target, ['isolation', 'question', 'introduction']);
+            if (audioUrl) target.audio = audioUrl;
+
+            State.isFirstRound = false;
+
+            root.FlashcardLoader.loadResourcesForWord(target, 'image').then(function () {
+                // Prepare target audio and play
+                root.FlashcardAudio.setTargetWordAudio(target).catch(function (e) { console.warn('No target audio to set:', e); });
+                Dom.disableRepeatButton();
+                State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
+
+                const a = root.FlashcardAudio.getCurrentTargetAudio();
+                if (a) {
+                    try { if (!a.paused) Dom.setRepeatButton('stop'); } catch (_) { }
+                    a.onended = function () {
+                        setGuardedTimeout(function () {
+                            // Reveal the associated image after a brief pause
+                            $('#ll-tools-flashcard').empty();
+                            const $card = Cards.appendWordToContainer(target);
+                            if ($card && $card.fadeIn) $card.fadeIn(250); else $('#ll-tools-flashcard .flashcard-container').show();
+                            Dom.hideLoading();
+                            Dom.setRepeatButton('play');
+
+                            // After viewing briefly, advance or finish
+                            const total = (State.wordsLinear && State.wordsLinear.length) ? State.wordsLinear.length : 0;
+                            const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
+
+                            setGuardedTimeout(function () {
+                                if (isLast) {
+                                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                                    Results.showResults();
+                                } else {
+                                    State.forceTransitionTo(STATES.QUIZ_READY, 'Next listening item');
+                                    runQuizRound();
+                                }
+                            }, 1200);
+                        }, 600);
+                    };
+                } else {
+                    // No audio — just reveal then advance
+                    Dom.hideLoading();
+                    const $card = Cards.appendWordToContainer(target);
+                    if ($card && $card.fadeIn) $card.fadeIn(250);
+                    setGuardedTimeout(function () {
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Advance listening (no audio)');
+                        runQuizRound();
+                    }, 1200);
+                }
+            }).catch(function (err) {
+                console.error('Error in listening run:', err);
+                State.forceTransitionTo(STATES.QUIZ_READY, 'Listening error recovery');
+            });
+            return;
+        }
         if (State.isLearningMode) {
             target = Selection.selectLearningModeWord();
 
@@ -548,6 +697,8 @@
             return root.FlashcardAudio.startNewSession().then(function () {
                 if (mode === 'learning') {
                     State.isLearningMode = true;
+                } else if (mode === 'listening') {
+                    State.isListeningMode = true;
                 }
 
                 if (State.widgetActive) return;
@@ -578,13 +729,21 @@
                     }
                 });
 
-                $('#ll-tools-mode-switcher').off('click').on('click', () => switchMode());
+                $('#ll-tools-mode-switcher').off('click').on('click', function () {
+                    const m = $(this).data('target');
+                    if (m) switchMode(String(m));
+                });
+                $('#ll-tools-mode-switcher-alt').off('click').on('click', function () {
+                    const m = $(this).data('target');
+                    if (m) switchMode(String(m));
+                });
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
+                $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
                 Dom.showLoading();
-                updateModeSwitcherButton();
+                updateModeSwitcherPanel();
                 startQuizRound();
 
                 // One-time "kick" to start audio on first user gesture if autoplay was blocked
@@ -668,7 +827,7 @@
                 $('#ll-tools-flashcard-header').hide();
                 $('#ll-tools-flashcard-quiz-popup').hide();
                 $('#ll-tools-flashcard-popup').hide();
-                $('#ll-tools-mode-switcher').hide();
+                $('#ll-tools-mode-switcher, #ll-tools-mode-switcher-alt').hide();
                 $('#ll-tools-learning-progress').hide().empty();
                 $('body').removeClass('ll-tools-flashcard-open');
 
@@ -693,7 +852,7 @@
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
-        updateModeSwitcherButton();
+        updateModeSwitcherPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
     }
@@ -707,3 +866,12 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
+
+
+
+
+
+
+
+
+

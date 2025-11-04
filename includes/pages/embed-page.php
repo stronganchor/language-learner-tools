@@ -44,7 +44,7 @@
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
             }
-            if (!empty($mode) && in_array($mode, ['practice', 'learning'])) {
+            if (!empty($mode) && in_array($mode, ['practice', 'learning', 'listening'], true)) {
                 $shortcode .= ' quiz_mode="' . esc_attr($mode) . '"';
             }
             $shortcode .= ']';

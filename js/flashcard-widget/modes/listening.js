@@ -6,6 +6,16 @@
     function initialize() {
         S.isLearningMode = false;
         S.isListeningMode = true;
+        // Build a linear list of words across the selected categories in current order
+        const all = [];
+        if (S.categoryNames && S.wordsByCategory) {
+            for (const name of S.categoryNames) {
+                const list = S.wordsByCategory[name] || [];
+                for (const w of list) all.push(w);
+            }
+        }
+        S.wordsLinear = all;
+        S.listenIndex = 0;
         return true;
     }
 
@@ -44,7 +54,8 @@
         initialize,
         getChoiceCount,
         recordAnswerResult,
-        selectTargetWord
+        selectTargetWord,
+        getTotalCount: function(){ return (S.wordsLinear || []).length; }
     };
 
 })(window);

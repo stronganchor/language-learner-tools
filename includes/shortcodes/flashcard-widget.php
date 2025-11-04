@@ -115,6 +115,7 @@ function ll_flashcards_get_messages(): array {
         // Results page messages
         'learningComplete'        => __('Learning Complete!', 'll-tools-text-domain'),
         'learningCompleteMessage' => __('✓', 'll-tools-text-domain'),
+        'listeningComplete'       => __('Listening Complete', 'll-tools-text-domain'),
         'perfect'                 => __('Perfect!', 'll-tools-text-domain'),
         'goodJob'                 => __('Good job!', 'll-tools-text-domain'),
         'keepPracticingTitle'     => __('Keep practicing!', 'll-tools-text-domain'),
