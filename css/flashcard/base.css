@@ -253,7 +253,9 @@ body.ll-tools-flashcard-open {
 }
 
 @keyframes ll-tools-visualizer-fallback {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: scaleY(0.45);
         opacity: 0.6;
     }
@@ -457,7 +459,8 @@ body.ll-tools-flashcard-open {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #1d4ed8; /* blue-700 */
+    background: #1d4ed8;
+    /* blue-700 */
     color: #ffffff;
     border: none;
     display: inline-flex;
@@ -487,7 +490,8 @@ body.ll-tools-flashcard-open {
 
 .ll-tools-mode-menu {
     position: absolute;
-    bottom: 70px; /* sits above the toggle button */
+    bottom: 70px;
+    /* sits above the toggle button */
     right: 0;
     display: flex;
     flex-direction: column;
@@ -495,7 +499,8 @@ body.ll-tools-flashcard-open {
     opacity: 0;
     transform: translateY(8px);
     transition: opacity 0.15s ease, transform 0.15s ease;
-    pointer-events: none; /* click-through when hidden */
+    pointer-events: none;
+    /* click-through when hidden */
 }
 
 .ll-tools-mode-switcher-wrap[aria-expanded="true"] .ll-tools-mode-menu {
@@ -508,15 +513,18 @@ body.ll-tools-flashcard-open {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    border: 1px solid #e5e7eb; /* subtle ring to separate on light bg */
+    border: 1px solid #e5e7eb;
+    /* subtle ring to separate on light bg */
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
     transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-    background: #ffffff;  /* white for higher contrast with gray icons */
-    color: #111827;       /* dark text for non-emoji icons */
+    background: #ffffff;
+    /* white for higher contrast with gray icons */
+    color: #111827;
+    /* dark text for non-emoji icons */
 }
 
 .ll-tools-mode-option .mode-icon::before {
@@ -527,7 +535,11 @@ body.ll-tools-flashcard-open {
 }
 
 /* SVG icon support inside mode menu (color follows element color) */
-.ll-tools-mode-option .mode-icon svg { width: 26px; height: 26px; display: block; }
+.ll-tools-mode-option .mode-icon svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+}
 
 /* Darken/adjust emoji rendering for better contrast on light backgrounds */
 .ll-tools-mode-option.listening .mode-icon {
@@ -545,15 +557,34 @@ body.ll-tools-flashcard-open {
     filter: none;
 }
 
+/* Make the Practice '?' appear white/off-white on active (green) */
+.ll-tools-mode-option.practice.active .mode-icon {
+    /* Desaturate and brighten to near-white for strong contrast */
+    filter: saturate(0) brightness(2.0) contrast(1.05);
+}
+
+/* Make Learning cap and Listening headphones near-white on active */
+.ll-tools-mode-option.learning.active .mode-icon,
+.ll-tools-mode-option.listening.active .mode-icon {
+    filter: saturate(0) brightness(2.0) contrast(1.05);
+}
+
+/* Slightly lighter for Learning icon on green */
+.ll-tools-mode-option.learning.active .mode-icon {
+    filter: saturate(0) brightness(1.2) contrast(1.15);
+}
+
 .ll-tools-mode-option:hover:not(.active):not([disabled]) {
     transform: scale(1.05);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-    background: #f9fafb;  /* near-white hover */
+    background: #f9fafb;
+    /* near-white hover */
     border-color: #d1d5db;
 }
 
 .ll-tools-mode-option.active {
-    background: #15803d; /* green-700 for high contrast */
+    background: #15803d;
+    /* green-700 for high contrast */
     color: #ffffff;
     border-color: #15803d;
     cursor: default;
@@ -566,12 +597,29 @@ body.ll-tools-flashcard-open {
 }
 
 @media (max-width: 480px) {
-    .ll-tools-mode-switcher-wrap { bottom: 15px; right: 15px; }
+    .ll-tools-mode-switcher-wrap {
+        bottom: 15px;
+        right: 15px;
+    }
+
     .ll-tools-mode-switcher,
-    .ll-tools-mode-option { width: 48px; height: 48px; }
-    .ll-tools-mode-switcher .mode-icon { font-size: 24px; }
-    .ll-tools-mode-option .mode-icon::before { font-size: 22px; }
-    .ll-tools-mode-menu { bottom: 60px; gap: 8px; }
+    .ll-tools-mode-option {
+        width: 48px;
+        height: 48px;
+    }
+
+    .ll-tools-mode-switcher .mode-icon {
+        font-size: 24px;
+    }
+
+    .ll-tools-mode-option .mode-icon::before {
+        font-size: 22px;
+    }
+
+    .ll-tools-mode-menu {
+        bottom: 60px;
+        gap: 8px;
+    }
 }
 
 /* Quiz Mode Buttons on Results Page */
@@ -608,8 +656,13 @@ body.ll-tools-flashcard-open {
 }
 
 /* Hide mode switcher during results */
-#quiz-results:not([style*="display: none"]) ~ .ll-tools-mode-switcher { display: none !important; }
-#quiz-results:not([style*="display: none"]) ~ .ll-tools-mode-switcher-wrap { display: none !important; }
+#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher {
+    display: none !important;
+}
+
+#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher-wrap {
+    display: none !important;
+}
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
