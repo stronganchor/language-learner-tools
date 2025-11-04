@@ -27,6 +27,11 @@
         setRepeatButton(state) {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            // In listening mode, hide the header repeat button entirely
+            if (State && State.isListeningMode) {
+                $btn.hide();
+                return;
+            }
             if (state === 'stop') {
                 $btn.html(stopIconHTML);
                 $btn.removeClass('play-mode').addClass('stop-mode');
@@ -39,11 +44,13 @@
         disableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            if (State && State.isListeningMode) { $btn.hide(); return; }
             $btn.addClass('disabled').prop('disabled', true);
         },
         enableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            if (State && State.isListeningMode) { $btn.hide(); return; }
             $btn.removeClass('disabled').prop('disabled', false);
         },
         restoreHeaderUI() {
@@ -69,16 +76,21 @@
             $el.text(String(displayName));
         },
         showLoading() {
-            const $el = $('#ll-tools-loading-animation');
             const viz = namespace.AudioVisualizer;
-            if (viz && typeof viz.prepareForListening === 'function' && State && State.isListeningMode) {
-                viz.prepareForListening();
-                // Force flex display so jQuery's show() inline style doesn't override layout
-                $el.css('display', 'flex');
-            } else {
-                if (viz && typeof viz.reset === 'function') viz.reset();
-                $el.css('display', 'block');
+            // If we're in listening mode and a dedicated visualizer exists in the content area,
+            // show that instead of the header spinner.
+            if (State && State.isListeningMode) {
+                const $listeningViz = $('#ll-tools-listening-visualizer');
+                if ($listeningViz.length) {
+                    if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
+                    $listeningViz.css('display', 'flex');
+                    $('#ll-tools-loading-animation').hide();
+                    return;
+                }
             }
+            const $el = $('#ll-tools-loading-animation');
+            if (viz && typeof viz.reset === 'function') viz.reset();
+            $el.css('display', 'block');
         },
         hideLoading() {
             const viz = namespace.AudioVisualizer;

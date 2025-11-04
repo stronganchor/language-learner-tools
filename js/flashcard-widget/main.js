@@ -668,6 +668,7 @@
                 $('#ll-tools-flashcard-header').hide();
                 $('#ll-tools-flashcard-quiz-popup').hide();
                 $('#ll-tools-flashcard-popup').hide();
+                $('#ll-tools-listening-controls').remove();
                 $('#ll-tools-mode-switcher, #ll-tools-mode-switcher-alt').hide();
                 $('#ll-tools-learning-progress').hide().empty();
                 $('body').removeClass('ll-tools-flashcard-open');
@@ -689,6 +690,8 @@
     function restartQuiz() {
         newSession();
         $('#ll-tools-learning-progress').hide().empty();
+        // Remove any listening-mode specific UI
+        $('#ll-tools-listening-controls').remove();
         const wasLearning = State.isLearningMode;
         const wasListening = State.isListeningMode;
         State.reset();
@@ -699,9 +702,9 @@
             try { module.initialize(); } catch (err) { console.error('Mode initialization failed during restart:', err); }
         }
         root.LLFlashcards.Results.hideResults();
-        $('#ll-tools-flashcard').empty();
-        Dom.restoreHeaderUI();
-        updateModeSwitcherPanel();
+            $('#ll-tools-flashcard').empty();
+            Dom.restoreHeaderUI();
+            updateModeSwitcherPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
     }

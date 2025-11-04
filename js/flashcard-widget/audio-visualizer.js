@@ -23,6 +23,11 @@
     const ZERO_ENERGY_FALLBACK_FRAMES = 90;
 
     function getContainer() {
+        // Prefer a dedicated listening-mode visualizer if present
+        if (root.document) {
+            const listeningEl = root.document.getElementById('ll-tools-listening-visualizer');
+            if (listeningEl) return listeningEl;
+        }
         if (!container) {
             container = root.document
                 ? root.document.getElementById('ll-tools-loading-animation')
@@ -34,6 +39,12 @@
     function ensureBars() {
         const el = getContainer();
         if (!el) return null;
+
+        // If container changed (new placeholder each word), rebuild bars
+        if (bars.length && bars[0] && bars[0].parentNode !== el) {
+            bars = [];
+            barLevels = [];
+        }
 
         if (!bars.length) {
             const existing = el.querySelectorAll('.ll-tools-visualizer-bar');

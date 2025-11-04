@@ -33,6 +33,8 @@
         const State = root.LLFlashcards.State;
 
         $('#ll-tools-flashcard').hide();
+        // Hide listening mode controls if present
+        $('#ll-tools-listening-controls').hide();
         removeCompletionCheckmark();
 
         if (root.FlashcardAudio) {
