@@ -2,35 +2,65 @@
     'use strict';
     const { State, Dom, Effects } = root.LLFlashcards;
 
+    const CHECKMARK_SVG = `
+        <svg class="ll-learning-checkmark" width="80" height="80" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+            <circle class="ll-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="ll-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+    `;
+
+    function insertCompletionCheckmark() {
+        $('.ll-learning-checkmark').remove();
+        $('#quiz-results-title').before(CHECKMARK_SVG);
+    }
+
+    function removeCompletionCheckmark() {
+        $('.ll-learning-checkmark').remove();
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
         $('#restart-practice-mode, #restart-learning-mode').show();
         $('#restart-listening-mode').hide();
+        removeCompletionCheckmark();
+        $('#ll-tools-flashcard').show();
     }
 
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
 
+        $('#ll-tools-flashcard').hide();
+        removeCompletionCheckmark();
+
+        if (root.FlashcardAudio) {
+            try {
+                const pausePromise = typeof root.FlashcardAudio.pauseAllAudio === 'function'
+                    ? root.FlashcardAudio.pauseAllAudio()
+                    : null;
+                if (pausePromise && typeof pausePromise.catch === 'function') {
+                    pausePromise.catch(err => console.warn('Audio pause failed during results display:', err));
+                }
+            } catch (err) {
+                console.warn('Error pausing audio during results display:', err);
+            }
+
+            if (typeof root.FlashcardAudio.startNewSession === 'function') {
+                root.FlashcardAudio.startNewSession().catch(err => {
+                    console.warn('Audio cleanup session failed during results display:', err);
+                });
+            }
+        }
+
         // Keep mode switch buttons available during results
 
         if (State.isLearningMode) {
-            // Create animated SVG checkmark
-            const checkmarkSVG = `
-                <svg class="ll-learning-checkmark" width="80" height="80" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-                    <circle class="ll-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
-                    <path class="ll-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-                </svg>
-            `;
-
             // Insert checkmark BEFORE the title
             $('#quiz-results-title').text(msgs.learningComplete || 'Learning Complete!');
 
-            // Remove any existing checkmark first, then insert new one before title
-            $('.ll-learning-checkmark').remove();
-            $('#quiz-results-title').before(checkmarkSVG);
+            insertCompletionCheckmark();
 
             $('#quiz-results-message').hide();
             $('#correct-count').parent().hide();
@@ -57,6 +87,7 @@
         if (State.isListeningMode) {
             const msgs2 = root.llToolsFlashcardsMessages || {};
             $('#quiz-results-title').text(msgs2.listeningComplete || 'Listening Complete');
+            insertCompletionCheckmark();
             $('#quiz-results-message').hide();
             $('#correct-count').parent().hide();
             $('#quiz-results-categories').show();
@@ -101,6 +132,7 @@
         $('#quiz-mode-buttons').show();
         $('#restart-practice-mode, #restart-learning-mode').show();
         $('#restart-listening-mode').hide();
+        removeCompletionCheckmark();
 
         if (Array.isArray(State.categoryNames) && State.categoryNames.length) {
             const categoriesLabel = msgs.categoriesLabel || 'Categories';

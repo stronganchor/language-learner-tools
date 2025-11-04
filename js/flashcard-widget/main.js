@@ -333,7 +333,9 @@
         }
 
         State.clearActiveTimeouts();
-        $('#ll-tools-flashcard').empty();
+        const $flashcardContainer = $('#ll-tools-flashcard');
+        $flashcardContainer.show();
+        $flashcardContainer.empty();
         Dom.restoreHeaderUI();
 
         root.FlashcardAudio.pauseAllAudio();
