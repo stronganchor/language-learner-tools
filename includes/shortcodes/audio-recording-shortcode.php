@@ -1122,15 +1122,41 @@ function ll_enqueue_recording_assets() {
     // Enqueue flashcard styles first so recording interface can use them
     wp_enqueue_style(
         'll-flashcard-style',
-        plugins_url('css/flashcard-style.css', LL_TOOLS_MAIN_FILE),
+        plugins_url('css/flashcard/base.css', LL_TOOLS_MAIN_FILE),
         [],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard-style.css')
+        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/base.css')
+    );
+
+    wp_enqueue_style(
+        'll-flashcard-mode-practice',
+        plugins_url('css/flashcard/mode-practice.css', LL_TOOLS_MAIN_FILE),
+        ['ll-flashcard-style'],
+        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-practice.css')
+    );
+
+    wp_enqueue_style(
+        'll-flashcard-mode-learning',
+        plugins_url('css/flashcard/mode-learning.css', LL_TOOLS_MAIN_FILE),
+        ['ll-flashcard-style'],
+        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-learning.css')
+    );
+
+    wp_enqueue_style(
+        'll-flashcard-mode-listening',
+        plugins_url('css/flashcard/mode-listening.css', LL_TOOLS_MAIN_FILE),
+        ['ll-flashcard-style'],
+        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-listening.css')
     );
 
     wp_enqueue_style(
         'll-recording-interface',
         plugins_url('css/recording-interface.css', LL_TOOLS_MAIN_FILE),
-        ['ll-flashcard-style'],
+        [
+            'll-flashcard-style',
+            'll-flashcard-mode-practice',
+            'll-flashcard-mode-learning',
+            'll-flashcard-mode-listening'
+        ],
         filemtime(LL_TOOLS_BASE_PATH . 'css/recording-interface.css')
     );
 

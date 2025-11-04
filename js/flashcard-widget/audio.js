@@ -267,7 +267,8 @@
             // Create new audio in DOM
             var audioElement = $('<audio>', {
                 src: targetWord.audio,
-                controls: true
+                controls: true,
+                crossorigin: 'anonymous'
             }).appendTo('#ll-tools-flashcard');
 
             currentTargetAudio = audioElement[0];

@@ -1,6 +1,9 @@
 (function (root, $) {
     'use strict';
 
+    const namespace = (root.LLFlashcards = root.LLFlashcards || {});
+    const State = namespace.State || {};
+
     // Centralized icon configuration
     const ICON_CONFIG = {
         size: 32,
@@ -24,6 +27,11 @@
         setRepeatButton(state) {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            // In listening mode, hide the header repeat button entirely
+            if (State && State.isListeningMode) {
+                $btn.hide();
+                return;
+            }
             if (state === 'stop') {
                 $btn.html(stopIconHTML);
                 $btn.removeClass('play-mode').addClass('stop-mode');
@@ -36,11 +44,13 @@
         disableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            if (State && State.isListeningMode) { $btn.hide(); return; }
             $btn.addClass('disabled').prop('disabled', true);
         },
         enableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
+            if (State && State.isListeningMode) { $btn.hide(); return; }
             $btn.removeClass('disabled').prop('disabled', false);
         },
         restoreHeaderUI() {
@@ -65,8 +75,30 @@
 
             $el.text(String(displayName));
         },
-        showLoading() { $('#ll-tools-loading-animation').show(); },
-        hideLoading() { $('#ll-tools-loading-animation').hide(); },
+        showLoading() {
+            const viz = namespace.AudioVisualizer;
+            // If we're in listening mode and a dedicated visualizer exists in the content area,
+            // show that instead of the header spinner.
+            if (State && State.isListeningMode) {
+                const $listeningViz = $('#ll-tools-listening-visualizer');
+                if ($listeningViz.length) {
+                    if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
+                    $listeningViz.css('display', 'flex');
+                    $('#ll-tools-loading-animation').hide();
+                    return;
+                }
+            }
+            const $el = $('#ll-tools-loading-animation');
+            if (viz && typeof viz.reset === 'function') viz.reset();
+            $el.css('display', 'block');
+        },
+        hideLoading() {
+            const viz = namespace.AudioVisualizer;
+            if (viz && typeof viz.stop === 'function') {
+                viz.stop();
+            }
+            $('#ll-tools-loading-animation').hide();
+        },
         updateLearningProgress(introducedCount, totalCount, wordCorrectCounts, wordIntroductionProgress) {
             const $progress = $('#ll-tools-learning-progress');
             if (!$progress.length) return;
@@ -114,7 +146,17 @@
                 `
             });
 
-            $button.on('click', function () {
+            const haltPropagation = function (event) {
+                event.stopPropagation();
+            };
+
+            $overlay.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+            $button.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+
+            $button.on('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
                 // Clear the autoplay block flag
                 if (root.FlashcardAudio && root.FlashcardAudio.clearAutoplayBlock) {
                     root.FlashcardAudio.clearAutoplayBlock();
@@ -124,15 +166,26 @@
                 $overlay.fadeOut(300, function () {
                     $(this).remove();
                 });
+                $overlay.off('.llAutoOverlay');
 
-                // Try to play the audio again
-                const audio = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio();
-                if (audio) {
-                    audio.play().catch(e => console.error('Still cannot play:', e));
+                // Try to play the audio again only if the target audio hasn't succeeded yet
+                const audioApi = root.FlashcardAudio;
+                const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
+                    ? audioApi.getCurrentTargetAudio()
+                    : null;
+                const alreadyPlayed = audioApi && typeof audioApi.getTargetAudioHasPlayed === 'function'
+                    ? audioApi.getTargetAudioHasPlayed()
+                    : false;
+                if (audio && !alreadyPlayed) {
+                    const playPromise = audio.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(e => console.error('Still cannot play:', e));
+                    }
                 }
 
                 // Enable interactions
                 $('#ll-tools-flashcard').css('pointer-events', 'auto');
+                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
             });
 
             $overlay.append($button);
@@ -140,9 +193,13 @@
             $overlay.fadeIn(300);
         },
         hideAutoplayBlockedOverlay() {
-            $('#ll-tools-autoplay-overlay').fadeOut(300, function () {
+            const $overlay = $('#ll-tools-autoplay-overlay');
+            $overlay.fadeOut(300, function () {
                 $(this).remove();
             });
+            $overlay.off('.llAutoOverlay');
+            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+            $('#ll-tools-flashcard').css('pointer-events', 'auto');
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },

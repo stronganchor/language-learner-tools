@@ -1,0 +1,22 @@
+/* flashcard/mode-practice.css */
+
+.ll-tools-mode-switcher.practice-mode {
+    background: #a2a2a2;
+}
+
+.ll-tools-mode-switcher.practice-mode:hover {
+    background: #8b8b8b;
+}
+
+#restart-practice-mode {
+    background: #a2a2a2;
+    color: white;
+    border: 2px solid #a2a2a2;
+}
+
+#restart-practice-mode:hover {
+    background: #8b8b8b;
+    border-color: #8b8b8b;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}

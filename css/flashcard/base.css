@@ -1,4 +1,4 @@
-/* flashcard-style.css */
+/* flashcard/base.css */
 
 /* Utility Classes */
 .hidden {
@@ -203,6 +203,69 @@ body.ll-tools-flashcard-open {
     }
 }
 
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer {
+    width: auto;
+    min-width: 140px;
+    height: 52px;
+    border: none;
+    border-radius: 10px;
+    animation: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 5px;
+    padding: 8px 16px 10px;
+    background: rgba(99, 102, 241, 0.12);
+    flex-direction: row;
+}
+
+.ll-tools-loading-animation:not(.ll-tools-loading-animation--visualizer) .ll-tools-visualizer-bar {
+    display: none;
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer .ll-tools-visualizer-bar {
+    display: inline-block;
+    flex: 0 0 6px;
+    width: 6px;
+    height: calc(12px + 52px * var(--level, 0));
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+    border-radius: 3px 3px 0 0;
+    transition: height 0.12s ease-out, opacity 0.2s ease-out;
+    transform-origin: center bottom;
+    opacity: 0.82;
+    will-change: height, transform, opacity;
+    animation: ll-tools-visualizer-fallback 1.2s ease-in-out infinite;
+    animation-delay: calc(var(--offset, 0) * 0.18s);
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--js .ll-tools-visualizer-bar {
+    animation: none;
+    transform: scaleY(1);
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--active .ll-tools-visualizer-bar {
+    opacity: 1;
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--fallback .ll-tools-visualizer-bar {
+    animation-duration: 1.5s;
+}
+
+@keyframes ll-tools-visualizer-fallback {
+
+    0%,
+    100% {
+        transform: scaleY(0.45);
+        opacity: 0.6;
+    }
+
+    50% {
+        transform: scaleY(1.05);
+        opacity: 0.95;
+    }
+}
+
 /* Flashcard Header and Content */
 #ll-tools-flashcard-header {
     position: relative;
@@ -211,6 +274,7 @@ body.ll-tools-flashcard-open {
     align-items: center;
     gap: 15px;
     padding: 20px 20px 10px;
+    z-index: 20;
 }
 
 #ll-tools-flashcard-content {
@@ -383,90 +447,20 @@ body.ll-tools-flashcard-open {
     word-wrap: anywhere;
 }
 
-/* Learning Progress Bar */
-#ll-tools-learning-progress {
-    width: 100%;
-    max-width: 600px;
-    text-align: center;
-    padding: 8px 60px 8px 15px;
-    font-size: 14px;
-    color: #666;
-    order: 1;
-    margin-bottom: 8px;
-    margin-top: -5px;
-}
-
-#ll-tools-learning-progress .progress-text {
-    font-weight: 500;
-}
-
-.learning-progress-bar {
-    position: relative;
-    width: 100%;
-    height: 12px;
-    background: #e0e0e0;
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.learning-progress-fill {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    transition: width 0.3s ease;
-    border-radius: 6px;
-}
-
-.introduced-fill {
-    background: #9ad19d;
-    z-index: 1;
-}
-
-.completed-fill {
-    background: #2e7d32;
-    z-index: 2;
-}
-
-/* Learning mode: dim cards during introduction */
-.flashcard-container.introducing {
-    opacity: 0.9;
-    cursor: pointer;
-}
-
-.flashcard-container.introducing:hover {
-    opacity: 1;
-    transform: scale(1.02);
-}
-
-/* Learning mode: card being actively introduced */
-.flashcard-container.introducing-active {
-    animation: pulse-card 1s ease-in-out;
-    transform-origin: center;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
-}
-
-@keyframes pulse-card {
-
-    0%,
-    100% {
-        transform: scale(1);
-    }
-
-    50% {
-        transform: scale(1.08);
-    }
-}
-
-/* Floating mode switch buttons */
-.ll-tools-mode-switcher {
+/* Floating mode switcher (single toggle + expanding menu) */
+.ll-tools-mode-switcher-wrap {
     position: fixed;
     bottom: 20px;
     right: 20px;
+    z-index: 10000;
+}
+
+.ll-tools-mode-switcher {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #2196F3;
+    background: #1d4ed8;
+    /* blue-700 */
     color: #ffffff;
     border: none;
     display: inline-flex;
@@ -475,12 +469,7 @@ body.ll-tools-flashcard-open {
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-    z-index: 10000;
     padding: 0;
-}
-
-#ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
-    bottom: 86px;
 }
 
 .ll-tools-mode-switcher:hover {
@@ -494,49 +483,142 @@ body.ll-tools-flashcard-open {
 }
 
 .ll-tools-mode-switcher .mode-icon {
-    font-size: 28px;
+    display: block;
     line-height: 1;
+    font-size: 28px;
+}
+
+.ll-tools-mode-menu {
+    position: absolute;
+    bottom: 70px;
+    /* sits above the toggle button */
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    pointer-events: none;
+    /* click-through when hidden */
+}
+
+.ll-tools-mode-switcher-wrap[aria-expanded="true"] .ll-tools-mode-menu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.ll-tools-mode-option {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid #e5e7eb;
+    /* subtle ring to separate on light bg */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    background: #ffffff;
+    /* white for higher contrast with gray icons */
+    color: #111827;
+    /* dark text for non-emoji icons */
+}
+
+.ll-tools-mode-option .mode-icon::before {
+    content: attr(data-emoji);
+    display: block;
+    font-size: 26px;
+    line-height: 1;
+}
+
+/* SVG icon support inside mode menu (color follows element color) */
+.ll-tools-mode-option .mode-icon svg {
+    width: 26px;
+    height: 26px;
     display: block;
 }
 
-.ll-tools-mode-switcher.practice-mode {
-    background: #a2a2a2;
+/* Darken/adjust emoji rendering for better contrast on light backgrounds */
+.ll-tools-mode-option.listening .mode-icon {
+    /* Darken gray headphones on white */
+    filter: brightness(0.7) contrast(1.25);
 }
 
-.ll-tools-mode-switcher.practice-mode:hover {
-    background: #8b8b8b;
+.ll-tools-mode-option.practice .mode-icon {
+    /* Tweak red question mark toward a deeper tone */
+    filter: hue-rotate(200deg) saturate(1.1) brightness(0.95) contrast(1.15);
 }
 
-.ll-tools-mode-switcher.learning-mode {
-    background: #22c55e;
+/* Optional: remove filters on active for consistency against green bg */
+.ll-tools-mode-option.active .mode-icon {
+    filter: none;
 }
 
-.ll-tools-mode-switcher.learning-mode:hover {
-    background: #1ea34f;
+/* Make the Practice '?' appear white/off-white on active (green) */
+.ll-tools-mode-option.practice.active .mode-icon {
+    /* Desaturate and brighten to near-white for strong contrast */
+    filter: saturate(0) brightness(2.0) contrast(1.05);
 }
 
-.ll-tools-mode-switcher.listening-mode {
-    background: #6366f1;
+/* Make Learning cap and Listening headphones near-white on active */
+.ll-tools-mode-option.learning.active .mode-icon,
+.ll-tools-mode-option.listening.active .mode-icon {
+    filter: saturate(0) brightness(2.0) contrast(1.05);
 }
 
-.ll-tools-mode-switcher.listening-mode:hover {
-    background: #4f46e5;
+/* Slightly lighter for Learning icon on green */
+.ll-tools-mode-option.learning.active .mode-icon {
+    filter: saturate(0) brightness(1.2) contrast(1.15);
+}
+
+.ll-tools-mode-option:hover:not(.active):not([disabled]) {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    background: #f9fafb;
+    /* near-white hover */
+    border-color: #d1d5db;
+}
+
+.ll-tools-mode-option.active {
+    background: #15803d;
+    /* green-700 for high contrast */
+    color: #ffffff;
+    border-color: #15803d;
+    cursor: default;
+}
+
+.ll-tools-mode-option[disabled],
+.ll-tools-mode-option[aria-disabled="true"] {
+    opacity: 0.9;
+    cursor: not-allowed;
 }
 
 @media (max-width: 480px) {
-    .ll-tools-mode-switcher {
-        width: 48px;
-        height: 48px;
+    .ll-tools-mode-switcher-wrap {
         bottom: 15px;
         right: 15px;
     }
 
-    #ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
-        bottom: 75px;
+    .ll-tools-mode-switcher,
+    .ll-tools-mode-option {
+        width: 48px;
+        height: 48px;
     }
 
     .ll-tools-mode-switcher .mode-icon {
         font-size: 24px;
+    }
+
+    .ll-tools-mode-option .mode-icon::before {
+        font-size: 22px;
+    }
+
+    .ll-tools-mode-menu {
+        bottom: 60px;
+        gap: 8px;
     }
 }
 
@@ -562,34 +644,15 @@ body.ll-tools-flashcard-open {
 }
 
 .quiz-mode-button .button-icon {
-    font-size: 20px;
+    display: inline-flex;
+    align-items: center;
     line-height: 1;
 }
 
-#restart-practice-mode {
-    background: #a2a2a2;
-    color: white;
-    border: 2px solid #a2a2a2;
-}
-
-#restart-practice-mode:hover {
-    background: #8b8b8b;
-    border-color: #8b8b8b;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-#restart-learning-mode {
-    background: #a2a2a2;
-    color: white;
-    border: 2px solid #a2a2a2;
-}
-
-#restart-learning-mode:hover {
-    background: #8b8b8b;
-    border-color: #8b8b8b;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.quiz-mode-button .button-icon::before {
+    content: attr(data-emoji);
+    font-size: 20px;
+    line-height: 1;
 }
 
 /* Hide mode switcher during results */
@@ -597,40 +660,22 @@ body.ll-tools-flashcard-open {
     display: none !important;
 }
 
+#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher-wrap {
+    display: none !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 480px) {
-    .ll-tools-mode-switcher {
-        width: 48px;
-        height: 48px;
-        bottom: 15px;
-        right: 15px;
-    }
-
-    .ll-tools-mode-switcher .mode-icon {
-        font-size: 24px;
-    }
-
     .quiz-mode-button {
         min-width: 140px;
         padding: 10px 20px;
         font-size: 14px;
     }
 
-    .quiz-mode-button .button-icon {
+    .quiz-mode-button .button-icon::before {
         font-size: 18px;
     }
 
-    /* Constrain progress bar width on mobile to avoid close button */
-    #ll-tools-learning-progress {
-        max-width: calc(100% - 50px);
-        width: calc(100% - 50px);
-        padding: 8px 10px 8px 10px;
-        margin-right: 50px;
-    }
-
-    .learning-progress-bar {
-        height: 10px;
-    }
 }
 
 /* Autoplay blocked overlay */
@@ -724,42 +769,6 @@ body.ll-tools-flashcard-open {
 /* Ensure the flashcard content container is positioned for the overlay */
 #ll-tools-flashcard-content {
     position: relative !important;
-}
-
-/* Learning Mode Completion Checkmark */
-.ll-learning-checkmark {
-    display: block;
-    margin: 0 auto 20px auto;
-}
-
-.ll-checkmark-circle {
-    stroke: #4CAF50;
-    stroke-width: 2;
-    stroke-dasharray: 166;
-    stroke-dashoffset: 166;
-    animation: ll-stroke-circle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-}
-
-.ll-checkmark-check {
-    stroke: #4CAF50;
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 48;
-    stroke-dashoffset: 48;
-    animation: ll-stroke-check 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
-}
-
-@keyframes ll-stroke-circle {
-    100% {
-        stroke-dashoffset: 0;
-    }
-}
-
-@keyframes ll-stroke-check {
-    100% {
-        stroke-dashoffset: 0;
-    }
 }
 
 #quiz-results-message {

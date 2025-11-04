@@ -1,0 +1,129 @@
+/* flashcard/mode-listening.css */
+
+.ll-tools-mode-switcher.listening-mode {
+    background: #6366f1;
+}
+
+.ll-tools-mode-switcher.listening-mode:hover {
+    background: #4f46e5;
+}
+
+.flashcard-container.listening-placeholder {
+    position: relative;
+    background: #e5e7eb;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+    cursor: default;
+}
+
+.flashcard-container.listening-placeholder .ll-tools-loading-animation {
+    background: transparent;
+}
+
+/* Keep image fully visible inside square for mixed aspect ratios */
+.flashcard-container.listening-placeholder .quiz-image,
+.flashcard-container.listening-final .quiz-image {
+    object-fit: contain;
+}
+
+/* Gray overlay that hides the pre-rendered image until reveal */
+.flashcard-container.listening-placeholder .listening-overlay {
+    position: absolute;
+    inset: 0;
+    background: #e5e7eb;
+    z-index: 2;
+}
+
+/* Countdown shown inside the gray overlay */
+.flashcard-container .listening-overlay .listening-countdown {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 56px;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: -0.02em;
+}
+
+.flashcard-container .listening-overlay .listening-countdown .digit {
+    display: inline-block;
+    opacity: 0.95;
+    transform: scale(0.7);
+    animation: ll-listening-countdown-pop 0.6s ease-out forwards;
+}
+
+@keyframes ll-listening-countdown-pop {
+    0% { transform: scale(0.7); opacity: 0; }
+    40% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1.0); opacity: 1; }
+}
+
+/* Visualizer now placed between the image box and controls */
+#ll-tools-listening-visualizer {
+    position: static;
+    z-index: auto;
+    transform: none;
+    margin: 10px 0 8px;
+    background: transparent !important;
+}
+
+/* Keep placeholder + visualizer stacked as one unit */
+.listening-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.ll-listening-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.ll-listening-controls .ll-listen-btn {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.ll-listening-controls .ll-listen-btn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.ll-listening-controls .ll-listen-btn:active {
+    transform: scale(0.97);
+}
+
+.ll-listening-controls .ll-listen-btn svg { display: block; }
+
+.ll-listening-controls #ll-listen-loop.active {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.10);
+}
+
+.ll-listening-controls .ll-listen-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+/* Fade overlay used when loop restarts */
+.ll-listening-loop-overlay {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    z-index: 9999;
+    pointer-events: none;
+}

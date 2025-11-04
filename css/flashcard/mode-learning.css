@@ -1,0 +1,138 @@
+/* flashcard/mode-learning.css */
+
+/* Learning Progress Bar */
+#ll-tools-learning-progress {
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+    padding: 8px 60px 8px 15px;
+    font-size: 14px;
+    color: #666;
+    order: 1;
+    margin-bottom: 8px;
+    margin-top: -5px;
+}
+
+#ll-tools-learning-progress .progress-text {
+    font-weight: 500;
+}
+
+.learning-progress-bar {
+    position: relative;
+    width: 100%;
+    height: 12px;
+    background: #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.learning-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 6px;
+}
+
+.introduced-fill {
+    background: #9ad19d;
+    z-index: 1;
+}
+
+.completed-fill {
+    background: #2e7d32;
+    z-index: 2;
+}
+
+/* Learning mode: dim cards during introduction */
+.flashcard-container.introducing {
+    opacity: 0.9;
+    cursor: pointer;
+}
+
+.flashcard-container.introducing:hover {
+    opacity: 1;
+    transform: scale(1.02);
+}
+
+/* Learning mode: card being actively introduced */
+.flashcard-container.introducing-active {
+    animation: pulse-card 1s ease-in-out;
+    transform-origin: center;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes pulse-card {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+@media (max-width: 480px) {
+    #ll-tools-learning-progress {
+        max-width: calc(100% - 50px);
+        width: calc(100% - 50px);
+        padding: 8px 10px 8px 10px;
+        margin-right: 50px;
+    }
+
+    .learning-progress-bar {
+        height: 10px;
+    }
+}
+
+#restart-learning-mode {
+    background: #a2a2a2;
+    color: white;
+    border: 2px solid #a2a2a2;
+}
+
+#restart-learning-mode:hover {
+    background: #8b8b8b;
+    border-color: #8b8b8b;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Learning Mode Completion Checkmark */
+.ll-learning-checkmark {
+    display: block;
+    margin: 0 auto 20px auto;
+}
+
+.ll-checkmark-circle {
+    stroke: #4CAF50;
+    stroke-width: 2;
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    animation: ll-stroke-circle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.ll-checkmark-check {
+    stroke: #4CAF50;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: ll-stroke-check 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+}
+
+@keyframes ll-stroke-circle {
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes ll-stroke-check {
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
