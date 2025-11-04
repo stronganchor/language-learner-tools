@@ -114,7 +114,17 @@
                 `
             });
 
-            $button.on('click', function () {
+            const haltPropagation = function (event) {
+                event.stopPropagation();
+            };
+
+            $overlay.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+            $button.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+
+            $button.on('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
                 // Clear the autoplay block flag
                 if (root.FlashcardAudio && root.FlashcardAudio.clearAutoplayBlock) {
                     root.FlashcardAudio.clearAutoplayBlock();
@@ -124,15 +134,26 @@
                 $overlay.fadeOut(300, function () {
                     $(this).remove();
                 });
+                $overlay.off('.llAutoOverlay');
 
-                // Try to play the audio again
-                const audio = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio();
-                if (audio) {
-                    audio.play().catch(e => console.error('Still cannot play:', e));
+                // Try to play the audio again only if the target audio hasn't succeeded yet
+                const audioApi = root.FlashcardAudio;
+                const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
+                    ? audioApi.getCurrentTargetAudio()
+                    : null;
+                const alreadyPlayed = audioApi && typeof audioApi.getTargetAudioHasPlayed === 'function'
+                    ? audioApi.getTargetAudioHasPlayed()
+                    : false;
+                if (audio && !alreadyPlayed) {
+                    const playPromise = audio.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(e => console.error('Still cannot play:', e));
+                    }
                 }
 
                 // Enable interactions
                 $('#ll-tools-flashcard').css('pointer-events', 'auto');
+                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
             });
 
             $overlay.append($button);
@@ -140,9 +161,13 @@
             $overlay.fadeIn(300);
         },
         hideAutoplayBlockedOverlay() {
-            $('#ll-tools-autoplay-overlay').fadeOut(300, function () {
+            const $overlay = $('#ll-tools-autoplay-overlay');
+            $overlay.fadeOut(300, function () {
                 $(this).remove();
             });
+            $overlay.off('.llAutoOverlay');
+            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+            $('#ll-tools-flashcard').css('pointer-events', 'auto');
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },

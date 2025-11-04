@@ -293,11 +293,20 @@
     function startQuizRound(number_of_options) {
         if (State.isFirstRound) {
             if (!State.is(STATES.LOADING)) {
-                State.transitionTo(STATES.LOADING, 'First round initialization');
+                const transitioned = State.transitionTo(STATES.LOADING, 'First round initialization');
+                if (!transitioned) {
+                    State.forceTransitionTo(STATES.LOADING, 'Forced first round initialization');
+                }
             }
 
-            const firstThree = State.categoryNames.slice(0, 3);
-            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], function () {
+            const firstThree = State.categoryNames.slice(0, 3).filter(Boolean);
+            if (!firstThree.length) {
+                console.error('Flashcards: No categories available to start quiz round');
+                showLoadingError();
+                return;
+            }
+
+            const bootstrapFirstRound = function () {
                 root.FlashcardOptions.initializeOptionsCount(number_of_options);
 
                 callModeHook('onFirstRoundStart', {
@@ -305,14 +314,25 @@
                 });
 
                 updateModeSwitcherPanel();
-                State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
+                const ready = State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
+                if (!ready) {
+                    State.forceTransitionTo(STATES.QUIZ_READY, 'Forced ready state after load');
+                }
                 runQuizRound();
-            });
+            };
+
+            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], bootstrapFirstRound);
 
             for (let i = 1; i < firstThree.length; i++) {
                 root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
             }
         } else {
+            if (!State.is(STATES.QUIZ_READY)) {
+                const ready = State.transitionTo(STATES.QUIZ_READY, 'Continuing quiz round');
+                if (!ready) {
+                    State.forceTransitionTo(STATES.QUIZ_READY, 'Forced continuation state');
+                }
+            }
             runQuizRound();
         }
     }
@@ -481,7 +501,16 @@
                 State.forceTransitionTo(STATES.IDLE, 'Resetting before initialization');
             }
 
-            State.transitionTo(STATES.LOADING, 'Widget initialization');
+            // Ensure new sessions always begin from a clean first-round state
+            State.isFirstRound = true;
+            State.hadWrongAnswerThisTurn = false;
+
+            if (!State.is(STATES.LOADING)) {
+                const movedToLoading = State.transitionTo(STATES.LOADING, 'Widget initialization');
+                if (!movedToLoading) {
+                    State.forceTransitionTo(STATES.LOADING, 'Forcing loading state during init');
+                }
+            }
 
             return root.FlashcardAudio.startNewSession().then(function () {
                 if (mode === 'learning') {
@@ -544,19 +573,37 @@
                 $('#ll-tools-flashcard-content')
                     .off('.llAutoplayKick')
                     .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
+                        const $content = $('#ll-tools-flashcard-content');
                         try {
-                            const a = root.FlashcardAudio && root.FlashcardAudio.getCurrentTargetAudio
-                                ? root.FlashcardAudio.getCurrentTargetAudio()
+                            const audioApi = root.FlashcardAudio;
+                            const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
+                                ? audioApi.getCurrentTargetAudio()
                                 : null;
-                            if (a && a.paused) {
-                                a.play().finally(() => {
-                                    $('#ll-tools-flashcard-content').off('.llAutoplayKick');
-                                });
+                            const alreadyPlayed = audioApi && typeof audioApi.getTargetAudioHasPlayed === 'function'
+                                ? audioApi.getTargetAudioHasPlayed()
+                                : false;
+
+                            if (!audio || alreadyPlayed) {
+                                $content.off('.llAutoplayKick');
+                                return;
+                            }
+
+                            if (!audio.paused && !audio.ended) {
+                                $content.off('.llAutoplayKick');
+                                return;
+                            }
+
+                            const done = () => $content.off('.llAutoplayKick');
+                            const playPromise = audio.play();
+                            if (playPromise && typeof playPromise.finally === 'function') {
+                                playPromise.catch(() => { }).finally(done);
+                            } else if (playPromise && typeof playPromise.then === 'function') {
+                                playPromise.then(done).catch(done);
                             } else {
-                                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                                done();
                             }
                         } catch (_) {
-                            $('#ll-tools-flashcard-content').off('.llAutoplayKick');
+                            $content.off('.llAutoplayKick');
                         }
                     });
             }).catch(function (err) {
