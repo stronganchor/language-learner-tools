@@ -200,12 +200,21 @@
         }
     }
 
-    function insertPlaceholder($container) {
+    function insertPlaceholder($container, opts) {
         const $jq = getJQuery();
         if (!$jq) return null;
         if (!$container || typeof $container.append !== 'function') return null;
+        const options = opts || {};
+        const baseClasses = ['flashcard-container', 'listening-placeholder'];
+        // If we know this item is text-based, match the text card sizing; otherwise use configured image size
+        if (options.textBased) {
+            baseClasses.push('text-based');
+        } else {
+            // Force large image box in listening mode (matches pre-change behavior)
+            baseClasses.push('flashcard-size-large');
+        }
         const $ph = $jq('<div>', {
-            class: 'flashcard-container flashcard-size-large listening-placeholder',
+            class: baseClasses.join(' '),
             css: { display: 'flex' }
         });
         // Visualizer placeholder inside box
@@ -214,11 +223,49 @@
             class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer',
             'aria-hidden': 'true'
         });
-        // Overlay to hide the image until reveal
+        // Overlay to hide visual content until reveal
         const $overlay = $jq('<div>', { class: 'listening-overlay' });
         $ph.append($viz, $overlay);
         $container.append($ph);
         return $ph;
+    }
+
+    // Insert a dynamically sized text label into the placeholder
+    function renderTextIntoPlaceholder($ph, labelText) {
+        const $jq = getJQuery();
+        if (!$jq || !$ph || !$ph.length) return null;
+        const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text' });
+
+        // Measure text to fit within the placeholder box
+        // Use an off-DOM clone to avoid overlay/visualizer interference
+        const $measure = $jq('<div>', { class: $ph.attr('class') })
+            .css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' });
+        const $measureLabel = $label.clone().appendTo($measure);
+        $jq('body').append($measure);
+        try {
+            const boxH = $measure.innerHeight() - 15;
+            const boxW = $measure.innerWidth() - 15;
+            const fontFamily = getComputedStyle($measureLabel[0]).fontFamily || 'sans-serif';
+            // Start a bit larger than standard text mode to make listening text more prominent
+            for (let fs = 56; fs >= 14; fs--) {
+                const w = (namespace.Util && typeof namespace.Util.measureTextWidth === 'function')
+                    ? namespace.Util.measureTextWidth(labelText || '', fs + 'px ' + fontFamily)
+                    : null;
+                if (w && w > boxW) continue;
+                $measureLabel.css({ fontSize: fs + 'px', lineHeight: fs + 'px', visibility: 'visible', position: 'relative' });
+                if ($measureLabel.outerHeight() <= boxH) break;
+            }
+            // Apply the measured styles to the real label
+            const styles = {
+                fontSize: $measureLabel.css('font-size'),
+                lineHeight: $measureLabel.css('line-height')
+            };
+            $label.css(styles);
+        } catch (_) { /* no-op */ }
+        $measure.remove();
+
+        $ph.prepend($label);
+        return $label;
     }
 
     function runRound(context) {
@@ -267,7 +314,8 @@
             $jq('#ll-tools-flashcard').empty();
         }
         ensureControls(utils);
-        const $ph = insertPlaceholder($container || ($jq && $jq('#ll-tools-flashcard')));
+        const hasImage = !!(target && target.image);
+        const $ph = insertPlaceholder($container || ($jq && $jq('#ll-tools-flashcard')), { textBased: !hasImage });
         try {
             const viz = namespace.AudioVisualizer;
             if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
@@ -295,16 +343,20 @@
                 ? audioApi.getCurrentTargetAudio()
                 : null;
 
-            // Pre-render hidden image inside placeholder for zero-layout-shift reveal
+            // Pre-render hidden content inside placeholder for zero-layout-shift reveal
             try {
-                if ($jq && $ph && target && target.image && !$ph.find('img.quiz-image').length) {
-                    const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
-                    $img.on('load', function () {
-                        const fudge = 10;
-                        if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');
-                        else if (this.naturalWidth + fudge < this.naturalHeight) $ph.addClass('portrait');
-                    });
-                    $ph.prepend($img);
+                if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
+                    if (hasImage) {
+                        const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
+                        $img.on('load', function () {
+                            const fudge = 10;
+                            if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');
+                            else if (this.naturalWidth + fudge < this.naturalHeight) $ph.addClass('portrait');
+                        });
+                        $ph.prepend($img);
+                    } else {
+                        renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                    }
                 }
             } catch (_) {}
 
@@ -394,11 +446,15 @@
                     audioVisualizer.stop();
                 }
                 Dom.hideLoading && Dom.hideLoading();
-                // Ensure placeholder + image exist
+                // Ensure placeholder + visual content exist
                 try {
-                    if ($jq && $ph && target && target.image && !$ph.find('img.quiz-image').length) {
-                        const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
-                        $ph.prepend($img);
+                    if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
+                        if (hasImage) {
+                            const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
+                            $ph.prepend($img);
+                        } else {
+                            renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                        }
                     }
                     // Reveal immediately
                     const $overlay = $ph ? $ph.find('.listening-overlay') : $jq('#ll-tools-flashcard .listening-overlay');
