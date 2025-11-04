@@ -25,10 +25,38 @@ function ll_aim_enqueue_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-image-matcher') return;
 
     // Enqueue flashcard styles so we can reuse those classes
-    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style', [], false);
+    ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style', [], false);
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-practice.css',
+        'll-tools-flashcard-mode-practice',
+        ['ll-tools-flashcard-style'],
+        false
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-learning.css',
+        'll-tools-flashcard-mode-learning',
+        ['ll-tools-flashcard-style'],
+        false
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-listening.css',
+        'll-tools-flashcard-mode-listening',
+        ['ll-tools-flashcard-style'],
+        false
+    );
 
     // Then our matcher-specific overrides
-    ll_enqueue_asset_by_timestamp('/css/audio-image-matcher.css', 'll-aim-admin-css', ['ll-tools-flashcard-style'], false);
+    ll_enqueue_asset_by_timestamp(
+        '/css/audio-image-matcher.css',
+        'll-aim-admin-css',
+        [
+            'll-tools-flashcard-style',
+            'll-tools-flashcard-mode-practice',
+            'll-tools-flashcard-mode-learning',
+            'll-tools-flashcard-mode-listening'
+        ],
+        false
+    );
 
     ll_enqueue_asset_by_timestamp('/js/audio-image-matcher.js', 'll-audio-image-matcher', ['jquery'], true);
 

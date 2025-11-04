@@ -1,0 +1,9 @@
+/* flashcard/mode-listening.css */
+
+.ll-tools-mode-switcher.listening-mode {
+    background: #6366f1;
+}
+
+.ll-tools-mode-switcher.listening-mode:hover {
+    background: #4f46e5;
+}

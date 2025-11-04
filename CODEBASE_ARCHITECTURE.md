@@ -232,7 +232,7 @@ Dual-progress bar in `dom.js`:
 - **Recording UI** in `css/recording-interface.css`.
 - **Review UI** in `css/audio-review.css`.
 - **Audio Processor** in `css/audio-processor.css`.
-- **Flashcard widget** in `css/flashcard-style.css` (includes mode switcher button, progress bars).
+- **Flashcard widget** base styles in `css/flashcard/base.css`; mode overrides live in `css/flashcard/mode-*.css` (includes mode switcher button, progress bars).
 
 # Common tasks (with file pointers)
 - **Register/adjust CPTs or taxonomies** → `includes/post-types/*.php`, `includes/taxonomies/*.php`

@@ -165,7 +165,22 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'practice';
     $wordset   = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
 
-    ll_enqueue_asset_by_timestamp('/css/flashcard-style.css', 'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-practice.css',
+        'll-tools-flashcard-mode-practice',
+        ['ll-tools-flashcard-style']
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-learning.css',
+        'll-tools-flashcard-mode-learning',
+        ['ll-tools-flashcard-style']
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-listening.css',
+        'll-tools-flashcard-mode-listening',
+        ['ll-tools-flashcard-style']
+    );
 
     $shortcode_folder = '/js/flashcard-widget/';
 
