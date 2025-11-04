@@ -139,6 +139,11 @@
     function fillQuizOptions(targetWord) {
         let chosen = [];
         const mode = getCurrentDisplayMode();
+        try {
+            if (window.FlashcardOptions && typeof window.FlashcardOptions.ensureResponsiveSize === 'function') {
+                window.FlashcardOptions.ensureResponsiveSize(2);
+            }
+        } catch (_) { }
 
         // In learning mode, only select from introduced words
         let availableWords = [];
@@ -196,6 +201,12 @@
                 root.LLFlashcards.Cards.appendWordToContainer(candidate);
             }
         }
+
+        try {
+            if (window.FlashcardOptions && typeof window.FlashcardOptions.ensureResponsiveSize === 'function') {
+                window.FlashcardOptions.ensureResponsiveSize(2);
+            }
+        } catch (_) { }
 
         jQuery('.flashcard-container').each(function (idx) {
             root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord);

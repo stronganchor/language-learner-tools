@@ -228,6 +228,35 @@
         return $ph;
     }
 
+    // Ensure the listening placeholder fits alongside visualizer + controls
+    function resizeListeningPlaceholder($ph) {
+        const $jq = getJQuery();
+        if (!$jq || !$ph || !$ph.length) return;
+        const $content = $jq('#ll-tools-flashcard-content');
+        const $container = $jq('#ll-tools-flashcard');
+        if (!$content.length || !$container.length) return;
+
+        const ch = Math.max(1, $content.innerHeight());
+        const cw = Math.max(1, $container.innerWidth());
+        const $viz = $jq('#ll-tools-listening-visualizer');
+        const $controls = $jq('#ll-tools-listening-controls');
+        const hViz = $viz.length ? $viz.outerHeight(true) : 0;
+        const hCtl = $controls.length ? $controls.outerHeight(true) : 0;
+        // stack gap + safety padding
+        const verticalExtras = 8 + 20;
+        const availableH = Math.max(1, ch - hViz - hCtl - verticalExtras);
+        const availableW = Math.max(1, cw - 10);
+        let size = Math.min(availableH, availableW);
+        // Do not exceed the configured default to avoid sudden jumps
+        try {
+            const cfg = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.imageSize) || 'small';
+            const defaults = { small: 150, medium: 200, large: 250 };
+            size = Math.min(size, defaults[cfg] || 150);
+        } catch (_) { /* no-op */ }
+        size = Math.max(96, size);
+        $ph.css({ width: size + 'px', height: size + 'px', maxWidth: size + 'px', maxHeight: size + 'px' });
+    }
+
     // Insert a dynamically sized text label into the placeholder
     function renderTextIntoPlaceholder($ph, labelText) {
         const $jq = getJQuery();
@@ -345,6 +374,15 @@
         // Ensure controls appear at the bottom (after placeholder and visualizer)
         ensureControls(utils);
         updateControlsState();
+
+        // Resize the placeholder to fit current viewport and UI
+        try { resizeListeningPlaceholder($ph); } catch (_) {}
+        // Attach a light resize listener while in listening mode
+        if ($jq) {
+            $jq(window).off('resize.llListenFit').on('resize.llListenFit', function () {
+                resizeListeningPlaceholder($ph);
+            });
+        }
 
         loader.loadResourcesForWord(target, 'image').then(function () {
             // Pre-render hidden content inside placeholder for zero-layout-shift reveal
