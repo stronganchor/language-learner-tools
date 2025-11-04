@@ -1,6 +1,9 @@
 (function (root, $) {
     'use strict';
 
+    const namespace = (root.LLFlashcards = root.LLFlashcards || {});
+    const State = namespace.State || {};
+
     // Centralized icon configuration
     const ICON_CONFIG = {
         size: 32,
@@ -65,8 +68,25 @@
 
             $el.text(String(displayName));
         },
-        showLoading() { $('#ll-tools-loading-animation').show(); },
-        hideLoading() { $('#ll-tools-loading-animation').hide(); },
+        showLoading() {
+            const $el = $('#ll-tools-loading-animation');
+            const viz = namespace.AudioVisualizer;
+            if (viz && typeof viz.prepareForListening === 'function' && State && State.isListeningMode) {
+                viz.prepareForListening();
+                // Force flex display so jQuery's show() inline style doesn't override layout
+                $el.css('display', 'flex');
+            } else {
+                if (viz && typeof viz.reset === 'function') viz.reset();
+                $el.css('display', 'block');
+            }
+        },
+        hideLoading() {
+            const viz = namespace.AudioVisualizer;
+            if (viz && typeof viz.stop === 'function') {
+                viz.stop();
+            }
+            $('#ll-tools-loading-animation').hide();
+        },
         updateLearningProgress(introducedCount, totalCount, wordCorrectCounts, wordIntroductionProgress) {
             const $progress = $('#ll-tools-learning-progress');
             if (!$progress.length) return;

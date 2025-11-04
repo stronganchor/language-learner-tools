@@ -82,6 +82,7 @@
             ? utils.FlashcardLoader
             : FlashcardLoader;
         const audioApi = utils.FlashcardAudio || FlashcardAudio || {};
+        const audioVisualizer = namespace.AudioVisualizer;
         const resultsApi = utils.Results || Results;
         const $container = utils.flashcardContainer;
         const $jq = getJQuery();
@@ -121,6 +122,9 @@
 
             Promise.resolve(setAudioPromise).catch(function (e) {
                 console.warn('No target audio to set:', e);
+                if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
+                    audioVisualizer.stop();
+                }
             });
 
             Dom.disableRepeatButton && Dom.disableRepeatButton();
@@ -131,6 +135,9 @@
                 : null;
 
             if (audio) {
+                if (audioVisualizer && typeof audioVisualizer.followAudio === 'function') {
+                    audioVisualizer.followAudio(audio);
+                }
                 try {
                     if (!audio.paused && Dom.setRepeatButton) {
                         Dom.setRepeatButton('stop');
@@ -175,7 +182,15 @@
                     }, 600);
                     State.addTimeout(revealTimeoutId);
                 };
+                audio.addEventListener('error', function () {
+                    if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
+                        audioVisualizer.stop();
+                    }
+                }, { once: true });
             } else {
+                if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
+                    audioVisualizer.stop();
+                }
                 Dom.hideLoading && Dom.hideLoading();
                 const $card = Cards.appendWordToContainer(target);
                 if ($card && typeof $card.fadeIn === 'function') {
@@ -193,6 +208,9 @@
             }
         }).catch(function (err) {
             console.error('Error in listening run:', err);
+            if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
+                audioVisualizer.stop();
+            }
             State.forceTransitionTo(STATES.QUIZ_READY, 'Listening error recovery');
         });
         return true;

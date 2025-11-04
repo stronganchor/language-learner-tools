@@ -203,6 +203,67 @@ body.ll-tools-flashcard-open {
     }
 }
 
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer {
+    width: auto;
+    min-width: 140px;
+    height: 52px;
+    border: none;
+    border-radius: 10px;
+    animation: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 5px;
+    padding: 8px 16px 10px;
+    background: rgba(99, 102, 241, 0.12);
+    flex-direction: row;
+}
+
+.ll-tools-loading-animation:not(.ll-tools-loading-animation--visualizer) .ll-tools-visualizer-bar {
+    display: none;
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer .ll-tools-visualizer-bar {
+    display: inline-block;
+    flex: 0 0 6px;
+    width: 6px;
+    height: calc(12px + 52px * var(--level, 0));
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+    border-radius: 3px 3px 0 0;
+    transition: height 0.12s ease-out, opacity 0.2s ease-out;
+    transform-origin: center bottom;
+    opacity: 0.82;
+    will-change: height, transform, opacity;
+    animation: ll-tools-visualizer-fallback 1.2s ease-in-out infinite;
+    animation-delay: calc(var(--offset, 0) * 0.18s);
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--js .ll-tools-visualizer-bar {
+    animation: none;
+    transform: scaleY(1);
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--active .ll-tools-visualizer-bar {
+    opacity: 1;
+}
+
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--fallback .ll-tools-visualizer-bar {
+    animation-duration: 1.5s;
+}
+
+@keyframes ll-tools-visualizer-fallback {
+    0%, 100% {
+        transform: scaleY(0.45);
+        opacity: 0.6;
+    }
+
+    50% {
+        transform: scaleY(1.05);
+        opacity: 0.95;
+    }
+}
+
 /* Flashcard Header and Content */
 #ll-tools-flashcard-header {
     position: relative;
