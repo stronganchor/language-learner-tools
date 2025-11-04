@@ -445,15 +445,19 @@ body.ll-tools-flashcard-open {
     word-wrap: anywhere;
 }
 
-/* Floating mode switch buttons */
-.ll-tools-mode-switcher {
+/* Floating mode switcher (single toggle + expanding menu) */
+.ll-tools-mode-switcher-wrap {
     position: fixed;
     bottom: 20px;
     right: 20px;
+    z-index: 10000;
+}
+
+.ll-tools-mode-switcher {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #2196F3;
+    background: #1d4ed8; /* blue-700 */
     color: #ffffff;
     border: none;
     display: inline-flex;
@@ -462,12 +466,7 @@ body.ll-tools-flashcard-open {
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-    z-index: 10000;
     padding: 0;
-}
-
-#ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
-    bottom: 86px;
 }
 
 .ll-tools-mode-switcher:hover {
@@ -483,30 +482,96 @@ body.ll-tools-flashcard-open {
 .ll-tools-mode-switcher .mode-icon {
     display: block;
     line-height: 1;
+    font-size: 28px;
 }
 
-.ll-tools-mode-switcher .mode-icon::before {
+.ll-tools-mode-menu {
+    position: absolute;
+    bottom: 70px; /* sits above the toggle button */
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    pointer-events: none; /* click-through when hidden */
+}
+
+.ll-tools-mode-switcher-wrap[aria-expanded="true"] .ll-tools-mode-menu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.ll-tools-mode-option {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid #e5e7eb; /* subtle ring to separate on light bg */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    background: #ffffff;  /* white for higher contrast with gray icons */
+    color: #111827;       /* dark text for non-emoji icons */
+}
+
+.ll-tools-mode-option .mode-icon::before {
     content: attr(data-emoji);
     display: block;
-    font-size: 28px;
+    font-size: 26px;
     line-height: 1;
 }
 
+/* SVG icon support inside mode menu (color follows element color) */
+.ll-tools-mode-option .mode-icon svg { width: 26px; height: 26px; display: block; }
+
+/* Darken/adjust emoji rendering for better contrast on light backgrounds */
+.ll-tools-mode-option.listening .mode-icon {
+    /* Darken gray headphones on white */
+    filter: brightness(0.7) contrast(1.25);
+}
+
+.ll-tools-mode-option.practice .mode-icon {
+    /* Tweak red question mark toward a deeper tone */
+    filter: hue-rotate(200deg) saturate(1.1) brightness(0.95) contrast(1.15);
+}
+
+/* Optional: remove filters on active for consistency against green bg */
+.ll-tools-mode-option.active .mode-icon {
+    filter: none;
+}
+
+.ll-tools-mode-option:hover:not(.active):not([disabled]) {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    background: #f9fafb;  /* near-white hover */
+    border-color: #d1d5db;
+}
+
+.ll-tools-mode-option.active {
+    background: #15803d; /* green-700 for high contrast */
+    color: #ffffff;
+    border-color: #15803d;
+    cursor: default;
+}
+
+.ll-tools-mode-option[disabled],
+.ll-tools-mode-option[aria-disabled="true"] {
+    opacity: 0.9;
+    cursor: not-allowed;
+}
+
 @media (max-width: 480px) {
-    .ll-tools-mode-switcher {
-        width: 48px;
-        height: 48px;
-        bottom: 15px;
-        right: 15px;
-    }
-
-    #ll-tools-mode-switcher-alt.ll-tools-mode-switcher {
-        bottom: 75px;
-    }
-
-    .ll-tools-mode-switcher .mode-icon::before {
-        font-size: 24px;
-    }
+    .ll-tools-mode-switcher-wrap { bottom: 15px; right: 15px; }
+    .ll-tools-mode-switcher,
+    .ll-tools-mode-option { width: 48px; height: 48px; }
+    .ll-tools-mode-switcher .mode-icon { font-size: 24px; }
+    .ll-tools-mode-option .mode-icon::before { font-size: 22px; }
+    .ll-tools-mode-menu { bottom: 60px; gap: 8px; }
 }
 
 /* Quiz Mode Buttons on Results Page */
@@ -543,9 +608,8 @@ body.ll-tools-flashcard-open {
 }
 
 /* Hide mode switcher during results */
-#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher {
-    display: none !important;
-}
+#quiz-results:not([style*="display: none"]) ~ .ll-tools-mode-switcher { display: none !important; }
+#quiz-results:not([style*="display: none"]) ~ .ll-tools-mode-switcher-wrap { display: none !important; }
 
 /* Responsive adjustments */
 @media (max-width: 480px) {

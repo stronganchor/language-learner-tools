@@ -44,13 +44,8 @@
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
-    function updateModeSwitcherButton() {
-        updateModeSwitcherButtons();
-    }
-
-    function updateModeSwitcherPanel() {
-        updateModeSwitcherButtons();
-    }
+    function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
+    function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
 
 
 
@@ -93,70 +88,88 @@
         return undefined;
     }
 
-    function applyModeSwitcherState($btn, target) {
-        if (!$btn || !$btn.length) return;
-        const cfg = MODE_SWITCH_CONFIG[target];
-        if (!cfg) {
-            $btn.hide();
-            return;
-        }
+    function setMenuOpen(isOpen) {
+        const $wrap = $('#ll-tools-mode-switcher-wrap');
+        const $toggle = $('#ll-tools-mode-switcher');
+        if (!$wrap.length || !$toggle.length) return;
+        $wrap.attr('aria-expanded', isOpen ? 'true' : 'false');
+        $toggle.attr('aria-expanded', isOpen ? 'true' : 'false');
+        $('#ll-tools-mode-menu').attr('aria-hidden', isOpen ? 'false' : 'true');
+    }
 
-        $btn
-            .data('target', target)
-            .attr('aria-label', cfg.label)
-            .attr('title', cfg.label)
-            .removeClass('practice-mode learning-mode listening-mode')
-            .addClass(cfg.className)
-            .css('display', 'inline-flex');
+    function refreshModeMenuOptions() {
+        const current = State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice');
+        const $wrap = $('#ll-tools-mode-switcher-wrap');
+        const $menu = $('#ll-tools-mode-menu');
+        if (!$wrap.length || !$menu.length) return;
 
-        const $icon = $btn.find('.mode-icon');
-        if ($icon.length) {
-            if (cfg.icon) {
-                $icon.attr('data-emoji', cfg.icon);
-            } else {
-                $icon.removeAttr('data-emoji');
+        // Ensure wrapper is visible when widget active
+        $wrap.css('display', 'block');
+
+        // Update icons/labels and active state
+        ['learning', 'practice', 'listening'].forEach(function(mode){
+            const cfg = MODE_SWITCH_CONFIG[mode] || {};
+            const $btn = $menu.find('.ll-tools-mode-option.' + mode);
+            if (!$btn.length) return;
+            // Update icon emoji
+            const $icon = $btn.find('.mode-icon');
+            if ($icon.length) {
+                if (cfg.svg) {
+                    $icon.html(cfg.svg);
+                    $icon.removeAttr('data-emoji');
+                } else if (cfg.icon) {
+                    $icon.empty();
+                    $icon.attr('data-emoji', cfg.icon);
+                } else {
+                    $icon.empty();
+                    $icon.removeAttr('data-emoji');
+                }
             }
-            if ($icon.text()) {
-                $icon.text('');
-            }
-        }
+            // Active vs inactive
+            const isActive = (mode === current);
+            $btn.toggleClass('active', isActive);
+            if (isActive) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': 'true', 'aria-disabled': 'true' }); }
+            else { $btn.removeAttr('disabled').attr({ 'aria-checked': 'false' }).removeAttr('aria-disabled'); }
+        });
+    }
+
+    function bindModeMenuHandlers() {
+        const $wrap = $('#ll-tools-mode-switcher-wrap');
+        const $toggle = $('#ll-tools-mode-switcher');
+        const $menu = $('#ll-tools-mode-menu');
+        if (!$wrap.length || !$toggle.length || !$menu.length) return;
+
+        // Toggle open/close
+        $toggle.off('.llModeMenu').on('click.llModeMenu', function (e) {
+            e.preventDefault();
+            const open = $wrap.attr('aria-expanded') === 'true';
+            setMenuOpen(!open);
+        });
+
+        // Select a mode from menu
+        $menu.off('.llModeMenu').on('click.llModeMenu', '.ll-tools-mode-option', function (e) {
+            e.preventDefault();
+            const mode = String($(this).data('mode') || '');
+            if (!mode) return;
+            // Keep menu open even after switching; ignore clicks on active option
+            if ($(this).hasClass('active')) { return; }
+            switchMode(mode);
+        });
+
+        // Outside click / Escape closes
+        $(document).off('.llModeMenu').on('pointerdown.llModeMenu', function (e) {
+            const open = $wrap.attr('aria-expanded') === 'true';
+            if (!open) return;
+            if ($(e.target).closest('#ll-tools-mode-switcher-wrap').length) return;
+            setMenuOpen(false);
+        }).on('keydown.llModeMenu', function (e) {
+            if (e.key === 'Escape') { setMenuOpen(false); }
+        });
     }
 
     function updateModeSwitcherButtons() {
-        const current = State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice');
-        const others = ['practice', 'learning', 'listening'].filter(mode => mode !== current);
-        const $top = $('#ll-tools-mode-switcher-alt');
-        const $bottom = $('#ll-tools-mode-switcher');
-
-        let topTarget = null;
-        let bottomTarget = null;
-
-        if (others.length >= 2) {
-            topTarget = others[0];
-            bottomTarget = others[1];
-        } else if (others.length === 1) {
-            bottomTarget = others[0];
-        }
-
-        if ($top.length) {
-            if (topTarget) {
-                applyModeSwitcherState($top, topTarget);
-            } else {
-                $top.hide();
-            }
-        }
-
-        if ($bottom.length) {
-            if (bottomTarget) {
-                applyModeSwitcherState($bottom, bottomTarget);
-            } else {
-                $bottom.hide();
-            }
-        }
-
-        if (!topTarget && !bottomTarget) {
-            $('#ll-tools-mode-switcher, #ll-tools-mode-switcher-alt').hide();
-        }
+        refreshModeMenuOptions();
+        bindModeMenuHandlers();
     }
 
     function switchMode(newMode) {
@@ -167,6 +180,12 @@
 
         const $btn = $('#ll-tools-mode-switcher');
         if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
+
+        // Hide any listening-mode specific UI when switching away
+        try {
+            $('#ll-tools-listening-controls').remove();
+            $('#ll-tools-listening-visualizer').remove();
+        } catch (_) { /* no-op */ }
 
         State.transitionTo(STATES.SWITCHING_MODE, 'User requested mode switch');
 
@@ -552,14 +571,9 @@
                     }
                 });
 
-                $('#ll-tools-mode-switcher').off('click').on('click', function () {
-                    const m = $(this).data('target');
-                    if (m) switchMode(String(m));
-                });
-                $('#ll-tools-mode-switcher-alt').off('click').on('click', function () {
-                    const m = $(this).data('target');
-                    if (m) switchMode(String(m));
-                });
+                // Initialize mode switcher UI (single toggle + expanding menu)
+                $('#ll-tools-mode-switcher-wrap').show();
+                updateModeSwitcherPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
@@ -669,7 +683,9 @@
                 $('#ll-tools-flashcard-quiz-popup').hide();
                 $('#ll-tools-flashcard-popup').hide();
                 $('#ll-tools-listening-controls').remove();
-                $('#ll-tools-mode-switcher, #ll-tools-mode-switcher-alt').hide();
+                // Hide mode switcher and unbind menu handlers
+                $('#ll-tools-mode-switcher-wrap').hide();
+                $(document).off('.llModeMenu');
                 $('#ll-tools-learning-progress').hide().empty();
                 $('body').removeClass('ll-tools-flashcard-open');
 
