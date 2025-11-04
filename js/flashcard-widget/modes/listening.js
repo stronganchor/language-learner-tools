@@ -1,21 +1,41 @@
 (function (root) {
     'use strict';
 
-    const S = (root.LLFlashcards = root.LLFlashcards || {}).State || {};
+    const namespace = (root.LLFlashcards = root.LLFlashcards || {});
+    const State = namespace.State || {};
+    const Dom = namespace.Dom || {};
+    const Cards = namespace.Cards || {};
+    const Results = namespace.Results || {};
+    const FlashcardAudio = root.FlashcardAudio;
+    const FlashcardLoader = root.FlashcardLoader;
+    const STATES = State.STATES || {};
+
+    function getJQuery() {
+        if (root.jQuery) return root.jQuery;
+        if (typeof window !== 'undefined' && window.jQuery) return window.jQuery;
+        return null;
+    }
+
+    function scheduleTimeout(context, fn, delay) {
+        if (context && typeof context.setGuardedTimeout === 'function') {
+            return context.setGuardedTimeout(fn, delay);
+        }
+        return setTimeout(fn, delay);
+    }
 
     function initialize() {
-        S.isLearningMode = false;
-        S.isListeningMode = true;
+        State.isLearningMode = false;
+        State.isListeningMode = true;
         // Build a linear list of words across the selected categories in current order
         const all = [];
-        if (S.categoryNames && S.wordsByCategory) {
-            for (const name of S.categoryNames) {
-                const list = S.wordsByCategory[name] || [];
+        if (State.categoryNames && State.wordsByCategory) {
+            for (const name of State.categoryNames) {
+                const list = State.wordsByCategory[name] || [];
                 for (const w of list) all.push(w);
             }
         }
-        S.wordsLinear = all;
-        S.listenIndex = 0;
+        State.wordsLinear = all;
+        State.listenIndex = 0;
         return true;
     }
 
@@ -31,21 +51,151 @@
 
     function selectTargetWord() {
         // Cycle deterministically for now
-        if (!Array.isArray(S.wordsLinear)) {
+        if (!Array.isArray(State.wordsLinear)) {
             const all = [];
-            if (S.categoryNames && S.wordsByCategory) {
-                for (const name of S.categoryNames) {
-                    const list = S.wordsByCategory[name] || [];
+            if (State.categoryNames && State.wordsByCategory) {
+                for (const name of State.categoryNames) {
+                    const list = State.wordsByCategory[name] || [];
                     for (const w of list) all.push(w);
                 }
             }
-            S.wordsLinear = all;
-            S.listenIndex = 0;
+            State.wordsLinear = all;
+            State.listenIndex = 0;
         }
-        if (!S.wordsLinear.length) return null;
-        const word = S.wordsLinear[S.listenIndex % S.wordsLinear.length];
-        S.listenIndex++;
+        if (!State.wordsLinear.length) return null;
+        const word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+        State.listenIndex++;
         return word;
+    }
+
+    function onFirstRoundStart() {
+        initialize();
+        return true;
+    }
+
+    function onCorrectAnswer() { return true; }
+    function onWrongAnswer() { return true; }
+
+    function runRound(context) {
+        const utils = context || {};
+        const loader = (utils.FlashcardLoader && typeof utils.FlashcardLoader.loadResourcesForWord === 'function')
+            ? utils.FlashcardLoader
+            : FlashcardLoader;
+        const audioApi = utils.FlashcardAudio || FlashcardAudio || {};
+        const resultsApi = utils.Results || Results;
+        const $container = utils.flashcardContainer;
+        const $jq = getJQuery();
+
+        if (!loader || typeof loader.loadResourcesForWord !== 'function') {
+            console.warn('Listening mode loader unavailable');
+            return false;
+        }
+
+        const target = selectTargetWord();
+        if (!target) {
+            if (State.isFirstRound) {
+                if (typeof utils.showLoadingError === 'function') {
+                    utils.showLoadingError();
+                } else {
+                    State.transitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                }
+                return true;
+            }
+            State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+            resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+            return true;
+        }
+
+        const audioUrl = audioApi && typeof audioApi.selectBestAudio === 'function'
+            ? audioApi.selectBestAudio(target, ['isolation', 'question', 'introduction'])
+            : null;
+        if (audioUrl) target.audio = audioUrl;
+
+        State.isFirstRound = false;
+
+        loader.loadResourcesForWord(target, 'image').then(function () {
+            const setAudioPromise = audioApi && typeof audioApi.setTargetWordAudio === 'function'
+                ? audioApi.setTargetWordAudio(target)
+                : Promise.resolve();
+
+            Promise.resolve(setAudioPromise).catch(function (e) {
+                console.warn('No target audio to set:', e);
+            });
+
+            Dom.disableRepeatButton && Dom.disableRepeatButton();
+            State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
+
+            const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
+                ? audioApi.getCurrentTargetAudio()
+                : null;
+
+            if (audio) {
+                try {
+                    if (!audio.paused && Dom.setRepeatButton) {
+                        Dom.setRepeatButton('stop');
+                    }
+                } catch (_) { /* noop */ }
+
+                audio.onended = function () {
+                    const revealTimeoutId = scheduleTimeout(utils, function () {
+                        if ($container && typeof $container.empty === 'function') {
+                            $container.empty();
+                        } else if ($jq) {
+                            $jq('#ll-tools-flashcard').empty();
+                        }
+
+                        const $card = Cards.appendWordToContainer(target);
+                        if ($card && typeof $card.fadeIn === 'function') {
+                            $card.fadeIn(250);
+                        } else if ($jq) {
+                            $jq('#ll-tools-flashcard .flashcard-container').show();
+                        }
+
+                        Dom.hideLoading && Dom.hideLoading();
+                        Dom.setRepeatButton && Dom.setRepeatButton('play');
+
+                        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+                        const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
+
+                        const advanceTimeoutId = scheduleTimeout(utils, function () {
+                            if (isLast) {
+                                State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                                resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                            } else {
+                                State.forceTransitionTo(STATES.QUIZ_READY, 'Next listening item');
+                                if (typeof utils.runQuizRound === 'function') {
+                                    utils.runQuizRound();
+                                } else if (typeof utils.startQuizRound === 'function') {
+                                    utils.startQuizRound();
+                                }
+                            }
+                        }, 1200);
+                        State.addTimeout(advanceTimeoutId);
+                    }, 600);
+                    State.addTimeout(revealTimeoutId);
+                };
+            } else {
+                Dom.hideLoading && Dom.hideLoading();
+                const $card = Cards.appendWordToContainer(target);
+                if ($card && typeof $card.fadeIn === 'function') {
+                    $card.fadeIn(250);
+                }
+                const timeoutId = scheduleTimeout(utils, function () {
+                    State.forceTransitionTo(STATES.QUIZ_READY, 'Advance listening (no audio)');
+                    if (typeof utils.runQuizRound === 'function') {
+                        utils.runQuizRound();
+                    } else if (typeof utils.startQuizRound === 'function') {
+                        utils.startQuizRound();
+                    }
+                }, 1200);
+                State.addTimeout(timeoutId);
+            }
+        }).catch(function (err) {
+            console.error('Error in listening run:', err);
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Listening error recovery');
+        });
+        return true;
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
@@ -55,7 +205,11 @@
         getChoiceCount,
         recordAnswerResult,
         selectTargetWord,
-        getTotalCount: function(){ return (S.wordsLinear || []).length; }
+        onFirstRoundStart,
+        onCorrectAnswer,
+        onWrongAnswer,
+        runRound,
+        getTotalCount: function () { return (State.wordsLinear || []).length; }
     };
 
 })(window);

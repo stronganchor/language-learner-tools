@@ -6,6 +6,17 @@
     const State = (root.LLFlashcards.State = root.LLFlashcards.State || {});
     const Selection = (root.LLFlashcards.Selection = root.LLFlashcards.Selection || {});
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
+    const Dom = (root.LLFlashcards.Dom = root.LLFlashcards.Dom || {});
+    const Cards = (root.LLFlashcards.Cards = root.LLFlashcards.Cards || {});
+    const Results = (root.LLFlashcards.Results = root.LLFlashcards.Results || {});
+    const FlashcardAudio = root.FlashcardAudio;
+    const FlashcardLoader = root.FlashcardLoader;
+    const STATES = State.STATES || {};
+
+    const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introSilenceMs : 800;
+    const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
 
     // ---- helpers (learning-specific) ----
     function ensureDefaults() {
@@ -28,6 +39,16 @@
                 dueTurn: State.turnIndex + randomDelay()
             }));
         }
+    }
+
+    function syncProgressUI() {
+        if (!Dom || typeof Dom.updateLearningProgress !== 'function') return;
+        Dom.updateLearningProgress(
+            State.introducedWordIDs.length,
+            State.totalWordCount,
+            State.wordCorrectCounts,
+            State.wordIntroductionProgress
+        );
     }
 
     function getCurrentDisplayMode() {
@@ -126,6 +147,7 @@
         }
 
         State.isLearningMode = true;
+        State.isListeningMode = false;
         return true;
     }
 
@@ -299,13 +321,269 @@
         return null;
     }
 
+    function getJQuery() {
+        if (root.jQuery) return root.jQuery;
+        if (typeof window !== 'undefined' && window.jQuery) return window.jQuery;
+        return null;
+    }
+
+    function scheduleTimeout(context, fn, delay) {
+        if (context && typeof context.setGuardedTimeout === 'function') {
+            return context.setGuardedTimeout(fn, delay);
+        }
+        return setTimeout(fn, delay);
+    }
+
+    function introduceWords(words, context) {
+        if (!State.isIntroducing()) {
+            console.warn('introduceWords called but not in INTRODUCING_WORDS state');
+            return;
+        }
+
+        const wordsArray = Array.isArray(words) ? words : [words];
+        const $jq = getJQuery();
+
+        if ($jq) {
+            $jq('#ll-tools-flashcard').empty();
+        } else if (typeof document !== 'undefined') {
+            const container = document.getElementById('ll-tools-flashcard');
+            if (container) container.innerHTML = '';
+        }
+
+        Dom.restoreHeaderUI && Dom.restoreHeaderUI();
+        Dom.disableRepeatButton && Dom.disableRepeatButton();
+        syncProgressUI();
+
+        const mode = getCurrentDisplayMode();
+
+        Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, mode))).then(function () {
+            if (!State.isIntroducing()) {
+                console.warn('State changed during word loading, aborting introduction');
+                return;
+            }
+
+            wordsArray.forEach((word, index) => {
+                const $card = Cards.appendWordToContainer(word);
+                if ($card && typeof $card.attr === 'function') {
+                    $card.attr('data-word-index', index);
+                }
+
+                const introAudio = FlashcardAudio.selectBestAudio(word, ['introduction']);
+                const isoAudio = FlashcardAudio.selectBestAudio(word, ['isolation']);
+
+                let audioPattern;
+                if (introAudio && isoAudio && introAudio !== isoAudio) {
+                    const useIntroFirst = Math.random() < 0.5;
+                    audioPattern = useIntroFirst ? [introAudio, isoAudio, introAudio] : [isoAudio, introAudio, isoAudio];
+                } else {
+                    const singleAudio = introAudio || isoAudio || word.audio;
+                    audioPattern = [singleAudio, singleAudio, singleAudio];
+                }
+
+                if ($card && typeof $card.attr === 'function') {
+                    $card.attr('data-audio-pattern', JSON.stringify(audioPattern));
+                }
+            });
+
+            if ($jq) {
+                $jq('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
+                Dom.hideLoading && Dom.hideLoading();
+                $jq('.flashcard-container').fadeIn(600);
+            } else {
+                Dom.hideLoading && Dom.hideLoading();
+            }
+
+            const timeoutId = scheduleTimeout(context, function () {
+                playIntroductionSequence(wordsArray, 0, 0, context);
+            }, 650);
+            State.addTimeout(timeoutId);
+        }).catch(function (err) {
+            console.error('Error preparing introductions:', err);
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Introduction error');
+        });
+    }
+
+    function playIntroductionSequence(words, wordIndex, repetition, context) {
+        const $jq = getJQuery();
+
+        if (State.abortAllOperations || !State.isIntroducing()) {
+            return;
+        }
+
+        if (wordIndex >= words.length) {
+            Dom.enableRepeatButton && Dom.enableRepeatButton();
+            if ($jq) {
+                $jq('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
+            }
+            State.isIntroducingWord = false;
+
+            const timeoutId = scheduleTimeout(context, function () {
+                if (!State.abortAllOperations) {
+                    State.transitionTo(STATES.QUIZ_READY, 'Introduction complete');
+                    if (context && typeof context.startQuizRound === 'function') {
+                        context.startQuizRound();
+                    }
+                }
+            }, 300);
+            State.addTimeout(timeoutId);
+            return;
+        }
+
+        const currentWord = words[wordIndex];
+        let $currentCard = null;
+        if ($jq) {
+            $currentCard = $jq('.flashcard-container[data-word-index="' + wordIndex + '"]');
+            if (!$currentCard.length) {
+                console.warn('Card disappeared during introduction');
+                return;
+            }
+
+            $jq('.flashcard-container').removeClass('introducing-active');
+            $currentCard.addClass('introducing-active');
+        }
+
+        const timeoutId = scheduleTimeout(context, function () {
+            if (State.abortAllOperations || !State.isIntroducing()) return;
+
+            let audioPattern = [];
+            if ($currentCard && typeof $currentCard.attr === 'function') {
+                const raw = $currentCard.attr('data-audio-pattern') || '[]';
+                try { audioPattern = JSON.parse(raw); } catch (_) { audioPattern = []; }
+            }
+            const audioUrl = audioPattern[repetition] || audioPattern[0];
+            const managedAudio = FlashcardAudio.createIntroductionAudio
+                ? FlashcardAudio.createIntroductionAudio(audioUrl)
+                : null;
+
+            if (!managedAudio) {
+                console.error('Failed to create introduction audio');
+                return;
+            }
+
+            managedAudio.playUntilEnd()
+                .then(() => {
+                    if (State.abortAllOperations || !managedAudio.isValid() || !State.isIntroducing()) {
+                        managedAudio.cleanup();
+                        return;
+                    }
+
+                    State.wordIntroductionProgress[currentWord.id] =
+                        (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+
+                    syncProgressUI();
+
+                    managedAudio.cleanup();
+
+                    if (repetition < State.AUDIO_REPETITIONS - 1) {
+                        if ($currentCard) $currentCard.removeClass('introducing-active');
+                        const nextTimeoutId = scheduleTimeout(context, function () {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex, repetition + 1, context);
+                            }
+                        }, INTRO_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+                    } else {
+                        if (!State.introducedWordIDs.includes(currentWord.id)) {
+                            State.introducedWordIDs.push(currentWord.id);
+                        }
+                        const nextTimeoutId = scheduleTimeout(context, function () {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex + 1, 0, context);
+                            }
+                        }, INTRO_WORD_GAP_MS);
+                        State.addTimeout(nextTimeoutId);
+                    }
+                })
+                .catch(err => {
+                    console.error('Audio play failed:', err);
+                    managedAudio.cleanup();
+                });
+        }, 100);
+        State.addTimeout(timeoutId);
+    }
+
+    function onFirstRoundStart() {
+        initialize();
+        syncProgressUI();
+        return true;
+    }
+
+    function onCorrectAnswer(ctx) {
+        if (!ctx || !ctx.targetWord) return;
+        recordAnswerResult(ctx.targetWord.id, true, ctx.hadWrongThisTurn);
+        State.isIntroducingWord = false;
+        return true;
+    }
+
+    function onWrongAnswer(ctx) {
+        if (!ctx || !ctx.targetWord) return;
+        recordAnswerResult(ctx.targetWord.id, false);
+        return true;
+    }
+
+    function handleNoTarget(utils) {
+        ensureDefaults();
+        if (State.isFirstRound && State.totalWordCount === 0) {
+            if (utils && typeof utils.showLoadingError === 'function') {
+                utils.showLoadingError();
+            }
+            return true;
+        }
+        State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
+        if (Results && typeof Results.showResults === 'function') {
+            Results.showResults();
+        }
+        return true;
+    }
+
+    function handlePostSelection(selection, context) {
+        ensureDefaults();
+        syncProgressUI();
+
+        if (State.isIntroducingWord) {
+            if (!State.canIntroduceWords()) {
+                console.warn('Cannot introduce words in current state:', State.getState ? State.getState() : '');
+                State.isIntroducingWord = false;
+                return false;
+            }
+            State.transitionTo(STATES.INTRODUCING_WORDS, 'Starting word introduction');
+            introduceWords(selection, context);
+            return true;
+        }
+        return false;
+    }
+
+    function beforeOptionsFill() {
+        ensureDefaults();
+        const choiceCount = getChoiceCount();
+        State.currentChoiceCount = choiceCount;
+        if (root.FlashcardOptions && typeof root.FlashcardOptions.initializeOptionsCount === 'function') {
+            root.FlashcardOptions.initializeOptionsCount(choiceCount);
+        }
+        syncProgressUI();
+        return true;
+    }
+
+    function configureTargetAudio(target) {
+        if (State.isIntroducingWord || !target) return;
+        const questionAudio = FlashcardAudio.selectBestAudio(target, ['question', 'isolation', 'introduction']);
+        if (questionAudio) target.audio = questionAudio;
+    }
+
     // Public API
     root.LLFlashcards.Modes = root.LLFlashcards.Modes || {};
     root.LLFlashcards.Modes.Learning = {
         initialize,
         getChoiceCount,
         recordAnswerResult,
-        selectTargetWord
+        selectTargetWord,
+        onCorrectAnswer,
+        onWrongAnswer,
+        onFirstRoundStart,
+        handleNoTarget,
+        handlePostSelection,
+        beforeOptionsFill,
+        configureTargetAudio
     };
 
     // Back-compat alias for existing calls in main.js
