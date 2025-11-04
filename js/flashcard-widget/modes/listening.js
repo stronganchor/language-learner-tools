@@ -10,6 +10,11 @@
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
 
+    // Match learning-mode pause between repetitions
+    const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
+        ? root.llToolsFlashcardsData.introSilenceMs
+        : 800;
+
     function getJQuery() {
         if (root.jQuery) return root.jQuery;
         if (typeof window !== 'undefined' && window.jQuery) return window.jQuery;
@@ -514,12 +519,13 @@
                     State.addTimeout(t);
                 });
             } else {
-                const firstDone = setAndPlayUntilEnd(sequence[0]).catch(function () { });
-                const countdownDone = startCountdown();
-                Promise.all([Promise.resolve(firstDone), Promise.resolve(countdownDone)]).then(function () {
+                // First, play the first audio. After it ends, run the countdown.
+                setAndPlayUntilEnd(sequence[0]).catch(function () { }).then(function () {
+                    return startCountdown();
+                }).then(function () {
                     if (State.listeningPaused) return;
                     revealContent();
-                    // Play remaining items sequentially
+                    // Play remaining items sequentially with a learning-mode sized gap before the 3rd
                     const playRest = function (idx) {
                         if (idx >= sequence.length) {
                             const t = scheduleTimeout(utils, function () {
@@ -530,10 +536,11 @@
                             return;
                         }
                         setAndPlayUntilEnd(sequence[idx]).then(function () {
+                            const delay = (idx === 1) ? INTRO_GAP_MS : 150; // gap between 2nd->3rd
                             const t = scheduleTimeout(utils, function () {
                                 if (State.listeningPaused) return;
                                 playRest(idx + 1);
-                            }, 150);
+                            }, delay);
                             State.addTimeout(t);
                         }).catch(function () { playRest(idx + 1); });
                     };
