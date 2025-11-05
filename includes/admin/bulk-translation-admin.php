@@ -97,6 +97,59 @@ function ll_render_bulk_translations_page() {
             <span class="description" style="margin-left:8px">Copies legacy values where the new meta is empty.</span>
         </form>
 
+        <!-- Filters -->
+        <?php
+            $flt_type    = isset($_GET['type']) ? sanitize_text_field($_GET['type']) : 'both';
+            $flt_s       = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+            $flt_cat     = isset($_GET['cat']) ? intval($_GET['cat']) : 0;
+            $flt_wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
+            $flt_orderby = isset($_GET['orderby']) ? sanitize_text_field($_GET['orderby']) : 'ID';
+            $flt_order   = isset($_GET['order']) ? strtoupper(sanitize_text_field($_GET['order'])) : 'ASC';
+
+            $categories = get_terms(['taxonomy'=>'word-category','hide_empty'=>false,'parent'=>0]);
+            $wordsets   = get_terms(['taxonomy'=>'wordset','hide_empty'=>false]);
+        ?>
+        <form method="get" class="ll-filters" style="margin:10px 0 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="hidden" name="page" value="ll-bulk-translations" />
+            <label>Type
+                <select name="type">
+                    <option value="both" <?php selected($flt_type,'both'); ?>>Words + Images</option>
+                    <option value="words" <?php selected($flt_type,'words'); ?>>Words</option>
+                    <option value="word_images" <?php selected($flt_type,'word_images'); ?>>Word Images</option>
+                </select>
+            </label>
+            <label>Category
+                <select name="cat">
+                    <option value="0">All</option>
+                    <?php foreach ($categories as $c): ?>
+                        <option value="<?php echo (int)$c->term_id; ?>" <?php selected($flt_cat,$c->term_id); ?>><?php echo esc_html($c->name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label>Wordset
+                <select name="wordset">
+                    <option value="">All</option>
+                    <?php foreach ($wordsets as $ws): ?>
+                        <option value="<?php echo esc_attr($ws->slug); ?>" <?php selected($flt_wordset,$ws->slug); ?>><?php echo esc_html($ws->name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label>Search
+                <input type="search" name="s" value="<?php echo esc_attr($flt_s); ?>" placeholder="Word title" />
+            </label>
+            <label>Order
+                <select name="orderby">
+                    <option value="ID" <?php selected($flt_orderby,'ID'); ?>>ID</option>
+                    <option value="title" <?php selected($flt_orderby,'title'); ?>>Title</option>
+                </select>
+                <select name="order">
+                    <option value="ASC" <?php selected($flt_order,'ASC'); ?>>ASC</option>
+                    <option value="DESC" <?php selected($flt_order,'DESC'); ?>>DESC</option>
+                </select>
+            </label>
+            <button class="button">Filter</button>
+        </form>
+
         <div class="ll-controls" style="margin:10px 0 12px">
             <button class="button" id="ll-select-all">Select All</button>
             <button class="button" id="ll-deselect-all">Deselect All</button>
@@ -105,20 +158,23 @@ function ll_render_bulk_translations_page() {
             <button class="button button-primary" id="ll-save">Save selected translations</button>
         </div>
 
-        <table class="widefat fixed striped">
+        <div class="ll-table-wrap">
+        <table class="widefat striped ll-bulk-table">
             <thead>
                 <tr>
-                    <td style="width:30px"><input type="checkbox" id="ll-master" /></td>
-                    <th style="width:80px">ID</th>
-                    <th>Word</th>
-                    <th style="width:30%">Current translation</th>
-                    <th style="width:30%">Suggested / Edit</th>
-                    <th style="width:12%">Status</th>
+                    <th class="col-select"><input type="checkbox" id="ll-master" /></th>
+                    <th class="col-id">ID</th>
+                    <th class="col-word">Word</th>
+                    <th class="col-type">Type</th>
+                    <th class="col-wordset">Wordset</th>
+                    <th class="col-current">Current translation</th>
+                    <th class="col-suggest">Suggested / Edit</th>
+                    <th class="col-status">Status</th>
                 </tr>
             </thead>
             <tbody id="ll-rows">
                 <?php if (empty($rows)) : ?>
-                    <tr><td colspan="6">No posts without translations found on this page.</td></tr>
+                    <tr><td colspan="8">No posts without translations found on this page.</td></tr>
                 <?php else : foreach ($rows as $post) :
                     $current = get_post_meta($post->ID, 'word_translation', true);
                     if ($current === '') {
@@ -127,22 +183,35 @@ function ll_render_bulk_translations_page() {
                     }
                 ?>
                     <tr data-id="<?php echo esc_attr($post->ID); ?>">
-                        <td><input type="checkbox" class="ll-row-check" /></td>
-                        <td><?php echo (int)$post->ID; ?></td>
-                        <td><a href="<?php echo esc_url(get_edit_post_link($post->ID)); ?>"><?php echo esc_html(get_the_title($post)); ?></a></td>
-                        <td class="ll-current">
+                        <td class="col-select"><input type="checkbox" class="ll-row-check" /></td>
+                        <td class="col-id"><?php echo (int)$post->ID; ?></td>
+                        <td class="col-word"><a href="<?php echo esc_url(get_edit_post_link($post->ID)); ?>"><?php echo esc_html(get_the_title($post)); ?></a></td>
+                        <td class="col-type"><?php echo esc_html($post->post_type === 'word_images' ? 'Image' : 'Word'); ?></td>
+                        <td class="col-wordset">
+                            <?php
+                                $wst = get_the_terms($post->ID, 'wordset');
+                                if ($wst && !is_wp_error($wst)) {
+                                    $names = array_map(function($t){ return $t->name; }, $wst);
+                                    echo esc_html(implode(', ', $names));
+                                } else {
+                                    echo '—';
+                                }
+                            ?>
+                        </td>
+                        <td class="ll-current col-current">
                             <input type="text" class="regular-text" value="<?php echo esc_attr($current); ?>" readonly />
                         </td>
-                        <td class="ll-suggest">
+                        <td class="ll-suggest col-suggest">
                             <input type="text" class="regular-text ll-suggestion" value="" placeholder="(click Get translations)" />
                             <a href="#" class="ll-save-one" title="Save">✓</a>
                             <a href="#" class="ll-clear" title="Clear">×</a>
                         </td>
-                        <td class="ll-status"><span class="status-badge">—</span><span class="spinner" style="float:none;margin-left:6px"></span></td>
+                        <td class="ll-status col-status"><span class="status-badge">—</span><span class="spinner" style="float:none;margin-left:6px"></span></td>
                     </tr>
                 <?php endforeach; endif; ?>
             </tbody>
         </table>
+        </div>
 
         <!-- Pagination -->
         <div class="tablenav" style="margin-top:10px">
@@ -150,6 +219,15 @@ function ll_render_bulk_translations_page() {
                 <?php
                 if ($total_pages > 1) {
                     $base = remove_query_arg(['paged'], menu_page_url('ll-bulk-translations', false));
+                    $add = [
+                        'per_page' => $per_page,
+                        'type'     => $flt_type,
+                        's'        => $flt_s,
+                        'cat'      => $flt_cat,
+                        'wordset'  => $flt_wordset,
+                        'orderby'  => $flt_orderby,
+                        'order'    => $flt_order,
+                    ];
                     echo paginate_links([
                         'base'      => add_query_arg('paged', '%#%', $base),
                         'format'    => '',
@@ -157,7 +235,7 @@ function ll_render_bulk_translations_page() {
                         'next_text' => '»',
                         'total'     => $total_pages,
                         'current'   => $paged,
-                        'add_args'  => ['per_page' => $per_page],
+                        'add_args'  => $add,
                     ]);
                 } else {
                     echo '<span class="displaying-num">' . intval($total) . ' items</span>';
@@ -170,8 +248,20 @@ function ll_render_bulk_translations_page() {
     <style>
         .ll-top-settings .form-table th { width: 280px; }
         .status-badge { display:inline-block; background:#f3f4f5; padding:2px 6px; border-radius:3px; }
+        .ll-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table.ll-bulk-table { width: auto; min-width: 100%; table-layout: auto; border-collapse: separate; border-spacing: 0; }
+        .ll-bulk-table th, .ll-bulk-table td { vertical-align: middle; white-space: nowrap; }
+        .ll-bulk-table .col-select { width: 34px; }
+        .ll-bulk-table .col-id { width: 56px; }
+        .ll-bulk-table .col-word { /* auto width by content */ }
+        .ll-bulk-table .col-type { width: 90px; text-align:center; }
+        .ll-bulk-table .col-wordset { /* auto by content */ }
+        .ll-bulk-table .col-current { min-width: 360px; }
+        .ll-bulk-table .col-suggest { min-width: 360px; }
+        .ll-bulk-table .col-status { width: 120px; }
         .ll-suggest { display:flex; align-items:center; gap:6px; }
-        .ll-suggest input.ll-suggestion { flex:1 1 auto; min-width:0; width:auto; }
+        .ll-suggest input.ll-suggestion { flex:1 1 auto; min-width: 240px; width: 100%; box-sizing:border-box; }
+        .ll-current input { width:auto; min-width: 240px; max-width:100%; box-sizing:border-box; }
         .ll-suggest .ll-clear { text-decoration:none; font-weight:bold; }
         .ll-suggest .ll-save-one { text-decoration:none; font-weight:bold; color:#008a20; }
     </style>
@@ -331,41 +421,55 @@ function ll_render_bulk_translations_page() {
 }
 
 /** Query helpers **/
-function ll_bulk_translation_query_posts($limit, $offset) {
-    $q = new WP_Query([
-        'post_type'      => 'words',
-        'posts_per_page' => $limit,
-        'offset'         => $offset,
+function ll_bulk_translations_build_query_args($limit = null, $offset = null) {
+    $flt_type    = isset($_GET['type']) ? sanitize_text_field($_GET['type']) : 'both';
+    $types = ($flt_type === 'words' || $flt_type === 'word_images') ? [$flt_type] : ['words','word_images'];
+    $flt_s       = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+    $flt_cat     = isset($_GET['cat']) ? intval($_GET['cat']) : 0;
+    $flt_wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
+    $flt_orderby = isset($_GET['orderby']) ? sanitize_text_field($_GET['orderby']) : 'ID';
+    $flt_order   = isset($_GET['order']) ? strtoupper(sanitize_text_field($_GET['order'])) : 'ASC';
+
+    $args = [
+        'post_type'      => $types,
+        'post_status'    => ['publish','draft','pending','future','private'],
+        's'              => $flt_s,
+        'orderby'        => in_array($flt_orderby, ['ID','title'], true) ? $flt_orderby : 'ID',
+        'order'          => ($flt_order === 'DESC') ? 'DESC' : 'ASC',
         'fields'         => 'all',
-        'orderby'        => 'ID',
-        'order'          => 'ASC',
         'meta_query'     => [
             'relation' => 'OR',
-            [
-                'key'     => 'word_translation',
-                'compare' => 'NOT EXISTS'
-            ],
-            [
-                'key'     => 'word_translation',
-                'value'   => '',
-                'compare' => '='
-            ],
+            [ 'key' => 'word_translation', 'compare' => 'NOT EXISTS' ],
+            [ 'key' => 'word_translation', 'value' => '', 'compare' => '=' ],
         ],
-    ]);
+    ];
+    if ($limit !== null)  $args['posts_per_page'] = $limit;
+    if ($offset !== null) $args['offset']         = $offset;
+
+    $tax = [];
+    if ($flt_cat) {
+        $tax[] = [ 'taxonomy' => 'word-category', 'field' => 'term_id', 'terms' => $flt_cat ];
+    }
+    if ($flt_wordset !== '') {
+        $tax[] = [ 'taxonomy' => 'wordset', 'field' => 'slug', 'terms' => $flt_wordset ];
+    }
+    if ($tax) $args['tax_query'] = $tax;
+
+    return $args;
+}
+
+function ll_bulk_translation_query_posts($limit, $offset) {
+    $args = ll_bulk_translations_build_query_args($limit, $offset);
+    $q = new WP_Query($args);
     return $q->posts;
 }
 
 function ll_bulk_translation_count_posts_missing() {
-    global $wpdb;
-    $sql = $wpdb->prepare(
-        "SELECT COUNT(1) FROM {$wpdb->posts} p
-         LEFT JOIN {$wpdb->postmeta} m
-           ON p.ID = m.post_id AND m.meta_key = %s
-         WHERE p.post_type = %s AND p.post_status IN ('publish','draft','pending','future','private')
-           AND (m.meta_id IS NULL OR m.meta_value = '')",
-        'word_translation', 'words'
-    );
-    return (int) $wpdb->get_var($sql);
+    $args = ll_bulk_translations_build_query_args(1, 0);
+    $args['paged'] = 1;
+    $args['no_found_rows'] = false;
+    $q = new WP_Query($args);
+    return (int) $q->found_posts;
 }
 
 /** AJAX: fetch suggestions (DeepL → Dictionary fallback) */

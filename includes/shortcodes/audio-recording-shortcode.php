@@ -758,15 +758,19 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $word_title = null;
         $word_translation = null;
         $use_word_display = false;
+        $title_role = get_option('ll_word_title_language_role', 'target');
         if ($word_id) {
             $word_post = get_post($word_id);
             if ($word_post && $word_post->post_type === 'words') {
                 $use_word_display = true;
-                $word_title = get_the_title($word_id); // Target lang title, preferred
-                $word_translation = get_post_meta($word_id, 'word_english_meaning', true); // English fallback
-                // Prioritize: if word_translation is in target lang (not English), use it; else use title
-                $target_lang = get_option('ll_target_language', 'TR'); // e.g., 'TR' for Turkish
-                if (!empty($word_translation) && strpos(strtolower($word_translation), strtolower($target_lang)) !== false) {
+                $word_title = get_the_title($word_id);
+                $word_translation = get_post_meta($word_id, 'word_translation', true);
+                if ($word_translation === '') {
+                    $word_translation = get_post_meta($word_id, 'word_english_meaning', true);
+                }
+                // If titles are in translation language (helper) and we have a learned-language translation,
+                // prefer showing the translation for recording UI.
+                if ($title_role === 'translation' && !empty($word_translation)) {
                     $word_title = $word_translation;
                 }
             }
@@ -799,15 +803,74 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     ];
                 }
 
+                // Try to find a translation for image-only cases when titles are helper-language
+                $img_translation = get_post_meta($img_id, 'word_translation', true);
+                if ($img_translation === '') {
+                    $img_translation = get_post_meta($img_id, 'word_english_meaning', true);
+                }
+
+                if (!$word_id && $title_role === 'translation' && empty($img_translation)) {
+                    // Search for a word with the same title in the same wordset or same-language wordsets
+                    $image_title = get_the_title($img_id);
+                    $allowed_wordset_ids = array_map('intval', $wordset_term_ids);
+                    // Expand to wordsets with the same language label(s)
+                    $langs = [];
+                    foreach ((array)$wordset_term_ids as $wsid) {
+                        $lang = function_exists('ll_get_wordset_language') ? ll_get_wordset_language($wsid) : '';
+                        if (!empty($lang)) $langs[$lang] = true;
+                    }
+                    if (!empty($langs)) {
+                        $lang_list = array_keys($langs);
+                        // Fetch wordsets that share the same language meta
+                        $mq = ['relation' => (count($lang_list) > 1 ? 'OR' : 'AND')];
+                        foreach ($lang_list as $l) { $mq[] = ['key' => 'll_language', 'value' => $l, 'compare' => '=']; }
+                        $lang_sets = get_terms([
+                            'taxonomy'   => 'wordset',
+                            'hide_empty' => false,
+                            'fields'     => 'ids',
+                            'meta_query' => $mq,
+                        ]);
+                        if (!is_wp_error($lang_sets) && !empty($lang_sets)) {
+                            $allowed_wordset_ids = array_values(array_unique(array_merge($allowed_wordset_ids, array_map('intval', $lang_sets))));
+                        }
+                    }
+
+                    $related_words = get_posts([
+                        'post_type'      => 'words',
+                        'post_status'    => ['publish','draft','pending'],
+                        'posts_per_page' => 25,
+                        's'              => $image_title,
+                        'fields'         => 'ids',
+                        'tax_query'      => !empty($allowed_wordset_ids) ? [[
+                            'taxonomy' => 'wordset',
+                            'field'    => 'term_id',
+                            'terms'    => $allowed_wordset_ids,
+                        ]] : [],
+                    ]);
+                    if (!is_wp_error($related_words) && !empty($related_words)) {
+                        foreach ($related_words as $rw_id) {
+                            if (strcasecmp(get_the_title($rw_id), $image_title) === 0) {
+                                $img_translation = get_post_meta($rw_id, 'word_translation', true);
+                                if ($img_translation === '') {
+                                    $img_translation = get_post_meta($rw_id, 'word_english_meaning', true);
+                                }
+                                if (!empty($img_translation)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 $items_by_category[$category_id]['items'][] = [
                     'id'               => $img_id,
-                    'title'            => get_the_title($img_id),
+                    'title'            => ($title_role === 'translation' && !empty($img_translation)) ? $img_translation : get_the_title($img_id),
                     'image_url'        => $thumb_url,
                     'category_name'    => $category_name,
                     'word_id'          => $word_id ?: 0,
                     'word_title'       => $word_title,
                     'word_translation' => $word_translation,
-                    'use_word_display' => $use_word_display,
+                    'use_word_display' => ($use_word_display || ($title_role === 'translation' && (!empty($img_translation) || !empty($word_translation)))),
                     'missing_types'    => $missing_types,
                     'existing_types'   => $existing_types,
                     'is_text_only'     => false,
@@ -883,15 +946,25 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 ];
             }
 
+            $translation = get_post_meta($word_id, 'word_translation', true);
+            if ($translation === '') {
+                $translation = get_post_meta($word_id, 'word_english_meaning', true);
+            }
+
+            $display_word_title = get_the_title($word_id);
+            if (get_option('ll_word_title_language_role', 'target') === 'translation' && !empty($translation)) {
+                $display_word_title = $translation;
+            }
+
             $items_by_category[$category_id]['items'][] = [
                 'id'             => 0,
-                'title'          => get_the_title($word_id),
+                'title'          => $display_word_title,
                 'image_url'      => '',
                 'category_name'  => $category_name,
                 'word_id'        => $word_id,
                 // NEW: For text-only (no image), use word's own title and translation
-                'word_title'       => get_the_title($word_id), // Target lang
-                'word_translation' => get_post_meta($word_id, 'word_english_meaning', true),
+                'word_title'       => $display_word_title,
+                'word_translation' => $translation,
                 'use_word_display' => true, // Always prefer word data for text-only
                 'missing_types'    => $missing_types,
                 'existing_types'  => $existing_types,
@@ -1453,6 +1526,12 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     $categories = wp_get_post_terms($image_id, 'word-category', ['fields' => 'ids']);
     if (!is_wp_error($categories) && !empty($categories)) {
         wp_set_object_terms($word_id, $categories, 'word-category');
+    }
+
+    // Copy translation from image if present
+    $img_translation = get_post_meta($image_id, 'word_translation', true);
+    if (!empty($img_translation)) {
+        update_post_meta($word_id, 'word_translation', $img_translation);
     }
 
     // Assign to wordset

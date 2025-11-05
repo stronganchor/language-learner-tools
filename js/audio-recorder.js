@@ -156,7 +156,6 @@
                 el.imageContainer.querySelector('.flashcard-container').appendChild(el.textDisplay);
             }
             el.textDisplay.style.display = 'flex';
-            el.textDisplay.textContent = img.title;
         } else {
             if (el.textDisplay) {
                 el.textDisplay.style.display = 'none';
@@ -175,6 +174,9 @@
         }
 
         el.title.textContent = displayTitle;
+        if (img.is_text_only && el.textDisplay) {
+            el.textDisplay.textContent = displayTitle;
+        }
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
             el.title.style.display = 'none';
