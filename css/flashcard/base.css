@@ -820,6 +820,16 @@ body.ll-tools-flashcard-open {
     overflow: hidden !important;
 }
 
+#ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option:not(.active):not([aria-checked="true"]),
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option:not(.active):not([aria-checked="true"]) {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
 /* Lock icon sizing/visibility for mode switcher */
 #ll-tools-mode-switcher-wrap .ll-tools-mode-option .mode-icon::before {
     display: block !important;
@@ -848,6 +858,27 @@ body.ll-tools-flashcard-open {
 #ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:hover {
     background: #2563eb !important; /* slightly lighter blue */
     background-color: #2563eb !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active,
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"],
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active[disabled],
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"][disabled],
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active[aria-disabled="true"],
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"][aria-disabled="true"] {
+    background: #15803d !important;
+    background-color: #15803d !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: 1px solid #15803d !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-mode-option:hover:not(.active):not([disabled]):not([aria-checked="true"]) {
+    background: #f9fafb !important;
+    background-color: #f9fafb !important;
+    background-image: none !important;
+    border-color: #d1d5db !important;
 }
 
 /* Prefer emoji-capable fonts for the small icons */
