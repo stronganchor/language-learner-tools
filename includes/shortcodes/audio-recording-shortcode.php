@@ -1455,6 +1455,12 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
         wp_set_object_terms($word_id, $categories, 'word-category');
     }
 
+    // Copy translation from image if present
+    $img_translation = get_post_meta($image_id, 'word_translation', true);
+    if (!empty($img_translation)) {
+        update_post_meta($word_id, 'word_translation', $img_translation);
+    }
+
     // Assign to wordset
     if (!empty($wordset_ids)) {
         wp_set_object_terms($word_id, $wordset_ids, 'wordset');

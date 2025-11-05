@@ -126,17 +126,19 @@ function ll_handle_image_file_uploads() {
         }
 
         if (move_uploaded_file($tmp_name, $upload_path)) {
+            // Preserve original (Unicode) base name for titles
+            $original_title = pathinfo($original_name, PATHINFO_FILENAME);
             $attachment_id = wp_insert_attachment([
                 'guid' => trailingslashit($upload_dir['baseurl']) . $file_name,
                 'post_mime_type' => $file_type,
-                'post_title' => preg_replace('/\.[^.]+$/', '', $file_name),
+                'post_title' => $original_title,
                 'post_content' => '',
                 'post_status' => 'inherit'
             ], $upload_path);
 
             if ($attachment_id && !is_wp_error($attachment_id)) {
                 $post_id = wp_insert_post([
-                    'post_title' => $original_base_name,
+                    'post_title' => $original_title,
                     'post_content' => '',
                     'post_status' => 'publish',
                     'post_type' => 'word_images',
