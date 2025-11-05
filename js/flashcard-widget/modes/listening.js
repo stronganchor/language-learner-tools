@@ -1,6 +1,8 @@
 (function (root) {
     'use strict';
 
+    const VALID_IMAGE_SIZES = ['small', 'medium', 'large'];
+
     const namespace = (root.LLFlashcards = root.LLFlashcards || {});
     const State = namespace.State || {};
     const Dom = namespace.Dom || {};
@@ -214,8 +216,10 @@
         if (options.textBased) {
             baseClasses.push('text-based');
         } else {
-            // Force large image box in listening mode (matches pre-change behavior)
-            baseClasses.push('flashcard-size-large');
+            const data = root.llToolsFlashcardsData || {};
+            const configuredSize = (data && typeof data.imageSize === 'string') ? data.imageSize : 'small';
+            const safeSize = VALID_IMAGE_SIZES.includes(configuredSize) ? configuredSize : 'small';
+            baseClasses.push('flashcard-size-' + safeSize);
         }
         const $ph = $jq('<div>', {
             class: baseClasses.join(' '),
