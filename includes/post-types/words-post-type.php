@@ -251,8 +251,12 @@ function ll_render_words_columns($column, $post_id) {
             break;
 
         case 'translation':
-            $translation = get_post_meta($post_id, 'word_english_meaning', true);
-            echo $translation ? $translation : '—';
+            // New key first; fallback to legacy for visibility if present
+            $translation = get_post_meta($post_id, 'word_translation', true);
+            if ($translation === '') {
+                $translation = get_post_meta($post_id, 'word_english_meaning', true);
+            }
+            echo $translation ? esc_html($translation) : '—';
             break;
 
         case 'wordset':
@@ -425,9 +429,9 @@ function ll_apply_words_filters($query) {
         $query->set('orderby', 'meta_value');
     }
 
-    // Sort by translation
+    // Sort by translation (new key)
     if (!empty($_GET['orderby']) && $_GET['orderby'] === 'translation') {
-        $query->set('meta_key', 'word_english_meaning');
+        $query->set('meta_key', 'word_translation');
         $query->set('orderby', 'meta_value');
     }
 }
