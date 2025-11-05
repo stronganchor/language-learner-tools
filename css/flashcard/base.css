@@ -287,6 +287,8 @@ body.ll-tools-flashcard-open {
     align-items: center;
     overflow: hidden;
     width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
 }
 
 #ll-tools-flashcard {

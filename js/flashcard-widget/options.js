@@ -9,6 +9,80 @@
      *
      * Handles the logic for determining the number of options per flashcard round, enforcing limits, and adjusting based on user performance.
      */
+
+    const IMAGE_SIZE_OPTIONS = ['small', 'medium', 'large'];
+    const baseImageSize = (function () {
+        const configured = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.imageSize) || 'small';
+        return IMAGE_SIZE_OPTIONS.includes(configured) ? configured : 'small';
+    })();
+
+    function determineResponsiveImageSize(baseSize) {
+        if (typeof window === 'undefined') {
+            return baseSize;
+        }
+
+        const docEl = (typeof document !== 'undefined' && document.documentElement)
+            ? document.documentElement
+            : { clientWidth: 0, clientHeight: 0 };
+        const viewportWidth = Math.max(0, window.innerWidth || docEl.clientWidth || 0);
+        const viewportHeight = Math.max(0, window.innerHeight || docEl.clientHeight || 0);
+
+        if (!viewportWidth || !viewportHeight) {
+            return baseSize;
+        }
+
+        const minDimension = Math.min(viewportWidth, viewportHeight);
+        const viewportArea = viewportWidth * viewportHeight;
+
+        let adjusted = baseSize;
+
+        if (adjusted === 'large' && (minDimension <= 420 || viewportArea <= 240000)) {
+            adjusted = 'medium';
+        }
+
+        if ((adjusted === 'medium' && (minDimension <= 360 || viewportArea <= 180000))
+            || (baseSize === 'large' && (minDimension <= 360 || viewportArea <= 180000))) {
+            adjusted = 'small';
+        }
+
+        return adjusted;
+    }
+
+    function applyResponsiveImageSize() {
+        const effectiveSize = determineResponsiveImageSize(baseImageSize);
+        if (window.llToolsFlashcardsData) {
+            window.llToolsFlashcardsData.baseImageSize = baseImageSize;
+            window.llToolsFlashcardsData.effectiveImageSize = effectiveSize;
+            window.llToolsFlashcardsData.imageSize = effectiveSize;
+        }
+        return effectiveSize;
+    }
+
+    (function scheduleResponsiveImageSize() {
+        applyResponsiveImageSize();
+        setTimeout(applyResponsiveImageSize, 0);
+
+        if (typeof document !== 'undefined') {
+            const reapply = applyResponsiveImageSize;
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', reapply);
+            } else {
+                setTimeout(reapply, 0);
+            }
+        }
+
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+            let resizeTimer = null;
+            window.addEventListener('resize', function () {
+                if (resizeTimer) clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    resizeTimer = null;
+                    applyResponsiveImageSize();
+                }, 150);
+            });
+        }
+    })();
+
     const FlashcardOptions = (function () {
         // Constants for option limits
         const MINIMUM_NUMBER_OF_OPTIONS = 2;
@@ -139,6 +213,10 @@
         function canAddMoreCards() {
             const $container = $('#ll-tools-flashcard');
             const $cards = $container.find('.flashcard-container');
+
+            if ($cards.length < MINIMUM_NUMBER_OF_OPTIONS) {
+                return true;
+            }
 
             // Determine card width for the current mode
             const size = getMaxCardSize();
