@@ -57,6 +57,13 @@ function ll_register_settings() {
         'type' => 'string',
         'sanitize_callback' => 'esc_url_raw'
     ));
+
+    // Word title language role (sitewide setting informing direction and UI defaults)
+    register_setting('language-learning-tools-options', 'll_word_title_language_role', array(
+        'type' => 'string',
+        'sanitize_callback' => 'll_sanitize_title_language_role',
+        'default' => 'target'
+    ));
 }
 add_action('admin_init', 'll_register_settings');
 
@@ -68,11 +75,16 @@ function ll_sanitize_max_options_override($value) {
     return $value;
 }
 
+function ll_sanitize_title_language_role($value) {
+    return in_array($value, array('target','translation'), true) ? $value : 'target';
+}
+
 function ll_render_settings_page() {
     $target_language = get_option('ll_target_language', '');
     $translation_language = get_option('ll_translation_language', '');
     $enable_translation = get_option('ll_enable_category_translation', 0);
     $translation_source = get_option('ll_category_translation_source', 'target');
+    $word_title_role = get_option('ll_word_title_language_role', 'target');
     $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
 
@@ -103,6 +115,16 @@ function ll_render_settings_page() {
                     <th scope="row">Translation Language (e.g., "EN" for English):</th>
                     <td>
                         <input type="text" name="ll_translation_language" id="ll_translation_language" value="<?php echo esc_attr($translation_language); ?>" />
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Word Title Language:</th>
+                    <td>
+                        <select name="ll_word_title_language_role" id="ll_word_title_language_role">
+                            <option value="target" <?php selected($word_title_role, 'target'); ?>>Target (language being learned)</option>
+                            <option value="translation" <?php selected($word_title_role, 'translation'); ?>>Translation (helper/known language)</option>
+                        </select>
+                        <p class="description">If set to Translation, tools and lookups treat post titles as being in the translation language and <code>word_translation</code> meta as the language being learned.</p>
                     </td>
                 </tr>
                 <tr valign="top">
