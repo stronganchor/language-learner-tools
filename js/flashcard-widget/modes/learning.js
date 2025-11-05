@@ -355,11 +355,6 @@
         syncProgressUI();
 
         const mode = getCurrentDisplayMode();
-        try {
-            if (root.FlashcardOptions && typeof root.FlashcardOptions.ensureResponsiveSize === 'function') {
-                root.FlashcardOptions.ensureResponsiveSize(2);
-            }
-        } catch (_) { }
 
         Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, mode))).then(function () {
             if (!State.isIntroducing()) {

@@ -280,17 +280,13 @@ body.ll-tools-flashcard-open {
 #ll-tools-flashcard-content {
     flex-grow: 1;
     overflow-y: auto;
-    overflow-x: hidden;
     padding: 15px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
+    overflow: hidden;
     width: 100%;
-    max-width: 100vw;
-    /* never exceed viewport width */
-    box-sizing: border-box;
-    /* include padding in width to avoid overflow */
 }
 
 #ll-tools-flashcard {
@@ -301,18 +297,6 @@ body.ll-tools-flashcard-open {
     align-items: center;
     max-width: 800px;
     width: 100%;
-}
-
-/* Small screens: tighten padding and gaps to reduce unnecessary shrink */
-@media (max-width: 360px) {
-    #ll-tools-flashcard-content {
-        padding: 8px;
-    }
-
-    #ll-tools-flashcard {
-        gap: 10px;
-        max-width: 100%;
-    }
 }
 
 /* Flashcard Container Styles */
@@ -441,23 +425,6 @@ body.ll-tools-flashcard-open {
     height: 250px;
     max-width: 250px;
     max-height: 250px;
-}
-
-/* Auto-fit layout: preserve image aspect ratio within a bounding box */
-.flashcard-container.auto-fit .quiz-image {
-    width: 100% !important;
-    height: auto !important;
-    max-height: 100% !important;
-    object-fit: contain !important;
-}
-
-/* Force one-per-row when stacked preference is active */
-.flashcard-container.auto-fit.auto-fit-stacked {
-    flex: 0 0 auto !important;
-    width: auto;
-    max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
 }
 
 /* --- Flashcard header: stack category label above play/pause --- */
@@ -830,8 +797,7 @@ body.ll-tools-flashcard-open {
     justify-content: center !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    background: #1d4ed8 !important;
-    /* lock base blue */
+    background: #1d4ed8 !important; /* lock base blue */
     background-color: #1d4ed8 !important;
     color: #ffffff !important;
     border: none !important;
@@ -878,14 +844,13 @@ body.ll-tools-flashcard-open {
 
 /* Hover stays in the same blue family, not theme accent */
 #ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:hover {
-    background: #2563eb !important;
-    /* slightly lighter blue */
+    background: #2563eb !important; /* slightly lighter blue */
     background-color: #2563eb !important;
 }
 
 /* Prefer emoji-capable fonts for the small icons */
 #ll-tools-mode-switcher-wrap .mode-icon,
 #ll-tools-mode-switcher-wrap .mode-icon::before {
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif !important;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
     -webkit-text-size-adjust: none !important;
 }
