@@ -30,6 +30,106 @@
         return setTimeout(fn, delay);
     }
 
+    // Simple wake lock manager (best-effort)
+    // Keeps the screen awake while listening mode is actively playing.
+    const WakeLock = (function () {
+        let sentinel = null;
+        let boundVisibilityHandler = null;
+        let unsubscribeStateListener = null;
+
+        function isResultsPage() {
+            try {
+                return (State && State.getFlowState && State.STATES) ?
+                    (State.getFlowState() === State.STATES.SHOWING_RESULTS) : false;
+            } catch (_) { return false; }
+        }
+
+        function shouldHold() {
+            try {
+                // Hold only while actively playing in listening mode (SHOWING_QUESTION),
+                // not paused, and definitely not on results.
+                const isPlayingState = (State && State.getFlowState && State.STATES)
+                    ? (State.getFlowState() === State.STATES.SHOWING_QUESTION)
+                    : false;
+                return !!(State && State.isListeningMode && isPlayingState && !State.listeningPaused && !isResultsPage());
+            } catch (_) { return false; }
+        }
+
+        async function acquire() {
+            if (!('wakeLock' in navigator)) return false;
+            if (sentinel) return true;
+            try {
+                sentinel = await navigator.wakeLock.request('screen');
+                if (sentinel && typeof sentinel.addEventListener === 'function') {
+                    sentinel.addEventListener('release', function () {
+                        sentinel = null;
+                        // If we still should be holding when a release happens (e.g., tab switch), try to reacquire
+                        if (shouldHold()) { acquire().catch(function () { /* no-op */ }); }
+                    });
+                }
+                return true;
+            } catch (err) {
+                // Permission or unsupported scenario; fail silently
+                return false;
+            }
+        }
+
+        async function release() {
+            try {
+                if (sentinel && typeof sentinel.release === 'function') {
+                    await sentinel.release();
+                }
+            } catch (_) { /* no-op */ }
+            sentinel = null;
+            return true;
+        }
+
+        async function update() {
+            if (shouldHold()) {
+                await acquire();
+            } else if (sentinel) {
+                await release();
+            }
+        }
+
+        function bind() {
+            if (typeof document !== 'undefined' && !boundVisibilityHandler) {
+                boundVisibilityHandler = function () {
+                    if (!document.hidden) {
+                        // On visibility restore, try to reacquire if appropriate
+                        update();
+                    }
+                };
+                document.addEventListener('visibilitychange', boundVisibilityHandler);
+            }
+
+            if (State && typeof State.onStateChange === 'function' && !unsubscribeStateListener) {
+                unsubscribeStateListener = State.onStateChange(function () {
+                    // React to results page and other transitions
+                    update();
+                });
+            }
+        }
+
+        function unbind() {
+            if (boundVisibilityHandler && typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', boundVisibilityHandler);
+            }
+            boundVisibilityHandler = null;
+            if (typeof unsubscribeStateListener === 'function') {
+                try { unsubscribeStateListener(); } catch (_) { }
+            }
+            unsubscribeStateListener = null;
+        }
+
+        return {
+            update,
+            bind,
+            unbind,
+            release
+        };
+    })();
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = true;
@@ -45,6 +145,8 @@
         }
         State.wordsLinear = all;
         State.listenIndex = 0;
+        // Start listening for state/visibility changes and ensure proper wake lock state
+        try { WakeLock.bind(); WakeLock.update(); } catch (_) { }
         return true;
     }
 
@@ -148,6 +250,7 @@
                     try { audio && audio.pause && audio.pause(); } catch (_) {}
                     State.clearActiveTimeouts();
                     $jq(this).attr('data-state', 'paused').html(playSVG);
+                    try { WakeLock.update(); } catch (_) { }
                 } else {
                     // Resume
                     $jq(this).attr('data-state', 'playing').html(pauseSVG);
@@ -163,6 +266,7 @@
                         State.forceTransitionTo(STATES.QUIZ_READY, 'Listening resume advance');
                         if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                     }
+                    try { WakeLock.update(); } catch (_) { }
                 }
                 updateControlsState();
             });
@@ -179,6 +283,7 @@
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening back');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                 updateControlsState();
+                try { WakeLock.update(); } catch (_) { }
             });
 
             $fwd.on('click', function () {
@@ -192,6 +297,7 @@
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening forward');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                 updateControlsState();
+                try { WakeLock.update(); } catch (_) { }
             });
 
             $loop.on('click', function () {
@@ -283,6 +389,7 @@
 
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
             console.warn('Listening mode loader unavailable');
+            try { WakeLock.update(); } catch (_) { }
             return false;
         }
 
@@ -295,12 +402,16 @@
                     State.transitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
                     resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
                 }
+                try { WakeLock.update(); } catch (_) { }
                 return true;
             }
             State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
             resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+            try { WakeLock.update(); } catch (_) { }
             return true;
         }
+
+        try { WakeLock.update(); } catch (_) { }
 
         const audioUrl = audioApi && typeof audioApi.selectBestAudio === 'function'
             ? audioApi.selectBestAudio(target, ['isolation', 'question', 'introduction'])
@@ -557,6 +668,7 @@
                 audioVisualizer.stop();
             }
             State.forceTransitionTo(STATES.QUIZ_READY, 'Listening error recovery');
+            try { WakeLock.update(); } catch (_) { }
         });
         return true;
     }
