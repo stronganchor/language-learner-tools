@@ -384,17 +384,31 @@
                 return word.audio || null;
             }
 
+            var preferredSpeaker = word.preferred_speaker_user_id || 0;
+
             for (var i = 0; i < preferredTypes.length; i++) {
                 var type = preferredTypes[i];
-                var audioFile = word.audio_files.find(function (af) {
-                    return af.recording_type === type;
+
+                // First pass: match type AND preferred speaker if available
+                if (preferredSpeaker) {
+                    var matchSameSpeaker = word.audio_files.find(function (af) {
+                        return af.recording_type === type && af.speaker_user_id === preferredSpeaker && af.url;
+                    });
+                    if (matchSameSpeaker) {
+                        return matchSameSpeaker.url;
+                    }
+                }
+
+                // Fallback: any file matching type
+                var anyMatch = word.audio_files.find(function (af) {
+                    return af.recording_type === type && af.url;
                 });
-                if (audioFile && audioFile.url) {
-                    return audioFile.url;
+                if (anyMatch) {
+                    return anyMatch.url;
                 }
             }
 
-            return word.audio_files[0].url || word.audio || null;
+            return (word.audio_files[0] && word.audio_files[0].url) || word.audio || null;
         }
 
         /**
