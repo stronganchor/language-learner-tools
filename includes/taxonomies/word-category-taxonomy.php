@@ -110,7 +110,48 @@ function ll_tools_initialize_word_category_meta_fields() {
     // Bulk‑add form display and processing hooks
     add_action('admin_notices', 'll_render_bulk_add_categories_form');
     add_action('admin_post_ll_word_category_bulk_add', 'll_process_bulk_add_categories');
+
+    // Desired recording types meta (category-level)
+    add_action('word-category_add_form_fields', 'll_add_desired_recording_types_field');
+    add_action('word-category_edit_form_fields', 'll_edit_desired_recording_types_field');
+    add_action('created_word-category', 'll_save_desired_recording_types_field', 10, 2);
+    add_action('edited_word-category', 'll_save_desired_recording_types_field', 10, 2);
 }
+
+/**
+ * One-time seeding of desired recording types for existing categories.
+ * Uses the main defaults (isolation, question, introduction) and does not
+ * overwrite categories that already have a selection.
+ */
+function ll_tools_seed_existing_categories_desired_types() {
+    if (!is_admin()) { return; }
+    // Run once; if you need to re-run, delete this option.
+    if (get_option('ll_seeded_category_desired_types', false)) { return; }
+
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        update_option('ll_seeded_category_desired_types', 1);
+        return;
+    }
+
+    $defaults = ll_tools_get_main_recording_types();
+    foreach ($terms as $tid) {
+        $existing = get_term_meta($tid, 'll_desired_recording_types', true);
+        // Only set if nothing exists yet; for text-only categories seed isolation-only
+        if (empty($existing)) {
+            $is_text_only = get_term_meta((int) $tid, 'use_word_titles_for_audio', true) === '1';
+            $to_seed = $is_text_only ? ['isolation'] : $defaults;
+            update_term_meta($tid, 'll_desired_recording_types', $to_seed);
+        }
+    }
+
+    update_option('ll_seeded_category_desired_types', 1);
+}
+add_action('admin_init', 'll_tools_seed_existing_categories_desired_types');
 
 /**
  * Adds the 'Translated Name' field to the add new category form.
@@ -264,6 +305,140 @@ function ll_edit_use_word_titles_field($term) {
 }
 
 /**
+ * Category meta UI: Desired Recording Types (add screen)
+ */
+function ll_add_desired_recording_types_field($term) {
+    $types = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($types)) { $types = []; }
+    ?>
+    <div class="form-field term-desired-recording-types-wrap">
+        <label><?php esc_html_e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
+        <div style="max-height:140px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+            <?php foreach ($types as $type): ?>
+                <label style="display:block; margin:2px 0;">
+                    <input type="checkbox" name="ll_desired_recording_types[]" value="<?php echo esc_attr($type->slug); ?>">
+                    <?php echo esc_html($type->name . ' (' . $type->slug . ')'); ?>
+                </label>
+            <?php endforeach; ?>
+        </div>
+        <p class="description"><?php esc_html_e('Select the recording types that make sense for words in this category. If none are selected, defaults apply (isolation, question, introduction).', 'll-tools-text-domain'); ?></p>
+    </div>
+    <?php
+}
+
+/**
+ * Category meta UI: Desired Recording Types (edit screen)
+ */
+function ll_edit_desired_recording_types_field($term) {
+    $selected = (array) get_term_meta($term->term_id, 'll_desired_recording_types', true);
+    $types = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($types)) { $types = []; }
+    ?>
+    <tr class="form-field term-desired-recording-types-wrap">
+        <th scope="row" valign="top">
+            <label><?php esc_html_e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <div style="max-height:180px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+                <?php foreach ($types as $type): $checked = in_array($type->slug, $selected, true) ? 'checked' : ''; ?>
+                    <label style="display:block; margin:2px 0;">
+                        <input type="checkbox" name="ll_desired_recording_types[]" value="<?php echo esc_attr($type->slug); ?>" <?php echo $checked; ?>>
+                        <?php echo esc_html($type->name . ' (' . $type->slug . ')'); ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <p class="description"><?php esc_html_e('If none selected, defaults apply (isolation, question, introduction).', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+
+/**
+ * Save category meta: Desired Recording Types
+ */
+function ll_save_desired_recording_types_field($term_id, $maybe_tt_id = null) {
+    // Hooked to created_word-category / edited_word-category which pass ($term_id, $tt_id)
+    // Do not rely on taxonomy parameter here.
+    $incoming = isset($_POST['ll_desired_recording_types']) ? (array) $_POST['ll_desired_recording_types'] : [];
+    $sanitized = array_values(array_unique(array_map('sanitize_text_field', $incoming)));
+    if (empty($sanitized)) {
+        delete_term_meta($term_id, 'll_desired_recording_types');
+    } else {
+        update_term_meta($term_id, 'll_desired_recording_types', $sanitized);
+    }
+}
+
+/**
+ * Helper: main/core recording types
+ */
+function ll_tools_get_main_recording_types(): array {
+    return ['isolation', 'question', 'introduction'];
+}
+
+/**
+ * Helper: get desired recording types for a category term (slugs)
+ */
+function ll_tools_get_desired_recording_types_for_category($term_id): array {
+    $selected = (array) get_term_meta((int) $term_id, 'll_desired_recording_types', true);
+    if (!empty($selected)) { return array_values(array_unique(array_map('sanitize_text_field', $selected))); }
+    // If category is flagged as text-only, default to isolation-only for prompts
+    $is_text_only = get_term_meta((int) $term_id, 'use_word_titles_for_audio', true) === '1';
+    if ($is_text_only) { return ['isolation']; }
+    return ll_tools_get_main_recording_types();
+}
+
+/**
+ * Helper: get desired recording types for a word (union across its categories)
+ */
+function ll_tools_get_desired_recording_types_for_word($word_id): array {
+    $cats = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($cats) || empty($cats)) { return ll_tools_get_main_recording_types(); }
+    $acc = [];
+    foreach ($cats as $tid) {
+        $acc = array_merge($acc, ll_tools_get_desired_recording_types_for_category($tid));
+    }
+    if (empty($acc)) { return ll_tools_get_main_recording_types(); }
+    return array_values(array_unique($acc));
+}
+
+/**
+ * Helper: find a preferred speaker for a word — a user who recorded all 3 main types
+ * Returns user_id or 0 if none.
+ */
+function ll_tools_get_preferred_speaker_for_word($word_id): int {
+    $main = ll_tools_get_main_recording_types();
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_parent'    => (int) $word_id,
+        'post_status'    => ['publish','pending','draft'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+    ]);
+    if (empty($audio_posts)) { return 0; }
+    $by_speaker = [];
+    foreach ($audio_posts as $pid) {
+        $speaker = (int) get_post_meta($pid, 'speaker_user_id', true);
+        if (!$speaker) { $post = get_post($pid); $speaker = $post ? (int) $post->post_author : 0; }
+        if (!$speaker) { continue; }
+        $types = wp_get_post_terms($pid, 'recording_type', ['fields' => 'slugs']);
+        if (is_wp_error($types) || empty($types)) { continue; }
+        foreach ($types as $t) {
+            $by_speaker[$speaker][$t] = true;
+        }
+    }
+    foreach ($by_speaker as $uid => $typeMap) {
+        $has_all = !array_diff($main, array_keys($typeMap));
+        if ($has_all) { return (int) $uid; }
+    }
+    return 0;
+}
+/**
  * Saves the "use titles" checkbox for a term.
  *
  * @param int    $term_id Term ID.
@@ -366,14 +541,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'order'          => 'DESC',
         ]);
 
+        $preferred_speaker = ll_tools_get_preferred_speaker_for_word($word_id);
         foreach ($audio_posts as $audio_post) {
             $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
             if ($audio_path) {
                 $audio_url       = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
                 $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+                $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
+                if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
                 $audio_files[]   = [
                     'url'            => $audio_url,
                     'recording_type' => !empty($recording_types) ? $recording_types[0] : 'unknown',
+                    'speaker_user_id'=> $speaker_uid,
                 ];
             }
         }
@@ -416,6 +595,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'label'           => $label,
             'audio'           => $primary_audio,
             'audio_files'     => $audio_files,
+            'preferred_speaker_user_id' => $preferred_speaker,
             'image'           => $image ?: '',
             'all_categories'  => $all_categories,
             'similar_word_id' => $similar_word_id ?: '',
@@ -484,6 +664,7 @@ function ll_get_prioritized_audio($audio_posts) {
     // Build a map of recording type => audio posts
     $audio_by_type = [];
     $audio_without_type = [];
+    $speakers_by_type = [];
 
     foreach ($audio_posts as $audio_post) {
         $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
@@ -498,12 +679,29 @@ function ll_get_prioritized_audio($audio_posts) {
                 $audio_by_type[$type_slug] = [];
             }
             $audio_by_type[$type_slug][] = $audio_post;
+            $speaker_uid = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
+            if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
+            if ($speaker_uid) { $speakers_by_type[$type_slug][$speaker_uid] = true; }
         }
+    }
+
+    // Attempt to prefer a speaker who has all main types
+    $preferred_speaker = 0;
+    if (!empty($audio_posts)) {
+        $parent_id = (int) (get_post($audio_posts[0])->post_parent ?? 0);
+        if ($parent_id) { $preferred_speaker = ll_tools_get_preferred_speaker_for_word($parent_id); }
     }
 
     // Check each priority level in order
     foreach ($priority_order as $type) {
         if (!empty($audio_by_type[$type])) {
+            if ($preferred_speaker) {
+                foreach ($audio_by_type[$type] as $ap) {
+                    $uid = (int) get_post_meta($ap->ID, 'speaker_user_id', true);
+                    if (!$uid) { $uid = (int) $ap->post_author; }
+                    if ($uid === $preferred_speaker) { return $ap; }
+                }
+            }
             return $audio_by_type[$type][0];
         }
     }
