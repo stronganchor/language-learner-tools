@@ -332,3 +332,49 @@ function ll_save_audio_recorder_profile_fields($user_id) {
 add_action('personal_options_update', 'll_save_audio_recorder_profile_fields');
 add_action('edit_user_profile_update', 'll_save_audio_recorder_profile_fields');
 add_action('user_register', 'll_save_audio_recorder_profile_fields');
+
+/**
+ * Hide admin toolbar for audio recorder role
+ */
+function ll_hide_admin_bar_for_audio_recorder($show) {
+    if (!is_user_logged_in()) {
+        return $show;
+    }
+    $user = wp_get_current_user();
+    if ($user && in_array('audio_recorder', (array) $user->roles, true)) {
+        return false;
+    }
+    return $show;
+}
+add_filter('show_admin_bar', 'll_hide_admin_bar_for_audio_recorder', 999);
+
+/**
+ * Prevent audio recorder users from accessing wp-admin and redirect them
+ */
+function ll_block_admin_for_audio_recorder() {
+    if (!is_user_logged_in()) {
+        return;
+    }
+
+    // Only act on admin screens, and allow AJAX to continue
+    if (!is_admin() || wp_doing_ajax()) {
+        return;
+    }
+
+    $user = wp_get_current_user();
+    if (!$user || !in_array('audio_recorder', (array) $user->roles, true)) {
+        return;
+    }
+
+    // Build target URL consistently with login redirect
+    if (function_exists('ll_get_recording_redirect_url')) {
+        $target = ll_get_recording_redirect_url($user->ID);
+    } else {
+        $target = home_url('/');
+    }
+
+    wp_safe_redirect($target);
+    exit;
+}
+// Priority 1 so it runs early during admin bootstrap
+add_action('admin_init', 'll_block_admin_for_audio_recorder', 1);
