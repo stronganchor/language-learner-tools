@@ -58,6 +58,34 @@ function ll_render_recording_types_admin_page() {
         'order' => 'ASC',
     ]);
 
+    $available_slugs = [];
+    if (!empty($terms) && !is_wp_error($terms)) {
+        $available_slugs = array_map(function($term) {
+            return $term->slug;
+        }, $terms);
+    }
+
+    if (isset($_POST['save_uncategorized_defaults'])) {
+        check_admin_referer('ll_save_uncategorized_defaults');
+        $incoming = isset($_POST['ll_uncategorized_desired_recording_types']) ? (array) $_POST['ll_uncategorized_desired_recording_types'] : [];
+        $sanitized = array_values(array_unique(array_map('sanitize_text_field', $incoming)));
+        if (!empty($available_slugs)) {
+            $sanitized = array_values(array_intersect($sanitized, $available_slugs));
+        }
+
+        if (empty($sanitized)) {
+            delete_option('ll_uncategorized_desired_recording_types');
+            echo '<div class="notice notice-success"><p>' . esc_html__('Uncategorized defaults reset to main recording types.', 'll-tools-text-domain') . '</p></div>';
+        } else {
+            update_option('ll_uncategorized_desired_recording_types', $sanitized);
+            echo '<div class="notice notice-success"><p>' . esc_html__('Uncategorized defaults updated.', 'll-tools-text-domain') . '</p></div>';
+        }
+    }
+
+    $current_uncategorized = function_exists('ll_tools_get_uncategorized_desired_recording_types')
+        ? ll_tools_get_uncategorized_desired_recording_types()
+        : [];
+
     ?>
     <div class="wrap">
         <h1>Recording Types Management</h1>
@@ -122,6 +150,44 @@ function ll_render_recording_types_admin_page() {
         <?php else: ?>
             <p>No recording types found.</p>
         <?php endif; ?>
+
+        <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4; border-radius: 4px;">
+            <h2><?php echo esc_html__('Uncategorized Defaults', 'll-tools-text-domain'); ?></h2>
+            <p class="description">
+                <?php echo esc_html__('Choose which recording types to prompt for when a word has no category. Leave all unchecked to use the main defaults (Isolation, Question, Introduction).', 'll-tools-text-domain'); ?>
+            </p>
+            <form method="post" action="">
+                <?php wp_nonce_field('ll_save_uncategorized_defaults'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php echo esc_html__('Desired recording types', 'll-tools-text-domain'); ?></th>
+                        <td>
+                            <?php if (!empty($terms) && !is_wp_error($terms)) : ?>
+                                <?php foreach ($terms as $term) : ?>
+                                    <?php
+                                        $slug = $term->slug;
+                                        $checked = in_array($slug, (array) $current_uncategorized, true);
+                                    ?>
+                                    <label style="display:block; margin: 4px 0;">
+                                        <input type="checkbox" name="ll_uncategorized_desired_recording_types[]" value="<?php echo esc_attr($slug); ?>" <?php checked($checked); ?>>
+                                        <strong><?php echo esc_html($term->name); ?></strong>
+                                        <span style="opacity:.7">(<?php echo esc_html($slug); ?>)</span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <em><?php echo esc_html__('No recording types defined yet.', 'll-tools-text-domain'); ?></em>
+                            <?php endif; ?>
+                            <p class="description" style="margin-top:8px;">
+                                <?php echo esc_html__('Tip: Uncheck all and click Save to reset to main defaults.', 'll-tools-text-domain'); ?>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="save_uncategorized_defaults" class="button button-primary" value="<?php echo esc_attr__('Save', 'll-tools-text-domain'); ?>">
+                </p>
+            </form>
+        </div>
 
         <div style="margin-top: 20px; padding: 15px; background: #f0f0f1; border-left: 4px solid #72aee6;">
             <h3>Tips</h3>
