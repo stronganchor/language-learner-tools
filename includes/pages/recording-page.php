@@ -198,37 +198,45 @@ function ll_ajax_create_recording_page() {
 add_action('wp_ajax_ll_create_recording_page', 'll_ajax_create_recording_page');
 
 /**
+ * Helper: Build best recording page URL for a user
+ */
+function ll_get_recording_redirect_url($user_id = 0) {
+    if ($user_id) {
+        $custom_redirect = get_user_meta($user_id, 'll_recording_page_url', true);
+        if (!empty($custom_redirect)) {
+            return $custom_redirect;
+        }
+    }
+
+    // Default: use the stored recording page
+    $recording_page_id = get_option('ll_default_recording_page_id');
+    if ($recording_page_id && get_post_status($recording_page_id) === 'publish') {
+        return get_permalink($recording_page_id);
+    }
+
+    // Fallback: try to find any page with the shortcode
+    $recording_page = ll_find_recording_page();
+    if ($recording_page) {
+        return get_permalink($recording_page);
+    }
+
+    // Final fallback to home page
+    return home_url();
+}
+
+/**
  * Redirect audio_recorder users to their designated recording page on login
  */
 function ll_audio_recorder_login_redirect($redirect_to, $request, $user) {
     // Only redirect if it's a WP_User object and has audio_recorder role
     if (isset($user->roles) && is_array($user->roles) && in_array('audio_recorder', $user->roles)) {
-        // Check for user-specific redirect URL
-        $custom_redirect = get_user_meta($user->ID, 'll_recording_page_url', true);
-
-        if (!empty($custom_redirect)) {
-            return $custom_redirect;
-        }
-
-        // Default: use the stored recording page
-        $recording_page_id = get_option('ll_default_recording_page_id');
-        if ($recording_page_id && get_post_status($recording_page_id) === 'publish') {
-            return get_permalink($recording_page_id);
-        }
-
-        // Fallback: try to find any page with the shortcode
-        $recording_page = ll_find_recording_page();
-        if ($recording_page) {
-            return get_permalink($recording_page);
-        }
-
-        // Final fallback to home page
-        return home_url();
+        return ll_get_recording_redirect_url($user->ID);
     }
 
     return $redirect_to;
 }
-add_filter('login_redirect', 'll_audio_recorder_login_redirect', 10, 3);
+// High priority to win over other plugins altering login redirects
+add_filter('login_redirect', 'll_audio_recorder_login_redirect', 999, 3);
 
 /**
  * Find a page that contains the audio_recording_interface shortcode
