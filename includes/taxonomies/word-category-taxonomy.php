@@ -382,11 +382,30 @@ function ll_tools_get_main_recording_types(): array {
 }
 
 /**
+ * Helper: desired recording types when a word has no categories assigned.
+ */
+function ll_tools_get_uncategorized_desired_recording_types(): array {
+    $selected = get_option('ll_uncategorized_desired_recording_types', []);
+    if (!is_array($selected)) {
+        $selected = [];
+    }
+    $sanitized = array_values(array_unique(array_map('sanitize_text_field', $selected)));
+    if (!empty($sanitized)) {
+        return $sanitized;
+    }
+    return ll_tools_get_main_recording_types();
+}
+
+/**
  * Helper: get desired recording types for a category term (slugs)
  */
 function ll_tools_get_desired_recording_types_for_category($term_id): array {
     $selected = (array) get_term_meta((int) $term_id, 'll_desired_recording_types', true);
     if (!empty($selected)) { return array_values(array_unique(array_map('sanitize_text_field', $selected))); }
+    $term = get_term((int) $term_id, 'word-category');
+    if ($term && !is_wp_error($term) && $term->slug === 'uncategorized') {
+        return ll_tools_get_uncategorized_desired_recording_types();
+    }
     // If category is flagged as text-only, default to isolation-only for prompts
     $is_text_only = get_term_meta((int) $term_id, 'use_word_titles_for_audio', true) === '1';
     if ($is_text_only) { return ['isolation']; }
@@ -398,12 +417,12 @@ function ll_tools_get_desired_recording_types_for_category($term_id): array {
  */
 function ll_tools_get_desired_recording_types_for_word($word_id): array {
     $cats = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($cats) || empty($cats)) { return ll_tools_get_main_recording_types(); }
+    if (is_wp_error($cats) || empty($cats)) { return ll_tools_get_uncategorized_desired_recording_types(); }
     $acc = [];
     foreach ($cats as $tid) {
         $acc = array_merge($acc, ll_tools_get_desired_recording_types_for_category($tid));
     }
-    if (empty($acc)) { return ll_tools_get_main_recording_types(); }
+    if (empty($acc)) { return ll_tools_get_uncategorized_desired_recording_types(); }
     return array_values(array_unique($acc));
 }
 
@@ -936,6 +955,11 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5) {
         }
     } else {
         $term = $category;
+    }
+
+    // Never generate quizzes for the default "uncategorized" bucket.
+    if (isset($term->slug) && $term->slug === 'uncategorized') {
+        return false;
     }
 
     // If this category is set to "match audio to titles", check text mode specifically

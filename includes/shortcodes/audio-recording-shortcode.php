@@ -285,6 +285,7 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
     }
 
     $categories = [];
+    $has_uncategorized_items = false;
     $current_uid = get_current_user_id();
 
     // Image-backed items
@@ -313,7 +314,7 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
                 foreach ($term_ids as $tid) { $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid)); }
             }
         }
-        if (empty($desired)) { $desired = ll_tools_get_main_recording_types(); }
+        if (empty($desired)) { $desired = ll_tools_get_uncategorized_desired_recording_types(); }
         $filtered_types = array_values(array_intersect($desired, $base_filtered));
         if (empty($filtered_types)) { continue; }
 
@@ -323,7 +324,11 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         $missing = $word_id ? ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_uid) : $filtered_types;
         if (!empty($missing)) {
             $cats = wp_get_post_terms($img_id, 'word-category');
-            if (!empty($cats) && !is_wp_error($cats)) { $categories[$cats[0]->slug] = $cats[0]->name; }
+            if (!empty($cats) && !is_wp_error($cats)) {
+                $categories[$cats[0]->slug] = $cats[0]->name;
+            } else {
+                $has_uncategorized_items = true;
+            }
         }
     }
 
@@ -353,8 +358,20 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         $missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_uid);
         if (!empty($missing)) {
             $cats = wp_get_post_terms($word_id, 'word-category');
-            if (!empty($cats) && !is_wp_error($cats)) { $categories[$cats[0]->slug] = $cats[0]->name; }
+            if (!empty($cats) && !is_wp_error($cats)) {
+                $categories[$cats[0]->slug] = $cats[0]->name;
+            } else {
+                $has_uncategorized_items = true;
+            }
         }
+    }
+
+    if ($has_uncategorized_items && !isset($categories['uncategorized'])) {
+        $categories['uncategorized'] = __('Uncategorized', 'll-tools-text-domain');
+    }
+
+    if (!empty($categories)) {
+        asort($categories, SORT_FLAG_CASE | SORT_NATURAL);
     }
 
     return $categories;
@@ -442,6 +459,9 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
 
     // At this point we have images with featured images and categories
     // Check recording types
+    $is_uncategorized_request = ($category_slug === 'uncategorized');
+    $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
+
     $all_types = get_terms([
         'taxonomy' => 'recording_type',
         'hide_empty' => false,
@@ -696,6 +716,7 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  *     'word_title'    => string|null,   // NEW: word post title (target lang, preferred)
  *     'word_translation' => string|null, // NEW: word's English meaning (fallback)
  *     'use_word_display' => bool,       // NEW: true if word data is preferred over image title
+ *     'category_slug' => string,        // category slug or "uncategorized" placeholder
  *     'missing_types' => string[],       // recording_type slugs still needed (filtered)
  *     'existing_types'=> string[],       // recording_type slugs already present (not filtered, all)
  *   ],
@@ -709,6 +730,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             $wordset_term_ids = [$default_id];
         }
     }
+
+    $is_uncategorized_request = ($category_slug === 'uncategorized');
+    $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
 
     $all_types = get_terms([
         'taxonomy'   => 'recording_type',
@@ -745,7 +769,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         'fields'         => 'ids',
     ];
 
-    if (!empty($category_slug)) {
+    if (!empty($category_slug) && !$is_uncategorized_request) {
         $image_args['tax_query'] = [[
             'taxonomy' => 'word-category',
             'field'    => 'slug',
@@ -790,7 +814,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 foreach ($term_ids as $tid) { $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid)); }
             }
         }
-        if (empty($desired)) { $desired = ll_tools_get_main_recording_types(); }
+        if (empty($desired)) { $desired = ll_tools_get_uncategorized_desired_recording_types(); }
         $types_for_item = array_values(array_intersect($desired, $filtered_types));
 
         // If a complete speaker exists (has all 3 main types), skip this item entirely
@@ -807,17 +831,18 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             if ($thumb_url) {
                 $categories = wp_get_post_terms($img_id, 'word-category');
                 if (!empty($categories) && !is_wp_error($categories)) {
-                    $category      = $categories[0];
-                    $category_name = $category->name;
-                    $category_id   = $category->term_id;
+                    $category            = $categories[0];
+                    $category_name       = $category->name;
+                    $category_slug_value = $category->slug;
                 } else {
-                    $category_name = 'Uncategorized';
-                    $category_id   = 0;
+                    $category_name       = $uncategorized_label;
+                    $category_slug_value = 'uncategorized';
                 }
 
-                if (!isset($items_by_category[$category_id])) {
-                    $items_by_category[$category_id] = [
+                if (!isset($items_by_category[$category_slug_value])) {
+                    $items_by_category[$category_slug_value] = [
                         'name'  => $category_name,
+                        'slug'  => $category_slug_value,
                         'items' => [],
                     ];
                 }
@@ -881,11 +906,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     }
                 }
 
-                $items_by_category[$category_id]['items'][] = [
+                $items_by_category[$category_slug_value]['items'][] = [
                     'id'               => $img_id,
                     'title'            => ($title_role === 'translation' && !empty($img_translation)) ? $img_translation : get_the_title($img_id),
                     'image_url'        => $thumb_url,
                     'category_name'    => $category_name,
+                    'category_slug'    => $category_slug_value,
                     'word_id'          => $word_id ?: 0,
                     'word_title'       => $word_title,
                     'word_translation' => $word_translation,
@@ -927,7 +953,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         ]];
     }
 
-    if (!empty($category_slug)) {
+    if (!empty($category_slug) && !$is_uncategorized_request) {
         if (empty($word_args['tax_query'])) {
             $word_args['tax_query'] = [];
         }
@@ -954,17 +980,18 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         if (!empty($missing_types)) {
             $categories = wp_get_post_terms($word_id, 'word-category');
             if (!empty($categories) && !is_wp_error($categories)) {
-                $category      = $categories[0];
-                $category_name = $category->name;
-                $category_id   = $category->term_id;
+                $category            = $categories[0];
+                $category_name       = $category->name;
+                $category_slug_value = $category->slug;
             } else {
-                $category_name = 'Uncategorized';
-                $category_id   = 0;
+                $category_name       = $uncategorized_label;
+                $category_slug_value = 'uncategorized';
             }
 
-            if (!isset($items_by_category[$category_id])) {
-                $items_by_category[$category_id] = [
+            if (!isset($items_by_category[$category_slug_value])) {
+                $items_by_category[$category_slug_value] = [
                     'name'  => $category_name,
+                    'slug'  => $category_slug_value,
                     'items' => [],
                 ];
             }
@@ -979,11 +1006,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 $display_word_title = $translation;
             }
 
-            $items_by_category[$category_id]['items'][] = [
+            $items_by_category[$category_slug_value]['items'][] = [
                 'id'             => 0,
                 'title'          => $display_word_title,
                 'image_url'      => '',
                 'category_name'  => $category_name,
+                'category_slug'  => $category_slug_value,
                 'word_id'        => $word_id,
                 // NEW: For text-only (no image), use word's own title and translation
                 'word_title'       => $display_word_title,
@@ -1000,8 +1028,17 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         return strcasecmp($a['name'], $b['name']);
     });
 
-    foreach ($items_by_category as $category_data) {
-        foreach ($category_data['items'] as $item) {
+    if (!empty($category_slug)) {
+        $target_slugs = $is_uncategorized_request ? ['uncategorized'] : [$category_slug];
+    } else {
+        $target_slugs = array_keys($items_by_category);
+    }
+
+    foreach ($target_slugs as $slug) {
+        if (!isset($items_by_category[$slug])) {
+            continue;
+        }
+        foreach ($items_by_category[$slug]['items'] as $item) {
             $result[] = $item;
         }
     }
