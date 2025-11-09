@@ -256,13 +256,24 @@
          * Set target word audio (for quiz questions)
          */
         function setTargetWordAudio(targetWord) {
+            // Always clear any previous target audio to avoid stale playback
+            try {
+                if (currentTargetAudio) {
+                    // Fully cleanup the previously tracked target audio element
+                    cleanupSingleAudio(currentTargetAudio);
+                }
+                // Also remove any stray <audio> tags in the flashcard container
+                $('#ll-tools-flashcard audio').remove();
+            } catch (_) { /* swallow */ }
+
+            // If no audio exists for this word, mark as satisfied so UI isn't blocked
             if (!targetWord || !targetWord.audio) {
                 console.warn('Audio: No audio for word');
-                return Promise.reject(new Error('No audio'));
+                currentTargetAudio = null;
+                // Treat as "played" so feedback and interactions aren't gated
+                targetAudioHasPlayed = true;
+                return Promise.resolve();
             }
-
-            // Remove old target audio from DOM
-            $('#ll-tools-flashcard audio').remove();
 
             // Create new audio in DOM
             var audioElement = $('<audio>', {
@@ -277,7 +288,7 @@
 
             targetAudioHasPlayed = false;
 
-            // Track when audio has played enough
+            // Mark as satisfied once playback starts or ends
             currentTargetAudio.addEventListener('timeupdate', function onTimeUpdate() {
                 if (this.currentTime > 0.4 || this.ended) {
                     targetAudioHasPlayed = true;
@@ -285,11 +296,19 @@
                 }
             });
 
+            // If the file fails to load/play, don't block interactions
             currentTargetAudio.onerror = function (e) {
-                console.error("Error playing target audio file:", currentTargetAudio.src, e);
+                try { console.error('Error playing target audio file:', currentTargetAudio && currentTargetAudio.src, e); } catch (_) { }
+                // Unblock any feedback that waits for target audio
+                targetAudioHasPlayed = true;
             };
 
-            return playAudio(currentTargetAudio);
+            var p = playAudio(currentTargetAudio);
+            if (p && typeof p.catch === 'function') {
+                // Swallow playback errors so the round can proceed
+                return p.catch(function () { return; });
+            }
+            return Promise.resolve();
         }
 
         /**
@@ -298,21 +317,26 @@
         function playFeedback(isCorrect, targetWordAudio, callback) {
             var audioToPlay = isCorrect ? correctAudio : wrongAudio;
 
-            if (!targetAudioHasPlayed || (isCorrect && !audioToPlay.paused)) {
+            // If there's no target audio, treat the requirement as satisfied
+            var playbackSatisfied = targetAudioHasPlayed || !currentTargetAudio;
+            if (!playbackSatisfied || (isCorrect && !audioToPlay.paused)) {
                 return Promise.resolve();
             }
 
-            if (!isCorrect && targetWordAudio) {
-                // Wrong answer: play wrong sound, then target audio
-                wrongAudio.onended = function () {
-                    playAudio(currentTargetAudio);
-                };
-                return playAudio(audioToPlay);
-            } else if (isCorrect && typeof callback === 'function') {
-                // Correct answer: play correct sound, then callback
-                correctAudio.onended = callback;
+            if (!isCorrect) {
+                // Wrong answer: play wrong sound, then target audio if available
+                if (currentTargetAudio) {
+                    wrongAudio.onended = function () { playAudio(currentTargetAudio); };
+                } else if (typeof callback === 'function') {
+                    // If no target audio, chain to callback if provided
+                    wrongAudio.onended = callback;
+                } else {
+                    wrongAudio.onended = null;
+                }
                 return playAudio(audioToPlay);
             } else {
+                // Correct answer: play correct sound, then callback if provided
+                correctAudio.onended = (typeof callback === 'function') ? callback : null;
                 return playAudio(audioToPlay);
             }
         }
