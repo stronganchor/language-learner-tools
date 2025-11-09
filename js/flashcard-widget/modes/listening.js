@@ -30,6 +30,46 @@
         return setTimeout(fn, delay);
     }
 
+    // Helper: determine the base practice-mode text card dimensions (e.g., 250x150)
+    function getPracticeTextBaseDims() {
+        const $jq = getJQuery();
+        if (!$jq) return { w: 250, h: 150, ratio: (250 / 150) };
+        const $probe = $jq('<div>', { class: 'flashcard-container text-based' })
+            .css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' })
+            .appendTo('body');
+        let w = Math.max(1, Math.round($probe.innerWidth()));
+        let h = Math.max(1, Math.round($probe.innerHeight()));
+        $probe.remove();
+        if (!w || !h) { w = 250; h = 150; }
+        return { w: w, h: h, ratio: w / h };
+    }
+
+    // Helper: apply a slightly larger, but same-aspect, size for text placeholders
+    function applyTextPlaceholderSizing($ph) {
+        const $jq = getJQuery();
+        if (!$jq || !$ph || !$ph.length) return;
+        const base = getPracticeTextBaseDims();
+        const aspect = base.ratio || (250 / 150);
+
+        // Target a modest scale-up over practice (single-option listening screen)
+        const scale = 1.25; // ~25% larger than practice
+        let targetWidth = Math.round(base.w * scale);
+
+        try {
+            const vw = Math.max(0, (typeof window !== 'undefined' ? window.innerWidth : 0));
+            const vh = Math.max(0, (typeof window !== 'undefined' ? window.innerHeight : 0));
+            // Cap width to viewport and a sensible desktop max, also respect vertical space
+            const maxByVw = Math.floor(vw * 0.92);
+            const maxByRule = 700; // match CSS cap used for listening placeholder
+            const heightAllowance = Math.max(0, vh - 300); // mirrors CSS calc(100vh - 300px)
+            const maxByVh = heightAllowance ? Math.floor(aspect * heightAllowance) : Number.POSITIVE_INFINITY;
+            targetWidth = Math.max(1, Math.min(targetWidth, maxByVw || targetWidth, maxByRule, maxByVh));
+        } catch (_) { /* no-op */ }
+
+        // Apply width and fixed aspect ratio inline
+        $ph.css({ width: targetWidth + 'px', 'aspect-ratio': base.w + ' / ' + base.h });
+    }
+
     // Simple wake lock manager (best-effort)
     // Keeps the screen awake while listening mode is actively playing.
     const WakeLock = (function () {
@@ -140,7 +180,10 @@
         if (State.categoryNames && State.wordsByCategory) {
             for (const name of State.categoryNames) {
                 const list = State.wordsByCategory[name] || [];
-                for (const w of list) all.push(w);
+                for (const w of list) {
+                    try { if (w && typeof w === 'object') { w.__categoryName = name; } } catch (_) {}
+                    all.push(w);
+                }
             }
         }
         State.wordsLinear = all;
@@ -318,19 +361,18 @@
         if (!$container || typeof $container.append !== 'function') return null;
         const options = opts || {};
         const baseClasses = ['flashcard-container', 'listening-placeholder'];
-        // If we know this item is text-based, match the text card sizing; otherwise use configured image size
-        if (options.textBased) {
-            baseClasses.push('text-based');
-        } else {
-            const data = root.llToolsFlashcardsData || {};
-            const configuredSize = (data && typeof data.imageSize === 'string') ? data.imageSize : 'small';
-            const safeSize = VALID_IMAGE_SIZES.includes(configuredSize) ? configuredSize : 'small';
-            baseClasses.push('flashcard-size-' + safeSize);
-        }
+        // For listening mode, we want a single large, responsive square.
+        // Keep 'text-based' for font styling, but avoid fixed flashcard-size classes.
+        if (options.textBased) { baseClasses.push('text-based'); }
         const $ph = $jq('<div>', {
             class: baseClasses.join(' '),
             css: { display: 'flex' }
         });
+        // For text-only categories, size the placeholder slightly larger than practice,
+        // but maintain the same aspect ratio as the practice text card.
+        if (options.textBased) {
+            applyTextPlaceholderSizing($ph);
+        }
         // Overlay to hide visual content until reveal
         const $overlay = $jq('<div>', { class: 'listening-overlay' });
         $ph.append($overlay);
@@ -344,15 +386,21 @@
         if (!$jq || !$ph || !$ph.length) return null;
         const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text' });
 
-        // Measure text to fit within the placeholder box
-        // Use an off-DOM clone to avoid overlay/visualizer interference
-        const $measure = $jq('<div>', { class: $ph.attr('class') })
-            .css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' });
+        // Measure text to fit within the placeholder box using the same aspect ratio
+        // as practice mode's text card, but scaled slightly larger for listening.
+        const base = getPracticeTextBaseDims();
+        const ratio = base.ratio || (250 / 150);
+        const phW = Math.max(1, Math.round($ph.innerWidth()));
+        const phH = Math.max(1, Math.round(phW / ratio));
+
+        // Off-DOM measurement container with constrained width to the placeholder width
+        const $measure = $jq('<div>')
+            .css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block', width: phW + 'px' });
         const $measureLabel = $label.clone().appendTo($measure);
         $jq('body').append($measure);
         try {
-            const boxH = $measure.innerHeight() - 15;
-            const boxW = $measure.innerWidth() - 15;
+            const boxH = phH - 15;
+            const boxW = phW - 15;
             const fontFamily = getComputedStyle($measureLabel[0]).fontFamily || 'sans-serif';
             // Start a bit larger than standard text mode to make listening text more prominent
             for (let fs = 56; fs >= 14; fs--) {
@@ -360,7 +408,7 @@
                     ? namespace.Util.measureTextWidth(labelText || '', fs + 'px ' + fontFamily)
                     : null;
                 if (w && w > boxW) continue;
-                $measureLabel.css({ fontSize: fs + 'px', lineHeight: fs + 'px', visibility: 'visible', position: 'relative' });
+                $measureLabel.css({ fontSize: fs + 'px', lineHeight: fs + 'px', visibility: 'visible', position: 'relative', maxWidth: boxW + 'px' });
                 if ($measureLabel.outerHeight() <= boxH) break;
             }
             // Apply the measured styles to the real label
@@ -410,6 +458,26 @@
             try { WakeLock.update(); } catch (_) { }
             return true;
         }
+
+        // Update category header to reflect the current word's category
+        (function updateHeaderForCurrentTarget() {
+            try {
+                let cat = (target && target.__categoryName) ? target.__categoryName : null;
+                if (!cat && State && Array.isArray(State.categoryNames)) {
+                    for (const name of State.categoryNames) {
+                        const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
+                        if (list && list.some(w => w && w.id === target.id)) { cat = name; break; }
+                    }
+                }
+                if (cat) {
+                    State.currentCategoryName = cat;
+                    State.currentCategory = (State.wordsByCategory && State.wordsByCategory[cat]) || [];
+                    if (Dom && typeof Dom.updateCategoryNameDisplay === 'function') {
+                        Dom.updateCategoryNameDisplay(cat);
+                    }
+                }
+            } catch (_) { /* no-op */ }
+        })();
 
         try { WakeLock.update(); } catch (_) { }
 
@@ -471,6 +539,15 @@
                             const fudge = 10;
                             if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');
                             else if (this.naturalWidth + fudge < this.naturalHeight) $ph.addClass('portrait');
+
+                            // Set exact aspect ratio based on the loaded image dimensions
+                            try {
+                                const nw = Math.max(1, this.naturalWidth || 0);
+                                const nh = Math.max(1, this.naturalHeight || 0);
+                                if (nw && nh) {
+                                    $ph.css('aspect-ratio', nw + ' / ' + nh);
+                                }
+                            } catch (_) { /* no-op */ }
                         });
                         $ph.prepend($img);
                     } else {
