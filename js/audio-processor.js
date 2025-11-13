@@ -7,6 +7,8 @@
         processing: false,
         audioContext: null,
         reviewData: new Map(),
+        // Track last clicked checkbox index for shift-click range selection
+        lastSelectedIndex: null,
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -33,6 +35,7 @@
         const deselectAll = document.getElementById('ll-deselect-all');
         const processBtn = document.getElementById('ll-process-selected');
         const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
+        const cbArray = Array.from(checkboxes);
 
         const enableTrim = document.getElementById('ll-enable-trim');
         const enableNoise = document.getElementById('ll-enable-noise');
@@ -75,6 +78,7 @@
         }
 
         checkboxes.forEach(cb => {
+            // Support single toggle updates
             cb.addEventListener('change', (e) => {
                 const id = parseInt(e.target.value);
                 if (e.target.checked) {
@@ -83,6 +87,39 @@
                     state.selected.delete(id);
                 }
                 updateSelectedCount();
+            });
+
+            // Add shift-click range selection (Gmail-style)
+            cb.addEventListener('click', (e) => {
+                const currentIndex = cbArray.indexOf(e.currentTarget);
+
+                if (e.shiftKey && state.lastSelectedIndex !== null && state.lastSelectedIndex !== -1) {
+                    const start = Math.min(state.lastSelectedIndex, currentIndex);
+                    const end = Math.max(state.lastSelectedIndex, currentIndex);
+                    const shouldCheck = e.currentTarget.checked;
+
+                    for (let i = start; i <= end; i++) {
+                        const targetCb = cbArray[i];
+                        if (!targetCb) continue;
+
+                        // Only update if state differs to avoid unnecessary work
+                        if (targetCb.checked !== shouldCheck) {
+                            targetCb.checked = shouldCheck;
+                        }
+
+                        const id = parseInt(targetCb.value);
+                        if (shouldCheck) {
+                            state.selected.add(id);
+                        } else {
+                            state.selected.delete(id);
+                        }
+                    }
+
+                    updateSelectedCount();
+                }
+
+                // Always remember the last clicked index
+                state.lastSelectedIndex = currentIndex;
             });
         });
 

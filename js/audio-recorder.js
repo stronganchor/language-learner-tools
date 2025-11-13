@@ -135,6 +135,47 @@
         el.skipBtn.addEventListener('click', skipToNext);
     }
 
+    // Proactively surface likely microphone issues so users know what to fix
+    document.addEventListener('DOMContentLoaded', () => {
+        preflightMicCheck().catch(() => { /* ignore */ });
+    });
+
+    async function preflightMicCheck() {
+        // Only run if the UI exists
+        if (!window.llRecorder || !window.llRecorder.status) return;
+
+        // Insecure context cannot access mic; advise immediately
+        if (!window.isSecureContext) {
+            showStatus((i18n.insecure_context || 'Microphone requires a secure connection. Please use HTTPS or localhost.'), 'error');
+            return;
+        }
+
+        // If Permissions API is available, warn if previously denied
+        try {
+            if (navigator.permissions && navigator.permissions.query) {
+                const p = await navigator.permissions.query({ name: 'microphone' });
+                if (p && p.state === 'denied') {
+                    showStatus(
+                        (i18n.mic_permission_blocked || 'Microphone permission is blocked for this site. Click the lock icon in the address bar → Site settings → allow Microphone, then reload.'),
+                        'error'
+                    );
+                    return;
+                }
+            }
+        } catch (_) { /* ignore */ }
+
+        // If no audio inputs are detected, surface that
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const inputs = devices.filter(d => d.kind === 'audioinput');
+                if (inputs.length === 0) {
+                    showStatus((i18n.no_mic_devices || 'No microphone input devices detected. Check Windows microphone privacy and Sound settings.'), 'error');
+                }
+            }
+        } catch (_) { /* ignore */ }
+    }
+
     function loadImage(index) {
         if (index >= images.length) {
             showComplete();
@@ -279,16 +320,91 @@
 
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            console.error('Error name:', err.name);
-            console.error('Error message:', err.message);
+            console.error('Error name:', err?.name);
+            console.error('Error message:', err?.message);
 
-            let errorMsg = i18n.microphone_error || 'Error: Could not access microphone';
-            if (err.message && err.message.includes('audio formats')) {
-                errorMsg = 'Browser does not support required audio formats for recording. Please try a different browser.';
-            }
-
-            showStatus(errorMsg, 'error');
+            const message = await buildMicErrorMessage(err);
+            showStatus(message, 'error');
+            // Make sure UI remains usable after failure
+            el.recordBtn.disabled = false;
+            el.skipBtn.disabled = false;
         }
+    }
+
+    async function buildMicErrorMessage(err) {
+        const name = err && err.name ? String(err.name) : '';
+        const isSecure = !!window.isSecureContext;
+
+        let permState = 'unknown';
+        try {
+            if (navigator.permissions && navigator.permissions.query) {
+                const p = await navigator.permissions.query({ name: 'microphone' });
+                permState = p?.state || 'unknown';
+            }
+        } catch (_) { /* ignore */ }
+
+        let inputCount = -1;
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                inputCount = devices.filter(d => d.kind === 'audioinput').length;
+            }
+        } catch (_) { /* ignore */ }
+
+        // Default fallback
+        let msg = i18n.microphone_error || 'Error: Could not access microphone';
+
+        // Insecure context
+        if (!isSecure) {
+            return 'Microphone requires a secure connection. Open this page over HTTPS or localhost and try again.';
+        }
+
+        // Tailored messages by error name
+        switch (name) {
+            case 'NotAllowedError':
+            case 'PermissionDeniedError':
+                if (permState === 'denied') {
+                    msg = 'Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page.';
+                } else {
+                    msg = 'Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.';
+                }
+                break;
+            case 'NotReadableError':
+                msg = 'Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again.';
+                break;
+            case 'NotFoundError':
+            case 'DevicesNotFoundError':
+                msg = 'No microphone found. Connect a microphone and check Windows Privacy & Sound settings.';
+                break;
+            case 'OverconstrainedError':
+            case 'ConstraintNotSatisfiedError':
+                msg = 'The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again.';
+                break;
+            case 'SecurityError':
+                msg = 'Browser blocked access due to security policy. Ensure you are on HTTPS and try again.';
+                break;
+            case 'AbortError':
+                msg = 'Audio capture aborted unexpectedly. Try again.';
+                break;
+            default:
+                // Keep default
+                break;
+        }
+
+        // Augment with quick Windows/Chrome hints
+        const hints = [];
+        if (permState === 'denied') {
+            hints.push('Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow.');
+        }
+        if (inputCount === 0) {
+            hints.push('No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input.');
+        }
+
+        if (hints.length) {
+            msg += ' ' + hints.join(' ');
+        }
+
+        return msg;
     }
 
     function stopRecording() {
