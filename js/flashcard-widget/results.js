@@ -118,7 +118,14 @@
             $('#quiz-results').show();
             $('#restart-quiz').hide();
             $('#quiz-mode-buttons').hide();
-            root.FlashcardAudio.playFeedback(false, null, null);
+            // Avoid playing feedback if the widget is closing/idle
+            try {
+                var isClosing = false;
+                try { isClosing = !!(State && typeof State.is === 'function' && State.is(State.STATES.CLOSING)); } catch (_) { isClosing = false; }
+                if (!isClosing && State && State.widgetActive && root.FlashcardAudio && typeof root.FlashcardAudio.playFeedback === 'function') {
+                    root.FlashcardAudio.playFeedback(false, null, null);
+                }
+            } catch (_) { }
             return;
         }
 
