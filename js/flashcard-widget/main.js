@@ -107,7 +107,7 @@
         $wrap.css('display', 'block');
 
         // Update icons/labels and active state
-        ['learning', 'practice', 'listening'].forEach(function(mode){
+        ['learning', 'practice', 'listening'].forEach(function (mode) {
             const cfg = MODE_SWITCH_CONFIG[mode] || {};
             const $btn = $menu.find('.ll-tools-mode-option.' + mode);
             if (!$btn.length) return;
@@ -270,7 +270,8 @@
                 State.quizResults.correctOnFirstTry += 1;
             }
             $('.flashcard-container').not($correctCard).addClass('fade-out');
-            setTimeout(function () {
+            // Use session-guarded timeout so closing the quiz cancels this continuation
+            setGuardedTimeout(function () {
                 State.isFirstRound = false;
                 State.userClickedCorrectAnswer = false;
                 State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
@@ -538,10 +539,10 @@
                     State.isListeningMode = true;
                 }
 
-                 const activeModule = getActiveModeModule();
-                 if (activeModule && typeof activeModule.initialize === 'function') {
-                     try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
-                 }
+                const activeModule = getActiveModeModule();
+                if (activeModule && typeof activeModule.initialize === 'function') {
+                    try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
+                }
 
                 if (State.widgetActive) return;
                 State.widgetActive = true;
@@ -667,7 +668,58 @@
         $('#ll-tools-flashcard-content').off('.llAutoplayKick');
         $('#ll-tools-flashcard').css('pointer-events', 'auto');
 
-        const cleanupPromise = root.FlashcardAudio.startNewSession()
+        // Ensure any confetti canvas is removed when closing the widget
+        try {
+            const confettiCanvas = document.getElementById('confetti-canvas');
+            if (confettiCanvas && confettiCanvas.parentNode) {
+                confettiCanvas.parentNode.removeChild(confettiCanvas);
+            }
+            if (root.confetti && typeof root.confetti.reset === 'function') {
+                root.confetti.reset();
+            }
+        } catch (_) { }
+
+        try {
+            if (root.FlashcardAudio?.setTargetWordAudio) {
+                // Clear any current target audio element immediately to avoid late playback
+                root.FlashcardAudio.setTargetWordAudio(null);
+            }
+        } catch (_) { }
+
+        const stopAudioPromise = (() => {
+            if (!root.FlashcardAudio) return Promise.resolve();
+
+            const audioApi = root.FlashcardAudio;
+            const tasks = [];
+
+            try {
+                if (typeof audioApi.flushAllAudioSessions === 'function') {
+                    tasks.push(audioApi.flushAllAudioSessions());
+                } else {
+                    if (typeof audioApi.pauseAllAudio === 'function') {
+                        tasks.push(audioApi.pauseAllAudio());
+                        tasks.push(audioApi.pauseAllAudio(-1));
+                    }
+                }
+
+                if (typeof audioApi.setTargetAudioHasPlayed === 'function') {
+                    audioApi.setTargetAudioHasPlayed(true);
+                }
+            } catch (_) { }
+
+            if (!tasks.length) return Promise.resolve();
+            return Promise.all(tasks.map(p => Promise.resolve(p).catch(() => undefined))).then(() => undefined);
+        })();
+
+        const cleanupPromise = Promise.resolve(stopAudioPromise)
+            .catch(function (err) {
+                console.warn('Failed to pause audio before cleanup:', err);
+            })
+            .then(function () {
+                if (root.FlashcardAudio && typeof root.FlashcardAudio.startNewSession === 'function') {
+                    return root.FlashcardAudio.startNewSession();
+                }
+            })
             .catch(function (err) {
                 console.error('Failed to start audio cleanup session:', err);
             })
@@ -718,9 +770,9 @@
             try { module.initialize(); } catch (err) { console.error('Mode initialization failed during restart:', err); }
         }
         root.LLFlashcards.Results.hideResults();
-            $('#ll-tools-flashcard').empty();
-            Dom.restoreHeaderUI();
-            updateModeSwitcherPanel();
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+        updateModeSwitcherPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
     }

@@ -122,11 +122,11 @@
         }
 
         /**
- * Loads resources for a specific category via AJAX.
- *
- * @param {string} categoryName - The name of the category.
- * @param {function} callback - Callback to execute after loading.
- */
+         * Loads resources for a specific category via AJAX.
+         *
+         * @param {string} categoryName - The name of the category.
+         * @param {function} callback - Callback to execute after loading.
+         */
         function loadResourcesForCategory(categoryName, callback) {
             if (loadedCategories.includes(categoryName)) {
                 if (typeof callback === 'function') callback();
@@ -252,6 +252,52 @@
                 loadAudio(word.audio),
                 (displayMode === 'image' ? loadImage(word.image) : Promise.resolve())
             ]);
+        }
+
+        function resolvePlayableAudio(word) {
+            if (!word || typeof word !== 'object') return '';
+
+            const trimString = (value) => (typeof value === 'string') ? value.trim() : '';
+            const sanitize = (value) => {
+                const trimmed = trimString(value);
+                if (!trimmed) return '';
+                const lowered = trimmed.toLowerCase();
+                if (lowered === 'null' || lowered === 'undefined' || lowered === '#') {
+                    return '';
+                }
+                return trimmed;
+            };
+
+            const primaryAudio = sanitize(word.audio);
+            if (primaryAudio) {
+                word.audio = primaryAudio;
+                return primaryAudio;
+            }
+
+            let selectedAudio = '';
+
+            try {
+                if (window.FlashcardAudio && typeof window.FlashcardAudio.selectBestAudio === 'function') {
+                    const preferredOrder = ['question', 'introduction', 'isolation', 'in sentence'];
+                    selectedAudio = sanitize(window.FlashcardAudio.selectBestAudio(word, preferredOrder));
+                }
+            } catch (err) {
+                console.warn('FlashcardLoader: Failed to select best audio', err);
+            }
+
+            if (!selectedAudio && Array.isArray(word.audio_files)) {
+                const fallback = word.audio_files.find(file => file && sanitize(file.url));
+                if (fallback) {
+                    selectedAudio = sanitize(fallback.url);
+                }
+            }
+
+            if (selectedAudio) {
+                word.audio = selectedAudio;
+                return selectedAudio;
+            }
+
+            return '';
         }
 
         return {

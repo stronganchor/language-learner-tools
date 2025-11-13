@@ -137,14 +137,57 @@
 
             return new Promise(function (resolve) {
                 try {
-                    audio.pause();
-                    audio.currentTime = 0;
+                    if (typeof audio.pause === 'function') {
+                        audio.pause();
+                    }
+                    if (typeof audio.currentTime === 'number') {
+                        audio.currentTime = 0;
+                    }
+                    // Prevent any deferred callbacks from firing after we've stopped it
+                    audio.onended = null;
+                    audio.onerror = null;
                     resolve();
                 } catch (e) {
                     console.error('Audio: Stop error', e);
                     resolve(); // Don't reject
                 }
             });
+        }
+
+        /**
+         * Force stop and cleanup every tracked audio instance, including target audio.
+         */
+        function flushAllAudioSessions() {
+            var tasks = [];
+
+            activeAudioElements.forEach(function (sessionId, audio) {
+                // Always stop the audio first
+                tasks.push(stopAudio(audio));
+
+                // Feedback audio is session -1 and should persist; skip removing it
+                if (audio && audio.__sessionId !== -1 && audio !== currentTargetAudio) {
+                    tasks.push(cleanupSingleAudio(audio));
+                }
+            });
+
+            if (currentTargetAudio && currentTargetAudio.__sessionId !== -1) {
+                tasks.push(cleanupSingleAudio(currentTargetAudio).then(function () {
+                    currentTargetAudio = null;
+                    targetAudioHasPlayed = false;
+                }));
+            } else {
+                currentTargetAudio = null;
+                targetAudioHasPlayed = false;
+            }
+
+            try { if (correctAudio) { correctAudio.onended = null; correctAudio.onerror = null; } } catch (_) { }
+            try { if (wrongAudio) { wrongAudio.onended = null; wrongAudio.onerror = null; } } catch (_) { }
+            try { $('#ll-tools-flashcard audio').remove(); } catch (_) { }
+
+            autoplayBlocked = false;
+
+            return Promise.all(tasks.map(function (p) { return Promise.resolve(p).catch(function () { return; }); }))
+                .then(function () { return; });
         }
 
         /**
@@ -451,6 +494,8 @@
             isCurrentSession: isCurrentSession,
             playAudio: playAudio,
             pauseAllAudio: pauseAllAudio,
+            // Expose full-session flush so callers can clean everything
+            flushAllAudioSessions: flushAllAudioSessions,
             setTargetWordAudio: setTargetWordAudio,
             playFeedback: playFeedback,
             selectBestAudio: selectBestAudio,
