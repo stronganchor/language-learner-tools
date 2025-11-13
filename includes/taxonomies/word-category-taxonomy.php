@@ -585,6 +585,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
         }
 
+        // Require actual audio to be present for inclusion in quizzes. Do NOT fall back to legacy meta here.
+        $has_audio = !empty($primary_audio) || !empty($audio_files);
+
         $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
         $label = $title;
@@ -620,12 +623,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'similar_word_id' => $similar_word_id ?: '',
         ];
 
-        if ($displayMode === 'image' && !empty($image)) {
-            $words[] = $word_data;
-        } elseif ($displayMode === 'text') {
-            $words[] = $word_data;
-        } elseif ($displayMode === 'random') {
-            $words[] = $word_data;
+        // Only include words that have playable audio
+        if ($has_audio) {
+            if ($displayMode === 'image' && !empty($image)) {
+                $words[] = $word_data;
+            } elseif ($displayMode === 'text') {
+                $words[] = $word_data;
+            } elseif ($displayMode === 'random') {
+                $words[] = $word_data;
+            }
         }
     }
 

@@ -196,3 +196,63 @@ function ll_save_word_audio_meta($post_id) {
         update_post_meta($post_id, 'speaker_name', sanitize_text_field($_POST['speaker_name']));
     }
 }
+
+/**
+ * Keep parent word status in sync with availability of published audio children.
+ * - If a word loses its last published audio (trash/delete/unpublish), set the word to draft and remove legacy meta.
+ * - We purposefully do not auto-publish words here; publishing is handled by processing/review flows.
+ */
+function ll_tools_sync_parent_word_status_by_children($parent_word_id) {
+    $parent_word_id = intval($parent_word_id);
+    if (!$parent_word_id) return;
+
+    // Check if there are any remaining published audio children
+    $remaining = get_posts([
+        'post_type'      => 'word_audio',
+        'post_parent'    => $parent_word_id,
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ]);
+
+    if (empty($remaining)) {
+        $parent = get_post($parent_word_id);
+        if ($parent && $parent->post_type === 'words') {
+            if ($parent->post_status !== 'draft') {
+                wp_update_post([
+                    'ID'          => $parent_word_id,
+                    'post_status' => 'draft',
+                ]);
+            }
+            // Remove legacy meta so it doesn't appear as if audio exists
+            delete_post_meta($parent_word_id, 'word_audio_file');
+        }
+    }
+}
+
+// When an audio post is trashed
+add_action('trashed_post', function ($post_id) {
+    $post = get_post($post_id);
+    if ($post && $post->post_type === 'word_audio') {
+        ll_tools_sync_parent_word_status_by_children($post->post_parent);
+    }
+});
+
+// When an audio post is permanently deleted
+add_action('before_delete_post', function ($post_id) {
+    $post = get_post($post_id);
+    if ($post && $post->post_type === 'word_audio') {
+        ll_tools_sync_parent_word_status_by_children($post->post_parent);
+    }
+});
+
+// When an audio post changes status (publish -> draft/private/pending etc.)
+add_action('transition_post_status', function ($new_status, $old_status, $post) {
+    if ($post && $post->post_type === 'word_audio' && $new_status !== $old_status) {
+        // Only enforce downgrade when leaving publish
+        if ($old_status === 'publish' && $new_status !== 'publish') {
+            ll_tools_sync_parent_word_status_by_children($post->post_parent);
+        }
+    }
+}, 10, 3);

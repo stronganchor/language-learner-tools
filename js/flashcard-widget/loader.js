@@ -115,7 +115,13 @@
                 window.categoryRoundCount[categoryName] = 0;
             }
 
-            window.wordsByCategory[categoryName].push(...wordData);
+            // Filter out words that do not have a resolvable audio URL
+            const filtered = Array.isArray(wordData) ? wordData.filter(function (w) {
+                const url = resolvePlayableAudio(w);
+                return !!url;
+            }) : [];
+
+            window.wordsByCategory[categoryName].push(...filtered);
             window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
 
             loadedCategories.push(categoryName);
