@@ -310,11 +310,28 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
             $desired = ll_tools_get_desired_recording_types_for_word($word_id);
         } else {
             $term_ids = wp_get_post_terms($img_id, 'word-category', ['fields' => 'ids']);
+            $has_enabled_cat = false;
+            $has_disabled_cat = false;
             if (!is_wp_error($term_ids) && !empty($term_ids)) {
-                foreach ($term_ids as $tid) { $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid)); }
+                foreach ($term_ids as $tid) {
+                    if (ll_tools_is_category_recording_disabled($tid)) {
+                        $has_disabled_cat = true;
+                        continue;
+                    }
+                    $has_enabled_cat = true;
+                    $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid));
+                }
+            }
+            if (empty($desired)) {
+                if ($has_enabled_cat) {
+                    $desired = ll_tools_get_uncategorized_desired_recording_types();
+                } elseif ($has_disabled_cat) {
+                    $desired = [];
+                } else {
+                    $desired = ll_tools_get_uncategorized_desired_recording_types();
+                }
             }
         }
-        if (empty($desired)) { $desired = ll_tools_get_uncategorized_desired_recording_types(); }
         $filtered_types = array_values(array_intersect($desired, $base_filtered));
         if (empty($filtered_types)) { continue; }
 
@@ -832,25 +849,46 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
         // Determine desired + filtered types for this item
         $desired = [];
+        $has_disabled_cat = false;
         if ($word_id) {
+            $category_disabled = false;
             // If a specific category is being recorded, respect only that category's settings
             if (!empty($category_slug) && !$is_uncategorized_request) {
                 $cat_term = get_term_by('slug', $category_slug, 'word-category');
                 if ($cat_term && !is_wp_error($cat_term)) {
-                    $desired = ll_tools_get_desired_recording_types_for_category((int) $cat_term->term_id);
+                    if (ll_tools_is_category_recording_disabled((int) $cat_term->term_id)) {
+                        $category_disabled = true;
+                    } else {
+                        $desired = ll_tools_get_desired_recording_types_for_category((int) $cat_term->term_id);
+                    }
                 }
             }
             // Fallback to union across the word's categories when no specific category context
-            if (empty($desired)) {
+            if (empty($desired) && !$category_disabled) {
                 $desired = ll_tools_get_desired_recording_types_for_word($word_id);
+            }
+            if ($category_disabled && empty($desired)) {
+                $has_disabled_cat = true;
             }
         } else {
             $term_ids = wp_get_post_terms($img_id, 'word-category', ['fields' => 'ids']);
             if (!is_wp_error($term_ids) && !empty($term_ids)) {
-                foreach ($term_ids as $tid) { $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid)); }
+                foreach ($term_ids as $tid) {
+                    if (ll_tools_is_category_recording_disabled($tid)) {
+                        $has_disabled_cat = true;
+                        continue;
+                    }
+                    $desired = array_merge($desired, ll_tools_get_desired_recording_types_for_category($tid));
+                }
             }
         }
-        if (empty($desired)) { $desired = ll_tools_get_uncategorized_desired_recording_types(); }
+        if (empty($desired)) {
+            if ($has_disabled_cat) {
+                $desired = [];
+            } else {
+                $desired = ll_tools_get_uncategorized_desired_recording_types();
+            }
+        }
         $types_for_item = array_values(array_intersect($desired, $filtered_types));
 
         // Decide whether to enforce single-speaker gating and per-user missing logic
@@ -1023,13 +1061,18 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     foreach ($text_words as $word_id) {
         // Respect category-specific desired types when a category is targeted
         $desired = [];
+        $category_disabled = false;
         if (!empty($category_slug) && !$is_uncategorized_request) {
             $cat_term = get_term_by('slug', $category_slug, 'word-category');
             if ($cat_term && !is_wp_error($cat_term)) {
-                $desired = ll_tools_get_desired_recording_types_for_category((int) $cat_term->term_id);
+                if (ll_tools_is_category_recording_disabled((int) $cat_term->term_id)) {
+                    $category_disabled = true;
+                } else {
+                    $desired = ll_tools_get_desired_recording_types_for_category((int) $cat_term->term_id);
+                }
             }
         }
-        if (empty($desired)) {
+        if (empty($desired) && !$category_disabled) {
             $desired = ll_tools_get_desired_recording_types_for_word($word_id);
         }
         $types_for_word = array_values(array_intersect($desired, $filtered_types));

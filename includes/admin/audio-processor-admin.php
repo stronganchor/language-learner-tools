@@ -301,6 +301,9 @@ function ll_delete_audio_recording_handler() {
         wp_send_json_error('Invalid audio post');
     }
 
+    // Resolve parent word before deletion
+    $parent_word_id = (int) $audio_post->post_parent;
+
     // Delete the audio file from filesystem
     $audio_file_path = get_post_meta($audio_post_id, 'audio_file_path', true);
     if ($audio_file_path) {
@@ -314,6 +317,28 @@ function ll_delete_audio_recording_handler() {
     $deleted = wp_delete_post($audio_post_id, true);
 
     if ($deleted) {
+        // If parent exists, and it now has no published audio posts, set it to draft and clean legacy meta
+        if ($parent_word_id) {
+            $remaining = get_posts([
+                'post_type'      => 'word_audio',
+                'post_parent'    => $parent_word_id,
+                'post_status'    => 'publish',
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+            ]);
+            if (empty($remaining)) {
+                $parent = get_post($parent_word_id);
+                if ($parent && $parent->post_status === 'publish') {
+                    wp_update_post([
+                        'ID'          => $parent_word_id,
+                        'post_status' => 'draft',
+                    ]);
+                }
+                // Remove legacy meta to prevent stale fallbacks elsewhere
+                delete_post_meta($parent_word_id, 'word_audio_file');
+            }
+        }
+
         wp_send_json_success(['message' => 'Audio recording deleted']);
     } else {
         wp_send_json_error('Failed to delete audio recording');

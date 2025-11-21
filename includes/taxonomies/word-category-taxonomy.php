@@ -39,6 +39,11 @@ function ll_tools_register_word_category_taxonomy() {
 }
 add_action('init', 'll_tools_register_word_category_taxonomy');
 
+// Sentinel to mark a category as "do not record"
+if (!defined('LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED')) {
+    define('LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED', '__none__');
+}
+
 /**
  * Override the term count for word-category to show only published words.
  * This runs before the terms are displayed in the admin table.
@@ -141,6 +146,7 @@ function ll_tools_seed_existing_categories_desired_types() {
     $defaults = ll_tools_get_main_recording_types();
     foreach ($terms as $tid) {
         $existing = get_term_meta($tid, 'll_desired_recording_types', true);
+        if (ll_tools_is_category_recording_disabled($tid)) { continue; }
         // Only set if nothing exists yet; for text-only categories seed isolation-only
         if (empty($existing)) {
             $is_text_only = get_term_meta((int) $tid, 'use_word_titles_for_audio', true) === '1';
@@ -313,18 +319,20 @@ function ll_add_desired_recording_types_field($term) {
         'hide_empty' => false,
     ]);
     if (is_wp_error($types)) { $types = []; }
+    $default_checked = ll_tools_get_main_recording_types();
     ?>
+    <input type="hidden" name="ll_desired_recording_types_submitted" value="1">
     <div class="form-field term-desired-recording-types-wrap">
         <label><?php esc_html_e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
         <div style="max-height:140px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
-            <?php foreach ($types as $type): ?>
+            <?php foreach ($types as $type): $checked = in_array($type->slug, $default_checked, true) ? 'checked' : ''; ?>
                 <label style="display:block; margin:2px 0;">
-                    <input type="checkbox" name="ll_desired_recording_types[]" value="<?php echo esc_attr($type->slug); ?>">
+                    <input type="checkbox" name="ll_desired_recording_types[]" value="<?php echo esc_attr($type->slug); ?>" <?php echo $checked; ?>>
                     <?php echo esc_html($type->name . ' (' . $type->slug . ')'); ?>
                 </label>
             <?php endforeach; ?>
         </div>
-        <p class="description"><?php esc_html_e('Select the recording types that make sense for words in this category. If none are selected, defaults apply (isolation, question, introduction).', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Select the recording types that make sense for words in this category. Leave all unchecked to disable recording for this category.', 'll-tools-text-domain'); ?></p>
     </div>
     <?php
 }
@@ -333,13 +341,21 @@ function ll_add_desired_recording_types_field($term) {
  * Category meta UI: Desired Recording Types (edit screen)
  */
 function ll_edit_desired_recording_types_field($term) {
-    $selected = (array) get_term_meta($term->term_id, 'll_desired_recording_types', true);
+    $raw_selected = get_term_meta($term->term_id, 'll_desired_recording_types', true);
+    $disabled = ll_tools_is_category_recording_disabled($term->term_id);
+    $selected = array_filter(array_map('sanitize_text_field', (array) $raw_selected));
+    if ($disabled) {
+        $selected = [];
+    } elseif (empty($selected)) {
+        $selected = ll_tools_get_main_recording_types();
+    }
     $types = get_terms([
         'taxonomy'   => 'recording_type',
         'hide_empty' => false,
     ]);
     if (is_wp_error($types)) { $types = []; }
     ?>
+    <input type="hidden" name="ll_desired_recording_types_submitted" value="1">
     <tr class="form-field term-desired-recording-types-wrap">
         <th scope="row" valign="top">
             <label><?php esc_html_e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
@@ -353,7 +369,14 @@ function ll_edit_desired_recording_types_field($term) {
                     </label>
                 <?php endforeach; ?>
             </div>
-            <p class="description"><?php esc_html_e('If none selected, defaults apply (isolation, question, introduction).', 'll-tools-text-domain'); ?></p>
+            <p class="description">
+                <?php
+                echo esc_html__('If none selected, recording is disabled for this category.', 'll-tools-text-domain');
+                if ($disabled) {
+                    echo ' ' . esc_html__('Currently disabled (no recording types selected).', 'll-tools-text-domain');
+                }
+                ?>
+            </p>
         </td>
     </tr>
     <?php
@@ -365,10 +388,15 @@ function ll_edit_desired_recording_types_field($term) {
 function ll_save_desired_recording_types_field($term_id, $maybe_tt_id = null) {
     // Hooked to created_word-category / edited_word-category which pass ($term_id, $tt_id)
     // Do not rely on taxonomy parameter here.
+    $submitted = isset($_POST['ll_desired_recording_types_submitted']);
+    if (!$submitted) { return; }
+
     $incoming = isset($_POST['ll_desired_recording_types']) ? (array) $_POST['ll_desired_recording_types'] : [];
-    $sanitized = array_values(array_unique(array_map('sanitize_text_field', $incoming)));
+    $sanitized = array_values(array_unique(array_filter(array_map('sanitize_text_field', $incoming))));
+
     if (empty($sanitized)) {
-        delete_term_meta($term_id, 'll_desired_recording_types');
+        // Explicitly disable recording when nothing is selected
+        update_term_meta($term_id, 'll_desired_recording_types', [LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED]);
     } else {
         update_term_meta($term_id, 'll_desired_recording_types', $sanitized);
     }
@@ -400,8 +428,16 @@ function ll_tools_get_uncategorized_desired_recording_types(): array {
  * Helper: get desired recording types for a category term (slugs)
  */
 function ll_tools_get_desired_recording_types_for_category($term_id): array {
-    $selected = (array) get_term_meta((int) $term_id, 'll_desired_recording_types', true);
-    if (!empty($selected)) { return array_values(array_unique(array_map('sanitize_text_field', $selected))); }
+    // Normalize stored meta; an unset or empty meta entry can come back as [''], so treat that as empty.
+    $selected_raw = get_term_meta((int) $term_id, 'll_desired_recording_types', true);
+    $selected = array_filter(array_map('sanitize_text_field', (array) $selected_raw));
+
+    if (in_array(LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED, $selected, true)) {
+        return [];
+    }
+
+    if (!empty($selected)) { return array_values(array_unique($selected)); }
+
     $term = get_term((int) $term_id, 'word-category');
     if ($term && !is_wp_error($term) && $term->slug === 'uncategorized') {
         return ll_tools_get_uncategorized_desired_recording_types();
@@ -413,17 +449,35 @@ function ll_tools_get_desired_recording_types_for_category($term_id): array {
 }
 
 /**
+ * Helper: determine if recording is explicitly disabled for a category.
+ */
+function ll_tools_is_category_recording_disabled($term_id): bool {
+    $selected_raw = get_term_meta((int) $term_id, 'll_desired_recording_types', true);
+    $selected = array_filter(array_map('sanitize_text_field', (array) $selected_raw));
+    return in_array(LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED, $selected, true);
+}
+
+/**
  * Helper: get desired recording types for a word (union across its categories)
  */
 function ll_tools_get_desired_recording_types_for_word($word_id): array {
     $cats = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($cats) || empty($cats)) { return ll_tools_get_uncategorized_desired_recording_types(); }
     $acc = [];
+    $has_enabled_category = false;
+    $has_disabled_category = false;
     foreach ($cats as $tid) {
+        if (ll_tools_is_category_recording_disabled($tid)) {
+            $has_disabled_category = true;
+            continue;
+        }
+        $has_enabled_category = true;
         $acc = array_merge($acc, ll_tools_get_desired_recording_types_for_category($tid));
     }
-    if (empty($acc)) { return ll_tools_get_uncategorized_desired_recording_types(); }
-    return array_values(array_unique($acc));
+    if (!empty($acc)) { return array_values(array_unique($acc)); }
+    if ($has_disabled_category && !$has_enabled_category) { return []; }
+    if ($has_enabled_category) { return ll_tools_get_uncategorized_desired_recording_types(); }
+    return ll_tools_get_uncategorized_desired_recording_types();
 }
 
 /**
@@ -585,6 +639,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
         }
 
+        // Require actual audio to be present for inclusion in quizzes. Do NOT fall back to legacy meta here.
+        $has_audio = !empty($primary_audio) || !empty($audio_files);
+
         $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
         $label = $title;
@@ -620,12 +677,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'similar_word_id' => $similar_word_id ?: '',
         ];
 
-        if ($displayMode === 'image' && !empty($image)) {
-            $words[] = $word_data;
-        } elseif ($displayMode === 'text') {
-            $words[] = $word_data;
-        } elseif ($displayMode === 'random') {
-            $words[] = $word_data;
+        // Only include words that have playable audio
+        if ($has_audio) {
+            if ($displayMode === 'image' && !empty($image)) {
+                $words[] = $word_data;
+            } elseif ($displayMode === 'text') {
+                $words[] = $word_data;
+            } elseif ($displayMode === 'random') {
+                $words[] = $word_data;
+            }
         }
     }
 
