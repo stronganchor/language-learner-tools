@@ -570,6 +570,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     if ($term && !is_wp_error($term)) {
         $use_titles = (get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1');
     }
+    $wordset_terms = [];
+    if (!empty($wordset_id)) {
+        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
+        $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
+    }
 
     $args = [
         'post_type'      => 'words',
@@ -584,11 +589,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'no_found_rows'  => true,
     ];
 
-    if ($wordset_id) {
+    if (!empty($wordset_terms)) {
         $args['tax_query'][] = [
             'taxonomy' => 'wordset',
             'field'    => 'term_id',
-            'terms'    => $wordset_id,
+            'terms'    => $wordset_terms,
         ];
         $args['tax_query']['relation'] = 'AND';
     }
@@ -1004,9 +1009,10 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
  *
  * @param WP_Term|int $category The category term object or term ID.
  * @param int $min_word_count The minimum number of words required.
+ * @param array|int $wordset_ids Optional wordset term IDs to scope counts.
  * @return bool True if the category can generate a quiz, false otherwise.
  */
-function ll_can_category_generate_quiz($category, $min_word_count = 5) {
+function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_ids = []) {
     // Get the term object if we received an ID
     if (is_numeric($category)) {
         $term = get_term($category, 'word-category');
@@ -1026,13 +1032,13 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5) {
     $use_titles = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
     if ($use_titles) {
         // Check if there are enough words for text mode
-        $text_count = count(ll_get_words_by_category($term->name, 'text'));
+        $text_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids));
         return $text_count >= $min_word_count;
     }
 
     // Otherwise, use the same logic as ll_determine_display_mode
-    $image_count = count(ll_get_words_by_category($term->name, 'image'));
-    $text_count = count(ll_get_words_by_category($term->name, 'text'));
+    $image_count = count(ll_get_words_by_category($term->name, 'image', $wordset_ids));
+    $text_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids));
 
     // If both image and text counts are below the minimum, can't generate quiz
     return !($image_count < $min_word_count && $text_count < $min_word_count);
