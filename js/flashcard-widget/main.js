@@ -365,6 +365,19 @@
 
         State.clearActiveTimeouts();
         const $flashcardContainer = $('#ll-tools-flashcard');
+
+        // Preserve listening-mode footprint between skips to prevent control/button jumps
+        if (State.isListeningMode) {
+            const measuredHeight = Math.max(0, Math.round($flashcardContainer.outerHeight()));
+            const fallbackHeight = measuredHeight || Math.max(0, Math.round(State.listeningLastHeight || 0));
+            if (fallbackHeight > 0) {
+                State.listeningLastHeight = fallbackHeight;
+                $flashcardContainer.css('min-height', fallbackHeight + 'px');
+            }
+        } else {
+            $flashcardContainer.css('min-height', '');
+        }
+
         $flashcardContainer.show();
         $flashcardContainer.empty();
         Dom.restoreHeaderUI();
