@@ -566,6 +566,10 @@
             $jq('#ll-tools-flashcard').empty();
         }
         const hasImage = !!(target && target.image);
+        const promptIsImage = (promptType === 'image' && hasImage);
+        const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
+        const showAnswerText = (optionType === 'text' || optionType === 'text_audio');
+        const answerLabel = target.label || target.title || '';
         const placeholderAspect = hasImage ? getFallbackAspectRatio(true) : null;
         // Build a wrapper so placeholder and visualizer act as a single flex item
         let $stack = null;
@@ -576,6 +580,9 @@
             $stack || ($container || ($jq && $jq('#ll-tools-flashcard'))),
             { textBased: !hasImage, aspectRatio: placeholderAspect }
         );
+        if ($ph && promptIsImage) {
+            try { $ph.find('.listening-overlay').remove(); } catch (_) { /* no-op */ }
+        }
         if (placeholderAspect) {
             const ar = clampAspectRatio(placeholderAspect);
             if (ar) State.listeningLastAspectRatio = ar;
@@ -589,6 +596,10 @@
                 class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer',
                 'aria-hidden': 'true'
             });
+            // Reserve space by inserting the visualizer container even if hidden
+            if (!optionHasAudio) {
+                $viz.css('visibility', 'hidden');
+            }
             if ($stack) {
                 $stack.append($viz);
                 ($container || $jq('#ll-tools-flashcard')).append($stack);
@@ -610,7 +621,7 @@
         updateControlsState();
 
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig).then(function () {
-            // Pre-render hidden content inside placeholder for zero-layout-shift reveal
+            // Pre-render content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
                     if (hasImage) {
@@ -647,26 +658,30 @@
             Dom.disableRepeatButton && Dom.disableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
 
-            // Determine sequence: isolation -> introduction -> isolation when both available
-            // Otherwise, use whatever is available 3 times. We always begin with a brief
-            // countdown inside the gray box before revealing.
+            // Determine sequence. For image->audio, play intro then isolation only.
             const isoUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
                 ? audioApi.selectBestAudio(target, ['isolation']) : null;
             const introUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
                 ? audioApi.selectBestAudio(target, ['introduction']) : null;
 
             let sequence = [];
-            if (isoUrl && introUrl && isoUrl !== introUrl) {
-                sequence = [isoUrl, introUrl, isoUrl];
-            } else if (introUrl) {
-                sequence = [introUrl, introUrl, introUrl];
-            } else if (isoUrl) {
-                sequence = [isoUrl, isoUrl, isoUrl];
+            if (hasImage && optionType === 'audio') {
+                const introFirst = introUrl || isoUrl || null;
+                const isoSecond = isoUrl || introUrl || null;
+                sequence = [introFirst, isoSecond].filter(Boolean);
             } else {
-                const fallbackUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
-                    ? audioApi.selectBestAudio(target, ['question'])
-                    : (target && target.audio) || null;
-                if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl, fallbackUrl];
+                if (isoUrl && introUrl && isoUrl !== introUrl) {
+                    sequence = [isoUrl, introUrl, isoUrl];
+                } else if (introUrl) {
+                    sequence = [introUrl, introUrl, introUrl];
+                } else if (isoUrl) {
+                    sequence = [isoUrl, isoUrl, isoUrl];
+                } else {
+                    const fallbackUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
+                        ? audioApi.selectBestAudio(target, ['question'])
+                        : (target && target.audio) || null;
+                    if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl, fallbackUrl];
+                }
             }
 
             const followCurrentTarget = function () {
@@ -753,10 +768,6 @@
                 State.addTimeout(advanceTimeoutId);
             };
 
-            const promptIsImage = (promptType === 'image' && hasImage);
-            const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
-            const showAnswerText = (optionType === 'text' || optionType === 'text_audio');
-            const answerLabel = target.label || target.title || '';
 
             const maybeShowAnswerText = function () {
                 if (!$jq || !$ph || !showAnswerText) return;
@@ -767,35 +778,49 @@
                 schedulePlaceholderMetrics($ph);
             };
 
-            // Countdown helper: show 3-2-1 inside overlay
+            // Countdown helper: show 3-2-1 to the side of the prompt
             const startCountdown = function () {
                 return new Promise(function (resolve) {
                     if (!$jq) { resolve(); return; }
-                    const $overlay = $ph ? $ph.find('.listening-overlay') : $jq('#ll-tools-flashcard .listening-overlay');
-                    if (!$overlay.length) { resolve(); return; }
-                    let $cd = $overlay.find('.listening-countdown');
+                    let $viz = $jq('#ll-tools-listening-visualizer');
+                    if (!$viz.length) {
+                        $viz = $jq('<div>', { id: 'll-tools-listening-visualizer', class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer' });
+                        ($stack || $jq('#ll-tools-flashcard')).append($viz);
+                    }
+                    $viz.addClass('countdown-active').css('visibility', 'visible');
+                    const $bars = $viz.find('.ll-tools-visualizer-bar');
+                    $bars.css('opacity', 0);
+
+                    let $cd = $viz.find('.ll-tools-listening-countdown');
                     if (!$cd.length) {
-                        $cd = $jq('<div>', { class: 'listening-countdown' });
-                        $overlay.append($cd);
+                        $cd = $jq('<div>', { class: 'll-tools-listening-countdown listening-countdown' });
+                        $viz.append($cd);
                     }
                     let n = 3;
                     const render = function () {
                         $cd.empty().append($jq('<span>', { class: 'digit', text: String(n) }));
                     };
-                    render();
-                    // Tick every ~900ms for a snappy feel
-                    const step = function () {
-                        if (State.listeningPaused) { resolve(); return; }
-                        n -= 1;
-                        if (n <= 0) {
-                            // Brief hold on 1 then resolve
-                            const tid = scheduleTimeout(utils, function () { resolve(); }, 350);
-                            State.addTimeout && State.addTimeout(tid);
-                        } else {
-                            render();
-                            const tid = scheduleTimeout(utils, step, 900);
-                            State.addTimeout && State.addTimeout(tid);
+                    const finish = function () {
+                        if ($cd && $cd.length) { $cd.remove(); }
+                        if ($viz && $viz.length) {
+                            $viz.removeClass('countdown-active');
+                            $bars.css('opacity', optionHasAudio ? 1 : 0);
+                            if (!optionHasAudio) { $viz.css('visibility', 'hidden'); }
                         }
+                        resolve();
+                    };
+                    render();
+                    const step = function () {
+                        if (State.listeningPaused) { finish(); return; }
+                        n -= 1;
+                        render();
+                        if (n <= 0) {
+                            const tid = scheduleTimeout(utils, finish, 350);
+                            State.addTimeout && State.addTimeout(tid);
+                            return;
+                        }
+                        const tid = scheduleTimeout(utils, step, 900);
+                        State.addTimeout && State.addTimeout(tid);
                     };
                     const tid = scheduleTimeout(utils, step, 900);
                     State.addTimeout && State.addTimeout(tid);
@@ -812,7 +837,9 @@
                     return;
                 }
                 setAndPlayUntilEnd(sequence[idx]).then(function () {
-                    const delay = (idx === 1) ? INTRO_GAP_MS : 150; // gap between 2nd->3rd
+                    const delay = (sequence.length === 2 && hasImage && optionType === 'audio')
+                        ? INTRO_GAP_MS
+                        : ((idx === 1) ? INTRO_GAP_MS : 150); // gap between 2nd->3rd
                     const t = scheduleTimeout(utils, function () {
                         if (State.listeningPaused) return;
                         playSequenceFrom(idx + 1);

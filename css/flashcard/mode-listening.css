@@ -41,10 +41,8 @@
     z-index: 2;
 }
 
-/* Countdown shown inside the gray overlay */
-.flashcard-container .listening-overlay .listening-countdown {
-    position: absolute;
-    inset: 0;
+/* Countdown shown below the prompt (when using image prompts) */
+#ll-tools-listening-countdown {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -52,9 +50,15 @@
     font-weight: 700;
     color: #111827;
     letter-spacing: -0.02em;
+    margin-top: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
 }
 
-.flashcard-container .listening-overlay .listening-countdown .digit {
+#ll-tools-listening-countdown .digit {
     display: inline-block;
     opacity: 0.95;
     transform: scale(0.7);
@@ -74,12 +78,18 @@
     transform: none;
     margin: 10px 0 8px;
     background: transparent !important;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
 }
 
 /* Keep placeholder + visualizer stacked as one unit */
 .listening-stack {
     display: flex;
     flex-direction: column;
+    position: relative;
     align-items: center;
     gap: 8px;
 }
