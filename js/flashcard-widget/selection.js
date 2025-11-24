@@ -153,19 +153,9 @@
                 });
             });
         } else {
-            // Practice mode: build order as before
-            const order = [];
-            order.push(State.currentCategoryName);
-            if (targetWord.all_categories) {
-                for (let c of targetWord.all_categories) if (!order.includes(c)) order.push(c);
-            }
-            State.categoryNames.forEach(c => { if (!order.includes(c)) order.push(c); });
-
-            // Flatten to availableWords
-            order.forEach(catName => {
-                const catWords = State.wordsByCategory[catName] || [];
-                availableWords.push(...catWords);
-            });
+            // Practice / listening: only use words from the current category
+            const catWords = State.wordsByCategory[State.currentCategoryName] || [];
+            availableWords.push(...catWords);
         }
 
         // Shuffle available words

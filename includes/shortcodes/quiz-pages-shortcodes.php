@@ -158,11 +158,13 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
     $allowed_term_ids = null;
 
+    $wordset_id_for_item = 0;
     if (!empty($opts['wordset'])) {
         $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
         if (empty($ws_ids)) return []; // nothing by that slug/name/id
         $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($ws_ids);
         if (empty($allowed_term_ids)) return []; // no categories used by that wordset
+        $wordset_id_for_item = (int) ($ws_ids[0] ?? 0);
     }
 
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
@@ -191,6 +193,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
         if (!empty($opts['wordset'])) {
             // If filtered by wordset, use that slug
             $wordset_slug = sanitize_text_field($opts['wordset']);
+            $wordset_id_for_item = $wordset_id_for_item ?: (int) ($ws_ids[0] ?? 0);
         } else {
             // No filter: select default wordset for this category
             $default_ws_id = ll_get_default_wordset_id_for_category($name);
@@ -198,6 +201,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
                 $default_term = get_term($default_ws_id, 'wordset');
                 if ($default_term && !is_wp_error($default_term)) {
                     $wordset_slug = $default_term->slug;
+                    $wordset_id_for_item = (int) $default_ws_id;
                 }
             }
         }
@@ -211,6 +215,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'translation'  => $translation,
             'display_name' => ($translation !== '' ? $translation : $name),
             'wordset_slug' => $wordset_slug,  // Added key
+            'wordset_id'   => $wordset_id_for_item,
         ];
     }
 
@@ -266,17 +271,26 @@ function ll_get_default_wordset_id_for_category(string $category_name, int $min_
 /**
  * Ensures the flashcard overlay shell exists and assets are enqueued.
  * Called only when [quiz_pages_grid popup="yes"] is used.
+ *
+ * @param string $wordset_spec Optional wordset filter (slug|name|id) to align popup categories/words.
  */
-function ll_qpg_bootstrap_flashcards_for_grid() {
+function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
     $enable_translation = get_option('ll_enable_category_translation', 0);
     $target_language    = strtolower(get_option('ll_translation_language', 'en'));
     $site_language      = strtolower(get_locale());
     $use_translations   = $enable_translation && strpos($site_language, $target_language) === 0;
 
-    $all_terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false]);
-    if (is_wp_error($all_terms)) $all_terms = [];
+    $wordset_spec = sanitize_text_field((string) $wordset_spec);
+    $wordset_ids  = function_exists('ll_flashcards_resolve_wordset_ids')
+        ? ll_flashcards_resolve_wordset_ids($wordset_spec, false) // Do NOT fall back to the active wordset; we need all categories for the popup shell.
+        : [];
 
-    if (!function_exists('ll_process_categories')) {
+    // Use the same category builder as the widget so filtering + min-word logic stays consistent.
+    if (function_exists('ll_flashcards_build_categories')) {
+        [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
+    } else {
+        $all_terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false]);
+        if (is_wp_error($all_terms)) $all_terms = [];
         $categories = array_map(function($t){
             return [
                 'id'          => $t->term_id,
@@ -286,12 +300,10 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
                 'mode'        => 'image',
             ];
         }, $all_terms);
-    } else {
-        $categories = ll_process_categories($all_terms, $use_translations);
     }
 
     // Ensure flashcard assets + data are present
-    $atts = ['mode' => 'random'];
+    $atts = ['mode' => 'random', 'wordset' => $wordset_spec, 'wordset_fallback' => ($wordset_spec !== '')];
     ll_flashcards_enqueue_and_localize($atts, $categories, false, [], '');
 
     // Ensure the popup shell is printed late in the page
@@ -316,7 +328,7 @@ function ll_qpg_bootstrap_flashcards_for_grid() {
       window.__LL_QPG_DELEGATED_BOUND = true;
       function openFromAnchor(a){
             var cat = a.getAttribute('data-category') || '';
-            var wordset = a.getAttribute('data-wordset') || '';
+            var wordset = a.getAttribute('data-wordset-id') || a.getAttribute('data-wordset') || '';
             var mode = a.getAttribute('data-mode') || 'practice';
             if (!cat) return;
             if (typeof window.llOpenFlashcardForCategory === 'function') {
@@ -580,7 +592,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $quiz_mode = in_array($atts['mode'], ['practice', 'learning']) ? $atts['mode'] : 'practice';
 
     if ($use_popup) {
-        ll_qpg_bootstrap_flashcards_for_grid();
+        ll_qpg_bootstrap_flashcards_for_grid($atts['wordset']);
     }
 
     $style = '';
@@ -608,6 +620,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
         } else {
             // For popup, add wordset and mode data attributes if set
             $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
+            $ws_id_attr = (!empty($it['wordset_id'])) ? ' data-wordset-id="' . (int) $it['wordset_id'] . '"' : '';
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
@@ -615,6 +628,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
             . $ws_attr
+            . $ws_id_attr
             . $mode_attr
             . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
