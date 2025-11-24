@@ -371,6 +371,8 @@ function ll_tools_flashcard_widget($atts) {
         'category_label_text' => $category_label_text,
         'quiz_font'           => $quiz_font,
         'mode_ui'             => ll_flashcards_get_mode_ui_config(),
+        'wordset'             => $atts['wordset'],
+        'wordset_fallback'    => $atts['wordset_fallback'],
     ]);
     echo "<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('ll-tools-flashcard-container');if(c){c.removeAttribute('style');}});</script>";
     return (string) ob_get_clean();
