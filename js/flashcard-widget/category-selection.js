@@ -9,8 +9,18 @@
         var $container = ctxEl
             ? $(ctxEl).closest('.ll-tools-flashcard-container')
             : $('.ll-tools-flashcard-container').first();
-        if (!$container.length || !window.llToolsFlashcardsData) return;
+        if (!$container.length) return;
 
+        var cfgJson = $container.attr('data-ll-config');
+        var cfg = {};
+        try {
+            cfg = cfgJson ? JSON.parse(cfgJson) : {};
+        } catch (e) { cfg = {}; }
+
+        // Merge config into the global data object expected by scripts
+        window.llToolsFlashcardsData = Object.assign({}, window.llToolsFlashcardsData || {}, cfg);
+
+        // Ensure wordset fields are also respected
         var dsWordset = $container.attr('data-wordset') || '';
         var dsFallback = $container.attr('data-wordset-fallback');
         window.llToolsFlashcardsData.wordset = dsWordset;

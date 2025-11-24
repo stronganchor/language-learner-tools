@@ -200,8 +200,8 @@ function ll_flashcards_get_mode_ui_config(): array {
     ];
 }
 
-/** Enqueue styles/scripts and localize data */
-function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): void {
+/** Enqueue styles/scripts and localize data. Returns the localized data array for per-instance scoping. */
+function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool $preselected, array $initial_words, string $firstCategoryName): array {
     wp_enqueue_script('jquery');
 
     // ---- Robust defaults to avoid "Undefined array key" notices ----
@@ -316,6 +316,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $messages = ll_flashcards_get_messages();
     wp_localize_script('ll-flc-results', 'llToolsFlashcardsMessages', $messages);
     wp_localize_script('ll-flc-main',    'llToolsFlashcardsMessages', $messages);
+
+    return $localized_data;
 }
 
 /** ---------------------------
@@ -358,7 +360,7 @@ function ll_tools_flashcard_widget($atts) {
     $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed);
 
     // 5) assets + localized data for JS - NOW INCLUDES WORDSET
-    ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
+    $localized_data = ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
 
     // 6) render the template (single source of truth for markup)
     if (!function_exists('ll_tools_render_template')) {
@@ -373,6 +375,7 @@ function ll_tools_flashcard_widget($atts) {
         'mode_ui'             => ll_flashcards_get_mode_ui_config(),
         'wordset'             => $atts['wordset'],
         'wordset_fallback'    => $atts['wordset_fallback'],
+        'll_config'           => $localized_data,
     ]);
     echo "<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('ll-tools-flashcard-container');if(c){c.removeAttribute('style');}});</script>";
     return (string) ob_get_clean();

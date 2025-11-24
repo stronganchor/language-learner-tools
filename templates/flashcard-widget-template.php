@@ -14,11 +14,14 @@ $listening_mode_ui = $mode_ui['listening'] ?? [];
 <?php
 $tmpl_wordset = isset($wordset) ? (string) $wordset : '';
 $tmpl_wordset_fallback = !empty($wordset_fallback);
+$tmpl_ll_config = isset($ll_config) && is_array($ll_config) ? $ll_config : [];
+$tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
 ?>
 <div id="ll-tools-flashcard-container"
      class="ll-tools-flashcard-container"
      data-wordset="<?php echo esc_attr($tmpl_wordset); ?>"
-     data-wordset-fallback="<?php echo $tmpl_wordset_fallback ? '1' : '0'; ?>">
+     data-wordset-fallback="<?php echo $tmpl_wordset_fallback ? '1' : '0'; ?>"
+     data-ll-config="<?php echo esc_attr($tmpl_ll_config_json); ?>">
   <?php if (!$embed): ?>
     <button id="ll-tools-start-flashcard"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
   <?php endif; ?>
