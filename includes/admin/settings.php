@@ -57,6 +57,11 @@ function ll_register_settings() {
         'type' => 'string',
         'sanitize_callback' => 'esc_url_raw'
     ));
+    register_setting('language-learning-tools-options', 'll_update_branch', array(
+        'type' => 'string',
+        'sanitize_callback' => 'll_sanitize_update_branch',
+        'default' => 'main',
+    ));
 
     // Word title language role (sitewide setting informing direction and UI defaults)
     register_setting('language-learning-tools-options', 'll_word_title_language_role', array(
@@ -79,12 +84,17 @@ function ll_sanitize_title_language_role($value) {
     return in_array($value, array('target','translation'), true) ? $value : 'target';
 }
 
+function ll_sanitize_update_branch($value) {
+    return ($value === 'dev') ? 'dev' : 'main';
+}
+
 function ll_render_settings_page() {
     $target_language = get_option('ll_target_language', '');
     $translation_language = get_option('ll_translation_language', '');
     $enable_translation = get_option('ll_enable_category_translation', 0);
     $translation_source = get_option('ll_category_translation_source', 'target');
     $word_title_role = get_option('ll_word_title_language_role', 'target');
+    $update_branch = get_option('ll_update_branch', 'main');
     $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
 
@@ -196,6 +206,16 @@ function ll_render_settings_page() {
                             </option>
                         </select>
                         <p class="description">Choose whether category names are originally written in <strong><?php echo esc_html($target_language_name); ?></strong> or <strong><?php echo esc_html($translation_language_name); ?></strong>.</p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Update Branch:</th>
+                    <td>
+                        <select name="ll_update_branch" id="ll_update_branch">
+                            <option value="main" <?php selected($update_branch, 'main'); ?>>Main (stable)</option>
+                            <option value="dev" <?php selected($update_branch, 'dev'); ?>>Dev (testing)</option>
+                        </select>
+                        <p class="description">Switch to Dev to have this site pull plugin updates from the GitHub dev branch for testing. Use Main for normal production updates.</p>
                     </td>
                 </tr>
                 <?php do_action('ll_tools_settings_after_translations'); ?>

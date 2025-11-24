@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 4.2.7
+Version: 4.2.8
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -20,15 +20,21 @@ define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 
+function ll_tools_get_update_branch() {
+    $branch = get_option('ll_update_branch', 'main');
+    return ($branch === 'dev') ? 'dev' : 'main';
+}
+
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+$ll_tools_update_branch = ll_tools_get_update_branch();
 $myUpdateChecker = PucFactory::buildUpdateChecker(
     'https://github.com/stronganchor/language-learner-tools',
     __FILE__,
     'language-learner-tools'
 );
-$myUpdateChecker->setBranch('main');
+$myUpdateChecker->setBranch($ll_tools_update_branch);
 
 // Actions to take on plugin activation
 register_activation_hook(__FILE__, function () {
