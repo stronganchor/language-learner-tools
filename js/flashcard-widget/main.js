@@ -12,6 +12,48 @@
     let __LLSession = 0;
     let closingCleanupPromise = null;
     let initInProgressPromise = null; // prevents concurrent initializations
+    let __LastWordsetKey = null;
+
+    function getCurrentWordsetKey() {
+        const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
+            ? root.llToolsFlashcardsData.wordset
+            : '';
+        return String(ws || '');
+    }
+
+    function resetWordsetScopedCachesIfNeeded() {
+        const current = getCurrentWordsetKey();
+        if (current === __LastWordsetKey) { return; }
+        __LastWordsetKey = current;
+
+        try {
+            if (root.FlashcardLoader && typeof root.FlashcardLoader.resetCacheForNewWordset === 'function') {
+                root.FlashcardLoader.resetCacheForNewWordset();
+            }
+
+            const state = root.LLFlashcards && root.LLFlashcards.State;
+            if (state && state.wordsByCategory) {
+                Object.keys(state.wordsByCategory).forEach(k => delete state.wordsByCategory[k]);
+            }
+            if (state && state.categoryRoundCount) {
+                Object.keys(state.categoryRoundCount).forEach(k => delete state.categoryRoundCount[k]);
+            }
+            if (state && Array.isArray(state.categoryNames)) {
+                state.categoryNames.length = 0;
+            }
+            if (root.wordsByCategory && typeof root.wordsByCategory === 'object') {
+                Object.keys(root.wordsByCategory).forEach(k => delete root.wordsByCategory[k]);
+            }
+            if (root.categoryRoundCount && typeof root.categoryRoundCount === 'object') {
+                Object.keys(root.categoryRoundCount).forEach(k => delete root.categoryRoundCount[k]);
+            }
+            if (root.categoryNames && Array.isArray(root.categoryNames)) {
+                root.categoryNames.length = 0;
+            }
+        } catch (e) {
+            console.warn('Wordset cache reset failed', e);
+        }
+    }
 
     function newSession() {
         __LLSession++;
@@ -365,6 +407,19 @@
 
         State.clearActiveTimeouts();
         const $flashcardContainer = $('#ll-tools-flashcard');
+
+        // Preserve listening-mode footprint between skips to prevent control/button jumps
+        if (State.isListeningMode) {
+            const measuredHeight = Math.max(0, Math.round($flashcardContainer.outerHeight()));
+            const fallbackHeight = measuredHeight || Math.max(0, Math.round(State.listeningLastHeight || 0));
+            if (fallbackHeight > 0) {
+                State.listeningLastHeight = fallbackHeight;
+                $flashcardContainer.css('min-height', fallbackHeight + 'px');
+            }
+        } else {
+            $flashcardContainer.css('min-height', '');
+        }
+
         $flashcardContainer.show();
         $flashcardContainer.empty();
         Dom.restoreHeaderUI();
@@ -500,6 +555,7 @@
         }
 
         const proceed = () => {
+            resetWordsetScopedCachesIfNeeded();
             newSession();
 
             // Clear any leftover overlays/flags from a previous popup session

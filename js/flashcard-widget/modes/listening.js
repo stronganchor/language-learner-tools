@@ -70,6 +70,56 @@
         $ph.css({ width: targetWidth + 'px', 'aspect-ratio': base.w + ' / ' + base.h });
     }
 
+    const LISTENING_RATIO_MIN = 0.55;
+    const LISTENING_RATIO_MAX = 2.5;
+    const LISTENING_RATIO_DEFAULT = 1;
+
+    function clampAspectRatio(val) {
+        const n = Number(val);
+        if (!n || !isFinite(n) || n <= 0) return null;
+        return Math.min(LISTENING_RATIO_MAX, Math.max(LISTENING_RATIO_MIN, n));
+    }
+
+    function getFallbackAspectRatio(hasImage) {
+        const cached = clampAspectRatio(State.listeningLastAspectRatio);
+        if (hasImage && cached) return cached;
+        const base = getPracticeTextBaseDims();
+        const baseRatio = clampAspectRatio(base.ratio || (250 / 150));
+        return baseRatio || LISTENING_RATIO_DEFAULT;
+    }
+
+    function setFlashcardMinHeight(px) {
+        const $jq = getJQuery();
+        const h = Math.max(0, Math.round(px || 0));
+        if ($jq && h > 0) {
+            $jq('#ll-tools-flashcard').css('min-height', h + 'px');
+        }
+    }
+
+    function refreshPlaceholderMetrics($ph) {
+        const $jq = getJQuery();
+        if (!$jq || !$ph || !$ph.length) return;
+        try {
+            const h = Math.round($ph.outerHeight());
+            if (h > 0) {
+                State.listeningLastHeight = h;
+                setFlashcardMinHeight(h);
+            }
+            const w = Math.max(1, Math.round($ph.innerWidth()));
+            const innerH = Math.max(1, Math.round($ph.innerHeight()));
+            const ratio = clampAspectRatio(w && innerH ? (w / innerH) : null);
+            if (ratio) State.listeningLastAspectRatio = ratio;
+        } catch (_) { /* no-op */ }
+    }
+
+    function schedulePlaceholderMetrics($ph) {
+        if (!$ph || !$ph.length) return;
+        const raf = (typeof root !== 'undefined' && root.requestAnimationFrame)
+            ? root.requestAnimationFrame
+            : function (fn) { return setTimeout(fn, 0); };
+        raf(function () { refreshPlaceholderMetrics($ph); });
+    }
+
     // Simple wake lock manager (best-effort)
     // Keeps the screen awake while listening mode is actively playing.
     const WakeLock = (function () {
@@ -368,6 +418,10 @@
             class: baseClasses.join(' '),
             css: { display: 'flex' }
         });
+        if (options.aspectRatio) {
+            const ar = clampAspectRatio(options.aspectRatio);
+            if (ar) $ph.css('aspect-ratio', ar);
+        }
         // For text-only categories, size the placeholder slightly larger than practice,
         // but maintain the same aspect ratio as the practice text card.
         if (options.textBased) {
@@ -435,6 +489,10 @@
         const $container = utils.flashcardContainer;
         const $jq = getJQuery();
 
+        if ($jq && State.listeningLastHeight > 0) {
+            setFlashcardMinHeight(State.listeningLastHeight);
+        }
+
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
             console.warn('Listening mode loader unavailable');
             try { WakeLock.update(); } catch (_) { }
@@ -495,12 +553,20 @@
             $jq('#ll-tools-flashcard').empty();
         }
         const hasImage = !!(target && target.image);
+        const placeholderAspect = hasImage ? getFallbackAspectRatio(true) : null;
         // Build a wrapper so placeholder and visualizer act as a single flex item
         let $stack = null;
         if ($jq) {
             $stack = $jq('<div>', { class: 'listening-stack' });
         }
-        const $ph = insertPlaceholder($stack || ($container || ($jq && $jq('#ll-tools-flashcard'))), { textBased: !hasImage });
+        const $ph = insertPlaceholder(
+            $stack || ($container || ($jq && $jq('#ll-tools-flashcard'))),
+            { textBased: !hasImage, aspectRatio: placeholderAspect }
+        );
+        if (placeholderAspect) {
+            const ar = clampAspectRatio(placeholderAspect);
+            if (ar) State.listeningLastAspectRatio = ar;
+        }
         // Add a dedicated visualizer element BELOW the image/placeholder and ABOVE the controls
         if ($jq) {
             // Remove any existing instance (fresh per round)
@@ -518,6 +584,7 @@
                 ($ph && typeof $ph.after === 'function') ? $ph.after($viz) : ($jq('#ll-tools-flashcard').append($viz));
             }
         }
+        schedulePlaceholderMetrics($ph);
         // Prepare the visualizer now that the element exists
         try {
             const viz = namespace.AudioVisualizer;
@@ -545,13 +612,21 @@
                                 const nw = Math.max(1, this.naturalWidth || 0);
                                 const nh = Math.max(1, this.naturalHeight || 0);
                                 if (nw && nh) {
-                                    $ph.css('aspect-ratio', nw + ' / ' + nh);
+                                    const exact = clampAspectRatio(nw / nh);
+                                    if (exact) {
+                                        $ph.css('aspect-ratio', exact);
+                                        State.listeningLastAspectRatio = exact;
+                                    } else {
+                                        $ph.css('aspect-ratio', nw + ' / ' + nh);
+                                    }
                                 }
                             } catch (_) { /* no-op */ }
+                            schedulePlaceholderMetrics($ph);
                         });
                         $ph.prepend($img);
                     } else {
                         renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                        schedulePlaceholderMetrics($ph);
                     }
                 }
             } catch (_) {}

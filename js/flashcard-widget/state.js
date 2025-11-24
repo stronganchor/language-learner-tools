@@ -60,6 +60,9 @@
         wordCorrectCounts: {},
         wordsToIntroduce: [],
         totalWordCount: 0,
+        // Listening-mode layout cache to avoid flashes during skips
+        listeningLastHeight: 0,
+        listeningLastAspectRatio: 0,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,

@@ -26,15 +26,16 @@ function ll_flashcards_should_use_translations(): bool {
  * - If no spec is provided, fall back to the active/default wordset when available.
  *
  * @param string $wordset_spec Wordset slug|name|id
+ * @param bool   $fallback_to_active When true, fall back to the active/default wordset if no spec is provided.
  * @return int[] Term IDs (unique, >0)
  */
-function ll_flashcards_resolve_wordset_ids(string $wordset_spec = ''): array {
+function ll_flashcards_resolve_wordset_ids(string $wordset_spec = '', bool $fallback_to_active = true): array {
     $wordset_spec = trim($wordset_spec);
     $ids = [];
 
     if ($wordset_spec !== '' && function_exists('ll_raw_resolve_wordset_term_ids')) {
         $ids = ll_raw_resolve_wordset_term_ids($wordset_spec);
-    } elseif ($wordset_spec === '' && function_exists('ll_tools_get_active_wordset_id')) {
+    } elseif ($fallback_to_active && $wordset_spec === '' && function_exists('ll_tools_get_active_wordset_id')) {
         $active = (int) ll_tools_get_active_wordset_id();
         if ($active > 0) {
             $ids = [$active];
@@ -207,6 +208,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $mode      = isset($atts['mode']) ? sanitize_text_field((string) $atts['mode']) : 'random';
     $quiz_mode = isset($atts['quiz_mode']) ? sanitize_text_field((string) $atts['quiz_mode']) : 'practice';
     $wordset   = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
+    $wordset_fallback = isset($atts['wordset_fallback'])
+        ? (bool) $atts['wordset_fallback']
+        : ($wordset === '');
 
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
     ll_enqueue_asset_by_timestamp(
@@ -299,6 +303,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'imageSize'             => get_option('ll_flashcard_image_size', 'small'),
         'maxOptionsOverride'    => get_option('ll_max_options_override', 9),
         'wordset'               => $wordset,
+        'wordsetFallback'       => $wordset_fallback,
         'modeUi'                => ll_flashcards_get_mode_ui_config(),
     ];
 
@@ -329,11 +334,13 @@ function ll_tools_flashcard_widget($atts) {
         'mode'      => 'random',
         'embed'     => 'false',
         'wordset'   => '',
+        'wordset_fallback' => true,
         'quiz_mode' => 'practice',
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
-    $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset']);
+    $atts['wordset_fallback'] = filter_var($atts['wordset_fallback'], FILTER_VALIDATE_BOOLEAN);
+    $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset'], true);
 
     $embed     = strtolower((string)$atts['embed']) === 'true';
     $quiz_font = (string) get_option('ll_quiz_font');
@@ -419,10 +426,11 @@ function ll_get_words_by_category_ajax() {
     $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
     $wordset_spec = isset($_POST['wordset'])      ? sanitize_text_field($_POST['wordset'])      : '';
+    $wordset_fallback = isset($_POST['wordset_fallback']) ? (bool) $_POST['wordset_fallback'] : true;
 
     if (!$category) { wp_send_json_error('Invalid category.'); }
 
-    $wordset_ids = ll_flashcards_resolve_wordset_ids($wordset_spec);
+    $wordset_ids = ll_flashcards_resolve_wordset_ids($wordset_spec, $wordset_fallback);
     if ($wordset_spec !== '' && empty($wordset_ids)) {
         wp_send_json_success([]);
     }

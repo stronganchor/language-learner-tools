@@ -13,6 +13,27 @@
         // Tracks loaded categories and resources
         const loadedCategories = [];
         const loadedResources = {};
+        let lastWordsetKey = null;
+
+        function getWordsetKey() {
+            const ws = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordset !== 'undefined')
+                ? window.llToolsFlashcardsData.wordset
+                : '';
+            return String(ws || '');
+        }
+
+        function resetCacheForNewWordset() {
+            loadedCategories.length = 0;
+        }
+
+        function ensureWordsetCacheKey() {
+            const key = getWordsetKey();
+            if (key !== lastWordsetKey) {
+                resetCacheForNewWordset();
+                lastWordsetKey = key;
+            }
+            return key;
+        }
 
         /**
          * Randomly sorts an array.
@@ -134,13 +155,17 @@
          * @param {function} callback - Callback to execute after loading.
          */
         function loadResourcesForCategory(categoryName, callback) {
-            if (loadedCategories.includes(categoryName)) {
+            const wordsetKey = ensureWordsetCacheKey();
+            const cacheKey = wordsetKey + '::' + categoryName;
+
+            if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
                 return;
             }
 
             const displayMode = window.getCategoryDisplayMode(categoryName);
             const wordset = window.llToolsFlashcardsData?.wordset || '';
+            const wsFallback = !!(window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordsetFallback);
 
             $.ajax({
                 url: llToolsFlashcardsData.ajaxurl,
@@ -149,12 +174,14 @@
                     action: 'll_get_words_by_category',
                     category: categoryName,
                     display_mode: displayMode,
-                    wordset: wordset  // This ensures wordset is always passed
+                    wordset: wordset,  // This ensures wordset is always passed
+                    wordset_fallback: wsFallback ? '1' : '0'
                 },
                 success: function (response) {
                     if (response.success) {
                         processFetchedWordData(response.data, categoryName);
                         preloadCategoryResources(categoryName, callback);
+                        loadedCategories.push(cacheKey);
                     } else {
                         console.error('Failed to load words for category:', categoryName);
                         if (typeof callback === 'function') callback();
@@ -238,7 +265,8 @@
          */
         function preloadNextCategories(numberToPreload = 3) {
             window.categoryNames.forEach(function (categoryName) {
-                if (!loadedCategories.includes(categoryName) && numberToPreload > 0) {
+                const cacheKey = ensureWordsetCacheKey() + '::' + categoryName;
+                if (!loadedCategories.includes(cacheKey) && numberToPreload > 0) {
                     loadResourcesForCategory(categoryName);
                     numberToPreload--;
                 }
@@ -317,6 +345,7 @@
             loadResourcesForWord,
             processFetchedWordData,
             randomlySort,
+            resetCacheForNewWordset,
         };
     })();
 
