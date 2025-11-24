@@ -423,7 +423,7 @@ function ll_qpg_print_flashcard_shell_once() {
     $learning_mode_ui = $mode_ui['learning'] ?? [];
     $listening_mode_ui = $mode_ui['listening'] ?? [];
     ?>
-    <div id="ll-tools-flashcard-container" style="display:none;">
+    <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
 

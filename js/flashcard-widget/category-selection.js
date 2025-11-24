@@ -4,17 +4,17 @@
  * Handles category selection interactions for the flashcard widget.
  */
 (function ($) {
-    // Apply per-instance wordset settings from data attributes
-    function syncWordsetFromDataset() {
-        var container = document.getElementById('ll-tools-flashcard-container');
-        if (!container || !window.llToolsFlashcardsData) return;
+    // Apply per-instance wordset settings from the nearest container
+    function syncWordsetFromDataset(ctxEl) {
+        var $container = ctxEl
+            ? $(ctxEl).closest('.ll-tools-flashcard-container')
+            : $('.ll-tools-flashcard-container').first();
+        if (!$container.length || !window.llToolsFlashcardsData) return;
 
-        var dsWordset = container.getAttribute('data-wordset') || '';
-        var dsFallback = container.getAttribute('data-wordset-fallback');
-        if (typeof dsWordset === 'string') {
-            window.llToolsFlashcardsData.wordset = dsWordset;
-        }
-        if (dsFallback !== null) {
+        var dsWordset = $container.attr('data-wordset') || '';
+        var dsFallback = $container.attr('data-wordset-fallback');
+        window.llToolsFlashcardsData.wordset = dsWordset;
+        if (typeof dsFallback !== 'undefined') {
             window.llToolsFlashcardsData.wordsetFallback = (dsFallback === '1' || dsFallback === 'true');
         }
     }
@@ -109,7 +109,7 @@
 
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function () {
-        syncWordsetFromDataset();
+        syncWordsetFromDataset(this);
         $('#ll-tools-flashcard-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
 
