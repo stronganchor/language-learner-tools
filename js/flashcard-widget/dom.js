@@ -23,15 +23,28 @@
     const playIconHTML = createPlayIcon();
     const stopIconHTML = createStopIcon();
 
+    function updateStackForRepeat(showBtn) {
+        const $stack = $('#ll-tools-category-stack');
+        if (!$stack.length) return;
+        if (showBtn) {
+            $stack.removeClass('ll-no-repeat-btn');
+        } else {
+            $stack.addClass('ll-no-repeat-btn');
+        }
+    }
+
     const Dom = {
         setRepeatButton(state) {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
             // In listening mode, hide the header repeat button entirely
-            if (State && State.isListeningMode) {
+            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+            if (hideBtn) {
                 $btn.hide();
+                updateStackForRepeat(false);
                 return;
             }
+            updateStackForRepeat(true);
             if (state === 'stop') {
                 $btn.html(stopIconHTML);
                 $btn.removeClass('play-mode').addClass('stop-mode');
@@ -44,13 +57,16 @@
         disableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
-            if (State && State.isListeningMode) { $btn.hide(); return; }
+            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+            if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
             $btn.addClass('disabled').prop('disabled', true);
         },
         enableRepeatButton() {
             const $btn = $('#ll-tools-repeat-flashcard');
             if (!$btn.length) return;
-            if (State && State.isListeningMode) { $btn.hide(); return; }
+            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+            if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
+            updateStackForRepeat(true);
             $btn.removeClass('disabled').prop('disabled', false);
         },
         restoreHeaderUI() {

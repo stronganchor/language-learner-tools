@@ -489,6 +489,10 @@
         const $container = utils.flashcardContainer;
         const $jq = getJQuery();
 
+        if ($jq) {
+            $jq('#ll-tools-prompt').hide();
+        }
+
         if ($jq && State.listeningLastHeight > 0) {
             setFlashcardMinHeight(State.listeningLastHeight);
         }
@@ -538,6 +542,15 @@
         })();
 
         try { WakeLock.update(); } catch (_) { }
+
+        const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;
+        const categoryConfig = selectionApi && typeof selectionApi.getCategoryConfig === 'function'
+            ? selectionApi.getCategoryConfig(State.currentCategoryName || (target && target.__categoryName))
+            : { prompt_type: 'audio', option_type: 'image' };
+        const optionType = categoryConfig.option_type || 'image';
+        const promptType = categoryConfig.prompt_type || 'audio';
+        State.currentOptionType = optionType;
+        State.currentPromptType = promptType;
 
         const audioUrl = audioApi && typeof audioApi.selectBestAudio === 'function'
             ? audioApi.selectBestAudio(target, ['isolation', 'question', 'introduction'])
@@ -596,7 +609,7 @@
         ensureControls(utils);
         updateControlsState();
 
-        loader.loadResourcesForWord(target, 'image').then(function () {
+        loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig).then(function () {
             // Pre-render hidden content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
@@ -740,6 +753,20 @@
                 State.addTimeout(advanceTimeoutId);
             };
 
+            const promptIsImage = (promptType === 'image' && hasImage);
+            const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
+            const showAnswerText = (optionType === 'text' || optionType === 'text_audio');
+            const answerLabel = target.label || target.title || '';
+
+            const maybeShowAnswerText = function () {
+                if (!$jq || !$ph || !showAnswerText) return;
+                if (optionType === 'text') {
+                    $ph.empty();
+                }
+                renderTextIntoPlaceholder($ph, answerLabel);
+                schedulePlaceholderMetrics($ph);
+            };
+
             // Countdown helper: show 3-2-1 inside overlay
             const startCountdown = function () {
                 return new Promise(function (resolve) {
@@ -775,43 +802,58 @@
                 });
             };
 
-            // Play a sequence of up to 3 audios. Always begin with a countdown while the
-            // first audio (if any) is playing; reveal only when the countdown completes
-            // and the first audio ends.
-            if (!sequence.length) {
-                // Nothing to play: just countdown then reveal
-                startCountdown().then(function () {
-                    revealContent();
-                    const t = scheduleTimeout(utils, scheduleAdvance, 600);
+            const playSequenceFrom = function (idx) {
+                if (!sequence.length || idx >= sequence.length) {
+                    const t = scheduleTimeout(utils, function () {
+                        Dom.setRepeatButton && Dom.setRepeatButton('play');
+                        scheduleAdvance();
+                    }, 300);
                     State.addTimeout(t);
-                });
+                    return;
+                }
+                setAndPlayUntilEnd(sequence[idx]).then(function () {
+                    const delay = (idx === 1) ? INTRO_GAP_MS : 150; // gap between 2nd->3rd
+                    const t = scheduleTimeout(utils, function () {
+                        if (State.listeningPaused) return;
+                        playSequenceFrom(idx + 1);
+                    }, delay);
+                    State.addTimeout(t);
+                }).catch(function () { playSequenceFrom(idx + 1); });
+            };
+
+            const afterCountdown = function () {
+                if (State.listeningPaused) return;
+                if (showAnswerText) {
+                    maybeShowAnswerText();
+                }
+                revealContent();
+                if (!optionHasAudio && $jq) {
+                    $jq('#ll-tools-listening-visualizer').hide();
+                }
+                if (optionHasAudio && sequence.length) {
+                    playSequenceFrom(0);
+                } else {
+                    const t = scheduleTimeout(utils, function () {
+                        Dom.setRepeatButton && Dom.setRepeatButton('play');
+                        scheduleAdvance();
+                    }, 600);
+                    State.addTimeout(t);
+                }
+            };
+
+            if (promptIsImage || !sequence.length) {
+                startCountdown().then(afterCountdown);
             } else {
-                // First, play the first audio. After it ends, run the countdown.
+                // Audio-first flow: play once, then countdown, then finish sequence
                 setAndPlayUntilEnd(sequence[0]).catch(function () { }).then(function () {
                     return startCountdown();
                 }).then(function () {
                     if (State.listeningPaused) return;
+                    if (showAnswerText) {
+                        maybeShowAnswerText();
+                    }
                     revealContent();
-                    // Play remaining items sequentially with a learning-mode sized gap before the 3rd
-                    const playRest = function (idx) {
-                        if (idx >= sequence.length) {
-                            const t = scheduleTimeout(utils, function () {
-                                Dom.setRepeatButton && Dom.setRepeatButton('play');
-                                scheduleAdvance();
-                            }, 300);
-                            State.addTimeout(t);
-                            return;
-                        }
-                        setAndPlayUntilEnd(sequence[idx]).then(function () {
-                            const delay = (idx === 1) ? INTRO_GAP_MS : 150; // gap between 2nd->3rd
-                            const t = scheduleTimeout(utils, function () {
-                                if (State.listeningPaused) return;
-                                playRest(idx + 1);
-                            }, delay);
-                            State.addTimeout(t);
-                        }).catch(function () { playRest(idx + 1); });
-                    };
-                    playRest(1);
+                    playSequenceFrom(1);
                 });
             }
         }).catch(function (err) {

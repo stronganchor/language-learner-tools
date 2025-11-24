@@ -106,6 +106,30 @@ body.ll-tools-flashcard-open {
     position: relative;
 }
 
+.ll-tools-prompt {
+    display: none;
+    text-align: center;
+    margin: 0 auto 16px;
+}
+
+.ll-tools-prompt .ll-prompt-image-wrap {
+    display: inline-flex;
+    justify-content: center;
+    width: 80%;
+    max-width: 250px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    background: #f8f8f8;
+}
+
+.ll-tools-prompt img {
+    width: 100%;
+    height: auto;
+    display: block;
+    pointer-events: none;
+}
+
 /* Category Selection Popup */
 #ll-tools-category-selection-popup {
     position: fixed;
@@ -295,9 +319,9 @@ body.ll-tools-flashcard-open {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 20px;
-    align-items: center;
-    max-width: 800px;
+    gap: 14px;
+    align-items: flex-start;
+    max-width: 720px;
     width: 100%;
 }
 
@@ -329,9 +353,49 @@ body.ll-tools-flashcard-open {
 }
 
 .flashcard-container.text-based {
-    width: 250px;
-    max-width: 250px;
+    width: 220px;
+    max-width: 220px;
     height: 150px;
+}
+
+.flashcard-container.audio-option {
+    padding: 8px;
+    flex-direction: column;
+    gap: 6px;
+    width: 160px;
+    max-width: 160px;
+    height: 140px;
+    max-height: 150px;
+}
+
+.flashcard-container.audio-option .ll-audio-play {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid #d9d9d9;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #ffffff 0%, #f5f5f5 100%);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.flashcard-container.audio-option .ll-audio-play:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.flashcard-container.audio-option .ll-audio-play-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.flashcard-container.audio-option .quiz-text {
+    padding: 0 8px;
+    font-weight: 600;
+    line-height: 1.2;
 }
 
 /* Correct Answer Overlay */
@@ -409,24 +473,24 @@ body.ll-tools-flashcard-open {
 
 /* New Classes for Flashcard Sizes */
 .flashcard-size-small {
-    width: 150px;
-    height: 150px;
-    max-width: 150px;
-    max-height: 150px;
+    width: 130px;
+    height: 130px;
+    max-width: 130px;
+    max-height: 130px;
 }
 
 .flashcard-size-medium {
-    width: 200px;
-    height: 200px;
-    max-width: 200px;
-    max-height: 200px;
+    width: 180px;
+    height: 180px;
+    max-width: 180px;
+    max-height: 180px;
 }
 
 .flashcard-size-large {
-    width: 250px;
-    height: 250px;
-    max-width: 250px;
-    max-height: 250px;
+    width: 210px;
+    height: 210px;
+    max-width: 210px;
+    max-height: 210px;
 }
 
 /* --- Flashcard header: stack category label above play/pause --- */
@@ -437,6 +501,12 @@ body.ll-tools-flashcard-open {
     justify-content: center;
     gap: 0.4rem;
     order: 2;
+}
+.ll-tools-category-stack.ll-no-repeat-btn {
+    gap: 0;
+}
+.ll-tools-category-stack.ll-no-repeat-btn #ll-tools-repeat-flashcard {
+    display: none !important;
 }
 
 /* Ensure the category name is centered and visually distinct */

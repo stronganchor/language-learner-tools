@@ -106,11 +106,11 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('created_word-category', 'll_save_translation_field', 10, 2);
     add_action('edited_word-category', 'll_save_translation_field', 10, 2);
 
-    // Checkbox for matching titles instead of translations
-    add_action('word-category_add_form_fields', 'll_add_use_word_titles_field');
-    add_action('word-category_edit_form_fields', 'll_edit_use_word_titles_field');
-    add_action('created_word-category', 'll_save_use_word_titles_field', 10, 2);
-    add_action('edited_word-category', 'll_save_use_word_titles_field', 10, 2);
+    // Prompt/answer presentation settings (category-level)
+    add_action('word-category_add_form_fields', 'll_add_quiz_prompt_option_fields');
+    add_action('word-category_edit_form_fields', 'll_edit_quiz_prompt_option_fields');
+    add_action('created_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
+    add_action('edited_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
 
     // Bulk‑add form display and processing hooks
     add_action('admin_notices', 'll_render_bulk_add_categories_form');
@@ -276,38 +276,214 @@ function ll_tools_is_category_translation_enabled() {
 }
 
 /**
- * Field to mark a category as "use titles" for audio matching.
+ * Allowed prompt + answer option types for quizzes.
  */
-function ll_add_use_word_titles_field($term) {
+function ll_tools_get_quiz_prompt_types(): array {
+    return ['audio', 'image'];
+}
+function ll_tools_get_quiz_option_types(): array {
+    return ['image', 'text_translation', 'text_title', 'audio', 'text_audio'];
+}
+
+/**
+ * Normalize stored prompt/option values with safe fallbacks.
+ */
+function ll_tools_normalize_quiz_prompt_type($value): string {
+    $val = is_string($value) ? strtolower($value) : '';
+    return in_array($val, ll_tools_get_quiz_prompt_types(), true) ? $val : 'audio';
+}
+function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false): string {
+    $val = is_string($value) ? strtolower($value) : '';
+    // Map legacy value "text" to the appropriate new variant
+    if ($val === 'text') {
+        return $use_titles ? 'text_title' : 'text_translation';
+    }
+    return in_array($val, ll_tools_get_quiz_option_types(), true)
+        ? $val
+        : ($use_titles ? 'text_title' : 'image');
+}
+
+/**
+ * Resolve defaults + persisted settings for how a category should quiz.
+ *
+ * @param int|WP_Term $term Term id or object.
+ * @return array { prompt_type, option_type, use_titles, learning_supported }
+ */
+function ll_tools_get_category_quiz_config($term): array {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term)) {
+        return [
+            'prompt_type'        => 'audio',
+            'option_type'        => 'image',
+            'use_titles'         => false,
+            'learning_supported' => true,
+        ];
+    }
+
+    $use_titles_legacy  = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
+    $stored_option_type = get_term_meta($term->term_id, 'll_quiz_option_type', true);
+    $prompt_type = ll_tools_normalize_quiz_prompt_type(get_term_meta($term->term_id, 'll_quiz_prompt_type', true));
+
+    // Back-compat: derive an option type if none stored yet (older categories)
+    $option_type = $stored_option_type !== ''
+        ? ll_tools_normalize_quiz_option_type($stored_option_type, $use_titles_legacy)
+        : ll_tools_default_option_type_for_category($term);
+
+    // If legacy flag is present, prefer title-based text option
+    if ($option_type === 'text_translation' && $use_titles_legacy) {
+        $option_type = 'text_title';
+    }
+
+    // Learning mode is tricky when prompting with an image but only text answers exist.
+    $learning_supported = !($prompt_type === 'image' && in_array($option_type, ['text_title', 'text_translation'], true));
+
+    return [
+        'prompt_type'        => $prompt_type,
+        'option_type'        => $option_type,
+        'use_titles'         => ($option_type === 'text_title') || $use_titles_legacy,
+        'learning_supported' => $learning_supported,
+    ];
+}
+
+/**
+ * Helpers to evaluate resource requirements for a quiz configuration.
+ */
+function ll_tools_quiz_requires_audio(array $config, string $display_mode = ''): bool {
+    $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $display_mode;
+    $needs_option_audio = in_array($option_type, ['audio', 'text_audio'], true);
+    $needs_prompt_audio = ($prompt_type === 'audio');
+    return $needs_option_audio || $needs_prompt_audio;
+}
+
+/**
+ * Field to capture prompt + answer option preferences (add screen)
+ */
+function ll_add_quiz_prompt_option_fields($term) {
+    $defaults = [
+        'prompt_type' => 'audio',
+        'option_type' => 'image',
+    ];
     ?>
-    <div class="form-field term-use-word-titles-wrap">
-        <label for="use_word_titles_for_audio">
-            <input type="checkbox" name="use_word_titles_for_audio" id="use_word_titles_for_audio" value="1">
-            <?php esc_html_e('For this category, match audio to word titles instead of translations', 'll-tools-text-domain'); ?>
-        </label>
+    <div class="form-field term-quiz-prompt-wrap">
+        <label for="ll_quiz_prompt_type"><?php esc_html_e('Quiz Prompt Type', 'll-tools-text-domain'); ?></label>
+        <select name="ll_quiz_prompt_type" id="ll_quiz_prompt_type">
+            <option value="audio" <?php selected($defaults['prompt_type'], 'audio'); ?>><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
+            <option value="image" <?php selected($defaults['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+        </select>
+        <p class="description"><?php esc_html_e('Choose whether the quiz starts with audio or an image for this category.', 'll-tools-text-domain'); ?></p>
     </div>
+    <div class="form-field term-quiz-option-wrap">
+        <label for="ll_quiz_option_type"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?></label>
+        <select name="ll_quiz_option_type" id="ll_quiz_option_type">
+            <option value="image" <?php selected($defaults['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+            <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
+            <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
+            <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
+            <option value="text_audio"><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
+        </select>
+        <p class="description"><?php esc_html_e('Text can use either translation or title; audio options play the word audio.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <script>
+      (function(){
+        const prompt = document.getElementById('ll_quiz_prompt_type');
+        const option = document.getElementById('ll_quiz_option_type');
+        if (!prompt || !option) return;
+        function syncDisables(){
+          Array.from(option.options).forEach(o => { o.disabled = false; });
+          if (prompt.value === 'image') {
+            const opt = option.querySelector('option[value="image"]');
+            if (opt) { opt.disabled = true; if (option.value === 'image') { option.value = 'text_translation'; } }
+          }
+          if (prompt.value === 'audio') {
+            const opt = option.querySelector('option[value="audio"]');
+            if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = 'text_translation'; } }
+          }
+        }
+        prompt.addEventListener('change', syncDisables);
+        syncDisables();
+      })();
+    </script>
     <?php
 }
 
 /**
- * Field to mark a category as "use titles" when editing.
- *
- * @param WP_Term $term Term object.
+ * Field to capture prompt + answer option preferences (edit screen)
  */
-function ll_edit_use_word_titles_field($term) {
-    $checkbox_value = get_term_meta($term->term_id, 'use_word_titles_for_audio', true);
-    $checked = $checkbox_value === '1' ? 'checked' : '';
+function ll_edit_quiz_prompt_option_fields($term) {
+    $config = ll_tools_get_category_quiz_config($term);
     ?>
-    <tr class="form-field term-use-word-titles-wrap">
+    <tr class="form-field term-quiz-prompt-wrap">
         <th scope="row" valign="top">
-            <label for="use_word_titles_for_audio"><?php esc_html_e('Match audio to word titles?', 'll-tools-text-domain'); ?></label>
+            <label for="ll_quiz_prompt_type"><?php esc_html_e('Quiz Prompt Type', 'll-tools-text-domain'); ?></label>
         </th>
         <td>
-            <input type="checkbox" name="use_word_titles_for_audio" id="use_word_titles_for_audio" value="1" <?php echo $checked; ?>>
-            <p class="description"><?php esc_html_e('If enabled, the quiz will treat this category as text-only and use the word post title as the correct match.', 'll-tools-text-domain'); ?></p>
+            <select name="ll_quiz_prompt_type" id="ll_quiz_prompt_type">
+                <option value="audio" <?php selected($config['prompt_type'], 'audio'); ?>><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
+                <option value="image" <?php selected($config['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+            </select>
+            <p class="description"><?php esc_html_e('Whether to start rounds with audio or with the word image.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
+    <tr class="form-field term-quiz-option-wrap">
+        <th scope="row" valign="top">
+            <label for="ll_quiz_option_type"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <select name="ll_quiz_option_type" id="ll_quiz_option_type">
+                <option value="image" <?php selected($config['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+                <option value="text_translation" <?php selected($config['option_type'], 'text_translation'); ?>><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
+                <option value="text_title" <?php selected($config['option_type'], 'text_title'); ?>><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
+                <option value="audio" <?php selected($config['option_type'], 'audio'); ?>><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
+                <option value="text_audio" <?php selected($config['option_type'], 'text_audio'); ?>><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
+            </select>
+            <p class="description"><?php esc_html_e('Text can use either translation or title; audio options play the word audio.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <script>
+      (function(){
+        const prompt = document.getElementById('ll_quiz_prompt_type');
+        const option = document.getElementById('ll_quiz_option_type');
+        if (!prompt || !option) return;
+        function syncDisables(){
+          Array.from(option.options).forEach(o => { o.disabled = false; });
+          if (prompt.value === 'image') {
+            const opt = option.querySelector('option[value="image"]');
+            if (opt) { opt.disabled = true; if (option.value === 'image') { option.value = 'text_translation'; } }
+          }
+          if (prompt.value === 'audio') {
+            const opt = option.querySelector('option[value="audio"]');
+            if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = 'text_translation'; } }
+          }
+        }
+        prompt.addEventListener('change', syncDisables);
+        syncDisables();
+      })();
+    </script>
     <?php
+}
+
+/**
+ * Save prompt + answer option preferences.
+ */
+function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
+    $use_titles = get_term_meta($term_id, 'use_word_titles_for_audio', true) === '1';
+    if (isset($_POST['ll_quiz_prompt_type'])) {
+        $prompt = ll_tools_normalize_quiz_prompt_type(sanitize_text_field($_POST['ll_quiz_prompt_type']));
+        update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);
+    }
+    if (isset($_POST['ll_quiz_option_type'])) {
+        $option = ll_tools_normalize_quiz_option_type(sanitize_text_field($_POST['ll_quiz_option_type']), $use_titles);
+        update_term_meta($term_id, 'll_quiz_option_type', $option);
+        // Keep legacy meta in sync for compatibility
+        if ($option === 'text_title') {
+            update_term_meta($term_id, 'use_word_titles_for_audio', '1');
+        } else {
+            delete_term_meta($term_id, 'use_word_titles_for_audio');
+        }
+    }
 }
 
 /**
@@ -517,14 +693,6 @@ function ll_tools_get_preferred_speaker_for_word($word_id): int {
  * @param int    $term_id Term ID.
  * @param string $taxonomy Taxonomy name.
  */
-function ll_save_use_word_titles_field($term_id, $taxonomy) {
-    if (isset($_POST['use_word_titles_for_audio'])) {
-        update_term_meta($term_id, 'use_word_titles_for_audio', '1');
-    } else {
-        delete_term_meta($term_id, 'use_word_titles_for_audio');
-    }
-}
-
 /**
  * Determines the deepest-level categories for a given post.
  *
@@ -564,12 +732,60 @@ function ll_get_category_depth($category_id, $depth = 0) {
     return $depth;
 }
 
-function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null) {
-    $term = get_term_by('name', $categoryName, 'word-category');
-    $use_titles = false;
-    if ($term && !is_wp_error($term)) {
-        $use_titles = (get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1');
+/**
+ * Determine a sensible default answer option for legacy categories.
+ */
+function ll_tools_default_option_type_for_category($term, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []): string {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
     }
+    if (!($term instanceof WP_Term)) {
+        return 'image';
+    }
+
+    $use_titles = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
+
+    $base = ['prompt_type' => 'audio', '__skip_quiz_config_merge' => true];
+    $cfg_image = array_merge($base, ['option_type' => 'image']);
+    $cfg_text_translation = array_merge($base, ['option_type' => 'text_translation']);
+    $cfg_text_title = array_merge($base, ['option_type' => 'text_title']);
+
+    $image_count = count(ll_get_words_by_category($term->name, 'image', $wordset_ids, $cfg_image));
+    $text_title_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids, $cfg_text_title));
+    $text_translation_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids, $cfg_text_translation));
+
+    if ($use_titles && $text_title_count >= $min_word_count) {
+        return 'text_title';
+    }
+
+    if ($image_count >= $min_word_count && $image_count >= $text_translation_count) {
+        return 'image';
+    }
+    if ($text_translation_count >= $min_word_count) {
+        return 'text_translation';
+    }
+
+    // Fallback to whichever has more entries (or image if tied/empty)
+    if ($text_translation_count > $image_count) {
+        return 'text_translation';
+    }
+    return 'image';
+}
+
+function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
+    $term = get_term_by('name', $categoryName, 'word-category');
+    $config = $quiz_config;
+    $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
+    if ($term && !is_wp_error($term) && !$skip_merge) {
+        $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
+    }
+
+    $use_titles  = !empty($config['use_titles']);
+    $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
+    $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
+    $require_prompt_image = ($prompt_type === 'image');
+    $require_option_image = ($option_type === 'image');
     $wordset_terms = [];
     if (!empty($wordset_id)) {
         $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
@@ -650,7 +866,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
         $label = $title;
-        if (!$use_titles && $displayMode === 'text') {
+        $use_translation_label = in_array($option_type, ['text_translation', 'text_audio'], true);
+        if ($use_translation_label) {
             $candidate_keys = [
                 'word_english_meaning',
                 'word_translation',
@@ -668,6 +885,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $all_categories  = wp_get_post_terms($word_id, 'word-category', ['fields' => 'names']);
+        $wordset_ids_for_word = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+        $wordset_ids_for_word = array_values(array_filter(array_map('intval', (array) $wordset_ids_for_word), function ($id) { return $id > 0; }));
         $similar_word_id = get_post_meta($word_id, '_ll_similar_word_id', true);
 
         $word_data = [
@@ -680,17 +899,26 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'image'           => $image ?: '',
             'all_categories'  => $all_categories,
             'similar_word_id' => $similar_word_id ?: '',
+            'wordset_ids'     => $wordset_ids_for_word,
+            'has_audio'       => $has_audio,
+            'has_image'       => !empty($image),
         ];
 
-        // Only include words that have playable audio
-        if ($has_audio) {
-            if ($displayMode === 'image' && !empty($image)) {
-                $words[] = $word_data;
-            } elseif ($displayMode === 'text') {
-                $words[] = $word_data;
-            } elseif ($displayMode === 'random') {
-                $words[] = $word_data;
-            }
+        // Enforce required assets based on prompt + option selections
+        if ($require_audio && !$has_audio) {
+            continue;
+        }
+        if (($require_prompt_image || $require_option_image) && empty($image)) {
+            continue;
+        }
+        if (in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true) && $label === '') {
+            continue;
+        }
+
+        if ($option_type === 'image' && !empty($image)) {
+            $words[] = $word_data;
+        } else {
+            $words[] = $word_data;
         }
     }
 
@@ -743,7 +971,7 @@ function ll_get_prioritized_audio($audio_posts) {
         return null;
     }
 
-    $priority_order = ['question', 'introduction', 'isolation', 'in sentence'];
+    $priority_order = ['isolation', 'introduction', 'question', 'in sentence'];
 
     // Build a map of recording type => audio posts
     $audio_by_type = [];
@@ -1028,20 +1256,29 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         return false;
     }
 
-    // If this category is set to "match audio to titles", check text mode specifically
-    $use_titles = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
-    if ($use_titles) {
-        // Check if there are enough words for text mode
-        $text_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids));
-        return $text_count >= $min_word_count;
+    $config = ll_tools_get_category_quiz_config($term);
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
+    $legacy_default = ll_tools_default_option_type_for_category($term, $min_word_count, $wordset_ids);
+    if ($option_type === '') {
+        $option_type = $legacy_default;
     }
 
-    // Otherwise, use the same logic as ll_determine_display_mode
-    $image_count = count(ll_get_words_by_category($term->name, 'image', $wordset_ids));
-    $text_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids));
+    $primary_count = count(ll_get_words_by_category($term->name, $option_type, $wordset_ids, $config));
+    if ($primary_count >= $min_word_count) {
+        return true;
+    }
 
-    // If both image and text counts are below the minimum, can't generate quiz
-    return !($image_count < $min_word_count && $text_count < $min_word_count);
+    // Graceful fallback: if audio-heavy options don't have enough data, try text options
+    if (in_array($option_type, ['audio', 'text_audio'], true)) {
+        $fallback_config = $config;
+        $fallback_config['option_type'] = 'text_translation';
+        $text_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids, $fallback_config));
+        if ($text_count >= $min_word_count) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**

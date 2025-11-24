@@ -14,16 +14,46 @@
         const loadedCategories = [];
         const loadedResources = {};
         let lastWordsetKey = null;
+        const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
+        function getAllowedWordsetIds() {
+            const ids = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.wordsetIds))
+                ? window.llToolsFlashcardsData.wordsetIds
+                : [];
+            return ids.map(function (v) { return parseInt(v, 10); }).filter(function (v) { return v > 0 && isFinite(v); });
+        }
+
+        function getCategoryConfig(name) {
+            const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
+                ? window.llToolsFlashcardsData.categories
+                : [];
+            const found = cats.find(c => c && c.name === name);
+            return Object.assign({}, defaultConfig, found || {});
+        }
+
+        function categoryRequiresAudio(config) {
+            const opt = config.option_type || config.mode;
+            return (config.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+        }
+
+        function categoryRequiresImage(config, displayMode) {
+            const opt = displayMode || config.option_type || config.mode;
+            return (config.prompt_type === 'image') || opt === 'image';
+        }
 
         function getWordsetKey() {
             const ws = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordset !== 'undefined')
                 ? window.llToolsFlashcardsData.wordset
                 : '';
-            return String(ws || '');
+            const fallback = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordsetFallback !== 'undefined')
+                ? !!window.llToolsFlashcardsData.wordsetFallback
+                : true;
+            return String(ws || '') + '|' + (fallback ? '1' : '0');
         }
 
         function resetCacheForNewWordset() {
             loadedCategories.length = 0;
+            Object.keys(loadedResources).forEach(function (k) { delete loadedResources[k]; });
+            lastWordsetKey = null;
         }
 
         function ensureWordsetCacheKey() {
@@ -136,10 +166,31 @@
                 window.categoryRoundCount[categoryName] = 0;
             }
 
+            const allowedWordsetIds = getAllowedWordsetIds();
+            const hasWordsetFilter = allowedWordsetIds.length > 0;
+
+            const cfg = getCategoryConfig(categoryName);
+            const needsAudio = categoryRequiresAudio(cfg);
+
             // Filter out words that do not have a resolvable audio URL
-            const filtered = Array.isArray(wordData) ? wordData.filter(function (w) {
+            const filtered = Array.isArray(wordData) ? wordData.map(function (w) {
                 const url = resolvePlayableAudio(w);
-                return !!url;
+                if (url) {
+                    w.audio = url;
+                    w.has_audio = true;
+                } else {
+                    w.has_audio = !!w.audio;
+                }
+                w.has_image = w.has_image || !!w.image;
+                return w;
+            }).filter(function (w) {
+                if (needsAudio && !w.audio) return false;
+                if (hasWordsetFilter) {
+                    const ids = Array.isArray(w.wordset_ids) ? w.wordset_ids : [];
+                    const match = ids.some(function (id) { return allowedWordsetIds.indexOf(parseInt(id, 10)) !== -1; });
+                    if (!match) return false;
+                }
+                return true;
             }) : [];
 
             window.wordsByCategory[categoryName].push(...filtered);
@@ -164,6 +215,7 @@
             }
 
             const displayMode = window.getCategoryDisplayMode(categoryName);
+            const cfg = getCategoryConfig(categoryName);
             const wordset = window.llToolsFlashcardsData?.wordset || '';
             const wsFallback = !!(window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordsetFallback);
 
@@ -175,7 +227,9 @@
                     category: categoryName,
                     display_mode: displayMode,
                     wordset: wordset,  // This ensures wordset is always passed
-                    wordset_fallback: wsFallback ? '1' : '0'
+                    wordset_fallback: wsFallback ? '1' : '0',
+                    prompt_type: cfg.prompt_type || 'audio',
+                    option_type: cfg.option_type || displayMode
                 },
                 success: function (response) {
                     if (response.success) {
@@ -214,6 +268,9 @@
             const chunkSize = (totalWords <= 30) ? totalWords : 20;
             let currentIndex = 0;
             const displayMode = window.getCategoryDisplayMode(categoryName);
+            const cfg = getCategoryConfig(categoryName);
+            const needsAudio = categoryRequiresAudio(cfg);
+            const needsImage = categoryRequiresImage(cfg, displayMode);
 
             let hasTriggeredFirstChunkLoad = false; // Ensure we only fire onFirstChunkLoaded once
 
@@ -231,8 +288,8 @@
                 // Preload images/audio in this chunk
                 const loadPromises = chunk.map((word) => {
                     return Promise.all([
-                        loadAudio(word.audio),
-                        (displayMode === 'image' ? loadImage(word.image) : Promise.resolve())
+                        (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
+                        (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
                     ]);
                 });
 
@@ -280,11 +337,14 @@
          * @param {string} displayMode - The display mode ('image' or 'text').
          * @returns {Promise} Resolves when resources are loaded.
          */
-        function loadResourcesForWord(word, displayMode) {
+        function loadResourcesForWord(word, displayMode, categoryName, categoryConfig) {
             if (!word) return Promise.resolve();
+            const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
+            const needsAudio = categoryRequiresAudio(cfg);
+            const needsImage = categoryRequiresImage(cfg, displayMode);
             return Promise.all([
-                loadAudio(word.audio),
-                (displayMode === 'image' ? loadImage(word.image) : Promise.resolve())
+                (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
+                (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
             ]);
         }
 
@@ -312,7 +372,7 @@
 
             try {
                 if (window.FlashcardAudio && typeof window.FlashcardAudio.selectBestAudio === 'function') {
-                    const preferredOrder = ['question', 'introduction', 'isolation', 'in sentence'];
+                    const preferredOrder = ['isolation', 'introduction', 'question', 'in sentence'];
                     selectedAudio = sanitize(window.FlashcardAudio.selectBestAudio(word, preferredOrder));
                 }
             } catch (err) {

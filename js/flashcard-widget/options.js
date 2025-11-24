@@ -89,7 +89,7 @@
         const MAXIMUM_NUMBER_OF_OPTIONS = (llToolsFlashcardsData.maxOptionsOverride) ? parseInt(llToolsFlashcardsData.maxOptionsOverride, 10) : 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
-        const MAX_TEXT_CARD_WIDTH = 250;
+        const MAX_TEXT_CARD_WIDTH = 200;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
@@ -126,7 +126,7 @@
                 ? window.getCategoryDisplayMode(categoryName)
                 : null;
 
-            if (mode === 'text') {
+            if (mode === 'text' || mode === 'text_audio' || mode === 'text_title' || mode === 'text_translation') {
                 maxOptionsCount = Math.min(maxOptionsCount, MAXIMUM_TEXT_OPTIONS);
             }
 
@@ -224,7 +224,7 @@
                 ? window.getCurrentDisplayMode()
                 : null;
 
-            let cardWidth = (mode === 'text') ? MAX_TEXT_CARD_WIDTH : size;
+            let cardWidth = (mode === 'text' || mode === 'text_audio' || mode === 'text_title' || mode === 'text_translation') ? MAX_TEXT_CARD_WIDTH : size;
 
             // Read the flex gap (fallback to 0)
             let gapValue = 0;

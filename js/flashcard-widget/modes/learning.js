@@ -63,7 +63,7 @@
             ? parseInt(root.llToolsFlashcardsData.maxOptionsOverride, 10)
             : 9;
 
-        if (mode === 'text') maxCount = Math.min(maxCount, 4);
+        if (mode === 'text' || mode === 'text_audio') maxCount = Math.min(maxCount, 4);
         const introducedCount = State.introducedWordIDs.length;
         maxCount = Math.min(maxCount, introducedCount);
         maxCount = Math.max(2, maxCount);
@@ -355,15 +355,21 @@
         syncProgressUI();
 
         const mode = getCurrentDisplayMode();
+        const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
+            ? Selection.getCategoryConfig(State.currentCategoryName)
+            : {};
+        const introMode = (cfg && cfg.prompt_type === 'image' && (mode === 'audio' || mode === 'text_audio'))
+            ? 'image'
+            : mode;
 
-        Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, mode))).then(function () {
+        Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, introMode, State.currentCategoryName, cfg))).then(function () {
             if (!State.isIntroducing()) {
                 console.warn('State changed during word loading, aborting introduction');
                 return;
             }
 
             wordsArray.forEach((word, index) => {
-                const $card = Cards.appendWordToContainer(word);
+                const $card = Cards.appendWordToContainer(word, introMode, cfg.prompt_type || 'audio');
                 if ($card && typeof $card.attr === 'function') {
                     $card.attr('data-word-index', index);
                 }

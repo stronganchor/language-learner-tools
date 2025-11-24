@@ -48,6 +48,8 @@
         currentCategoryName: null,
         currentCategoryRoundCount: 0,
         isFirstRound: true,
+        currentOptionType: 'image',
+        currentPromptType: 'audio',
         categoryRepetitionQueues: {},
         userClickedCorrectAnswer: false,
         quizResults: { correctOnFirstTry: 0, incorrect: [] },
@@ -255,6 +257,8 @@
             this.currentCategoryName = null;
             this.currentCategoryRoundCount = 0;
             this.isFirstRound = true;
+            this.currentOptionType = 'image';
+            this.currentPromptType = 'audio';
             this.categoryRepetitionQueues = {};
             this.userClickedCorrectAnswer = false;
             this.quizResults = { correctOnFirstTry: 0, incorrect: [] };
