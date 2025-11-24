@@ -159,6 +159,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
     $allowed_term_ids = null;
 
     $wordset_id_for_item = 0;
+    $ws_ids = [];
     if (!empty($opts['wordset'])) {
         $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
         if (empty($ws_ids)) return []; // nothing by that slug/name/id
@@ -216,6 +217,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'display_name' => ($translation !== '' ? $translation : $name),
             'wordset_slug' => $wordset_slug,  // Added key
             'wordset_id'   => $wordset_id_for_item,
+            'display_mode' => function_exists('ll_determine_display_mode')
+                ? ll_determine_display_mode($name, LL_TOOLS_MIN_WORDS_PER_QUIZ, $ws_ids)
+                : 'image',
         ];
     }
 
@@ -330,7 +334,32 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var cat = a.getAttribute('data-category') || '';
             var wordset = a.getAttribute('data-wordset-id') || a.getAttribute('data-wordset') || '';
             var mode = a.getAttribute('data-mode') || 'practice';
+            var displayModeHint = a.getAttribute('data-display-mode') || '';
             if (!cat) return;
+
+            // Ensure the category exists in the localized list with the correct display mode
+            try {
+                if (window.llToolsFlashcardsData) {
+                    var found = (window.llToolsFlashcardsData.categories || []).some(function(c){ return c && c.name === cat; });
+                    if (!found) {
+                        (window.llToolsFlashcardsData.categories || (window.llToolsFlashcardsData.categories = [])).push({
+                            id: 0,
+                            slug: '',
+                            name: cat,
+                            translation: cat,
+                            mode: displayModeHint || 'image'
+                        });
+                    } else if (displayModeHint) {
+                        window.llToolsFlashcardsData.categories = (window.llToolsFlashcardsData.categories || []).map(function(c){
+                            if (c && c.name === cat) {
+                                c.mode = displayModeHint;
+                            }
+                            return c;
+                        });
+                    }
+                }
+            } catch (e) {}
+
             if (typeof window.llOpenFlashcardForCategory === 'function') {
                 window.llOpenFlashcardForCategory(cat, wordset, mode);
             } else {
@@ -519,6 +548,7 @@ function ll_qpg_print_flashcard_shell_once() {
 
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
+                window.llToolsFlashcardsData.wordsetFallback = !!currentWordset; // only fall back when explicitly provided
                 window.llToolsFlashcardsData.quiz_mode = mode;
             }
 
@@ -621,6 +651,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             // For popup, add wordset and mode data attributes if set
             $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
             $ws_id_attr = (!empty($it['wordset_id'])) ? ' data-wordset-id="' . (int) $it['wordset_id'] . '"' : '';
+            $mode_hint = (!empty($it['display_mode'])) ? ' data-display-mode="' . esc_attr($it['display_mode']) . '"' : '';
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
@@ -629,6 +660,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . ' data-url="' . esc_url($permalink) . '"'
             . $ws_attr
             . $ws_id_attr
+            . $mode_hint
             . $mode_attr
             . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';

@@ -4,6 +4,22 @@
  * Handles category selection interactions for the flashcard widget.
  */
 (function ($) {
+    // Apply per-instance wordset settings from data attributes
+    function syncWordsetFromDataset() {
+        var container = document.getElementById('ll-tools-flashcard-container');
+        if (!container || !window.llToolsFlashcardsData) return;
+
+        var dsWordset = container.getAttribute('data-wordset') || '';
+        var dsFallback = container.getAttribute('data-wordset-fallback');
+        if (typeof dsWordset === 'string') {
+            window.llToolsFlashcardsData.wordset = dsWordset;
+        }
+        if (dsFallback !== null) {
+            window.llToolsFlashcardsData.wordsetFallback = (dsFallback === '1' || dsFallback === 'true');
+        }
+    }
+
+    syncWordsetFromDataset();
 
     // ---- tiny shim: safely call init no matter load order ----
     function startWidget(selectedCategories, mode) {  // ADD mode parameter
@@ -93,6 +109,7 @@
 
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function () {
+        syncWordsetFromDataset();
         $('#ll-tools-flashcard-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
 

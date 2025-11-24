@@ -11,7 +11,13 @@ $listening_mode_ui = $mode_ui['listening'] ?? [];
 </style>
 <?php endif; ?>
 
-<div id="ll-tools-flashcard-container">
+<?php
+$tmpl_wordset = isset($wordset) ? (string) $wordset : '';
+$tmpl_wordset_fallback = !empty($wordset_fallback);
+?>
+<div id="ll-tools-flashcard-container"
+     data-wordset="<?php echo esc_attr($tmpl_wordset); ?>"
+     data-wordset-fallback="<?php echo $tmpl_wordset_fallback ? '1' : '0'; ?>">
   <?php if (!$embed): ?>
     <button id="ll-tools-start-flashcard"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
   <?php endif; ?>
