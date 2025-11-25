@@ -568,7 +568,8 @@
         const hasImage = !!(target && target.image);
         const promptIsImage = (promptType === 'image' && hasImage);
         const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
-        const showAnswerText = (optionType === 'text' || optionType === 'text_audio');
+        const showAnswerText = (/^text/.test(String(optionType || '')));
+        const shouldUseVisualizerText = (!optionHasAudio && promptIsImage && showAnswerText);
         const answerLabel = target.label || target.title || '';
         const placeholderAspect = hasImage ? getFallbackAspectRatio(true) : null;
         // Build a wrapper so placeholder and visualizer act as a single flex item
@@ -591,7 +592,7 @@
         let $text = null;
         if ($jq) {
             $jq('#ll-tools-listening-text').remove();
-            if (showAnswerText) {
+            if (showAnswerText && !shouldUseVisualizerText) {
                 $text = $jq('<div>', {
                     id: 'll-tools-listening-text',
                     class: 'listening-text',
@@ -603,10 +604,11 @@
         }
 
         // Add a dedicated visualizer element BELOW the image/placeholder and ABOVE the controls
+        let $viz = null;
         if ($jq) {
             // Remove any existing instance (fresh per round)
             $jq('#ll-tools-listening-visualizer').remove();
-            const $viz = $jq('<div>', {
+            $viz = $jq('<div>', {
                 id: 'll-tools-listening-visualizer',
                 class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer',
                 'aria-hidden': 'true'
@@ -784,33 +786,50 @@
                 State.addTimeout(advanceTimeoutId);
             };
 
+            const showVisualizerAnswerText = function () {
+                if (!$jq || !$viz || !$viz.length || !shouldUseVisualizerText) return;
+                let $label = $viz.find('.listening-visualizer-text');
+                if (!$label.length) {
+                    $label = $jq('<div>', { class: 'listening-visualizer-text', text: answerLabel });
+                    $viz.append($label);
+                } else {
+                    $label.text(answerLabel);
+                }
+                $label.css('opacity', 1);
+                $viz.css('visibility', 'visible');
+            };
 
             const maybeShowAnswerText = function () {
                 if (!$jq || !$ph || !showAnswerText) return;
                 if (optionType === 'text') {
                     $ph.empty();
                 }
-                renderTextIntoPlaceholder($ph, answerLabel);
-                schedulePlaceholderMetrics($ph);
+                if (shouldUseVisualizerText) {
+                    showVisualizerAnswerText();
+                } else {
+                    renderTextIntoPlaceholder($ph, answerLabel);
+                    schedulePlaceholderMetrics($ph);
+                }
             };
 
             // Countdown helper: show 3-2-1 to the side of the prompt
             const startCountdown = function () {
                 return new Promise(function (resolve) {
                     if (!$jq) { resolve(); return; }
-                    let $viz = $jq('#ll-tools-listening-visualizer');
-                    if (!$viz.length) {
-                        $viz = $jq('<div>', { id: 'll-tools-listening-visualizer', class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer' });
-                        ($stack || $jq('#ll-tools-flashcard')).append($viz);
+                    let $vizEl = ($viz && $viz.length) ? $viz : $jq('#ll-tools-listening-visualizer');
+                    if (!$vizEl.length) {
+                        $vizEl = $jq('<div>', { id: 'll-tools-listening-visualizer', class: 'll-tools-loading-animation ll-tools-loading-animation--visualizer' });
+                        ($stack || $jq('#ll-tools-flashcard')).append($vizEl);
                     }
-                    $viz.addClass('countdown-active').css('visibility', 'visible');
-                    const $bars = $viz.find('.ll-tools-visualizer-bar');
+                    $viz = $vizEl;
+                    $vizEl.addClass('countdown-active').css('visibility', 'visible');
+                    const $bars = $vizEl.find('.ll-tools-visualizer-bar');
                     if ($bars && $bars.length) { $bars.css({ opacity: 0, display: 'none' }); }
 
-                    let $cd = $viz.find('.ll-tools-listening-countdown');
+                    let $cd = $vizEl.find('.ll-tools-listening-countdown');
                     if (!$cd.length) {
                         $cd = $jq('<div>', { class: 'll-tools-listening-countdown listening-countdown' });
-                        $viz.append($cd);
+                        $vizEl.append($cd);
                     }
                     let n = 3;
                     const render = function () {
@@ -818,10 +837,10 @@
                     };
                     const finish = function () {
                         if ($cd && $cd.length) { $cd.remove(); }
-                        if ($viz && $viz.length) {
-                            $viz.removeClass('countdown-active');
+                        if ($vizEl && $vizEl.length) {
+                            $vizEl.removeClass('countdown-active');
                             if ($bars && $bars.length) { $bars.css({ opacity: optionHasAudio ? 1 : 0, display: optionHasAudio ? '' : 'none' }); }
-                            if (!optionHasAudio) { $viz.css('visibility', 'hidden'); }
+                            if (!optionHasAudio && !shouldUseVisualizerText) { $vizEl.css('visibility', 'hidden'); }
                         }
                         resolve();
                     };
@@ -868,11 +887,15 @@
             const afterCountdown = function () {
                 if (State.listeningPaused) return;
                 if (showAnswerText && $jq) {
-                    const $t = $jq('#ll-tools-listening-text');
-                    if ($t.length) { $t.css('opacity', 1); }
+                    if (shouldUseVisualizerText) {
+                        showVisualizerAnswerText();
+                    } else {
+                        const $t = $jq('#ll-tools-listening-text');
+                        if ($t.length) { $t.css('opacity', 1); }
+                    }
                 }
                 revealContent();
-                if (!optionHasAudio && $jq) {
+                if (!optionHasAudio && $jq && !shouldUseVisualizerText) {
                     $jq('#ll-tools-listening-visualizer').hide();
                 }
                 if (optionHasAudio && sequence.length) {
