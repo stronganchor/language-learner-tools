@@ -789,7 +789,7 @@
                     }
                     $viz.addClass('countdown-active').css('visibility', 'visible');
                     const $bars = $viz.find('.ll-tools-visualizer-bar');
-                    $bars.css('opacity', 0);
+                    if ($bars && $bars.length) { $bars.css({ opacity: 0, display: 'none' }); }
 
                     let $cd = $viz.find('.ll-tools-listening-countdown');
                     if (!$cd.length) {
@@ -804,7 +804,7 @@
                         if ($cd && $cd.length) { $cd.remove(); }
                         if ($viz && $viz.length) {
                             $viz.removeClass('countdown-active');
-                            $bars.css('opacity', optionHasAudio ? 1 : 0);
+                            if ($bars && $bars.length) { $bars.css({ opacity: optionHasAudio ? 1 : 0, display: optionHasAudio ? '' : 'none' }); }
                             if (!optionHasAudio) { $viz.css('visibility', 'hidden'); }
                         }
                         resolve();
@@ -813,12 +813,12 @@
                     const step = function () {
                         if (State.listeningPaused) { finish(); return; }
                         n -= 1;
-                        render();
                         if (n <= 0) {
-                            const tid = scheduleTimeout(utils, finish, 350);
+                            const tid = scheduleTimeout(utils, finish, 200);
                             State.addTimeout && State.addTimeout(tid);
                             return;
                         }
+                        render();
                         const tid = scheduleTimeout(utils, step, 900);
                         State.addTimeout && State.addTimeout(tid);
                     };
@@ -869,7 +869,15 @@
             };
 
             if (promptIsImage || !sequence.length) {
-                startCountdown().then(afterCountdown);
+                const $viz = $jq ? $jq('#ll-tools-listening-visualizer') : null;
+                if ($viz && $viz.length) {
+                    const $bars = $viz.find('.ll-tools-visualizer-bar');
+                    if ($bars && $bars.length) { $bars.css({ opacity: 0, display: 'none' }); }
+                }
+                const delayBeforeCountdown = scheduleTimeout(utils, function () {
+                    startCountdown().then(afterCountdown);
+                }, 700);
+                State.addTimeout && State.addTimeout(delayBeforeCountdown);
             } else {
                 // Audio-first flow: play once, then countdown, then finish sequence
                 setAndPlayUntilEnd(sequence[0]).catch(function () { }).then(function () {

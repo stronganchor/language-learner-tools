@@ -41,8 +41,9 @@
     z-index: 2;
 }
 
-/* Countdown shown below the prompt (when using image prompts) */
-#ll-tools-listening-countdown {
+/* Countdown shown within the visualizer space */
+#ll-tools-listening-countdown,
+.ll-tools-listening-countdown {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -58,7 +59,8 @@
     pointer-events: none;
 }
 
-#ll-tools-listening-countdown .digit {
+#ll-tools-listening-countdown .digit,
+.ll-tools-listening-countdown .digit {
     display: inline-block;
     opacity: 0.95;
     transform: scale(0.7);
@@ -83,6 +85,10 @@
     align-items: center;
     justify-content: center;
     position: relative;
+}
+#ll-tools-listening-visualizer.countdown-active .ll-tools-visualizer-bar {
+    opacity: 0 !important;
+    display: none !important;
 }
 
 /* Keep placeholder + visualizer stacked as one unit */
