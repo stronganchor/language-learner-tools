@@ -11,10 +11,10 @@
 .flashcard-container.listening-placeholder {
     position: relative;
     background: #e5e7eb;
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
     cursor: default;
     /* Responsive width: prefer large, but respect viewport */
-    width: min(92vw, 700px, calc(100vh - 300px));
+    width: min(80vw, 420px, calc(100vh - 340px));
     /* Height is determined dynamically in JS via aspect-ratio based on
        image natural dimensions or measured text height. */
     height: auto;
@@ -41,10 +41,9 @@
     z-index: 2;
 }
 
-/* Countdown shown inside the gray overlay */
-.flashcard-container .listening-overlay .listening-countdown {
-    position: absolute;
-    inset: 0;
+/* Countdown shown within the visualizer space */
+#ll-tools-listening-countdown,
+.ll-tools-listening-countdown {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -52,9 +51,16 @@
     font-weight: 700;
     color: #111827;
     letter-spacing: -0.02em;
+    margin-top: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
 }
 
-.flashcard-container .listening-overlay .listening-countdown .digit {
+#ll-tools-listening-countdown .digit,
+.ll-tools-listening-countdown .digit {
     display: inline-block;
     opacity: 0.95;
     transform: scale(0.7);
@@ -62,9 +68,20 @@
 }
 
 @keyframes ll-listening-countdown-pop {
-    0% { transform: scale(0.7); opacity: 0; }
-    40% { transform: scale(1.15); opacity: 1; }
-    100% { transform: scale(1.0); opacity: 1; }
+    0% {
+        transform: scale(0.7);
+        opacity: 0;
+    }
+
+    40% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.0);
+        opacity: 1;
+    }
 }
 
 /* Visualizer now placed between the image box and controls */
@@ -74,12 +91,49 @@
     transform: none;
     margin: 10px 0 8px;
     background: transparent !important;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+#ll-tools-listening-visualizer.countdown-active .ll-tools-visualizer-bar {
+    opacity: 0 !important;
+    display: none !important;
+}
+
+.listening-visualizer-text {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    color: #111827;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    padding: 0 12px;
+}
+
+.listening-text {
+    min-height: 44px;
+    margin: 6px 0 4px;
+    font-size: 32px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.25;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
 /* Keep placeholder + visualizer stacked as one unit */
 .listening-stack {
     display: flex;
     flex-direction: column;
+    position: relative;
     align-items: center;
     gap: 8px;
 }
@@ -127,7 +181,9 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
-.ll-listening-controls .ll-listen-btn svg { display: block; }
+.ll-listening-controls .ll-listen-btn svg {
+    display: block;
+}
 
 /* --- Hardening: ensure controls and icons render despite theme overrides --- */
 .ll-listening-controls .ll-listen-btn {
@@ -140,7 +196,8 @@
     align-items: center !important;
     justify-content: center !important;
     border-radius: 8px !important;
-    color: #333 !important; /* fallback for currentColor-driven SVGs */
+    color: #333 !important;
+    /* fallback for currentColor-driven SVGs */
     background: #fff !important;
     border: 1px solid #e5e7eb !important;
     box-shadow: none !important;
@@ -174,7 +231,8 @@
     display: block !important;
     width: 28px !important;
     height: 28px !important;
-    overflow: visible !important; /* avoid clipping under theme svg resets */
+    overflow: visible !important;
+    /* avoid clipping under theme svg resets */
 }
 
 /* Keep loop icon as stroked outline regardless of theme svg fill rules */
@@ -187,7 +245,8 @@
 }
 
 .ll-listening-controls #ll-listen-loop.active {
-    color: #4f46e5 !important; /* ensure visible active color */
+    color: #4f46e5 !important;
+    /* ensure visible active color */
     border-color: #6366f1 !important;
     background: rgba(99, 102, 241, 0.10) !important;
 }

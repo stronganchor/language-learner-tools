@@ -60,6 +60,7 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
       </div>
 
       <div id="ll-tools-flashcard-content">
+        <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
         <div id="ll-tools-flashcard"></div>
         <audio controls class="hidden"></audio>
       </div>

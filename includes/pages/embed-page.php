@@ -40,6 +40,15 @@
 
         $term = get_term_by('slug', $embed_category, 'word-category');
         if ($term && !is_wp_error($term)) {
+            if (empty($wordset) && function_exists('ll_get_default_wordset_id_for_category')) {
+                $default_ws_id = ll_get_default_wordset_id_for_category($term->name, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+                if ($default_ws_id > 0) {
+                    $ws_term = get_term($default_ws_id, 'wordset');
+                    if ($ws_term && !is_wp_error($ws_term)) {
+                        $wordset = $ws_term->slug;
+                    }
+                }
+            }
             $shortcode = '[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"';
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';

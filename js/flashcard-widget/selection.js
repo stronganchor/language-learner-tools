@@ -2,12 +2,82 @@
     'use strict';
     const { Util, State } = root.LLFlashcards;
 
+    function getCategoryConfig(name) {
+        const base = {
+            prompt_type: 'audio',
+            option_type: State.DEFAULT_DISPLAY_MODE,
+            learning_supported: true,
+        };
+        if (!name) return base;
+        const cats = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const found = cats.find(c => c && c.name === name);
+        return Object.assign({}, base, found || {});
+    }
+
     function getCategoryDisplayMode(name) {
         if (!name) return State.DEFAULT_DISPLAY_MODE;
-        const cat = (root.llToolsFlashcardsData.categories || []).find(c => c.name === name);
-        return cat ? cat.mode : State.DEFAULT_DISPLAY_MODE;
+        const cfg = getCategoryConfig(name);
+        const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
+        if (opt === 'text_title' || opt === 'text_translation') return 'text';
+        return opt;
     }
     function getCurrentDisplayMode() { return getCategoryDisplayMode(State.currentCategoryName); }
+    function getCategoryPromptType(name) {
+        const cfg = getCategoryConfig(name);
+        return cfg.prompt_type || 'audio';
+    }
+
+    function getTargetCategoryName(word) {
+        if (!word) return State.currentCategoryName;
+        if (word.__categoryName) return word.__categoryName;
+        if (Array.isArray(word.all_categories) && Array.isArray(State.categoryNames)) {
+            const match = State.categoryNames.find(function (name) {
+                return word.all_categories.includes(name);
+            });
+            if (match) return match;
+        }
+        return State.currentCategoryName;
+    }
+    function categoryRequiresAudio(nameOrConfig) {
+        const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
+        const opt = cfg.option_type || cfg.mode;
+        return (cfg.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+    }
+
+    function isLearningSupportedForCategories(categoryNames) {
+        try {
+            const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+            if (!Array.isArray(names) || !names.length) return true;
+            return names.every(function (name) {
+                const cfg = getCategoryConfig(name);
+                return cfg.learning_supported !== false;
+            });
+        } catch (_) {
+            return true;
+        }
+    }
+
+    function renderPrompt(targetWord, cfg) {
+        const promptConfig = cfg || getCategoryConfig(State.currentCategoryName);
+        const promptType = promptConfig.prompt_type || 'audio';
+        const $ = root.jQuery;
+        if (!$) return;
+        let $prompt = $('#ll-tools-prompt');
+        if (!$prompt.length) {
+            $prompt = $('<div>', { id: 'll-tools-prompt', class: 'll-tools-prompt', style: 'display:none;' });
+            $('#ll-tools-flashcard-content').prepend($prompt);
+        }
+        if (promptType !== 'image' || !targetWord || !targetWord.image) {
+            $prompt.hide().empty();
+            return;
+        }
+        $prompt.show().empty();
+        const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
+        $('<img>', { src: targetWord.image, alt: targetWord.title || '' }).appendTo($wrap);
+        $prompt.append($wrap);
+    }
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {
         if (!candidateCategory) return null;
@@ -66,6 +136,7 @@
         }
 
         if (target) {
+            try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
             // Update last shown word ID to prevent consecutive duplicates
             State.lastWordShownId = target.id;
 
@@ -138,7 +209,25 @@
 
     function fillQuizOptions(targetWord) {
         let chosen = [];
-        const mode = getCurrentDisplayMode();
+        const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
+        if (targetCategoryName && targetCategoryName !== State.currentCategoryName) {
+            State.currentCategoryName = targetCategoryName;
+            State.currentCategory = State.wordsByCategory[targetCategoryName] || State.currentCategory;
+            try { root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName); } catch (_) { /* no-op */ }
+        }
+
+        const config = getCategoryConfig(targetCategoryName);
+        const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
+        const promptType = getCategoryPromptType(targetCategoryName);
+        State.currentOptionType = mode;
+        State.currentPromptType = promptType;
+        renderPrompt(targetWord, config);
+
+        const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
+        const $container = jQuery('#ll-tools-flashcard');
+        const $content = jQuery('#ll-tools-flashcard-content');
+        $container.toggleClass('audio-line-layout', isAudioLineLayout);
+        $content.toggleClass('audio-line-mode', isAudioLineLayout);
 
         // In learning mode, only select from introduced words
         let availableWords = [];
@@ -154,7 +243,7 @@
             });
         } else {
             // Practice / listening: only use words from the current category
-            const catWords = State.wordsByCategory[State.currentCategoryName] || [];
+            const catWords = State.wordsByCategory[targetCategoryName] || [];
             availableWords.push(...catWords);
         }
 
@@ -162,14 +251,23 @@
         availableWords = Util.randomlySort(availableWords);
 
         // Add target word first
-        root.FlashcardLoader.loadResourcesForWord(targetWord, mode);
+        root.FlashcardLoader.loadResourcesForWord(targetWord, mode, targetCategoryName, config);
         chosen.push(targetWord);
-        root.LLFlashcards.Cards.appendWordToContainer(targetWord);
+        root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
 
         // Determine how many options to show
         let targetCount = State.isLearningMode ?
             root.LLFlashcards.LearningMode.getChoiceCount() :
-            root.FlashcardOptions.categoryOptionsCount[State.currentCategoryName];
+            root.FlashcardOptions.categoryOptionsCount[targetCategoryName];
+        if (!State.isLearningMode && (!targetCount || !isFinite(targetCount))) {
+            const fallback = (root.FlashcardOptions && typeof root.FlashcardOptions.checkMinMax === 'function')
+                ? root.FlashcardOptions.checkMinMax(2, targetCategoryName)
+                : 2;
+            targetCount = fallback;
+            if (root.FlashcardOptions && root.FlashcardOptions.categoryOptionsCount) {
+                root.FlashcardOptions.categoryOptionsCount[targetCategoryName] = fallback;
+            }
+        }
 
         // Fill remaining options from available words
         for (let candidate of availableWords) {
@@ -182,26 +280,95 @@
 
             if (!isDup && !isSim && !sameImg) {
                 chosen.push(candidate);
-                root.FlashcardLoader.loadResourcesForWord(candidate, mode);
-                root.LLFlashcards.Cards.appendWordToContainer(candidate);
+                root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
+                root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             }
         }
 
         jQuery('.flashcard-container').each(function (idx) {
-            root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord);
+            root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord, mode, promptType);
         });
-        jQuery('.flashcard-container').hide().fadeIn(600);
+
+        const publishOptionsReady = function () {
+            jQuery(document).trigger('ll-tools-options-ready');
+        };
+
+        const alignAudioLineWidths = function () {
+            const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
+            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
+                $cards.css('width', '');
+                return 0;
+            }
+            let maxWidth = 0;
+            $cards.each(function () {
+                const $card = jQuery(this);
+                $card.css('width', '');
+                const rect = this.getBoundingClientRect();
+                maxWidth = Math.max(maxWidth, Math.ceil(rect.width));
+            });
+            const minWidth = 240;
+            const vwCap = Math.max(minWidth, Math.floor((typeof window !== 'undefined' ? window.innerWidth : 0) * 0.95) || minWidth);
+            const hardCap = Math.min(vwCap, 720);
+            maxWidth = Math.max(minWidth, Math.min(maxWidth, hardCap));
+            if (maxWidth > 0) {
+                $cards.css('width', maxWidth + 'px');
+            }
+            return maxWidth;
+        };
+
+        const shrinkAudioLineText = function () {
+            const $labels = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option .ll-audio-option-label');
+            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$labels.length) {
+                $labels.css('font-size', '');
+                return;
+            }
+            const MIN_FS = 12;
+            $labels.each(function () {
+                const $label = jQuery(this);
+                $label.css('font-size', '');
+                const base = parseFloat((window.getComputedStyle && window.getComputedStyle(this).fontSize) || '') || 17;
+                let fs = base;
+                for (let i = 0; i < 8 && fs > MIN_FS && this.scrollWidth > this.clientWidth; i++) {
+                    fs -= 1;
+                    $label.css('font-size', fs + 'px');
+                }
+            });
+        };
+
+        const revealOptions = function () {
+            const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
+            const $all = jQuery('.flashcard-container');
+            if (!isAudioLineTextAudio) {
+                $all.hide().fadeIn(600, publishOptionsReady);
+                return;
+            }
+            const $wrap = jQuery('#ll-tools-flashcard');
+            $wrap.css({ visibility: 'hidden', opacity: 0 });
+            $all.css({ display: '', opacity: 1, visibility: 'visible' });
+            alignAudioLineWidths();
+            shrinkAudioLineText();
+            // Allow layout to settle before reveal
+            const show = function () {
+                $wrap.css('visibility', 'visible').fadeTo(200, 1, publishOptionsReady);
+            };
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(show);
+            else setTimeout(show, 0);
+        };
+
+        revealOptions();
     }
 
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryDisplayMode, getCurrentDisplayMode,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions,
-        selectLearningModeWord, initializeLearningMode
+        selectLearningModeWord, initializeLearningMode, renderPrompt
     };
 
     // legacy exports
     root.getCategoryDisplayMode = getCategoryDisplayMode;
     root.getCurrentDisplayMode = getCurrentDisplayMode;
+    root.getCategoryConfig = getCategoryConfig;
+    root.getCategoryPromptType = getCategoryPromptType;
 })(window);

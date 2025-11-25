@@ -63,7 +63,18 @@
             ? parseInt(root.llToolsFlashcardsData.maxOptionsOverride, 10)
             : 9;
 
-        if (mode === 'text') maxCount = Math.min(maxCount, 4);
+        if (mode === 'text' || mode === 'text_audio') maxCount = Math.min(maxCount, 4);
+
+        const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
+            ? Selection.getCategoryConfig(State.currentCategoryName)
+            : null;
+        const promptType = cfg ? cfg.prompt_type : null;
+        const optionType = cfg ? (cfg.option_type || cfg.mode) : mode;
+        const isImagePromptAudio = (promptType === 'image') && (optionType === 'audio' || optionType === 'text_audio');
+        if (isImagePromptAudio) {
+            maxCount = Math.min(maxCount, 4);
+        }
+
         const introducedCount = State.introducedWordIDs.length;
         maxCount = Math.min(maxCount, introducedCount);
         maxCount = Math.max(2, maxCount);
@@ -344,10 +355,18 @@
         const $jq = getJQuery();
 
         if ($jq) {
-            $jq('#ll-tools-flashcard').empty();
+            $jq('#ll-tools-flashcard').removeClass('audio-line-layout').empty();
+            $jq('#ll-tools-flashcard-content').removeClass('audio-line-mode');
         } else if (typeof document !== 'undefined') {
             const container = document.getElementById('ll-tools-flashcard');
-            if (container) container.innerHTML = '';
+            if (container) {
+                container.classList && container.classList.remove('audio-line-layout');
+                container.innerHTML = '';
+            }
+            const content = document.getElementById('ll-tools-flashcard-content');
+            if (content && content.classList) {
+                content.classList.remove('audio-line-mode');
+            }
         }
 
         Dom.restoreHeaderUI && Dom.restoreHeaderUI();
@@ -355,15 +374,21 @@
         syncProgressUI();
 
         const mode = getCurrentDisplayMode();
+        const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
+            ? Selection.getCategoryConfig(State.currentCategoryName)
+            : {};
+        const introMode = (cfg && cfg.prompt_type === 'image' && (mode === 'audio' || mode === 'text_audio'))
+            ? 'image'
+            : mode;
 
-        Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, mode))).then(function () {
+        Promise.all(wordsArray.map(word => FlashcardLoader.loadResourcesForWord(word, introMode, State.currentCategoryName, cfg))).then(function () {
             if (!State.isIntroducing()) {
                 console.warn('State changed during word loading, aborting introduction');
                 return;
             }
 
             wordsArray.forEach((word, index) => {
-                const $card = Cards.appendWordToContainer(word);
+                const $card = Cards.appendWordToContainer(word, introMode, cfg.prompt_type || 'audio');
                 if ($card && typeof $card.attr === 'function') {
                     $card.attr('data-word-index', index);
                 }

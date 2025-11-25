@@ -18,7 +18,10 @@
         const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
             ? root.llToolsFlashcardsData.wordset
             : '';
-        return String(ws || '');
+        const fallback = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordsetFallback !== 'undefined')
+            ? !!root.llToolsFlashcardsData.wordsetFallback
+            : true;
+        return String(ws || '') + '|' + (fallback ? '1' : '0');
     }
 
     function resetWordsetScopedCachesIfNeeded() {
@@ -55,10 +58,25 @@
         }
     }
 
+    function clearPrompt() {
+        try {
+            $('#ll-tools-prompt').hide().empty();
+        } catch (_) {
+            try {
+                const el = document.getElementById('ll-tools-prompt');
+                if (el) {
+                    el.style.display = 'none';
+                    el.innerHTML = '';
+                }
+            } catch (_) { /* no-op */ }
+        }
+    }
+
     function newSession() {
         __LLSession++;
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
+        clearPrompt();
 
         // IMPORTANT: pause the *previous* audio session (snapshot the id now)
         try {
@@ -81,6 +99,66 @@
         return id;
     }
 
+    function shouldAutoplayOptionAudio() {
+        if (!State || State.isListeningMode) return false;
+        const opt = State.currentOptionType;
+        const prompt = State.currentPromptType;
+        if (prompt !== 'image') return false;
+        if (opt !== 'audio' && opt !== 'text_audio') return false;
+        if (typeof State.is === 'function' && !State.is(State.STATES.SHOWING_QUESTION)) return false;
+        return $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+    }
+
+    function autoplayOptionAudioSequence(initialDelayMs = 700, gapMs = 200) {
+        if (!shouldAutoplayOptionAudio()) return;
+        const $cards = $('#ll-tools-flashcard .flashcard-container.audio-option');
+        const sequence = $cards.toArray().map(el => {
+            const $el = $(el);
+            return {
+                $card: $el,
+                url: $el.data('audioUrl') || $el.attr('data-audio-url') || ''
+            };
+        }).filter(item => !!item.url);
+        if (!sequence.length) return;
+
+        let idx = 0;
+        const scheduleNext = function () {
+            if (!shouldAutoplayOptionAudio()) return;
+            if (idx >= sequence.length) return;
+            const { $card, url } = sequence[idx++];
+            const fauxWord = { audio: url };
+            Cards.playOptionAudio(fauxWord, $card).then(function () {
+                if (!shouldAutoplayOptionAudio()) return;
+                const tid = setTimeout(scheduleNext, gapMs);
+                State.addTimeout && State.addTimeout(tid);
+            }).catch(function () {
+                if (!shouldAutoplayOptionAudio()) return;
+                const tid = setTimeout(scheduleNext, gapMs);
+                State.addTimeout && State.addTimeout(tid);
+            });
+        };
+
+        const first = setTimeout(function () {
+            if (!shouldAutoplayOptionAudio()) return;
+            scheduleNext();
+        }, initialDelayMs);
+        State.addTimeout && State.addTimeout(first);
+    }
+
+    function scheduleAutoplayAfterOptionsReady() {
+        if (!shouldAutoplayOptionAudio()) return;
+        let started = false;
+        const start = function () {
+            if (started) return;
+            started = true;
+            $(document).off('.llAutoplayReady');
+            autoplayOptionAudioSequence();
+        };
+        $(document).off('.llAutoplayReady').on('ll-tools-options-ready.llAutoplayReady', start);
+        const fallback = setTimeout(start, 1500);
+        State.addTimeout && State.addTimeout(fallback);
+    }
+
     // Init audio
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -88,6 +166,22 @@
 
     function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
     function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
+
+    function isLearningSupportedForCurrentSelection() {
+        try {
+            if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
+                return Selection.isLearningSupportedForCategories(State.categoryNames);
+            }
+            if (!Selection || typeof Selection.getCategoryConfig !== 'function') return true;
+            if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) return true;
+            return State.categoryNames.every(function (name) {
+                const cfg = Selection.getCategoryConfig(name);
+                return cfg.learning_supported !== false;
+            });
+        } catch (e) {
+            return true;
+        }
+    }
 
 
 
@@ -144,6 +238,7 @@
         const $wrap = $('#ll-tools-mode-switcher-wrap');
         const $menu = $('#ll-tools-mode-menu');
         if (!$wrap.length || !$menu.length) return;
+        const learningAllowed = isLearningSupportedForCurrentSelection();
 
         // Ensure wrapper is visible when widget active
         $wrap.css('display', 'block');
@@ -169,8 +264,10 @@
             }
             // Active vs inactive
             const isActive = (mode === current);
+            const isDisabled = (mode === 'learning' && !learningAllowed);
             $btn.toggleClass('active', isActive);
-            if (isActive) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': 'true', 'aria-disabled': 'true' }); }
+            $btn.toggleClass('disabled', isDisabled);
+            if (isActive || isDisabled) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': isActive ? 'true' : 'false', 'aria-disabled': 'true' }); }
             else { $btn.removeAttr('disabled').attr({ 'aria-checked': 'false' }).removeAttr('aria-disabled'); }
         });
     }
@@ -193,6 +290,7 @@
             e.preventDefault();
             const mode = String($(this).data('mode') || '');
             if (!mode) return;
+            if ($(this).hasClass('disabled')) { return; }
             // Keep menu open even after switching; ignore clicks on active option
             if ($(this).hasClass('active')) { return; }
             switchMode(mode);
@@ -220,6 +318,11 @@
             return;
         }
 
+        if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
+            console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
+            newMode = 'practice';
+        }
+
         const $btn = $('#ll-tools-mode-switcher');
         if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
 
@@ -228,6 +331,7 @@
             $('#ll-tools-listening-controls').remove();
             $('#ll-tools-listening-visualizer').remove();
         } catch (_) { /* no-op */ }
+        clearPrompt();
 
         State.transitionTo(STATES.SWITCHING_MODE, 'User requested mode switch');
 
@@ -337,17 +441,22 @@
 
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
-        $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+        const isAudioLineLayout = (State.currentPromptType === 'image') &&
+            (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
+
+        if (isAudioLineLayout) {
+            $wrong.addClass('ll-option-disabled').attr('aria-disabled', 'true');
+        } else {
+            $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+        }
 
         if (!State.quizResults.incorrect.includes(targetWord.id)) State.quizResults.incorrect.push(targetWord.id);
         State.wrongIndexes.push(index);
 
-        const mode = Selection.getCurrentDisplayMode();
-        if (State.wrongIndexes.length === 2) {
+        if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
             $('.flashcard-container').not(function () {
-                return (mode === 'image') ?
-                    ($(this).find('img').attr('src') === targetWord.image) :
-                    ($(this).find('.quiz-text').text() === (targetWord.label || ''));
+                const id = String($(this).data('wordId') || $(this).attr('data-word-id') || '');
+                return id === String(targetWord.id);
             }).remove();
         }
     }
@@ -406,6 +515,7 @@
         }
 
         State.clearActiveTimeouts();
+        clearPrompt();
         const $flashcardContainer = $('#ll-tools-flashcard');
 
         // Preserve listening-mode footprint between skips to prevent control/button jumps
@@ -503,8 +613,28 @@
             }
         }
 
-        const displayMode = Selection.getCurrentDisplayMode();
-        root.FlashcardLoader.loadResourcesForWord(target, displayMode).then(function () {
+        const targetCategoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
+            ? Selection.getTargetCategoryName(target)
+            : ((target && target.__categoryName) || State.currentCategoryName);
+        const categoryNameForRound = targetCategoryName || State.currentCategoryName;
+        if (categoryNameForRound && categoryNameForRound !== State.currentCategoryName) {
+            State.currentCategoryName = categoryNameForRound;
+            State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
+            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
+        }
+
+        const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
+            ? Selection.getCategoryConfig(categoryNameForRound)
+            : {};
+        const displayMode = categoryConfig.option_type ||
+            (Selection && typeof Selection.getCategoryDisplayMode === 'function'
+                ? Selection.getCategoryDisplayMode(categoryNameForRound)
+                : Selection.getCurrentDisplayMode());
+        const promptType = categoryConfig.prompt_type || 'audio';
+        State.currentOptionType = displayMode;
+        State.currentPromptType = promptType;
+
+        root.FlashcardLoader.loadResourcesForWord(target, displayMode, categoryNameForRound, categoryConfig).then(function () {
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
             }
@@ -514,10 +644,17 @@
                 modeModule.configureTargetAudio(target);
             }
 
-            root.FlashcardAudio.setTargetWordAudio(target);
+            if (promptType === 'audio') {
+                root.FlashcardAudio.setTargetAudioHasPlayed(false);
+                root.FlashcardAudio.setTargetWordAudio(target);
+                Dom.enableRepeatButton();
+            } else {
+                root.FlashcardAudio.setTargetAudioHasPlayed(true);
+                Dom.disableRepeatButton();
+            }
             Dom.hideLoading();
-            Dom.enableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
+            scheduleAutoplayAfterOptionsReady();
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
             State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
@@ -589,9 +726,15 @@
             }
 
             return root.FlashcardAudio.startNewSession().then(function () {
-                if (mode === 'learning') {
+                let requestedMode = mode;
+                if (requestedMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
+                    console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
+                    requestedMode = 'practice';
+                }
+
+                if (requestedMode === 'learning') {
                     State.isLearningMode = true;
-                } else if (mode === 'listening') {
+                } else if (requestedMode === 'listening') {
                     State.isListeningMode = true;
                 }
 
@@ -699,10 +842,26 @@
         return initInProgressPromise;
     }
 
+    function restorePageScroll() {
+        // Remove class and clear overflow inline styles on both body/html
+        const clear = function (el) {
+            if (!el) return;
+            try {
+                el.classList && el.classList.remove('ll-tools-flashcard-open');
+                el.style && (el.style.overflow = '');
+            } catch (_) { /* ignore */ }
+        };
+        try { clear(document.body); clear(document.documentElement); } catch (_) { /* ignore */ }
+        try { $('body').removeClass('ll-tools-flashcard-open').css('overflow', ''); $('html').css('overflow', ''); } catch (_) { /* ignore */ }
+    }
+
     function closeFlashcard() {
         if (closingCleanupPromise) {
             return closingCleanupPromise;
         }
+
+        // Immediately restore scrolling (belt-and-suspenders)
+        restorePageScroll();
 
         if (!State.is(STATES.CLOSING)) {
             State.transitionTo(STATES.CLOSING, 'User closed widget');
@@ -795,7 +954,7 @@
                 $('#ll-tools-mode-switcher-wrap').hide();
                 $(document).off('.llModeMenu');
                 $('#ll-tools-learning-progress').hide().empty();
-                $('body').removeClass('ll-tools-flashcard-open');
+                restorePageScroll();
 
                 State.transitionTo(STATES.IDLE, 'Cleanup complete');
             })
@@ -842,11 +1001,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
-
-
-
-
 
 
 

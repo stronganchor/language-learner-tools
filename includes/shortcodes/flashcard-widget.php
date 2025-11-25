@@ -132,9 +132,9 @@ function ll_flashcards_pick_initial_batch(array $categories, array $wordset_ids 
         foreach ($categories as $cat) {
             if ($cat['name'] === $random) { $selected_category_data = $cat; break; }
         }
-        $mode = $selected_category_data ? $selected_category_data['mode'] : 'image';
+        $mode = $selected_category_data ? ($selected_category_data['option_type'] ?? $selected_category_data['mode']) : 'image';
 
-        $words_data = ll_get_words_by_category($random, $mode, $wordset_ids);
+        $words_data = ll_get_words_by_category($random, $mode, $wordset_ids, (array) $selected_category_data);
         $firstCategoryName = $random;
     }
 
@@ -290,6 +290,15 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     JS);
 
     // Data: print early on 'options' and again on 'main' (belt & suspenders)
+    $wordset_ids = [];
+    if (isset($atts['wordset_ids_for_popup'])) {
+        $wordset_ids = array_map('intval', (array) $atts['wordset_ids_for_popup']);
+    } else {
+        $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset'], $wordset_fallback);
+    }
+    $wordset_ids = array_map('intval', (array) $wordset_ids);
+    $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
+
     $localized_data = [
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
@@ -304,6 +313,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'maxOptionsOverride'    => get_option('ll_max_options_override', 9),
         'wordset'               => $wordset,
         'wordsetFallback'       => $wordset_fallback,
+        'wordsetIds'            => $wordset_ids,
         'modeUi'                => ll_flashcards_get_mode_ui_config(),
     ];
 
@@ -341,8 +351,13 @@ function ll_tools_flashcard_widget($atts) {
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
-    $atts['wordset_fallback'] = filter_var($atts['wordset_fallback'], FILTER_VALIDATE_BOOLEAN);
-    $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset'], true);
+    // If a wordset is explicitly provided, do NOT fall back to other wordsets.
+    $atts['wordset_fallback'] = ($atts['wordset'] !== '')
+        ? false
+        : filter_var($atts['wordset_fallback'], FILTER_VALIDATE_BOOLEAN);
+    $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset'], $atts['wordset_fallback']);
+    $wordset_ids = array_map('intval', (array) $wordset_ids);
+    $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
 
     $embed     = strtolower((string)$atts['embed']) === 'true';
     $quiz_font = (string) get_option('ll_quiz_font');
@@ -385,8 +400,28 @@ function ll_tools_flashcard_widget($atts) {
  * Determines display mode by counts.
  */
 function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
-    $image_count = count(ll_get_words_by_category($categoryName, 'image', $wordset_ids));
-    $text_count  = count(ll_get_words_by_category($categoryName, 'text', $wordset_ids));
+    $term = get_term_by('name', $categoryName, 'word-category');
+    $config = $term && !is_wp_error($term) ? ll_tools_get_category_quiz_config($term) : ['prompt_type' => 'audio', 'option_type' => 'image'];
+
+    $option_type = $config['option_type'] ?? 'image';
+    $words_in_mode = ll_get_words_by_category($categoryName, $option_type, $wordset_ids, $config);
+    if (count($words_in_mode) >= $min_word_count) {
+        return $option_type;
+    }
+
+    // Try a text fallback for audio-based options
+    if (in_array($option_type, ['audio', 'text_audio'], true)) {
+        $fallback_config = $config;
+        $fallback_config['option_type'] = 'text_translation';
+        $text_words = ll_get_words_by_category($categoryName, 'text', $wordset_ids, $fallback_config);
+        if (count($text_words) >= $min_word_count) {
+            return 'text_translation';
+        }
+    }
+
+    // Last resort: compare image/text availability to pick the better one
+    $image_count = count(ll_get_words_by_category($categoryName, 'image', $wordset_ids, $config));
+    $text_count  = count(ll_get_words_by_category($categoryName, 'text', $wordset_ids, array_merge($config, ['option_type' => 'text_translation'])));
 
     if ($image_count < $min_word_count && $text_count < $min_word_count) return null;
     if ($image_count < $min_word_count) return 'text';
@@ -402,8 +437,26 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
     foreach ($categories as $category) {
         if (!ll_can_category_generate_quiz($category, $min_word_count, $wordset_ids)) continue;
 
-        $use_titles = get_term_meta($category->term_id, 'use_word_titles_for_audio', true) === '1';
-        $mode = $use_titles ? 'text' : ll_determine_display_mode($category->name, $min_word_count, $wordset_ids);
+        $config = ll_tools_get_category_quiz_config($category);
+        $learning_supported = $config['learning_supported'];
+
+        // Resolve the effective option type (fall back to text if the preferred audio-based mode has too few words)
+        $option_type = $config['option_type'];
+        $words_in_mode = ll_get_words_by_category($category->name, $option_type, $wordset_ids, $config);
+        if (count($words_in_mode) < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
+            $fallback_config = $config;
+            $fallback_config['option_type'] = 'text_translation';
+            $fallback_words = ll_get_words_by_category($category->name, 'text', $wordset_ids, $fallback_config);
+            if (count($fallback_words) >= $min_word_count) {
+                $option_type = 'text_translation';
+                $learning_supported = ($config['prompt_type'] === 'image') ? false : $learning_supported;
+                $words_in_mode = $fallback_words;
+            }
+        }
+        $config['option_type'] = $option_type;
+
+        // Keep legacy name "mode" for frontend compatibility (now represents the option type)
+        $mode = $option_type;
 
         $translation = $use_translations
             ? ( get_term_meta($category->term_id, 'term_translation', true) ?: $category->name )
@@ -415,6 +468,11 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'name'        => html_entity_decode($category->name, ENT_QUOTES, 'UTF-8'),
             'translation' => html_entity_decode($translation,     ENT_QUOTES, 'UTF-8'),
             'mode'        => $mode,
+            'option_type' => $option_type,
+            'prompt_type' => $config['prompt_type'],
+            'learning_supported' => $learning_supported,
+            'use_titles'  => $config['use_titles'],
+            'word_count'  => count($words_in_mode),
         ];
     }
     return $processed;
@@ -432,6 +490,8 @@ function ll_get_words_by_category_ajax() {
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
     $wordset_spec = isset($_POST['wordset'])      ? sanitize_text_field($_POST['wordset'])      : '';
     $wordset_fallback = isset($_POST['wordset_fallback']) ? (bool) $_POST['wordset_fallback'] : true;
+    $prompt_type  = isset($_POST['prompt_type'])  ? sanitize_text_field($_POST['prompt_type'])  : '';
+    $option_type  = isset($_POST['option_type'])  ? sanitize_text_field($_POST['option_type'])  : '';
 
     if (!$category) { wp_send_json_error('Invalid category.'); }
 
@@ -440,7 +500,17 @@ function ll_get_words_by_category_ajax() {
         wp_send_json_success([]);
     }
 
-    wp_send_json_success(ll_get_words_by_category($category, $display_mode, $wordset_ids));
+    $term = get_term_by('name', $category, 'word-category');
+    $meta_config = ($term && !is_wp_error($term)) ? ll_tools_get_category_quiz_config($term) : [];
+    $base_config = [
+        'prompt_type' => ll_tools_normalize_quiz_prompt_type($prompt_type ?: ($meta_config['prompt_type'] ?? 'audio')),
+        'option_type' => ll_tools_normalize_quiz_option_type($option_type ?: $display_mode, !empty($meta_config['use_titles'])),
+    ];
+    if (!empty($meta_config)) {
+        $base_config = array_merge($meta_config, $base_config);
+    }
+
+    wp_send_json_success(ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config));
 }
 
 function ll_tools_register_flashcard_widget_shortcode() {

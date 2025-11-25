@@ -141,6 +141,15 @@
     $('#ll-tools-close-category-selection').on('click', function () {
         $('#ll-tools-category-selection-popup').hide();
         $('#ll-tools-flashcard-popup').hide();
+        try {
+            $('body').removeClass('ll-tools-flashcard-open').css('overflow', '');
+            $('html').css('overflow', '');
+        } catch (_) { /* ignore */ }
+        try {
+            document.body.classList.remove('ll-tools-flashcard-open');
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        } catch (_) { /* ignore */ }
     });
 
 })(jQuery);

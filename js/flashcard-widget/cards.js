@@ -7,7 +7,9 @@
     function createImageCard(word) {
         const $c = $('<div>', {
             class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize,
-            'data-word': word.title, css: { display: 'none' }
+            'data-word': word.title,
+            'data-word-id': word.id,
+            css: { display: 'none' }
         });
         $('<img>', { src: word.image, alt: word.title, class: 'quiz-image' })
             .on('load', function () {
@@ -21,7 +23,7 @@
 
     function createTextCard(word) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
-        const $c = $('<div>', { class: `flashcard-container text-based ${sizeClass}`, 'data-word': word.title });
+        const $c = $('<div>', { class: `flashcard-container text-based ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
         const $label = $('<div>', { text: word.label, class: 'quiz-text' }).appendTo($c);
 
         $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' }).appendTo('body');
@@ -37,6 +39,114 @@
         return $c;
     }
 
+    function toggleOptionPlaying($card, isPlaying) {
+        if (!$card || typeof $card.toggleClass !== 'function') return;
+        $card.toggleClass('playing', !!isPlaying);
+        try { $card.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying); } catch (_) { /* no-op */ }
+    }
+
+    function playOptionAudio(word, $card) {
+        const audioApi = root.FlashcardAudio;
+        return new Promise((resolve) => {
+            if (!audioApi || !word || !word.audio) { resolve(); return; }
+
+            try { audioApi.pauseAllAudio(); } catch (_) { /* ignore */ }
+            try {
+                $('.flashcard-container.audio-option').removeClass('playing');
+                $('.ll-audio-mini-visualizer').removeClass('active');
+            } catch (_) { /* ignore */ }
+            const audioEl = audioApi.createAudio ? audioApi.createAudio(word.audio, { type: 'option' }) : new Audio(word.audio);
+            if (!audioEl) { resolve(); return; }
+
+            let settled = false;
+            const finish = function () {
+                if (settled) return;
+                settled = true;
+                toggleOptionPlaying($card, false);
+                try {
+                    audioEl.onended = null;
+                    audioEl.onerror = null;
+                } catch (_) { }
+                resolve();
+            };
+
+            toggleOptionPlaying($card, true);
+
+            // Ensure we always resolve even if playback fails
+            audioEl.addEventListener && audioEl.addEventListener('ended', finish, { once: true });
+            audioEl.addEventListener && audioEl.addEventListener('error', finish, { once: true });
+            audioEl.onended = finish;
+            audioEl.onerror = finish;
+
+            try {
+                const playPromise = audioApi.playAudio ? audioApi.playAudio(audioEl) : audioEl.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                    playPromise.catch(finish);
+                }
+            } catch (_) {
+                finish();
+            }
+        });
+    }
+
+    function createAudioCard(word, includeText, promptType) {
+        const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
+        const isImagePrompt = (promptType === 'image');
+        const classes = ['flashcard-container', 'audio-option'];
+        if (!isImagePrompt) classes.push(sizeClass);
+        if (includeText) classes.push('text-audio-option');
+        const $c = $('<div>', {
+            class: classes.join(' '),
+            'data-word': word.title,
+            'data-word-id': word.id,
+            'data-audio-url': word.audio || '',
+            css: { display: 'none' }
+        });
+
+        if (isImagePrompt) {
+            $c.addClass('audio-line-option');
+            if (!includeText) {
+                $c.addClass('audio-line-option-audio-only');
+            }
+            $c.append($('<span>', { class: 'll-audio-option-bullet', 'aria-hidden': 'true' }));
+        }
+
+        const $btn = $('<button>', {
+            type: 'button',
+            class: 'll-audio-play',
+            'aria-label': 'Play option audio'
+        }).append($('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }));
+        $btn.on('click', function (e) {
+            e.stopPropagation();
+            playOptionAudio(word, $c);
+        });
+        $c.append($btn);
+
+        const barCount = isImagePrompt
+            ? (includeText ? 4 : 8)
+            : 6;
+
+        if (includeText && isImagePrompt) {
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < barCount; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $c.append($viz);
+        }
+
+        if (includeText) {
+            const labelText = word.label || word.title || '';
+            $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText }).appendTo($c);
+        } else {
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < barCount; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $c.append($viz);
+        }
+        return $c;
+    }
+
     function insertContainerAtRandom($c) {
         const $cards = $('#ll-tools-flashcard .flashcard-container');
         const idx = Math.floor(Math.random() * ($cards.length + 1));
@@ -45,21 +155,31 @@
         $c.fadeIn(200);
     }
 
-    function appendWordToContainer(word) {
-        const mode = root.LLFlashcards.Selection.getCurrentDisplayMode();
-        const $card = (mode === 'image') ? createImageCard(word) : createTextCard(word);
+    function appendWordToContainer(word, optionType, promptType) {
+        const mode = optionType || root.LLFlashcards.Selection.getCurrentDisplayMode();
+        const isTextMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation');
+        const $card = (mode === 'image')
+            ? createImageCard(word)
+            : (mode === 'audio'
+                ? createAudioCard(word, false, promptType)
+                : (mode === 'text_audio'
+                    ? createAudioCard(word, true, promptType)
+                    : (isTextMode ? createTextCard(word) : createTextCard(word))));
         insertContainerAtRandom($card);
         return $card;
     }
 
-    function addClickEventToCard($card, index, targetWord) {
-        const mode = root.LLFlashcards.Selection.getCurrentDisplayMode();
-        $card.off('click').on('click', function () {
-            if (!root.FlashcardAudio.getTargetAudioHasPlayed()) return;
+    function addClickEventToCard($card, index, targetWord, optionType, promptType) {
+        const mode = optionType || root.LLFlashcards.Selection.getCurrentDisplayMode();
+        const gateOnAudio = (promptType === 'audio');
+        $card.off('click').on('click', function (e) {
+            // Ignore clicks on the inline play button for audio options
+            if ($(e.target).closest('.ll-audio-play').length) return;
 
-            const isCorrect = (mode === 'image')
-                ? ($(this).find('img').attr('src') === targetWord.image)
-                : ($(this).find('.quiz-text').text() === (targetWord.label || ''));
+            if (gateOnAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) return;
+
+            const clickedId = String($(this).data('wordId') || $(this).attr('data-word-id') || '');
+            const isCorrect = clickedId === String(targetWord.id);
 
             if (isCorrect) root.LLFlashcards.Main.onCorrectAnswer(targetWord, $(this));
             else root.LLFlashcards.Main.onWrongAnswer(targetWord, index, $(this));
@@ -67,5 +187,5 @@
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard };
+    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio };
 })(window, jQuery);

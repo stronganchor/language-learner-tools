@@ -89,7 +89,7 @@
         const MAXIMUM_NUMBER_OF_OPTIONS = (llToolsFlashcardsData.maxOptionsOverride) ? parseInt(llToolsFlashcardsData.maxOptionsOverride, 10) : 9;
         const MAXIMUM_TEXT_OPTIONS = 4; // Limit text-based quizzes to 4 options per round
         const MAX_ROWS = 3;
-        const MAX_TEXT_CARD_WIDTH = 250;
+        const MAX_TEXT_CARD_WIDTH = 200;
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
@@ -126,8 +126,30 @@
                 ? window.getCategoryDisplayMode(categoryName)
                 : null;
 
-            if (mode === 'text') {
+            let promptType = null;
+            let optionTypeFromConfig = mode;
+            if (typeof window.getCategoryConfig === 'function') {
+                try {
+                    const cfg = window.getCategoryConfig(categoryName) || {};
+                    promptType = cfg.prompt_type || null;
+                    optionTypeFromConfig = cfg.option_type || cfg.mode || mode;
+                } catch (_) { /* no-op */ }
+            } else if (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories)) {
+                const cfg = window.llToolsFlashcardsData.categories.find(function (c) {
+                    return c && c.name === categoryName;
+                }) || {};
+                promptType = cfg.prompt_type || null;
+                optionTypeFromConfig = cfg.option_type || cfg.mode || mode;
+            }
+
+            if (mode === 'text' || mode === 'text_audio' || mode === 'text_title' || mode === 'text_translation') {
                 maxOptionsCount = Math.min(maxOptionsCount, MAXIMUM_TEXT_OPTIONS);
+            }
+
+            const isImagePromptAudioOptions = (promptType === 'image') &&
+                (optionTypeFromConfig === 'audio' || optionTypeFromConfig === 'text_audio');
+            if (isImagePromptAudioOptions) {
+                maxOptionsCount = Math.min(maxOptionsCount, 4);
             }
 
             // Also cap by how many words are actually available in that category
@@ -224,7 +246,7 @@
                 ? window.getCurrentDisplayMode()
                 : null;
 
-            let cardWidth = (mode === 'text') ? MAX_TEXT_CARD_WIDTH : size;
+            let cardWidth = (mode === 'text' || mode === 'text_audio' || mode === 'text_title' || mode === 'text_translation') ? MAX_TEXT_CARD_WIDTH : size;
 
             // Read the flex gap (fallback to 0)
             let gapValue = 0;
@@ -250,7 +272,9 @@
             const maxRowsByHeight = Math.max(1, Math.floor((availableHeight + gapValue) / (cardHeight + gapValue)));
 
             // Respect the tighter of the original MAX_ROWS and the height-based limit
-            const effectiveMaxRows = Math.min(MAX_ROWS, maxRowsByHeight);
+            const isAudioLineLayout = $container.hasClass('audio-line-layout');
+            const layoutMaxRows = isAudioLineLayout ? 4 : MAX_ROWS;
+            const effectiveMaxRows = Math.min(layoutMaxRows, maxRowsByHeight);
 
             // If we were to add one more card, how many rows would we need?
             const rowsIfAdd = Math.ceil(($cards.length + 1) / perRow);
