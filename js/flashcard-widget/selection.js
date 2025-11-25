@@ -210,6 +210,12 @@
         State.currentPromptType = promptType;
         renderPrompt(targetWord, config);
 
+        const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
+        const $container = jQuery('#ll-tools-flashcard');
+        const $content = jQuery('#ll-tools-flashcard-content');
+        $container.toggleClass('audio-line-layout', isAudioLineLayout);
+        $content.toggleClass('audio-line-mode', isAudioLineLayout);
+
         // In learning mode, only select from introduced words
         let availableWords = [];
         if (State.isLearningMode) {

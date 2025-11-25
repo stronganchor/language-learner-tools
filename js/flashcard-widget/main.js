@@ -424,12 +424,19 @@
 
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
-        $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+        const isAudioLineLayout = (State.currentPromptType === 'image') &&
+            (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
+
+        if (isAudioLineLayout) {
+            $wrong.addClass('ll-option-disabled').attr('aria-disabled', 'true');
+        } else {
+            $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+        }
 
         if (!State.quizResults.incorrect.includes(targetWord.id)) State.quizResults.incorrect.push(targetWord.id);
         State.wrongIndexes.push(index);
 
-        if (State.wrongIndexes.length === 2) {
+        if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
             $('.flashcard-container').not(function () {
                 const id = String($(this).data('wordId') || $(this).attr('data-word-id') || '');
                 return id === String(targetWord.id);
@@ -977,7 +984,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
 
 
 

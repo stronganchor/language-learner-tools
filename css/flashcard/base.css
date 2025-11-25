@@ -554,8 +554,11 @@ body.ll-tools-flashcard-open {
     align-items: center;
     justify-content: flex-start;
     gap: 12px;
-    width: 100%;
-    max-width: 100%;
+    width: fit-content;
+    max-width: min(95vw, 720px);
+    min-width: 240px;
+    flex: 0 1 auto;
+    align-self: center;
     height: auto;
     max-height: none;
     padding: 10px 14px;
