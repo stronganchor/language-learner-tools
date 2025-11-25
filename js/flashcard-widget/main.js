@@ -58,10 +58,25 @@
         }
     }
 
+    function clearPrompt() {
+        try {
+            $('#ll-tools-prompt').hide().empty();
+        } catch (_) {
+            try {
+                const el = document.getElementById('ll-tools-prompt');
+                if (el) {
+                    el.style.display = 'none';
+                    el.innerHTML = '';
+                }
+            } catch (_) { /* no-op */ }
+        }
+    }
+
     function newSession() {
         __LLSession++;
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
+        clearPrompt();
 
         // IMPORTANT: pause the *previous* audio session (snapshot the id now)
         try {
@@ -253,6 +268,7 @@
             $('#ll-tools-listening-controls').remove();
             $('#ll-tools-listening-visualizer').remove();
         } catch (_) { /* no-op */ }
+        clearPrompt();
 
         State.transitionTo(STATES.SWITCHING_MODE, 'User requested mode switch');
 
@@ -429,6 +445,7 @@
         }
 
         State.clearActiveTimeouts();
+        clearPrompt();
         const $flashcardContainer = $('#ll-tools-flashcard');
 
         // Preserve listening-mode footprint between skips to prevent control/button jumps
