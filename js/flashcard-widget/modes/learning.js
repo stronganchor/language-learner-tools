@@ -355,10 +355,18 @@
         const $jq = getJQuery();
 
         if ($jq) {
-            $jq('#ll-tools-flashcard').empty();
+            $jq('#ll-tools-flashcard').removeClass('audio-line-layout').empty();
+            $jq('#ll-tools-flashcard-content').removeClass('audio-line-mode');
         } else if (typeof document !== 'undefined') {
             const container = document.getElementById('ll-tools-flashcard');
-            if (container) container.innerHTML = '';
+            if (container) {
+                container.classList && container.classList.remove('audio-line-layout');
+                container.innerHTML = '';
+            }
+            const content = document.getElementById('ll-tools-flashcard-content');
+            if (content && content.classList) {
+                content.classList.remove('audio-line-mode');
+            }
         }
 
         Dom.restoreHeaderUI && Dom.restoreHeaderUI();
