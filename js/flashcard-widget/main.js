@@ -145,6 +145,20 @@
         State.addTimeout && State.addTimeout(first);
     }
 
+    function scheduleAutoplayAfterOptionsReady() {
+        if (!shouldAutoplayOptionAudio()) return;
+        let started = false;
+        const start = function () {
+            if (started) return;
+            started = true;
+            $(document).off('.llAutoplayReady');
+            autoplayOptionAudioSequence();
+        };
+        $(document).off('.llAutoplayReady').on('ll-tools-options-ready.llAutoplayReady', start);
+        const fallback = setTimeout(start, 1500);
+        State.addTimeout && State.addTimeout(fallback);
+    }
+
     // Init audio
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -637,7 +651,7 @@
             }
             Dom.hideLoading();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
-            autoplayOptionAudioSequence();
+            scheduleAutoplayAfterOptionsReady();
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
             State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
@@ -984,8 +998,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
-
 
 
 

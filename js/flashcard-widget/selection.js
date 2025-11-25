@@ -275,7 +275,54 @@
         jQuery('.flashcard-container').each(function (idx) {
             root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord, mode, promptType);
         });
-        jQuery('.flashcard-container').hide().fadeIn(600);
+
+        const publishOptionsReady = function () {
+            jQuery(document).trigger('ll-tools-options-ready');
+        };
+
+        const alignAudioLineWidths = function () {
+            const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
+            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
+                $cards.css('width', '');
+                return 0;
+            }
+            let maxWidth = 0;
+            $cards.each(function () {
+                const $card = jQuery(this);
+                $card.css('width', '');
+                const rect = this.getBoundingClientRect();
+                maxWidth = Math.max(maxWidth, Math.ceil(rect.width));
+            });
+            const minWidth = 240;
+            const vwCap = Math.max(minWidth, Math.floor((typeof window !== 'undefined' ? window.innerWidth : 0) * 0.95) || minWidth);
+            const hardCap = Math.min(vwCap, 720);
+            maxWidth = Math.max(minWidth, Math.min(maxWidth, hardCap));
+            if (maxWidth > 0) {
+                $cards.css('width', maxWidth + 'px');
+            }
+            return maxWidth;
+        };
+
+        const revealOptions = function () {
+            const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
+            const $all = jQuery('.flashcard-container');
+            if (!isAudioLineTextAudio) {
+                $all.hide().fadeIn(600, publishOptionsReady);
+                return;
+            }
+            const $wrap = jQuery('#ll-tools-flashcard');
+            $wrap.css({ visibility: 'hidden', opacity: 0 });
+            $all.css({ display: '', opacity: 1, visibility: 'visible' });
+            alignAudioLineWidths();
+            // Allow layout to settle before reveal
+            const show = function () {
+                $wrap.css('visibility', 'visible').fadeTo(200, 1, publishOptionsReady);
+            };
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(show);
+            else setTimeout(show, 0);
+        };
+
+        revealOptions();
     }
 
     window.LLFlashcards = window.LLFlashcards || {};
