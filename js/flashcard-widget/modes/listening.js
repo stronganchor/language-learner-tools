@@ -587,6 +587,21 @@
             const ar = clampAspectRatio(placeholderAspect);
             if (ar) State.listeningLastAspectRatio = ar;
         }
+        // Text strip between prompt and visualizer for audio+text listening
+        let $text = null;
+        if ($jq) {
+            $jq('#ll-tools-listening-text').remove();
+            if (showAnswerText) {
+                $text = $jq('<div>', {
+                    id: 'll-tools-listening-text',
+                    class: 'listening-text',
+                    text: answerLabel
+                });
+                $text.css('opacity', 0);
+                ($stack || $container || $jq('#ll-tools-flashcard')).append($text);
+            }
+        }
+
         // Add a dedicated visualizer element BELOW the image/placeholder and ABOVE the controls
         if ($jq) {
             // Remove any existing instance (fresh per round)
@@ -658,29 +673,30 @@
             Dom.disableRepeatButton && Dom.disableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
 
-            // Determine sequence. For image->audio, play intro then isolation only.
+            // Determine sequence. For image->audio (or audio+text), play intro then isolation only.
             const isoUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
                 ? audioApi.selectBestAudio(target, ['isolation']) : null;
             const introUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
                 ? audioApi.selectBestAudio(target, ['introduction']) : null;
 
             let sequence = [];
-            if (hasImage && optionType === 'audio') {
+            const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
+            if (isImageAudioFlow) {
                 const introFirst = introUrl || isoUrl || null;
-                const isoSecond = isoUrl || introUrl || null;
+                const isoSecond = isoUrl && introUrl ? isoUrl : null; // only add isolation if both exist
                 sequence = [introFirst, isoSecond].filter(Boolean);
             } else {
                 if (isoUrl && introUrl && isoUrl !== introUrl) {
-                    sequence = [isoUrl, introUrl, isoUrl];
+                    sequence = [isoUrl, introUrl];
                 } else if (introUrl) {
-                    sequence = [introUrl, introUrl, introUrl];
+                    sequence = [introUrl, introUrl];
                 } else if (isoUrl) {
-                    sequence = [isoUrl, isoUrl, isoUrl];
+                    sequence = [isoUrl, isoUrl];
                 } else {
                     const fallbackUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
                         ? audioApi.selectBestAudio(target, ['question'])
                         : (target && target.audio) || null;
-                    if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl, fallbackUrl];
+                    if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl];
                 }
             }
 
@@ -837,7 +853,8 @@
                     return;
                 }
                 setAndPlayUntilEnd(sequence[idx]).then(function () {
-                    const delay = (sequence.length === 2 && hasImage && optionType === 'audio')
+                    const isTwoClipImageAudio = (sequence.length === 2 && isImageAudioFlow);
+                    const delay = isTwoClipImageAudio
                         ? INTRO_GAP_MS
                         : ((idx === 1) ? INTRO_GAP_MS : 150); // gap between 2nd->3rd
                     const t = scheduleTimeout(utils, function () {
@@ -850,8 +867,9 @@
 
             const afterCountdown = function () {
                 if (State.listeningPaused) return;
-                if (showAnswerText) {
-                    maybeShowAnswerText();
+                if (showAnswerText && $jq) {
+                    const $t = $jq('#ll-tools-listening-text');
+                    if ($t.length) { $t.css('opacity', 1); }
                 }
                 revealContent();
                 if (!optionHasAudio && $jq) {
