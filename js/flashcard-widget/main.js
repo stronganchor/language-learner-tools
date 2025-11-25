@@ -99,6 +99,52 @@
         return id;
     }
 
+    function shouldAutoplayOptionAudio() {
+        if (!State || State.isListeningMode) return false;
+        const opt = State.currentOptionType;
+        const prompt = State.currentPromptType;
+        if (prompt !== 'image') return false;
+        if (opt !== 'audio' && opt !== 'text_audio') return false;
+        if (typeof State.is === 'function' && !State.is(State.STATES.SHOWING_QUESTION)) return false;
+        return $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+    }
+
+    function autoplayOptionAudioSequence(initialDelayMs = 700, gapMs = 200) {
+        if (!shouldAutoplayOptionAudio()) return;
+        const $cards = $('#ll-tools-flashcard .flashcard-container.audio-option');
+        const sequence = $cards.toArray().map(el => {
+            const $el = $(el);
+            return {
+                $card: $el,
+                url: $el.data('audioUrl') || $el.attr('data-audio-url') || ''
+            };
+        }).filter(item => !!item.url);
+        if (!sequence.length) return;
+
+        let idx = 0;
+        const scheduleNext = function () {
+            if (!shouldAutoplayOptionAudio()) return;
+            if (idx >= sequence.length) return;
+            const { $card, url } = sequence[idx++];
+            const fauxWord = { audio: url };
+            Cards.playOptionAudio(fauxWord, $card).then(function () {
+                if (!shouldAutoplayOptionAudio()) return;
+                const tid = setTimeout(scheduleNext, gapMs);
+                State.addTimeout && State.addTimeout(tid);
+            }).catch(function () {
+                if (!shouldAutoplayOptionAudio()) return;
+                const tid = setTimeout(scheduleNext, gapMs);
+                State.addTimeout && State.addTimeout(tid);
+            });
+        };
+
+        const first = setTimeout(function () {
+            if (!shouldAutoplayOptionAudio()) return;
+            scheduleNext();
+        }, initialDelayMs);
+        State.addTimeout && State.addTimeout(first);
+    }
+
     // Init audio
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -584,6 +630,7 @@
             }
             Dom.hideLoading();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
+            autoplayOptionAudioSequence();
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
             State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
@@ -930,7 +977,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
 
 
 
