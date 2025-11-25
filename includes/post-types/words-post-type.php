@@ -595,12 +595,28 @@ function ll_validate_word_audio_before_publish($post_id, $post, $update) {
         return;
     }
 
+    // Allow one-time skip set during programmatic creation (e.g., non-audio image imports)
+    if (get_post_meta($post_id, '_ll_skip_audio_requirement_once', true) === '1') {
+        delete_post_meta($post_id, '_ll_skip_audio_requirement_once');
+        return;
+    }
+
+    // Filter hook for programmatic opt-outs
+    if (apply_filters('ll_tools_skip_audio_requirement', false, $post_id, $post, $update)) {
+        return;
+    }
+
     if (!current_user_can('edit_post', $post_id)) {
         return;
     }
 
     // Only intervene if trying to publish
     if ($post->post_status !== 'publish') {
+        return;
+    }
+
+    // Skip enforcement for categories whose quiz config does not require audio
+    if (!ll_word_requires_audio_to_publish($post_id)) {
         return;
     }
 
@@ -625,6 +641,48 @@ function ll_validate_word_audio_before_publish($post_id, $post, $update) {
         // Set a transient to show admin notice
         set_transient('ll_word_publish_blocked_' . get_current_user_id(), $post_id, 60);
     }
+}
+
+/**
+ * Determine whether the word needs audio based on its categories' quiz config.
+ *
+ * @param int $post_id Word post ID.
+ * @return bool True when audio is required; false when all categories quiz without audio.
+ */
+function ll_word_requires_audio_to_publish($post_id) {
+    // Default to requiring audio if quiz helpers aren't available
+    if (!function_exists('ll_tools_get_category_quiz_config') || !function_exists('ll_tools_quiz_requires_audio')) {
+        return true;
+    }
+
+    $cat_ids = wp_get_post_terms((int) $post_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($cat_ids) || empty($cat_ids)) {
+        return true;
+    }
+
+    $has_non_audio_category = false;
+    foreach ($cat_ids as $tid) {
+        $cfg = ll_tools_get_category_quiz_config((int) $tid);
+        $needs_audio = ll_tools_quiz_requires_audio($cfg, isset($cfg['option_type']) ? $cfg['option_type'] : '');
+
+        // If recording is explicitly disabled for the category, treat it as non-audio.
+        if (function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled((int) $tid)) {
+            $has_non_audio_category = true;
+            continue;
+        }
+
+        // Legacy/text-only flag also signals no audio requirement.
+        $is_text_only = get_term_meta((int) $tid, 'use_word_titles_for_audio', true) === '1';
+
+        if ($needs_audio && !$is_text_only) {
+            return true;
+        }
+
+        $has_non_audio_category = true;
+    }
+
+    // If we found at least one category that does NOT require audio, allow publish.
+    return $has_non_audio_category ? false : true;
 }
 
 /**
