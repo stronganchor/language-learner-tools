@@ -46,6 +46,19 @@
         return (cfg.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
     }
 
+    function isLearningSupportedForCategories(categoryNames) {
+        try {
+            const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+            if (!Array.isArray(names) || !names.length) return true;
+            return names.every(function (name) {
+                const cfg = getCategoryConfig(name);
+                return cfg.learning_supported !== false;
+            });
+        } catch (_) {
+            return true;
+        }
+    }
+
     function renderPrompt(targetWord, cfg) {
         const promptConfig = cfg || getCategoryConfig(State.currentCategoryName);
         const promptType = promptConfig.prompt_type || 'audio';
@@ -348,7 +361,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };

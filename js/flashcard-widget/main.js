@@ -169,6 +169,9 @@
 
     function isLearningSupportedForCurrentSelection() {
         try {
+            if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
+                return Selection.isLearningSupportedForCategories(State.categoryNames);
+            }
             if (!Selection || typeof Selection.getCategoryConfig !== 'function') return true;
             if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) return true;
             return State.categoryNames.every(function (name) {
@@ -998,7 +1001,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
 
 
 

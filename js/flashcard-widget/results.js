@@ -18,6 +18,24 @@
         $('.ll-learning-checkmark').remove();
     }
 
+    function isLearningSupportedForResults() {
+        try {
+            const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
+            const categories = State && State.categoryNames;
+            if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
+                return Selection.isLearningSupportedForCategories(categories);
+            }
+            if (Selection && typeof Selection.getCategoryConfig === 'function' &&
+                Array.isArray(categories) && categories.length) {
+                return categories.every(function (name) {
+                    const cfg = Selection.getCategoryConfig(name);
+                    return cfg.learning_supported !== false;
+                });
+            }
+        } catch (_) { /* no-op */ }
+        return true;
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
@@ -31,6 +49,7 @@
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
+        const learningAllowed = isLearningSupportedForResults();
 
         $('#ll-tools-flashcard').hide();
         // Hide listening mode controls if present
@@ -139,7 +158,12 @@
         $('#correct-count').parent().show();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').show();
-        $('#restart-practice-mode, #restart-learning-mode').show();
+        $('#restart-practice-mode').show();
+        if (learningAllowed) {
+            $('#restart-learning-mode').show();
+        } else {
+            $('#restart-learning-mode').hide();
+        }
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
 
