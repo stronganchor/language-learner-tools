@@ -16,6 +16,9 @@
     const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introSilenceMs
         : 800;
+    const REPEAT_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.listeningRepeatGapMs === 'number')
+        ? root.llToolsFlashcardsData.listeningRepeatGapMs
+        : 700;
 
     function getJQuery() {
         if (root.jQuery) return root.jQuery;
@@ -683,10 +686,17 @@
 
             let sequence = [];
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
-            if (isImageAudioFlow) {
-                const introFirst = introUrl || isoUrl || null;
-                const isoSecond = isoUrl && introUrl ? isoUrl : null; // only add isolation if both exist
-                sequence = [introFirst, isoSecond].filter(Boolean);
+            const isAudioPromptFlow = (!promptIsImage && promptType === 'audio');
+            if (isAudioPromptFlow) {
+                const isolationClip = isoUrl || introUrl || ((audioApi && typeof audioApi.selectBestAudio === 'function')
+                    ? audioApi.selectBestAudio(target, ['question'])
+                    : (target && target.audio) || null);
+                const introClip = introUrl || isolationClip;
+                if (isolationClip) sequence.push(isolationClip);
+                if (introClip) sequence.push(introClip);
+                if (isolationClip) sequence.push(isolationClip);
+                // Fall back to at least two plays
+                if (sequence.length < 2 && isolationClip) sequence.push(isolationClip);
             } else {
                 if (isoUrl && introUrl && isoUrl !== introUrl) {
                     sequence = [isoUrl, introUrl];
@@ -881,7 +891,8 @@
                     const isTwoClipImageAudio = (sequence.length === 2 && isImageAudioFlow);
                     const delay = isTwoClipImageAudio
                         ? INTRO_GAP_MS
-                        : ((idx === 1) ? INTRO_GAP_MS : 150); // gap between 2nd->3rd
+                        : (isAudioPromptFlow && idx === 1) ? REPEAT_GAP_MS
+                            : (idx === 1) ? INTRO_GAP_MS : 150; // default small gap
                     const t = scheduleTimeout(utils, function () {
                         if (State.listeningPaused) return;
                         playSequenceFrom(idx + 1);
