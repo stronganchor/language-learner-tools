@@ -592,7 +592,7 @@
         let $text = null;
         if ($jq) {
             $jq('#ll-tools-listening-text').remove();
-            if (showAnswerText && !shouldUseVisualizerText) {
+            if (showAnswerText && !shouldUseVisualizerText && !optionHasAudio) {
                 $text = $jq('<div>', {
                     id: 'll-tools-listening-text',
                     class: 'listening-text',
@@ -807,8 +807,14 @@
                 if (shouldUseVisualizerText) {
                     showVisualizerAnswerText();
                 } else {
-                    renderTextIntoPlaceholder($ph, answerLabel);
-                    schedulePlaceholderMetrics($ph);
+                    const existingText = $ph.find('.quiz-text');
+                    if (existingText.length) {
+                        existingText.text(answerLabel);
+                        schedulePlaceholderMetrics($ph);
+                    } else {
+                        renderTextIntoPlaceholder($ph, answerLabel);
+                        schedulePlaceholderMetrics($ph);
+                    }
                 }
             };
 
