@@ -303,6 +303,25 @@
             return maxWidth;
         };
 
+        const shrinkAudioLineText = function () {
+            const $labels = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option .ll-audio-option-label');
+            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$labels.length) {
+                $labels.css('font-size', '');
+                return;
+            }
+            const MIN_FS = 12;
+            $labels.each(function () {
+                const $label = jQuery(this);
+                $label.css('font-size', '');
+                const base = parseFloat((window.getComputedStyle && window.getComputedStyle(this).fontSize) || '') || 17;
+                let fs = base;
+                for (let i = 0; i < 8 && fs > MIN_FS && this.scrollWidth > this.clientWidth; i++) {
+                    fs -= 1;
+                    $label.css('font-size', fs + 'px');
+                }
+            });
+        };
+
         const revealOptions = function () {
             const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
@@ -314,6 +333,7 @@
             $wrap.css({ visibility: 'hidden', opacity: 0 });
             $all.css({ display: '', opacity: 1, visibility: 'visible' });
             alignAudioLineWidths();
+            shrinkAudioLineText();
             // Allow layout to settle before reveal
             const show = function () {
                 $wrap.css('visibility', 'visible').fadeTo(200, 1, publishOptionsReady);
