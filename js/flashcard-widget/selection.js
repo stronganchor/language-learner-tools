@@ -28,6 +28,18 @@
         const cfg = getCategoryConfig(name);
         return cfg.prompt_type || 'audio';
     }
+
+    function getTargetCategoryName(word) {
+        if (!word) return State.currentCategoryName;
+        if (word.__categoryName) return word.__categoryName;
+        if (Array.isArray(word.all_categories) && Array.isArray(State.categoryNames)) {
+            const match = State.categoryNames.find(function (name) {
+                return word.all_categories.includes(name);
+            });
+            if (match) return match;
+        }
+        return State.currentCategoryName;
+    }
     function categoryRequiresAudio(nameOrConfig) {
         const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
         const opt = cfg.option_type || cfg.mode;
@@ -111,6 +123,7 @@
         }
 
         if (target) {
+            try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
             // Update last shown word ID to prevent consecutive duplicates
             State.lastWordShownId = target.id;
 
@@ -183,9 +196,16 @@
 
     function fillQuizOptions(targetWord) {
         let chosen = [];
-        const config = getCategoryConfig(State.currentCategoryName);
-        const mode = config.option_type || getCategoryDisplayMode(State.currentCategoryName);
-        const promptType = getCategoryPromptType(State.currentCategoryName);
+        const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
+        if (targetCategoryName && targetCategoryName !== State.currentCategoryName) {
+            State.currentCategoryName = targetCategoryName;
+            State.currentCategory = State.wordsByCategory[targetCategoryName] || State.currentCategory;
+            try { root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName); } catch (_) { /* no-op */ }
+        }
+
+        const config = getCategoryConfig(targetCategoryName);
+        const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
+        const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
         State.currentPromptType = promptType;
         renderPrompt(targetWord, config);
@@ -204,7 +224,7 @@
             });
         } else {
             // Practice / listening: only use words from the current category
-            const catWords = State.wordsByCategory[State.currentCategoryName] || [];
+            const catWords = State.wordsByCategory[targetCategoryName] || [];
             availableWords.push(...catWords);
         }
 
@@ -212,14 +232,23 @@
         availableWords = Util.randomlySort(availableWords);
 
         // Add target word first
-        root.FlashcardLoader.loadResourcesForWord(targetWord, mode, State.currentCategoryName, config);
+        root.FlashcardLoader.loadResourcesForWord(targetWord, mode, targetCategoryName, config);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
 
         // Determine how many options to show
         let targetCount = State.isLearningMode ?
             root.LLFlashcards.LearningMode.getChoiceCount() :
-            root.FlashcardOptions.categoryOptionsCount[State.currentCategoryName];
+            root.FlashcardOptions.categoryOptionsCount[targetCategoryName];
+        if (!State.isLearningMode && (!targetCount || !isFinite(targetCount))) {
+            const fallback = (root.FlashcardOptions && typeof root.FlashcardOptions.checkMinMax === 'function')
+                ? root.FlashcardOptions.checkMinMax(2, targetCategoryName)
+                : 2;
+            targetCount = fallback;
+            if (root.FlashcardOptions && root.FlashcardOptions.categoryOptionsCount) {
+                root.FlashcardOptions.categoryOptionsCount[targetCategoryName] = fallback;
+            }
+        }
 
         // Fill remaining options from available words
         for (let candidate of availableWords) {
@@ -232,7 +261,7 @@
 
             if (!isDup && !isSim && !sameImg) {
                 chosen.push(candidate);
-                root.FlashcardLoader.loadResourcesForWord(candidate, mode, State.currentCategoryName, config);
+                root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
                 root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             }
         }
@@ -246,7 +275,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, categoryRequiresAudio,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio,
         selectTargetWordAndCategory, fillQuizOptions,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };

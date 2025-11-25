@@ -543,15 +543,28 @@
             }
         }
 
+        const targetCategoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
+            ? Selection.getTargetCategoryName(target)
+            : ((target && target.__categoryName) || State.currentCategoryName);
+        const categoryNameForRound = targetCategoryName || State.currentCategoryName;
+        if (categoryNameForRound && categoryNameForRound !== State.currentCategoryName) {
+            State.currentCategoryName = categoryNameForRound;
+            State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
+            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
+        }
+
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
-            ? Selection.getCategoryConfig(State.currentCategoryName)
+            ? Selection.getCategoryConfig(categoryNameForRound)
             : {};
-        const displayMode = categoryConfig.option_type || Selection.getCurrentDisplayMode();
+        const displayMode = categoryConfig.option_type ||
+            (Selection && typeof Selection.getCategoryDisplayMode === 'function'
+                ? Selection.getCategoryDisplayMode(categoryNameForRound)
+                : Selection.getCurrentDisplayMode());
         const promptType = categoryConfig.prompt_type || 'audio';
         State.currentOptionType = displayMode;
         State.currentPromptType = promptType;
 
-        root.FlashcardLoader.loadResourcesForWord(target, displayMode, State.currentCategoryName, categoryConfig).then(function () {
+        root.FlashcardLoader.loadResourcesForWord(target, displayMode, categoryNameForRound, categoryConfig).then(function () {
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
             }
