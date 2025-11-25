@@ -39,43 +39,110 @@
         return $c;
     }
 
-    function playOptionAudio(word) {
-        const audioApi = root.FlashcardAudio;
-        if (!audioApi || !word || !word.audio) return;
-        try { audioApi.pauseAllAudio(); } catch (_) { /* ignore */ }
-        const audioEl = audioApi.createAudio ? audioApi.createAudio(word.audio, { type: 'option' }) : new Audio(word.audio);
-        if (!audioEl) return;
-        if (audioApi.playAudio) {
-            audioApi.playAudio(audioEl).catch(() => { });
-        } else if (audioEl.play) {
-            audioEl.play().catch(() => { });
-        }
+    function toggleOptionPlaying($card, isPlaying) {
+        if (!$card || typeof $card.toggleClass !== 'function') return;
+        $card.toggleClass('playing', !!isPlaying);
+        try { $card.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying); } catch (_) { /* no-op */ }
     }
 
-    function createAudioCard(word, includeText) {
+    function playOptionAudio(word, $card) {
+        const audioApi = root.FlashcardAudio;
+        return new Promise((resolve) => {
+            if (!audioApi || !word || !word.audio) { resolve(); return; }
+
+            try { audioApi.pauseAllAudio(); } catch (_) { /* ignore */ }
+            try {
+                $('.flashcard-container.audio-option').removeClass('playing');
+                $('.ll-audio-mini-visualizer').removeClass('active');
+            } catch (_) { /* ignore */ }
+            const audioEl = audioApi.createAudio ? audioApi.createAudio(word.audio, { type: 'option' }) : new Audio(word.audio);
+            if (!audioEl) { resolve(); return; }
+
+            let settled = false;
+            const finish = function () {
+                if (settled) return;
+                settled = true;
+                toggleOptionPlaying($card, false);
+                try {
+                    audioEl.onended = null;
+                    audioEl.onerror = null;
+                } catch (_) { }
+                resolve();
+            };
+
+            toggleOptionPlaying($card, true);
+
+            // Ensure we always resolve even if playback fails
+            audioEl.addEventListener && audioEl.addEventListener('ended', finish, { once: true });
+            audioEl.addEventListener && audioEl.addEventListener('error', finish, { once: true });
+            audioEl.onended = finish;
+            audioEl.onerror = finish;
+
+            try {
+                const playPromise = audioApi.playAudio ? audioApi.playAudio(audioEl) : audioEl.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                    playPromise.catch(finish);
+                }
+            } catch (_) {
+                finish();
+            }
+        });
+    }
+
+    function createAudioCard(word, includeText, promptType) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
-        const classes = ['flashcard-container', 'audio-option', sizeClass];
+        const isImagePrompt = (promptType === 'image');
+        const classes = ['flashcard-container', 'audio-option'];
+        if (!isImagePrompt) classes.push(sizeClass);
         if (includeText) classes.push('text-audio-option');
         const $c = $('<div>', {
             class: classes.join(' '),
             'data-word': word.title,
             'data-word-id': word.id,
+            'data-audio-url': word.audio || '',
             css: { display: 'none' }
         });
+
+        if (isImagePrompt) {
+            $c.addClass('audio-line-option');
+            if (!includeText) {
+                $c.addClass('audio-line-option-audio-only');
+            }
+            $c.append($('<span>', { class: 'll-audio-option-bullet', 'aria-hidden': 'true' }));
+        }
+
         const $btn = $('<button>', {
             type: 'button',
             class: 'll-audio-play',
             'aria-label': 'Play option audio'
-        }).append($('<span>', { class: 'll-audio-play-icon', text: '▶' }));
+        }).append($('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }));
         $btn.on('click', function (e) {
             e.stopPropagation();
-            playOptionAudio(word);
+            playOptionAudio(word, $c);
         });
         $c.append($btn);
 
+        const barCount = isImagePrompt
+            ? (includeText ? 4 : 8)
+            : 6;
+
+        if (includeText && isImagePrompt) {
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < barCount; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $c.append($viz);
+        }
+
         if (includeText) {
             const labelText = word.label || word.title || '';
-            $('<div>', { class: 'quiz-text', text: labelText }).appendTo($c);
+            $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText }).appendTo($c);
+        } else {
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < barCount; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $c.append($viz);
         }
         return $c;
     }
@@ -94,9 +161,9 @@
         const $card = (mode === 'image')
             ? createImageCard(word)
             : (mode === 'audio'
-                ? createAudioCard(word, false)
+                ? createAudioCard(word, false, promptType)
                 : (mode === 'text_audio'
-                    ? createAudioCard(word, true)
+                    ? createAudioCard(word, true, promptType)
                     : (isTextMode ? createTextCard(word) : createTextCard(word))));
         insertContainerAtRandom($card);
         return $card;
@@ -120,5 +187,5 @@
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard };
+    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio };
 })(window, jQuery);

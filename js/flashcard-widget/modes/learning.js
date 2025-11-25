@@ -64,6 +64,17 @@
             : 9;
 
         if (mode === 'text' || mode === 'text_audio') maxCount = Math.min(maxCount, 4);
+
+        const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
+            ? Selection.getCategoryConfig(State.currentCategoryName)
+            : null;
+        const promptType = cfg ? cfg.prompt_type : null;
+        const optionType = cfg ? (cfg.option_type || cfg.mode) : mode;
+        const isImagePromptAudio = (promptType === 'image') && (optionType === 'audio' || optionType === 'text_audio');
+        if (isImagePromptAudio) {
+            maxCount = Math.min(maxCount, 4);
+        }
+
         const introducedCount = State.introducedWordIDs.length;
         maxCount = Math.min(maxCount, introducedCount);
         maxCount = Math.max(2, maxCount);
