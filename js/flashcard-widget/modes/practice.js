@@ -76,7 +76,18 @@
         return true;
     }
 
-    function configureTargetAudio() {
+    function configureTargetAudio(target) {
+        // For audio prompts, prefer the question clip, then isolation, then introduction
+        if (!target) return true;
+        const promptType = State.currentPromptType || 'audio';
+        if (promptType !== 'audio') return true;
+        if (!root.FlashcardAudio || typeof root.FlashcardAudio.selectBestAudio !== 'function') return true;
+
+        const preferredOrder = ['question', 'isolation', 'introduction'];
+        const best = root.FlashcardAudio.selectBestAudio(target, preferredOrder);
+        if (best) {
+            target.audio = best;
+        }
         return true;
     }
 
