@@ -369,26 +369,68 @@ function ll_tools_sync_categories_for_post($post_id, $post, $update) {
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids) || empty($term_ids)) return;
     foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
+    ll_tools_bump_category_cache_version($term_ids);
 }
 add_action('save_post_words',       'll_tools_sync_categories_for_post', 10, 3);
 add_action('save_post_word_images', 'll_tools_sync_categories_for_post', 10, 3);
 
 function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxonomy) {
-    if ($taxonomy !== 'word-category') return;
     $post = get_post($object_id);
     if (!$post || !in_array($post->post_type, ['words','word_images'], true)) return;
-    foreach (array_map('intval', (array) $terms) as $tid) ll_tools_handle_category_sync($tid);
+
+    $term_ids = [];
+    if ($taxonomy === 'word-category') {
+        $term_ids = array_map('intval', (array) $terms);
+    } elseif ($taxonomy === 'wordset') {
+        $term_ids = wp_get_post_terms($object_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($term_ids)) {
+            $term_ids = [];
+        }
+    } else {
+        return;
+    }
+
+    foreach ($term_ids as $tid) ll_tools_handle_category_sync($tid);
+    ll_tools_bump_category_cache_version($term_ids);
 }
 add_action('set_object_terms', 'll_tools_sync_categories_on_term_set', 10, 4);
 
 function ll_tools_sync_categories_before_delete($post_id) {
     $post = get_post($post_id);
-    if (!$post || !in_array($post->post_type, ['words','word_images'], true)) return;
+    if (!$post) return;
+
+    if ($post->post_type === 'word_audio') {
+        $parent_id = (int) $post->post_parent;
+        if ($parent_id) {
+            $term_ids = wp_get_post_terms($parent_id, 'word-category', ['fields' => 'ids']);
+            if (!is_wp_error($term_ids) && !empty($term_ids)) {
+                ll_tools_bump_category_cache_version($term_ids);
+            }
+        }
+        return;
+    }
+
+    if (!in_array($post->post_type, ['words','word_images'], true)) return;
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids)) return;
     foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
+    ll_tools_bump_category_cache_version($term_ids);
 }
 add_action('before_delete_post', 'll_tools_sync_categories_before_delete');
+
+function ll_tools_sync_cache_on_word_audio_save($post_id, $post, $update) {
+    if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) return;
+    if (!$post || $post->post_type !== 'word_audio') return;
+
+    $parent_id = (int) $post->post_parent;
+    if ($parent_id <= 0) return;
+
+    $term_ids = wp_get_post_terms($parent_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($term_ids) || empty($term_ids)) return;
+
+    ll_tools_bump_category_cache_version($term_ids);
+}
+add_action('save_post_word_audio', 'll_tools_sync_cache_on_word_audio_save', 10, 3);
 
 /** Hide the title on these auto pages */
 add_filter('the_title', function ($title, $post_id) {

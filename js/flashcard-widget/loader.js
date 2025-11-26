@@ -372,7 +372,7 @@
 
             try {
                 if (window.FlashcardAudio && typeof window.FlashcardAudio.selectBestAudio === 'function') {
-                    const preferredOrder = ['isolation', 'introduction', 'question', 'in sentence'];
+                    const preferredOrder = ['question', 'isolation', 'introduction', 'in sentence'];
                     selectedAudio = sanitize(window.FlashcardAudio.selectBestAudio(word, preferredOrder));
                 }
             } catch (err) {
