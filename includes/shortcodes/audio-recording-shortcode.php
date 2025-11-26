@@ -65,6 +65,10 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // Get images for the initial category (or first if none specified)
     $initial_category = !empty($atts['category']) && isset($available_categories[$atts['category']]) ? $atts['category'] : key($available_categories);
+    // Prefer showing uncategorized first when present so missing-audio words are surfaced
+    if (empty($atts['category']) && isset($available_categories['uncategorized'])) {
+        $initial_category = 'uncategorized';
+    }
     $images_needing_audio = ll_get_images_needing_audio($initial_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
 
     if (empty($images_needing_audio)) {
@@ -287,6 +291,10 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
     $categories = [];
     $has_uncategorized_items = false;
     $current_uid = get_current_user_id();
+    $missing_audio_instances = get_option('ll_missing_audio_instances', []);
+    if (is_array($missing_audio_instances) && !empty($missing_audio_instances)) {
+        $has_uncategorized_items = true;
+    }
 
     // Image-backed items
     $image_args = [
@@ -399,11 +407,14 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         }
     }
 
-    if ($has_uncategorized_items && !isset($categories['uncategorized'])) {
-        $categories['uncategorized'] = __('Uncategorized', 'll-tools-text-domain');
-    }
-
-    if (!empty($categories)) {
+    if ($has_uncategorized_items) {
+        $uncat_label = isset($categories['uncategorized']) ? $categories['uncategorized'] : __('Uncategorized', 'll-tools-text-domain');
+        unset($categories['uncategorized']);
+        if (!empty($categories)) {
+            asort($categories, SORT_FLAG_CASE | SORT_NATURAL);
+        }
+        $categories = array_merge(['uncategorized' => $uncat_label], $categories);
+    } elseif (!empty($categories)) {
         asort($categories, SORT_FLAG_CASE | SORT_NATURAL);
     }
 
@@ -601,12 +612,15 @@ function ll_verify_recording_handler() {
     $image_id       = intval($_POST['image_id'] ?? 0);
     $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
+    $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
     $include_types  = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types  = sanitize_text_field($_POST['exclude_types'] ?? '');
     $wordset_ids    = [];
 
     if (!$image_id && !$word_id) {
-        wp_send_json_error('Missing image_id or word_id');
+        if ($word_title === '') {
+            wp_send_json_error('Missing image_id or word_id');
+        }
     }
 
     if (!empty($_POST['wordset_ids'])) {
@@ -629,9 +643,17 @@ function ll_verify_recording_handler() {
         }
         $word_id = (int) $word_id;
     } else {
-        $word_post = get_post($word_id);
-        if (!$word_post || $word_post->post_type !== 'words') {
-            wp_send_json_error('Invalid word ID');
+        if ($word_id) {
+            $word_post = get_post($word_id);
+            if (!$word_post || $word_post->post_type !== 'words') {
+                wp_send_json_error('Invalid word ID');
+            }
+        } else {
+            $created_word_id = ll_find_or_create_word_by_title($word_title, $wordset_ids);
+            if (is_wp_error($created_word_id)) {
+                wp_send_json_error('Failed to create word: ' . $created_word_id->get_error_message());
+            }
+            $word_id = (int) $created_word_id;
         }
     }
 
@@ -802,6 +824,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
     $result = [];
     $items_by_category = [];
+    $missing_audio_instances = get_option('ll_missing_audio_instances', []);
 
     $image_args = [
         'post_type'      => 'word_images',
@@ -1138,6 +1161,76 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
 
+    // Missing audio words captured by [word_audio] shortcode (no matching word/audio found)
+    if ($is_uncategorized_request || empty($category_slug)) {
+        $missing_audio_instances = is_array($missing_audio_instances) ? $missing_audio_instances : [];
+        if (!empty($missing_audio_instances)) {
+            $uncat_desired = ll_tools_get_uncategorized_desired_recording_types();
+            $types_for_missing = array_values(array_intersect($uncat_desired, $filtered_types));
+
+            if (!empty($types_for_missing)) {
+                if (!isset($items_by_category['uncategorized'])) {
+                    $items_by_category['uncategorized'] = [
+                        'name'  => $uncategorized_label,
+                        'slug'  => 'uncategorized',
+                        'items' => [],
+                    ];
+                }
+
+                $seen_missing_titles = [];
+                foreach ($missing_audio_instances as $missing_word => $source_post_id) {
+                    $word_title = sanitize_text_field($missing_word);
+                    if ($word_title === '' || isset($seen_missing_titles[$word_title])) {
+                        continue;
+                    }
+                    $seen_missing_titles[$word_title] = true;
+
+                    $word_id = 0;
+                    $existing_types = [];
+                    $missing_types = $types_for_missing;
+
+                    if (function_exists('ll_find_post_by_exact_title')) {
+                        $maybe_word = ll_find_post_by_exact_title($word_title, 'words');
+                        if ($maybe_word) {
+                            $word_id = (int) $maybe_word->ID;
+                            $main_types = ll_tools_get_main_recording_types();
+                            $types_equal_main = empty(array_diff($types_for_missing, $main_types)) && empty(array_diff($main_types, $types_for_missing));
+                            if ($types_equal_main && ll_tools_get_preferred_speaker_for_word($word_id)) {
+                                continue;
+                            }
+                            if ($types_equal_main) {
+                                $missing_types = ll_get_user_missing_recording_types_for_word($word_id, $types_for_missing, get_current_user_id());
+                            } else {
+                                $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_missing);
+                            }
+                            $existing_types = ll_get_existing_recording_types_for_word($word_id);
+                        }
+                    }
+
+                    if (empty($missing_types)) {
+                        continue;
+                    }
+
+                    $items_by_category['uncategorized']['items'][] = [
+                        'id'               => 0,
+                        'title'            => $word_title,
+                        'image_url'        => '',
+                        'category_name'    => $uncategorized_label,
+                        'category_slug'    => 'uncategorized',
+                        'word_id'          => $word_id,
+                        'word_title'       => $word_title,
+                        'word_translation' => '',
+                        'use_word_display' => true,
+                        'missing_types'    => $missing_types,
+                        'existing_types'   => $existing_types,
+                        'is_text_only'     => true,
+                        'missing_audio_source_post' => intval($source_post_id),
+                    ];
+                }
+            }
+        }
+    }
+
     uasort($items_by_category, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
     });
@@ -1467,9 +1560,12 @@ function ll_skip_recording_type_handler() {
     $image_id       = intval($_POST['image_id'] ?? 0);
     $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
+    $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
 
     if (!$image_id && !$word_id) {
-        wp_send_json_error('Missing image_id or word_id');
+        if ($word_title === '') {
+            wp_send_json_error('Missing image_id or word_id');
+        }
     }
 
     $posted_ids = [];
@@ -1511,9 +1607,17 @@ function ll_skip_recording_type_handler() {
         }
         $word_id = (int) $word_id;
     } else {
-        $word_post = get_post($word_id);
-        if (!$word_post || $word_post->post_type !== 'words') {
-            wp_send_json_error('Invalid word ID');
+        if ($word_id) {
+            $word_post = get_post($word_id);
+            if (!$word_post || $word_post->post_type !== 'words') {
+                wp_send_json_error('Invalid word ID');
+            }
+        } else {
+            $created_word_id = ll_find_or_create_word_by_title($word_title, $posted_ids);
+            if (is_wp_error($created_word_id)) {
+                wp_send_json_error('Failed to create word post: ' . $created_word_id->get_error_message());
+            }
+            $word_id = (int) $created_word_id;
         }
     }
 
@@ -1568,9 +1672,12 @@ function ll_handle_recording_upload() {
     $image_id       = intval($_POST['image_id'] ?? 0);
     $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? 'isolation');
+    $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
 
     if (!$image_id && !$word_id) {
-        wp_send_json_error('Missing image_id or word_id');
+        if ($word_title === '') {
+            wp_send_json_error('Missing image_id or word_id');
+        }
     }
 
     $posted_ids = [];
@@ -1615,12 +1722,22 @@ function ll_handle_recording_upload() {
         }
         $word_id = (int) $word_id;
     } else {
-        $word_post = get_post($word_id);
-        if (!$word_post || $word_post->post_type !== 'words') {
-            error_log('Upload step: Invalid word ID');
-            wp_send_json_error('Invalid word ID');
+        if ($word_id) {
+            $word_post = get_post($word_id);
+            if (!$word_post || $word_post->post_type !== 'words') {
+                error_log('Upload step: Invalid word ID');
+                wp_send_json_error('Invalid word ID');
+            }
+            $title = $word_post->post_title;
+        } else {
+            $created_word_id = ll_find_or_create_word_by_title($word_title, $posted_ids);
+            if (is_wp_error($created_word_id)) {
+                error_log('Upload step: Failed to create word post: ' . $created_word_id->get_error_message());
+                wp_send_json_error('Failed to create word post: ' . $created_word_id->get_error_message());
+            }
+            $word_id = (int) $created_word_id;
+            $title = $word_title;
         }
-        $title = $word_post->post_title;
     }
 
     $file       = $_FILES['audio'];
@@ -1686,6 +1803,13 @@ function ll_handle_recording_upload() {
     }
 
     $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+
+    if (function_exists('ll_remove_missing_audio_instance')) {
+        ll_remove_missing_audio_instance($title);
+        if (function_exists('ll_normalize_case')) {
+            ll_remove_missing_audio_instance(ll_normalize_case($title));
+        }
+    }
 
     wp_send_json_success([
         'audio_post_id'   => (int) $audio_post_id,
@@ -1764,4 +1888,53 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     }
 
     return $word_id;
+}
+
+/**
+ * Find an existing word by exact title or create a new one (draft) with the default wordset.
+ *
+ * @param string $word_title
+ * @param array  $wordset_ids
+ * @return int|WP_Error
+ */
+function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
+    $word_title = trim(wp_strip_all_tags((string) $word_title));
+    if ($word_title === '') {
+        return new WP_Error('empty_title', 'Missing word title');
+    }
+
+    // Try to find existing by exact title
+    if (function_exists('ll_find_post_by_exact_title')) {
+        $maybe = ll_find_post_by_exact_title($word_title, 'words');
+        if ($maybe) {
+            $word_id = (int) $maybe->ID;
+            if (!empty($wordset_ids)) {
+                wp_set_object_terms($word_id, $wordset_ids, 'wordset', true);
+            }
+            return $word_id;
+        }
+    }
+
+    if (empty($wordset_ids)) {
+        $default_id = ll_get_default_wordset_term_id();
+        if ($default_id) {
+            $wordset_ids = [$default_id];
+        }
+    }
+
+    $word_id = wp_insert_post([
+        'post_title'  => $word_title,
+        'post_type'   => 'words',
+        'post_status' => 'draft',
+    ]);
+
+    if (is_wp_error($word_id)) {
+        return $word_id;
+    }
+
+    if (!empty($wordset_ids)) {
+        wp_set_object_terms($word_id, $wordset_ids, 'wordset');
+    }
+
+    return (int) $word_id;
 }

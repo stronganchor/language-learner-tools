@@ -482,6 +482,7 @@
         formData.append('wordset', wordsetLegacy);
         formData.append('include_types', includeTypes);
         formData.append('exclude_types', excludeTypes);
+        formData.append('word_title', img.word_title || img.title || '');
 
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
@@ -537,6 +538,7 @@
         formData.append('wordset', wordsetLegacy);
         formData.append('include_types', includeTypes);
         formData.append('exclude_types', excludeTypes);
+        formData.append('word_title', img.word_title || img.title || '');
 
         // Extension detection - prioritize quality formats
         let extension = '.wav';
@@ -594,6 +596,7 @@
             fd.append('wordset', wordsetLegacy);
             fd.append('include_types', includeTypes);
             fd.append('exclude_types', excludeTypes);
+            fd.append('word_title', img.word_title || img.title || '');
 
             const verifyResp = await fetch(ajaxUrl, { method: 'POST', body: fd });
             if (!verifyResp.ok) throw new Error(`HTTP ${verifyResp.status}: ${verifyResp.statusText}`);
