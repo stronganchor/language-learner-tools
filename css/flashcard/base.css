@@ -855,24 +855,24 @@ body.ll-tools-flashcard-open {
 
 /* New Classes for Flashcard Sizes */
 .flashcard-size-small {
-    width: 130px;
-    height: 130px;
-    max-width: 130px;
-    max-height: 130px;
+    width: 150px;
+    height: 150px;
+    max-width: 150px;
+    max-height: 150px;
 }
 
 .flashcard-size-medium {
-    width: 180px;
-    height: 180px;
-    max-width: 180px;
-    max-height: 180px;
+    width: 200px;
+    height: 200px;
+    max-width: 200px;
+    max-height: 200px;
 }
 
 .flashcard-size-large {
-    width: 210px;
-    height: 210px;
-    max-width: 210px;
-    max-height: 210px;
+    width: 250px;
+    height: 250px;
+    max-width: 250px;
+    max-height: 250px;
 }
 
 /* --- Flashcard header: stack category label above play/pause --- */
