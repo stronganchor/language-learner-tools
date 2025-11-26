@@ -735,6 +735,52 @@ function ll_get_category_depth($category_id, $depth = 0) {
 /**
  * Determine a sensible default answer option for legacy categories.
  */
+function ll_tools_get_category_cache_version($term_id) {
+    $version = (int) get_term_meta($term_id, '_ll_wc_cache_version', true);
+    if ($version < 1) {
+        $version = 1;
+        update_term_meta($term_id, '_ll_wc_cache_version', $version);
+    }
+    return $version;
+}
+
+/**
+ * Increment the cache version for one or more word-category terms.
+ */
+function ll_tools_bump_category_cache_version($term_ids) {
+    $term_ids = array_map('intval', (array) $term_ids);
+    foreach ($term_ids as $term_id) {
+        if ($term_id <= 0) {
+            continue;
+        }
+        $current = ll_tools_get_category_cache_version($term_id);
+        update_term_meta($term_id, '_ll_wc_cache_version', $current + 1);
+    }
+}
+
+/**
+ * Build a cache key for storing words for a category and quiz configuration.
+ */
+function ll_tools_get_words_cache_key($term_id, array $wordset_terms, $prompt_type, $option_type, array $flags = []) {
+    sort($wordset_terms, SORT_NUMERIC);
+    $wordset_key = $wordset_terms ? md5(implode(',', $wordset_terms)) : 'all';
+    $version     = $term_id ? ll_tools_get_category_cache_version($term_id) : 1;
+    $signature   = md5(json_encode([
+        'prompt' => $prompt_type,
+        'option' => $option_type,
+        'flags'  => $flags,
+    ]));
+
+    return "ll_wc_words_{$term_id}_{$wordset_key}_{$signature}_v{$version}";
+}
+
+function ll_tools_bump_single_category_cache_version($term_id) {
+    ll_tools_bump_category_cache_version([(int) $term_id]);
+}
+add_action('created_word-category', 'll_tools_bump_single_category_cache_version', 20, 1);
+add_action('edited_word-category',  'll_tools_bump_single_category_cache_version', 20, 1);
+add_action('delete_word-category',  'll_tools_bump_single_category_cache_version', 20, 1);
+
 function ll_tools_default_option_type_for_category($term, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []): string {
     if (!($term instanceof WP_Term)) {
         $term = get_term($term, 'word-category');
@@ -790,6 +836,29 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     if (!empty($wordset_id)) {
         $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
         $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
+    }
+
+    $term_id = ($term && !is_wp_error($term)) ? (int) $term->term_id : 0;
+    $cache_flags = [
+        'require_audio'        => $require_audio,
+        'require_prompt_image' => $require_prompt_image,
+        'require_option_image' => $require_option_image,
+        'use_titles'           => $use_titles,
+    ];
+    $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
+
+    static $request_cache = [];
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $cached = wp_cache_get($cache_key, 'll_tools_words');
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if ($cached !== false) {
+        $request_cache[$cache_key] = $cached;
+        return $cached;
     }
 
     $args = [
@@ -921,6 +990,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $words[] = $word_data;
         }
     }
+
+    $cache_ttl = 6 * HOUR_IN_SECONDS;
+    $request_cache[$cache_key] = $words;
+    wp_cache_set($cache_key, $words, 'll_tools_words', $cache_ttl);
+    set_transient($cache_key, $words, $cache_ttl);
 
     return $words;
 }
