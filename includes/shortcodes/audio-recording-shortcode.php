@@ -1898,7 +1898,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
  * @return int|WP_Error
  */
 function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
-    $word_title = trim(wp_strip_all_tags((string) $word_title));
+    $word_title = ll_sanitize_word_title_text($word_title);
     if ($word_title === '') {
         return new WP_Error('empty_title', 'Missing word title');
     }
@@ -1937,4 +1937,28 @@ function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
     }
 
     return (int) $word_id;
+}
+
+/**
+ * Sanitize a word title by stripping shortcodes, HTML, parentheses, and extra whitespace.
+ *
+ * @param string $text
+ * @return string
+ */
+function ll_sanitize_word_title_text($text) {
+    $text = (string) $text;
+    // Remove shortcodes but keep their inner content
+    if (function_exists('strip_shortcodes')) {
+        $text = strip_shortcodes($text);
+    }
+    // Strip BBCode-style or unknown bracket tags (e.g., [color]...[/color])
+    $text = preg_replace('/\[[^\]]+\]/u', '', $text);
+    $text = wp_kses_decode_entities($text);
+    // Strip HTML tags
+    $text = wp_strip_all_tags($text);
+    // Remove anything in parentheses (multiple occurrences)
+    $text = preg_replace('/\s*\([^)]*\)/u', '', $text);
+    // Collapse whitespace
+    $text = preg_replace('/\s+/u', ' ', $text);
+    return trim($text);
 }
