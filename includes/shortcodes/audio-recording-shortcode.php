@@ -1802,7 +1802,23 @@ function ll_handle_recording_upload() {
         update_post_meta($word_id, 'word_audio_file', $relative_path);
     }
 
-    $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+    // Recompute remaining types using the same rules as the UI: honor desired types
+    // and only apply single-speaker gating when the full main set is being collected.
+    $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
+    $filtered_types = array_values(array_intersect($filtered_types, $desired_word));
+
+    $main_types = ll_tools_get_main_recording_types();
+    $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
+
+    if ($types_equal_main) {
+        if (ll_tools_get_preferred_speaker_for_word($word_id)) {
+            $remaining_missing = [];
+        } else {
+            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_user_id);
+        }
+    } else {
+        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+    }
 
     if (function_exists('ll_remove_missing_audio_instance')) {
         ll_remove_missing_audio_instance($title);
