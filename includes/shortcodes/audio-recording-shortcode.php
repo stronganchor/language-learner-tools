@@ -359,7 +359,9 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         if (!empty($missing)) {
             $cats = wp_get_post_terms($img_id, 'word-category');
             if (!empty($cats) && !is_wp_error($cats)) {
-                $categories[$cats[0]->slug] = $cats[0]->name;
+                foreach ($cats as $cat) {
+                    $categories[$cat->slug] = $cat->name;
+                }
             } else {
                 $has_uncategorized_items = true;
             }
@@ -400,7 +402,9 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         if (!empty($missing)) {
             $cats = wp_get_post_terms($word_id, 'word-category');
             if (!empty($cats) && !is_wp_error($cats)) {
-                $categories[$cats[0]->slug] = $cats[0]->name;
+                foreach ($cats as $cat) {
+                    $categories[$cat->slug] = $cat->name;
+                }
             } else {
                 $has_uncategorized_items = true;
             }
@@ -1956,6 +1960,35 @@ function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
 }
 
 /**
+ * Strip shortcodes while keeping their inner content intact.
+ *
+ * @param string $text
+ * @return string
+ */
+function ll_strip_shortcodes_preserve_content($text) {
+    if (!function_exists('get_shortcode_regex')) {
+        return $text;
+    }
+
+    $pattern = '/' . get_shortcode_regex() . '/s';
+    $previous = null;
+
+    while ($previous !== $text) {
+        $previous = $text;
+        $text = preg_replace_callback($pattern, function ($m) {
+            // Respect escaped shortcodes [[tag]]
+            if ($m[1] === '[' && $m[6] === ']') {
+                return substr($m[0], 1, -1);
+            }
+            // Group 5 is the inner content of enclosing shortcodes.
+            return isset($m[5]) ? $m[5] : '';
+        }, $text);
+    }
+
+    return $text;
+}
+
+/**
  * Sanitize a word title by stripping shortcodes, HTML, parentheses, and extra whitespace.
  *
  * @param string $text
@@ -1963,10 +1996,8 @@ function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
  */
 function ll_sanitize_word_title_text($text) {
     $text = (string) $text;
-    // Remove shortcodes but keep their inner content
-    if (function_exists('strip_shortcodes')) {
-        $text = strip_shortcodes($text);
-    }
+    // Remove shortcode wrappers while keeping the inner text (e.g., color tags)
+    $text = ll_strip_shortcodes_preserve_content($text);
     // Strip BBCode-style or unknown bracket tags (e.g., [color]...[/color])
     $text = preg_replace('/\[[^\]]+\]/u', '', $text);
     $text = wp_kses_decode_entities($text);

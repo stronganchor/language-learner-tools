@@ -1443,9 +1443,12 @@ function ll_missing_audio_sanitize_word_text($text) {
         return ll_sanitize_word_title_text($text);
     }
     $text = (string) $text;
-    if (function_exists('strip_shortcodes')) {
+    if (function_exists('ll_strip_shortcodes_preserve_content')) {
+        $text = ll_strip_shortcodes_preserve_content($text);
+    } elseif (function_exists('strip_shortcodes')) {
         $text = strip_shortcodes($text);
     }
+    $text = preg_replace('/\[[^\]]+\]/u', '', $text);
     $text = wp_strip_all_tags($text);
     $text = preg_replace('/\s*\([^)]*\)/u', '', $text);
     $text = preg_replace('/\s+/u', ' ', $text);
