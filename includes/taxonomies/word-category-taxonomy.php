@@ -597,7 +597,8 @@ function ll_tools_get_uncategorized_desired_recording_types(): array {
     if (!empty($sanitized)) {
         return $sanitized;
     }
-    return ll_tools_get_main_recording_types();
+    // Default to the simplest prompt for uncategorized/text-only cases
+    return ['isolation'];
 }
 
 /**
