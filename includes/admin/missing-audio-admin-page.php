@@ -1240,6 +1240,9 @@ function ll_missing_audio_normalize_header_text($text) {
 /**
  * Collect a unique, sorted list of table headers across scanned post types.
  *
+ * Excludes headers whose corresponding columns already have [word_audio]
+ * in every data cell across all occurrences.
+ *
  * @return array Each entry: ['label' => string, 'count' => int]
  */
 function ll_missing_audio_collect_table_headers() {
@@ -1284,19 +1287,44 @@ function ll_missing_audio_collect_table_headers() {
                 if (empty($header_cells)) {
                     continue;
                 }
-                foreach ($header_cells as $cell) {
+                foreach ($header_cells as $idx => $cell) {
                     $header_text = trim(wp_strip_all_tags(ll_dom_inner_html($cell)));
                     $normalized = ll_missing_audio_normalize_header_text($header_text);
                     if ($normalized === '') {
                         continue;
                     }
+                    $rows = ll_get_table_data_rows($table, $header_cells[0]->parentNode);
+                    $had_rows = false;
+                    $column_all_has_shortcode = true;
+                    foreach ($rows as $tr) {
+                        $cells = array();
+                        foreach ($tr->childNodes as $cell_node) {
+                            if ($cell_node->nodeType === XML_ELEMENT_NODE && in_array(strtolower($cell_node->nodeName), array('td', 'th'), true)) {
+                                $cells[] = $cell_node;
+                            }
+                        }
+                        if (!isset($cells[$idx])) {
+                            continue;
+                        }
+                        $had_rows = true;
+                        $cell_html = ll_dom_inner_html($cells[$idx]);
+                        if (stripos($cell_html, '[word_audio') === false) {
+                            $column_all_has_shortcode = false;
+                            break;
+                        }
+                    }
+
+                    $column_complete = $had_rows && $column_all_has_shortcode;
+
                     if (!isset($headers[$normalized])) {
                         $headers[$normalized] = array(
                             'label' => $header_text,
                             'count' => 1,
+                            'all_complete' => $column_complete,
                         );
                     } else {
                         $headers[$normalized]['count']++;
+                        $headers[$normalized]['all_complete'] = $headers[$normalized]['all_complete'] && $column_complete;
                     }
                 }
             }
@@ -1305,13 +1333,18 @@ function ll_missing_audio_collect_table_headers() {
 
     wp_reset_postdata();
 
-    if (!empty($headers)) {
-        uasort($headers, function ($a, $b) {
+    // Drop headers that are fully covered by existing shortcodes everywhere
+    $filtered = array_filter($headers, function ($meta) {
+        return empty($meta['all_complete']);
+    });
+
+    if (!empty($filtered)) {
+        uasort($filtered, function ($a, $b) {
             return strcasecmp($a['label'], $b['label']);
         });
     }
 
-    return array_values($headers);
+    return array_values($filtered);
 }
 
 /**
@@ -1434,15 +1467,18 @@ function ll_find_table_column_word_audio_matches($header_targets) {
                         if (stripos($cell_html, '[word_audio') !== false) {
                             continue;
                         }
-                        $text_value = ll_missing_audio_sanitize_word_text($cell_html);
-                        if ($text_value === '') {
+                        $normalized_parts = ll_missing_audio_extract_normalized_segments($cell_html);
+                        if (empty($normalized_parts)) {
                             continue;
                         }
 
-                        $post_cells[] = array(
-                            'id' => $table_index . ':' . $row_idx . ':' . $target_idx,
-                            'context_html' => '<strong>' . esc_html($text_value) . '</strong>',
-                        );
+                        $base_id = $table_index . ':' . $row_idx . ':' . $target_idx;
+                        foreach ($normalized_parts as $part) {
+                            $post_cells[] = array(
+                                'id' => $base_id,
+                                'context_html' => '<strong>' . esc_html($part) . '</strong>',
+                            );
+                        }
                     }
                 }
             }
@@ -1575,15 +1611,20 @@ function ll_apply_table_column_word_audio_insertions($header_targets, $exclusion
                             continue;
                         }
 
-                        ll_wrap_table_cell_with_shortcode($cells[$target_idx]);
+                        ll_missing_audio_wrap_cell_with_split_support($cells[$target_idx]);
+                        $preview_parts = ll_missing_audio_extract_normalized_segments($cell_html);
+                        $display_string = !empty($preview_parts) ? implode(' / ', $preview_parts) : $text_value;
                         $post_log_cells[] = array(
-                            'context_html' => '<strong>' . esc_html($text_value) . '</strong>',
+                            'context_html' => '<strong>' . esc_html($display_string) . '</strong>',
                             'id' => $cell_id,
                         );
                         $inserted_here++;
 
-                        $normalized = ll_normalize_case($text_value);
-                        ll_cache_missing_audio_instance($normalized, $post_id);
+                        $normalized_parts = !empty($preview_parts) ? $preview_parts : array($text_value);
+                        foreach ($normalized_parts as $part) {
+                            $normalized = function_exists('ll_normalize_case') ? ll_normalize_case($part) : $part;
+                            ll_cache_missing_audio_instance($normalized, $post_id);
+                        }
                     }
                 }
             }
@@ -1639,6 +1680,211 @@ function ll_wrap_table_cell_with_shortcode($cell) {
         $cell->appendChild($clone);
     }
     $cell->appendChild($doc->createTextNode('[/word_audio]'));
+}
+
+/**
+ * Replace a cell's inner HTML with parsed HTML content.
+ *
+ * @param DOMElement $cell
+ * @param string     $html
+ * @return bool True on success
+ */
+function ll_missing_audio_replace_cell_html($cell, $html) {
+    $doc = $cell->ownerDocument;
+    $parsed = ll_dom_load_html_utf8($html);
+    if (!$parsed) {
+        return false;
+    }
+    $wrapper = $parsed->getElementById('ll-root');
+    if (!$wrapper) {
+        return false;
+    }
+
+    while ($cell->firstChild) {
+        $cell->removeChild($cell->firstChild);
+    }
+
+    foreach ($wrapper->childNodes as $child) {
+        $imported = $doc->importNode($child, true);
+        $cell->appendChild($imported);
+    }
+
+    return true;
+}
+
+/**
+ * Wraps cell content with multiple [word_audio] tags when separated by "/" or ",".
+ * Falls back to wrapping the entire cell if splitting fails.
+ *
+ * @param DOMElement $cell
+ * @return void
+ */
+function ll_missing_audio_wrap_cell_with_split_support($cell) {
+    $cell_html = ll_dom_inner_html($cell);
+    if (strpos($cell_html, '/') === false && strpos($cell_html, ',') === false) {
+        ll_wrap_table_cell_with_shortcode($cell);
+        return;
+    }
+
+    $segments = ll_missing_audio_split_outside_markup($cell_html);
+    $has_delim = false;
+    foreach ($segments as $seg) {
+        if ($seg['type'] === 'delim') {
+            $has_delim = true;
+            break;
+        }
+    }
+    if (!$has_delim) {
+        ll_wrap_table_cell_with_shortcode($cell);
+        return;
+    }
+
+    $rebuilt = array();
+    foreach ($segments as $seg) {
+        if ($seg['type'] === 'delim') {
+            $rebuilt[] = $seg['value'];
+            continue;
+        }
+
+        $piece = $seg['value'];
+        $leading = '';
+        $trailing = '';
+        $core = $piece;
+        if (preg_match('/^(\s*)(.*?)(\s*)$/us', $piece, $m)) {
+            $leading = $m[1];
+            $core = $m[2];
+            $trailing = $m[3];
+        }
+
+        $core_normalized = ll_missing_audio_sanitize_word_text($core);
+        if ($core_normalized === '') {
+            $rebuilt[] = $piece;
+            continue;
+        }
+
+        $rebuilt[] = $leading . '[word_audio]' . $core . '[/word_audio]' . $trailing;
+    }
+
+    $new_html = implode('', $rebuilt);
+    if (!ll_missing_audio_replace_cell_html($cell, $new_html)) {
+        ll_wrap_table_cell_with_shortcode($cell);
+    }
+}
+
+/**
+ * Split text into segments on "/" or "," only when not inside shortcode/HTML tags.
+ *
+ * @param string $html
+ * @return array[] ['type' => 'text'|'delim', 'value' => string]
+ */
+function ll_missing_audio_split_outside_markup($html) {
+    $segments = array();
+    $buffer = '';
+    $bracket_depth = 0;
+    $tag_depth = 0;
+    $len = ll_mb_strlen_safe($html);
+
+    for ($i = 0; $i < $len; $i++) {
+        $ch = ll_mb_substr_safe($html, $i, 1);
+
+        if ($ch === '[') {
+            $bracket_depth++;
+            $buffer .= $ch;
+            continue;
+        }
+        if ($ch === ']') {
+            if ($bracket_depth > 0) { $bracket_depth--; }
+            $buffer .= $ch;
+            continue;
+        }
+        if ($ch === '<') {
+            $tag_depth++;
+            $buffer .= $ch;
+            continue;
+        }
+        if ($ch === '>') {
+            if ($tag_depth > 0) { $tag_depth--; }
+            $buffer .= $ch;
+            continue;
+        }
+
+        if (($ch === '/' || $ch === ',') && $bracket_depth === 0 && $tag_depth === 0) {
+            if ($buffer !== '') {
+                $segments[] = array('type' => 'text', 'value' => $buffer);
+                $buffer = '';
+            }
+            $segments[] = array('type' => 'delim', 'value' => $ch);
+            continue;
+        }
+
+        $buffer .= $ch;
+    }
+
+    if ($buffer !== '') {
+        $segments[] = array('type' => 'text', 'value' => $buffer);
+    }
+
+    return $segments;
+}
+
+/**
+ * Build a preview string showing how split wrapping will look.
+ *
+ * @param string $html
+ * @return string
+ */
+function ll_missing_audio_build_split_preview_string($html) {
+    $segments = ll_missing_audio_split_outside_markup($html);
+    $rebuilt = array();
+
+    foreach ($segments as $seg) {
+        if ($seg['type'] === 'delim') {
+            $rebuilt[] = $seg['value'];
+            continue;
+        }
+        $piece = $seg['value'];
+
+        $leading = '';
+        $trailing = '';
+        $core = $piece;
+        if (preg_match('/^(\s*)(.*?)(\s*)$/us', $piece, $m)) {
+            $leading = $m[1];
+            $core = $m[2];
+            $trailing = $m[3];
+        }
+
+        $core_normalized = ll_missing_audio_sanitize_word_text($core);
+        if ($core_normalized === '') {
+            $rebuilt[] = $piece;
+            continue;
+        }
+
+        $rebuilt[] = $leading . '[word_audio]' . $core . '[/word_audio]' . $trailing;
+    }
+
+    return implode('', $rebuilt);
+}
+
+/**
+ * Extract normalized word parts split on "/" or "," outside markup.
+ *
+ * @param string $html
+ * @return array
+ */
+function ll_missing_audio_extract_normalized_segments($html) {
+    $segments = ll_missing_audio_split_outside_markup($html);
+    $words = array();
+    foreach ($segments as $seg) {
+        if ($seg['type'] !== 'text') {
+            continue;
+        }
+        $normalized = ll_missing_audio_sanitize_word_text($seg['value']);
+        if ($normalized === '') {
+            continue;
+        }
+        $words[] = $normalized;
+    }
+    return array_values(array_unique($words));
 }
 
 /*
