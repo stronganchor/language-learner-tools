@@ -22,7 +22,8 @@ function ll_render_missing_audio_admin_page() {
     $last_saved_pattern_id = '';
     $table_preview = array();
     $table_apply_summary = array();
-    $last_table_pattern = '';
+    $available_table_headers = array();
+    $last_selected_headers = array();
     $scroll_target = '';
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -47,6 +48,8 @@ function ll_render_missing_audio_admin_page() {
             $action = 'preview_table_matches';
         } elseif (isset($_POST['apply_table_insertions'])) {
             $action = 'apply_table_insertions';
+        } elseif (isset($_POST['remove_missing_audio'])) {
+            $action = 'remove_missing_audio';
         }
 
         switch ($action) {
@@ -156,21 +159,16 @@ function ll_render_missing_audio_admin_page() {
 
             case 'preview_table_matches':
             case 'apply_table_insertions':
-                $table_pattern = isset($_POST['table_header_pattern']) ? trim(wp_unslash($_POST['table_header_pattern'])) : '';
-                $last_table_pattern = $table_pattern;
+                $selected_table_headers = ll_missing_audio_parse_selected_headers($_POST);
+                $last_selected_headers = $selected_table_headers;
 
-                if ($table_pattern === '') {
-                    echo '<div class="notice notice-error"><p>Please enter a regex that matches the target column header.</p></div>';
-                    break;
-                }
-
-                if (!ll_missing_audio_is_valid_regex($table_pattern)) {
-                    echo '<div class="notice notice-error"><p>The header regex pattern is invalid. Please fix it and try again.</p></div>';
+                if (empty($selected_table_headers)) {
+                    echo '<div class="notice notice-error"><p>Please choose at least one header to target.</p></div>';
                     break;
                 }
 
                 if ($action === 'preview_table_matches') {
-                    $table_preview = ll_find_table_column_word_audio_matches($table_pattern);
+                    $table_preview = ll_find_table_column_word_audio_matches($selected_table_headers);
                     if (!empty($table_preview['errors'])) {
                         foreach ($table_preview['errors'] as $err) {
                             echo '<div class="notice notice-error"><p>' . esc_html($err) . '</p></div>';
@@ -188,7 +186,7 @@ function ll_render_missing_audio_admin_page() {
                     }
                 } else {
                     $cell_exclusions = ll_parse_table_exclusions($_POST);
-                    $table_apply_summary = ll_apply_table_column_word_audio_insertions($table_pattern, $cell_exclusions);
+                    $table_apply_summary = ll_apply_table_column_word_audio_insertions($selected_table_headers, $cell_exclusions);
                     $missing_audio_instances = get_option('ll_missing_audio_instances', array());
 
                     if (!empty($table_apply_summary['errors'])) {
@@ -209,8 +207,63 @@ function ll_render_missing_audio_admin_page() {
                     );
                 }
                 break;
+
+            case 'remove_missing_audio':
+                $raw_word  = isset($_POST['remove_word']) ? wp_unslash($_POST['remove_word']) : '';
+                $post_id   = isset($_POST['remove_post_id']) ? intval($_POST['remove_post_id']) : 0;
+                $clean_key = ll_missing_audio_sanitize_word_text($raw_word);
+
+                if ($clean_key === '') {
+                    echo '<div class="notice notice-error"><p>Invalid word provided.</p></div>';
+                    break;
+                }
+
+                $missing_audio_instances = get_option('ll_missing_audio_instances', array());
+                $missing_audio_instances = ll_missing_audio_sanitize_cache_keys($missing_audio_instances);
+
+                $removed_from_cache = false;
+                if (isset($missing_audio_instances[$clean_key])) {
+                    unset($missing_audio_instances[$clean_key]);
+                    update_option('ll_missing_audio_instances', $missing_audio_instances);
+                    $removed_from_cache = true;
+                }
+
+                $removed_shortcode = false;
+                $updated_post = false;
+                if ($post_id && current_user_can('edit_post', $post_id)) {
+                    $content = get_post_field('post_content', $post_id);
+                    if ($content !== null) {
+                        $new_content = ll_missing_audio_remove_word_audio_shortcode($content, $clean_key);
+                        if ($new_content !== $content) {
+                            wp_update_post(array(
+                                'ID'           => $post_id,
+                                'post_content' => $new_content,
+                            ));
+                            $removed_shortcode = true;
+                            $updated_post = true;
+                        }
+                    }
+                }
+
+                if ($removed_from_cache || $removed_shortcode) {
+                    $msg = 'Removed word from missing audio list';
+                    if ($removed_shortcode) {
+                        $msg .= ' and stripped [word_audio] shortcode';
+                    }
+                    echo '<div class="notice notice-success"><p>' . esc_html($msg) . '.</p></div>';
+                } else {
+                    echo '<div class="notice notice-info"><p>No changes made. The word may have already been removed.</p></div>';
+                }
+
+                // Refresh the local copy
+                $missing_audio_instances = get_option('ll_missing_audio_instances', array());
+                $missing_audio_instances = ll_missing_audio_sanitize_cache_keys($missing_audio_instances);
+                break;
         }
     }
+
+    // Build header list for selection (post-processing to reflect any content updates)
+    $available_table_headers = ll_missing_audio_collect_table_headers();
     ?>
     <div class="wrap">
         <h1>Language Learner Tools - Missing Audio</h1>
@@ -372,14 +425,33 @@ function ll_render_missing_audio_admin_page() {
 
         <hr>
         <h2>Table Column → Insert [word_audio]</h2>
-        <p>Find HTML tables, match a header by regex, and wrap every cell in that column with <code>[word_audio]</code>. Existing shortcodes are skipped.</p>
+        <p>Find HTML tables, choose header(s), and wrap every cell in those columns with <code>[word_audio]</code>. Existing shortcodes are skipped.</p>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
-            <p>
-                <label for="table_header_pattern"><strong>Header regex (PHP delimiters required)</strong></label><br>
-                <input type="text" id="table_header_pattern" name="table_header_pattern" class="large-text code" value="<?php echo esc_attr($last_table_pattern); ?>" placeholder="#^(Word|Translation)$#i">
-            </p>
-            <p class="description">Matches against the header cell text (first row or &lt;thead&gt;). Wrapped cell content keeps any inner HTML.</p>
+            <div>
+                <label for="table_headers"><strong>Select column headers to target</strong></label><br>
+                <?php if (!empty($available_table_headers)) : ?>
+                    <?php $header_select_size = min(15, max(6, count($available_table_headers))); ?>
+                    <select id="table_headers" name="table_headers[]" multiple size="<?php echo esc_attr($header_select_size); ?>" class="widefat" style="max-height:320px;">
+                        <?php foreach ($available_table_headers as $header) : ?>
+                            <?php
+                            $label = $header['label'];
+                            $count = intval($header['count']);
+                            $is_selected = in_array($label, $last_selected_headers, true) ? 'selected' : '';
+                            ?>
+                            <option value="<?php echo esc_attr($label); ?>" <?php echo $is_selected; ?>>
+                                <?php echo esc_html($label . ($count > 1 ? " ({$count})" : '')); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description" style="margin-top:6px;">
+                        <?php echo intval(count($available_table_headers)); ?> unique header<?php echo count($available_table_headers) === 1 ? '' : 's'; ?> found.
+                        Use Ctrl/Cmd-click or Shift-click to select multiple.
+                    </p>
+                <?php else : ?>
+                    <p class="description" style="margin-top:6px;"><em>No table headers found in the scanned post types.</em></p>
+                <?php endif; ?>
+            </div>
             <p>
                 <input type="submit" name="preview_table_matches" class="button button-primary" value="Preview Table Matches">
                 <input type="submit" name="apply_table_insertions" class="button button-secondary" value="Insert Shortcodes in Column Now">
@@ -397,7 +469,11 @@ function ll_render_missing_audio_admin_page() {
                 </p>
                 <form method="post">
                     <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
-                    <input type="hidden" name="table_header_pattern" value="<?php echo esc_attr($last_table_pattern); ?>">
+                    <?php if (!empty($last_selected_headers)) : ?>
+                        <?php foreach ($last_selected_headers as $sel_header) : ?>
+                            <input type="hidden" name="table_headers[]" value="<?php echo esc_attr($sel_header); ?>">
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                     <?php foreach ($table_preview['matches'] as $post_id => $post_data) : ?>
                         <div style="margin-bottom:14px;">
                             <strong>
@@ -423,7 +499,7 @@ function ll_render_missing_audio_admin_page() {
                     </p>
                 </form>
             <?php else : ?>
-                <p><em>No matching tables or cells found for that header regex.</em></p>
+                <p><em>No matching tables or cells found for the selected headers.</em></p>
             <?php endif; ?>
         <?php endif; ?>
 
@@ -460,6 +536,7 @@ function ll_render_missing_audio_admin_page() {
                     <tr>
                         <th>Word</th>
                         <th>Post</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -475,6 +552,16 @@ function ll_render_missing_audio_admin_page() {
                                     echo 'N/A';
                                 }
                                 ?>
+                            </td>
+                            <td>
+                                <form method="post" style="margin:0;">
+                                    <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
+                                    <input type="hidden" name="remove_word" value="<?php echo esc_attr($word); ?>">
+                                    <input type="hidden" name="remove_post_id" value="<?php echo esc_attr(intval($post_id)); ?>">
+                                    <button type="submit" name="remove_missing_audio" class="button button-small button-link-delete" style="padding-left:0;">
+                                        Remove &amp; strip shortcode
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -1137,12 +1224,124 @@ function ll_get_table_data_rows($table, $header_row) {
 }
 
 /**
- * Build a short, HTML-safe context string for a cell.
+ * Normalize header text for matching (case-insensitive, trimmed).
  *
- * @param string $cell_html
+ * @param string $text
  * @return string
  */
-function ll_find_table_column_word_audio_matches($header_pattern) {
+function ll_missing_audio_normalize_header_text($text) {
+    $text = wp_strip_all_tags((string) $text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text);
+    $text = trim($text);
+    return $text === '' ? '' : (function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text));
+}
+
+/**
+ * Collect a unique, sorted list of table headers across scanned post types.
+ *
+ * @return array Each entry: ['label' => string, 'count' => int]
+ */
+function ll_missing_audio_collect_table_headers() {
+    $post_types = ll_missing_audio_get_scan_post_types();
+    $headers = array();
+
+    if (empty($post_types)) {
+        return $headers;
+    }
+
+    $query = new WP_Query(array(
+        'post_type'      => $post_types,
+        'post_status'    => array('publish'),
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ));
+
+    if (!empty($query->posts)) {
+        foreach ($query->posts as $post_id) {
+            if (!current_user_can('edit_post', $post_id)) {
+                continue;
+            }
+
+            $content = get_post_field('post_content', $post_id);
+            if ($content === '') {
+                continue;
+            }
+
+            $dom = ll_dom_load_html_utf8($content);
+            if (!$dom) {
+                continue;
+            }
+
+            $tables = $dom->getElementsByTagName('table');
+            if ($tables->length === 0) {
+                continue;
+            }
+
+            foreach ($tables as $table) {
+                $header_cells = ll_get_table_header_cells($table);
+                if (empty($header_cells)) {
+                    continue;
+                }
+                foreach ($header_cells as $cell) {
+                    $header_text = trim(wp_strip_all_tags(ll_dom_inner_html($cell)));
+                    $normalized = ll_missing_audio_normalize_header_text($header_text);
+                    if ($normalized === '') {
+                        continue;
+                    }
+                    if (!isset($headers[$normalized])) {
+                        $headers[$normalized] = array(
+                            'label' => $header_text,
+                            'count' => 1,
+                        );
+                    } else {
+                        $headers[$normalized]['count']++;
+                    }
+                }
+            }
+        }
+    }
+
+    wp_reset_postdata();
+
+    if (!empty($headers)) {
+        uasort($headers, function ($a, $b) {
+            return strcasecmp($a['label'], $b['label']);
+        });
+    }
+
+    return array_values($headers);
+}
+
+/**
+ * Parse selected table headers from a request payload.
+ *
+ * @param array $request
+ * @return array
+ */
+function ll_missing_audio_parse_selected_headers($request) {
+    $selected = array();
+    if (empty($request['table_headers']) || !is_array($request['table_headers'])) {
+        return $selected;
+    }
+    foreach ($request['table_headers'] as $hdr) {
+        $clean = sanitize_text_field(wp_unslash($hdr));
+        if ($clean === '') {
+            continue;
+        }
+        $selected[$clean] = true;
+    }
+    return array_keys($selected);
+}
+
+/**
+ * Find table cells under selected headers for preview.
+ *
+ * @param array $header_targets
+ * @return array
+ */
+function ll_find_table_column_word_audio_matches($header_targets) {
     $post_types = ll_missing_audio_get_scan_post_types();
     $results = array(
         'matches' => array(),
@@ -1150,6 +1349,20 @@ function ll_find_table_column_word_audio_matches($header_pattern) {
         'posts_with_matches' => 0,
         'errors' => array(),
     );
+
+    $target_map = array();
+    $targets = is_array($header_targets) ? $header_targets : array($header_targets);
+    foreach ($targets as $hdr) {
+        $normalized = ll_missing_audio_normalize_header_text($hdr);
+        if ($normalized !== '') {
+            $target_map[$normalized] = true;
+        }
+    }
+
+    if (empty($target_map)) {
+        $results['errors'][] = __('No headers selected for matching.', 'll-tools-text-domain');
+        return $results;
+    }
 
     if (empty($post_types)) {
         return $results;
@@ -1195,10 +1408,8 @@ function ll_find_table_column_word_audio_matches($header_pattern) {
                 $matching_indexes = array();
                 foreach ($header_cells as $idx => $cell) {
                     $header_text = trim(wp_strip_all_tags(ll_dom_inner_html($cell)));
-                    set_error_handler(function () { /* suppress */ });
-                    $is_match = @preg_match($header_pattern, $header_text);
-                    restore_error_handler();
-                    if ($is_match) {
+                    $normalized = ll_missing_audio_normalize_header_text($header_text);
+                    if ($normalized !== '' && isset($target_map[$normalized])) {
                         $matching_indexes[] = $idx;
                     }
                 }
@@ -1253,12 +1464,13 @@ function ll_find_table_column_word_audio_matches($header_pattern) {
 }
 
 /**
- * Apply insertion inside table column cells matched by header regex.
+ * Apply insertion inside table column cells matched by selected headers.
  *
- * @param string $header_pattern
+ * @param array $header_targets
+ * @param array $exclusions
  * @return array
  */
-function ll_apply_table_column_word_audio_insertions($header_pattern, $exclusions = array()) {
+function ll_apply_table_column_word_audio_insertions($header_targets, $exclusions = array()) {
     $post_types = ll_missing_audio_get_scan_post_types();
     $summary = array(
         'posts_updated' => 0,
@@ -1266,6 +1478,20 @@ function ll_apply_table_column_word_audio_insertions($header_pattern, $exclusion
         'log' => array(),
         'errors' => array(),
     );
+
+    $target_map = array();
+    $targets = is_array($header_targets) ? $header_targets : array($header_targets);
+    foreach ($targets as $hdr) {
+        $normalized = ll_missing_audio_normalize_header_text($hdr);
+        if ($normalized !== '') {
+            $target_map[$normalized] = true;
+        }
+    }
+
+    if (empty($target_map)) {
+        $summary['errors'][] = __('No headers selected for matching.', 'll-tools-text-domain');
+        return $summary;
+    }
 
     if (empty($post_types)) {
         return $summary;
@@ -1312,10 +1538,8 @@ function ll_apply_table_column_word_audio_insertions($header_pattern, $exclusion
                 $matching_indexes = array();
                 foreach ($header_cells as $idx => $cell) {
                     $header_text = trim(wp_strip_all_tags(ll_dom_inner_html($cell)));
-                    set_error_handler(function () { /* suppress */ });
-                    $is_match = @preg_match($header_pattern, $header_text);
-                    restore_error_handler();
-                    if ($is_match) {
+                    $normalized = ll_missing_audio_normalize_header_text($header_text);
+                    if ($normalized !== '' && isset($target_map[$normalized])) {
                         $matching_indexes[] = $idx;
                     }
                 }
@@ -1453,6 +1677,37 @@ function ll_missing_audio_sanitize_word_text($text) {
     $text = preg_replace('/\s*\([^)]*\)/u', '', $text);
     $text = preg_replace('/\s+/u', ' ', $text);
     return trim($text);
+}
+
+/**
+ * Remove [word_audio] shortcodes whose inner text matches the target word.
+ *
+ * @param string $content
+ * @param string $target_word
+ * @return string
+ */
+function ll_missing_audio_remove_word_audio_shortcode($content, $target_word) {
+    if ($content === '' || $target_word === '') {
+        return $content;
+    }
+
+    $normalized_target = ll_missing_audio_sanitize_word_text($target_word);
+    if ($normalized_target === '') {
+        return $content;
+    }
+
+    $pattern = '/\[word_audio([^\]]*)\](.*?)\[\/word_audio\]/is';
+    $replaced = preg_replace_callback($pattern, function ($m) use ($normalized_target) {
+        $inner = isset($m[2]) ? $m[2] : '';
+        $normalized_inner = ll_missing_audio_sanitize_word_text($inner);
+        if ($normalized_inner === $normalized_target) {
+            // Strip shortcode, keep inner content
+            return $inner;
+        }
+        return $m[0];
+    }, $content);
+
+    return $replaced === null ? $content : $replaced;
 }
 
 /**
