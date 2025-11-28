@@ -1782,6 +1782,7 @@ function ll_missing_audio_split_outside_markup($html) {
     $buffer = '';
     $bracket_depth = 0;
     $tag_depth = 0;
+    $paren_depth = 0;
     $len = ll_mb_strlen_safe($html);
 
     for ($i = 0; $i < $len; $i++) {
@@ -1808,12 +1809,23 @@ function ll_missing_audio_split_outside_markup($html) {
             continue;
         }
 
-        if (($ch === '/' || $ch === ',') && $bracket_depth === 0 && $tag_depth === 0) {
+        if (($ch === '/' || $ch === ',') && $bracket_depth === 0 && $tag_depth === 0 && $paren_depth === 0) {
             if ($buffer !== '') {
                 $segments[] = array('type' => 'text', 'value' => $buffer);
                 $buffer = '';
             }
             $segments[] = array('type' => 'delim', 'value' => $ch);
+            continue;
+        }
+
+        if ($ch === '(' && $bracket_depth === 0 && $tag_depth === 0) {
+            $paren_depth++;
+        } elseif ($ch === ')' && $bracket_depth === 0 && $tag_depth === 0 && $paren_depth > 0) {
+            $paren_depth--;
+        }
+
+        if (($ch === '/' || $ch === ',') && $paren_depth > 0) {
+            $buffer .= $ch;
             continue;
         }
 
