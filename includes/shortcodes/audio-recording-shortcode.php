@@ -672,13 +672,6 @@ function ll_verify_recording_handler() {
     if (!empty($inc))  $filtered_types = array_values(array_intersect($filtered_types, $inc));
     elseif (!empty($exc)) $filtered_types = array_values(array_diff($filtered_types, $exc));
 
-    // Find the word
-    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids);
-    if (is_wp_error($word_id)) {
-        wp_send_json_error('Failed to find/create word: ' . $word_id->get_error_message());
-    }
-    $word_id = (int) $word_id;
-
     // Look for a recent child "word_audio" with this type
     $args = [
         'post_type'      => 'word_audio',
@@ -1747,6 +1740,13 @@ function ll_handle_recording_upload() {
     $file       = $_FILES['audio'];
     $upload_dir = wp_upload_dir();
     $safe_title = sanitize_file_name($title);
+    // Extra hardening for edge-case titles (quotes, exotic punctuation)
+    $safe_title = str_replace(array("'", '"'), '', $safe_title);
+    $safe_title = preg_replace('/[^A-Za-z0-9._-]+/', '-', $safe_title);
+    $safe_title = trim($safe_title, '-_.');
+    if ($safe_title === '') {
+        $safe_title = 'recording';
+    }
     $timestamp  = time();
 
     $mime_type = $file['type'] ?? '';
