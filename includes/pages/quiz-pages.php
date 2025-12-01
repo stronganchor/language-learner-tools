@@ -19,6 +19,42 @@ function ll_qp_is_quiz_page_context() : bool {
 }
 
 /**
+ * Format a human-friendly quiz title for a category.
+ *
+ * @param int|WP_Term $term
+ * @param bool        $include_site_name  Append the site name (useful for share previews on embed pages).
+ * @return string
+ */
+function ll_tools_get_quiz_title_for_term($term, bool $include_site_name = false) : string {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) return '';
+
+    $display_name = function_exists('ll_tools_get_category_display_name')
+        ? ll_tools_get_category_display_name($term)
+        : $term->name;
+
+    $base_title = sprintf(__('Quiz: %s', 'll-tools-text-domain'), $display_name);
+    $site_name  = trim(wp_strip_all_tags((string) get_bloginfo('name')));
+
+    $title = ($include_site_name && $site_name !== '')
+        ? sprintf(__('%1$s | %2$s', 'll-tools-text-domain'), $base_title, $site_name)
+        : $base_title;
+
+    /**
+     * Filter the generated quiz page/embed title.
+     *
+     * @param string  $title
+     * @param string  $display_name
+     * @param WP_Term $term
+     * @param bool    $include_site_name
+     * @param string  $site_name
+     */
+    return (string) apply_filters('ll_tools_quiz_page_title', $title, $display_name, $term, $include_site_name, $site_name);
+}
+
+/**
  * Ensure the parent "/quiz" page exists and return its ID.
  * If a page with slug "quiz" is in the Trash, automatically restore it
  * (so we never end up with /quiz-2, /quiz-3 duplicates).
@@ -135,7 +171,7 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
     ]);
 
     $post_id = 0;
-    $title   = $term->name;
+    $title   = ll_tools_get_quiz_title_for_term($term);
     $content = ll_tools_build_quiz_page_content($term);
 
     // If we have active (non-trashed) pages, use the first one
