@@ -75,7 +75,7 @@
         }
         $prompt.show().empty();
         const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
-        $('<img>', { src: targetWord.image, alt: targetWord.title || '' }).appendTo($wrap);
+        $('<img>', { src: targetWord.image, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
         $prompt.append($wrap);
     }
 

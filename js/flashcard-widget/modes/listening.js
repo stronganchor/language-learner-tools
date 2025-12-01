@@ -645,7 +645,7 @@
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
                     if (hasImage) {
-                        const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
+                        const $img = $jq('<img>', { src: target.image, alt: '', 'aria-hidden': 'true', class: 'quiz-image' });
                         $img.on('load', function () {
                             const fudge = 10;
                             if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');

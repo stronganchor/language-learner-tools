@@ -11,7 +11,7 @@
             'data-word-id': word.id,
             css: { display: 'none' }
         });
-        $('<img>', { src: word.image, alt: word.title, class: 'quiz-image' })
+        $('<img>', { src: word.image, alt: '', 'aria-hidden': 'true', class: 'quiz-image', draggable: false })
             .on('load', function () {
                 const fudge = 10;
                 if (this.naturalWidth > this.naturalHeight + fudge) $c.addClass('landscape');
@@ -185,6 +185,22 @@
             else root.LLFlashcards.Main.onWrongAnswer(targetWord, index, $(this));
         });
     }
+
+    function installOptionGuards() {
+        const selectors = '#ll-tools-flashcard .flashcard-container, #ll-tools-flashcard .flashcard-container img';
+        $(document)
+            .off('contextmenu.llFlashcardsBlock', selectors)
+            .on('contextmenu.llFlashcardsBlock', selectors, function (e) {
+                e.preventDefault();
+            });
+
+        $(document)
+            .off('dragstart.llFlashcardsBlock', '#ll-tools-flashcard .flashcard-container img')
+            .on('dragstart.llFlashcardsBlock', '#ll-tools-flashcard .flashcard-container img', function (e) {
+                e.preventDefault();
+            });
+    }
+    installOptionGuards();
 
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio };

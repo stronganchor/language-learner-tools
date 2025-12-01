@@ -6,6 +6,7 @@ require_once(__DIR__ . '/assets.php');
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
+require_once __DIR__ . '/lib/media-proxy.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
