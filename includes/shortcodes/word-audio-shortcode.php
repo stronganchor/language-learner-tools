@@ -262,7 +262,8 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
     $query_args = array(
         'post_type' => $post_type,
         'posts_per_page' => -1, // Retrieve all matching posts
-        'post_status' => 'publish',
+        // Include drafts/pending so freshly created words from recordings are detected
+        'post_status' => array('publish', 'draft', 'pending', 'private'),
         'title' => sanitize_text_field($title),
         'exact' => true,
     );
@@ -315,4 +316,78 @@ function ll_normalize_case($text) {
     // Just return the original text if Multibyte String functions aren't available
 	return $text;
 }
+
+/**
+ * Remove a word from the missing-audio cache when a recording exists.
+ */
+function ll_tools_clear_missing_audio_for_word($word_id, $word_title = '') {
+    if (!function_exists('ll_remove_missing_audio_instance') || !$word_id) {
+        return;
+    }
+
+    // Prefer the provided title, otherwise pull from the word post.
+    if ($word_title === '') {
+        $word_post = get_post($word_id);
+        if ($word_post && $word_post->post_type === 'words') {
+            $word_title = $word_post->post_title;
+        }
+    }
+
+    // Match the same normalization pipeline used when populating the cache.
+    $canonicalize_apostrophes = function ($text) {
+        return str_replace(
+            array("\u{2019}", "\u{2018}", "\u{201B}", "\u{02BC}", "\u{FF07}"),
+            "'",
+            (string) $text
+        );
+    };
+
+    $candidates = [];
+
+    $normalized = $word_title;
+    if (function_exists('ll_normalize_case')) {
+        $normalized = ll_normalize_case($normalized);
+    }
+    if (function_exists('ll_missing_audio_sanitize_word_text')) {
+        $normalized = ll_missing_audio_sanitize_word_text($normalized);
+    }
+    if ($normalized !== '') {
+        $candidates[] = $normalized;
+        $candidates[] = $canonicalize_apostrophes($normalized);
+        $candidates[] = preg_replace("/['’ʼ`´]/u", '', $normalized);
+    }
+    if ($word_title !== '') {
+        $candidates[] = $word_title;
+        $candidates[] = $canonicalize_apostrophes($word_title);
+        $candidates[] = preg_replace("/['’ʼ`´]/u", '', $word_title);
+        if (function_exists('ll_normalize_case')) {
+            $norm = ll_normalize_case($word_title);
+            $candidates[] = $norm;
+            $candidates[] = $canonicalize_apostrophes($norm);
+            $candidates[] = preg_replace("/['’ʼ`´]/u", '', $norm);
+        }
+    }
+
+    foreach (array_unique(array_filter($candidates, function ($v) { return is_string($v) && $v !== ''; })) as $cand) {
+        ll_remove_missing_audio_instance($cand);
+    }
+}
+
+/**
+ * When saving a word_audio child, automatically clear any missing-audio cache entries for its parent word.
+ */
+function ll_tools_clear_missing_audio_on_word_audio_save($post_id, $post, $update) {
+    if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) {
+        return;
+    }
+    if (!$post || $post->post_type !== 'word_audio') {
+        return;
+    }
+    $parent_id = (int) $post->post_parent;
+    if ($parent_id > 0) {
+        ll_tools_clear_missing_audio_for_word($parent_id);
+    }
+}
+add_action('save_post_word_audio', 'll_tools_clear_missing_audio_on_word_audio_save', 20, 3);
+
 ?>

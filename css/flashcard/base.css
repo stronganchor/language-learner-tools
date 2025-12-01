@@ -490,10 +490,18 @@ body.ll-tools-flashcard-open {
     border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
 }
 
 .flashcard-container img {
     object-fit: contain;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
 }
 
 /* Modifier Classes for Flashcard Orientation */

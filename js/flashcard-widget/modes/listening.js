@@ -123,6 +123,57 @@
         raf(function () { refreshPlaceholderMetrics($ph); });
     }
 
+    // Track a resumable action for the current listening round so pause/play doesn't skip ahead
+    const ListeningPlayback = (function () {
+        let resumeFn = null;
+        let roundToken = 0;
+
+        function startNewRound() {
+            roundToken += 1;
+            resumeFn = null;
+            return roundToken;
+        }
+
+        function setResume(fn, token) {
+            if (token !== roundToken) return;
+            if (typeof fn !== 'function') {
+                resumeFn = null;
+                return;
+            }
+            const capturedToken = token;
+            resumeFn = function () {
+                if (capturedToken !== roundToken) return false;
+                fn();
+                return true;
+            };
+        }
+
+        function clear(token) {
+            if (typeof token !== 'undefined' && token !== roundToken) return;
+            resumeFn = null;
+        }
+
+        function resume() {
+            if (typeof resumeFn !== 'function') return false;
+            const fn = resumeFn;
+            resumeFn = null;
+            try {
+                return !!fn();
+            } catch (e) {
+                console.error('Listening resume failed:', e);
+                return false;
+            }
+        }
+
+        return {
+            startNewRound,
+            setResume,
+            clear,
+            resume,
+            getToken: function () { return roundToken; }
+        };
+    })();
+
     // Simple wake lock manager (best-effort)
     // Keeps the screen awake while listening mode is actively playing.
     const WakeLock = (function () {
@@ -227,6 +278,7 @@
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
+        try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
         // Build a linear list of words across the selected categories in current order
         const all = [];
@@ -339,6 +391,8 @@
             $pause.on('click', function () {
                 const audioApi = utils.FlashcardAudio || {};
                 const audio = (typeof audioApi.getCurrentTargetAudio === 'function') ? audioApi.getCurrentTargetAudio() : null;
+                const $viz = $jq('#ll-tools-listening-visualizer');
+                const countdownActive = $viz.length && ($viz.hasClass('countdown-active') || $viz.find('.ll-tools-listening-countdown').length > 0);
                 const isPlaying = $jq(this).attr('data-state') === 'playing';
                 State.listeningPaused = isPlaying;
                 if (isPlaying) {
@@ -350,16 +404,22 @@
                 } else {
                     // Resume
                     $jq(this).attr('data-state', 'playing').html(pauseSVG);
-                    if (audio && audio.paused && !audio.ended) {
+                    const resumedFlow = ListeningPlayback.resume();
+                    let resumedAudio = false;
+                    if (!countdownActive && audio && audio.paused && !audio.ended) {
+                        resumedAudio = true;
                         const p = audio.play();
                         if (p && typeof p.catch === 'function') p.catch(() => {});
-                    } else {
-                        // If no audio to resume (or already ended), reveal or advance
+                    }
+                    if (!resumedFlow && !resumedAudio) {
+                        // If nothing to resume, restart the current word instead of skipping ahead
                         const $overlay = $jq('#ll-tools-flashcard .listening-overlay');
                         if ($overlay.length) {
                             $overlay.fadeOut(200, function () { $jq(this).remove(); });
                         }
-                        State.forceTransitionTo(STATES.QUIZ_READY, 'Listening resume advance');
+                        ListeningPlayback.clear();
+                        State.listenIndex = Math.max(0, (State.listenIndex || 1) - 1);
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Listening resume restart');
                         if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                     }
                     try { WakeLock.update(); } catch (_) { }
@@ -491,6 +551,8 @@
         const resultsApi = utils.Results || Results;
         const $container = utils.flashcardContainer;
         const $jq = getJQuery();
+        const roundToken = ListeningPlayback.startNewRound();
+        const setRoundResume = function (fn) { ListeningPlayback.setResume(fn, roundToken); };
 
         if ($jq) {
             $jq('#ll-tools-prompt').hide();
@@ -507,6 +569,7 @@
         }
 
         const target = selectTargetWord();
+        State.listeningCurrentTarget = target || null;
         if (!target) {
             if (State.isFirstRound) {
                 if (typeof utils.showLoadingError === 'function') {
@@ -645,7 +708,7 @@
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
                     if (hasImage) {
-                        const $img = $jq('<img>', { src: target.image, alt: target.title || '', class: 'quiz-image' });
+                        const $img = $jq('<img>', { src: target.image, alt: '', 'aria-hidden': 'true', class: 'quiz-image' });
                         $img.on('load', function () {
                             const fudge = 10;
                             if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');
@@ -750,11 +813,14 @@
                 Dom.hideLoading && Dom.hideLoading();
             };
 
-            const scheduleAdvance = function () {
+            const scheduleAdvance = function (delayMs) {
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
                 const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
                 const advanceTimeoutId = scheduleTimeout(utils, function () {
-                    if (State.listeningPaused) return; // do not advance while paused
+                    if (State.listeningPaused) {
+                        setRoundResume(function () { scheduleAdvance(delayMs); });
+                        return;
+                    }
                     if (isLast) {
                         if (State.listeningLoop) {
                             const $jq = getJQuery();
@@ -792,8 +858,9 @@
                             utils.startQuizRound();
                         }
                     }
-                }, 800);
+                }, (typeof delayMs === 'number') ? delayMs : 800);
                 State.addTimeout(advanceTimeoutId);
+                setRoundResume(function () { scheduleAdvance(delayMs); });
             };
 
             const showVisualizerAnswerText = function () {
@@ -847,11 +914,14 @@
                         $cd = $jq('<div>', { class: 'll-tools-listening-countdown listening-countdown' });
                         $vizEl.append($cd);
                     }
-                    let n = 3;
+                    const countdownState = { current: 3, done: false };
                     const render = function () {
-                        $cd.empty().append($jq('<span>', { class: 'digit', text: String(n) }));
+                        $cd.empty().append($jq('<span>', { class: 'digit', text: String(countdownState.current) }));
                     };
                     const finish = function () {
+                        if (countdownState.done) return;
+                        countdownState.done = true;
+                        setRoundResume(null);
                         if ($cd && $cd.length) { $cd.remove(); }
                         if ($vizEl && $vizEl.length) {
                             $vizEl.removeClass('countdown-active');
@@ -860,31 +930,43 @@
                         }
                         resolve();
                     };
-                    render();
-                    const step = function () {
-                        if (State.listeningPaused) { finish(); return; }
-                        n -= 1;
-                        if (n <= 0) {
-                            const tid = scheduleTimeout(utils, finish, 200);
-                            State.addTimeout && State.addTimeout(tid);
-                            return;
-                        }
-                        render();
-                        const tid = scheduleTimeout(utils, step, 900);
+                    const scheduleStep = function (delayMs) {
+                        const delay = (typeof delayMs === 'number') ? delayMs : 900;
+                        setRoundResume(function () { scheduleStep(delay); });
+                        const tid = scheduleTimeout(utils, function () {
+                            if (State.listeningPaused) {
+                                setRoundResume(function () { scheduleStep(delay); });
+                                return;
+                            }
+                            countdownState.current -= 1;
+                            if (countdownState.current <= 0) {
+                                const finTid = scheduleTimeout(utils, finish, 200);
+                                State.addTimeout && State.addTimeout(finTid);
+                                setRoundResume(function () { finish(); });
+                                return;
+                            }
+                            render();
+                            scheduleStep(900);
+                        }, delay);
                         State.addTimeout && State.addTimeout(tid);
                     };
-                    const tid = scheduleTimeout(utils, step, 900);
-                    State.addTimeout && State.addTimeout(tid);
+                    render();
+                    scheduleStep(900);
                 });
             };
 
             const playSequenceFrom = function (idx) {
                 if (!sequence.length || idx >= sequence.length) {
-                    const t = scheduleTimeout(utils, function () {
+                    const finishSequence = function () {
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
                         scheduleAdvance();
-                    }, 300);
+                    };
+                    const t = scheduleTimeout(utils, finishSequence, 300);
                     State.addTimeout(t);
+                    setRoundResume(function () {
+                        const tid = scheduleTimeout(utils, finishSequence, 200);
+                        State.addTimeout && State.addTimeout(tid);
+                    });
                     return;
                 }
                 setAndPlayUntilEnd(sequence[idx]).then(function () {
@@ -893,16 +975,24 @@
                         ? INTRO_GAP_MS
                         : (isAudioPromptFlow && idx === 1) ? REPEAT_GAP_MS
                             : (idx === 1) ? INTRO_GAP_MS : 150; // default small gap
-                    const t = scheduleTimeout(utils, function () {
-                        if (State.listeningPaused) return;
+                    const goNext = function () {
+                        if (State.listeningPaused) {
+                            setRoundResume(function () { playSequenceFrom(idx + 1); });
+                            return;
+                        }
                         playSequenceFrom(idx + 1);
-                    }, delay);
+                    };
+                    const t = scheduleTimeout(utils, goNext, delay);
                     State.addTimeout(t);
+                    setRoundResume(function () { playSequenceFrom(idx + 1); });
                 }).catch(function () { playSequenceFrom(idx + 1); });
             };
 
             const afterCountdown = function () {
-                if (State.listeningPaused) return;
+                if (State.listeningPaused) {
+                    setRoundResume(function () { afterCountdown(); });
+                    return;
+                }
                 if (showAnswerText && $jq) {
                     if (shouldUseVisualizerText) {
                         showVisualizerAnswerText();
@@ -918,11 +1008,16 @@
                 if (optionHasAudio && sequence.length) {
                     playSequenceFrom(0);
                 } else {
-                    const t = scheduleTimeout(utils, function () {
+                    const finishNoAudio = function () {
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
                         scheduleAdvance();
-                    }, 600);
+                    };
+                    const t = scheduleTimeout(utils, finishNoAudio, 600);
                     State.addTimeout(t);
+                    setRoundResume(function () {
+                        const tid = scheduleTimeout(utils, finishNoAudio, 250);
+                        State.addTimeout && State.addTimeout(tid);
+                    });
                 }
             };
 
@@ -932,21 +1027,33 @@
                     const $bars = $viz.find('.ll-tools-visualizer-bar');
                     if ($bars && $bars.length) { $bars.css({ opacity: 0, display: 'none' }); }
                 }
-                const delayBeforeCountdown = scheduleTimeout(utils, function () {
+                const launchCountdown = function () {
+                    setRoundResume(null);
                     startCountdown().then(afterCountdown);
-                }, 700);
+                };
+                const delayBeforeCountdown = scheduleTimeout(utils, launchCountdown, 700);
                 State.addTimeout && State.addTimeout(delayBeforeCountdown);
+                setRoundResume(function () {
+                    const tid = scheduleTimeout(utils, launchCountdown, 250);
+                    State.addTimeout && State.addTimeout(tid);
+                });
             } else {
                 // Audio-first flow: play once, then countdown, then finish sequence
                 setAndPlayUntilEnd(sequence[0]).catch(function () { }).then(function () {
                     return startCountdown();
                 }).then(function () {
-                    if (State.listeningPaused) return;
-                    if (showAnswerText) {
-                        maybeShowAnswerText();
-                    }
-                    revealContent();
-                    playSequenceFrom(1);
+                    const afterAudioPrompt = function () {
+                        if (State.listeningPaused) {
+                            setRoundResume(function () { afterAudioPrompt(); });
+                            return;
+                        }
+                        if (showAnswerText) {
+                            maybeShowAnswerText();
+                        }
+                        revealContent();
+                        playSequenceFrom(1);
+                    };
+                    afterAudioPrompt();
                 });
             }
         }).catch(function (err) {

@@ -294,7 +294,11 @@
             else if (MediaRecorder.isTypeSupported('audio/aac')) {
                 options.mimeType = 'audio/aac';
             }
-            // Note: We intentionally skip audio/webm (Opus) due to processing issues
+            // Last resort: allow Opus/webm so we record something instead of failing silently
+            else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                options.mimeType = 'audio/webm';
+                console.warn('Falling back to audio/webm (Opus); processing quality may be lower.');
+            }
             else {
                 console.error('No suitable audio format supported by this browser');
                 throw new Error('Browser does not support required audio formats for recording');
@@ -510,7 +514,9 @@
 
     async function submitAndNext() {
         if (!currentBlob) {
-            console.error(i18n.no_blob || 'No audio blob to submit');
+            const msg = i18n.no_blob || 'No audio captured. Please record before saving.';
+            console.error(msg);
+            showStatus(msg, 'error');
             return;
         }
 

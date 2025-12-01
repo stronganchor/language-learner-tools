@@ -46,6 +46,21 @@
         return (cfg.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
     }
 
+    function normalizeTextForComparison(text) {
+        const base = (text === null || text === undefined) ? '' : String(text).trim();
+        if (base === '') return '';
+        const prepared = base.replace(/[I\u0130]/g, function (ch) { return ch === 'I' ? '\u0131' : 'i'; });
+        let lowered = prepared;
+        try { lowered = prepared.toLocaleLowerCase('tr'); } catch (_) { lowered = prepared.toLowerCase(); }
+        return lowered.replace(/\u0307/g, '');
+    }
+
+    function getNormalizedOptionText(word) {
+        if (!word || typeof word !== 'object') return '';
+        const val = (typeof word.label === 'string' && word.label !== '') ? word.label : word.title;
+        return normalizeTextForComparison(val);
+    }
+
     function isLearningSupportedForCategories(categoryNames) {
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
@@ -75,7 +90,7 @@
         }
         $prompt.show().empty();
         const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
-        $('<img>', { src: targetWord.image, alt: targetWord.title || '' }).appendTo($wrap);
+        $('<img>', { src: targetWord.image, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
         $prompt.append($wrap);
     }
 
@@ -221,6 +236,8 @@
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
         State.currentPromptType = promptType;
+        const isTextOptionMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation' || mode === 'text_audio');
+        const seenOptionTexts = isTextOptionMode ? new Set() : null;
         renderPrompt(targetWord, config);
 
         const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
@@ -254,6 +271,9 @@
         root.FlashcardLoader.loadResourcesForWord(targetWord, mode, targetCategoryName, config);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
+        if (isTextOptionMode && targetWord) {
+            seenOptionTexts.add(getNormalizedOptionText(targetWord));
+        }
 
         // Determine how many options to show
         let targetCount = State.isLearningMode ?
@@ -277,9 +297,14 @@
             const isDup = chosen.some(w => w.id === candidate.id);
             const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
             const sameImg = (mode === 'image') && chosen.some(w => w.image === candidate.image);
+            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
+            const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
 
-            if (!isDup && !isSim && !sameImg) {
+            if (!isDup && !isSim && !sameImg && !sameText) {
                 chosen.push(candidate);
+                if (isTextOptionMode) {
+                    seenOptionTexts.add(normalizedText);
+                }
                 root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
                 root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             }

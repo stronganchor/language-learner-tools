@@ -1782,6 +1782,7 @@ function ll_missing_audio_split_outside_markup($html) {
     $buffer = '';
     $bracket_depth = 0;
     $tag_depth = 0;
+    $paren_depth = 0;
     $len = ll_mb_strlen_safe($html);
 
     for ($i = 0; $i < $len; $i++) {
@@ -1808,12 +1809,23 @@ function ll_missing_audio_split_outside_markup($html) {
             continue;
         }
 
-        if (($ch === '/' || $ch === ',') && $bracket_depth === 0 && $tag_depth === 0) {
+        if (($ch === '/' || $ch === ',') && $bracket_depth === 0 && $tag_depth === 0 && $paren_depth === 0) {
             if ($buffer !== '') {
                 $segments[] = array('type' => 'text', 'value' => $buffer);
                 $buffer = '';
             }
             $segments[] = array('type' => 'delim', 'value' => $ch);
+            continue;
+        }
+
+        if ($ch === '(' && $bracket_depth === 0 && $tag_depth === 0) {
+            $paren_depth++;
+        } elseif ($ch === ')' && $bracket_depth === 0 && $tag_depth === 0 && $paren_depth > 0) {
+            $paren_depth--;
+        }
+
+        if (($ch === '/' || $ch === ',') && $paren_depth > 0) {
+            $buffer .= $ch;
             continue;
         }
 
@@ -1913,6 +1925,12 @@ function ll_missing_audio_sanitize_word_text($text) {
         return ll_sanitize_word_title_text($text);
     }
     $text = (string) $text;
+    // Normalize curly/Unicode apostrophes to a straight quote so cache keys stay consistent
+    $text = str_replace(
+        array("\u{2019}", "\u{2018}", "\u{201B}", "\u{02BC}", "\u{FF07}"),
+        "'",
+        $text
+    );
     if (function_exists('ll_strip_shortcodes_preserve_content')) {
         $text = ll_strip_shortcodes_preserve_content($text);
     } elseif (function_exists('strip_shortcodes')) {

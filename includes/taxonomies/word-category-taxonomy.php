@@ -845,6 +845,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
+        'masked_image_url'     => true,
     ];
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
 
@@ -893,7 +894,17 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $word_id = $post->ID;
-        $image   = get_the_post_thumbnail_url($word_id, 'full');
+        $image_id = get_post_thumbnail_id($word_id);
+        $image_size = apply_filters('ll_tools_quiz_image_size', 'full', $word_id, $term_id, $option_type);
+        $image_size = $image_size ? sanitize_key($image_size) : 'full';
+        if ($image_size === '') { $image_size = 'full'; }
+        $image   = '';
+        if ($image_id) {
+            $image = ll_tools_get_masked_image_url($image_id, $image_size);
+            if (empty($image)) {
+                $image = wp_get_attachment_image_url($image_id, $image_size) ?: '';
+            }
+        }
 
         $audio_files = [];
         $audio_posts = get_posts([
@@ -971,14 +982,14 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'similar_word_id' => $similar_word_id ?: '',
             'wordset_ids'     => $wordset_ids_for_word,
             'has_audio'       => $has_audio,
-            'has_image'       => !empty($image),
+            'has_image'       => ($image_id && !empty($image)),
         ];
 
         // Enforce required assets based on prompt + option selections
         if ($require_audio && !$has_audio) {
             continue;
         }
-        if (($require_prompt_image || $require_option_image) && empty($image)) {
+        if (($require_prompt_image || $require_option_image) && (!$image_id || empty($image))) {
             continue;
         }
         if (in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true) && $label === '') {

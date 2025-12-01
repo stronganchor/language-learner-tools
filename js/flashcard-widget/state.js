@@ -65,6 +65,7 @@
         // Listening-mode layout cache to avoid flashes during skips
         listeningLastHeight: 0,
         listeningLastAspectRatio: 0,
+        listeningCurrentTarget: null,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,
@@ -268,6 +269,7 @@
             this.isListeningMode = false;
             this.wordsLinear = [];
             this.listenIndex = 0;
+            this.listeningCurrentTarget = null;
             this.introducedWordIDs = [];
             this.wordIntroductionProgress = {};
             this.wordCorrectCounts = {};

@@ -1288,7 +1288,8 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
 function ll_get_existing_recording_types_for_word(int $word_id): array {
     $audio_posts = get_posts([
         'post_type'      => 'word_audio',
-        'post_status'    => ['draft','pending','publish'], // count in-flight too
+        'post_status'    => ['draft','pending','publish','private','inherit'], // count in-flight too
+        'perm'           => 'any', // bypass capability gating so recorder drafts still count
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'post_parent'    => $word_id,
@@ -1340,7 +1341,8 @@ function ll_get_existing_recording_types_for_word_by_user(int $word_id, int $use
     if (!$user_id) { return []; }
     $audio_posts = get_posts([
         'post_type'      => 'word_audio',
-        'post_status'    => ['draft','pending','publish'],
+        'post_status'    => ['draft','pending','publish','private','inherit'],
+        'perm'           => 'any',
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'post_parent'    => $word_id,
@@ -1659,6 +1661,9 @@ function ll_handle_recording_upload() {
     if (!is_user_logged_in()) {
         wp_send_json_error('You must be logged in to upload recordings');
     }
+    if (!current_user_can('upload_files')) {
+        wp_send_json_error('You do not have permission to upload recordings');
+    }
 
     $current_user_id = get_current_user_id();
 
@@ -1779,9 +1784,10 @@ function ll_handle_recording_upload() {
         'post_parent' => $word_id,
         'post_author' => $current_user_id,
     ]);
-    if (is_wp_error($audio_post_id)) {
-        error_log('Upload step: Failed to create word_audio post: ' . $audio_post_id->get_error_message());
-        wp_send_json_error('Failed to create word_audio post');
+    if (is_wp_error($audio_post_id) || !$audio_post_id) {
+        $err_msg = is_wp_error($audio_post_id) ? $audio_post_id->get_error_message() : 'Unknown insert failure';
+        error_log('Upload step: Failed to create word_audio post: ' . $err_msg);
+        wp_send_json_error('Failed to create word_audio post: ' . $err_msg);
     }
 
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
@@ -1825,9 +1831,46 @@ function ll_handle_recording_upload() {
     }
 
     if (function_exists('ll_remove_missing_audio_instance')) {
-        ll_remove_missing_audio_instance($title);
+        // Match the normalization pipeline used when populating the cache (normalize case, then sanitize)
+        $normalized_for_cache = $title;
         if (function_exists('ll_normalize_case')) {
-            ll_remove_missing_audio_instance(ll_normalize_case($title));
+            $normalized_for_cache = ll_normalize_case($normalized_for_cache);
+        }
+        if (function_exists('ll_missing_audio_sanitize_word_text')) {
+            $normalized_for_cache = ll_missing_audio_sanitize_word_text($normalized_for_cache);
+        }
+
+        // Canonicalize apostrophes to avoid smart-quote vs straight-quote mismatches
+        $canonicalize_apostrophes = function ($text) {
+            return str_replace(
+                array("\u{2019}", "\u{2018}", "\u{201B}", "\u{02BC}", "\u{FF07}"),
+                "'",
+                (string) $text
+            );
+        };
+
+        $candidates = [];
+        if (is_string($normalized_for_cache) && $normalized_for_cache !== '') {
+            $candidates[] = $normalized_for_cache;
+            $candidates[] = $canonicalize_apostrophes($normalized_for_cache);
+            // Version without apostrophes to catch legacy keys
+            $candidates[] = preg_replace("/['’ʼ`´]/u", '', $normalized_for_cache);
+        }
+        // Fall back to raw title variants in case earlier cache entries were stored differently
+        if ($title !== '') {
+            $candidates[] = $title;
+            $candidates[] = $canonicalize_apostrophes($title);
+            $candidates[] = preg_replace("/['’ʼ`´]/u", '', $title);
+            if (function_exists('ll_normalize_case')) {
+                $norm = ll_normalize_case($title);
+                $candidates[] = $norm;
+                $candidates[] = $canonicalize_apostrophes($norm);
+                $candidates[] = preg_replace("/['’ʼ`´]/u", '', $norm);
+            }
+        }
+
+        foreach (array_unique(array_filter($candidates, function ($v) { return is_string($v) && $v !== ''; })) as $cand) {
+            ll_remove_missing_audio_instance($cand);
         }
     }
 

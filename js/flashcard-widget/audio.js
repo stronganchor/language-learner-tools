@@ -17,6 +17,43 @@
         var pendingCleanup = null;
 
         /**
+         * Normalize a media URL to the current page origin/protocol when possible.
+         * Prevents CORS errors when assets are the same host but a different scheme.
+         */
+        function normalizeUrlToPageOrigin(url) {
+            if (!url || typeof url !== 'string') return url;
+            try {
+                var hasProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url);
+                var isProtocolRelative = url.indexOf('//') === 0;
+                var loc = (typeof window !== 'undefined' && window.location) ? window.location : null;
+                if (!loc) return url;
+
+                // Promote protocol-relative to current protocol
+                if (isProtocolRelative) {
+                    return loc.protocol + url;
+                }
+
+                // Build URL using page as base when relative or missing protocol
+                var base = new URL(loc.href);
+                var parsed = new URL(url, hasProtocol ? undefined : base);
+
+                var sameHost = parsed.hostname === base.hostname;
+                if (sameHost) {
+                    if (parsed.protocol !== base.protocol) {
+                        parsed.protocol = base.protocol;
+                    }
+                    if (!parsed.port && base.port) {
+                        parsed.port = base.port;
+                    }
+                }
+
+                return parsed.toString();
+            } catch (e) {
+                return url;
+            }
+        }
+
+        /**
          * Initialize feedback sounds (persist across sessions)
          */
         function initializeAudio() {
@@ -318,9 +355,11 @@
                 return Promise.resolve();
             }
 
+            var audioSrc = normalizeUrlToPageOrigin(targetWord.audio);
+
             // Create new audio in DOM
             var audioElement = $('<audio>', {
-                src: targetWord.audio,
+                src: audioSrc,
                 controls: true,
                 crossorigin: 'anonymous'
             }).appendTo('#ll-tools-flashcard');
@@ -448,7 +487,7 @@
          */
         function selectBestAudio(word, preferredTypes) {
             if (!word || !word.audio_files || !Array.isArray(word.audio_files) || word.audio_files.length === 0) {
-                return word.audio || null;
+                return normalizeUrlToPageOrigin(word.audio || null);
             }
 
             var preferredSpeaker = word.preferred_speaker_user_id || 0;
@@ -462,7 +501,7 @@
                         return af.recording_type === type && af.speaker_user_id === preferredSpeaker && af.url;
                     });
                     if (matchSameSpeaker) {
-                        return matchSameSpeaker.url;
+                        return normalizeUrlToPageOrigin(matchSameSpeaker.url);
                     }
                 }
 
@@ -471,11 +510,12 @@
                     return af.recording_type === type && af.url;
                 });
                 if (anyMatch) {
-                    return anyMatch.url;
+                    return normalizeUrlToPageOrigin(anyMatch.url);
                 }
             }
 
-            return (word.audio_files[0] && word.audio_files[0].url) || word.audio || null;
+            var fallback = (word.audio_files[0] && word.audio_files[0].url) || word.audio || null;
+            return normalizeUrlToPageOrigin(fallback);
         }
 
         /**
