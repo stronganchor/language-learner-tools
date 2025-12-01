@@ -1925,6 +1925,12 @@ function ll_missing_audio_sanitize_word_text($text) {
         return ll_sanitize_word_title_text($text);
     }
     $text = (string) $text;
+    // Normalize curly/Unicode apostrophes to a straight quote so cache keys stay consistent
+    $text = str_replace(
+        array("\u{2019}", "\u{2018}", "\u{201B}", "\u{02BC}", "\u{FF07}"),
+        "'",
+        $text
+    );
     if (function_exists('ll_strip_shortcodes_preserve_content')) {
         $text = ll_strip_shortcodes_preserve_content($text);
     } elseif (function_exists('strip_shortcodes')) {
