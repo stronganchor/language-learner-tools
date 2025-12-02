@@ -69,6 +69,61 @@
         }
     }
 
+    function decodeEntities(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.innerHTML = text;
+        return div.textContent || div.innerText || '';
+    }
+
+    // Fit text inside its container for text-only cards
+    function fitTextToContainer(el) {
+        if (!el) return;
+        const card = el.closest('.flashcard-container');
+        if (!card) return;
+
+        // Match quiz sizing: measure available box and shrink until it fits
+        const boxH = Math.max(1, card.clientHeight - 15);
+        const boxW = Math.max(1, card.clientWidth - 15);
+        const fontFamily = (window.LLFlashcards && LLFlashcards.Util && typeof LLFlashcards.Util.measureTextWidth === 'function')
+            ? null
+            : (getComputedStyle(el).fontFamily || 'sans-serif');
+
+        const measureWidth = (text, fs) => {
+            if (window.LLFlashcards && LLFlashcards.Util && typeof LLFlashcards.Util.measureTextWidth === 'function') {
+                return LLFlashcards.Util.measureTextWidth(text, fs + 'px ' + (fontFamily || getComputedStyle(el).fontFamily || 'sans-serif'));
+            }
+            // Fallback: approximate using a hidden clone
+            const clone = el.cloneNode(true);
+            clone.style.visibility = 'hidden';
+            clone.style.position = 'absolute';
+            clone.style.fontSize = fs + 'px';
+            clone.style.lineHeight = fs + 'px';
+            clone.style.maxWidth = boxW + 'px';
+            clone.style.width = 'auto';
+            card.appendChild(clone);
+            const w = clone.scrollWidth;
+            card.removeChild(clone);
+            return w;
+        };
+
+        const text = el.textContent || '';
+        const maxSize = 56;
+        const minSize = 12;
+        for (let fs = maxSize; fs >= minSize; fs--) {
+            const w = measureWidth(text, fs);
+            if (w > boxW) continue;
+            el.style.fontSize = fs + 'px';
+            el.style.lineHeight = fs + 'px';
+            el.style.maxWidth = boxW + 'px';
+            el.style.whiteSpace = 'normal';
+            el.style.wordBreak = 'break-word';
+            if (el.scrollHeight <= boxH) {
+                break;
+            }
+        }
+    }
+
     function setTypeForCurrentImage() {
         const el = window.llRecorder;
         if (!el.recordingTypeSelect) return;
@@ -193,30 +248,44 @@
             el.image.style.display = 'none';
             if (!el.textDisplay) {
                 el.textDisplay = document.createElement('div');
-                el.textDisplay.className = 'll-text-display';
-                el.imageContainer.querySelector('.flashcard-container').appendChild(el.textDisplay);
+                el.textDisplay.className = 'quiz-text ll-text-display';
+                const card = el.imageContainer.querySelector('.flashcard-container');
+                card.classList.add('text-based');
+                card.appendChild(el.textDisplay);
             }
             el.textDisplay.style.display = 'flex';
+            el.imageContainer.querySelector('.flashcard-container').classList.add('text-based');
         } else {
             if (el.textDisplay) {
                 el.textDisplay.style.display = 'none';
             }
             el.image.style.display = 'block';
             el.image.src = img.image_url;
+            const card = el.imageContainer.querySelector('.flashcard-container');
+            card.classList.remove('text-based');
         }
 
         // NEW: Prefer word title over image title if available and matched
-        let displayTitle = img.title; // Default to image title
+        let displayTitle = decodeEntities(img.title); // Default to image title
         const targetLang = window.ll_recorder_data?.language || 'TR'; // From localized data, e.g., 'TR'
         if (img.use_word_display && img.word_title) {
-            displayTitle = img.word_title; // Prefer word's target lang title
+            displayTitle = decodeEntities(img.word_title); // Prefer word's target lang title
         } else if (img.use_word_display && img.word_translation && img.word_translation.toLowerCase().includes(targetLang.toLowerCase())) {
-            displayTitle = img.word_translation; // Use word's translation if it's in target lang
+            displayTitle = decodeEntities(img.word_translation); // Use word's translation if it's in target lang
         }
 
         el.title.textContent = displayTitle;
         if (img.is_text_only && el.textDisplay) {
             el.textDisplay.textContent = displayTitle;
+            fitTextToContainer(el.textDisplay);
+        }
+        if (!img.is_text_only) {
+            // Remove text styling so image cards match quiz styling
+            const card = el.imageContainer.querySelector('.flashcard-container');
+            card.classList.remove('text-based');
+            if (el.textDisplay) {
+                el.textDisplay.textContent = '';
+            }
         }
         const hideName = window.ll_recorder_data?.hide_name || false;
         if (hideName) {
@@ -473,6 +542,7 @@
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
         const includeTypes = window.ll_recorder_data?.include_types || '';
         const excludeTypes = window.ll_recorder_data?.exclude_types || '';
+        const activeCategory = el.categorySelect?.value || '';
 
         showStatus(i18n.skipping || 'Skipping...', 'info');
 
@@ -487,6 +557,7 @@
         formData.append('include_types', includeTypes);
         formData.append('exclude_types', excludeTypes);
         formData.append('word_title', img.word_title || img.title || '');
+        formData.append('active_category', activeCategory);
 
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
@@ -528,6 +599,7 @@
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
         const includeTypes = window.ll_recorder_data?.include_types || '';
         const excludeTypes = window.ll_recorder_data?.exclude_types || '';
+        const activeCategory = el.categorySelect?.value || '';
 
         showStatus(i18n.uploading || 'Uploading...', 'uploading');
         el.submitBtn.disabled = true;
@@ -545,6 +617,7 @@
         formData.append('include_types', includeTypes);
         formData.append('exclude_types', excludeTypes);
         formData.append('word_title', img.word_title || img.title || '');
+        formData.append('active_category', activeCategory);
 
         // Extension detection - prioritize quality formats
         let extension = '.wav';
@@ -591,6 +664,7 @@
     }
 
     async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes }) {
+        const activeCategory = window.llRecorder?.categorySelect?.value || '';
         try {
             const fd = new FormData();
             fd.append('action', 'll_verify_recording');
@@ -603,6 +677,7 @@
             fd.append('include_types', includeTypes);
             fd.append('exclude_types', excludeTypes);
             fd.append('word_title', img.word_title || img.title || '');
+            fd.append('active_category', activeCategory);
 
             const verifyResp = await fetch(ajaxUrl, { method: 'POST', body: fd });
             if (!verifyResp.ok) throw new Error(`HTTP ${verifyResp.status}: ${verifyResp.statusText}`);

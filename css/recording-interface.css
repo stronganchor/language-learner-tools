@@ -92,7 +92,6 @@
 
 .ll-recording-image-container {
     flex: 0 0 auto;
-    max-width: 280px;
     display: flex;
     flex-direction: column;
     align-items: center;
