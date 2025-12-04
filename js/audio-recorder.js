@@ -538,48 +538,15 @@
         const curType = el.recordingTypeSelect.value;
         if (!curType) return;
 
-        const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
-        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
-        const includeTypes = window.ll_recorder_data?.include_types || '';
-        const excludeTypes = window.ll_recorder_data?.exclude_types || '';
-        const activeCategory = el.categorySelect?.value || '';
+        // Remove the current type for this session only
+        images[currentImageIndex].missing_types = img.missing_types.filter(t => t !== curType);
 
-        showStatus(i18n.skipping || 'Skipping...', 'info');
-
-        const formData = new FormData();
-        formData.append('action', 'll_skip_recording_type');
-        formData.append('nonce', nonce);
-        formData.append('image_id', img.id || 0);
-        formData.append('word_id', img.word_id || 0);
-        formData.append('recording_type', curType);
-        formData.append('wordset_ids', JSON.stringify(wordsetIds));
-        formData.append('wordset', wordsetLegacy);
-        formData.append('include_types', includeTypes);
-        formData.append('exclude_types', excludeTypes);
-        formData.append('word_title', img.word_title || img.title || '');
-        formData.append('active_category', activeCategory);
-
-        try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            const data = await response.json();
-            if (data.success) {
-                const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
-                images[currentImageIndex].missing_types = remaining.slice();
-
-                if (remaining.length > 0) {
-                    setTypeForCurrentImage();
-                    resetRecordingState();
-                    showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
-                } else {
-                    loadImage(currentImageIndex + 1);
-                }
-            } else {
-                showStatus((i18n.skip_failed || 'Skip failed:') + ' ' + (data.data || data.message || 'Skip failed'), 'error');
-            }
-        } catch (err) {
-            console.error('Skip error:', err);
-            showStatus((i18n.skip_failed || 'Skip failed:') + ' ' + err.message, 'error');
+        if (images[currentImageIndex].missing_types.length > 0) {
+            setTypeForCurrentImage();
+            resetRecordingState();
+            showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
+        } else {
+            loadImage(currentImageIndex + 1);
         }
     }
 

@@ -71,18 +71,10 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
     $images_needing_audio = ll_get_images_needing_audio($initial_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
 
-    // If nothing is left anywhere else, show the skipped virtual category if it has items
     if (empty($images_needing_audio)) {
-        $skipped_images = ll_get_images_needing_audio('skipped', [], '', '');
-        if (!empty($skipped_images)) {
-            $initial_category = 'skipped';
-            $images_needing_audio = $skipped_images;
-            $available_categories = ['skipped' => __('Skipped', 'll-tools-text-domain')];
-        } else {
-            return '<div class="ll-recording-interface"><p>' .
-                   __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
-                   '</p></div>';
-        }
+        return '<div class="ll-recording-interface"><p>' .
+               __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
+               '</p></div>';
     }
 
     ll_enqueue_recording_assets();
@@ -419,33 +411,6 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         }
     }
 
-    // Collect skipped words so we can surface a "Skipped" virtual category
-    $has_skipped_items = false;
-    $skipped_query_args = [
-        'post_type'      => 'words',
-        'post_status'    => ['publish','draft','pending','private'],
-        'posts_per_page' => 1,
-        'fields'         => 'ids',
-        'meta_query'     => [
-            [
-                'key'     => 'll_skipped_recording_types',
-                'compare' => 'EXISTS',
-            ],
-        ],
-        'tax_query'      => [],
-    ];
-    if (!empty($wordset_term_ids)) {
-        $skipped_query_args['tax_query'][] = [
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => array_map('intval', $wordset_term_ids),
-        ];
-    }
-    $skipped_words = get_posts($skipped_query_args);
-    if (!empty($skipped_words)) {
-        $has_skipped_items = true;
-    }
-
     if ($has_uncategorized_items) {
         $uncat_label = isset($categories['uncategorized']) ? $categories['uncategorized'] : __('Uncategorized', 'll-tools-text-domain');
         unset($categories['uncategorized']);
@@ -455,11 +420,6 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
         $categories = array_merge(['uncategorized' => $uncat_label], $categories);
     } elseif (!empty($categories)) {
         asort($categories, SORT_FLAG_CASE | SORT_NATURAL);
-    }
-
-    if ($has_skipped_items) {
-        // Put skipped at the end for visibility
-        $categories['skipped'] = __('Skipped', 'll-tools-text-domain');
     }
 
     return $categories;
@@ -610,15 +570,8 @@ function ll_get_images_for_recording_handler() {
 
     $images = ll_get_images_needing_audio($category, $wordset_term_ids, $include_types, $exclude_types);
 
-    // If nothing is left in this category but there are skipped items overall, fall back to the "skipped" virtual category
     if (empty($images)) {
-        // Use a lenient skipped lookup (no include/exclude filters, no wordset restriction) so skipped items always appear
-        $skipped_images = ll_get_images_needing_audio('skipped', [], '', '');
-        if (!empty($skipped_images)) {
-            $images = $skipped_images;
-        } else {
-            wp_send_json_error('No images need audio in this category');
-        }
+        wp_send_json_error('No images need audio in this category');
     }
 
     $recording_types = [];
@@ -666,8 +619,6 @@ function ll_verify_recording_handler() {
     $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
     $include_types  = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types  = sanitize_text_field($_POST['exclude_types'] ?? '');
-    $active_category = sanitize_text_field($_POST['active_category'] ?? '');
-    $ignore_skipped  = ($active_category === 'skipped');
     $wordset_ids    = [];
 
     if (!$image_id && !$word_id) {
@@ -748,16 +699,15 @@ function ll_verify_recording_handler() {
     $main_types = ll_tools_get_main_recording_types();
     $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
 
-    $ignore_skipped = ($active_category === 'skipped');
     if ($types_equal_main) {
         if (ll_tools_get_preferred_speaker_for_word($word_id)) {
             $remaining_missing = [];
         } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id(), $ignore_skipped);
+            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id());
         }
     } else {
         // For subset requests (e.g., isolation-only), consider any existing recording sufficient
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types, $ignore_skipped);
+        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
     }
 
     // If this exact type was requested and it still appears in remaining, then treat as not found.
@@ -866,91 +816,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $filtered_types = array_diff($filtered_types, $exclude_types);
     }
 
-    // For the skipped virtual category, don't bail just because filters emptied the list
-    if ($category_slug === 'skipped' && empty($filtered_types)) {
-        $filtered_types = $all_types;
-    }
-
     if (empty($filtered_types)) {
         return [];
-    }
-
-    $result = [];
-    // Special virtual category: "skipped" shows words that have skip meta
-    if ($category_slug === 'skipped') {
-        // For skipped, be lenient: show anything marked skipped, even if filtered types would normally hide it
-        $skipped_words = get_posts([
-            'post_type'      => 'words',
-            'post_status'    => ['publish','draft','pending','private'],
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-            'meta_query'     => [
-                [
-                    'key'     => 'll_skipped_recording_types',
-                    'compare' => 'EXISTS',
-                ],
-            ],
-            'tax_query'      => !empty($wordset_term_ids) ? [[
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => array_map('intval', $wordset_term_ids),
-            ]] : [],
-        ]);
-
-        foreach ($skipped_words as $word_id) {
-            $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
-            $skipped = is_array($skipped) ? array_values(array_unique(array_map('sanitize_text_field', $skipped))) : [];
-            if (empty($skipped)) { continue; }
-            $desired = ll_tools_get_desired_recording_types_for_word($word_id);
-            // Use full desired set (filtered by include/exclude) and compute missing the same way as normal categories.
-            $types_for_word = array_values(array_intersect($desired, $filtered_types));
-            if (empty($types_for_word)) {
-                $types_for_word = $desired;
-            }
-            $existing_types = ll_get_existing_recording_types_for_word($word_id);
-            // Show remaining types (excluding recordings already present); keep skipped types visible so users can un-skip/revisit
-            $missing_types = array_values(array_diff($types_for_word, $existing_types));
-
-            $translation = get_post_meta($word_id, 'word_translation', true);
-            if ($translation === '') {
-                $translation = get_post_meta($word_id, 'word_english_meaning', true);
-            }
-
-            $display_word_title = get_the_title($word_id);
-            if (get_option('ll_word_title_language_role', 'target') === 'translation' && !empty($translation)) {
-                $display_word_title = $translation;
-            }
-
-            // Prefer a featured image for skipped items if available
-            $thumb_id = get_post_thumbnail_id($word_id);
-            $thumb_url = $thumb_id ? get_the_post_thumbnail_url($word_id, 'large') : '';
-
-            // Show the original category name (for display) even though slug stays "skipped"
-            $cat_name = __('Skipped', 'll-tools-text-domain');
-            $cats = wp_get_post_terms($word_id, 'word-category');
-            if (!is_wp_error($cats) && !empty($cats)) {
-                $cat_name = $cats[0]->name;
-            } else {
-                $cat_name = __('Uncategorized', 'll-tools-text-domain');
-            }
-
-            $result[] = [
-                'id'               => 0,
-                'title'            => $display_word_title,
-                'image_url'        => $thumb_url ?: '',
-                'category_name'    => $cat_name,
-                'category_slug'    => 'skipped',
-                'word_id'          => $word_id,
-                'word_title'       => $display_word_title,
-                'word_translation' => $translation,
-                'use_word_display' => true,
-                'missing_types'    => $missing_types,
-                'existing_types'   => $existing_types,
-                'is_text_only'     => empty($thumb_url),
-            ];
-        }
-
-        return $result;
     }
     $items_by_category = [];
     $missing_audio_instances = get_option('ll_missing_audio_instances', []);
@@ -1060,13 +927,6 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             } else {
                 // For subset requests (e.g., isolation-only), consider any existing recording sufficient
                 $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_item);
-            }
-            // If this isn't the skipped virtual category, drop any types the user explicitly skipped
-            if ($category_slug !== 'skipped') {
-                $skipped_types = get_post_meta($word_id, 'll_skipped_recording_types', true);
-                if (is_array($skipped_types) && !empty($skipped_types)) {
-                    $missing_types = array_values(array_diff($missing_types, $skipped_types));
-                }
             }
             $existing_types = ll_get_existing_recording_types_for_word($word_id);
         } else {
@@ -1248,12 +1108,6 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         } else {
             $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_word);
         }
-        if ($category_slug !== 'skipped') {
-            $skipped_types = get_post_meta($word_id, 'll_skipped_recording_types', true);
-            if (is_array($skipped_types) && !empty($skipped_types)) {
-                $missing_types = array_values(array_diff($missing_types, $skipped_types));
-            }
-        }
         $existing_types = ll_get_existing_recording_types_for_word($word_id);
 
         if (!empty($missing_types)) {
@@ -1383,6 +1237,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $target_slugs = array_keys($items_by_category);
     }
 
+    $result = [];
     foreach ($target_slugs as $slug) {
         if (!isset($items_by_category[$slug])) {
             continue;
@@ -1464,19 +1319,17 @@ function ll_get_existing_recording_types_for_word(int $word_id): array {
 }
 
 /**
- * For a given word (parent of word_audio), return the recording_type slugs missing (not recorded and not skipped), limited to provided filtered types.
+ * For a given word (parent of word_audio), return the recording_type slugs missing (not recorded), limited to provided filtered types.
+ * The $ignore_skipped flag is retained for backward compatibility but has no effect now that skipped types are session-only.
  *
  * @param int $word_id
  * @param array $filtered_types Slugs available for this shortcode instance
- * @param bool  $ignore_skipped When true, do not filter out previously skipped types
+ * @param bool  $ignore_skipped Legacy flag (unused)
  * @return array
  */
 function ll_get_missing_recording_types_for_word(int $word_id, array $filtered_types, bool $ignore_skipped = false): array {
     $existing = ll_get_existing_recording_types_for_word($word_id);
-    $skipped = $ignore_skipped ? [] : get_post_meta($word_id, 'll_skipped_recording_types', true);
-    $skipped = is_array($skipped) ? $skipped : [];
-
-    $missing = array_values(array_diff($filtered_types, $existing, $skipped));
+    $missing = array_values(array_diff($filtered_types, $existing));
     return $missing;
 }
 
@@ -1507,12 +1360,11 @@ function ll_get_existing_recording_types_for_word_by_user(int $word_id, int $use
 
 /**
  * User-specific missing types for a word among the provided desired/filter set.
+ * The $ignore_skipped flag is retained for backward compatibility but has no effect now that skipped types are session-only.
  */
 function ll_get_user_missing_recording_types_for_word(int $word_id, array $filtered_types, int $user_id, bool $ignore_skipped = false): array {
     $user_existing = ll_get_existing_recording_types_for_word_by_user($word_id, $user_id);
-    $skipped = $ignore_skipped ? [] : get_post_meta($word_id, 'll_skipped_recording_types', true);
-    $skipped = is_array($skipped) ? $skipped : [];
-    $missing = array_values(array_diff($filtered_types, $user_existing, $skipped));
+    $missing = array_values(array_diff($filtered_types, $user_existing));
     return $missing;
 }
 
@@ -1727,9 +1579,6 @@ function ll_skip_recording_type_handler() {
 
     $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
     $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
-    $active_category   = sanitize_text_field($_POST['active_category'] ?? '');
-    // Respect skip meta so once a type is skipped, it drops from remaining for this word
-    $ignore_skipped    = false;
 
     $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
     if (is_wp_error($all_types) || empty($all_types)) { $all_types = []; }
@@ -1769,13 +1618,6 @@ function ll_skip_recording_type_handler() {
         }
     }
 
-    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
-    $skipped = is_array($skipped) ? $skipped : [];
-    if ($recording_type && !in_array($recording_type, $skipped, true)) {
-        $skipped[] = $recording_type;
-        update_post_meta($word_id, 'll_skipped_recording_types', $skipped);
-    }
-
     // Remaining types, applying single-speaker logic only when collecting the full main set
     $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
     $filtered_types = array_values(array_intersect($filtered_types, $desired_word));
@@ -1787,13 +1629,13 @@ function ll_skip_recording_type_handler() {
         if (ll_tools_get_preferred_speaker_for_word($word_id)) {
             $remaining_missing = [];
         } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id(), $ignore_skipped);
+            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id());
         }
     } else {
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types, $ignore_skipped);
+        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
     }
-    // If we are in the skipped queue, drop only the just-skipped type so we move to the next type on the same word
-    if ($active_category === 'skipped' && $recording_type) {
+    // Drop the skipped type for this session so the UI can move on, but do not persist anything.
+    if ($recording_type) {
         $remaining_missing = array_values(array_diff($remaining_missing, [$recording_type]));
     }
 
@@ -1954,13 +1796,6 @@ function ll_handle_recording_upload() {
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
     }
 
-    $skipped = get_post_meta($word_id, 'll_skipped_recording_types', true);
-    $skipped = is_array($skipped) ? $skipped : [];
-    if (($key = array_search($recording_type, $skipped, true)) !== false) {
-        unset($skipped[$key]);
-        update_post_meta($word_id, 'll_skipped_recording_types', array_values($skipped));
-    }
-
     if (!get_post_meta($word_id, 'word_audio_file', true)) {
         update_post_meta($word_id, 'word_audio_file', $relative_path);
     }
@@ -1977,10 +1812,10 @@ function ll_handle_recording_upload() {
         if (ll_tools_get_preferred_speaker_for_word($word_id)) {
             $remaining_missing = [];
         } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_user_id, $ignore_skipped);
+            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_user_id);
         }
     } else {
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types, $ignore_skipped);
+        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
     }
 
     if (function_exists('ll_remove_missing_audio_instance')) {
