@@ -353,10 +353,10 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
 
     // Keep the overlay above anything (incl. WP admin bar)
     echo '<style id="ll-qpg-popup-zfix">
-      #ll-tools-flashcard-container,
-      #ll-tools-flashcard-popup,
-      #ll-tools-flashcard-quiz-popup{position:fixed;inset:0;z-index:999999}
-      #ll-tools-flashcard-content{height:100%;overflow:auto}
+      body.ll-qpg-popup-active #ll-tools-flashcard-container,
+      body.ll-qpg-popup-active #ll-tools-flashcard-popup,
+      body.ll-qpg-popup-active #ll-tools-flashcard-quiz-popup{position:fixed;inset:0;z-index:999999}
+      body.ll-qpg-popup-active #ll-tools-flashcard-content{height:100%;overflow:auto}
     </style>';
 
     // Robust delegated click binding:
@@ -624,6 +624,8 @@ function ll_qpg_print_flashcard_shell_once() {
             }
             window.__LL_QPG_OPEN_IN_PROGRESS = true;
 
+            try { document.body.classList.add('ll-qpg-popup-active'); } catch (_) {}
+            try { $('body').addClass('ll-qpg-popup-active'); } catch (_) {}
             $('#ll-tools-flashcard-container').show();
             $('#ll-tools-flashcard-popup').show();
             $('#ll-tools-flashcard-quiz-popup').show();
@@ -637,6 +639,8 @@ function ll_qpg_print_flashcard_shell_once() {
                 }
             } catch (e) {
                 console.error('initFlashcardWidget failed', e);
+                try { document.body.classList.remove('ll-qpg-popup-active'); } catch (_) {}
+                try { $('body').removeClass('ll-qpg-popup-active'); } catch (_) {}
                 window.__LL_QPG_OPEN_IN_PROGRESS = false;
             }
         };

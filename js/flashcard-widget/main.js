@@ -847,12 +847,17 @@
         const clear = function (el) {
             if (!el) return;
             try {
-                el.classList && el.classList.remove('ll-tools-flashcard-open');
+                if (el.classList) {
+                    el.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active');
+                }
                 el.style && (el.style.overflow = '');
             } catch (_) { /* ignore */ }
         };
         try { clear(document.body); clear(document.documentElement); } catch (_) { /* ignore */ }
-        try { $('body').removeClass('ll-tools-flashcard-open').css('overflow', ''); $('html').css('overflow', ''); } catch (_) { /* ignore */ }
+        try {
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
+            $('html').css('overflow', '');
+        } catch (_) { /* ignore */ }
     }
 
     function closeFlashcard() {
@@ -1001,7 +1006,6 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
 
 
 
