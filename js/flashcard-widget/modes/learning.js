@@ -116,9 +116,9 @@
         return State.wrongAnswerQueue.filter(x => x.dueTurn <= now);
     }
 
-    function pickReadyWrongWithSpacing() {
-        const ready = readyWrongs();
-        if (!ready.length) return null;
+    function pickReadyWrongWithSpacing(readyList) {
+        const ready = Array.isArray(readyList) ? readyList : readyWrongs();
+        if (!ready.length) return { id: null, fallbackId: null };
 
         // Prefer not to repeat last shown
         const notRepeat = ready.filter(x => x.id !== State.lastWordShownId);
@@ -126,7 +126,12 @@
 
         // Random pick among ready pool
         const pick = pool[Math.floor(Math.random() * pool.length)];
-        return pick ? pick.id : null;
+        if (notRepeat.length) {
+            return { id: pick ? pick.id : null, fallbackId: pick ? pick.id : null };
+        }
+
+        // If we'd repeat immediately, defer but remember a fallback in case nothing else is available
+        return { id: null, fallbackId: pick ? pick.id : null };
     }
 
     function wordObjectById(wordId) {
@@ -217,7 +222,9 @@
         ensureDefaults();
         State.turnIndex++;
 
-        const hasReadyWrongs = readyWrongs().length > 0;
+        const readyWrongEntries = readyWrongs();
+        const hasReadyWrongs = readyWrongEntries.length > 0;
+        const hasPendingWrongs = (State.wrongAnswerQueue && State.wrongAnswerQueue.length > 0);
         const everyoneAnsweredThisCycle =
             State.introducedWordIDs.length > 0 &&
             State.introducedWordIDs.every(id => State.wordsAnsweredSinceLastIntro.has(id));
@@ -230,7 +237,7 @@
             State.introducedWordIDs.length > 0 &&
             State.introducedWordIDs.every(id => (State.wordCorrectCounts[id] || 0) >= State.MIN_CORRECT_COUNT);
 
-        if (nothingLeftToIntroduce && !hasReadyWrongs && allIntroducedMastered) {
+        if (nothingLeftToIntroduce && !hasReadyWrongs && !hasPendingWrongs && allIntroducedMastered) {
             State.isIntroducingWord = false;
             return null; // main.js will show results
         }
@@ -249,7 +256,7 @@
 
         // May we introduce a NEW word this turn?
         const canIntroduceMore = (State.introducedWordIDs.length < 12);
-        const mayIntroduce = !hasReadyWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce && canIntroduceMore;
+        const mayIntroduce = !hasReadyWrongs && !hasPendingWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce && canIntroduceMore;
 
         if (mayIntroduce) {
             const nextId = notYetIntroduced[0];
@@ -265,7 +272,7 @@
         State.isIntroducingWord = false;
 
         // Priority 1: a READY wrong (randomized schedule, avoid immediate repeat)
-        const readyWrongId = pickReadyWrongWithSpacing();
+        const { id: readyWrongId, fallbackId: fallbackReadyWrongId } = pickReadyWrongWithSpacing(readyWrongEntries);
         if (readyWrongId) {
             const wrongWord = wordObjectById(readyWrongId);
             if (wrongWord) {
@@ -325,6 +332,15 @@
             if (word) {
                 State.lastWordShownId = word.id;
                 return word;
+            }
+        }
+
+        // If nothing else fit but a ready wrong was waiting, allow it now
+        if (fallbackReadyWrongId) {
+            const wrongFallback = wordObjectById(fallbackReadyWrongId);
+            if (wrongFallback) {
+                State.lastWordShownId = wrongFallback.id;
+                return wrongFallback;
             }
         }
 
