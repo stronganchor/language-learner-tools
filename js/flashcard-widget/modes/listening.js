@@ -277,6 +277,10 @@
     // Track in-flight category loads so listening mode can wait for all selected categories
     const pendingCategoryLoads = {};
 
+    function hasWordsReady() {
+        return Array.isArray(State.wordsLinear) && State.wordsLinear.length > 0;
+    }
+
     function getWordsetCacheKey() {
         const data = root.llToolsFlashcardsData || {};
         const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
@@ -358,6 +362,45 @@
         const pending = Object.values(pendingCategoryLoads || {});
         if (!pending.length) return Promise.resolve();
         return Promise.all(pending.map(function (p) { return Promise.resolve(p).catch(() => undefined); })).catch(function () { });
+    }
+
+    // Wait until at least one pending category finishes (or a timeout), instead of waiting for all.
+    function waitForNextAvailableWords(loader, timeoutMs = 2500) {
+        queueAllSelectedCategories(loader);
+        if (hasWordsReady()) return Promise.resolve(true);
+
+        const pending = Object.values(pendingCategoryLoads || {});
+        if (!pending.length) return Promise.resolve(false);
+
+        return new Promise(function (resolve) {
+            let settled = false;
+            const done = function (hasWords) {
+                if (settled) return;
+                settled = true;
+                resolve(!!hasWords);
+            };
+            const checkNow = function () {
+                rebuildWordsLinear();
+                if (hasWordsReady()) {
+                    done(true);
+                } else if (!hasPendingCategoryLoads(loader)) {
+                    done(false);
+                }
+            };
+
+            pending.forEach(function (p) {
+                Promise.resolve(p).then(checkNow).catch(checkNow);
+            });
+
+            setTimeout(function () {
+                checkNow();
+                if (!settled) done(hasWordsReady());
+            }, Math.max(500, timeoutMs));
+
+            // Safety in case nothing resolves
+            setTimeout(function () { if (!settled) done(hasWordsReady()); }, Math.max(800, timeoutMs + 500));
+            checkNow();
+        });
     }
 
     function initialize() {
@@ -650,9 +693,9 @@
 
         if ((!State.wordsLinear || !State.wordsLinear.length) && hasPendingCategoryLoads(loader)) {
             if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
-            waitForPendingCategoryLoads(loader).then(function () {
+            waitForNextAvailableWords(loader).then(function (hasWords) {
                 rebuildWordsLinear();
-                if (!State.wordsLinear || !State.wordsLinear.length) {
+                if (!hasWords || !State.wordsLinear || !State.wordsLinear.length) {
                     State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
                     resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
                     try { WakeLock.update(); } catch (_) { }
@@ -671,8 +714,14 @@
         if (!target) {
             if (hasPendingCategoryLoads(loader)) {
                 if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
-                waitForPendingCategoryLoads(loader).then(function () {
+                waitForNextAvailableWords(loader).then(function (hasWords) {
                     rebuildWordsLinear();
+                    if (!hasWords || !State.wordsLinear || !State.wordsLinear.length) {
+                        State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                        resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                        try { WakeLock.update(); } catch (_) { }
+                        return;
+                    }
                     State.forceTransitionTo(STATES.QUIZ_READY, 'Listening delayed until data ready');
                     if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                     else if (typeof utils.startQuizRound === 'function') utils.startQuizRound();
@@ -933,9 +982,9 @@
 
                     if (atEnd && pending) {
                         if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
-                        waitForPendingCategoryLoads(loader).then(function () {
+                        waitForNextAvailableWords(loader).then(function (hasWords) {
                             rebuildWordsLinear();
-                            const hasMore = (State.wordsLinear || []).length > 0 && (State.listenIndex || 0) < (State.wordsLinear || []).length;
+                            const hasMore = hasWords && (State.wordsLinear || []).length > 0 && (State.listenIndex || 0) < (State.wordsLinear || []).length;
                             if (!hasMore && !hasPendingCategoryLoads(loader)) {
                                 State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
                                 resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
