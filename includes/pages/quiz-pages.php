@@ -536,7 +536,7 @@ add_action('admin_init', function () {
 
     $watch = [
         __FILE__,
-        LL_TOOLS_BASE_PATH . 'templates/quiz-pages.php',
+        LL_TOOLS_BASE_PATH . 'templates/quiz-page-template.php',
         LL_TOOLS_BASE_PATH . 'js/quiz-pages.js',
         LL_TOOLS_BASE_PATH . 'css/quiz-pages.css',
     ];

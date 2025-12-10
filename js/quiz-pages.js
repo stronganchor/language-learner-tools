@@ -123,10 +123,36 @@
         }
     }, false);
 
+    // Remove leaked inline JS (if a security filter stripped the <script> tag and left the text behind)
+    function stripInlineQuizCodeLeak(wrapper) {
+        var scope = (wrapper && wrapper.parentNode) ? wrapper.parentNode : document.body;
+        if (!scope || !scope.ownerDocument || !scope.ownerDocument.createTreeWalker || !window.NodeFilter) return;
+
+        var walker = scope.ownerDocument.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false);
+        var toRemove = [];
+        while (walker.nextNode()) {
+            var node = walker.currentNode;
+            if (node && typeof node.nodeValue === 'string' && node.nodeValue.indexOf('ll-tools-quiz-iframe-wrapper') !== -1) {
+                toRemove.push(node);
+            }
+        }
+
+        toRemove.forEach(function (node) {
+            var parent = node.parentNode;
+            if (!parent) return;
+            parent.removeChild(node);
+            if (parent.childNodes.length === 0 && parent.parentNode) {
+                parent.parentNode.removeChild(parent);
+            }
+        });
+    }
+
     // --- Spinner control for quiz pages that render an <iframe> ---
     function wireQuizIframeSpinner() {
         var wrapper = document.querySelector('.ll-tools-quiz-iframe-wrapper');
         if (!wrapper) return; // Not on a quiz page
+
+        stripInlineQuizCodeLeak(wrapper);
 
         var iframe = wrapper.querySelector('.ll-tools-quiz-iframe');
         var spinner = wrapper.querySelector('.ll-tools-iframe-loading');
@@ -140,13 +166,22 @@
 
         // 1) Hide on native iframe load
         iframe.addEventListener('load', hide, { once: true });
+        iframe.addEventListener('error', hide, { once: true });
 
         // 2) Hide when the embed tells us it's ready
         window.addEventListener('message', function (e) {
-            if (!e || !e.data) return;
-            var okType = (typeof e.data === 'string' && e.data === 'll-embed-ready') ||
-                (typeof e.data === 'object' && e.data.type === 'll-embed-ready');
-            if (!okType) return;
+            if (!e || typeof e.data === 'undefined') return;
+
+            var rawType = null;
+            if (typeof e.data === 'string') {
+                rawType = e.data;
+            } else if (e.data && typeof e.data === 'object') {
+                rawType = e.data.type || e.data.action || null;
+            }
+
+            if (!rawType) return;
+            var normalized = String(rawType).replace(/_/g, '-').toLowerCase();
+            if (normalized !== 'll-embed-ready') return;
 
             // Only accept same-origin (embed uses home_url('/embed/...'))
             try {
