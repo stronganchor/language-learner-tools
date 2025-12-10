@@ -192,6 +192,76 @@
         }
 
         /**
+         * Fade out a specific audio element before stopping it
+         */
+        function fadeOutAudio(audio, durationMs) {
+            return new Promise(function (resolve) {
+                if (!audio) { resolve(); return; }
+
+                var startingVolume = (typeof audio.volume === 'number') ? audio.volume : 1;
+                var resetVolume = function () {
+                    try { audio.volume = startingVolume; } catch (_) { /* no-op */ }
+                };
+                var fadeDuration = Math.max(60, (typeof durationMs === 'number') ? durationMs : 180);
+
+                if (audio.paused || startingVolume <= 0) {
+                    stopAudio(audio).then(function () {
+                        resetVolume();
+                        resolve();
+                    });
+                    return;
+                }
+
+                var steps = Math.max(3, Math.round(fadeDuration / 30));
+                var stepMs = Math.max(16, fadeDuration / steps);
+                var decrement = startingVolume / steps;
+                var stepCount = 0;
+                var intervalId = setInterval(function () {
+                    stepCount++;
+                    var nextVolume = Math.max(0, startingVolume - (decrement * stepCount));
+                    try { audio.volume = nextVolume; } catch (_) { /* ignore */ }
+                    if (stepCount >= steps || nextVolume <= 0.01) {
+                        clearInterval(intervalId);
+                        stopAudio(audio).then(function () {
+                            resetVolume();
+                            resolve();
+                        });
+                    }
+                }, stepMs);
+            });
+        }
+
+        /**
+         * Fade out all active audio (default excludes feedback sounds)
+         */
+        function fadeOutAllAudio(durationMs, includeFeedbackAudio) {
+            var fades = [];
+            activeAudioElements.forEach(function (sessionId, audio) {
+                if (!audio || audio.paused) return;
+                if (!includeFeedbackAudio && sessionId === -1) return;
+                fades.push(fadeOutAudio(audio, durationMs));
+            });
+            if (!fades.length) return Promise.resolve();
+            return Promise.all(fades.map(function (p) { return Promise.resolve(p).catch(function () { return; }); }))
+                .then(function () { return; });
+        }
+
+        /**
+         * Fade out feedback audio (ding/buzz) early
+         */
+        function fadeOutFeedbackAudio(durationMs, which) {
+            var targets = [];
+            if (!which || which === 'correct' || which === 'both') targets.push(correctAudio);
+            if (!which || which === 'wrong' || which === 'both') targets.push(wrongAudio);
+            var fades = targets.filter(Boolean).map(function (audio) {
+                return fadeOutAudio(audio, durationMs);
+            });
+            if (!fades.length) return Promise.resolve();
+            return Promise.all(fades.map(function (p) { return Promise.resolve(p).catch(function () { return; }); }))
+                .then(function () { return; });
+        }
+
+        /**
          * Force stop and cleanup every tracked audio instance, including target audio.
          */
         function flushAllAudioSessions() {
@@ -545,7 +615,9 @@
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
             setTargetAudioHasPlayed: function (value) { targetAudioHasPlayed = value; },
             getCorrectAudioURL: function () { return correctAudio ? correctAudio.src : ''; },
-            getWrongAudioURL: function () { return wrongAudio ? wrongAudio.src : ''; }
+            getWrongAudioURL: function () { return wrongAudio ? wrongAudio.src : ''; },
+            fadeOutAllAudio: fadeOutAllAudio,
+            fadeOutFeedbackAudio: fadeOutFeedbackAudio
         };
     })();
 
