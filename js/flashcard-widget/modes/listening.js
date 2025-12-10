@@ -328,7 +328,7 @@
                 loader.loadResourcesForCategory(name, function () {
                     rebuildWordsLinear();
                     resolve(key);
-                });
+                }, { earlyCallback: true });
             } catch (_) {
                 resolve(key);
             }

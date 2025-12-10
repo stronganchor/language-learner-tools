@@ -205,7 +205,9 @@
          * @param {string} categoryName - The name of the category.
          * @param {function} callback - Callback to execute after loading.
          */
-        function loadResourcesForCategory(categoryName, callback) {
+        function loadResourcesForCategory(categoryName, callback, options) {
+            const opts = options || {};
+            const earlyCallback = opts.earlyCallback === true;
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
 
@@ -234,7 +236,13 @@
                 success: function (response) {
                     if (response.success) {
                         processFetchedWordData(response.data, categoryName);
-                        preloadCategoryResources(categoryName, callback);
+                        if (earlyCallback && typeof callback === 'function') {
+                            // Let the caller continue as soon as data is available; preload continues in background.
+                            try { callback(); } catch (_) { }
+                            preloadCategoryResources(categoryName);
+                        } else {
+                            preloadCategoryResources(categoryName, callback);
+                        }
                         loadedCategories.push(cacheKey);
                     } else {
                         console.error('Failed to load words for category:', categoryName);
