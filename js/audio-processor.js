@@ -13,7 +13,8 @@
             enableTrim: true,
             enableNoise: true,
             enableLoudness: true
-        }
+        },
+        recordingTypes: []
     };
 
     const TARGET_LUFS = -18.0;
@@ -25,6 +26,7 @@
             return;
         }
         state.recordings = window.llAudioProcessor.recordings;
+        state.recordingTypes = Array.isArray(window.llAudioProcessor.recordingTypes) ? window.llAudioProcessor.recordingTypes : [];
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         wireEventListeners();
         updateSelectedCount();
@@ -160,6 +162,12 @@
                         updateProcessedAudio(postId, data);
                     }
                 }
+            } else if (e.target.classList.contains('ll-recording-type-select')) {
+                const postId = parseInt(e.target.dataset.postId);
+                const data = state.reviewData.get(postId);
+                if (data) {
+                    data.selectedRecordingType = e.target.value;
+                }
             }
         });
     }
@@ -204,7 +212,8 @@
                     processedBuffer: processedData.processedBuffer,
                     trimStart: processedData.trimStart,
                     trimEnd: processedData.trimEnd,
-                    options: { ...state.globalOptions }
+                    options: { ...state.globalOptions },
+                    selectedRecordingType: recording.recordingType || ''
                 });
 
                 completed++;
@@ -419,51 +428,10 @@
 
         container.innerHTML = '';
 
-        const globalOptionsTop = document.createElement('div');
-        globalOptionsTop.className = 'll-review-global-options';
-        globalOptionsTop.innerHTML = `
-        <label class="ll-skip-all-review">
-            <input type="checkbox" id="ll-skip-all-review-checkbox">
-            <strong>Skip review for all files and publish immediately</strong>
-        </label>
-    `;
-        container.appendChild(globalOptionsTop);
-
         state.reviewData.forEach((data, postId) => {
             const fileDiv = createReviewFileElement(postId, data);
             container.appendChild(fileDiv);
         });
-
-        const globalOptionsBottom = document.createElement('div');
-        globalOptionsBottom.className = 'll-review-global-options';
-        globalOptionsBottom.innerHTML = `
-        <label class="ll-skip-all-review">
-            <input type="checkbox" id="ll-skip-all-review-checkbox-bottom">
-            <strong>Skip review for all files and publish immediately</strong>
-        </label>
-    `;
-        container.appendChild(globalOptionsBottom);
-
-        const skipAllCheckboxTop = document.getElementById('ll-skip-all-review-checkbox');
-        const skipAllCheckboxBottom = document.getElementById('ll-skip-all-review-checkbox-bottom');
-
-        if (skipAllCheckboxTop && skipAllCheckboxBottom) {
-            skipAllCheckboxTop.addEventListener('change', (e) => {
-                const checked = e.target.checked;
-                skipAllCheckboxBottom.checked = checked;
-                document.querySelectorAll('.ll-file-skip-review').forEach(cb => {
-                    cb.checked = checked;
-                });
-            });
-
-            skipAllCheckboxBottom.addEventListener('change', (e) => {
-                const checked = e.target.checked;
-                skipAllCheckboxTop.checked = checked;
-                document.querySelectorAll('.ll-file-skip-review').forEach(cb => {
-                    cb.checked = checked;
-                });
-            });
-        }
 
         const recordingsList = document.querySelector('.ll-recordings-list');
         const processorControls = document.querySelector('.ll-processor-controls');
@@ -488,12 +456,11 @@
             ? `<img src="${escapeHtml(recording.imageUrl)}" alt="${escapeHtml(recording.title)}" class="ll-review-thumbnail">`
             : '';
 
+        const selectedRecordingType = data.selectedRecordingType || recording.recordingType || '';
+        const recordingTypeSelect = renderRecordingTypeSelect(selectedRecordingType, postId);
+
         const wordsetHtml = recording.wordsets && recording.wordsets.length > 0
             ? `<span class="ll-review-wordset"><strong>Wordset:</strong> ${escapeHtml(recording.wordsets.join(', '))}</span>`
-            : '';
-
-        const recordingTypeHtml = recording.recordingTypes && recording.recordingTypes.length > 0
-            ? `<span class="ll-review-recording-type"><strong>Type:</strong> ${escapeHtml(recording.recordingTypes.join(', '))}</span>`
             : '';
 
         const categoryHtml = recording.categories && recording.categories.length > 0
@@ -509,7 +476,6 @@
                         <div class="ll-review-metadata">
                             ${categoryHtml}
                             ${wordsetHtml}
-                            ${recordingTypeHtml}
                         </div>
                     </div>
                 </div>
@@ -529,10 +495,7 @@
                         </label>
                     </div>
                     <div class="ll-review-options">
-                        <label class="ll-skip-review-label">
-                            <input type="checkbox" class="ll-file-skip-review" data-post-id="${postId}">
-                            Skip review and publish immediately
-                        </label>
+                        ${recordingTypeSelect}
                     </div>
                     <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="Delete this recording">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -1093,6 +1056,34 @@
         return div.innerHTML;
     }
 
+    function renderRecordingTypeSelect(selectedType, postId) {
+        const options = [];
+
+        if (state.recordingTypes.length === 0) {
+            options.push('<option value="">No recording types found</option>');
+        } else {
+            options.push('<option value="">Select type</option>');
+            state.recordingTypes.forEach(type => {
+                const isSelected = type.slug === selectedType;
+                options.push(`<option value="${escapeHtml(type.slug)}" ${isSelected ? 'selected' : ''}>${escapeHtml(type.name)}</option>`);
+            });
+
+            const slugExists = state.recordingTypes.some(type => type.slug === selectedType);
+            if (selectedType && !slugExists) {
+                options.push(`<option value="${escapeHtml(selectedType)}" selected>${escapeHtml(selectedType)}</option>`);
+            }
+        }
+
+        return `
+            <label class="ll-recording-type-label">
+                <span>Recording Type</span>
+                <select class="ll-recording-type-select" data-post-id="${postId}">
+                    ${options.join('')}
+                </select>
+            </label>
+        `;
+    }
+
     async function saveAllProcessedAudio() {
         if (state.reviewData.size === 0) {
             alert('No files to save.');
@@ -1194,10 +1185,8 @@
         formData.append('post_id', postId);
         formData.append('audio', audioBlob, filename);
 
-        // Check if skip review is enabled for this file
-        const skipReviewCheckbox = document.querySelector(`.ll-file-skip-review[data-post-id="${postId}"]`);
-        const skipReview = skipReviewCheckbox ? skipReviewCheckbox.checked : false;
-        formData.append('skip_review', skipReview ? '1' : '0');
+        const recordingType = data.selectedRecordingType || data.recording.recordingType || '';
+        formData.append('recording_type', recordingType);
 
         const response = await fetch(window.llAudioProcessor.ajaxUrl, {
             method: 'POST',
