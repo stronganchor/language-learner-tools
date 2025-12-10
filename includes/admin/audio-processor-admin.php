@@ -20,6 +20,21 @@ add_action('admin_menu', 'll_register_audio_processor_page');
 function ll_enqueue_audio_processor_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-processor') return;
 
+    $recording_type_terms = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+    ]);
+
+    $recording_type_choices = [];
+    if (!is_wp_error($recording_type_terms)) {
+        foreach ($recording_type_terms as $term) {
+            $recording_type_choices[] = [
+                'slug' => $term->slug,
+                'name' => $term->name,
+            ];
+        }
+    }
+
     wp_enqueue_style(
         'll-audio-processor-css',
         plugins_url('css/audio-processor.css', LL_TOOLS_MAIN_FILE),
@@ -42,6 +57,7 @@ function ll_enqueue_audio_processor_assets($hook) {
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_audio_processor'),
         'recordings' => $recordings,
+        'recordingTypes' => $recording_type_choices,
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
@@ -81,8 +97,9 @@ function ll_get_unprocessed_recordings() {
                 $wordset_names = (!is_wp_error($wordsets) && !empty($wordsets)) ? $wordsets : [];
 
                 // Get recording type names
-                $recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'names']);
-                $recording_type_names = (!is_wp_error($recording_types) && !empty($recording_types)) ? $recording_types : [];
+                $recording_type_terms = wp_get_post_terms($audio_post_id, 'recording_type');
+                $recording_type_names = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'name') : [];
+                $recording_type_slugs = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'slug') : [];
 
                 // Get image thumbnail
                 $image_url = get_the_post_thumbnail_url($parent_word_id, 'thumbnail');
@@ -95,6 +112,7 @@ function ll_get_unprocessed_recordings() {
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
                     'wordsets' => $wordset_names,
                     'recordingTypes' => $recording_type_names,
+                    'recordingType' => !empty($recording_type_slugs) ? $recording_type_slugs[0] : '',
                     'imageUrl' => $image_url ?: '',
                 ];
             }
@@ -198,7 +216,7 @@ function ll_save_processed_audio_handler() {
     }
 
     $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
-    $skip_review = isset($_POST['skip_review']) && $_POST['skip_review'] === '1';
+    $recording_type = isset($_POST['recording_type']) ? sanitize_text_field($_POST['recording_type']) : '';
 
     if (!$audio_post_id || !isset($_FILES['audio'])) {
         wp_send_json_error('Missing required data');
@@ -224,9 +242,10 @@ function ll_save_processed_audio_handler() {
 
     $title = sanitize_file_name($parent_word->post_title);
 
-    // Get recording type to make filename unique
-    $recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'slugs']);
-    $type_suffix = (!is_wp_error($recording_types) && !empty($recording_types)) ? '_' . $recording_types[0] : '';
+    // Get recording type (selected override falls back to current term) to make filename unique
+    $existing_recording_types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'slugs']);
+    $type_for_filename = $recording_type ?: (!is_wp_error($existing_recording_types) && !empty($existing_recording_types) ? $existing_recording_types[0] : '');
+    $type_suffix = $type_for_filename ? '_' . $type_for_filename : '';
 
     // Include audio_post_id to ensure absolute uniqueness
     $filename = $title . $type_suffix . '_' . $audio_post_id . '_' . time() . '.mp3';
@@ -246,35 +265,30 @@ function ll_save_processed_audio_handler() {
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     delete_post_meta($audio_post_id, '_ll_needs_audio_processing');
     update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
+    delete_post_meta($audio_post_id, '_ll_needs_audio_review');
 
-    if ($skip_review) {
-        // Skip review - publish immediately
+    if (!empty($recording_type)) {
+        wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
+    }
+
+    wp_update_post([
+        'ID'          => $audio_post_id,
+        'post_status' => 'publish',
+    ]);
+
+    // Also publish the parent word post if it's still a draft
+    if ($parent_word->post_status === 'draft') {
         wp_update_post([
-            'ID'          => $audio_post_id,
+            'ID'          => $parent_word_id,
             'post_status' => 'publish',
         ]);
-        delete_post_meta($audio_post_id, '_ll_needs_audio_review');
-
-        // Also publish the parent word post if it's still a draft
-        if ($parent_word->post_status === 'draft') {
-            wp_update_post([
-                'ID'          => $parent_word_id,
-                'post_status' => 'publish',
-            ]);
-        }
-
-        $message = 'Audio processed and published successfully';
-    } else {
-        // Send to review queue
-        update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
-        $message = 'Audio processed successfully and marked for review';
     }
 
     wp_send_json_success([
-        'message' => $message,
+        'message' => 'Audio processed and published successfully',
         'file_path' => $relative_path,
         'audio_post_id' => $audio_post_id,
-        'skip_review' => $skip_review
+        'recording_type' => $recording_type,
     ]);
 }
 

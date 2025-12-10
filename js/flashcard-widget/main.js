@@ -404,6 +404,12 @@
         });
 
         State.userClickedCorrectAnswer = true;
+        const isPracticeMode = !State.isLearningMode && !State.isListeningMode;
+        const incrementCorrectOnFirstTry = function () {
+            if (!State.quizResults.incorrect.includes(targetWord.id)) {
+                State.quizResults.correctOnFirstTry += 1;
+            }
+        };
 
         callModeHook('onCorrectAnswer', {
             targetWord,
@@ -411,10 +417,43 @@
             hadWrongThisTurn: State.hadWrongAnswerThisTurn
         });
 
+        if (isPracticeMode) {
+            incrementCorrectOnFirstTry();
+            try {
+                if (root.FlashcardAudio) {
+                    if (typeof root.FlashcardAudio.fadeOutAllAudio === 'function') {
+                        root.FlashcardAudio.fadeOutAllAudio(180);
+                    } else if (typeof root.FlashcardAudio.pauseAllAudio === 'function') {
+                        root.FlashcardAudio.pauseAllAudio();
+                    }
+                    if (typeof root.FlashcardAudio.playFeedback === 'function') {
+                        root.FlashcardAudio.playFeedback(true, null, null);
+                    }
+                    if (typeof root.FlashcardAudio.fadeOutFeedbackAudio === 'function') {
+                        // Let the ding play a bit longer, then gently fade so the next round starts clean
+                        setGuardedTimeout(function () {
+                            root.FlashcardAudio.fadeOutFeedbackAudio(140, 'correct');
+                        }, 210);
+                    }
+                }
+            } catch (_) { /* no-op */ }
+
+            // Practice mode: clear the screen quickly for rapid quizzing
+            $('.flashcard-container').not($correctCard).addClass('fade-out');
+            setGuardedTimeout(function () {
+                $correctCard.addClass('fade-out');
+            }, 120);
+            setGuardedTimeout(function () {
+                State.isFirstRound = false;
+                State.userClickedCorrectAnswer = false;
+                State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
+                startQuizRound();
+            }, 360);
+            return;
+        }
+
         root.FlashcardAudio.playFeedback(true, null, function () {
-            if (!State.quizResults.incorrect.includes(targetWord.id)) {
-                State.quizResults.correctOnFirstTry += 1;
-            }
+            incrementCorrectOnFirstTry();
             $('.flashcard-container').not($correctCard).addClass('fade-out');
             // Use session-guarded timeout so closing the quiz cancels this continuation
             setGuardedTimeout(function () {
@@ -1006,6 +1045,3 @@
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);
-
-
-

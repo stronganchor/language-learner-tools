@@ -274,24 +274,101 @@
         };
     })();
 
+    // Track in-flight category loads so listening mode can wait for all selected categories
+    const pendingCategoryLoads = {};
+
+    function getWordsetCacheKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
+        const fallback = (typeof data.wordsetFallback === 'undefined') ? true : !!data.wordsetFallback;
+        return String(ws || '') + '|' + (fallback ? '1' : '0');
+    }
+
+    function getCategoryCacheKey(name) {
+        return getWordsetCacheKey() + '::' + String(name || '');
+    }
+
+    function rebuildWordsLinear() {
+        const all = [];
+        if (State.categoryNames && State.wordsByCategory) {
+            for (const name of State.categoryNames) {
+                const list = State.wordsByCategory[name] || [];
+                for (const w of list) {
+                    if (!w) continue;
+                    try { if (w && !w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                    all.push(w);
+                }
+            }
+        }
+        State.wordsLinear = all;
+        State.totalWordCount = all.length || 0;
+        return all.length;
+    }
+
+    function isCategoryLoaded(name, loader) {
+        const words = State.wordsByCategory && State.wordsByCategory[name];
+        if (Array.isArray(words) && words.length > 0) return true;
+        const loaded = loader && Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
+        const key = getCategoryCacheKey(name);
+        return loaded.includes(key) || loaded.includes(name);
+    }
+
+    function ensureCategoryLoad(name, loader) {
+        const key = getCategoryCacheKey(name);
+        if (!name) return Promise.resolve('');
+        if (pendingCategoryLoads[key]) return pendingCategoryLoads[key];
+        if (isCategoryLoaded(name, loader)) return Promise.resolve(key);
+
+        const promise = new Promise(function (resolve) {
+            try {
+                loader.loadResourcesForCategory(name, function () {
+                    rebuildWordsLinear();
+                    resolve(key);
+                });
+            } catch (_) {
+                resolve(key);
+            }
+        }).finally(function () {
+            delete pendingCategoryLoads[key];
+        });
+        pendingCategoryLoads[key] = promise;
+        return promise;
+    }
+
+    function queueAllSelectedCategories(loader) {
+        if (!loader || typeof loader.loadResourcesForCategory !== 'function') return;
+        const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        names.forEach(function (name) {
+            ensureCategoryLoad(name, loader);
+        });
+    }
+
+    function hasPendingCategoryLoads(loader) {
+        if (pendingCategoryLoads && Object.keys(pendingCategoryLoads).length > 0) return true;
+        const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        return names.some(function (name) {
+            const words = State.wordsByCategory && State.wordsByCategory[name];
+            if (Array.isArray(words) && words.length > 0) return false;
+            return !isCategoryLoaded(name, loader);
+        });
+    }
+
+    function waitForPendingCategoryLoads(loader) {
+        queueAllSelectedCategories(loader);
+        const pending = Object.values(pendingCategoryLoads || {});
+        if (!pending.length) return Promise.resolve();
+        return Promise.all(pending.map(function (p) { return Promise.resolve(p).catch(() => undefined); })).catch(function () { });
+    }
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
         try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
-        // Build a linear list of words across the selected categories in current order
-        const all = [];
-        if (State.categoryNames && State.wordsByCategory) {
-            for (const name of State.categoryNames) {
-                const list = State.wordsByCategory[name] || [];
-                for (const w of list) {
-                    try { if (w && typeof w === 'object') { w.__categoryName = name; } } catch (_) {}
-                    all.push(w);
-                }
-            }
-        }
-        State.wordsLinear = all;
+        Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
+        rebuildWordsLinear();
+        queueAllSelectedCategories(FlashcardLoader);
         State.listenIndex = 0;
         // Start listening for state/visibility changes and ensure proper wake lock state
         try { WakeLock.bind(); WakeLock.update(); } catch (_) { }
@@ -568,9 +645,40 @@
             return false;
         }
 
+        rebuildWordsLinear();
+        queueAllSelectedCategories(loader);
+
+        if ((!State.wordsLinear || !State.wordsLinear.length) && hasPendingCategoryLoads(loader)) {
+            if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
+            waitForPendingCategoryLoads(loader).then(function () {
+                rebuildWordsLinear();
+                if (!State.wordsLinear || !State.wordsLinear.length) {
+                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                    try { WakeLock.update(); } catch (_) { }
+                    return;
+                }
+                State.forceTransitionTo(STATES.QUIZ_READY, 'Listening data loaded');
+                if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
+                else if (typeof utils.startQuizRound === 'function') utils.startQuizRound();
+            });
+            try { WakeLock.update(); } catch (_) { }
+            return true;
+        }
+
         const target = selectTargetWord();
         State.listeningCurrentTarget = target || null;
         if (!target) {
+            if (hasPendingCategoryLoads(loader)) {
+                if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
+                waitForPendingCategoryLoads(loader).then(function () {
+                    rebuildWordsLinear();
+                    State.forceTransitionTo(STATES.QUIZ_READY, 'Listening delayed until data ready');
+                    if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
+                    else if (typeof utils.startQuizRound === 'function') utils.startQuizRound();
+                });
+                return true;
+            }
             if (State.isFirstRound) {
                 if (typeof utils.showLoadingError === 'function') {
                     utils.showLoadingError();
@@ -814,14 +922,37 @@
             };
 
             const scheduleAdvance = function (delayMs) {
-                const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
-                const isLast = total > 0 ? ((State.listenIndex || 0) >= total) : false;
                 const advanceTimeoutId = scheduleTimeout(utils, function () {
                     if (State.listeningPaused) {
                         setRoundResume(function () { scheduleAdvance(delayMs); });
                         return;
                     }
-                    if (isLast) {
+                    const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+                    const atEnd = total > 0 ? ((State.listenIndex || 0) >= total) : true;
+                    const pending = hasPendingCategoryLoads(loader);
+
+                    if (atEnd && pending) {
+                        if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
+                        waitForPendingCategoryLoads(loader).then(function () {
+                            rebuildWordsLinear();
+                            const hasMore = (State.wordsLinear || []).length > 0 && (State.listenIndex || 0) < (State.wordsLinear || []).length;
+                            if (!hasMore && !hasPendingCategoryLoads(loader)) {
+                                State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                                resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                                try { WakeLock.update(); } catch (_) { }
+                                return;
+                            }
+                            State.forceTransitionTo(STATES.QUIZ_READY, 'Listening continue after preload');
+                            if (typeof utils.runQuizRound === 'function') {
+                                utils.runQuizRound();
+                            } else if (typeof utils.startQuizRound === 'function') {
+                                utils.startQuizRound();
+                            }
+                        });
+                        return;
+                    }
+
+                    if (atEnd) {
                         if (State.listeningLoop) {
                             const $jq = getJQuery();
                             const doRestart = function () {

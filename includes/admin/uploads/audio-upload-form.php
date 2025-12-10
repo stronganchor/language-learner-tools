@@ -396,7 +396,6 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
     if (is_wp_error($audio_post_id)) {
         // Keep old behavior as a last resort: write legacy meta so upload isn’t lost
         update_post_meta($post_id, 'word_audio_file', $relative_path);
-        update_post_meta($post_id, '_ll_needs_audio_review', '1');
         return;
     }
 
@@ -407,7 +406,6 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
     }
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
     update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
     if (!empty($recording_type)) {
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
@@ -417,7 +415,6 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
     if ($recording_type === 'isolation') {
         update_post_meta($post_id, 'word_audio_file', $relative_path);
     }
-    update_post_meta($post_id, '_ll_needs_audio_review', '1');
 }
 
 /**
@@ -473,7 +470,6 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
             update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
             update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-            update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
             // Store speaker_user_id (can be null for unassigned)
             if ($speaker_user_id) {
@@ -489,7 +485,6 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             update_post_meta($audio_post_id, 'speaker_user_id', get_current_user_id());
             update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
             update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-            update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
 
             // Assign default recording type
             wp_set_object_terms($audio_post_id, 'isolation', 'recording_type');
@@ -497,8 +492,6 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
 
         // Also update legacy field for backward compatibility
         update_post_meta($post_id, 'word_audio_file', $relative_path);
-        update_post_meta($post_id, '_ll_needs_audio_review', '1');
-
         // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
         $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
 

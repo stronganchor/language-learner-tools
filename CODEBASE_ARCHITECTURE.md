@@ -92,10 +92,7 @@ data/                      # Files containing data (e.g. language codes)
   - Batch-process uploaded audio files.
   - Auto-match to words by filename.
   - Assign recording types.
-  - Create `word_audio` posts.
-- **Audio Review:** `includes/admin/audio-review-page.php` + `js/audio-review.js`
-  - Review audio quality and word associations.
-  - Edit or remove incorrect matches.
+  - Create `word_audio` posts and publish after processing.
 - **Recording Types Admin:** `includes/admin/recording-types-admin.php`
   - Manage the `recording_type` taxonomy terms.
 - **Missing Audio report:** `includes/admin/missing-audio-admin-page.php` (clearable cache table).
@@ -200,12 +197,8 @@ Dual-progress bar in `dom.js`:
 2. Processor attempts to match filenames to word titles (fuzzy matching).
 3. Admin assigns recording type (introduction, isolation, question, sentence).
 4. Creates `word_audio` posts and attaches to matched words.
-5. Styles: `css/audio-processor.css`, Logic: `js/audio-processor.js`.
-
-## Review (`includes/admin/audio-review-page.php`)
-1. Lists all audio-word associations.
-2. Admin can listen, verify, edit, or remove associations.
-3. Styles: `css/audio-review.css`, Logic: `js/audio-review.js`.
+5. Publishes processed audio (and parent words) immediately.
+6. Styles: `css/audio-processor.css`, Logic: `js/audio-processor.js`.
 
 ## Recording Types (`recording_type` taxonomy)
 - **Introduction**: Full introduction audio (e.g., "Merhaba. That means hello in Turkish.")
@@ -230,7 +223,6 @@ Dual-progress bar in `dom.js`:
 - **Quiz** layout/styles in `css/quiz-pages.css` and `css/quiz-pages-style.css` (spinner, responsive wrappers).
 - **Admin matcher** in `css/audio-image-matcher.css`.
 - **Recording UI** in `css/recording-interface.css`.
-- **Review UI** in `css/audio-review.css`.
 - **Audio Processor** in `css/audio-processor.css`.
 - **Flashcard widget** base styles in `css/flashcard/base.css`; mode overrides live in `css/flashcard/mode-*.css` (includes mode switcher button, progress bars).
 

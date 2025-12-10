@@ -33,7 +33,6 @@ require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
 require_once(__DIR__ . '/admin/audio-image-matcher.php'); 
 require_once(__DIR__ . '/admin/settings.php');
 require_once(__DIR__ . '/admin/audio-processor-admin.php');
-require_once(__DIR__ . '/admin/audio-review-page.php');
 require_once(__DIR__ . '/admin/recording-types-admin.php');
 require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
 require_once(__DIR__ . '/admin/bulk-translation-admin.php');

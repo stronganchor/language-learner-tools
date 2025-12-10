@@ -78,6 +78,28 @@
     gap: 5px;
 }
 
+.ll-review-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.ll-review-options {
+    display: flex;
+    align-items: center;
+}
+
+.ll-recording-type-label {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    gap: 4px;
+}
+
+.ll-recording-type-label select {
+    min-width: 170px;
+}
+
 /* Waveform Display */
 .ll-waveform-container {
     position: relative;

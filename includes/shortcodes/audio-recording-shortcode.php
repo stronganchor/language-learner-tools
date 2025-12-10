@@ -1789,7 +1789,6 @@ function ll_handle_recording_upload() {
     update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
     update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-    update_post_meta($audio_post_id, '_ll_needs_audio_review', '1');
     update_post_meta($audio_post_id, '_ll_raw_recording_format', $extension);
 
     if (!empty($recording_type)) {
