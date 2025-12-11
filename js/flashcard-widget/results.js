@@ -18,6 +18,38 @@
         $('.ll-learning-checkmark').remove();
     }
 
+    function getCategoryNamesForDisplay() {
+        const lists = [
+            Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : [],
+            Array.isArray(State.categoryNames) ? State.categoryNames : [],
+            Array.isArray(root.categoryNames) ? root.categoryNames : []
+        ];
+        const source = lists.find(list => Array.isArray(list) && list.length) || [];
+        if (!source.length) return [];
+
+        const translationLookup = {};
+        try {
+            const cats = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+                ? root.llToolsFlashcardsData.categories
+                : [];
+            cats.forEach(cat => {
+                if (cat && cat.name) {
+                    translationLookup[cat.name] = cat.translation || cat.name;
+                }
+            });
+        } catch (_) { /* no-op */ }
+
+        const seen = new Set();
+        const display = [];
+        source.forEach(name => {
+            const key = (name === null || name === undefined) ? '' : String(name).trim();
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            display.push(translationLookup[key] || key);
+        });
+        return display;
+    }
+
     function isLearningSupportedForResults() {
         try {
             const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
@@ -44,12 +76,24 @@
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
+        $('#quiz-results-categories').hide().text('');
     }
 
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
         const learningAllowed = isLearningSupportedForResults();
+        const categoriesForDisplay = getCategoryNamesForDisplay();
+        const categoriesLabel = msgs.categoriesLabel || 'Categories';
+        const renderCategories = function (shouldShow) {
+            const $el = $('#quiz-results-categories');
+            if (!$el.length) return;
+            if (!shouldShow || !categoriesForDisplay.length) {
+                $el.hide().text('');
+                return;
+            }
+            $el.text(categoriesLabel + ': ' + categoriesForDisplay.join(', ')).show();
+        };
 
         $('#ll-tools-flashcard').hide();
         // Hide listening mode controls if present
@@ -94,6 +138,7 @@
             $('#ll-tools-repeat-flashcard').hide();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
+            renderCategories(true);
 
             const totalWords = Object.keys(State.wordCorrectCounts).length;
             const completedWords = Object.values(State.wordCorrectCounts).filter(count => count >= State.MIN_CORRECT_COUNT).length;
@@ -123,6 +168,7 @@
             $('#ll-tools-repeat-flashcard').hide();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
+            renderCategories(true);
             return;
         }
 
@@ -166,11 +212,7 @@
         }
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
-
-        if (Array.isArray(State.categoryNames) && State.categoryNames.length) {
-            const categoriesLabel = msgs.categoriesLabel || 'Categories';
-            $('#quiz-results-categories').text(categoriesLabel + ': ' + State.categoryNames.join(', ')).show();
-        }
+        renderCategories(true);
 
         const ratio = total > 0 ? (State.quizResults.correctOnFirstTry / total) : 0;
         const $title = $('#quiz-results-title'), $msg = $('#quiz-results-message');
