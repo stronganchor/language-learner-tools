@@ -29,6 +29,82 @@
         return cfg.prompt_type || 'audio';
     }
 
+    function weightedChoice(items, weightFn) {
+        if (!Array.isArray(items) || !items.length) return null;
+        let total = 0;
+        const weights = items.map(function (item) {
+            const w = Math.max(0, weightFn(item) || 0);
+            total += w;
+            return w;
+        });
+        if (total <= 0) return items[Math.floor(Math.random() * items.length)];
+        let r = Math.random() * total;
+        for (let i = 0; i < items.length; i++) {
+            r -= weights[i];
+            if (r <= 0) return items[i];
+        }
+        return items[items.length - 1];
+    }
+
+    function getStarredLookup() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+        const map = {};
+        ids.forEach(function (id) {
+            const n = parseInt(id, 10);
+            if (n > 0) { map[n] = true; }
+        });
+        return map;
+    }
+
+    function getStarMode() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const modeFromPrefs = prefs.starMode || prefs.star_mode;
+        const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
+        const mode = modeFromPrefs || modeFromFlash || 'weighted';
+        return mode === 'only' ? 'only' : 'weighted';
+    }
+
+    function getStarPlayCounts() {
+        State.starPlayCounts = State.starPlayCounts || {};
+        return State.starPlayCounts;
+    }
+
+    function recordPlay(wordId, starredLookup, starMode) {
+        if (!wordId) return;
+        const counts = getStarPlayCounts();
+        const maxUses = (starMode === 'weighted' && starredLookup[wordId]) ? 2 : 1;
+        counts[wordId] = (counts[wordId] || 0) + 1;
+        if (counts[wordId] >= maxUses && !State.usedWordIDs.includes(wordId)) {
+            State.usedWordIDs.push(wordId);
+        }
+    }
+
+    function pruneCompletedCategories() {
+        if (!Array.isArray(State.categoryNames)) return;
+        State.completedCategories = State.completedCategories || {};
+        const completed = State.completedCategories || {};
+        State.categoryNames = State.categoryNames.filter(function (name) {
+            return !completed[name];
+        });
+    }
+
+    function getAvailableUnusedWords(name, starredLookup, starMode) {
+        const list = State.wordsByCategory[name] || [];
+        if (!Array.isArray(list) || !list.length) return [];
+        const counts = getStarPlayCounts();
+        const filtered = list.filter(function (w) {
+            const usedCount = counts[w.id] || 0;
+            const alreadyUsed = State.usedWordIDs.includes(w.id);
+            const maxUses = (starMode === 'weighted' && starredLookup[w.id]) ? 2 : 1;
+            const plays = Math.max(usedCount, alreadyUsed ? 1 : 0);
+            if (plays >= maxUses) return false;
+            if (starMode === 'only' && !starredLookup[w.id]) return false;
+            return true;
+        });
+        return filtered;
+    }
+
     function getTargetCategoryName(word) {
         if (!word) return State.currentCategoryName;
         if (word.__categoryName) return word.__categoryName;
@@ -95,19 +171,27 @@
     }
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {
-        if (!candidateCategory) return null;
+        if (!candidateCategory || !candidateCategory.length) {
+            State.completedCategories = State.completedCategories || {};
+            State.completedCategories[candidateCategoryName] = true;
+            return null;
+        }
         let target = null;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
+        const starredLookup = getStarredLookup();
+        const starMode = getStarMode();
 
         // First, try to find a word from the repetition queue that's ready to reappear
         // and ISN'T the same as the last word shown
         if (queue && queue.length) {
             for (let i = 0; i < queue.length; i++) {
+                const queuedWord = queue[i].wordData;
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
                         queue.splice(i, 1);
+                        recordPlay(target.id, starredLookup, starMode);
                         break;
                     }
                 }
@@ -116,13 +200,44 @@
 
         // If no target from queue, try to find an unused word (and not the last shown)
         if (!target) {
-            for (let i = 0; i < candidateCategory.length; i++) {
-                if (!State.usedWordIDs.includes(candidateCategory[i].id) &&
-                    candidateCategory[i].id !== State.lastWordShownId) {
-                    target = candidateCategory[i];
-                    State.usedWordIDs.push(target.id);
-                    break;
+            State.completedCategories = State.completedCategories || {};
+            const unused = getAvailableUnusedWords(candidateCategoryName, starredLookup, starMode)
+                .filter(function (w) { return w.id !== State.lastWordShownId; });
+
+            // If no unused words and no queue, mark this category done
+            if ((!unused || !unused.length) && (!queue || !queue.length)) {
+                State.completedCategories[candidateCategoryName] = true;
+                return null;
+            }
+
+            if (unused && unused.length) {
+                if (starMode === 'weighted') {
+                    const starredPool = unused.filter(function (w) { return !!starredLookup[w.id]; });
+                    const regularPool = unused.filter(function (w) { return !starredLookup[w.id]; });
+                    let pool = unused;
+                    if (starredPool.length && regularPool.length) {
+                        // 2:1 bias toward starred, but not front-loading
+                        const pickStar = Math.random() < 0.66;
+                        pool = pickStar ? starredPool : regularPool;
+                    } else if (starredPool.length) {
+                        pool = starredPool;
+                    } else if (regularPool.length) {
+                        pool = regularPool;
+                    }
+                    target = pool[Math.floor(Math.random() * pool.length)];
+                } else {
+                    const weightFn = function (w) {
+                        if (starMode === 'only') return 1;
+                        return starredLookup[w.id] ? 2 : 1;
+                    };
+                    target = weightedChoice(unused, weightFn);
                 }
+                if (target) {
+                    recordPlay(target.id, starredLookup, starMode);
+                }
+            } else {
+                // Only queued items remain; handled above; keep category alive for queue.
+                return null;
             }
         }
 
@@ -169,15 +284,34 @@
     }
 
     function selectWordFromNextCategory() {
+        pruneCompletedCategories();
+        let found = null;
         for (let name of State.categoryNames) {
             const w = selectTargetWord(State.wordsByCategory[name], name);
-            if (w) return w;
+            // Age the round count even when not selected, so queued items can mature
+            State.categoryRoundCount[name] = (State.categoryRoundCount[name] || 0) + 1;
+            if (w) { found = w; break; }
         }
-        return null;
+        if (!found && Array.isArray(State.categoryNames) && State.categoryNames.length) {
+            // Nothing left to serve; mark remaining as completed to allow results.
+            State.completedCategories = State.completedCategories || {};
+            State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+            pruneCompletedCategories();
+        } else {
+            pruneCompletedCategories();
+        }
+        return found;
     }
 
     function selectTargetWordAndCategory() {
         let target = null;
+        if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) {
+            return null;
+        }
+        pruneCompletedCategories();
+        if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) {
+            return null;
+        }
         if (State.isFirstRound) {
             if (!State.firstCategoryName) {
                 State.firstCategoryName = State.categoryNames[Math.floor(Math.random() * State.categoryNames.length)];
@@ -187,19 +321,63 @@
             State.currentCategory = State.wordsByCategory[State.currentCategoryName];
         } else {
             const queue = State.categoryRepetitionQueues[State.currentCategoryName];
-            if ((queue && queue.length) || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
+            const hasReadyFromQueue = Array.isArray(queue) && queue.some(function (item) {
+                return item.reappearRound <= (State.categoryRoundCount[State.currentCategoryName] || 0);
+            });
+            const hasPendingQueue = Array.isArray(queue) && queue.length > 0;
+            if (hasReadyFromQueue || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
                 target = selectTargetWord(State.currentCategory, State.currentCategoryName);
-            } else {
+            } else if (hasPendingQueue) {
+                // Move this category to the end to let others run, but keep it in rotation for queued wrong answers.
                 const i = State.categoryNames.indexOf(State.currentCategoryName);
                 if (i > -1) {
                     State.categoryNames.splice(i, 1);
                     State.categoryNames.push(State.currentCategoryName);
                 }
+                State.categoryRoundCount[State.currentCategoryName] = (State.categoryRoundCount[State.currentCategoryName] || 0) + 1;
+                State.currentCategoryRoundCount = (State.currentCategoryRoundCount || 0) + 1;
+            } else {
+                const i = State.categoryNames.indexOf(State.currentCategoryName);
+                if (i > -1) {
+                    State.categoryNames.splice(i, 1);
+                }
                 State.categoryRoundCount[State.currentCategoryName] = 0;
                 State.currentCategoryRoundCount = 0;
+                if (!State.categoryNames.length) {
+                    return null;
+                }
+                const nextName = State.categoryNames[0];
+                target = selectTargetWord(State.wordsByCategory[nextName], nextName);
             }
         }
-        if (!target) target = selectWordFromNextCategory();
+        if (!target) {
+            // Age the current category so queued items can become ready.
+            const cname = State.currentCategoryName;
+            if (cname) {
+                State.categoryRoundCount[cname] = (State.categoryRoundCount[cname] || 0) + 1;
+                State.currentCategoryRoundCount = (State.currentCategoryRoundCount || 0) + 1;
+                const queue = State.categoryRepetitionQueues[cname];
+                const starredLookup = getStarredLookup();
+                const starMode = getStarMode();
+                const hasUnused = getAvailableUnusedWords(cname, starredLookup, starMode).length > 0;
+                const hasQueue = queue && queue.length;
+                if (!hasUnused && !hasQueue) {
+                    State.completedCategories[cname] = true;
+                }
+            }
+            pruneCompletedCategories();
+            target = selectWordFromNextCategory();
+        }
+        pruneCompletedCategories();
+        if (!target) {
+            // No target anywhere; mark all remaining categories as done so results can show.
+            if (Array.isArray(State.categoryNames)) {
+                State.completedCategories = State.completedCategories || {};
+                State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+            }
+            pruneCompletedCategories();
+            return null;
+        }
         return target;
     }
 
