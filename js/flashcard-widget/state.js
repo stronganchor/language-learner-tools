@@ -39,6 +39,7 @@
         // Quiz data state
         widgetActive: false,
         categoryNames: [],
+        initialCategoryNames: [],
         wordsByCategory: {},
         categoryRoundCount: {},
         firstCategoryName: (root.llToolsFlashcardsData && root.llToolsFlashcardsData.firstCategoryName) || '',
@@ -253,9 +254,12 @@
             this.widgetActive = false;
             this.usedWordIDs = [];
             this.categoryRoundCount = {};
+            this.completedCategories = {};
+            this.starPlayCounts = {};
             this.wrongIndexes = [];
             this.currentCategory = null;
             this.currentCategoryName = null;
+            this.firstCategoryName = '';
             this.currentCategoryRoundCount = 0;
             this.isFirstRound = true;
             this.currentOptionType = 'image';

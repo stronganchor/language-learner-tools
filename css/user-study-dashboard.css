@@ -1,0 +1,258 @@
+.ll-user-study-dashboard {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f9fafb 0%, #eef2ff 100%);
+  color: #0f172a;
+  gap: 16px;
+}
+
+.ll-study-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ll-study-subhead {
+  margin: 4px 0 0;
+  color: #475569;
+}
+
+.ll-study-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ll-study-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.ll-study-btn.primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.2);
+}
+.ll-study-btn.tiny {
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ll-study-btn.ghost {
+  padding: 6px 10px;
+  font-weight: 500;
+  background: transparent;
+}
+
+.ll-study-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.ll-study-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.ll-study-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.ll-star-mode {
+  margin-top: 14px;
+  display: block;
+}
+
+.ll-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+#ll-study-wordset {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.ll-study-hint {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.ll-card-title-sub {
+  font-weight: 700;
+  display: block;
+  margin-top: 10px;
+}
+.ll-star-toggle-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  justify-content: flex-start;
+  max-width: 100%;
+  border: 1px solid #e2e8f0;
+}
+.ll-star-toggle-group .active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+.ll-star-toggle-group .ll-study-btn:not(.active) {
+  background: #fff;
+  border-color: #cbd5e1;
+}
+.ll-star-toggle-group .ll-study-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 130px;
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.ll-word-row .ll-word-star {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.ll-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ll-cat-row:last-child {
+  border-bottom: 0;
+}
+
+.ll-cat-name {
+  font-weight: 600;
+}
+
+.ll-study-empty {
+  color: #94a3b8;
+  font-style: italic;
+  margin: 6px 0 0;
+}
+
+.ll-study-words-card {
+  grid-column: span 2;
+}
+
+.ll-word-group {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.ll-word-group__title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #0f172a;
+}
+
+.ll-word-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.ll-word-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.ll-word-text {
+  font-weight: 600;
+}
+
+.ll-word-star {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-word-star.active {
+  background: #fde68a;
+  border-color: #f59e0b;
+}
+
+.ll-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: #e0f2fe;
+  color: #0ea5e9;
+  font-weight: 700;
+}
+
+.ll-study-flashcard {
+  margin-top: 10px;
+}
+
+.ll-user-study-dashboard #ll-tools-start-flashcard {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .ll-study-words-card {
+    grid-column: span 1;
+  }
+}

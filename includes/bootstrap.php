@@ -38,6 +38,7 @@ require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
 require_once(__DIR__ . '/admin/bulk-translation-admin.php');
 require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
 require_once(__DIR__ . '/admin/word-images-fixer.php');
+require_once(__DIR__ . '/user-study.php');
 
 // Include API integrations
 require_once(__DIR__ . '/admin/api/deepl-api.php');
@@ -58,6 +59,7 @@ require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
+require_once(__DIR__ . '/shortcodes/user-study-dashboard.php');
 
 // Include the plugin update checker
 require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';

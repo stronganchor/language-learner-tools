@@ -41,6 +41,9 @@
             if (state && state.categoryRoundCount) {
                 Object.keys(state.categoryRoundCount).forEach(k => delete state.categoryRoundCount[k]);
             }
+            if (state && Array.isArray(state.initialCategoryNames)) {
+                state.initialCategoryNames.length = 0;
+            }
             if (state && Array.isArray(state.categoryNames)) {
                 state.categoryNames.length = 0;
             }
@@ -85,6 +88,19 @@
                 : undefined;
             window.FlashcardAudio.pauseAllAudio(sid);
         } catch (_) { /* no-op */ }
+    }
+
+    // Restore the full category list for a fresh session (e.g., after completion)
+    function restoreCategorySelection() {
+        const source = (Array.isArray(State.initialCategoryNames) && State.initialCategoryNames.length)
+            ? State.initialCategoryNames
+            : Object.keys(State.wordsByCategory || {});
+        const categories = Array.from(new Set((source || []).filter(Boolean)));
+        if (!categories.length) { return []; }
+        State.categoryNames = categories.slice();
+        root.categoryNames = State.categoryNames;
+        State.firstCategoryName = State.categoryNames[0] || '';
+        return State.categoryNames;
     }
 
 
@@ -351,6 +367,7 @@
 
             State.isLearningMode = (targetMode === 'learning');
             State.isListeningMode = (targetMode === 'listening');
+            restoreCategorySelection();
 
             const activeModule = getActiveModeModule();
             if (activeModule && typeof activeModule.initialize === 'function') {
@@ -789,7 +806,11 @@
                     root.LLFlashcards.Results.hideResults();
                 }
 
-                State.categoryNames = Util.randomlySort(selectedCategories || []);
+                const cleanedCategories = Array.isArray(selectedCategories)
+                    ? selectedCategories.filter(Boolean)
+                    : (selectedCategories ? [selectedCategories] : []);
+                State.initialCategoryNames = Util.randomlySort(cleanedCategories);
+                State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
                 root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
@@ -1024,6 +1045,7 @@
         State.reset();
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
+        restoreCategorySelection();
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {
             try { module.initialize(); } catch (err) { console.error('Mode initialization failed during restart:', err); }

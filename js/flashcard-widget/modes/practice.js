@@ -11,22 +11,41 @@
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
 
+    function getStarredLookup() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+        const map = {};
+        ids.forEach(function (id) {
+            const n = parseInt(id, 10);
+            if (n > 0) { map[n] = true; }
+        });
+        return map;
+    }
+
+    function isStarred(wordId) {
+        if (!wordId) { return false; }
+        const lookup = getStarredLookup();
+        return !!lookup[wordId];
+    }
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = false;
+        State.completedCategories = {};
         return true;
     }
 
     function queueForRepetition(targetWord) {
         const categoryName = State.currentCategoryName;
         if (!categoryName || !targetWord) return;
-
         const queue = (State.categoryRepetitionQueues[categoryName] = State.categoryRepetitionQueues[categoryName] || []);
         const alreadyQueued = queue.some(item => item.wordData.id === targetWord.id);
         if (alreadyQueued) return;
 
         const base = State.categoryRoundCount[categoryName] || 0;
-        const offset = (Util && typeof Util.randomInt === 'function') ? Util.randomInt(1, 3) : (Math.floor(Math.random() * 3) + 1);
+        const offset = isStarred(targetWord.id)
+            ? ((Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 3) : (Math.floor(Math.random() * 2) + 2)) // delay slightly to avoid immediate repeat
+            : ((Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 4) : (Math.floor(Math.random() * 3) + 2));
         queue.push({
             wordData: targetWord,
             reappearRound: base + offset
@@ -50,7 +69,11 @@
 
     function selectTargetWord() {
         FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
-        return Selection.selectTargetWordAndCategory();
+        const picked = Selection.selectTargetWordAndCategory();
+        if (picked && isStarred(picked.id)) {
+            queueForRepetition(picked);
+        }
+        return picked;
     }
 
     function handleNoTarget(ctx) {
