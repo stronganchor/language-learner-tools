@@ -8,7 +8,28 @@ if (!defined('WPINC')) { die; }
  */
 function ll_tools_user_study_dashboard_shortcode($atts) {
     if (!is_user_logged_in()) {
-        return '<p>' . esc_html__('Please log in to save your study preferences.', 'll-tools-text-domain') . '</p>';
+        global $wp;
+
+        $request_path = isset($wp->request) ? $wp->request : '';
+        $query_args   = !empty($_GET) ? wp_unslash($_GET) : [];
+        $redirect_path = $request_path;
+        if (!empty($query_args)) {
+            $redirect_path = add_query_arg($query_args, $request_path);
+        }
+
+        $redirect_to = home_url(ltrim((string) $redirect_path, '/'));
+        $login_url   = wp_login_url(esc_url_raw($redirect_to));
+
+        $message = sprintf(
+            wp_kses(
+                /* translators: %s: login URL */
+                __('Please <a href="%s">log in</a> to save your study preferences. We will bring you back to this page after you sign in.', 'll-tools-text-domain'),
+                ['a' => ['href' => []]]
+            ),
+            esc_url($login_url)
+        );
+
+        return '<div class="ll-user-study-dashboard ll-login-required"><p>' . $message . '</p></div>';
     }
 
     $payload = ll_tools_build_user_study_payload(get_current_user_id());
@@ -28,6 +49,9 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'listening'        => __('Listen', 'll-tools-text-domain'),
         'noCategories'     => __('No categories available for this word set yet.', 'll-tools-text-domain'),
         'noWords'          => __('Select a category to see its words.', 'll-tools-text-domain'),
+        'starAll'          => __('Star all', 'll-tools-text-domain'),
+        'unstarAll'        => __('Unstar all', 'll-tools-text-domain'),
+        'playAudio'        => __('Play audio', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
@@ -55,8 +79,8 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
             </div>
         </div>
 
-        <div class="ll-study-grid">
-            <div class="ll-study-card">
+        <div class="ll-study-grid ll-study-grid--top">
+            <div class="ll-study-card ll-study-wordset-card">
                 <label for="ll-study-wordset"><?php echo esc_html($i18n['wordsetLabel']); ?></label>
                 <select id="ll-study-wordset" data-ll-study-wordset></select>
                 <p class="ll-study-hint"><?php echo esc_html__('Switch word sets to load their categories and words.', 'll-tools-text-domain'); ?></p>
@@ -70,7 +94,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 </div>
             </div>
 
-            <div class="ll-study-card">
+            <div class="ll-study-card ll-study-categories-card">
                 <div class="ll-card-title">
                     <span><?php echo esc_html($i18n['categoriesLabel']); ?></span>
                     <button type="button" class="ll-study-btn ghost" data-ll-check-all><?php echo esc_html__('All', 'll-tools-text-domain'); ?></button>
@@ -79,7 +103,9 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <div id="ll-study-categories" data-ll-study-categories></div>
                 <p class="ll-study-empty" data-ll-cat-empty><?php echo esc_html($i18n['noCategories']); ?></p>
             </div>
+        </div>
 
+        <div class="ll-study-words-section">
             <div class="ll-study-card ll-study-words-card">
                 <div class="ll-card-title">
                     <span><?php echo esc_html($i18n['wordsLabel']); ?></span>

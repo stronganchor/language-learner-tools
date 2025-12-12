@@ -70,6 +70,14 @@
         return State.starPlayCounts;
     }
 
+    function canPlayWord(wordId, starredLookup, starMode) {
+        if (!wordId) return false;
+        const counts = getStarPlayCounts();
+        const maxUses = (starMode === 'weighted' && starredLookup[wordId]) ? 2 : 1;
+        const plays = counts[wordId] || 0;
+        return plays < maxUses;
+    }
+
     function recordPlay(wordId, starredLookup, starMode) {
         if (!wordId) return;
         const counts = getStarPlayCounts();
@@ -177,6 +185,7 @@
             return null;
         }
         let target = null;
+        let didRecordPlay = false;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
         const starredLookup = getStarredLookup();
         const starMode = getStarMode();
@@ -185,13 +194,28 @@
         // and ISN'T the same as the last word shown
         if (queue && queue.length) {
             for (let i = 0; i < queue.length; i++) {
-                const queuedWord = queue[i].wordData;
+                const queuedItem = queue[i];
+                const queuedWord = queuedItem.wordData;
+                const allowOverflow = !!queuedItem.forceReplay; // forceReplay allows wrong answers to bypass max-play caps
+                const playable = queuedWord && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
+
+                if (!playable) {
+                    queue.splice(i, 1);
+                    i--;
+                    continue;
+                }
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
+                        if (queuedItem.forceReplay && State.practiceForcedReplays) {
+                            const key = String(queuedWord.id);
+                            const val = State.practiceForcedReplays[key];
+                            if (val) State.practiceForcedReplays[key] = Math.max(0, val - 1);
+                        }
                         queue.splice(i, 1);
                         recordPlay(target.id, starredLookup, starMode);
+                        didRecordPlay = true;
                         break;
                     }
                 }
@@ -202,7 +226,8 @@
         if (!target) {
             State.completedCategories = State.completedCategories || {};
             const unused = getAvailableUnusedWords(candidateCategoryName, starredLookup, starMode)
-                .filter(function (w) { return w.id !== State.lastWordShownId; });
+                .filter(function (w) { return w.id !== State.lastWordShownId; })
+                .filter(function (w) { return canPlayWord(w.id, starredLookup, starMode); });
 
             // If no unused words and no queue, mark this category done
             if ((!unused || !unused.length) && (!queue || !queue.length)) {
@@ -234,6 +259,7 @@
                 }
                 if (target) {
                     recordPlay(target.id, starredLookup, starMode);
+                    didRecordPlay = true;
                 }
             } else {
                 // Only queued items remain; handled above; keep category alive for queue.
@@ -244,12 +270,16 @@
         // Fallback: if still no target and queue exists, pick from queue but avoid last shown
         if (!target && queue && queue.length) {
             // Try to find a word that isn't the last shown
-            let queueCandidate = queue.find(item => item.wordData.id !== State.lastWordShownId);
+            let queueCandidate = queue.find(item => {
+                if (!item || !item.wordData) return false;
+                if (item.wordData.id === State.lastWordShownId) return false;
+                return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
+            });
 
             if (!queueCandidate && queue.length > 0) {
                 // All queue items are the last shown word, or only one word in queue
                 // Try to find any other word from the category
-                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId);
+                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId && canPlayWord(w.id, starredLookup, starMode));
                 if (others.length) {
                     target = others[Math.floor(Math.random() * others.length)];
                 } else {
@@ -261,11 +291,20 @@
             if (queueCandidate) {
                 target = queueCandidate.wordData;
                 const qi = queue.findIndex(it => it.wordData.id === target.id);
+                if (queueCandidate.forceReplay && State.practiceForcedReplays) {
+                    const key = String(target.id);
+                    const val = State.practiceForcedReplays[key];
+                    if (val) State.practiceForcedReplays[key] = Math.max(0, val - 1);
+                }
                 if (qi !== -1) queue.splice(qi, 1);
             }
         }
 
         if (target) {
+            if (!didRecordPlay) {
+                recordPlay(target.id, starredLookup, starMode);
+                didRecordPlay = true;
+            }
             try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
             // Update last shown word ID to prevent consecutive duplicates
             State.lastWordShownId = target.id;
@@ -325,10 +364,14 @@
                 return item.reappearRound <= (State.categoryRoundCount[State.currentCategoryName] || 0);
             });
             const hasPendingQueue = Array.isArray(queue) && queue.length > 0;
-            if (hasReadyFromQueue || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
+            const starredLookup = getStarredLookup();
+            const starMode = getStarMode();
+            const hasUnusedInCurrent = getAvailableUnusedWords(State.currentCategoryName, starredLookup, starMode).length > 0;
+            const multipleCategories = Array.isArray(State.categoryNames) && State.categoryNames.length > 1;
+            if (hasReadyFromQueue || !multipleCategories || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
                 target = selectTargetWord(State.currentCategory, State.currentCategoryName);
-            } else if (hasPendingQueue) {
-                // Move this category to the end to let others run, but keep it in rotation for queued wrong answers.
+            } else if (hasPendingQueue || hasUnusedInCurrent) {
+                // Move this category to the end to let others run, but keep it in rotation for queued wrong answers or unused words.
                 const i = State.categoryNames.indexOf(State.currentCategoryName);
                 if (i > -1) {
                     State.categoryNames.splice(i, 1);

@@ -18,6 +18,51 @@
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
 
+    function getStarredLookup() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+        const map = {};
+        ids.forEach(function (id) {
+            const n = parseInt(id, 10);
+            if (n > 0) { map[n] = true; }
+        });
+        return map;
+    }
+
+    function getStarMode() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const modeFromPrefs = prefs.starMode || prefs.star_mode;
+        const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
+        const mode = modeFromPrefs || modeFromFlash || 'weighted';
+        return mode === 'only' ? 'only' : 'weighted';
+    }
+
+    function pickWeightedId(ids, avoidId) {
+        const list = Array.isArray(ids) ? ids.slice() : [];
+        if (!list.length) return null;
+        const lookup = getStarredLookup();
+        const mode = getStarMode();
+        let pool = list;
+        if (avoidId) {
+            const filtered = pool.filter(id => id !== avoidId);
+            if (filtered.length) pool = filtered;
+        }
+        if (mode === 'only') {
+            pool = pool.filter(id => lookup[id]);
+            if (!pool.length) return null;
+        }
+        if (mode === 'weighted') {
+            const weighted = [];
+            pool.forEach(id => {
+                const w = lookup[id] ? 2 : 1;
+                for (let i = 0; i < w; i++) weighted.push(id);
+            });
+            if (!weighted.length) return null;
+            return weighted[Math.floor(Math.random() * weighted.length)];
+        }
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
     // ---- helpers (learning-specific) ----
     function ensureDefaults() {
         if (!State.wordsAnsweredSinceLastIntro) State.wordsAnsweredSinceLastIntro = new Set();
@@ -158,8 +203,22 @@
                 const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
                 for (const w of list) allIds.push(w.id);
             }
-            State.wordsToIntroduce = allIds;
-            State.totalWordCount = allIds.length;
+            const starredLookup = getStarredLookup();
+            const starMode = getStarMode();
+            const filtered = (starMode === 'only') ? allIds.filter(id => starredLookup[id]) : allIds;
+            State.wordsToIntroduce = filtered;
+            State.totalWordCount = filtered.length;
+        }
+
+        // When in starred-only mode, purge any unstarred items from introduced/wrong queues
+        if (getStarMode() === 'only') {
+            const lookup = getStarredLookup();
+            State.introducedWordIDs = State.introducedWordIDs.filter(id => lookup[id]);
+            State.wrongAnswerQueue = (State.wrongAnswerQueue || []).filter(item => lookup[item.id]);
+            State.wordsToIntroduce = (State.wordsToIntroduce || []).filter(id => lookup[id]);
+            State.totalWordCount = State.wordsToIntroduce.length;
+        } else {
+            State.totalWordCount = State.wordsToIntroduce.length || State.totalWordCount;
         }
 
         State.isLearningMode = true;
@@ -245,7 +304,19 @@
         // Bootstrap: introduce TWO words initially
         if (State.introducedWordIDs.length < 2 && notYetIntroduced.length > 0) {
             const take = Math.min(2 - State.introducedWordIDs.length, notYetIntroduced.length);
-            const ids = notYetIntroduced.slice(0, take);
+            const pool = notYetIntroduced.slice();
+            const ids = [];
+            while (ids.length < take && pool.length) {
+                const pick = pickWeightedId(pool);
+                if (pick === null) break;
+                ids.push(pick);
+                const idx = pool.indexOf(pick);
+                if (idx > -1) pool.splice(idx, 1);
+            }
+            if (!ids.length) {
+                State.isIntroducingWord = false;
+                return null;
+            }
             const words = ids.map(id => wordObjectById(id)).filter(Boolean);
             if (words.length) {
                 State.isIntroducingWord = true;
@@ -259,7 +330,7 @@
         const mayIntroduce = !hasReadyWrongs && !hasPendingWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce && canIntroduceMore;
 
         if (mayIntroduce) {
-            const nextId = notYetIntroduced[0];
+            const nextId = pickWeightedId(notYetIntroduced, State.lastWordShownId);
             const word = wordObjectById(nextId);
             if (word) {
                 State.isIntroducingWord = true;
@@ -285,9 +356,7 @@
         // Priority 2: those not yet answered in this cycle
         const poolNotAnswered = State.introducedWordIDs.filter(id => !State.wordsAnsweredSinceLastIntro.has(id));
         if (poolNotAnswered.length) {
-            // avoid repeat if possible
-            const nonRepeat = poolNotAnswered.filter(id => id !== State.lastWordShownId);
-            const pick = (nonRepeat.length ? nonRepeat : poolNotAnswered)[Math.floor(Math.random() * (nonRepeat.length ? nonRepeat.length : poolNotAnswered.length))];
+            const pick = pickWeightedId(poolNotAnswered, State.lastWordShownId);
             const word = wordObjectById(pick);
             if (word) {
                 State.lastWordShownId = word.id;
@@ -308,7 +377,7 @@
             }
             const min = Math.min(...needPractice.map(id => State.wordCorrectCounts[id] || 0));
             const pool = needPractice.filter(id => (State.wordCorrectCounts[id] || 0) === min);
-            const pick = pool[Math.floor(Math.random() * pool.length)];
+            const pick = pickWeightedId(pool, State.lastWordShownId);
             const word = wordObjectById(pick);
             if (word) {
                 // try to avoid immediate repeat with a quick sprinkle
@@ -326,8 +395,7 @@
 
         // Fallback: any introduced (try to avoid repeat)
         if (State.introducedWordIDs.length) {
-            const pool = State.introducedWordIDs.filter(id => id !== State.lastWordShownId);
-            const id = (pool.length ? pool : State.introducedWordIDs)[Math.floor(Math.random() * (pool.length ? pool.length : State.introducedWordIDs.length))];
+            const id = pickWeightedId(State.introducedWordIDs, State.lastWordShownId);
             const word = wordObjectById(id);
             if (word) {
                 State.lastWordShownId = word.id;
