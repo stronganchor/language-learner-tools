@@ -1,3 +1,8 @@
+.ll-user-study-dashboard,
+.ll-user-study-dashboard * {
+  box-sizing: border-box;
+}
+
 .ll-user-study-dashboard {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -153,6 +158,8 @@
   padding: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .ll-cat-row {
@@ -190,11 +197,26 @@
   margin-top: 14px;
 }
 
+.ll-study-words-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ll-user-study-dashboard #ll-study-words {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
 .ll-word-group {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 10px;
+  width: 100%;
+  display: block;
 }
 
 .ll-word-group__title {
@@ -207,27 +229,35 @@
   color: #0f172a;
 }
 
-.ll-word-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 6px;
+.ll-user-study-dashboard .ll-word-list {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
 }
 
-.ll-word-row {
-  display: flex;
+.ll-user-study-dashboard .ll-word-row {
+  display: flex !important;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #f8fafc;
-  min-height: 52px;
+  min-height: 60px;
+  min-width: 0;
+  width: 100%;
+  flex-wrap: nowrap;
 }
 
 .ll-word-text {
   font-weight: 600;
   flex: 1;
   min-width: 0;
+  word-break: normal;
+  white-space: normal;
+  line-height: 1.3;
 }
 
 .ll-word-star {
@@ -239,6 +269,8 @@
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
@@ -271,6 +303,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   background: #fff;
 }
 
@@ -297,12 +330,23 @@
   cursor: pointer;
   transition: all 0.15s ease;
   font-weight: 700;
+  min-width: 34px;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .ll-word-audio:hover {
   background: #e0f2fe;
   border-color: #38bdf8;
   color: #0ea5e9;
+}
+
+.ll-user-study-dashboard .ll-word-audio {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
 }
 
 .ll-badge {
@@ -325,5 +369,15 @@
 @media (max-width: 768px) {
   .ll-study-grid--top {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .ll-user-study-dashboard .ll-word-list {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .ll-user-study-dashboard .ll-word-text {
+    min-width: 0;
   }
 }
