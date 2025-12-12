@@ -8,6 +8,7 @@
     const Dom = namespace.Dom || {};
     const Cards = namespace.Cards || {};
     const Results = namespace.Results || {};
+    const Util = namespace.Util || {};
     const FlashcardAudio = root.FlashcardAudio;
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
@@ -19,6 +20,25 @@
     const REPEAT_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.listeningRepeatGapMs === 'number')
         ? root.llToolsFlashcardsData.listeningRepeatGapMs
         : 700;
+
+    function getStarredLookup() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+        const map = {};
+        ids.forEach(function (id) {
+            const n = parseInt(id, 10);
+            if (n > 0) { map[n] = true; }
+        });
+        return map;
+    }
+
+    function getStarMode() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const modeFromPrefs = prefs.starMode || prefs.star_mode;
+        const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
+        const mode = modeFromPrefs || modeFromFlash || 'weighted';
+        return mode === 'only' ? 'only' : 'weighted';
+    }
 
     function getJQuery() {
         if (root.jQuery) return root.jQuery;
@@ -304,9 +324,36 @@
                 }
             }
         }
-        State.wordsLinear = all;
-        State.totalWordCount = all.length || 0;
-        return all.length;
+
+        const starredLookup = getStarredLookup();
+        const starMode = getStarMode();
+        const copies = [];
+        all.forEach(function (w) {
+            const isStarred = !!starredLookup[w.id];
+            if (starMode === 'only' && !isStarred) return;
+            const weight = (starMode === 'weighted' && isStarred) ? 2 : 1;
+            for (let i = 0; i < weight; i++) {
+                copies.push(w);
+            }
+        });
+
+        // Build a sequence that honors weighting but avoids back-to-back duplicates when possible
+        const seq = [];
+        const remaining = copies.slice();
+        while (remaining.length) {
+            const lastId = seq.length ? seq[seq.length - 1].id : null;
+            const nonRepeat = remaining.filter(item => item.id !== lastId);
+            const pickFrom = nonRepeat.length ? nonRepeat : remaining;
+            const chosen = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+            // remove a single instance of chosen
+            const idx = remaining.indexOf(chosen);
+            if (idx > -1) remaining.splice(idx, 1);
+            seq.push(chosen);
+        }
+
+        State.wordsLinear = seq;
+        State.totalWordCount = (State.wordsLinear || []).length || 0;
+        return State.totalWordCount;
     }
 
     function isCategoryLoaded(name, loader) {
@@ -407,6 +454,7 @@
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
+        State.lastWordShownId = null;
         try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
@@ -429,21 +477,29 @@
     }
 
     function selectTargetWord() {
-        // Cycle deterministically for now
         if (!Array.isArray(State.wordsLinear)) {
-            const all = [];
-            if (State.categoryNames && State.wordsByCategory) {
-                for (const name of State.categoryNames) {
-                    const list = State.wordsByCategory[name] || [];
-                    for (const w of list) all.push(w);
-                }
-            }
-            State.wordsLinear = all;
+            rebuildWordsLinear();
             State.listenIndex = 0;
         }
         if (!State.wordsLinear.length) return null;
-        const word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+
+        let attempts = 0;
+        let word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+        while (
+            State.wordsLinear.length > 1 &&
+            attempts < State.wordsLinear.length &&
+            word &&
+            State.lastWordShownId === word.id
+        ) {
+            State.listenIndex++;
+            attempts++;
+            word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+        }
+
         State.listenIndex++;
+        if (word && word.id) {
+            State.lastWordShownId = word.id;
+        }
         return word;
     }
 

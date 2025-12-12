@@ -79,8 +79,8 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
             </div>
         </div>
 
-        <div class="ll-study-grid">
-            <div class="ll-study-card">
+        <div class="ll-study-grid ll-study-grid--top">
+            <div class="ll-study-card ll-study-wordset-card">
                 <label for="ll-study-wordset"><?php echo esc_html($i18n['wordsetLabel']); ?></label>
                 <select id="ll-study-wordset" data-ll-study-wordset></select>
                 <p class="ll-study-hint"><?php echo esc_html__('Switch word sets to load their categories and words.', 'll-tools-text-domain'); ?></p>
@@ -94,7 +94,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 </div>
             </div>
 
-            <div class="ll-study-card">
+            <div class="ll-study-card ll-study-categories-card">
                 <div class="ll-card-title">
                     <span><?php echo esc_html($i18n['categoriesLabel']); ?></span>
                     <button type="button" class="ll-study-btn ghost" data-ll-check-all><?php echo esc_html__('All', 'll-tools-text-domain'); ?></button>
@@ -103,7 +103,9 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <div id="ll-study-categories" data-ll-study-categories></div>
                 <p class="ll-study-empty" data-ll-cat-empty><?php echo esc_html($i18n['noCategories']); ?></p>
             </div>
+        </div>
 
+        <div class="ll-study-words-section">
             <div class="ll-study-card ll-study-words-card">
                 <div class="ll-card-title">
                     <span><?php echo esc_html($i18n['wordsLabel']); ?></span>
