@@ -440,6 +440,23 @@
         }
     });
 
+    // Keep dashboard state in sync with in-quiz star changes
+    $(document).on('lltools:star-changed', function (_evt, detail) {
+        const info = detail || {};
+        const wordId = parseInt(info.wordId || info.word_id, 10) || 0;
+        if (!wordId) { return; }
+        const shouldStar = info.starred !== false;
+        const lookup = {};
+        (state.starred_word_ids || []).forEach(function (id) { lookup[id] = true; });
+        if (shouldStar) { lookup[wordId] = true; }
+        else { delete lookup[wordId]; }
+        setStarredWordIds(Object.keys(lookup).map(function (k) { return parseInt(k, 10); }));
+        setStudyPrefsGlobal();
+        saveStateDebounced();
+        renderWords();
+        renderCategories();
+    });
+
     // Initial render
     renderWordsets();
     renderCategories();

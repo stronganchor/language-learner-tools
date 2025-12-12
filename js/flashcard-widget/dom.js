@@ -67,7 +67,7 @@
             const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
             if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
             updateStackForRepeat(true);
-            $btn.removeClass('disabled').prop('disabled', false);
+            $btn.removeClass('disabled').prop('disabled', false).show();
         },
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
