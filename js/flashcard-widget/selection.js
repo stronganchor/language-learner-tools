@@ -208,6 +208,11 @@
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
+                        if (queuedItem.forceReplay && State.practiceForcedReplays) {
+                            const key = String(queuedWord.id);
+                            const val = State.practiceForcedReplays[key];
+                            if (val) State.practiceForcedReplays[key] = Math.max(0, val - 1);
+                        }
                         queue.splice(i, 1);
                         recordPlay(target.id, starredLookup, starMode);
                         didRecordPlay = true;
@@ -286,6 +291,11 @@
             if (queueCandidate) {
                 target = queueCandidate.wordData;
                 const qi = queue.findIndex(it => it.wordData.id === target.id);
+                if (queueCandidate.forceReplay && State.practiceForcedReplays) {
+                    const key = String(target.id);
+                    const val = State.practiceForcedReplays[key];
+                    if (val) State.practiceForcedReplays[key] = Math.max(0, val - 1);
+                }
                 if (qi !== -1) queue.splice(qi, 1);
             }
         }

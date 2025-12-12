@@ -36,10 +36,34 @@
         return !!lookup[wordId];
     }
 
+    function incrementForcedReplayCount(wordId) {
+        if (!wordId) return;
+        const map = (State.practiceForcedReplays = State.practiceForcedReplays || {});
+        const key = String(wordId);
+        map[key] = (map[key] || 0) + 1;
+    }
+
+    function findWordAndCategoryById(wordId) {
+        if (!wordId || !State || !State.wordsByCategory) return null;
+        const idStr = String(wordId);
+        for (const catName in State.wordsByCategory) {
+            if (!Object.prototype.hasOwnProperty.call(State.wordsByCategory, catName)) continue;
+            const list = State.wordsByCategory[catName];
+            if (!Array.isArray(list)) continue;
+            const word = list.find(function (w) { return String(w.id) === idStr; });
+            if (word) {
+                return { word, categoryName: catName };
+            }
+        }
+        return null;
+    }
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = false;
         State.completedCategories = {};
+        State.categoryRepetitionQueues = {};
+        State.practiceForcedReplays = {};
         return true;
     }
 
@@ -89,6 +113,7 @@
 
     function onWrongAnswer(ctx) {
         if (!ctx || !ctx.targetWord) return;
+        incrementForcedReplayCount(ctx.targetWord.id);
         queueForRepetition(ctx.targetWord, { force: true });
     }
 
@@ -117,6 +142,52 @@
                 }
                 return true;
             }
+        }
+
+        const queues = State.categoryRepetitionQueues || {};
+        const queuedCategories = [];
+        const queuedIds = new Set();
+        Object.keys(queues).forEach(function (cat) {
+            const list = queues[cat];
+            if (Array.isArray(list) && list.length) {
+                queuedCategories.push(cat);
+                list.forEach(function (item) {
+                    const id = item && item.wordData && item.wordData.id;
+                    if (id) queuedIds.add(String(id));
+                });
+            }
+        });
+
+        const outstanding = (State.practiceForcedReplays = State.practiceForcedReplays || {});
+        Object.keys(outstanding).forEach(function (id) {
+            if ((outstanding[id] || 0) <= 0) return;
+            const key = String(id);
+            if (queuedIds.has(key)) return;
+            const found = findWordAndCategoryById(id);
+            if (!found) return;
+            const prevCategory = State.currentCategoryName;
+            State.currentCategoryName = found.categoryName;
+            queueForRepetition(found.word, { force: true });
+            State.currentCategoryName = prevCategory;
+            queuedIds.add(key);
+            if (!queuedCategories.includes(found.categoryName)) {
+                queuedCategories.push(found.categoryName);
+            }
+        });
+
+        if (queuedCategories.length) {
+            State.completedCategories = State.completedCategories || {};
+            queuedCategories.forEach(function (cat) {
+                State.completedCategories[cat] = false;
+                if (!State.categoryNames.includes(cat)) {
+                    State.categoryNames.push(cat);
+                }
+            });
+            State.isFirstRound = false;
+            if (ctx && typeof ctx.startQuizRound === 'function') {
+                setTimeout(function () { ctx.startQuizRound(); }, 0);
+            }
+            return true;
         }
 
         State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');

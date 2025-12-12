@@ -52,6 +52,7 @@
         currentOptionType: 'image',
         currentPromptType: 'audio',
         categoryRepetitionQueues: {},
+        practiceForcedReplays: {},
         userClickedCorrectAnswer: false,
         quizResults: { correctOnFirstTry: 0, incorrect: [] },
 
@@ -265,6 +266,7 @@
             this.currentOptionType = 'image';
             this.currentPromptType = 'audio';
             this.categoryRepetitionQueues = {};
+            this.practiceForcedReplays = {};
             this.userClickedCorrectAnswer = false;
             this.quizResults = { correctOnFirstTry: 0, incorrect: [] };
 
