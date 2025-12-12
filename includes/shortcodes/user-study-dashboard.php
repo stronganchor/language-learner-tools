@@ -8,7 +8,28 @@ if (!defined('WPINC')) { die; }
  */
 function ll_tools_user_study_dashboard_shortcode($atts) {
     if (!is_user_logged_in()) {
-        return '<p>' . esc_html__('Please log in to save your study preferences.', 'll-tools-text-domain') . '</p>';
+        global $wp;
+
+        $request_path = isset($wp->request) ? $wp->request : '';
+        $query_args   = !empty($_GET) ? wp_unslash($_GET) : [];
+        $redirect_path = $request_path;
+        if (!empty($query_args)) {
+            $redirect_path = add_query_arg($query_args, $request_path);
+        }
+
+        $redirect_to = home_url(ltrim((string) $redirect_path, '/'));
+        $login_url   = wp_login_url(esc_url_raw($redirect_to));
+
+        $message = sprintf(
+            wp_kses(
+                /* translators: %s: login URL */
+                __('Please <a href="%s">log in</a> to save your study preferences. We will bring you back to this page after you sign in.', 'll-tools-text-domain'),
+                ['a' => ['href' => []]]
+            ),
+            esc_url($login_url)
+        );
+
+        return '<div class="ll-user-study-dashboard ll-login-required"><p>' . $message . '</p></div>';
     }
 
     $payload = ll_tools_build_user_study_payload(get_current_user_id());
@@ -28,6 +49,9 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'listening'        => __('Listen', 'll-tools-text-domain'),
         'noCategories'     => __('No categories available for this word set yet.', 'll-tools-text-domain'),
         'noWords'          => __('Select a category to see its words.', 'll-tools-text-domain'),
+        'starAll'          => __('Star all', 'll-tools-text-domain'),
+        'unstarAll'        => __('Unstar all', 'll-tools-text-domain'),
+        'playAudio'        => __('Play audio', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [

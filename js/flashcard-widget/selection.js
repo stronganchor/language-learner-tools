@@ -70,6 +70,14 @@
         return State.starPlayCounts;
     }
 
+    function canPlayWord(wordId, starredLookup, starMode) {
+        if (!wordId) return false;
+        const counts = getStarPlayCounts();
+        const maxUses = (starMode === 'weighted' && starredLookup[wordId]) ? 2 : 1;
+        const plays = counts[wordId] || 0;
+        return plays < maxUses;
+    }
+
     function recordPlay(wordId, starredLookup, starMode) {
         if (!wordId) return;
         const counts = getStarPlayCounts();
@@ -177,6 +185,7 @@
             return null;
         }
         let target = null;
+        let didRecordPlay = false;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
         const starredLookup = getStarredLookup();
         const starMode = getStarMode();
@@ -186,12 +195,18 @@
         if (queue && queue.length) {
             for (let i = 0; i < queue.length; i++) {
                 const queuedWord = queue[i].wordData;
+                if (!canPlayWord(queuedWord.id, starredLookup, starMode)) {
+                    queue.splice(i, 1);
+                    i--;
+                    continue;
+                }
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
                         queue.splice(i, 1);
                         recordPlay(target.id, starredLookup, starMode);
+                        didRecordPlay = true;
                         break;
                     }
                 }
@@ -202,7 +217,8 @@
         if (!target) {
             State.completedCategories = State.completedCategories || {};
             const unused = getAvailableUnusedWords(candidateCategoryName, starredLookup, starMode)
-                .filter(function (w) { return w.id !== State.lastWordShownId; });
+                .filter(function (w) { return w.id !== State.lastWordShownId; })
+                .filter(function (w) { return canPlayWord(w.id, starredLookup, starMode); });
 
             // If no unused words and no queue, mark this category done
             if ((!unused || !unused.length) && (!queue || !queue.length)) {
@@ -234,6 +250,7 @@
                 }
                 if (target) {
                     recordPlay(target.id, starredLookup, starMode);
+                    didRecordPlay = true;
                 }
             } else {
                 // Only queued items remain; handled above; keep category alive for queue.
@@ -244,12 +261,12 @@
         // Fallback: if still no target and queue exists, pick from queue but avoid last shown
         if (!target && queue && queue.length) {
             // Try to find a word that isn't the last shown
-            let queueCandidate = queue.find(item => item.wordData.id !== State.lastWordShownId);
+            let queueCandidate = queue.find(item => item.wordData.id !== State.lastWordShownId && canPlayWord(item.wordData.id, starredLookup, starMode));
 
             if (!queueCandidate && queue.length > 0) {
                 // All queue items are the last shown word, or only one word in queue
                 // Try to find any other word from the category
-                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId);
+                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId && canPlayWord(w.id, starredLookup, starMode));
                 if (others.length) {
                     target = others[Math.floor(Math.random() * others.length)];
                 } else {
@@ -266,6 +283,10 @@
         }
 
         if (target) {
+            if (!didRecordPlay) {
+                recordPlay(target.id, starredLookup, starMode);
+                didRecordPlay = true;
+            }
             try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
             // Update last shown word ID to prevent consecutive duplicates
             State.lastWordShownId = target.id;

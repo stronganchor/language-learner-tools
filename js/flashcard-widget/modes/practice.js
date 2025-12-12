@@ -22,6 +22,14 @@
         return map;
     }
 
+    function getStarMode() {
+        const prefs = root.llToolsStudyPrefs || {};
+        const modeFromPrefs = prefs.starMode || prefs.star_mode;
+        const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
+        const mode = modeFromPrefs || modeFromFlash || 'weighted';
+        return mode === 'only' ? 'only' : 'weighted';
+    }
+
     function isStarred(wordId) {
         if (!wordId) { return false; }
         const lookup = getStarredLookup();
@@ -35,12 +43,25 @@
         return true;
     }
 
-    function queueForRepetition(targetWord) {
+    function queueForRepetition(targetWord, options) {
         const categoryName = State.currentCategoryName;
         if (!categoryName || !targetWord) return;
         const queue = (State.categoryRepetitionQueues[categoryName] = State.categoryRepetitionQueues[categoryName] || []);
         const alreadyQueued = queue.some(item => item.wordData.id === targetWord.id);
         if (alreadyQueued) return;
+
+        const starredLookup = getStarredLookup();
+        const isStarredWord = !!starredLookup[targetWord.id];
+        const force = !!(options && options.force);
+        const starMode = getStarMode();
+
+        // Avoid endlessly re-queuing starred words once they've hit their allowed plays
+        State.starPlayCounts = State.starPlayCounts || {};
+        const plays = State.starPlayCounts[targetWord.id] || 0;
+        const maxUses = (starMode === 'weighted' && isStarredWord) ? 2 : 1;
+        if (!force && isStarredWord && plays >= maxUses) {
+            return;
+        }
 
         const base = State.categoryRoundCount[categoryName] || 0;
         const offset = isStarred(targetWord.id)
@@ -55,12 +76,12 @@
     function onCorrectAnswer(ctx) {
         if (!ctx || !ctx.targetWord) return;
         if (State.wrongIndexes.length === 0) return;
-        queueForRepetition(ctx.targetWord);
+        queueForRepetition(ctx.targetWord, { force: true });
     }
 
     function onWrongAnswer(ctx) {
         if (!ctx || !ctx.targetWord) return;
-        queueForRepetition(ctx.targetWord);
+        queueForRepetition(ctx.targetWord, { force: true });
     }
 
     function onFirstRoundStart() {

@@ -24,6 +24,8 @@
     const $starCount = $root.find('[data-ll-star-count]');
     const $starModeToggle = $root.find('[data-ll-star-mode]');
 
+    let currentAudio = null;
+
     function toIntList(arr) {
         return (arr || []).map(function (v) { return parseInt(v, 10) || 0; }).filter(function (v) { return v > 0; });
     }
@@ -31,6 +33,58 @@
     function findWordsetSlug(id) {
         const ws = wordsets.find(function (w) { return parseInt(w.id, 10) === parseInt(id, 10); });
         return ws ? ws.slug : '';
+    }
+
+    function isWordStarred(id) {
+        return state.starred_word_ids.indexOf(id) !== -1;
+    }
+
+    function setStarredWordIds(ids) {
+        const seen = {};
+        state.starred_word_ids = toIntList(ids).filter(function (id) {
+            if (seen[id]) { return false; }
+            seen[id] = true;
+            return true;
+        });
+    }
+
+    function getCategoryWords(catId) {
+        return wordsByCategory[catId] || [];
+    }
+
+    function categoryStarState(catId) {
+        const words = getCategoryWords(catId);
+        if (!words.length) {
+            return { allStarred: false, hasWords: false };
+        }
+        const ids = words.map(function (w) { return parseInt(w.id, 10) || 0; }).filter(Boolean);
+        if (!ids.length) {
+            return { allStarred: false, hasWords: false };
+        }
+        const allStarred = ids.every(function (id) { return isWordStarred(id); });
+        return { allStarred: allStarred, hasWords: true };
+    }
+
+    function ensureWordsForCategory(catId) {
+        const cid = parseInt(catId, 10);
+        if (!cid) { return $.Deferred().resolve([]).promise(); }
+        if (wordsByCategory[cid]) {
+            return $.Deferred().resolve(wordsByCategory[cid]).promise();
+        }
+        return $.post(ajaxUrl, {
+            action: 'll_user_study_fetch_words',
+            nonce: nonce,
+            wordset_id: state.wordset_id,
+            category_ids: [cid]
+        }).then(function (res) {
+            if (res && res.success && res.data && res.data.words_by_category) {
+                wordsByCategory = Object.assign({}, wordsByCategory, res.data.words_by_category);
+                return wordsByCategory[cid] || [];
+            }
+            return [];
+        }, function () {
+            return [];
+        });
     }
 
     function setStudyPrefsGlobal() {
@@ -72,9 +126,13 @@
             const checked = !!selectedLookup[cat.id];
             const label = cat.translation || cat.name;
             const countLabel = typeof cat.word_count !== 'undefined' ? ' (' + cat.word_count + ')' : '';
-            const row = $('<label>', { class: 'll-cat-row' });
-            $('<input>', { type: 'checkbox', value: cat.id, checked: checked }).appendTo(row);
-            $('<span>', { class: 'll-cat-name', text: label + countLabel }).appendTo(row);
+            const row = $('<div>', { class: 'll-cat-row', 'data-cat-id': cat.id });
+
+            const labelWrap = $('<label>', { class: 'll-cat-label' });
+            $('<input>', { type: 'checkbox', value: cat.id, checked: checked }).appendTo(labelWrap);
+            $('<span>', { class: 'll-cat-name', text: label + countLabel }).appendTo(labelWrap);
+            row.append(labelWrap);
+
             $categoriesWrap.append(row);
         });
     }
@@ -100,7 +158,18 @@
             const words = wordsByCategory[cid] || [];
 
             const group = $('<div>', { class: 'll-word-group' });
-            $('<div>', { class: 'll-word-group__title', text: catLabel }).appendTo(group);
+            const titleRow = $('<div>', { class: 'll-word-group__title' });
+            $('<span>', { text: catLabel }).appendTo(titleRow);
+            const starState = categoryStarState(cid);
+            const starLabel = starState.allStarred ? (i18n.unstarAll || 'Unstar all') : (i18n.starAll || 'Star all');
+            $('<button>', {
+                type: 'button',
+                class: 'll-study-btn tiny ghost ll-group-star' + (starState.allStarred ? ' active' : ''),
+                'data-cat-id': cid,
+                disabled: !starState.hasWords,
+                text: (starState.allStarred ? '★ ' : '☆ ') + starLabel
+            }).appendTo(titleRow);
+            group.append(titleRow);
 
             if (!words.length) {
                 $('<p>', { class: 'll-word-empty', text: i18n.noWords || 'No words yet.' }).appendTo(group);
@@ -109,14 +178,41 @@
                 words.forEach(function (w) {
                     const isStarred = !!starredLookup[w.id];
                     if (isStarred) { totalStarredInView++; }
-                    const row = $('<div>', { class: 'll-word-row', 'data-word-id': w.id });
+                    const row = $('<div>', {
+                        class: 'll-word-row',
+                        'data-word-id': w.id,
+                        'data-audio-url': w.audio || ''
+                    });
                     $('<button>', {
                         type: 'button',
                         class: 'll-word-star' + (isStarred ? ' active' : ''),
                         'aria-pressed': isStarred ? 'true' : 'false',
                         text: isStarred ? '★' : '☆'
                     }).appendTo(row);
+
+                    if (w.image) {
+                        const thumb = $('<div>', { class: 'll-word-thumb' });
+                        $('<img>', {
+                            src: w.image,
+                            alt: w.label || w.title || '',
+                            loading: 'lazy'
+                        }).appendTo(thumb);
+                        row.append(thumb);
+                    } else {
+                        $('<div>', { class: 'll-word-thumb placeholder', text: '...' }).appendTo(row);
+                    }
+
                     $('<span>', { class: 'll-word-text', text: w.label || w.title }).appendTo(row);
+
+                    if (w.audio) {
+                        $('<button>', {
+                            type: 'button',
+                            class: 'll-word-audio',
+                            'aria-label': i18n.playAudio || 'Play audio',
+                            title: i18n.playAudio || 'Play audio'
+                        }).text('▶').appendTo(row);
+                    }
+
                     list.append(row);
                 });
                 group.append(list);
@@ -279,6 +375,7 @@
         setStudyPrefsGlobal();
         saveStateDebounced();
         renderWords();
+        renderCategories();
     });
 
     $root.find('[data-ll-study-start]').on('click', function () {
@@ -293,6 +390,54 @@
         $(this).addClass('active').siblings().removeClass('active');
         setStudyPrefsGlobal();
         saveStateDebounced();
+    });
+
+    $wordsWrap.on('click', '.ll-group-star', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const $btn = $(this);
+        const catId = parseInt($btn.data('cat-id'), 10);
+        if (!catId) { return; }
+
+        $btn.prop('disabled', true).addClass('loading');
+
+        ensureWordsForCategory(catId).then(function (words) {
+            const ids = (words || []).map(function (w) { return parseInt(w.id, 10) || 0; }).filter(Boolean);
+            if (!ids.length) { return; }
+
+            const allStarred = ids.every(function (id) { return isWordStarred(id); });
+            if (allStarred) {
+                const removeLookup = {};
+                ids.forEach(function (id) { removeLookup[id] = true; });
+                setStarredWordIds(state.starred_word_ids.filter(function (id) { return !removeLookup[id]; }));
+            } else {
+                const merged = state.starred_word_ids.slice();
+                ids.forEach(function (id) {
+                    if (merged.indexOf(id) === -1) { merged.push(id); }
+                });
+                setStarredWordIds(merged);
+            }
+
+            setStudyPrefsGlobal();
+            saveStateDebounced();
+            renderWords();
+        }).always(function () {
+            $btn.prop('disabled', false).removeClass('loading');
+        });
+    });
+
+    $wordsWrap.on('click', '.ll-word-audio', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = $(this).closest('.ll-word-row').data('audio-url');
+        if (!url) { return; }
+        if (currentAudio) {
+            currentAudio.pause();
+        }
+        currentAudio = new Audio(url);
+        if (currentAudio && currentAudio.play) {
+            currentAudio.play().catch(function () {});
+        }
     });
 
     // Initial render
