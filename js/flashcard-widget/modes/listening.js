@@ -356,6 +356,19 @@
         return State.totalWordCount;
     }
 
+    function onStarChange(wordId, isStarredFlag, starMode) {
+        rebuildWordsLinear();
+        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        if (State.listenIndex > total) {
+            State.listenIndex = total;
+        }
+        updateControlsState();
+        if (starMode === 'only' && !isStarredFlag && State.listeningCurrentTarget && State.listeningCurrentTarget.id === wordId) {
+            return true;
+        }
+        return false;
+    }
+
     function isCategoryLoaded(name, loader) {
         const words = State.wordsByCategory && State.wordsByCategory[name];
         if (Array.isArray(words) && words.length > 0) return true;
@@ -918,6 +931,11 @@
         // Ensure controls appear at the bottom (after placeholder and visualizer)
         ensureControls(utils);
         updateControlsState();
+        try {
+            if (root.LLFlashcards && root.LLFlashcards.StarManager && typeof root.LLFlashcards.StarManager.updateForWord === 'function') {
+                root.LLFlashcards.StarManager.updateForWord(target, { variant: 'listening' });
+            }
+        } catch (_) { /* no-op */ }
 
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig).then(function () {
             // Pre-render content inside placeholder for zero-layout-shift reveal
@@ -1317,6 +1335,7 @@
         onCorrectAnswer,
         onWrongAnswer,
         runRound,
+        onStarChange,
         getTotalCount: function () { return (State.wordsLinear || []).length; }
     };
 

@@ -175,6 +175,395 @@
         State.addTimeout && State.addTimeout(fallback);
     }
 
+    // --- Study star helpers (user study dashboard only) ---
+    const StarManager = (function () {
+        let currentWord = null;
+        let $starRow = null;
+        let $starButton = null;
+        let $listeningSlot = null;
+        let delegatedBound = false;
+
+        function ensurePrefs() {
+            if (!root.llToolsStudyPrefs && root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
+                const s = root.llToolsStudyData.payload.state || {};
+                root.llToolsStudyPrefs = {
+                    starredWordIds: Array.isArray(s.starred_word_ids) ? s.starred_word_ids.slice() : [],
+                    starMode: s.star_mode || 'weighted'
+                };
+            }
+            root.llToolsStudyPrefs = root.llToolsStudyPrefs || {};
+            const prefs = root.llToolsStudyPrefs;
+            if (!Array.isArray(prefs.starredWordIds)) {
+                prefs.starredWordIds = [];
+            }
+            return prefs;
+        }
+
+        function normalizeIds(list) {
+            const seen = {};
+            const ids = Array.isArray(list) ? list : [];
+            return ids.map(id => parseInt(id, 10) || 0)
+                .filter(id => id > 0 && !seen[id] && (seen[id] = true));
+        }
+
+        function getStarMode() {
+            const prefs = ensurePrefs();
+            const modeFromPrefs = prefs.starMode || prefs.star_mode;
+            const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
+            const mode = modeFromPrefs || modeFromFlash || 'weighted';
+            return mode === 'only' ? 'only' : 'weighted';
+        }
+
+        function isStarred(wordId) {
+            if (!wordId) return false;
+            const prefs = ensurePrefs();
+            const ids = normalizeIds(prefs.starredWordIds);
+            prefs.starredWordIds = ids;
+            return ids.includes(parseInt(wordId, 10));
+        }
+
+        function setStarState(wordId, desiredState) {
+            const prefs = ensurePrefs();
+            const ids = normalizeIds(prefs.starredWordIds);
+            const targetId = parseInt(wordId, 10);
+            if (!targetId) { prefs.starredWordIds = ids; return false; }
+            const has = ids.includes(targetId);
+            const shouldStar = (typeof desiredState === 'boolean') ? desiredState : !has;
+            let next = ids;
+            if (shouldStar && !has) {
+                next = ids.concat([targetId]);
+            } else if (!shouldStar && has) {
+                next = ids.filter(id => id !== targetId);
+            }
+            prefs.starredWordIds = normalizeIds(next);
+            return shouldStar;
+        }
+
+        function broadcastStarChange(wordId, starred) {
+            try {
+                $(document).trigger('lltools:star-changed', [{ wordId: wordId, starred: starred }]);
+            } catch (_) { /* no-op */ }
+        }
+
+        function getStarButton() {
+            if ($starButton && $starButton.length) return $starButton;
+            $starButton = $('<button>', {
+                type: 'button',
+                class: 'll-word-star ll-quiz-star-btn',
+                'aria-pressed': 'false',
+                'aria-label': 'Star word'
+            }).text('☆');
+            return $starButton;
+        }
+
+        function bindDelegatedClick() {
+            if (delegatedBound) return;
+            delegatedBound = true;
+            $(document).off('click.llStarBtn').on('click.llStarBtn', '.ll-quiz-star-btn', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const targetId = parseInt($(this).attr('data-word-id'), 10) || (currentWord && currentWord.id) || 0;
+                if (!targetId) return;
+                const found = findWordInState(targetId);
+                const wordObj = found ? found.word : currentWord;
+                applyStarChange(wordObj || { id: targetId }, !isStarred(targetId));
+            });
+        }
+
+        function getStarRow() {
+            if ($starRow && $starRow.length) return $starRow;
+            const $content = $('#ll-tools-flashcard-content');
+            if (!$content.length) return null;
+            $starRow = $('<div>', { id: 'll-quiz-star-row', class: 'll-quiz-star-row', style: 'display:none;' });
+            $content.prepend($starRow);
+            return $starRow;
+        }
+
+        function getListeningSlot() {
+            if ($listeningSlot && $listeningSlot.length) return $listeningSlot;
+            const $controls = $('#ll-tools-listening-controls');
+            if (!$controls || !$controls.length) return null;
+            $listeningSlot = $('<div>', { class: 'll-listening-star-slot', style: 'display:none;' });
+            $controls.prepend($listeningSlot);
+            return $listeningSlot;
+        }
+
+        function ensureAudioInlineRow() {
+            const $stack = $('#ll-tools-category-stack');
+            const $repeat = $('#ll-tools-repeat-flashcard');
+            if (!$stack.length || !$repeat.length) return null;
+            let $row = $stack.find('.ll-quiz-star-audio-row');
+            if (!$row.length) {
+                $row = $('<div>', { class: 'll-quiz-star-audio-row' });
+                $repeat.detach();
+                $row.append($repeat);
+                $stack.append($row);
+            }
+            $row.css('display', 'flex');
+            $repeat.show();
+            return $row;
+        }
+
+        function ensureImageInlineRow() {
+            const $prompt = $('#ll-tools-prompt');
+            if (!$prompt.length) return null;
+            const $imgWrap = $prompt.find('.ll-prompt-image-wrap').first();
+            if (!$imgWrap.length) return null;
+
+            let $row = $prompt.find('.ll-prompt-star-row');
+            if (!$row.length) {
+                $row = $('<div>', { class: 'll-prompt-star-row' });
+                $imgWrap.detach();
+                $row.append($('<div>', { class: 'll-quiz-star-inline image-inline', style: 'display:none;' }));
+                $row.append($imgWrap);
+                $row.append($('<div>', { class: 'll-quiz-star-spacer' }));
+                $prompt.empty().append($row);
+            }
+
+            let $wrap = $row.find('.ll-quiz-star-inline.image-inline').first();
+            if (!$wrap.length) {
+                $wrap = $('<div>', { class: 'll-quiz-star-inline image-inline', style: 'display:none;' });
+                $row.prepend($wrap);
+            }
+            if (!$row.find('.ll-quiz-star-spacer').length) {
+                $row.append($('<div>', { class: 'll-quiz-star-spacer' }));
+            }
+            return $wrap;
+        }
+
+        function mountButton($target, variant) {
+            const $btn = getStarButton();
+            if (!$btn) return;
+            $btn.toggleClass('listening-variant', variant === 'listening');
+            if ($target && $target.length && !$target.has($btn).length) {
+                $btn.detach();
+                if ($target.hasClass('ll-quiz-star-audio-row')) {
+                    $target.prepend($btn);
+                } else {
+                    $target.append($btn);
+                }
+            }
+        }
+
+        function hide() {
+            if ($starRow && $starRow.length) { $starRow.hide(); }
+            if ($listeningSlot && $listeningSlot.length) { $listeningSlot.hide(); }
+            try {
+                const $audioRow = $('.ll-quiz-star-audio-row');
+                if ($audioRow.length) { $audioRow.find('.ll-quiz-star-btn').hide(); }
+                const $imageRow = $('.ll-quiz-star-inline.image-inline');
+                if ($imageRow.length) { $imageRow.hide(); }
+                const $spacers = $('.ll-quiz-star-spacer');
+                if ($spacers.length) { $spacers.hide(); }
+            } catch (_) { /* no-op */ }
+        }
+
+        function findWordInState(wordId) {
+            const idStr = String(wordId);
+            if (Array.isArray(State.categoryNames)) {
+                for (const cat of State.categoryNames) {
+                    const list = State.wordsByCategory && State.wordsByCategory[cat];
+                    if (!Array.isArray(list)) continue;
+                    const match = list.find(w => String(w.id) === idStr);
+                    if (match) return { word: match, category: cat };
+                }
+            }
+            return null;
+        }
+
+        function queueStarReplay(wordObj, categoryName) {
+            const cname = categoryName || State.currentCategoryName;
+            if (!cname || !wordObj) return;
+            const queue = (State.categoryRepetitionQueues[cname] = State.categoryRepetitionQueues[cname] || []);
+            const exists = queue.some(item => item && item.wordData && item.wordData.id === wordObj.id);
+            if (exists) return;
+            const base = State.categoryRoundCount[cname] || 0;
+            const offset = (Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 3) : (Math.floor(Math.random() * 2) + 2);
+            queue.push({ wordData: wordObj, reappearRound: base + offset, forceReplay: true });
+        }
+
+        function adjustPractice(wordId, isStarredFlag, starMode) {
+            if (!isStarredFlag) {
+                const queues = State.categoryRepetitionQueues || {};
+                Object.keys(queues).forEach(function (cat) {
+                    const list = queues[cat];
+                    if (Array.isArray(list)) {
+                        queues[cat] = list.filter(item => item && item.wordData && item.wordData.id !== wordId);
+                    }
+                });
+                if (State.practiceForcedReplays) {
+                    delete State.practiceForcedReplays[String(wordId)];
+                }
+            }
+            if (isStarredFlag) {
+                const idx = State.usedWordIDs.indexOf(wordId);
+                if (idx !== -1) State.usedWordIDs.splice(idx, 1);
+                if (starMode === 'weighted') {
+                    const found = findWordInState(wordId);
+                    const wordObj = found ? found.word : currentWord;
+                    const cat = found ? found.category : State.currentCategoryName;
+                    queueStarReplay(wordObj, cat);
+                }
+            } else if (starMode === 'only' && !State.usedWordIDs.includes(wordId)) {
+                State.usedWordIDs.push(wordId);
+            }
+        }
+
+        function adjustLearning(wordId, isStarredFlag, starMode) {
+            if (!State.isLearningMode) return;
+            State.wordsToIntroduce = Array.isArray(State.wordsToIntroduce) ? State.wordsToIntroduce : [];
+            State.introducedWordIDs = Array.isArray(State.introducedWordIDs) ? State.introducedWordIDs : [];
+            State.wrongAnswerQueue = Array.isArray(State.wrongAnswerQueue) ? State.wrongAnswerQueue : [];
+            State.wordCorrectCounts = State.wordCorrectCounts || {};
+            State.wordIntroductionProgress = State.wordIntroductionProgress || {};
+            if (starMode !== 'only') return;
+
+            if (!isStarredFlag) {
+                State.wordsToIntroduce = State.wordsToIntroduce.filter(id => id !== wordId);
+                State.introducedWordIDs = State.introducedWordIDs.filter(id => id !== wordId);
+                State.wrongAnswerQueue = State.wrongAnswerQueue.filter(item => item && item.id !== wordId);
+                delete State.wordCorrectCounts[wordId];
+                delete State.wordIntroductionProgress[wordId];
+                if (State.wordsAnsweredSinceLastIntro && typeof State.wordsAnsweredSinceLastIntro.delete === 'function') {
+                    State.wordsAnsweredSinceLastIntro.delete(wordId);
+                }
+            } else {
+                if (!State.wordsToIntroduce.includes(wordId) && !State.introducedWordIDs.includes(wordId)) {
+                    State.wordsToIntroduce.push(wordId);
+                }
+            }
+            const total = new Set([...(State.wordsToIntroduce || []), ...(State.introducedWordIDs || [])]).size;
+            State.totalWordCount = total;
+        }
+
+        function adjustListening(wordId, isStarredFlag, starMode) {
+            const listening = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Listening;
+            if (listening && typeof listening.onStarChange === 'function') {
+                try {
+                    return !!listening.onStarChange(wordId, isStarredFlag, starMode);
+                } catch (_) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        function skipCurrentIfNeeded(wordId, starMode) {
+            if (starMode !== 'only') return;
+            const currentId = currentWord && currentWord.id ? parseInt(currentWord.id, 10) : null;
+            if (!currentId || currentId !== parseInt(wordId, 10)) return;
+            State.clearActiveTimeouts();
+            try { root.FlashcardAudio && root.FlashcardAudio.pauseAllAudio(); } catch (_) { /* no-op */ }
+            State.hadWrongAnswerThisTurn = false;
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Star removed during quiz');
+            $('#ll-tools-flashcard').empty();
+            runQuizRound();
+        }
+
+        function applyStarChange(word, desiredState) {
+            const wordId = word && word.id ? parseInt(word.id, 10) : 0;
+            if (!wordId) return;
+            currentWord = word;
+            const starredNow = setStarState(wordId, desiredState);
+            const starMode = getStarMode();
+            State.starPlayCounts = State.starPlayCounts || {};
+            if (State.starPlayCounts[wordId] === undefined) {
+                State.starPlayCounts[wordId] = 0;
+            }
+            if (!starredNow && State.starPlayCounts[wordId] > 1) {
+                State.starPlayCounts[wordId] = 1;
+            }
+            if (starredNow) {
+                const foundCat = findWordInState(wordId);
+                const catName = foundCat ? foundCat.category : State.currentCategoryName;
+                State.completedCategories = State.completedCategories || {};
+                if (catName) {
+                    State.completedCategories[catName] = false;
+                    if (Array.isArray(State.categoryNames) && !State.categoryNames.includes(catName)) {
+                        State.categoryNames.push(catName);
+                    }
+                }
+            }
+            if (!State.isLearningMode && !State.isListeningMode) {
+                adjustPractice(wordId, starredNow, starMode);
+                skipCurrentIfNeeded(wordId, starMode);
+            } else if (State.isListeningMode) {
+                const shouldSkip = adjustListening(wordId, starredNow, starMode);
+                if (shouldSkip && starMode === 'only') {
+                    skipCurrentIfNeeded(wordId, starMode);
+                }
+            } else {
+                adjustLearning(wordId, starredNow, starMode);
+                skipCurrentIfNeeded(wordId, starMode);
+            }
+            broadcastStarChange(wordId, starredNow);
+            updateForWord(currentWord, { variant: State.isListeningMode ? 'listening' : 'content' });
+        }
+
+        function updateForWord(word, options) {
+            currentWord = word || null;
+            if (!root.llToolsStudyPrefs && !root.llToolsStudyData) {
+                hide();
+                return;
+            }
+            const prefs = ensurePrefs();
+            const variant = options && options.variant === 'listening' ? 'listening' : 'content';
+            if (!word || !word.id || !prefs || (!Array.isArray(prefs.starredWordIds) && !prefs.starMode)) {
+                hide();
+                return;
+            }
+            const isListening = variant === 'listening';
+            let $container = null;
+            if (isListening) {
+                $container = getListeningSlot();
+            } else {
+            const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
+                ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
+                : 'audio');
+                if (promptType === 'image') {
+                    $container = ensureImageInlineRow() || getStarRow();
+                    if ($container && !$container.hasClass('ll-quiz-star-inline')) {
+                        $container = ensureImageInlineRow();
+                    }
+                } else {
+                    $container = ensureAudioInlineRow() || getStarRow();
+                }
+            }
+            if (!$container || !$container.length) {
+                hide();
+                return;
+            }
+            const $btn = getStarButton();
+            if (!$btn) { hide(); return; }
+            bindDelegatedClick();
+            mountButton($container, variant);
+            const active = isStarred(word.id);
+            $btn.attr('aria-pressed', active ? 'true' : 'false')
+                .text(active ? '★' : '☆')
+                .toggleClass('active', active)
+                .attr('data-word-id', word.id);
+            $btn.show();
+            if (isListening) {
+                $container.show();
+            } else if ($container.hasClass('ll-quiz-star-inline')) {
+                $container.show();
+                try { $container.closest('.ll-prompt-star-row').find('.ll-quiz-star-spacer').show(); } catch (_) {}
+            } else {
+                $container.show();
+            }
+        }
+
+        return {
+            updateForWord,
+            hide,
+            isStarred,
+            applyStarChange,
+            getStarMode,
+            getCurrentWord: function () { return currentWord; }
+        };
+    })();
+    root.LLFlashcards.StarManager = StarManager;
+
     // Init audio
     root.FlashcardAudio.initializeAudio();
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
@@ -572,6 +961,7 @@
 
         State.clearActiveTimeouts();
         clearPrompt();
+        try { StarManager && StarManager.hide(); } catch (_) { /* no-op */ }
         const $flashcardContainer = $('#ll-tools-flashcard');
 
         // Preserve listening-mode footprint between skips to prevent control/button jumps
@@ -695,6 +1085,9 @@
                 modeModule.beforeOptionsFill(target);
             }
             Selection.fillQuizOptions(target);
+            try {
+                StarManager.updateForWord(target, { variant: State.isListeningMode ? 'listening' : 'content' });
+            } catch (_) { /* no-op */ }
 
             if (modeModule && typeof modeModule.configureTargetAudio === 'function') {
                 modeModule.configureTargetAudio(target);
@@ -935,6 +1328,7 @@
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
         newSession();
+        try { StarManager && StarManager.hide(); } catch (_) { /* no-op */ }
 
         // Clean up any overlay/gesture hooks immediately
         try {
@@ -1008,8 +1402,12 @@
                     root.LLFlashcards.Results.hideResults();
                 }
 
-                State.reset();
-                State.categoryNames = [];
+                if (State && typeof State.reset === 'function') {
+                    State.reset();
+                    State.categoryNames = [];
+                } else {
+                    console.warn('Flashcard State unavailable during cleanup');
+                }
                 $('#ll-tools-flashcard').empty();
                 $('#ll-tools-flashcard-header').hide();
                 $('#ll-tools-flashcard-quiz-popup').hide();
