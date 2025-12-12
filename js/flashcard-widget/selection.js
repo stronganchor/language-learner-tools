@@ -346,10 +346,14 @@
                 return item.reappearRound <= (State.categoryRoundCount[State.currentCategoryName] || 0);
             });
             const hasPendingQueue = Array.isArray(queue) && queue.length > 0;
-            if (hasReadyFromQueue || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
+            const starredLookup = getStarredLookup();
+            const starMode = getStarMode();
+            const hasUnusedInCurrent = getAvailableUnusedWords(State.currentCategoryName, starredLookup, starMode).length > 0;
+            const multipleCategories = Array.isArray(State.categoryNames) && State.categoryNames.length > 1;
+            if (hasReadyFromQueue || !multipleCategories || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
                 target = selectTargetWord(State.currentCategory, State.currentCategoryName);
-            } else if (hasPendingQueue) {
-                // Move this category to the end to let others run, but keep it in rotation for queued wrong answers.
+            } else if (hasPendingQueue || hasUnusedInCurrent) {
+                // Move this category to the end to let others run, but keep it in rotation for queued wrong answers or unused words.
                 const i = State.categoryNames.indexOf(State.currentCategoryName);
                 if (i > -1) {
                     State.categoryNames.splice(i, 1);
