@@ -47,12 +47,19 @@
         const categoryName = State.currentCategoryName;
         if (!categoryName || !targetWord) return;
         const queue = (State.categoryRepetitionQueues[categoryName] = State.categoryRepetitionQueues[categoryName] || []);
-        const alreadyQueued = queue.some(item => item.wordData.id === targetWord.id);
-        if (alreadyQueued) return;
+        const force = !!(options && options.force);
+
+        // If it's already queued, upgrade the entry to a forced replay (used for wrong answers)
+        const existingIndex = queue.findIndex(item => item.wordData.id === targetWord.id);
+        if (existingIndex !== -1) {
+            if (force) {
+                queue[existingIndex].forceReplay = true;
+            }
+            return;
+        }
 
         const starredLookup = getStarredLookup();
         const isStarredWord = !!starredLookup[targetWord.id];
-        const force = !!(options && options.force);
         const starMode = getStarMode();
 
         // Avoid endlessly re-queuing starred words once they've hit their allowed plays
@@ -69,7 +76,8 @@
             : ((Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 4) : (Math.floor(Math.random() * 3) + 2));
         queue.push({
             wordData: targetWord,
-            reappearRound: base + offset
+            reappearRound: base + offset,
+            forceReplay: force
         });
     }
 

@@ -744,7 +744,10 @@
             return false;
         }
 
-        rebuildWordsLinear();
+        // Build the listening sequence once per session; don't reshuffle every round
+        if (!Array.isArray(State.wordsLinear) || !State.wordsLinear.length) {
+            rebuildWordsLinear();
+        }
         queueAllSelectedCategories(loader);
 
         if ((!State.wordsLinear || !State.wordsLinear.length) && hasPendingCategoryLoads(loader)) {

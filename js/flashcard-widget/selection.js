@@ -194,8 +194,12 @@
         // and ISN'T the same as the last word shown
         if (queue && queue.length) {
             for (let i = 0; i < queue.length; i++) {
-                const queuedWord = queue[i].wordData;
-                if (!canPlayWord(queuedWord.id, starredLookup, starMode)) {
+                const queuedItem = queue[i];
+                const queuedWord = queuedItem.wordData;
+                const allowOverflow = !!queuedItem.forceReplay; // forceReplay allows wrong answers to bypass max-play caps
+                const playable = queuedWord && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
+
+                if (!playable) {
                     queue.splice(i, 1);
                     i--;
                     continue;
@@ -261,7 +265,11 @@
         // Fallback: if still no target and queue exists, pick from queue but avoid last shown
         if (!target && queue && queue.length) {
             // Try to find a word that isn't the last shown
-            let queueCandidate = queue.find(item => item.wordData.id !== State.lastWordShownId && canPlayWord(item.wordData.id, starredLookup, starMode));
+            let queueCandidate = queue.find(item => {
+                if (!item || !item.wordData) return false;
+                if (item.wordData.id === State.lastWordShownId) return false;
+                return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
+            });
 
             if (!queueCandidate && queue.length > 0) {
                 // All queue items are the last shown word, or only one word in queue
