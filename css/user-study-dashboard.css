@@ -89,6 +89,11 @@
   display: block;
 }
 
+.ll-transition-speed {
+  margin-top: 14px;
+  display: block;
+}
+
 .ll-card-title {
   display: flex;
   align-items: center;
