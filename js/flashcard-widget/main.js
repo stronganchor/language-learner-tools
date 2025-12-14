@@ -175,6 +175,75 @@
         State.addTimeout && State.addTimeout(fallback);
     }
 
+    function parseBool(val) {
+        if (val === undefined || val === null) return undefined;
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'number') return val > 0;
+        if (typeof val === 'string') {
+            const lowered = val.toLowerCase();
+            if (['1', 'true', 'yes', 'on'].includes(lowered)) return true;
+            if (['0', 'false', 'no', 'off', ''].includes(lowered)) return false;
+        }
+        return !!val;
+    }
+
+    function isUserLoggedIn() {
+        const data = root.llToolsFlashcardsData || {};
+        return !!parseBool(data.isUserLoggedIn);
+    }
+
+    function ensureStudyPrefs() {
+        const payloadState = (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) || null;
+
+        if (!root.llToolsStudyPrefs && payloadState) {
+            root.llToolsStudyPrefs = {
+                starredWordIds: Array.isArray(payloadState.starred_word_ids) ? payloadState.starred_word_ids.slice() : [],
+                starMode: payloadState.star_mode || 'weighted',
+                fastTransitions: parseBool(payloadState.fast_transitions),
+                fast_transitions: parseBool(payloadState.fast_transitions)
+            };
+        }
+
+        root.llToolsStudyPrefs = root.llToolsStudyPrefs || {};
+        const prefs = root.llToolsStudyPrefs;
+
+        if (!Array.isArray(prefs.starredWordIds)) {
+            prefs.starredWordIds = [];
+        }
+        if (typeof prefs.starMode === 'undefined' && payloadState) {
+            prefs.starMode = payloadState.star_mode || 'weighted';
+        }
+
+        if (typeof prefs.fastTransitions === 'undefined') {
+            const flashDataFastRaw = root.llToolsFlashcardsData && (root.llToolsFlashcardsData.fastTransitions ?? root.llToolsFlashcardsData.fast_transitions);
+            const payloadFast = payloadState ? parseBool(payloadState.fast_transitions) : undefined;
+            const flashFast = parseBool(flashDataFastRaw);
+            if (payloadFast !== undefined) {
+                prefs.fastTransitions = payloadFast;
+            } else if (flashFast !== undefined) {
+                prefs.fastTransitions = flashFast;
+            } else {
+                prefs.fastTransitions = false;
+            }
+        }
+        if (typeof prefs.fast_transitions === 'undefined') {
+            prefs.fast_transitions = prefs.fastTransitions;
+        }
+
+        return prefs;
+    }
+
+    function prefersFastTransitions() {
+        const prefs = ensureStudyPrefs();
+        if (typeof prefs.fastTransitions !== 'undefined') {
+            return !!prefs.fastTransitions;
+        }
+        if (typeof prefs.fast_transitions !== 'undefined') {
+            return !!prefs.fast_transitions;
+        }
+        return false;
+    }
+
     // --- Study star helpers (user study dashboard only) ---
     const StarManager = (function () {
         let currentWord = null;
@@ -184,19 +253,7 @@
         let delegatedBound = false;
 
         function ensurePrefs() {
-            if (!root.llToolsStudyPrefs && root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
-                const s = root.llToolsStudyData.payload.state || {};
-                root.llToolsStudyPrefs = {
-                    starredWordIds: Array.isArray(s.starred_word_ids) ? s.starred_word_ids.slice() : [],
-                    starMode: s.star_mode || 'weighted'
-                };
-            }
-            root.llToolsStudyPrefs = root.llToolsStudyPrefs || {};
-            const prefs = root.llToolsStudyPrefs;
-            if (!Array.isArray(prefs.starredWordIds)) {
-                prefs.starredWordIds = [];
-            }
-            return prefs;
+            return ensureStudyPrefs();
         }
 
         function normalizeIds(list) {
@@ -461,6 +518,7 @@
         }
 
         function applyStarChange(word, desiredState) {
+            if (!isUserLoggedIn()) return;
             const wordId = word && word.id ? parseInt(word.id, 10) : 0;
             if (!wordId) return;
             currentWord = word;
@@ -502,6 +560,10 @@
 
         function updateForWord(word, options) {
             currentWord = word || null;
+            if (!isUserLoggedIn()) {
+                hide();
+                return;
+            }
             if (!root.llToolsStudyPrefs && !root.llToolsStudyData) {
                 hide();
                 return;
@@ -811,6 +873,7 @@
 
         State.userClickedCorrectAnswer = true;
         const isPracticeMode = !State.isLearningMode && !State.isListeningMode;
+        const useFastTransitions = prefersFastTransitions() && (isPracticeMode || State.isLearningMode);
         const incrementCorrectOnFirstTry = function () {
             if (!State.quizResults.incorrect.includes(targetWord.id)) {
                 State.quizResults.correctOnFirstTry += 1;
@@ -823,7 +886,18 @@
             hadWrongThisTurn: State.hadWrongAnswerThisTurn
         });
 
-        if (isPracticeMode) {
+        const goToNextRound = function () {
+            State.isFirstRound = false;
+            State.userClickedCorrectAnswer = false;
+            State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
+            startQuizRound();
+        };
+
+        const fadeOtherCards = function () {
+            $('.flashcard-container').not($correctCard).addClass('fade-out');
+        };
+
+        if (useFastTransitions) {
             incrementCorrectOnFirstTry();
             try {
                 if (root.FlashcardAudio) {
@@ -844,31 +918,38 @@
                 }
             } catch (_) { /* no-op */ }
 
-            // Practice mode: clear the screen quickly for rapid quizzing
-            $('.flashcard-container').not($correctCard).addClass('fade-out');
+            fadeOtherCards();
             setGuardedTimeout(function () {
                 $correctCard.addClass('fade-out');
             }, 120);
             setGuardedTimeout(function () {
-                State.isFirstRound = false;
-                State.userClickedCorrectAnswer = false;
-                State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
-                startQuizRound();
+                goToNextRound();
             }, 360);
             return;
         }
 
-        root.FlashcardAudio.playFeedback(true, null, function () {
-            incrementCorrectOnFirstTry();
-            $('.flashcard-container').not($correctCard).addClass('fade-out');
-            // Use session-guarded timeout so closing the quiz cancels this continuation
-            setGuardedTimeout(function () {
-                State.isFirstRound = false;
-                State.userClickedCorrectAnswer = false;
-                State.transitionTo(STATES.QUIZ_READY, 'Ready for next question');
-                startQuizRound();
-            }, 600);
-        });
+        const advanceOnce = (function () {
+            let done = false;
+            return function () {
+                if (done) return;
+                done = true;
+                incrementCorrectOnFirstTry();
+                fadeOtherCards();
+                setGuardedTimeout(goToNextRound, 600);
+            };
+        })();
+
+        const audioApi = root.FlashcardAudio;
+        if (audioApi && typeof audioApi.playFeedback === 'function') {
+            try {
+                audioApi.playFeedback(true, null, advanceOnce);
+                setGuardedTimeout(advanceOnce, 1000);
+                return;
+            } catch (_) {
+                // continue to fallback below
+            }
+        }
+        advanceOnce();
     }
 
     function onWrongAnswer(targetWord, index, $wrong) {

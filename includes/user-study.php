@@ -5,6 +5,7 @@ if (!defined('WPINC')) { die; }
 define('LL_TOOLS_USER_WORDSET_META', 'll_user_study_wordset');
 define('LL_TOOLS_USER_CATEGORY_META', 'll_user_study_categories');
 define('LL_TOOLS_USER_STARRED_META', 'll_user_study_starred');
+define('LL_TOOLS_USER_FAST_TRANSITIONS_META', 'll_user_fast_transitions');
 
 /**
  * Read the saved study state for a user.
@@ -17,12 +18,15 @@ function ll_tools_get_user_study_state($user_id = 0): array {
     $starred_word_ids = (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true);
     $starred_word_ids = array_values(array_filter(array_map('intval', $starred_word_ids), function ($id) { return $id > 0; }));
     $star_mode = get_user_meta($uid, 'll_user_star_mode', true) ?: 'weighted';
+    $fast_raw = get_user_meta($uid, LL_TOOLS_USER_FAST_TRANSITIONS_META, true);
+    $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
 
     return [
         'wordset_id'       => $wordset_id,
         'category_ids'     => $category_ids,
         'starred_word_ids' => $starred_word_ids,
         'star_mode'        => $star_mode === 'only' ? 'only' : 'weighted',
+        'fast_transitions' => $fast_transitions,
     ];
 }
 
@@ -35,6 +39,8 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
     $category_ids = isset($state['category_ids']) ? (array) $state['category_ids'] : [];
     $starred_ids  = isset($state['starred_word_ids']) ? (array) $state['starred_word_ids'] : [];
     $star_mode    = isset($state['star_mode']) ? (string) $state['star_mode'] : 'weighted';
+    $fast_raw     = isset($state['fast_transitions']) ? $state['fast_transitions'] : false;
+    $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
     if ($star_mode !== 'only') { $star_mode = 'weighted'; }
 
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
@@ -44,12 +50,14 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
     update_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, $category_ids);
     update_user_meta($uid, LL_TOOLS_USER_STARRED_META, $starred_ids);
     update_user_meta($uid, 'll_user_star_mode', $star_mode);
+    update_user_meta($uid, LL_TOOLS_USER_FAST_TRANSITIONS_META, $fast_transitions ? 1 : 0);
 
     return [
         'wordset_id'       => $wordset_id,
         'category_ids'     => $category_ids,
         'starred_word_ids' => $starred_ids,
         'star_mode'        => $star_mode,
+        'fast_transitions' => $fast_transitions,
     ];
 }
 
@@ -186,6 +194,7 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
             'category_ids'     => $selected_category_ids,
             'starred_word_ids' => $state['starred_word_ids'],
             'star_mode'        => $state['star_mode'] ?? 'weighted',
+            'fast_transitions' => !empty($state['fast_transitions']),
         ],
         'words_by_category' => $words_by_category,
     ];
@@ -236,12 +245,14 @@ function ll_tools_user_study_save_ajax() {
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
     $starred_ids  = isset($_POST['starred_word_ids']) ? (array) $_POST['starred_word_ids'] : [];
     $star_mode    = isset($_POST['star_mode']) ? sanitize_text_field($_POST['star_mode']) : 'weighted';
+    $fast_transitions = filter_var($_POST['fast_transitions'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
     $payload = ll_tools_save_user_study_state([
         'wordset_id'       => $wordset_id,
         'category_ids'     => $category_ids,
         'starred_word_ids' => $starred_ids,
         'star_mode'        => $star_mode,
+        'fast_transitions' => $fast_transitions,
     ]);
 
     wp_send_json_success(['state' => $payload]);

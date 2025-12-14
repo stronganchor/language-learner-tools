@@ -10,7 +10,7 @@
     const $root = $('[data-ll-study-root]');
     if (!$root.length) { return; }
 
-    let state = Object.assign({ wordset_id: 0, category_ids: [], starred_word_ids: [], star_mode: 'weighted' }, payload.state || {});
+    let state = Object.assign({ wordset_id: 0, category_ids: [], starred_word_ids: [], star_mode: 'weighted', fast_transitions: false }, payload.state || {});
     let wordsets = payload.wordsets || [];
     let categories = payload.categories || [];
     let wordsByCategory = payload.words_by_category || {};
@@ -23,6 +23,7 @@
     const $wordsEmpty = $root.find('[data-ll-words-empty]');
     const $starCount = $root.find('[data-ll-star-count]');
     const $starModeToggle = $root.find('[data-ll-star-mode]');
+    const $transitionToggle = $root.find('[data-ll-transition-speed]');
 
     let currentAudio = null;
 
@@ -90,7 +91,9 @@
     function setStudyPrefsGlobal() {
         window.llToolsStudyPrefs = {
             starredWordIds: state.starred_word_ids ? state.starred_word_ids.slice() : [],
-            starMode: state.star_mode || 'weighted'
+            starMode: state.star_mode || 'weighted',
+            fastTransitions: !!state.fast_transitions,
+            fast_transitions: !!state.fast_transitions
         };
     }
 
@@ -109,6 +112,12 @@
         const mode = state.star_mode === 'only' ? 'only' : 'weighted';
         $starModeToggle.find('.ll-study-btn').removeClass('active');
         $starModeToggle.find('[data-mode="' + mode + '"]').addClass('active');
+    }
+
+    function renderTransitionToggle() {
+        const fast = !!state.fast_transitions;
+        $transitionToggle.find('.ll-study-btn').removeClass('active');
+        $transitionToggle.find(fast ? '[data-speed="fast"]' : '[data-speed="slow"]').addClass('active');
     }
 
     function renderCategories() {
@@ -232,7 +241,8 @@
                 wordset_id: state.wordset_id,
                 category_ids: state.category_ids,
                 starred_word_ids: state.starred_word_ids,
-                star_mode: state.star_mode || 'weighted'
+                star_mode: state.star_mode || 'weighted',
+                fast_transitions: state.fast_transitions ? 1 : 0
             });
         }, 300);
     }
@@ -267,13 +277,14 @@
             const data = res.data;
             wordsets = data.wordsets || wordsets;
             categories = data.categories || [];
-            state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'weighted' }, data.state || {});
+            state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'weighted', fast_transitions: false }, data.state || {});
             wordsByCategory = data.words_by_category || {};
             renderWordsets();
             renderCategories();
             renderWords();
             setStudyPrefsGlobal();
             renderStarModeToggle();
+            renderTransitionToggle();
         });
     }
 
@@ -313,6 +324,8 @@
         flashData.wordsetFallback = false;
         flashData.quiz_mode = mode || 'practice';
         flashData.starMode = state.star_mode || 'weighted';
+        flashData.fastTransitions = !!state.fast_transitions;
+        flashData.fast_transitions = !!state.fast_transitions;
         window.llToolsFlashcardsData = flashData;
 
         setStudyPrefsGlobal();
@@ -392,6 +405,14 @@
         saveStateDebounced();
     });
 
+    $transitionToggle.on('click', '.ll-study-btn', function () {
+        const speed = $(this).data('speed') || 'slow';
+        state.fast_transitions = speed === 'fast';
+        $(this).addClass('active').siblings().removeClass('active');
+        setStudyPrefsGlobal();
+        saveStateDebounced();
+    });
+
     $wordsWrap.on('click', '.ll-group-star', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -462,5 +483,6 @@
     renderCategories();
     renderWords();
     renderStarModeToggle();
+    renderTransitionToggle();
     setStudyPrefsGlobal();
 })(jQuery);

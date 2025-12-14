@@ -52,6 +52,10 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'starAll'          => __('Star all', 'll-tools-text-domain'),
         'unstarAll'        => __('Unstar all', 'll-tools-text-domain'),
         'playAudio'        => __('Play audio', 'll-tools-text-domain'),
+        'transitionLabel'  => __('Transition speed', 'll-tools-text-domain'),
+        'transitionHint'   => __('Keep the default smooth pacing or speed up after correct answers.', 'll-tools-text-domain'),
+        'transitionSlow'   => __('Standard', 'll-tools-text-domain'),
+        'transitionFast'   => __('Faster', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
@@ -91,6 +95,14 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                         <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></button>
                     </div>
                     <p class="ll-study-hint"><?php echo esc_html__('Choose whether practice should favor stars or only use starred words.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-transition-speed">
+                    <span class="ll-card-title-sub"><?php echo esc_html($i18n['transitionLabel']); ?></span>
+                    <div class="ll-star-toggle-group" data-ll-transition-speed>
+                        <button type="button" class="ll-study-btn tiny" data-speed="slow"><?php echo esc_html($i18n['transitionSlow']); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-speed="fast"><?php echo esc_html($i18n['transitionFast']); ?></button>
+                    </div>
+                    <p class="ll-study-hint"><?php echo esc_html($i18n['transitionHint']); ?></p>
                 </div>
             </div>
 
