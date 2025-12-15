@@ -54,7 +54,7 @@
         categoryRepetitionQueues: {},
         practiceForcedReplays: {},
         userClickedCorrectAnswer: false,
-        quizResults: { correctOnFirstTry: 0, incorrect: [] },
+        quizResults: { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} },
 
         // Learning/listening mode data
         isLearningMode: false,
@@ -268,7 +268,7 @@
             this.categoryRepetitionQueues = {};
             this.practiceForcedReplays = {};
             this.userClickedCorrectAnswer = false;
-            this.quizResults = { correctOnFirstTry: 0, incorrect: [] };
+            this.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
 
             // Reset learning mode data
             this.isLearningMode = false;
