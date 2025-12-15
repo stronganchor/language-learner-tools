@@ -194,6 +194,7 @@
 
     function ensureStudyPrefs() {
         const payloadState = (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) || null;
+        const flashState = root.llToolsFlashcardsData || {};
 
         if (!root.llToolsStudyPrefs && payloadState) {
             root.llToolsStudyPrefs = {
@@ -202,6 +203,21 @@
                 fastTransitions: parseBool(payloadState.fast_transitions),
                 fast_transitions: parseBool(payloadState.fast_transitions)
             };
+        }
+        if (!root.llToolsStudyPrefs && !payloadState) {
+            const starredFromFlash = Array.isArray(flashState.starredWordIds)
+                ? flashState.starredWordIds.slice()
+                : (Array.isArray(flashState.starred_word_ids) ? flashState.starred_word_ids.slice() : []);
+            const starModeFromFlash = flashState.starMode || flashState.star_mode;
+            const fastFromFlash = flashState.fastTransitions ?? flashState.fast_transitions;
+            if (starredFromFlash.length || starModeFromFlash || typeof fastFromFlash !== 'undefined') {
+                root.llToolsStudyPrefs = {
+                    starredWordIds: starredFromFlash,
+                    starMode: starModeFromFlash || 'weighted',
+                    fastTransitions: parseBool(fastFromFlash),
+                    fast_transitions: parseBool(fastFromFlash)
+                };
+            }
         }
 
         root.llToolsStudyPrefs = root.llToolsStudyPrefs || {};
@@ -242,6 +258,54 @@
             return !!prefs.fast_transitions;
         }
         return false;
+    }
+
+    function ensureQuizResultsShape() {
+        State.quizResults = State.quizResults || { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+        State.quizResults.wordAttempts = State.quizResults.wordAttempts || {};
+        State.quizResults.incorrect = Array.isArray(State.quizResults.incorrect) ? State.quizResults.incorrect : [];
+        return State.quizResults;
+    }
+
+    function recomputeQuizResultTotals() {
+        const results = ensureQuizResultsShape();
+        const stats = results.wordAttempts || {};
+        let correctCount = 0;
+        const incorrectSet = new Set();
+
+        Object.keys(stats).forEach(function (key) {
+            const info = stats[key] || {};
+            const seen = info.seen || 0;
+            const clean = info.clean || 0;
+            const hadWrong = !!info.hadWrong;
+            if (seen <= 0) return;
+            if (!hadWrong && clean === seen) {
+                correctCount += 1;
+            } else {
+                const numId = parseInt(key, 10);
+                incorrectSet.add(Number.isNaN(numId) ? key : numId);
+            }
+        });
+
+        results.correctOnFirstTry = correctCount;
+        results.incorrect = Array.from(incorrectSet);
+        return results;
+    }
+
+    function recordWordResult(wordId, hadWrongThisTurn) {
+        const idNum = parseInt(wordId, 10);
+        if (!idNum) return;
+        const key = String(idNum);
+        const results = ensureQuizResultsShape();
+        const stats = results.wordAttempts[key] || { seen: 0, clean: 0, hadWrong: false };
+        stats.seen += 1;
+        if (!hadWrongThisTurn) {
+            stats.clean += 1;
+        } else {
+            stats.hadWrong = true;
+        }
+        results.wordAttempts[key] = stats;
+        recomputeQuizResultTotals();
     }
 
     // --- Study star helpers (user study dashboard only) ---
@@ -564,13 +628,13 @@
                 hide();
                 return;
             }
-            if (!root.llToolsStudyPrefs && !root.llToolsStudyData) {
+            const prefs = ensurePrefs();
+            if (!prefs) {
                 hide();
                 return;
             }
-            const prefs = ensurePrefs();
             const variant = options && options.variant === 'listening' ? 'listening' : 'content';
-            if (!word || !word.id || !prefs || (!Array.isArray(prefs.starredWordIds) && !prefs.starMode)) {
+            if (!word || !word.id || (!Array.isArray(prefs.starredWordIds) && !prefs.starMode)) {
                 hide();
                 return;
             }
@@ -874,10 +938,8 @@
         State.userClickedCorrectAnswer = true;
         const isPracticeMode = !State.isLearningMode && !State.isListeningMode;
         const useFastTransitions = prefersFastTransitions() && (isPracticeMode || State.isLearningMode);
-        const incrementCorrectOnFirstTry = function () {
-            if (!State.quizResults.incorrect.includes(targetWord.id)) {
-                State.quizResults.correctOnFirstTry += 1;
-            }
+        const recordResultForWord = function () {
+            recordWordResult(targetWord.id, State.hadWrongAnswerThisTurn);
         };
 
         callModeHook('onCorrectAnswer', {
@@ -898,7 +960,7 @@
         };
 
         if (useFastTransitions) {
-            incrementCorrectOnFirstTry();
+            recordResultForWord();
             try {
                 if (root.FlashcardAudio) {
                     if (typeof root.FlashcardAudio.fadeOutAllAudio === 'function') {
@@ -933,7 +995,7 @@
             return function () {
                 if (done) return;
                 done = true;
-                incrementCorrectOnFirstTry();
+                recordResultForWord();
                 fadeOtherCards();
                 setGuardedTimeout(goToNextRound, 600);
             };
@@ -958,6 +1020,7 @@
             return;
         }
         if (State.userClickedCorrectAnswer) return;
+        ensureQuizResultsShape();
 
         callModeHook('onWrongAnswer', {
             targetWord,
@@ -976,7 +1039,8 @@
             $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
         }
 
-        if (!State.quizResults.incorrect.includes(targetWord.id)) State.quizResults.incorrect.push(targetWord.id);
+        const wrongId = parseInt(targetWord.id, 10) || targetWord.id;
+        if (!State.quizResults.incorrect.includes(wrongId)) State.quizResults.incorrect.push(wrongId);
         State.wrongIndexes.push(index);
 
         if (!isAudioLineLayout && State.wrongIndexes.length === 2) {

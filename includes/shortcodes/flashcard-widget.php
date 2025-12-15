@@ -299,6 +299,16 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
 
+    // Pull saved study prefs (stars/fast transitions) for logged-in users so the widget can reflect them outside the dashboard.
+    $user_study_state = [
+        'starred_word_ids' => [],
+        'star_mode'        => 'weighted',
+        'fast_transitions' => false,
+    ];
+    if (is_user_logged_in() && function_exists('ll_tools_get_user_study_state')) {
+        $user_study_state = ll_tools_get_user_study_state();
+    }
+
     $localized_data = [
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
@@ -315,6 +325,12 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'wordsetFallback'       => $wordset_fallback,
         'wordsetIds'            => $wordset_ids,
         'modeUi'                => ll_flashcards_get_mode_ui_config(),
+        'starredWordIds'       => $user_study_state['starred_word_ids'],
+        'starred_word_ids'     => $user_study_state['starred_word_ids'],
+        'starMode'             => $user_study_state['star_mode'] ?? 'weighted',
+        'star_mode'            => $user_study_state['star_mode'] ?? 'weighted',
+        'fastTransitions'      => !empty($user_study_state['fast_transitions']),
+        'fast_transitions'     => !empty($user_study_state['fast_transitions']),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
