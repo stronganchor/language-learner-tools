@@ -142,11 +142,8 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
 (function() {
   // Initialize the play button icon once DOM module is loaded
   function initPlayIcon() {
-    if (window.LLFlashcards && window.LLFlashcards.Dom) {
-      var btn = document.getElementById('ll-tools-repeat-flashcard');
-      if (btn && !btn.querySelector('.icon-container')) {
-        btn.innerHTML = window.LLFlashcards.Dom.getPlayIconHTML();
-      }
+    if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.setRepeatButton === 'function') {
+      window.LLFlashcards.Dom.setRepeatButton('play');
     } else {
       setTimeout(initPlayIcon, 50);
     }

@@ -80,6 +80,7 @@
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
         clearPrompt();
+        try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
 
         // IMPORTANT: pause the *previous* audio session (snapshot the id now)
         try {
@@ -1242,9 +1243,16 @@
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
                 root.FlashcardAudio.setTargetWordAudio(target);
                 Dom.enableRepeatButton();
+                try {
+                    const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
+                        ? root.FlashcardAudio.getCurrentTargetAudio()
+                        : null;
+                    if (Dom.bindRepeatButtonAudio) Dom.bindRepeatButtonAudio(targetAudioEl);
+                } catch (_) { /* no-op */ }
             } else {
                 root.FlashcardAudio.setTargetAudioHasPlayed(true);
                 Dom.disableRepeatButton();
+                try { Dom.bindRepeatButtonAudio && Dom.bindRepeatButtonAudio(null); } catch (_) { /* no-op */ }
             }
             Dom.hideLoading();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
@@ -1361,11 +1369,16 @@
                 $('#ll-tools-repeat-flashcard').off('click').on('click', function () {
                     const audio = root.FlashcardAudio.getCurrentTargetAudio();
                     if (!audio) return;
-                    if (!audio.paused) {
-                        audio.pause(); audio.currentTime = 0; Dom.setRepeatButton('play');
+                    if (!audio.paused && !audio.ended) {
+                        try { audio.pause(); audio.currentTime = 0; } catch (_) { /* ignore */ }
+                        Dom.setRepeatButton && Dom.setRepeatButton('play');
                     } else {
-                        audio.play().then(() => { Dom.setRepeatButton('stop'); }).catch(() => { });
-                        audio.onended = function () { Dom.setRepeatButton('play'); };
+                        try { audio.currentTime = 0; } catch (_) { /* no-op */ }
+                        const playPromise = audio.play();
+                        if (playPromise && typeof playPromise.catch === 'function') {
+                            playPromise.catch(() => { });
+                        }
+                        Dom.setRepeatButton && Dom.setRepeatButton('stop');
                     }
                 });
 
