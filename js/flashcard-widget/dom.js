@@ -23,6 +23,27 @@
     const playIconHTML = createPlayIcon();
     const stopIconHTML = createStopIcon();
 
+    let repeatAudio = null;
+    let repeatAudioListeners = [];
+
+    function ensureRepeatButtonContent() {
+        const $btn = $('#ll-tools-repeat-flashcard');
+        if (!$btn.length) return null;
+        if (!$btn.data('llRepeatUi')) {
+            const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
+            const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }).appendTo($iconWrap);
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < 6; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $ui.append($iconWrap, $viz);
+            $btn.empty().append($ui);
+            $btn.data('llRepeatUi', true);
+        }
+        return $btn;
+    }
+
     function updateStackForRepeat(showBtn) {
         const $stack = $('#ll-tools-category-stack');
         if (!$stack.length) return;
@@ -33,42 +54,81 @@
         }
     }
 
+    function setRepeatButtonInternal(state) {
+        const $btn = ensureRepeatButtonContent();
+        if (!$btn || !$btn.length) return;
+        // In listening mode, hide the header repeat button entirely
+        const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+        if (hideBtn) {
+            $btn.hide();
+            updateStackForRepeat(false);
+            return;
+        }
+        updateStackForRepeat(true);
+        const isPlaying = state === 'stop';
+        $btn.toggleClass('play-mode', !isPlaying);
+        $btn.toggleClass('stop-mode', isPlaying);
+        $btn.toggleClass('ll-repeat-playing', isPlaying);
+        $btn.find('.ll-audio-mini-visualizer').toggleClass('active', isPlaying);
+        $btn.attr('aria-label', isPlaying ? 'Pause audio' : 'Play audio');
+        $btn.show();
+    }
+
+    function disableRepeatButton() {
+        const $btn = ensureRepeatButtonContent();
+        if (!$btn || !$btn.length) return;
+        const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+        if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
+        $btn.addClass('disabled').prop('disabled', true);
+    }
+
+    function enableRepeatButton() {
+        const $btn = ensureRepeatButtonContent();
+        if (!$btn || !$btn.length) return;
+        const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
+        if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
+        updateStackForRepeat(true);
+        $btn.removeClass('disabled').prop('disabled', false).show();
+    }
+
+    function clearRepeatButtonBinding() {
+        if (repeatAudio && repeatAudioListeners.length) {
+            repeatAudioListeners.forEach(item => {
+                try { repeatAudio.removeEventListener(item.type, item.handler); } catch (_) { /* no-op */ }
+            });
+        }
+        repeatAudio = null;
+        repeatAudioListeners = [];
+    }
+
+    function bindRepeatButtonAudio(audio) {
+        ensureRepeatButtonContent();
+        clearRepeatButtonBinding();
+        if (!audio) {
+            setRepeatButtonInternal('play');
+            return;
+        }
+        repeatAudio = audio;
+        const onPlay = function () { setRepeatButtonInternal('stop'); };
+        const onStop = function () { setRepeatButtonInternal('play'); };
+        repeatAudioListeners = [
+            { type: 'play', handler: onPlay },
+            { type: 'playing', handler: onPlay },
+            { type: 'ended', handler: onStop },
+            { type: 'pause', handler: onStop },
+            { type: 'emptied', handler: onStop }
+        ];
+        repeatAudioListeners.forEach(item => {
+            try { audio.addEventListener(item.type, item.handler, { passive: true }); }
+            catch (_) { audio.addEventListener(item.type, item.handler); }
+        });
+        if (!audio.paused && !audio.ended) onPlay(); else onStop();
+    }
+
     const Dom = {
-        setRepeatButton(state) {
-            const $btn = $('#ll-tools-repeat-flashcard');
-            if (!$btn.length) return;
-            // In listening mode, hide the header repeat button entirely
-            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
-            if (hideBtn) {
-                $btn.hide();
-                updateStackForRepeat(false);
-                return;
-            }
-            updateStackForRepeat(true);
-            if (state === 'stop') {
-                $btn.html(stopIconHTML);
-                $btn.removeClass('play-mode').addClass('stop-mode');
-            } else {
-                $btn.html(playIconHTML);
-                $btn.removeClass('stop-mode').addClass('play-mode');
-            }
-            $btn.show();
-        },
-        disableRepeatButton() {
-            const $btn = $('#ll-tools-repeat-flashcard');
-            if (!$btn.length) return;
-            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
-            if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
-            $btn.addClass('disabled').prop('disabled', true);
-        },
-        enableRepeatButton() {
-            const $btn = $('#ll-tools-repeat-flashcard');
-            if (!$btn.length) return;
-            const hideBtn = State && (State.isListeningMode || State.currentPromptType === 'image');
-            if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
-            updateStackForRepeat(true);
-            $btn.removeClass('disabled').prop('disabled', false).show();
-        },
+        setRepeatButton: setRepeatButtonInternal,
+        disableRepeatButton: disableRepeatButton,
+        enableRepeatButton: enableRepeatButton,
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
             $('#ll-tools-category-stack, #ll-tools-category-display').show();
@@ -219,7 +279,9 @@
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },
-        getStopIconHTML() { return createStopIcon(); }
+        getStopIconHTML() { return createStopIcon(); },
+        bindRepeatButtonAudio,
+        clearRepeatButtonBinding
     };
 
     // legacy alias some code expects:

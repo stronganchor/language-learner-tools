@@ -344,7 +344,8 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
     }
 
     // Ensure flashcard assets + data are present
-    $atts = ['mode' => 'random', 'wordset' => $wordset_spec, 'wordset_fallback' => ($wordset_spec !== '' ? false : true)];
+    // For popup usage, do not fall back to an "active" wordset; allow all wordsets unless one is explicitly provided.
+    $atts = ['mode' => 'random', 'wordset' => $wordset_spec, 'wordset_fallback' => false];
     $localized_wordset_ids = $wordset_ids;
     ll_flashcards_enqueue_and_localize(array_merge($atts, ['wordset_ids_for_popup' => $localized_wordset_ids]), $categories, false, [], '');
 
@@ -570,11 +571,8 @@ function ll_qpg_print_flashcard_shell_once() {
     (function($){
         // Initialize play icon
         function initPlayIcon() {
-            if (window.LLFlashcards && window.LLFlashcards.Dom) {
-            var btn = document.getElementById('ll-tools-repeat-flashcard');
-            if (btn && !btn.querySelector('.icon-container')) {
-                btn.innerHTML = window.LLFlashcards.Dom.getPlayIconHTML();
-            }
+            if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.setRepeatButton === 'function') {
+                window.LLFlashcards.Dom.setRepeatButton('play');
             } else {
             setTimeout(initPlayIcon, 50);
             }
@@ -599,8 +597,8 @@ function ll_qpg_print_flashcard_shell_once() {
 
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
-                // When a wordset is explicitly provided, do NOT fall back to others.
-                window.llToolsFlashcardsData.wordsetFallback = currentWordset ? false : true;
+                // Never force a fallback wordset for popup launch; keep the selection wide open unless an ID/slug is provided.
+                window.llToolsFlashcardsData.wordsetFallback = false;
                 window.llToolsFlashcardsData.quiz_mode = mode;
                 if (parsedWordsetIds.length) {
                     window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds;

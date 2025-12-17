@@ -110,6 +110,19 @@
             if (starMode === 'only' && !starredLookup[w.id]) return false;
             return true;
         });
+        if (filtered.length) return filtered;
+
+        // If "starred only" yields nothing for this category/wordset, relax to weighted so the quiz can run.
+        if (starMode === 'only') {
+            return list.filter(function (w) {
+                const usedCount = counts[w.id] || 0;
+                const alreadyUsed = State.usedWordIDs.includes(w.id);
+                const maxUses = starredLookup[w.id] ? 2 : 1;
+                const plays = Math.max(usedCount, alreadyUsed ? 1 : 0);
+                return plays < maxUses;
+            });
+        }
+
         return filtered;
     }
 

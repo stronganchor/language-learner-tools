@@ -569,6 +569,11 @@
                 return;
             }
 
+            if (Dom && typeof Dom.bindRepeatButtonAudio === 'function') {
+                Dom.bindRepeatButtonAudio(managedAudio.audio || null);
+                if (Dom.setRepeatButton) Dom.setRepeatButton('stop');
+            }
+
             managedAudio.playUntilEnd()
                 .then(() => {
                     if (State.abortAllOperations || !managedAudio.isValid() || !State.isIntroducing()) {
