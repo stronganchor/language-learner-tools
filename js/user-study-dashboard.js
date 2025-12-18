@@ -330,10 +330,10 @@
 
         setStudyPrefsGlobal();
 
+        $('body').addClass('ll-tools-flashcard-open');
         const $popup = $root.find('#ll-tools-flashcard-popup');
         $popup.show();
         $popup.find('#ll-tools-flashcard-quiz-popup').show();
-        $('body').addClass('ll-tools-flashcard-open');
 
         if (typeof window.initFlashcardWidget === 'function') {
             window.initFlashcardWidget(catNames, mode || 'practice');

@@ -48,6 +48,13 @@ body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
+body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-popup,
+body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-category-selection-popup,
+body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-quiz-popup,
+body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-switcher-wrap {
+    display: none !important;
+}
+
 /* Repeat button (play + mini visualizer) */
 #ll-tools-repeat-flashcard {
     background: #ffffff;

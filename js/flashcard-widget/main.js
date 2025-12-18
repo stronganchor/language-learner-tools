@@ -250,6 +250,70 @@
         return prefs;
     }
 
+    // If a user has selected "starred only" but there are no starred words available for
+    // the current single-category quiz (common for quiz grid popups), fall back to
+    // weighted mode so the quiz can run instead of showing a generic loading error.
+    function maybeFallbackStarModeForSingleCategoryQuiz() {
+        try {
+            // Only apply this fallback to the quiz-pages-grid popup flow.
+            const isQpgPopup = !!(typeof document !== 'undefined' &&
+                document.body &&
+                document.body.classList &&
+                document.body.classList.contains('ll-qpg-popup-active'));
+            if (!isQpgPopup) return;
+
+            const prefs = ensureStudyPrefs();
+            const flashState = root.llToolsFlashcardsData || {};
+
+            const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'weighted';
+            const starMode = (modeRaw === 'only') ? 'only' : 'weighted';
+            if (starMode !== 'only') return;
+
+            const starred = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+            const starredSet = new Set(
+                starred
+                    .map(function (v) { return parseInt(v, 10) || 0; })
+                    .filter(function (n) { return n > 0; })
+            );
+
+            // If there are no starred words at all, starred-only mode can never play anything.
+            if (starredSet.size === 0) {
+                prefs.starMode = 'weighted';
+                prefs.star_mode = 'weighted';
+                if (root.llToolsFlashcardsData) {
+                    root.llToolsFlashcardsData.starMode = 'weighted';
+                    root.llToolsFlashcardsData.star_mode = 'weighted';
+                }
+                console.warn('LL Tools: Starred-only mode has no starred words; using weighted mode for this quiz.');
+                return;
+            }
+
+            const cats = Array.isArray(State.categoryNames) ? State.categoryNames.filter(Boolean) : [];
+            if (cats.length !== 1) return;
+
+            const catName = cats[0];
+            const words = (State.wordsByCategory && State.wordsByCategory[catName]) || [];
+            if (!Array.isArray(words) || words.length === 0) return;
+
+            const hasAnyStarredInCategory = words.some(function (w) {
+                const id = w && w.id ? (parseInt(w.id, 10) || 0) : 0;
+                return id > 0 && starredSet.has(id);
+            });
+
+            if (hasAnyStarredInCategory) return;
+
+            prefs.starMode = 'weighted';
+            prefs.star_mode = 'weighted';
+            if (root.llToolsFlashcardsData) {
+                root.llToolsFlashcardsData.starMode = 'weighted';
+                root.llToolsFlashcardsData.star_mode = 'weighted';
+            }
+            console.warn('LL Tools: No starred words in this category; using weighted mode for this quiz.');
+        } catch (e) {
+            console.warn('LL Tools: Star-mode fallback failed', e);
+        }
+    }
+
     function prefersFastTransitions() {
         const prefs = ensureStudyPrefs();
         if (typeof prefs.fastTransitions !== 'undefined') {
@@ -1069,6 +1133,9 @@
             }
 
             const bootstrapFirstRound = function () {
+                // Ensure "starred only" can't accidentally produce a no-words error for single-category popups.
+                maybeFallbackStarModeForSingleCategoryQuiz();
+
                 root.FlashcardOptions.initializeOptionsCount(number_of_options);
 
                 callModeHook('onFirstRoundStart', {
