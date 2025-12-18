@@ -220,20 +220,42 @@
             const cfg = getCategoryConfig(categoryName);
             const wordset = window.llToolsFlashcardsData?.wordset || '';
             const wsFallback = !!(window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordsetFallback);
+            const nonce = (window.llToolsFlashcardsData && (window.llToolsFlashcardsData.ajaxNonce || window.llToolsFlashcardsData._ajax_nonce || window.llToolsFlashcardsData.nonce)) || '';
+
+            const payload = {
+                action: 'll_get_words_by_category',
+                category: categoryName,
+                display_mode: displayMode,
+                wordset: wordset,  // This ensures wordset is always passed
+                wordset_fallback: wsFallback ? '1' : '0',
+                prompt_type: cfg.prompt_type || 'audio',
+                option_type: cfg.option_type || displayMode
+            };
+            if (nonce) {
+                payload._ajax_nonce = nonce;
+            }
+            try {
+                window.__LL_LAST_WORDS_AJAX = {
+                    startedAt: Date.now(),
+                    category: categoryName,
+                    url: (window.llToolsFlashcardsData && window.llToolsFlashcardsData.ajaxurl) ? window.llToolsFlashcardsData.ajaxurl : '',
+                    page: window.location && window.location.href ? window.location.href : '',
+                    payload: Object.assign({}, payload)
+                };
+            } catch (_) {}
 
             $.ajax({
                 url: llToolsFlashcardsData.ajaxurl,
                 method: 'POST',
-                data: {
-                    action: 'll_get_words_by_category',
-                    category: categoryName,
-                    display_mode: displayMode,
-                    wordset: wordset,  // This ensures wordset is always passed
-                    wordset_fallback: wsFallback ? '1' : '0',
-                    prompt_type: cfg.prompt_type || 'audio',
-                    option_type: cfg.option_type || displayMode
-                },
+                dataType: 'json',
+                data: payload,
                 success: function (response) {
+                    try {
+                        if (window.__LL_LAST_WORDS_AJAX) {
+                            window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
+                            window.__LL_LAST_WORDS_AJAX.response = response;
+                        }
+                    } catch (_) {}
                     if (response.success) {
                         processFetchedWordData(response.data, categoryName);
                         if (earlyCallback && typeof callback === 'function') {
@@ -245,12 +267,28 @@
                         }
                         loadedCategories.push(cacheKey);
                     } else {
-                        console.error('Failed to load words for category:', categoryName);
+                        console.error('Failed to load words for category:', categoryName, response);
                         if (typeof callback === 'function') callback();
                     }
                 },
                 error: function (xhr, status, error) {
-                    console.error('AJAX request failed for category:', categoryName, 'Error:', error);
+                    try {
+                        if (window.__LL_LAST_WORDS_AJAX) {
+                            window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
+                            window.__LL_LAST_WORDS_AJAX.error = {
+                                status: status,
+                                error: error,
+                                httpStatus: xhr && typeof xhr.status !== 'undefined' ? xhr.status : null,
+                                responseText: xhr && typeof xhr.responseText === 'string' ? xhr.responseText : ''
+                            };
+                        }
+                    } catch (_) {}
+                    console.error('AJAX request failed for category:', categoryName, {
+                        status: status,
+                        error: error,
+                        httpStatus: xhr && typeof xhr.status !== 'undefined' ? xhr.status : null,
+                        responseText: xhr && typeof xhr.responseText === 'string' ? xhr.responseText : ''
+                    });
                     if (typeof callback === 'function') callback();
                 }
             });

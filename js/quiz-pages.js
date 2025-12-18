@@ -116,7 +116,14 @@
 
         try {
             // If some other script replaced the global with a custom one, still call it:
-            window.llOpenFlashcardForCategory(cat, { url: url });
+            var opts = { url: url, triggerEl: trigger };
+            var mode = trigger.getAttribute('data-mode') || '';
+            var wordsetId = trigger.getAttribute('data-wordset-id') || '';
+            var wordset = trigger.getAttribute('data-wordset') || '';
+            if (mode) opts.mode = mode;
+            if (wordsetId) opts.wordsetId = wordsetId;
+            else if (wordset) opts.wordset = wordset;
+            window.llOpenFlashcardForCategory(cat, opts);
         } catch (e) {
             // Ultimate fallback: navigate
             window.location.href = url || buildFallbackUrl(cat);

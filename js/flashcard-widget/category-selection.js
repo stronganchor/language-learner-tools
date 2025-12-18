@@ -120,8 +120,8 @@
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function () {
         syncWordsetFromDataset(this);
-        $('#ll-tools-flashcard-popup').show();
         $('body').addClass('ll-tools-flashcard-open');
+        $('#ll-tools-flashcard-popup').show();
 
         // Prepare categoriesPreselected with untranslated names
         var preselectedCategories = llToolsFlashcardsData.categories.map(function (category) {
@@ -137,6 +137,29 @@
         }
     });
 
+    $('#ll-tools-close-flashcard').on('click.llFallbackClose', function (e) {
+        e.preventDefault();
+        try {
+            if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.closeFlashcard === 'function') {
+                window.LLFlashcards.Main.closeFlashcard();
+                return;
+            }
+        } catch (_) {}
+
+        try { $('#ll-tools-category-selection-popup').hide(); } catch (_) {}
+        try { $('#ll-tools-flashcard-quiz-popup').hide(); } catch (_) {}
+        try { $('#ll-tools-flashcard-popup').hide(); } catch (_) {}
+        try {
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
+            $('html').css('overflow', '');
+        } catch (_) {}
+        try {
+            document.body.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active');
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        } catch (_) {}
+    });
+
     // Event handler for the close button on the category selection screen
     $('#ll-tools-close-category-selection').on('click', function () {
         $('#ll-tools-category-selection-popup').hide();
@@ -144,12 +167,12 @@
         try {
             $('body').removeClass('ll-tools-flashcard-open').css('overflow', '');
             $('html').css('overflow', '');
-        } catch (_) { /* ignore */ }
+        } catch (_) {}
         try {
             document.body.classList.remove('ll-tools-flashcard-open');
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
-        } catch (_) { /* ignore */ }
+        } catch (_) {}
     });
 
 })(jQuery);

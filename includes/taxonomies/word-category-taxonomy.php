@@ -668,6 +668,7 @@ function ll_tools_get_preferred_speaker_for_word($word_id): int {
         'post_parent'    => (int) $word_id,
         'post_status'    => ['publish','pending','draft'],
         'posts_per_page' => -1,
+        'suppress_filters' => true,
         'fields'         => 'ids',
     ]);
     if (empty($audio_posts)) { return 0; }
@@ -867,6 +868,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'post_type'      => 'words',
         'post_status'    => 'publish',
         'posts_per_page' => -1,
+        'suppress_filters' => true,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
             'field'    => 'name',
@@ -912,6 +914,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'post_parent'    => $word_id,
             'post_status'    => 'publish',
             'posts_per_page' => -1,
+            'suppress_filters' => true,
             'orderby'        => 'date',
             'order'          => 'DESC',
         ]);

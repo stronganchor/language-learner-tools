@@ -108,9 +108,9 @@ if ($term && !is_wp_error($term)) {
         function showQuizUI() {
             var $ = window.jQuery;
             if (!$) return setTimeout(showQuizUI, 16);
+            $('body').addClass('ll-tools-flashcard-open');
             $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
             $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
-            $('body').addClass('ll-tools-flashcard-open');
         }
 
         function initializeQuiz() {

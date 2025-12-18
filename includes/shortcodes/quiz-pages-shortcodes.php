@@ -158,14 +158,14 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
     $allowed_term_ids = null;
 
-    $wordset_id_for_item = 0;
     $ws_ids = [];
+    $filtered_wordset_id = 0;
     if (!empty($opts['wordset'])) {
         $ws_ids = ll_raw_resolve_wordset_term_ids($opts['wordset']);
         if (empty($ws_ids)) return []; // nothing by that slug/name/id
         $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($ws_ids);
         if (empty($allowed_term_ids)) return []; // no categories used by that wordset
-        $wordset_id_for_item = (int) ($ws_ids[0] ?? 0);
+        $filtered_wordset_id = (int) ($ws_ids[0] ?? 0);
     }
 
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
@@ -220,15 +220,23 @@ function ll_get_all_quiz_pages_data($opts = []) {
             if (!empty($t)) $translation = html_entity_decode($t, ENT_QUOTES, 'UTF-8');
         }
 
-        // Determine wordset slug
+        // Determine wordset slug / id for this specific item (do NOT leak values across items)
         $wordset_slug = '';
+        $wordset_id_for_item = 0;
         if (!empty($opts['wordset'])) {
             // If filtered by wordset, use that slug
             $wordset_slug = sanitize_text_field($opts['wordset']);
-            $wordset_id_for_item = $wordset_id_for_item ?: (int) ($ws_ids[0] ?? 0);
+            $wordset_id_for_item = $filtered_wordset_id;
         } else {
             // No filter: select default wordset for this category
             $default_ws_id = ll_get_default_wordset_id_for_category($name, $min_word_count);
+            // Ensure the chosen default wordset can actually generate a playable quiz for this category.
+            // If not, fall back to "no wordset filter" (use words across all wordsets).
+            if ($default_ws_id > 0 && function_exists('ll_can_category_generate_quiz')) {
+                if (!ll_can_category_generate_quiz($term, $min_word_count, [$default_ws_id])) {
+                    $default_ws_id = 0;
+                }
+            }
             if ($default_ws_id > 0) {
                 $default_term = get_term($default_ws_id, 'wordset');
                 if ($default_term && !is_wp_error($default_term)) {
@@ -319,12 +327,11 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
 
     $wordset_spec = sanitize_text_field((string) $wordset_spec);
     $wordset_ids  = function_exists('ll_flashcards_resolve_wordset_ids')
-        ? ll_flashcards_resolve_wordset_ids($wordset_spec, false) // Do NOT fall back to the active wordset; we need all categories for the popup shell.
+        ? ll_flashcards_resolve_wordset_ids($wordset_spec, false)
         : [];
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
 
-    // Use the same category builder as the widget so filtering + min-word logic stays consistent.
     if (function_exists('ll_flashcards_build_categories')) {
         [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
     } else {
@@ -343,16 +350,12 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
         }, $all_terms);
     }
 
-    // Ensure flashcard assets + data are present
-    // For popup usage, do not fall back to an "active" wordset; allow all wordsets unless one is explicitly provided.
     $atts = ['mode' => 'random', 'wordset' => $wordset_spec, 'wordset_fallback' => false];
     $localized_wordset_ids = $wordset_ids;
     ll_flashcards_enqueue_and_localize(array_merge($atts, ['wordset_ids_for_popup' => $localized_wordset_ids]), $categories, false, [], '');
 
-    // Ensure the popup shell is printed late in the page
     add_action('wp_footer', 'll_qpg_print_flashcard_shell_once');
 
-    // Keep the overlay above anything (incl. WP admin bar)
     echo '<style id="ll-qpg-popup-zfix">
       body.ll-qpg-popup-active #ll-tools-flashcard-container,
       body.ll-qpg-popup-active #ll-tools-flashcard-popup,
@@ -360,13 +363,9 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
       body.ll-qpg-popup-active #ll-tools-flashcard-content{height:100%;overflow:auto}
     </style>';
 
-    // Robust delegated click binding:
-    //  - Works with or without jQuery
-    //  - Prevents href="#" navigation
     ?>
     <script>
     (function(){
-      // Bind only once across multiple shortcode instances
       if (window.__LL_QPG_DELEGATED_BOUND) { return; }
       window.__LL_QPG_DELEGATED_BOUND = true;
       function openFromAnchor(a){
@@ -378,7 +377,6 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var optionTypeHint = a.getAttribute('data-option-type') || '';
             if (!cat) return;
 
-            // Ensure the category exists in the localized list with the correct display mode
             try {
                 if (window.llToolsFlashcardsData) {
                     var found = null;
@@ -413,7 +411,6 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             }
       }
 
-      // Vanilla JS delegation
       function vanillaBind(){
         document.removeEventListener('click', vanillaHandler, true);
         document.addEventListener('click', vanillaHandler, true);
@@ -422,7 +419,6 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
         var a = e.target.closest && e.target.closest('.ll-quiz-page-trigger');
         if (!a) return;
         e.preventDefault();
-        // Stop other capture listeners from also firing
         if (typeof e.stopImmediatePropagation === 'function') {
           e.stopImmediatePropagation();
         } else {
@@ -431,7 +427,6 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
         openFromAnchor(a);
       }
 
-      // If jQuery exists, also bind via jQuery (nice to have)
       function jqueryBind($){
         $(document).off('click.llqpg', '.ll-quiz-page-trigger')
                    .on('click.llqpg', '.ll-quiz-page-trigger', function(ev){
@@ -569,7 +564,6 @@ function ll_qpg_print_flashcard_shell_once() {
 
     <script>
     (function($){
-        // Initialize play icon
         function initPlayIcon() {
             if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.setRepeatButton === 'function') {
                 window.LLFlashcards.Dom.setRepeatButton('play');
@@ -579,33 +573,53 @@ function ll_qpg_print_flashcard_shell_once() {
         }
         initPlayIcon();
 
-        // Called by the grid link (guarded against double-activation)
         window.llOpenFlashcardForCategory = function(catName, wordset, mode){
             if (!catName) return;
 
+            var opts = null;
+            if (wordset && typeof wordset === 'object') {
+                opts = wordset;
+                wordset = '';
+                mode = (opts && (opts.mode || opts.quiz_mode)) || mode || 'practice';
+                if (opts) {
+                    wordset = opts.wordsetId || opts.wordset_id || opts.wordset || '';
+                    try {
+                        if (!wordset && opts.triggerEl && opts.triggerEl.getAttribute) {
+                            wordset = opts.triggerEl.getAttribute('data-wordset-id') ||
+                                opts.triggerEl.getAttribute('data-wordset') || '';
+                        }
+                        if ((!mode || mode === 'practice') && opts.triggerEl && opts.triggerEl.getAttribute) {
+                            mode = opts.triggerEl.getAttribute('data-mode') || mode;
+                        }
+                    } catch (_) {}
+                }
+            }
+
             mode = mode || 'practice';
+
+            if (wordset && typeof wordset !== 'string' && typeof wordset !== 'number') {
+                wordset = '';
+            }
+            wordset = String(wordset || '');
+
             var parsedWordsetIds = [];
-            var wordsetIsNumeric = wordset && !isNaN(parseInt(wordset, 10));
+            var wordsetIsNumeric = wordset !== '' && !isNaN(parseInt(wordset, 10));
             if (wordsetIsNumeric) {
                 var wid = parseInt(wordset, 10);
                 if (wid > 0) { parsedWordsetIds.push(wid); }
             }
 
-            var previousWordset = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordset) || '';
-            var currentWordset = wordset || '';
+            var previousWordset = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.wordset !== undefined)
+                ? String(window.llToolsFlashcardsData.wordset || '')
+                : '';
+            var currentWordset = wordset;
             var wordsetChanged = (previousWordset !== currentWordset);
 
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
-                // Never force a fallback wordset for popup launch; keep the selection wide open unless an ID/slug is provided.
                 window.llToolsFlashcardsData.wordsetFallback = false;
                 window.llToolsFlashcardsData.quiz_mode = mode;
-                if (parsedWordsetIds.length) {
-                    window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds;
-                } else if (currentWordset === '') {
-                    // If no wordset specified, clear ids so defaults apply
-                    window.llToolsFlashcardsData.wordsetIds = [];
-                }
+                window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
             }
 
             if (wordsetChanged && window.FlashcardLoader) {
@@ -624,10 +638,10 @@ function ll_qpg_print_flashcard_shell_once() {
 
             try { document.body.classList.add('ll-qpg-popup-active'); } catch (_) {}
             try { $('body').addClass('ll-qpg-popup-active'); } catch (_) {}
+            $('body').addClass('ll-tools-flashcard-open');
             $('#ll-tools-flashcard-container').show();
             $('#ll-tools-flashcard-popup').show();
-            $('#ll-tools-flashcard-quiz-popup').show();
-            $('body').addClass('ll-tools-flashcard-open');
+            $('#ll-tools-flashcard-quiz-popup').css('display', 'flex');
             try {
                 var p = initFlashcardWidget([catName], mode);
                 if (p && typeof p.finally === 'function') {

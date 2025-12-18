@@ -314,6 +314,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'quiz_mode'             => $quiz_mode,
         'plugin_dir'            => LL_TOOLS_BASE_URL,
         'ajaxurl'               => admin_url('admin-ajax.php'),
+        'ajaxNonce'             => is_user_logged_in() ? wp_create_nonce('ll_get_words_by_category') : '',
         'categories'            => $categories,
         'isUserLoggedIn'        => is_user_logged_in(),
         'categoriesPreselected' => $preselected,
