@@ -84,12 +84,11 @@
 
         const starredLookup = getStarredLookup();
         const isStarredWord = !!starredLookup[targetWord.id];
-        const starMode = getStarMode();
 
         // Avoid endlessly re-queuing starred words once they've hit their allowed plays
         State.starPlayCounts = State.starPlayCounts || {};
         const plays = State.starPlayCounts[targetWord.id] || 0;
-        const maxUses = (starMode === 'weighted' && isStarredWord) ? 2 : 1;
+        const maxUses = isStarredWord ? 2 : 1;
         if (!force && isStarredWord && plays >= maxUses) {
             return;
         }
@@ -124,7 +123,8 @@
     function selectTargetWord() {
         FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
         const picked = Selection.selectTargetWordAndCategory();
-        if (picked && isStarred(picked.id)) {
+        const starMode = getStarMode();
+        if (picked && starMode === 'weighted' && isStarred(picked.id)) {
             queueForRepetition(picked);
         }
         return picked;

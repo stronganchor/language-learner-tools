@@ -112,18 +112,7 @@
         });
         if (filtered.length) return filtered;
 
-        // If "starred only" yields nothing for this category/wordset, relax to weighted so the quiz can run.
-        if (starMode === 'only') {
-            return list.filter(function (w) {
-                const usedCount = counts[w.id] || 0;
-                const alreadyUsed = State.usedWordIDs.includes(w.id);
-                const maxUses = starredLookup[w.id] ? 2 : 1;
-                const plays = Math.max(usedCount, alreadyUsed ? 1 : 0);
-                return plays < maxUses;
-            });
-        }
-
-        return filtered;
+        return [];
     }
 
     function getTargetCategoryName(word) {
@@ -275,8 +264,14 @@
                     didRecordPlay = true;
                 }
             } else {
-                // Only queued items remain; handled above; keep category alive for queue.
-                return null;
+                // Only queued items remain. If multiple categories are in rotation,
+                // let another category run while this queue "matures". If this is the
+                // only category, fall through to the queue fallback below to avoid
+                // stalling on tiny word sets.
+                const multipleCategories = Array.isArray(State.categoryNames) && State.categoryNames.length > 1;
+                if (multipleCategories) {
+                    return null;
+                }
             }
         }
 

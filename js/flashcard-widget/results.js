@@ -178,11 +178,40 @@
         const total = State.quizResults.correctOnFirstTry + State.quizResults.incorrect.length;
 
         if (total === 0) {
+            // This usually means no questions were shown (e.g., "starred only" but nothing is starred in this selection).
+            const prefs = root.llToolsStudyPrefs || {};
+            const modeRaw = (prefs.starMode || prefs.star_mode || (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || 'weighted');
+            const starMode = modeRaw === 'only' ? 'only' : 'weighted';
+            const starredIds = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+
             $('#quiz-results-title').text(msgs.somethingWentWrong || 'Something went wrong');
-            $('#quiz-results-message').hide();
+            const fallbackMsg = (starMode === 'only')
+                ? (
+                    starredIds.length
+                        ? "No questions were shown. You're using “Starred only”, but none of your starred words are in this quiz selection."
+                        : "No questions were shown. You're using “Starred only”, but you don't have any starred words yet."
+                )
+                : 'No questions were shown for this quiz selection.';
+            $('#quiz-results-message').text(fallbackMsg).show();
+            $('#correct-count').parent().hide();
             $('#quiz-results').show();
-            $('#restart-quiz').hide();
-            $('#quiz-mode-buttons').hide();
+
+            Dom.hideLoading();
+            $('#ll-tools-repeat-flashcard').hide();
+            $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+
+            // Keep the mode buttons available so the user can retry without being stuck.
+            $('#restart-quiz').show();
+            $('#quiz-mode-buttons').show();
+            $('#restart-practice-mode').show();
+            if (learningAllowed) {
+                $('#restart-learning-mode').show();
+            } else {
+                $('#restart-learning-mode').hide();
+            }
+            $('#restart-listening-mode').hide();
+            renderCategories(true);
+
             // Avoid playing feedback if the widget is closing/idle
             try {
                 var isClosing = false;

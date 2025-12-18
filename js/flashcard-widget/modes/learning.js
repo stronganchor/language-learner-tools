@@ -198,10 +198,16 @@
 
         // Build wordsToIntroduce deterministically (single pass) if empty
         if (!Array.isArray(State.wordsToIntroduce) || !State.wordsToIntroduce.length) {
+            const seen = new Set();
             const allIds = [];
             for (const name of (State.categoryNames || [])) {
                 const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
-                for (const w of list) allIds.push(w.id);
+                for (const w of list) {
+                    const id = parseInt(w.id, 10);
+                    if (!id || seen.has(id)) continue;
+                    seen.add(id);
+                    allIds.push(id);
+                }
             }
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
