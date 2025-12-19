@@ -1061,6 +1061,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 
 /* Floating mode switcher (single toggle + expanding menu) */
 .ll-tools-mode-switcher-wrap {
+    --ll-tools-fab-size: 56px;
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -1084,8 +1085,11 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 .ll-tools-settings-button {
-    width: 56px;
-    height: 56px;
+    width: var(--ll-tools-fab-size);
+    height: var(--ll-tools-fab-size);
+    min-width: var(--ll-tools-fab-size);
+    min-height: var(--ll-tools-fab-size);
+    flex: 0 0 var(--ll-tools-fab-size);
     border-radius: 50%;
     background: #6b7280;
     color: #ffffff;
@@ -1139,6 +1143,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     pointer-events: none;
     transition: opacity 0.15s ease, transform 0.15s ease;
     z-index: 10002;
+    isolation: isolate;
 }
 
 .ll-tools-settings-panel[aria-hidden="false"] {
@@ -1148,8 +1153,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 .ll-tools-mode-switcher {
-    width: 56px;
-    height: 56px;
+    width: var(--ll-tools-fab-size);
+    height: var(--ll-tools-fab-size);
     border-radius: 50%;
     background: #1d4ed8;
     /* blue-700 */
@@ -1192,8 +1197,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 .ll-tools-mode-option {
-    width: 56px;
-    height: 56px;
+    width: var(--ll-tools-fab-size);
+    height: var(--ll-tools-fab-size);
     border-radius: 50%;
     border: 1px solid #e5e7eb;
     /* subtle ring to separate on light bg */
@@ -1299,42 +1304,75 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 .ll-tools-settings-options {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    width: 100%;
 }
 
 .ll-tools-settings-option {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 8px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
     font-size: 13px;
     font-weight: 600;
+    line-height: 1.35;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
     background: #f8fafc;
     color: #111827;
     cursor: pointer;
+    text-align: center;
+    -webkit-appearance: none;
+    appearance: none;
     transition: all 0.15s ease;
+    pointer-events: auto;
+    float: none;
 }
 
-.ll-tools-settings-option:hover {
-    border-color: #cbd5e1;
-    background: #eef2ff;
+#ll-tools-settings-panel .ll-tools-settings-option {
+    background: #f8fafc !important;
+    border-color: #e5e7eb !important;
+    color: #111827 !important;
+    box-shadow: none;
+    pointer-events: auto !important;
 }
 
-.ll-tools-settings-option.active,
-.ll-tools-settings-option[aria-pressed="true"] {
-    background: #1d4ed8;
-    color: #ffffff;
-    border-color: #1d4ed8;
-    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25);
+#ll-tools-settings-panel .ll-tools-settings-option:hover {
+    border-color: #cbd5e1 !important;
+    background: #eef2ff !important;
 }
 
-.ll-tools-settings-option:focus-visible {
-    outline: 2px solid #38bdf8;
+#ll-tools-settings-panel .ll-tools-settings-option:active {
+    background: #dbeafe !important;
+    border-color: #cbd5e1 !important;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option.active,
+#ll-tools-settings-panel .ll-tools-settings-option[aria-pressed="true"] {
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+    border-color: #1d4ed8 !important;
+    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25) !important;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option:focus-visible {
+    outline: 2px solid #38bdf8 !important;
     outline-offset: 2px;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option:disabled,
+#ll-tools-settings-panel .ll-tools-settings-option[aria-disabled="true"] {
+    background: #f3f4f6 !important;
+    color: #9ca3af !important;
+    border-color: #e5e7eb !important;
+    cursor: not-allowed;
+    box-shadow: none !important;
+    opacity: 0.8;
+    pointer-events: none !important;
 }
 
 @media (max-width: 480px) {
@@ -1348,19 +1386,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
         margin-top: 12px;
     }
 
-    .ll-tools-settings-button {
-        width: 48px;
-        height: 48px;
-    }
-
     .ll-tools-settings-button .mode-icon {
         font-size: 20px;
-    }
-
-    .ll-tools-mode-switcher,
-    .ll-tools-mode-option {
-        width: 48px;
-        height: 48px;
     }
 
     .ll-tools-mode-switcher .mode-icon {

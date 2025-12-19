@@ -261,67 +261,68 @@
         return prefs;
     }
 
-    // If a user has selected "starred only" but there are no starred words available for
-    // the current single-category quiz (common for quiz grid popups), fall back to
-    // weighted mode so the quiz can run instead of showing a generic loading error.
+    // If "starred only" is selected but no starred words exist in the current quiz
+    // selection, temporarily fall back to weighted mode for this quiz session only
+    // without changing the saved user preference.
     function maybeFallbackStarModeForSingleCategoryQuiz() {
         try {
-            // Only apply this fallback to the quiz-pages-grid popup flow.
-            const isQpgPopup = !!(typeof document !== 'undefined' &&
-                document.body &&
-                document.body.classList &&
-                document.body.classList.contains('ll-qpg-popup-active'));
-            if (!isQpgPopup) return;
-
             const prefs = ensureStudyPrefs();
             const flashState = root.llToolsFlashcardsData || {};
 
             const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'normal';
             const starMode = normalizeStarMode(modeRaw);
+            State.starModeOverride = null;
+            if (root.llToolsFlashcardsData) {
+                root.llToolsFlashcardsData.starModeOverride = null;
+            }
             if (starMode !== 'only') return;
 
+            const canUse = canUseStarOnlyForCurrentSelection();
+            if (!canUse) {
+                State.starModeOverride = 'weighted';
+                if (root.llToolsFlashcardsData) {
+                    root.llToolsFlashcardsData.starModeOverride = 'weighted';
+                }
+                console.warn('LL Tools: No starred words available for this quiz; using weighted mode for this quiz only.');
+            }
+        } catch (e) {
+            console.warn('LL Tools: Star-mode fallback failed', e);
+        }
+    }
+
+    // Determine whether "starred only" should be available for the current selection
+    // (at least one starred word exists in the loaded categories).
+    function canUseStarOnlyForCurrentSelection() {
+        try {
+            const prefs = ensureStudyPrefs();
             const starred = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
             const starredSet = new Set(
                 starred
                     .map(function (v) { return parseInt(v, 10) || 0; })
                     .filter(function (n) { return n > 0; })
             );
-
-            // If there are no starred words at all, starred-only mode can never play anything.
-            if (starredSet.size === 0) {
-                prefs.starMode = 'weighted';
-                prefs.star_mode = 'weighted';
-                if (root.llToolsFlashcardsData) {
-                    root.llToolsFlashcardsData.starMode = 'weighted';
-                    root.llToolsFlashcardsData.star_mode = 'weighted';
-                }
-                console.warn('LL Tools: Starred-only mode has no starred words; using weighted mode for this quiz.');
-                return;
-            }
+            if (!starredSet.size) return false; // no starred words at all
 
             const cats = Array.isArray(State.categoryNames) ? State.categoryNames.filter(Boolean) : [];
-            if (cats.length !== 1) return;
+            const wordsByCat = State.wordsByCategory || {};
+            let inspected = false;
 
-            const catName = cats[0];
-            const words = (State.wordsByCategory && State.wordsByCategory[catName]) || [];
-            if (!Array.isArray(words) || words.length === 0) return;
-
-            const hasAnyStarredInCategory = words.some(function (w) {
-                const id = w && w.id ? (parseInt(w.id, 10) || 0) : 0;
-                return id > 0 && starredSet.has(id);
-            });
-
-            if (hasAnyStarredInCategory) return;
-
-            prefs.starMode = 'weighted';
-            prefs.star_mode = 'weighted';
-            if (root.llToolsFlashcardsData) {
-                root.llToolsFlashcardsData.starMode = 'weighted';
-                root.llToolsFlashcardsData.star_mode = 'weighted';
+            for (let i = 0; i < cats.length; i++) {
+                const list = Array.isArray(wordsByCat[cats[i]]) ? wordsByCat[cats[i]] : [];
+                if (list.length) inspected = true;
+                for (let j = 0; j < list.length; j++) {
+                    const id = parseInt((list[j] && list[j].id), 10) || 0;
+                    if (id > 0 && starredSet.has(id)) {
+                        return true;
+                    }
+                }
             }
-            console.warn('LL Tools: No starred words in this category; using weighted mode for this quiz.');
+
+            // If nothing was inspected (data not loaded yet), do not disable the option.
+            if (!inspected) return true;
+            return false;
         } catch (e) {
-            console.warn('LL Tools: Star-mode fallback failed', e);
+            return true;
         }
     }
 
@@ -449,6 +450,7 @@
             try {
                 $(document).trigger('lltools:star-changed', [{ wordId: wordId, starred: starred }]);
             } catch (_) { /* no-op */ }
+            try { syncSettingsPanelSelections(); } catch (_) { /* no-op */ }
         }
 
         function getStarButton() {
@@ -923,11 +925,26 @@
         const prefs = ensureStudyPrefs();
         const starMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'normal');
         const fast = !!prefersFastTransitions();
+        const canUseStarOnly = canUseStarOnlyForCurrentSelection();
 
         $panel.find('[data-star-mode]').each(function () {
             const val = String($(this).data('star-mode') || '');
             const isActive = val === starMode;
+            const shouldDisable = (val === 'only') && !canUseStarOnly;
+
             $(this).toggleClass('active', isActive).attr('aria-pressed', isActive ? 'true' : 'false');
+
+            if (shouldDisable) {
+                $(this)
+                    .prop('disabled', true)
+                    .attr('aria-disabled', 'true')
+                    .removeClass('active')
+                    .attr('aria-pressed', 'false');
+            } else {
+                $(this)
+                    .prop('disabled', false)
+                    .attr('aria-disabled', 'false');
+            }
         });
 
         $panel.find('[data-speed]').each(function () {
@@ -1075,6 +1092,7 @@
         $panel.off('.llSettings')
             .on('click.llSettings', '[data-star-mode]', function (e) {
                 e.preventDefault();
+                if ($(this).is(':disabled') || $(this).attr('aria-disabled') === 'true') return;
                 const mode = String($(this).data('star-mode') || '');
                 if (!mode) return;
                 applyStudyPrefsFromUI({ starMode: mode });

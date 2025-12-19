@@ -63,6 +63,9 @@
     }
 
     function getStarMode() {
+        if (State && State.starModeOverride) {
+            return normalizeStarMode(State.starModeOverride);
+        }
         const prefs = root.llToolsStudyPrefs || {};
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
