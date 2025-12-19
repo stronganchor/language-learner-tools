@@ -2,6 +2,11 @@
     'use strict';
     const { Util, State } = root.LLFlashcards;
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
+    }
+
     function getCategoryConfig(name) {
         const base = {
             prompt_type: 'audio',
@@ -61,8 +66,8 @@
         const prefs = root.llToolsStudyPrefs || {};
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
-        const mode = modeFromPrefs || modeFromFlash || 'weighted';
-        return mode === 'only' ? 'only' : 'weighted';
+        const mode = modeFromPrefs || modeFromFlash || 'normal';
+        return normalizeStarMode(mode);
     }
 
     function getStarPlayCounts() {
@@ -253,11 +258,7 @@
                     }
                     target = pool[Math.floor(Math.random() * pool.length)];
                 } else {
-                    const weightFn = function (w) {
-                        if (starMode === 'only') return 1;
-                        return starredLookup[w.id] ? 2 : 1;
-                    };
-                    target = weightedChoice(unused, weightFn);
+                    target = unused[Math.floor(Math.random() * unused.length)];
                 }
                 if (target) {
                     recordPlay(target.id, starredLookup, starMode);

@@ -1065,6 +1065,86 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     bottom: 20px;
     right: 20px;
     z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+/* Hard spacing between stacked controls (works even if gap is overridden) */
+.ll-tools-mode-switcher-wrap > * + * {
+    margin-top: 16px;
+}
+
+.ll-tools-settings-control {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.ll-tools-settings-button {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #6b7280;
+    color: #ffffff;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    padding: 0;
+}
+
+.ll-tools-settings-button:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+    background: #4b5563;
+}
+
+.ll-tools-settings-button:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.ll-tools-settings-button .mode-icon {
+    display: block;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.ll-tools-settings-button .mode-icon svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+}
+
+.ll-tools-settings-panel {
+    position: absolute;
+    right: 0;
+    bottom: 64px;
+    width: 320px;
+    max-width: 80vw;
+    background: #ffffff;
+    color: #0f172a;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    padding: 14px;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 10002;
+}
+
+.ll-tools-settings-panel[aria-hidden="false"] {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .ll-tools-mode-switcher {
@@ -1101,24 +1181,14 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 .ll-tools-mode-menu {
-    position: absolute;
-    bottom: 70px;
-    /* sits above the toggle button */
-    right: 0;
-    display: flex;
+    display: none;
     flex-direction: column;
-    gap: 10px;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    pointer-events: none;
-    /* click-through when hidden */
+    gap: 16px;
+    padding: 0;
 }
 
-.ll-tools-mode-switcher-wrap[aria-expanded="true"] .ll-tools-mode-menu {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
+.ll-tools-mode-switcher-wrap[data-menu-open="true"] .ll-tools-mode-menu {
+    display: flex;
 }
 
 .ll-tools-mode-option {
@@ -1211,10 +1281,80 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     cursor: not-allowed;
 }
 
+.ll-tools-settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.ll-tools-settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.ll-tools-settings-heading {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.ll-tools-settings-options {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ll-tools-settings-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    color: #111827;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ll-tools-settings-option:hover {
+    border-color: #cbd5e1;
+    background: #eef2ff;
+}
+
+.ll-tools-settings-option.active,
+.ll-tools-settings-option[aria-pressed="true"] {
+    background: #1d4ed8;
+    color: #ffffff;
+    border-color: #1d4ed8;
+    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25);
+}
+
+.ll-tools-settings-option:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+
 @media (max-width: 480px) {
     .ll-tools-mode-switcher-wrap {
         bottom: 15px;
         right: 15px;
+        gap: 12px;
+    }
+
+    .ll-tools-mode-switcher-wrap > * + * {
+        margin-top: 12px;
+    }
+
+    .ll-tools-settings-button {
+        width: 48px;
+        height: 48px;
+    }
+
+    .ll-tools-settings-button .mode-icon {
+        font-size: 20px;
     }
 
     .ll-tools-mode-switcher,
@@ -1232,8 +1372,12 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     }
 
     .ll-tools-mode-menu {
-        bottom: 60px;
-        gap: 8px;
+        gap: 12px;
+    }
+
+    .ll-tools-settings-panel {
+        width: 260px;
+        bottom: 58px;
     }
 }
 

@@ -13,6 +13,11 @@
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
+    }
+
     // Match learning-mode pause between repetitions
     const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introSilenceMs
@@ -36,8 +41,8 @@
         const prefs = root.llToolsStudyPrefs || {};
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
-        const mode = modeFromPrefs || modeFromFlash || 'weighted';
-        return mode === 'only' ? 'only' : 'weighted';
+        const mode = modeFromPrefs || modeFromFlash || 'normal';
+        return normalizeStarMode(mode);
     }
 
     function getJQuery() {
@@ -141,6 +146,17 @@
             ? root.requestAnimationFrame
             : function (fn) { return setTimeout(fn, 0); };
         raf(function () { refreshPlaceholderMetrics($ph); });
+    }
+
+    function resetListeningHistory() {
+        State.listeningHistory = [];
+    }
+
+    function getListeningHistory() {
+        if (!Array.isArray(State.listeningHistory)) {
+            State.listeningHistory = [];
+        }
+        return State.listeningHistory;
     }
 
     // Track a resumable action for the current listening round so pause/play doesn't skip ahead
@@ -468,6 +484,7 @@
         State.isListeningMode = true;
         State.listeningPaused = false;
         State.lastWordShownId = null;
+        resetListeningHistory();
         try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
@@ -490,6 +507,18 @@
     }
 
     function selectTargetWord() {
+        const history = getListeningHistory();
+        const pointer = Math.max(0, State.listenIndex || 0);
+
+        if (history.length && pointer < history.length) {
+            const previous = history[pointer] || null;
+            State.listenIndex = pointer + 1;
+            if (previous && previous.id) {
+                State.lastWordShownId = previous.id;
+            }
+            return previous;
+        }
+
         if (!Array.isArray(State.wordsLinear)) {
             rebuildWordsLinear();
             State.listenIndex = 0;
@@ -512,6 +541,7 @@
         State.listenIndex++;
         if (word && word.id) {
             State.lastWordShownId = word.id;
+            history.push(word);
         }
         return word;
     }
@@ -533,10 +563,12 @@
     function updateControlsState() {
         const $jq = getJQuery();
         if (!$jq) return;
-        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
+        const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        const total = Math.max(historyLen, wordsTotal);
         let cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
-        const canBack = cur > 0; // never go before first
-        const canFwd = !!State.listeningLoop || (cur < total - 1);
+        const canBack = cur > 0 && historyLen > 0; // never go before first
+        const canFwd = total > 0; // keep next enabled even on the last item
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);
         toggleDisabled($jq, $jq('#ll-listen-forward'), !canFwd);
     }
@@ -545,10 +577,28 @@
         const $jq = getJQuery();
         const $content = $jq ? $jq('#ll-tools-flashcard-content') : null;
         if (!$content || !$content.length) return;
+        const resultsApi = (utils && utils.Results) || Results;
+
+        const refreshStarButton = function () {
+            try {
+                const sm = root.LLFlashcards && root.LLFlashcards.StarManager;
+                const word = State && State.listeningCurrentTarget;
+                if (sm && typeof sm.updateForWord === 'function' && word && word.id) {
+                    sm.updateForWord(word, { variant: 'listening' });
+                }
+            } catch (_) { /* no-op */ }
+        };
+
+        const goToResults = function (reason) {
+            State.forceTransitionTo(STATES.SHOWING_RESULTS, reason || 'Listening complete via next');
+            try { resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults(); } catch (_) { }
+            try { WakeLock.update(); } catch (_) { }
+        };
 
         let $controls = $jq('#ll-tools-listening-controls');
         if (!$controls.length) {
             $controls = $jq('<div>', { id: 'll-tools-listening-controls', class: 'll-listening-controls' });
+            const $starSlot = $jq('<div>', { class: 'll-listening-star-slot', style: 'display:none;' });
 
             const makeBtn = (id, label, svg) => $jq('<button>', {
                 id,
@@ -573,7 +623,7 @@
 
             if (State.listeningLoop) $loop.addClass('active');
 
-            $controls.append($pause, $back, $fwd, $loop);
+            $controls.append($starSlot, $pause, $back, $fwd, $loop);
             $content.append($controls);
 
             // Events
@@ -617,14 +667,16 @@
             });
 
             $back.on('click', function () {
+                const history = getListeningHistory();
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
-                if (!total) return;
+                if (!total && !history.length) { updateControlsState(); return; }
                 // If already at first, do nothing
-                if ((State.listenIndex || 0) <= 1) { updateControlsState(); return; }
+                if ((State.listenIndex || 0) <= 1 || !history.length) { updateControlsState(); return; }
                 try { utils.FlashcardAudio && utils.FlashcardAudio.pauseAllAudio(); } catch (_) {}
                 State.clearActiveTimeouts();
-                // Move back one item relative to current selection
-                State.listenIndex = (State.listenIndex - 2 + total) % total;
+                // Move back one item relative to current selection without wrapping
+                const targetIdx = Math.max(0, Math.min((State.listenIndex || 0) - 2, history.length - 1));
+                State.listenIndex = targetIdx;
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening back');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                 updateControlsState();
@@ -637,7 +689,11 @@
                 // If at the last word and loop is off, do nothing
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
                 const cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
-                if (!State.listeningLoop && cur >= total - 1) { updateControlsState(); return; }
+                if (!State.listeningLoop && cur >= total - 1) {
+                    goToResults('Listening complete via next');
+                    updateControlsState();
+                    return;
+                }
                 // Current listenIndex already points at next; just move on
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening forward');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
@@ -651,9 +707,15 @@
                 updateControlsState();
             });
             updateControlsState();
+            refreshStarButton();
         } else {
+            // Ensure a star slot exists even if controls persist across mode switches
+            if (!$controls.find('.ll-listening-star-slot').length) {
+                $controls.prepend($jq('<div>', { class: 'll-listening-star-slot', style: 'display:none;' }));
+            }
             $controls.show();
             updateControlsState();
+            refreshStarButton();
         }
     }
 
@@ -934,6 +996,15 @@
         try {
             if (root.LLFlashcards && root.LLFlashcards.StarManager && typeof root.LLFlashcards.StarManager.updateForWord === 'function') {
                 root.LLFlashcards.StarManager.updateForWord(target, { variant: 'listening' });
+                // Guard against timing races: re-run shortly after controls settle
+                setTimeout(function () {
+                    try {
+                        if (!State || !State.isListeningMode) return;
+                        if (State.listeningCurrentTarget && State.listeningCurrentTarget.id === target.id) {
+                            root.LLFlashcards.StarManager.updateForWord(target, { variant: 'listening', retryAttempt: 1 });
+                        }
+                    } catch (_) { /* no-op */ }
+                }, 80);
             }
         } catch (_) { /* no-op */ }
 
@@ -1088,6 +1159,7 @@
                                         State.wordsLinear = Util.randomlySort(State.wordsLinear || []);
                                     }
                                 } catch (_) {}
+                                resetListeningHistory();
                                 State.listenIndex = 0;
                                 State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening');
                                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();

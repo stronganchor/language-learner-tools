@@ -89,12 +89,13 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <select id="ll-study-wordset" data-ll-study-wordset></select>
                 <p class="ll-study-hint"><?php echo esc_html__('Switch word sets to load their categories and words.', 'll-tools-text-domain'); ?></p>
                 <div class="ll-star-mode">
-                    <span class="ll-card-title-sub"><?php echo esc_html__('Star preference', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-card-title-sub"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></span>
                     <div class="ll-star-toggle-group" data-ll-star-mode>
-                        <button type="button" class="ll-study-btn tiny active" data-mode="weighted"><?php echo esc_html__('Starred (2x)', 'll-tools-text-domain'); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></button>
+                        <button type="button" class="ll-study-btn tiny active" data-mode="normal"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-mode="weighted"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
                     </div>
-                    <p class="ll-study-hint"><?php echo esc_html__('Choose whether practice should favor stars or only use starred words.', 'll-tools-text-domain'); ?></p>
+                    <p class="ll-study-hint"><?php echo esc_html__('Decide how often starred words appear: normal mix, starred twice, or only starred.', 'll-tools-text-domain'); ?></p>
                 </div>
                 <div class="ll-transition-speed">
                     <span class="ll-card-title-sub"><?php echo esc_html($i18n['transitionLabel']); ?></span>

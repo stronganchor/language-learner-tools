@@ -7,6 +7,14 @@ define('LL_TOOLS_USER_CATEGORY_META', 'll_user_study_categories');
 define('LL_TOOLS_USER_STARRED_META', 'll_user_study_starred');
 define('LL_TOOLS_USER_FAST_TRANSITIONS_META', 'll_user_fast_transitions');
 
+if (!function_exists('ll_tools_normalize_star_mode')) {
+    function ll_tools_normalize_star_mode($mode): string {
+        $mode = is_string($mode) ? $mode : '';
+        $allowed = ['weighted', 'only', 'normal'];
+        return in_array($mode, $allowed, true) ? $mode : 'normal';
+    }
+}
+
 /**
  * Read the saved study state for a user.
  */
@@ -17,7 +25,8 @@ function ll_tools_get_user_study_state($user_id = 0): array {
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
     $starred_word_ids = (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true);
     $starred_word_ids = array_values(array_filter(array_map('intval', $starred_word_ids), function ($id) { return $id > 0; }));
-    $star_mode = get_user_meta($uid, 'll_user_star_mode', true) ?: 'weighted';
+    $star_mode_raw = get_user_meta($uid, 'll_user_star_mode', true) ?: 'normal';
+    $star_mode = ll_tools_normalize_star_mode($star_mode_raw);
     $fast_raw = get_user_meta($uid, LL_TOOLS_USER_FAST_TRANSITIONS_META, true);
     $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
 
@@ -25,7 +34,7 @@ function ll_tools_get_user_study_state($user_id = 0): array {
         'wordset_id'       => $wordset_id,
         'category_ids'     => $category_ids,
         'starred_word_ids' => $starred_word_ids,
-        'star_mode'        => $star_mode === 'only' ? 'only' : 'weighted',
+        'star_mode'        => $star_mode,
         'fast_transitions' => $fast_transitions,
     ];
 }
@@ -38,10 +47,9 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
     $wordset_id   = isset($state['wordset_id']) ? (int) $state['wordset_id'] : 0;
     $category_ids = isset($state['category_ids']) ? (array) $state['category_ids'] : [];
     $starred_ids  = isset($state['starred_word_ids']) ? (array) $state['starred_word_ids'] : [];
-    $star_mode    = isset($state['star_mode']) ? (string) $state['star_mode'] : 'weighted';
+    $star_mode    = ll_tools_normalize_star_mode(isset($state['star_mode']) ? (string) $state['star_mode'] : 'normal');
     $fast_raw     = isset($state['fast_transitions']) ? $state['fast_transitions'] : false;
     $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
-    if ($star_mode !== 'only') { $star_mode = 'weighted'; }
 
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
     $starred_ids  = array_values(array_filter(array_map('intval', $starred_ids), function ($id) { return $id > 0; }));
@@ -193,7 +201,7 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
             'wordset_id'       => $wordset_id,
             'category_ids'     => $selected_category_ids,
             'starred_word_ids' => $state['starred_word_ids'],
-            'star_mode'        => $state['star_mode'] ?? 'weighted',
+            'star_mode'        => ll_tools_normalize_star_mode($state['star_mode'] ?? 'normal'),
             'fast_transitions' => !empty($state['fast_transitions']),
         ],
         'words_by_category' => $words_by_category,
@@ -244,7 +252,7 @@ function ll_tools_user_study_save_ajax() {
     $wordset_id   = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
     $starred_ids  = isset($_POST['starred_word_ids']) ? (array) $_POST['starred_word_ids'] : [];
-    $star_mode    = isset($_POST['star_mode']) ? sanitize_text_field($_POST['star_mode']) : 'weighted';
+    $star_mode    = ll_tools_normalize_star_mode(isset($_POST['star_mode']) ? sanitize_text_field($_POST['star_mode']) : 'normal');
     $fast_transitions = filter_var($_POST['fast_transitions'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
     $payload = ll_tools_save_user_study_state([
