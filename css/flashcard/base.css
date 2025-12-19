@@ -1567,6 +1567,164 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 /* =============================
    Hardening against theme CSS
    ============================= */
+/* Lock settings trigger + panel against aggressive theme button styles */
+#ll-tools-mode-switcher-wrap .ll-tools-settings-control {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    gap: 0 !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button {
+    width: var(--ll-tools-fab-size) !important;
+    height: var(--ll-tools-fab-size) !important;
+    min-width: var(--ll-tools-fab-size) !important;
+    min-height: var(--ll-tools-fab-size) !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    background: #6b7280 !important;
+    background-color: #6b7280 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    border: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button:hover {
+    transform: scale(1.04) !important;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35) !important;
+    background: #4b5563 !important;
+    background-color: #4b5563 !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button:focus-visible {
+    outline: 3px solid #38bdf8 !important;
+    outline-offset: 2px !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button .mode-icon {
+    display: block !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+}
+
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button .mode-icon svg {
+    width: 26px !important;
+    height: 26px !important;
+    display: block !important;
+    fill: currentColor !important;
+    stroke: currentColor !important;
+}
+
+#ll-tools-settings-panel.ll-tools-settings-panel {
+    position: absolute !important;
+    right: 0 !important;
+    bottom: 64px !important;
+    width: 320px !important;
+    max-width: 80vw !important;
+    padding: 14px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25) !important;
+    box-sizing: border-box !important;
+    opacity: 0 !important;
+    transform: translateY(8px) !important;
+    pointer-events: none !important;
+    isolation: isolate !important;
+}
+
+#ll-tools-settings-panel[aria-hidden="false"] {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+    border-radius: 8px !important;
+    border: 1px solid #e5e7eb !important;
+    background: #f8fafc !important;
+    color: #111827 !important;
+    cursor: pointer !important;
+    text-align: center !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    transition: all 0.15s ease !important;
+    pointer-events: auto !important;
+    float: none !important;
+    text-transform: none !important;
+}
+
+/* Prevent theme button styles from touching the star toggle */
+#ll-tools-flashcard-container .ll-quiz-star-btn.ll-quiz-star-btn,
+.ll-quiz-star-row .ll-quiz-star-btn.ll-quiz-star-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #111827 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+}
+
+.ll-quiz-star-btn.ll-quiz-star-btn.active {
+    background: #fde68a !important;
+    border-color: #f59e0b !important;
+}
+
+.ll-quiz-star-btn.ll-quiz-star-btn.listening-variant {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    aspect-ratio: 1 / 1 !important;
+}
+
+.ll-quiz-star-btn.ll-quiz-star-btn:focus-visible {
+    outline: 2px solid #38bdf8 !important;
+    outline-offset: 2px !important;
+}
+
 /* Keep the floating switcher and its menu options perfectly circular */
 #ll-tools-mode-switcher-wrap #ll-tools-mode-switcher.ll-tools-mode-switcher {
     width: 56px !important;
