@@ -70,6 +70,20 @@ function ll_audio_recording_interface_shortcode($atts) {
         $initial_category = 'uncategorized';
     }
     $images_needing_audio = ll_get_images_needing_audio($initial_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+    // If the preferred initial category is empty (e.g., stale uncategorized records), fall back to the first category with work.
+    if (empty($images_needing_audio) && count($available_categories) > 1) {
+        foreach ($available_categories as $slug => $name) {
+            if ($slug === $initial_category) {
+                continue;
+            }
+            $maybe = ll_get_images_needing_audio($slug, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+            if (!empty($maybe)) {
+                $images_needing_audio = $maybe;
+                $initial_category = $slug;
+                break;
+            }
+        }
+    }
 
     if (empty($images_needing_audio)) {
         return '<div class="ll-recording-interface"><p>' .
