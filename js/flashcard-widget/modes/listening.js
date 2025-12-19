@@ -143,6 +143,17 @@
         raf(function () { refreshPlaceholderMetrics($ph); });
     }
 
+    function resetListeningHistory() {
+        State.listeningHistory = [];
+    }
+
+    function getListeningHistory() {
+        if (!Array.isArray(State.listeningHistory)) {
+            State.listeningHistory = [];
+        }
+        return State.listeningHistory;
+    }
+
     // Track a resumable action for the current listening round so pause/play doesn't skip ahead
     const ListeningPlayback = (function () {
         let resumeFn = null;
@@ -468,6 +479,7 @@
         State.isListeningMode = true;
         State.listeningPaused = false;
         State.lastWordShownId = null;
+        resetListeningHistory();
         try { ListeningPlayback.clear(); } catch (_) { }
         State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
@@ -490,6 +502,18 @@
     }
 
     function selectTargetWord() {
+        const history = getListeningHistory();
+        const pointer = Math.max(0, State.listenIndex || 0);
+
+        if (history.length && pointer < history.length) {
+            const previous = history[pointer] || null;
+            State.listenIndex = pointer + 1;
+            if (previous && previous.id) {
+                State.lastWordShownId = previous.id;
+            }
+            return previous;
+        }
+
         if (!Array.isArray(State.wordsLinear)) {
             rebuildWordsLinear();
             State.listenIndex = 0;
@@ -512,6 +536,7 @@
         State.listenIndex++;
         if (word && word.id) {
             State.lastWordShownId = word.id;
+            history.push(word);
         }
         return word;
     }
@@ -533,9 +558,11 @@
     function updateControlsState() {
         const $jq = getJQuery();
         if (!$jq) return;
-        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
+        const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        const total = Math.max(historyLen, wordsTotal);
         let cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
-        const canBack = cur > 0; // never go before first
+        const canBack = cur > 0 && historyLen > 0; // never go before first
         const canFwd = !!State.listeningLoop || (cur < total - 1);
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);
         toggleDisabled($jq, $jq('#ll-listen-forward'), !canFwd);
@@ -617,14 +644,16 @@
             });
 
             $back.on('click', function () {
+                const history = getListeningHistory();
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
-                if (!total) return;
+                if (!total && !history.length) { updateControlsState(); return; }
                 // If already at first, do nothing
-                if ((State.listenIndex || 0) <= 1) { updateControlsState(); return; }
+                if ((State.listenIndex || 0) <= 1 || !history.length) { updateControlsState(); return; }
                 try { utils.FlashcardAudio && utils.FlashcardAudio.pauseAllAudio(); } catch (_) {}
                 State.clearActiveTimeouts();
-                // Move back one item relative to current selection
-                State.listenIndex = (State.listenIndex - 2 + total) % total;
+                // Move back one item relative to current selection without wrapping
+                const targetIdx = Math.max(0, Math.min((State.listenIndex || 0) - 2, history.length - 1));
+                State.listenIndex = targetIdx;
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening back');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
                 updateControlsState();
@@ -1088,6 +1117,7 @@
                                         State.wordsLinear = Util.randomlySort(State.wordsLinear || []);
                                     }
                                 } catch (_) {}
+                                resetListeningHistory();
                                 State.listenIndex = 0;
                                 State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening');
                                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();

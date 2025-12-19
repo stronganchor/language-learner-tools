@@ -68,6 +68,7 @@
         listeningLastHeight: 0,
         listeningLastAspectRatio: 0,
         listeningCurrentTarget: null,
+        listeningHistory: [],
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,
@@ -276,6 +277,7 @@
             this.wordsLinear = [];
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;
+            this.listeningHistory = [];
             this.introducedWordIDs = [];
             this.wordIntroductionProgress = {};
             this.wordCorrectCounts = {};
