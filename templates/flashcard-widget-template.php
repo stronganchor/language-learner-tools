@@ -70,11 +70,38 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
         $practice_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
         $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
         $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
+        $settings_label = __('Study Settings', 'll-tools-text-domain');
       ?>
       <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
-        <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
-          <span class="mode-icon" aria-hidden="true">⇄</span>
-        </button>
+        <?php if (is_user_logged_in()): ?>
+          <div id="ll-tools-settings-control" class="ll-tools-settings-control">
+            <button id="ll-tools-settings-button" class="ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr($settings_label); ?>">
+              <span class="mode-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </button>
+            <div id="ll-tools-settings-panel" class="ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr($settings_label); ?>" aria-hidden="true">
+              <div class="ll-tools-settings-section">
+                <div class="ll-tools-settings-heading"><?php echo esc_html__('Star preference', 'll-tools-text-domain'); ?></div>
+                <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Star preference', 'll-tools-text-domain'); ?>">
+                  <button type="button" class="ll-tools-settings-option" data-star-mode="normal"><?php echo esc_html__('Normal mix', 'll-tools-text-domain'); ?></button>
+                  <button type="button" class="ll-tools-settings-option" data-star-mode="weighted"><?php echo esc_html__('Favor starred', 'll-tools-text-domain'); ?></button>
+                  <button type="button" class="ll-tools-settings-option" data-star-mode="only"><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></button>
+                </div>
+              </div>
+              <div class="ll-tools-settings-section">
+                <div class="ll-tools-settings-heading"><?php echo esc_html__('Transition speed', 'll-tools-text-domain'); ?></div>
+                <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
+                  <button type="button" class="ll-tools-settings-option" data-speed="normal"><?php echo esc_html__('Standard pace', 'll-tools-text-domain'); ?></button>
+                  <button type="button" class="ll-tools-settings-option" data-speed="fast"><?php echo esc_html__('Faster transitions', 'll-tools-text-domain'); ?></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endif; ?>
         <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
           <!-- Fixed order: learning (top), practice (middle), listening (bottom) -->
           <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
@@ -99,6 +126,9 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
             <?php endif; ?>
           </button>
         </div>
+        <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
+          <span class="mode-icon" aria-hidden="true">⇄</span>
+        </button>
       </div>
 
       <div id="quiz-results" style="display:none;">
