@@ -13,6 +13,11 @@
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+    }
+
     const INTRO_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introSilenceMs : 800;
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
@@ -34,7 +39,7 @@
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
         const mode = modeFromPrefs || modeFromFlash || 'weighted';
-        return mode === 'only' ? 'only' : 'weighted';
+        return normalizeStarMode(mode);
     }
 
     function pickWeightedId(ids, avoidId) {

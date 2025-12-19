@@ -14,6 +14,11 @@
     let initInProgressPromise = null; // prevents concurrent initializations
     let __LastWordsetKey = null;
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+    }
+
     function getCurrentWordsetKey() {
         const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
             ? root.llToolsFlashcardsData.wordset
@@ -247,6 +252,10 @@
             prefs.fast_transitions = prefs.fastTransitions;
         }
 
+        const normalizedStarMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'weighted');
+        prefs.starMode = normalizedStarMode;
+        prefs.star_mode = normalizedStarMode;
+
         return prefs;
     }
 
@@ -266,7 +275,7 @@
             const flashState = root.llToolsFlashcardsData || {};
 
             const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'weighted';
-            const starMode = (modeRaw === 'only') ? 'only' : 'weighted';
+            const starMode = normalizeStarMode(modeRaw);
             if (starMode !== 'only') return;
 
             const starred = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
@@ -397,7 +406,7 @@
             const modeFromPrefs = prefs.starMode || prefs.star_mode;
             const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
             const mode = modeFromPrefs || modeFromFlash || 'weighted';
-            return mode === 'only' ? 'only' : 'weighted';
+            return normalizeStarMode(mode);
         }
 
         function isStarred(wordId) {
@@ -569,6 +578,7 @@
         }
 
         function adjustPractice(wordId, isStarredFlag, starMode) {
+            if (starMode === 'normal') return;
             if (!isStarredFlag) {
                 const queues = State.categoryRepetitionQueues || {};
                 Object.keys(queues).forEach(function (cat) {

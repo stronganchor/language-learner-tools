@@ -27,6 +27,11 @@
 
     let currentAudio = null;
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'normal' || val === 'only' || val === 'weighted') ? val : 'weighted';
+    }
+
     function toIntList(arr) {
         return (arr || []).map(function (v) { return parseInt(v, 10) || 0; }).filter(function (v) { return v > 0; });
     }
@@ -89,9 +94,11 @@
     }
 
     function setStudyPrefsGlobal() {
+        state.star_mode = normalizeStarMode(state.star_mode);
         window.llToolsStudyPrefs = {
             starredWordIds: state.starred_word_ids ? state.starred_word_ids.slice() : [],
             starMode: state.star_mode || 'weighted',
+            star_mode: state.star_mode || 'weighted',
             fastTransitions: !!state.fast_transitions,
             fast_transitions: !!state.fast_transitions
         };
@@ -109,7 +116,7 @@
     }
 
     function renderStarModeToggle() {
-        const mode = state.star_mode === 'only' ? 'only' : 'weighted';
+        const mode = normalizeStarMode(state.star_mode);
         $starModeToggle.find('.ll-study-btn').removeClass('active');
         $starModeToggle.find('[data-mode="' + mode + '"]').addClass('active');
     }
@@ -241,7 +248,7 @@
                 wordset_id: state.wordset_id,
                 category_ids: state.category_ids,
                 starred_word_ids: state.starred_word_ids,
-                star_mode: state.star_mode || 'weighted',
+                star_mode: normalizeStarMode(state.star_mode),
                 fast_transitions: state.fast_transitions ? 1 : 0
             });
         }, 300);
@@ -278,6 +285,7 @@
             wordsets = data.wordsets || wordsets;
             categories = data.categories || [];
             state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'weighted', fast_transitions: false }, data.state || {});
+            state.star_mode = normalizeStarMode(state.star_mode);
             wordsByCategory = data.words_by_category || {};
             renderWordsets();
             renderCategories();
@@ -298,6 +306,7 @@
 
     function startFlashcards(mode) {
         if (!ensureCategoriesSelected()) { return; }
+        const starMode = normalizeStarMode(state.star_mode);
         const selectedCats = categories.filter(function (c) {
             return state.category_ids.indexOf(c.id) !== -1;
         });
@@ -312,7 +321,7 @@
         const initialWordsRaw = (flashData.firstCategoryName && firstCat && wordsByCategory[firstCat.id])
             ? wordsByCategory[firstCat.id]
             : [];
-        if ((state.star_mode || 'weighted') === 'only') {
+        if (starMode === 'only') {
             const starredLookup = {};
             state.starred_word_ids.forEach(function (id) { starredLookup[id] = true; });
             flashData.firstCategoryData = initialWordsRaw.filter(function (w) { return starredLookup[w.id]; });
@@ -323,7 +332,7 @@
         flashData.wordsetIds = state.wordset_id ? [state.wordset_id] : [];
         flashData.wordsetFallback = false;
         flashData.quiz_mode = mode || 'practice';
-        flashData.starMode = state.star_mode || 'weighted';
+        flashData.starMode = starMode;
         flashData.fastTransitions = !!state.fast_transitions;
         flashData.fast_transitions = !!state.fast_transitions;
         window.llToolsFlashcardsData = flashData;
@@ -345,6 +354,7 @@
         state.wordset_id = newId;
         state.category_ids = [];
         state.starred_word_ids = [];
+        state.star_mode = normalizeStarMode(state.star_mode);
         setStudyPrefsGlobal();
         reloadForWordset(newId);
         saveStateDebounced();
@@ -399,7 +409,7 @@
     // Star mode toggle
     $starModeToggle.on('click', '.ll-study-btn', function () {
         const mode = $(this).data('mode') || 'weighted';
-        state.star_mode = mode;
+        state.star_mode = normalizeStarMode(mode);
         $(this).addClass('active').siblings().removeClass('active');
         setStudyPrefsGlobal();
         saveStateDebounced();

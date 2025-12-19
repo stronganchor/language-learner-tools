@@ -91,10 +91,11 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <div class="ll-star-mode">
                     <span class="ll-card-title-sub"><?php echo esc_html__('Star preference', 'll-tools-text-domain'); ?></span>
                     <div class="ll-star-toggle-group" data-ll-star-mode>
+                        <button type="button" class="ll-study-btn tiny" data-mode="normal"><?php echo esc_html__('Normal', 'll-tools-text-domain'); ?></button>
                         <button type="button" class="ll-study-btn tiny active" data-mode="weighted"><?php echo esc_html__('Starred (2x)', 'll-tools-text-domain'); ?></button>
                         <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></button>
                     </div>
-                    <p class="ll-study-hint"><?php echo esc_html__('Choose whether practice should favor stars or only use starred words.', 'll-tools-text-domain'); ?></p>
+                    <p class="ll-study-hint"><?php echo esc_html__('Choose whether to ignore stars, favor them, or only use starred words.', 'll-tools-text-domain'); ?></p>
                 </div>
                 <div class="ll-transition-speed">
                     <span class="ll-card-title-sub"><?php echo esc_html($i18n['transitionLabel']); ?></span>

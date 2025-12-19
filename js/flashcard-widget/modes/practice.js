@@ -11,6 +11,11 @@
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
 
+    function normalizeStarMode(mode) {
+        const val = (mode || '').toString();
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+    }
+
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
         const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
@@ -27,7 +32,7 @@
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
         const mode = modeFromPrefs || modeFromFlash || 'weighted';
-        return mode === 'only' ? 'only' : 'weighted';
+        return normalizeStarMode(mode);
     }
 
     function isStarred(wordId) {
@@ -73,6 +78,7 @@
         const queue = (State.categoryRepetitionQueues[categoryName] = State.categoryRepetitionQueues[categoryName] || []);
         const force = !!(options && options.force);
 
+        const starMode = getStarMode();
         // If it's already queued, upgrade the entry to a forced replay (used for wrong answers)
         const existingIndex = queue.findIndex(item => item.wordData.id === targetWord.id);
         if (existingIndex !== -1) {
@@ -83,18 +89,19 @@
         }
 
         const starredLookup = getStarredLookup();
-        const isStarredWord = !!starredLookup[targetWord.id];
+        const applyStarBias = starMode !== 'normal';
+        const isStarredWord = applyStarBias && !!starredLookup[targetWord.id];
 
         // Avoid endlessly re-queuing starred words once they've hit their allowed plays
         State.starPlayCounts = State.starPlayCounts || {};
         const plays = State.starPlayCounts[targetWord.id] || 0;
-        const maxUses = isStarredWord ? 2 : 1;
-        if (!force && isStarredWord && plays >= maxUses) {
+        const maxUses = (applyStarBias && isStarredWord) ? 2 : 1;
+        if (!force && applyStarBias && isStarredWord && plays >= maxUses) {
             return;
         }
 
         const base = State.categoryRoundCount[categoryName] || 0;
-        const offset = isStarred(targetWord.id)
+        const offset = (applyStarBias && isStarred(targetWord.id))
             ? ((Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 3) : (Math.floor(Math.random() * 2) + 2)) // delay slightly to avoid immediate repeat
             : ((Util && typeof Util.randomInt === 'function') ? Util.randomInt(2, 4) : (Math.floor(Math.random() * 3) + 2));
         queue.push({
