@@ -507,11 +507,11 @@ function ll_qpg_print_flashcard_shell_once() {
                 </button>
                 <div id="ll-tools-settings-panel" class="ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr($settings_label); ?>" aria-hidden="true">
                   <div class="ll-tools-settings-section">
-                    <div class="ll-tools-settings-heading"><?php echo esc_html__('Star preference', 'll-tools-text-domain'); ?></div>
-                    <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Star preference', 'll-tools-text-domain'); ?>">
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="normal"><?php echo esc_html__('Normal mix', 'll-tools-text-domain'); ?></button>
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="weighted"><?php echo esc_html__('Favor starred', 'll-tools-text-domain'); ?></button>
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="only"><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></button>
+                    <div class="ll-tools-settings-heading"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></div>
+                    <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Word inclusion', 'll-tools-text-domain'); ?>">
+                      <button type="button" class="ll-tools-settings-option" data-star-mode="normal"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
+                      <button type="button" class="ll-tools-settings-option" data-star-mode="weighted"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
+                      <button type="button" class="ll-tools-settings-option" data-star-mode="only"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
                     </div>
                   </div>
                   <div class="ll-tools-settings-section">

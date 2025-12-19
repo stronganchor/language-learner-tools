@@ -1126,7 +1126,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     position: absolute;
     right: 0;
     bottom: 64px;
-    width: 260px;
+    width: 320px;
     max-width: 80vw;
     background: #ffffff;
     color: #0f172a;
@@ -1376,7 +1376,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     }
 
     .ll-tools-settings-panel {
-        width: 230px;
+        width: 260px;
         bottom: 58px;
     }
 }
