@@ -390,6 +390,7 @@
         let $starRow = null;
         let $starButton = null;
         let $listeningSlot = null;
+        let listeningSlotObserver = null;
         let delegatedBound = false;
 
         function ensurePrefs() {
@@ -485,12 +486,62 @@
         }
 
         function getListeningSlot() {
-            if ($listeningSlot && $listeningSlot.length) return $listeningSlot;
             const $controls = $('#ll-tools-listening-controls');
-            if (!$controls || !$controls.length) return null;
-            $listeningSlot = $('<div>', { class: 'll-listening-star-slot', style: 'display:none;' });
-            $controls.prepend($listeningSlot);
-            return $listeningSlot;
+            if (!$controls || !$controls.length) {
+                $listeningSlot = null;
+                return null;
+            }
+
+            // Prefer an existing slot already in the DOM
+            let $slot = $controls.find('.ll-listening-star-slot').first();
+            if (!$slot.length && $listeningSlot && $listeningSlot.length) {
+                const attached = $listeningSlot.closest('#ll-tools-listening-controls').length;
+                if (!attached) {
+                    try { $controls.prepend($listeningSlot); } catch (_) { /* no-op */ }
+                }
+                $slot = $listeningSlot;
+            }
+
+            if (!$slot || !$slot.length) {
+                $slot = $('<div>', { class: 'll-listening-star-slot', style: 'display:none;' });
+                $controls.prepend($slot);
+            }
+
+            $listeningSlot = $slot;
+            return $slot;
+        }
+
+        function stopListeningSlotObserver() {
+            if (listeningSlotObserver && typeof listeningSlotObserver.disconnect === 'function') {
+                try { listeningSlotObserver.disconnect(); } catch (_) { /* no-op */ }
+            }
+            listeningSlotObserver = null;
+        }
+
+        function watchForListeningSlot(word, attempt) {
+            stopListeningSlotObserver();
+            if (typeof MutationObserver === 'undefined' || !word || !word.id) return;
+            const targetNode = document.getElementById('ll-tools-flashcard-content')
+                || document.getElementById('ll-tools-flashcard')
+                || document.body;
+            if (!targetNode) return;
+            const maxAttempts = 5;
+            if (attempt >= maxAttempts) return;
+            try {
+                listeningSlotObserver = new MutationObserver(function () {
+                    if (!State || !State.isListeningMode) { stopListeningSlotObserver(); return; }
+                    const controls = document.getElementById('ll-tools-listening-controls');
+                    if (controls) {
+                        stopListeningSlotObserver();
+                        try {
+                            updateForWord(word, { variant: 'listening', retryAttempt: (attempt || 0) + 1 });
+                        } catch (_) { /* no-op */ }
+                    }
+                });
+                listeningSlotObserver.observe(targetNode, { childList: true, subtree: true });
+            } catch (_) {
+                stopListeningSlotObserver();
+            }
         }
 
         function ensureAudioInlineRow() {
@@ -551,6 +602,7 @@
         }
 
         function hide() {
+            stopListeningSlotObserver();
             if ($starRow && $starRow.length) { $starRow.hide(); }
             if ($listeningSlot && $listeningSlot.length) { $listeningSlot.hide(); }
             try {
@@ -718,6 +770,7 @@
                 hide();
                 return;
             }
+            const retryAttempt = parseInt((options && options.retryAttempt) || 0, 10) || 0;
             const variant = options && options.variant === 'listening' ? 'listening' : 'content';
             if (!word || !word.id || (!Array.isArray(prefs.starredWordIds) && !prefs.starMode)) {
                 hide();
@@ -727,10 +780,26 @@
             let $container = null;
             if (isListening) {
                 $container = getListeningSlot();
+                if (!$container || !$container.length) {
+                    hide();
+                    watchForListeningSlot(word, retryAttempt);
+                    if (retryAttempt < 4 && word && word.id) {
+                        setTimeout(function () {
+                            try {
+                                if (!State || !State.isListeningMode) return;
+                                if (!currentWord || String(currentWord.id) !== String(word.id)) return;
+                                updateForWord(word, { variant: 'listening', retryAttempt: retryAttempt + 1 });
+                            } catch (_) { /* no-op */ }
+                        }, 40 * (retryAttempt + 1));
+                    }
+                    return;
+                }
+                stopListeningSlotObserver();
             } else {
-            const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
-                ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
-                : 'audio');
+                stopListeningSlotObserver();
+                const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
+                    ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
+                    : 'audio');
                 if (promptType === 'image') {
                     $container = ensureImageInlineRow() || getStarRow();
                     if ($container && !$container.hasClass('ll-quiz-star-inline')) {

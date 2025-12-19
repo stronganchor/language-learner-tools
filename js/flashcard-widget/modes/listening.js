@@ -568,7 +568,7 @@
         const total = Math.max(historyLen, wordsTotal);
         let cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
         const canBack = cur > 0 && historyLen > 0; // never go before first
-        const canFwd = !!State.listeningLoop || (cur < total - 1);
+        const canFwd = total > 0; // keep next enabled even on the last item
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);
         toggleDisabled($jq, $jq('#ll-listen-forward'), !canFwd);
     }
@@ -577,10 +577,28 @@
         const $jq = getJQuery();
         const $content = $jq ? $jq('#ll-tools-flashcard-content') : null;
         if (!$content || !$content.length) return;
+        const resultsApi = (utils && utils.Results) || Results;
+
+        const refreshStarButton = function () {
+            try {
+                const sm = root.LLFlashcards && root.LLFlashcards.StarManager;
+                const word = State && State.listeningCurrentTarget;
+                if (sm && typeof sm.updateForWord === 'function' && word && word.id) {
+                    sm.updateForWord(word, { variant: 'listening' });
+                }
+            } catch (_) { /* no-op */ }
+        };
+
+        const goToResults = function (reason) {
+            State.forceTransitionTo(STATES.SHOWING_RESULTS, reason || 'Listening complete via next');
+            try { resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults(); } catch (_) { }
+            try { WakeLock.update(); } catch (_) { }
+        };
 
         let $controls = $jq('#ll-tools-listening-controls');
         if (!$controls.length) {
             $controls = $jq('<div>', { id: 'll-tools-listening-controls', class: 'll-listening-controls' });
+            const $starSlot = $jq('<div>', { class: 'll-listening-star-slot', style: 'display:none;' });
 
             const makeBtn = (id, label, svg) => $jq('<button>', {
                 id,
@@ -605,7 +623,7 @@
 
             if (State.listeningLoop) $loop.addClass('active');
 
-            $controls.append($pause, $back, $fwd, $loop);
+            $controls.append($starSlot, $pause, $back, $fwd, $loop);
             $content.append($controls);
 
             // Events
@@ -671,7 +689,11 @@
                 // If at the last word and loop is off, do nothing
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
                 const cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
-                if (!State.listeningLoop && cur >= total - 1) { updateControlsState(); return; }
+                if (!State.listeningLoop && cur >= total - 1) {
+                    goToResults('Listening complete via next');
+                    updateControlsState();
+                    return;
+                }
                 // Current listenIndex already points at next; just move on
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Listening forward');
                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
@@ -685,9 +707,15 @@
                 updateControlsState();
             });
             updateControlsState();
+            refreshStarButton();
         } else {
+            // Ensure a star slot exists even if controls persist across mode switches
+            if (!$controls.find('.ll-listening-star-slot').length) {
+                $controls.prepend($jq('<div>', { class: 'll-listening-star-slot', style: 'display:none;' }));
+            }
             $controls.show();
             updateControlsState();
+            refreshStarButton();
         }
     }
 
@@ -968,6 +996,15 @@
         try {
             if (root.LLFlashcards && root.LLFlashcards.StarManager && typeof root.LLFlashcards.StarManager.updateForWord === 'function') {
                 root.LLFlashcards.StarManager.updateForWord(target, { variant: 'listening' });
+                // Guard against timing races: re-run shortly after controls settle
+                setTimeout(function () {
+                    try {
+                        if (!State || !State.isListeningMode) return;
+                        if (State.listeningCurrentTarget && State.listeningCurrentTarget.id === target.id) {
+                            root.LLFlashcards.StarManager.updateForWord(target, { variant: 'listening', retryAttempt: 1 });
+                        }
+                    } catch (_) { /* no-op */ }
+                }, 80);
             }
         } catch (_) { /* no-op */ }
 
