@@ -302,7 +302,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     // Pull saved study prefs (stars/fast transitions) for logged-in users so the widget can reflect them outside the dashboard.
     $user_study_state = [
         'starred_word_ids' => [],
-        'star_mode'        => 'weighted',
+        'star_mode'        => 'normal',
         'fast_transitions' => false,
     ];
     if (is_user_logged_in() && function_exists('ll_tools_get_user_study_state')) {
@@ -328,8 +328,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'modeUi'                => ll_flashcards_get_mode_ui_config(),
         'starredWordIds'       => $user_study_state['starred_word_ids'],
         'starred_word_ids'     => $user_study_state['starred_word_ids'],
-        'starMode'             => $user_study_state['star_mode'] ?? 'weighted',
-        'star_mode'            => $user_study_state['star_mode'] ?? 'weighted',
+        'starMode'             => $user_study_state['star_mode'] ?? 'normal',
+        'star_mode'            => $user_study_state['star_mode'] ?? 'normal',
         'fastTransitions'      => !empty($user_study_state['fast_transitions']),
         'fast_transitions'     => !empty($user_study_state['fast_transitions']),
     ];

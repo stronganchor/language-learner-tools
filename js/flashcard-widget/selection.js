@@ -4,7 +4,7 @@
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
-        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
     function getCategoryConfig(name) {
@@ -66,7 +66,7 @@
         const prefs = root.llToolsStudyPrefs || {};
         const modeFromPrefs = prefs.starMode || prefs.star_mode;
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
-        const mode = modeFromPrefs || modeFromFlash || 'weighted';
+        const mode = modeFromPrefs || modeFromFlash || 'normal';
         return normalizeStarMode(mode);
     }
 

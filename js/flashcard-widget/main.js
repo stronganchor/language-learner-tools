@@ -16,7 +16,7 @@
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
-        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
     function getCurrentWordsetKey() {
@@ -205,7 +205,7 @@
         if (!root.llToolsStudyPrefs && payloadState) {
             root.llToolsStudyPrefs = {
                 starredWordIds: Array.isArray(payloadState.starred_word_ids) ? payloadState.starred_word_ids.slice() : [],
-                starMode: payloadState.star_mode || 'weighted',
+                starMode: payloadState.star_mode || 'normal',
                 fastTransitions: parseBool(payloadState.fast_transitions),
                 fast_transitions: parseBool(payloadState.fast_transitions)
             };
@@ -219,7 +219,7 @@
             if (starredFromFlash.length || starModeFromFlash || typeof fastFromFlash !== 'undefined') {
                 root.llToolsStudyPrefs = {
                     starredWordIds: starredFromFlash,
-                    starMode: starModeFromFlash || 'weighted',
+                    starMode: starModeFromFlash || 'normal',
                     fastTransitions: parseBool(fastFromFlash),
                     fast_transitions: parseBool(fastFromFlash)
                 };
@@ -233,7 +233,7 @@
             prefs.starredWordIds = [];
         }
         if (typeof prefs.starMode === 'undefined' && payloadState) {
-            prefs.starMode = payloadState.star_mode || 'weighted';
+            prefs.starMode = payloadState.star_mode || 'normal';
         }
 
         if (typeof prefs.fastTransitions === 'undefined') {
@@ -252,7 +252,7 @@
             prefs.fast_transitions = prefs.fastTransitions;
         }
 
-        const normalizedStarMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'weighted');
+        const normalizedStarMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'normal');
         prefs.starMode = normalizedStarMode;
         prefs.star_mode = normalizedStarMode;
 
@@ -274,7 +274,7 @@
             const prefs = ensureStudyPrefs();
             const flashState = root.llToolsFlashcardsData || {};
 
-            const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'weighted';
+            const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'normal';
             const starMode = normalizeStarMode(modeRaw);
             if (starMode !== 'only') return;
 
@@ -405,7 +405,7 @@
             const prefs = ensurePrefs();
             const modeFromPrefs = prefs.starMode || prefs.star_mode;
             const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
-            const mode = modeFromPrefs || modeFromFlash || 'weighted';
+            const mode = modeFromPrefs || modeFromFlash || 'normal';
             return normalizeStarMode(mode);
         }
 

@@ -10,7 +10,7 @@
     const $root = $('[data-ll-study-root]');
     if (!$root.length) { return; }
 
-    let state = Object.assign({ wordset_id: 0, category_ids: [], starred_word_ids: [], star_mode: 'weighted', fast_transitions: false }, payload.state || {});
+    let state = Object.assign({ wordset_id: 0, category_ids: [], starred_word_ids: [], star_mode: 'normal', fast_transitions: false }, payload.state || {});
     let wordsets = payload.wordsets || [];
     let categories = payload.categories || [];
     let wordsByCategory = payload.words_by_category || {};
@@ -29,7 +29,7 @@
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
-        return (val === 'normal' || val === 'only' || val === 'weighted') ? val : 'weighted';
+        return (val === 'normal' || val === 'only' || val === 'weighted') ? val : 'normal';
     }
 
     function toIntList(arr) {
@@ -97,8 +97,8 @@
         state.star_mode = normalizeStarMode(state.star_mode);
         window.llToolsStudyPrefs = {
             starredWordIds: state.starred_word_ids ? state.starred_word_ids.slice() : [],
-            starMode: state.star_mode || 'weighted',
-            star_mode: state.star_mode || 'weighted',
+            starMode: state.star_mode || 'normal',
+            star_mode: state.star_mode || 'normal',
             fastTransitions: !!state.fast_transitions,
             fast_transitions: !!state.fast_transitions
         };
@@ -284,7 +284,7 @@
             const data = res.data;
             wordsets = data.wordsets || wordsets;
             categories = data.categories || [];
-            state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'weighted', fast_transitions: false }, data.state || {});
+            state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'normal', fast_transitions: false }, data.state || {});
             state.star_mode = normalizeStarMode(state.star_mode);
             wordsByCategory = data.words_by_category || {};
             renderWordsets();
@@ -408,7 +408,7 @@
 
     // Star mode toggle
     $starModeToggle.on('click', '.ll-study-btn', function () {
-        const mode = $(this).data('mode') || 'weighted';
+        const mode = $(this).data('mode') || 'normal';
         state.star_mode = normalizeStarMode(mode);
         $(this).addClass('active').siblings().removeClass('active');
         setStudyPrefsGlobal();

@@ -11,7 +11,7 @@
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
-        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'weighted';
+        return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
     function insertCompletionCheckmark() {
@@ -185,7 +185,7 @@
         if (total === 0) {
             // This usually means no questions were shown (e.g., "starred only" but nothing is starred in this selection).
             const prefs = root.llToolsStudyPrefs || {};
-            const modeRaw = (prefs.starMode || prefs.star_mode || (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || 'weighted');
+            const modeRaw = (prefs.starMode || prefs.star_mode || (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || 'normal');
             const starMode = normalizeStarMode(modeRaw);
             const starredIds = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
 
