@@ -37,6 +37,7 @@ require_once(__DIR__ . '/admin/recording-types-admin.php');
 require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
 require_once(__DIR__ . '/admin/bulk-translation-admin.php');
 require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
+require_once(__DIR__ . '/admin/export-import.php');
 require_once(__DIR__ . '/admin/word-images-fixer.php');
 require_once(__DIR__ . '/user-study.php');
 
