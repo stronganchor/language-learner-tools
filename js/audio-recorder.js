@@ -77,7 +77,8 @@
             newWordCategoryName: document.getElementById('ll-new-word-category-name'),
             newWordCreateFields: document.querySelector('.ll-new-word-create-fields'),
             newWordTypesWrap: document.querySelector('.ll-new-word-types'),
-            newWordText: document.getElementById('ll-new-word-text'),
+            newWordTextTarget: document.getElementById('ll-new-word-text-target'),
+            newWordTextTranslation: document.getElementById('ll-new-word-text-translation'),
             newWordStartBtn: document.getElementById('ll-new-word-start'),
             newWordBackBtn: document.getElementById('ll-new-word-back'),
         };
@@ -221,8 +222,11 @@
             el.newWordStatus.textContent = '';
             el.newWordStatus.className = 'll-new-word-status';
         }
-        if (el.newWordText) {
-            el.newWordText.value = '';
+        if (el.newWordTextTarget) {
+            el.newWordTextTarget.value = '';
+        }
+        if (el.newWordTextTranslation) {
+            el.newWordTextTranslation.value = '';
         }
         if (el.newWordCategoryName) {
             el.newWordCategoryName.value = '';
@@ -309,7 +313,8 @@
             return;
         }
 
-        const wordText = (el.newWordText?.value || '').trim();
+        const targetText = (el.newWordTextTarget?.value || '').trim();
+        const translationText = (el.newWordTextTranslation?.value || '').trim();
         const category = el.newWordCategory?.value || 'uncategorized';
         lastNewWordCategory = category;
 
@@ -328,7 +333,8 @@
         formData.append('category', category);
         formData.append('create_category', createCategory ? '1' : '0');
         formData.append('new_category_name', newCategoryName);
-        formData.append('word_text', wordText);
+        formData.append('word_text_target', targetText);
+        formData.append('word_text_translation', translationText);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
         formData.append('include_types', includeTypes);

@@ -521,7 +521,7 @@ msgstr "Bu kategori için çevrilmiş adı girin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:353
 msgid "Enter the translation"
-msgstr "Çeviriyi girin"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:349
 msgid "Enter the word in the target language"
@@ -1372,7 +1372,7 @@ msgstr "Hedef Dili"
 
 #: includes/shortcodes/audio-recording-shortcode.php:348
 msgid "Target Word (optional)"
-msgstr "Hedef Kelime (isteğe bağlı)"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:383
 #: includes/taxonomies/word-category-taxonomy.php:438
@@ -1453,7 +1453,7 @@ msgstr "Çeviri"
 
 #: includes/shortcodes/audio-recording-shortcode.php:352
 msgid "Translation (optional)"
-msgstr "Çeviri (isteğe bağlı)"
+msgstr ""
 
 #: includes/admin/settings.php:103
 msgid "Translation Language"

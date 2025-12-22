@@ -9,7 +9,7 @@ if (!defined('WPINC')) { die; }
 /**
  * Get translatable name for a recording type by slug
  */
-function ll_get_recording_type_name($slug) {
+function ll_get_recording_type_name($slug, $term_name = '') {
     $term = get_term_by('slug', $slug, 'recording_type');
     if ($term && !is_wp_error($term)) {
         $translated = get_term_meta((int) $term->term_id, 'term_translation', true);
@@ -31,6 +31,18 @@ function ll_get_recording_type_name($slug) {
         'introduction'  => __('Introduction', 'll-tools-text-domain'),
         'sentence'      => __('In Sentence', 'll-tools-text-domain'),
     ];
+
+    if ($term_name !== '') {
+        if (!empty($english_defaults[$slug]) && $term_name !== $english_defaults[$slug]) {
+            return $term_name;
+        }
+        if (isset($translated_defaults[$slug]) && isset($english_defaults[$slug])) {
+            if ($translated_defaults[$slug] !== $english_defaults[$slug]) {
+                return $translated_defaults[$slug];
+            }
+        }
+        return $term_name;
+    }
 
     if ($term && !is_wp_error($term) && !empty($term->name)) {
         if (!empty($english_defaults[$slug]) && $term->name !== $english_defaults[$slug]) {
@@ -150,7 +162,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             if ($term && !is_wp_error($term)) {
                 $dropdown_types[] = [
                     'slug' => $term->slug,
-                    'name' => ll_get_recording_type_name($term->slug),
+                    'name' => ll_get_recording_type_name($term->slug, $term->name),
                     'term_id' => $term->term_id,
                 ];
             }
@@ -322,7 +334,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                                 <?php foreach ($all_recording_types as $type): ?>
                                     <label>
                                         <input type="checkbox" value="<?php echo esc_attr($type->slug); ?>" <?php checked($type->slug, 'isolation'); ?> />
-                                        <?php echo esc_html(ll_get_recording_type_name($type->slug)); ?>
+                                        <?php echo esc_html(ll_get_recording_type_name($type->slug, $type->name)); ?>
                                     </label>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -333,8 +345,12 @@ function ll_audio_recording_interface_shortcode($atts) {
                 </div>
 
                 <div class="ll-new-word-row">
-                    <label for="ll-new-word-text"><?php _e('Word Text (optional)', 'll-tools-text-domain'); ?></label>
-                    <input type="text" id="ll-new-word-text" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
+                    <label for="ll-new-word-text-target"><?php _e('Target Word (optional)', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll-new-word-text-target" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
+                </div>
+                <div class="ll-new-word-row">
+                    <label for="ll-new-word-text-translation"><?php _e('Translation (optional)', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll-new-word-text-translation" placeholder="<?php esc_attr_e('Enter the translation', 'll-tools-text-domain'); ?>" />
                 </div>
 
                 <div class="ll-new-word-actions">
@@ -779,7 +795,7 @@ function ll_get_images_for_recording_handler() {
         if ($term) {
             $dropdown_types[] = [
                 'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug),
+                'name' => ll_get_recording_type_name($term->slug, $term->name),
                 'term_id' => $term->term_id,
             ];
         }
@@ -811,8 +827,10 @@ function ll_prepare_new_word_recording_handler() {
         wp_send_json_error('New word recording is not enabled for your account');
     }
 
-    $word_text_raw = sanitize_text_field($_POST['word_text'] ?? '');
-    $word_text = ll_sanitize_word_title_text($word_text_raw);
+    $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
+    $target_text = ll_sanitize_word_title_text($target_text_raw);
+    $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
+    $translation_text = trim($translation_text);
 
     $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
     $create_category = !empty($_POST['create_category']);
@@ -928,7 +946,11 @@ function ll_prepare_new_word_recording_handler() {
         __('New word %s', 'll-tools-text-domain'),
         date_i18n('Y-m-d H:i', current_time('timestamp'))
     );
-    $post_title = $store_in_title ? ($word_text !== '' ? $word_text : $placeholder) : $placeholder;
+    if ($store_in_title) {
+        $post_title = $target_text !== '' ? $target_text : $placeholder;
+    } else {
+        $post_title = $translation_text !== '' ? $translation_text : $placeholder;
+    }
 
     $word_id = wp_insert_post([
         'post_title'  => $post_title,
@@ -941,8 +963,14 @@ function ll_prepare_new_word_recording_handler() {
         wp_send_json_error('Failed to create word: ' . $err);
     }
 
-    if (!$store_in_title && $word_text !== '') {
-        update_post_meta($word_id, 'word_translation', $word_text);
+    if ($store_in_title) {
+        if ($translation_text !== '') {
+            update_post_meta($word_id, 'word_translation', $translation_text);
+        }
+    } else {
+        if ($target_text !== '') {
+            update_post_meta($word_id, 'word_translation', $target_text);
+        }
     }
 
     if ($category_term_id) {
@@ -953,7 +981,7 @@ function ll_prepare_new_word_recording_handler() {
         wp_set_object_terms($word_id, array_map('intval', $posted_ids), 'wordset');
     }
 
-    $display_text = $word_text !== '' ? $word_text : $post_title;
+    $display_text = $target_text !== '' ? $target_text : $post_title;
 
     $dropdown_types = [];
     foreach ($filtered_types as $slug) {
@@ -961,7 +989,7 @@ function ll_prepare_new_word_recording_handler() {
         if ($term && !is_wp_error($term)) {
             $dropdown_types[] = [
                 'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug),
+                'name' => ll_get_recording_type_name($term->slug, $term->name),
                 'term_id' => $term->term_id,
             ];
         }
@@ -975,7 +1003,9 @@ function ll_prepare_new_word_recording_handler() {
         'category_slug'    => $category_slug_value,
         'word_id'          => (int) $word_id,
         'word_title'       => $display_text,
-        'word_translation' => (!$store_in_title && $word_text !== '') ? $word_text : '',
+        'word_translation' => $store_in_title
+            ? ($translation_text !== '' ? $translation_text : '')
+            : ($target_text !== '' ? $target_text : ''),
         'use_word_display' => true,
         'missing_types'    => array_values($filtered_types),
         'existing_types'   => [],
