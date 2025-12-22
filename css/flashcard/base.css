@@ -1124,6 +1124,11 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     width: 26px;
     height: 26px;
     display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .ll-tools-settings-panel {
@@ -1602,6 +1607,12 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     text-transform: none !important;
 }
 
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button::before,
+#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button::after {
+    content: "" !important;
+    display: none !important;
+}
+
 #ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button:hover {
     transform: scale(1.04) !important;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35) !important;
@@ -1624,8 +1635,11 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     width: 26px !important;
     height: 26px !important;
     display: block !important;
-    fill: currentColor !important;
+    fill: none !important;
     stroke: currentColor !important;
+    stroke-width: 2px !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
 }
 
 #ll-tools-settings-panel.ll-tools-settings-panel {
@@ -1666,15 +1680,34 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     border-radius: 8px !important;
     border: 1px solid #e5e7eb !important;
     background: #f8fafc !important;
+    background-image: none !important;
     color: #111827 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
     cursor: pointer !important;
     text-align: center !important;
     -webkit-appearance: none !important;
     appearance: none !important;
+    font-family: inherit !important;
+    letter-spacing: normal !important;
     transition: all 0.15s ease !important;
     pointer-events: auto !important;
     float: none !important;
     text-transform: none !important;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::before,
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::after {
+    content: "" !important;
+    display: none !important;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option.active,
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option[aria-pressed="true"] {
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+    border-color: #1d4ed8 !important;
+    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25) !important;
 }
 
 /* Prevent theme button styles from touching the star toggle */
@@ -1709,6 +1742,16 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 .ll-quiz-star-btn.ll-quiz-star-btn.active {
     background: #fde68a !important;
     border-color: #f59e0b !important;
+    color: #111827 !important;
+}
+
+#ll-tools-flashcard-container .ll-quiz-star-btn.ll-quiz-star-btn.active,
+.ll-quiz-star-row .ll-quiz-star-btn.ll-quiz-star-btn.active {
+    background: #fde68a !important;
+    background-color: #fde68a !important;
+    background-image: none !important;
+    border-color: #f59e0b !important;
+    color: #111827 !important;
 }
 
 .ll-quiz-star-btn.ll-quiz-star-btn.listening-variant {
