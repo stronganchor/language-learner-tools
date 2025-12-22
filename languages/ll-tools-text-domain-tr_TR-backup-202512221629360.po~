@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-12-22 16:30+0000\n"
+"PO-Revision-Date: 2025-12-22 16:27+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -1097,7 +1097,7 @@ msgstr "Kayıt"
 
 #: includes/shortcodes/audio-recording-shortcode.php:244
 msgid "Record a New Word"
-msgstr "Yeni Kelime Kaydet"
+msgstr "Yeni Bir Kelime Kaydetme"
 
 #: includes/shortcodes/audio-recording-shortcode.php:376
 msgid "Record again"
@@ -1580,7 +1580,7 @@ msgstr "Kelime seti"
 
 #: includes/shortcodes/audio-recording-shortcode.php:306
 msgid "Word Text (optional)"
-msgstr "Kelimeyi yaz (isteğe bağlı)"
+msgstr "Word Metni (isteğe bağlı)"
 
 #: includes/shortcodes/user-study-dashboard.php:44
 msgid "Words"
@@ -1620,9 +1620,8 @@ msgid ""
 "You have %d word image(s) with featured images in categories (%s), but all "
 "images in the selected wordset already have recordings."
 msgstr ""
-"Öne çıkan görüntülere sahip %d kelime görüntü(ler)iniz var (%s "
-"kategorilerinde), ancak seçilen kelime kümesindeki tüm görüntülerin zaten "
-"kayıtları var."
+"Kategorilerde (%s) öne çıkan görüntülere sahip %d kelime görüntü(ler)iniz "
+"var, ancak seçilen kelime kümesindeki tüm görüntülerin zaten kayıtları var."
 
 #: includes/shortcodes/audio-recording-shortcode.php:634
 msgid ""

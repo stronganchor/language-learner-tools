@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-12-22 16:30+0000\n"
+"PO-Revision-Date: 2025-12-22 16:29+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -1097,7 +1097,7 @@ msgstr "Kayıt"
 
 #: includes/shortcodes/audio-recording-shortcode.php:244
 msgid "Record a New Word"
-msgstr "Yeni Kelime Kaydet"
+msgstr "Yeni Bir Kelime Kaydetme"
 
 #: includes/shortcodes/audio-recording-shortcode.php:376
 msgid "Record again"
@@ -1580,7 +1580,7 @@ msgstr "Kelime seti"
 
 #: includes/shortcodes/audio-recording-shortcode.php:306
 msgid "Word Text (optional)"
-msgstr "Kelimeyi yaz (isteğe bağlı)"
+msgstr "Word Metni (isteğe bağlı)"
 
 #: includes/shortcodes/user-study-dashboard.php:44
 msgid "Words"

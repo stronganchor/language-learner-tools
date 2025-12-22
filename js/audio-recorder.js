@@ -8,14 +8,19 @@
     let recordingStartTime = 0;
     let timerInterval = null;
     let currentBlob = null;
+    let newWordMode = false;
+    let newWordStage = 'inactive';
+    let savedExistingState = null;
+    let lastNewWordCategory = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
     const nonce = window.ll_recorder_data?.nonce;
     const requireAll = !!window.ll_recorder_data?.require_all_types;
+    const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
 
-    if (images.length === 0) return;
+    if (images.length === 0 && !allowNewWords) return;
 
     const icons = {
         record: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><circle cx="12" cy="12" r="8"/></svg>',
@@ -30,7 +35,12 @@
     function init() {
         setupElements();
         setupCategorySelector();
-        loadImage(0);
+        setupNewWordMode();
+        if (images.length > 0) {
+            loadImage(0);
+        } else if (allowNewWords) {
+            enterNewWordMode(false);
+        }
         setupEventListeners();
 
         if (window.llRecorder && window.llRecorder.recordBtn) {
@@ -59,6 +69,17 @@
             mainScreen: document.querySelector('.ll-recording-main'),
             categorySelect: document.getElementById('ll-category-select'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
+            newWordToggle: document.getElementById('ll-new-word-toggle'),
+            newWordPanel: document.querySelector('.ll-new-word-panel'),
+            newWordStatus: document.getElementById('ll-new-word-status'),
+            newWordCategory: document.getElementById('ll-new-word-category'),
+            newWordCreateCategory: document.getElementById('ll-new-word-create-category'),
+            newWordCategoryName: document.getElementById('ll-new-word-category-name'),
+            newWordCreateFields: document.querySelector('.ll-new-word-create-fields'),
+            newWordTypesWrap: document.querySelector('.ll-new-word-types'),
+            newWordText: document.getElementById('ll-new-word-text'),
+            newWordStartBtn: document.getElementById('ll-new-word-start'),
+            newWordBackBtn: document.getElementById('ll-new-word-back'),
         };
     }
 
@@ -69,11 +90,314 @@
         }
     }
 
+    function setupNewWordMode() {
+        if (!allowNewWords) return;
+        const el = window.llRecorder;
+        if (el.newWordCategory && lastNewWordCategory === null) {
+            lastNewWordCategory = el.newWordCategory.value || 'uncategorized';
+        }
+        if (el.newWordToggle) {
+            el.newWordToggle.addEventListener('click', () => enterNewWordMode(false));
+        }
+        if (el.newWordBackBtn) {
+            el.newWordBackBtn.addEventListener('click', exitNewWordMode);
+        }
+        if (el.newWordStartBtn) {
+            el.newWordStartBtn.addEventListener('click', prepareNewWordRecording);
+        }
+        if (el.newWordCreateCategory) {
+            el.newWordCreateCategory.addEventListener('change', toggleNewCategoryFields);
+        }
+        if (el.newWordCategory) {
+            el.newWordCategory.addEventListener('change', () => {
+                lastNewWordCategory = el.newWordCategory.value || lastNewWordCategory;
+            });
+        }
+    }
+
     function decodeEntities(text) {
         if (text === null || text === undefined) return '';
         const div = document.createElement('div');
         div.innerHTML = text;
         return div.textContent || div.innerText || '';
+    }
+
+    function cloneImages(list) {
+        return list.map(item => ({
+            ...item,
+            missing_types: Array.isArray(item.missing_types) ? item.missing_types.slice() : [],
+            existing_types: Array.isArray(item.existing_types) ? item.existing_types.slice() : [],
+        }));
+    }
+
+    function captureExistingState() {
+        const el = window.llRecorder;
+        return {
+            images: cloneImages(images),
+            index: currentImageIndex,
+            category: el.categorySelect ? el.categorySelect.value : '',
+            recordingTypeOptions: el.recordingTypeSelect
+                ? Array.from(el.recordingTypeSelect.options).map(opt => ({
+                    value: opt.value,
+                    text: opt.textContent || opt.value,
+                }))
+                : [],
+        };
+    }
+
+    function enterNewWordMode(skipSave) {
+        if (!allowNewWords) return;
+        if (!skipSave && !savedExistingState) {
+            savedExistingState = captureExistingState();
+        }
+        newWordMode = true;
+        newWordStage = 'setup';
+        showNewWordPanel();
+    }
+
+    function exitNewWordMode() {
+        const el = window.llRecorder;
+        newWordMode = false;
+        newWordStage = 'inactive';
+        if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+        if (el.newWordToggle) el.newWordToggle.disabled = false;
+        if (el.categorySelect) el.categorySelect.disabled = false;
+
+        if (!savedExistingState) {
+            if (el.mainScreen) el.mainScreen.style.display = images.length ? 'flex' : 'none';
+            if (images.length > 0) {
+                loadImage(0);
+            } else {
+                showComplete();
+            }
+            return;
+        }
+
+        const restored = savedExistingState;
+        savedExistingState = null;
+
+        const restoredImages = cloneImages(restored.images);
+        window.ll_recorder_data.images = restoredImages;
+        images.length = 0;
+        images.push(...restoredImages);
+        currentImageIndex = restored.index || 0;
+
+        if (el.recordingTypeSelect) {
+            el.recordingTypeSelect.innerHTML = '';
+            restored.recordingTypeOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.text;
+                el.recordingTypeSelect.appendChild(option);
+            });
+        }
+
+        if (el.categorySelect && restored.category) {
+            el.categorySelect.value = restored.category;
+        }
+
+        if (images.length > 0) {
+            if (el.mainScreen) el.mainScreen.style.display = 'flex';
+            loadImage(currentImageIndex);
+        } else {
+            if (el.mainScreen) el.mainScreen.style.display = 'none';
+            showComplete();
+        }
+    }
+
+    function showNewWordPanel() {
+        const el = window.llRecorder;
+        if (el.mainScreen) el.mainScreen.style.display = 'none';
+        if (el.completeScreen) el.completeScreen.style.display = 'none';
+        if (el.newWordPanel) el.newWordPanel.style.display = 'block';
+        if (el.categorySelect) el.categorySelect.disabled = true;
+        if (el.newWordToggle) el.newWordToggle.disabled = true;
+        resetNewWordForm();
+    }
+
+    function resetNewWordForm() {
+        const el = window.llRecorder;
+        if (el.newWordStatus) {
+            el.newWordStatus.textContent = '';
+            el.newWordStatus.className = 'll-new-word-status';
+        }
+        if (el.newWordText) {
+            el.newWordText.value = '';
+        }
+        if (el.newWordCategoryName) {
+            el.newWordCategoryName.value = '';
+        }
+        if (el.newWordCreateCategory) {
+            el.newWordCreateCategory.checked = false;
+        }
+        if (el.newWordCreateFields) {
+            el.newWordCreateFields.style.display = 'none';
+        }
+        if (el.newWordCategory) {
+            el.newWordCategory.disabled = false;
+            const options = Array.from(el.newWordCategory.options).map(opt => opt.value);
+            const preferred = lastNewWordCategory || 'uncategorized';
+            if (options.includes(preferred)) {
+                el.newWordCategory.value = preferred;
+            } else if (options.includes('uncategorized')) {
+                el.newWordCategory.value = 'uncategorized';
+            } else if (options.length > 0) {
+                el.newWordCategory.value = options[0];
+            }
+        }
+        if (el.newWordTypesWrap) {
+            const checks = el.newWordTypesWrap.querySelectorAll('input[type="checkbox"]');
+            checks.forEach(chk => {
+                chk.checked = (chk.value === 'isolation');
+            });
+        }
+    }
+
+    function toggleNewCategoryFields() {
+        const el = window.llRecorder;
+        const enabled = !!el.newWordCreateCategory?.checked;
+        if (el.newWordCreateFields) {
+            el.newWordCreateFields.style.display = enabled ? 'block' : 'none';
+        }
+        if (el.newWordCategory) {
+            el.newWordCategory.disabled = enabled;
+        }
+        if (enabled && el.newWordCategoryName) {
+            el.newWordCategoryName.focus();
+        }
+    }
+
+    function showNewWordStatus(message, type) {
+        const el = window.llRecorder;
+        if (!el.newWordStatus) return;
+        el.newWordStatus.textContent = message || '';
+        el.newWordStatus.className = 'll-new-word-status';
+        if (type) el.newWordStatus.classList.add(type);
+    }
+
+    function updateRecordingTypeOptions(types) {
+        const el = window.llRecorder;
+        if (!el.recordingTypeSelect) return;
+        el.recordingTypeSelect.innerHTML = '';
+        if (!Array.isArray(types) || types.length === 0) {
+            return;
+        }
+        if (types.length && typeof types[0] === 'object') {
+            window.ll_recorder_data.recording_types = types;
+        }
+        types.forEach(type => {
+            const slug = typeof type === 'string' ? type : type.slug;
+            const label = typeof type === 'string'
+                ? (type.charAt(0).toUpperCase() + type.slice(1))
+                : (type.name || type.slug);
+            if (!slug) return;
+            const option = document.createElement('option');
+            option.value = slug;
+            option.textContent = label;
+            el.recordingTypeSelect.appendChild(option);
+        });
+    }
+
+    async function prepareNewWordRecording() {
+        const el = window.llRecorder;
+        if (!el.newWordPanel || !allowNewWords) return;
+
+        const createCategory = !!el.newWordCreateCategory?.checked;
+        const newCategoryName = (el.newWordCategoryName?.value || '').trim();
+        if (createCategory && !newCategoryName) {
+            showNewWordStatus(i18n.new_word_missing_category || 'Enter a category name or disable "Create new category".', 'error');
+            return;
+        }
+
+        const wordText = (el.newWordText?.value || '').trim();
+        const category = el.newWordCategory?.value || 'uncategorized';
+        lastNewWordCategory = category;
+
+        showNewWordStatus(i18n.new_word_preparing || 'Preparing new word...', 'info');
+        if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
+        if (el.newWordBackBtn) el.newWordBackBtn.disabled = true;
+
+        const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
+        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
+        const includeTypes = window.ll_recorder_data?.include_types || '';
+        const excludeTypes = window.ll_recorder_data?.exclude_types || '';
+
+        const formData = new FormData();
+        formData.append('action', 'll_prepare_new_word_recording');
+        formData.append('nonce', nonce);
+        formData.append('category', category);
+        formData.append('create_category', createCategory ? '1' : '0');
+        formData.append('new_category_name', newCategoryName);
+        formData.append('word_text', wordText);
+        formData.append('wordset_ids', JSON.stringify(wordsetIds));
+        formData.append('wordset', wordsetLegacy);
+        formData.append('include_types', includeTypes);
+        formData.append('exclude_types', excludeTypes);
+
+        if (createCategory && el.newWordTypesWrap) {
+            const selected = Array.from(el.newWordTypesWrap.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(input => input.value)
+                .filter(Boolean);
+            selected.forEach(slug => {
+                formData.append('new_category_types[]', slug);
+            });
+        }
+
+        try {
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.data || data.message || 'Failed to prepare new word');
+            }
+
+            const word = data.data?.word;
+            if (!word) {
+                throw new Error('Missing word data');
+            }
+            const recordingTypes = data.data?.recording_types || [];
+
+            if (data.data?.category?.slug && el.newWordCategory) {
+                const slug = data.data.category.slug;
+                const name = data.data.category.name || slug;
+                const exists = Array.from(el.newWordCategory.options).some(opt => opt.value === slug);
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = slug;
+                    opt.textContent = name;
+                    el.newWordCategory.appendChild(opt);
+                }
+                el.newWordCategory.value = slug;
+                lastNewWordCategory = slug;
+            }
+
+            window.ll_recorder_data.images = [word];
+            images.length = 0;
+            images.push(word);
+            currentImageIndex = 0;
+            updateRecordingTypeOptions(recordingTypes);
+
+            newWordMode = true;
+            newWordStage = 'recording';
+            if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+            if (el.mainScreen) el.mainScreen.style.display = 'flex';
+            if (el.categorySelect) el.categorySelect.disabled = true;
+            if (el.newWordToggle) el.newWordToggle.disabled = true;
+
+            loadImage(0);
+            showNewWordStatus('', '');
+        } catch (err) {
+            showNewWordStatus((i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''), 'error');
+        } finally {
+            if (el.newWordStartBtn) el.newWordStartBtn.disabled = false;
+            if (el.newWordBackBtn) el.newWordBackBtn.disabled = false;
+        }
     }
 
     // Fit text inside its container for text-only cards
@@ -620,6 +944,9 @@
             }
 
             if (data.success) {
+                if (data.data?.word_id && !img.word_id) {
+                    img.word_id = data.data.word_id;
+                }
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
                 handleSuccessfulUpload(recordingType, remaining);
             } else {
@@ -671,6 +998,7 @@
     async function switchCategory() {
         const el = window.llRecorder;
         if (!el.categorySelect) return;
+        if (newWordMode) return;
 
         const newCategory = el.categorySelect.value;
         if (!newCategory) return;
@@ -732,13 +1060,7 @@
 
                 // Update recording type dropdown options
                 const newTypes = data.data?.recording_types || [];
-                el.recordingTypeSelect.innerHTML = '';
-                newTypes.forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type.slug;
-                    option.textContent = type.name || type.slug;
-                    el.recordingTypeSelect.appendChild(option);
-                });
+                updateRecordingTypeOptions(newTypes);
 
                 // Reset and load first image
                 if (el.completeScreen) el.completeScreen.style.display = 'none';
@@ -783,6 +1105,11 @@
 
     function showComplete() {
         const el = window.llRecorder;
+        if (newWordMode && newWordStage === 'recording') {
+            newWordStage = 'setup';
+            showNewWordPanel();
+            return;
+        }
         if (el.mainScreen) el.mainScreen.style.display = 'none';
 
         // Mark current category as exhausted since we completed all its images

@@ -79,6 +79,94 @@
     white-space: nowrap;
 }
 
+.ll-new-word-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.ll-new-word-panel {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e4e7;
+}
+
+.ll-new-word-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+    color: #1a1a1a;
+}
+
+.ll-new-word-status {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+    color: #50575e;
+}
+
+.ll-new-word-status.error {
+    color: #b32d2e;
+}
+
+.ll-new-word-status.info {
+    color: #2271b1;
+}
+
+.ll-new-word-status.success {
+    color: #008a20;
+}
+
+.ll-new-word-row {
+    margin-bottom: 0.9rem;
+}
+
+.ll-new-word-row label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: #1a1a1a;
+    font-size: 0.9rem;
+}
+
+.ll-new-word-row input[type="text"],
+.ll-new-word-row select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.ll-new-word-checkbox label {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ll-new-word-types {
+    border: 1px solid #ccd0d4;
+    border-radius: 6px;
+    padding: 0.6rem;
+    max-height: 160px;
+    overflow: auto;
+    background: #f8f9fa;
+}
+
+.ll-new-word-types label {
+    display: block;
+    font-weight: 500;
+    margin: 0.2rem 0;
+}
+
+.ll-new-word-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
 /* Main content - horizontal layout */
 .ll-recording-main {
     display: flex;

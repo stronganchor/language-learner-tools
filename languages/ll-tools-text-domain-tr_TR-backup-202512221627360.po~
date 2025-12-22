@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-12-22 16:30+0000\n"
+"PO-Revision-Date: 2025-12-22 16:26+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -19,19 +19,19 @@ msgstr ""
 #, php-format
 msgid "%1$d word was skipped because it already exists: %2$s"
 msgid_plural "%1$d words were skipped because they already exist: %2$s"
-msgstr[0] "1$d sözcüğü zaten mevcut olduğu için atlandı: %2$s"
-msgstr[1] "1$d sözcük zaten mevcut olduğu için atlandı: %2$s"
+msgstr[0] ""
+msgstr[1] ""
 
 #: includes/pages/quiz-pages.php:42
 #, php-format
 msgid "%1$s | %2$s"
-msgstr "1$s | %2$s"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:218
 msgid "%d empty line was ignored."
 msgid_plural "%d empty lines were ignored."
-msgstr[0] "d boş satır göz ardı edildi."
-msgstr[1] "d boş satırlar göz ardı edildi."
+msgstr[0] ""
+msgstr[1] ""
 
 #: includes/taxonomies/word-category-taxonomy.php:1148
 msgid "%d entry failed."
@@ -41,7 +41,7 @@ msgstr[1] "d girişleri başarısız oldu."
 
 #: includes/admin/word-images-fixer.php:92
 msgid "%d items failed."
-msgstr "d öğe başarısız oldu."
+msgstr ""
 
 #: includes/post-types/words-post-type.php:519
 msgid "%d word marked for audio reprocessing."
@@ -52,8 +52,8 @@ msgstr[1] "ses yeniden işleme için işaretlenmiş %d sözcük."
 #: includes/admin/word-images-fixer.php:102
 msgid "%d word needs an image post."
 msgid_plural "%d words need image posts."
-msgstr[0] "d sözcüğünün bir resim gönderisine ihtiyacı var."
-msgstr[1] "d kelimenin resim gönderilerine ihtiyacı var."
+msgstr[0] ""
+msgstr[1] ""
 
 #: includes/post-types/words-post-type.php:530
 #: includes/post-types/words-post-type.php:552
@@ -65,8 +65,8 @@ msgstr[1] "d sözcük atlandı (ses dosyası yok)."
 #: includes/admin/bulk-word-import-admin.php:190
 msgid "%d word was imported as a draft."
 msgid_plural "%d words were imported as drafts."
-msgstr[0] "d sözcüğü taslak olarak içe aktarıldı."
-msgstr[1] "d sözcükler taslak olarak içe aktarıldı."
+msgstr[0] ""
+msgstr[1] ""
 
 #: includes/admin/settings.php:107 includes/admin/settings.php:108
 #, php-format
@@ -87,17 +87,12 @@ msgid ""
 "<strong>To fix this:</strong> Edit each word image and assign it to at least "
 "one word category."
 msgstr ""
-"<strong>Bunu düzeltmek için:</strong> Her kelime görselini düzenleyin ve en "
-"az bir kelime kategorisine atayın."
 
 #: includes/shortcodes/audio-recording-shortcode.php:607
 msgid ""
 "<strong>To fix this:</strong> Edit each word image and set a featured image "
 "using the \"Featured Image\" panel on the right side of the editor."
 msgstr ""
-"<strong>Bunu düzeltmek için:</strong> Her bir kelime görselini düzenleyin ve "
-"editörün sağ tarafındaki \"Öne Çıkan Görsel\" panelini kullanarak öne çıkan "
-"bir görsel ayarlayın."
 
 #: includes/pages/recording-page.php:96
 #, php-format
@@ -137,7 +132,7 @@ msgstr "Yeni Kayıt Türü Ekle"
 
 #: includes/shortcodes/user-study-dashboard.php:113
 msgid "All"
-msgstr "Tümü"
+msgstr ""
 
 #: includes/post-types/word-image-post-type.php:142
 #: includes/post-types/words-post-type.php:302
@@ -146,7 +141,7 @@ msgstr "Tüm Kategoriler"
 
 #: includes/admin/export-import.php:101
 msgid "All categories"
-msgstr "Tüm kategoriler"
+msgstr ""
 
 #: includes/taxonomies/recording-type-taxonomy.php:13
 msgid "All Recording Types"
@@ -163,28 +158,26 @@ msgstr "Tüm Kelime Setleri"
 #: includes/user-roles/audio-recorder-role.php:185
 #: includes/user-roles/audio-recorder-role.php:284
 msgid "Allow New Words"
-msgstr "Yeni Kelimelere İzin Verin"
+msgstr ""
 
 #: includes/user-roles/audio-recorder-role.php:191
 #: includes/user-roles/audio-recorder-role.php:289
 msgid ""
 "Allow this user to record brand new words without existing posts or images."
 msgstr ""
-"Bu kullanıcının mevcut gönderiler veya resimler olmadan yepyeni kelimeler "
-"kaydetmesine izin verin."
 
 #: includes/taxonomies/word-category-taxonomy.php:379
 #: includes/taxonomies/word-category-taxonomy.php:432
 msgid "Answer Options"
-msgstr "Cevap Seçenekleri"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:296
 msgid "Assign to existing category"
-msgstr "Mevcut kategoriye atama"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:284
 msgid "Assign to word set"
-msgstr "Sözcük kümesine atama"
+msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:122
 msgid "Associated Word"
@@ -193,7 +186,7 @@ msgstr "İlişkili Kelime"
 #: includes/taxonomies/word-category-taxonomy.php:384
 #: includes/taxonomies/word-category-taxonomy.php:439
 msgid "Audio"
-msgstr "Ses"
+msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:55
 #: includes/post-types/words-post-type.php:222
@@ -223,7 +216,7 @@ msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
 #: includes/shortcodes/audio-recording-shortcode.php:312
 msgid "Back to Existing Words"
-msgstr "Mevcut Kelimelere Geri Dön"
+msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:111
 msgid "Bulk Add Audio"
@@ -247,21 +240,21 @@ msgstr "Kategoriler"
 
 #: includes/shortcodes/audio-recording-shortcode.php:247
 msgid "Category"
-msgstr "Kategori"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:97
 #, php-format
 msgid "Category \"%s\" already exists and will be used."
-msgstr "Kategori \"%s\" zaten mevcut ve kullanılacak."
+msgstr ""
 
 #: includes/admin/export-import.php:624
 #, php-format
 msgid "Category \"%s\" could not be created: %s"
-msgstr "Kategori \"%s\" oluşturulamadı: %s"
+msgstr ""
 
 #: includes/admin/export-import.php:92
 msgid "Category scope"
-msgstr "Kategori kapsamı"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:179
 msgid "Category switched. Ready to record."
@@ -280,30 +273,23 @@ msgid ""
 "Choose a word set to assign to newly imported words so they appear in the "
 "recording interface for that set."
 msgstr ""
-"Yeni içe aktarılan kelimelere atamak için bir kelime seti seçin, böylece bu "
-"set için kayıt arayüzünde görünürler."
 
 #: includes/shortcodes/user-study-dashboard.php:77
 msgid ""
 "Choose a word set, pick categories, and star the words you want to see more "
 "often."
 msgstr ""
-"Bir kelime seti seçin, kategoriler belirleyin ve daha sık görmek istediğiniz "
-"kelimeleri yıldızlayın."
 
 #: includes/admin/bulk-word-import-admin.php:304
 msgid ""
 "Choose an existing word category for the imported words, or leave "
 "uncategorized."
 msgstr ""
-"İçe aktarılan kelimeler için mevcut bir kelime kategorisi seçin veya "
-"kategorisiz bırakın."
 
 #: includes/taxonomies/word-category-taxonomy.php:376
 msgid ""
 "Choose whether the quiz starts with audio or an image for this category."
 msgstr ""
-"Bu kategori için testin sesle mi yoksa görüntüyle mi başlayacağını seçin."
 
 #: includes/admin/recording-types-admin.php:157
 msgid ""
@@ -311,21 +297,16 @@ msgid ""
 "Leave all unchecked to use the main defaults (Isolation, Question, "
 "Introduction)."
 msgstr ""
-"Bir kelimenin kategorisi olmadığında hangi kayıt türlerinin sorulacağını "
-"seçin. Ana varsayılanları (İzolasyon, Soru, Giriş) kullanmak için tümünü "
-"işaretlemeden bırakın."
 
 #: includes/pages/quiz-pages.php:516
 msgid "Clean Up & Sync Quiz Pages"
-msgstr "Sınav Sayfalarını Temizleme ve Senkronize Etme"
+msgstr ""
 
 #: includes/pages/quiz-pages.php:513
 msgid ""
 "Clean up quiz pages for categories that can no longer generate valid quizzes "
 "and sync pages for valid categories."
 msgstr ""
-"Artık geçerli testler oluşturamayan kategoriler için test sayfalarını "
-"temizleyin ve geçerli kategoriler için sayfaları senkronize edin."
 
 #: templates/flashcard-widget-template.php:40
 #: templates/flashcard-widget-template.php:45
@@ -344,7 +325,7 @@ msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:311
 msgid "Continue to Recording"
-msgstr "Kayda Devam Et"
+msgstr ""
 
 #: includes/post-types/word-image-post-type.php:210
 msgid "Copyright Info"
@@ -357,28 +338,28 @@ msgstr "Doğru: "
 
 #: includes/admin/export-import.php:767
 msgid "Could not copy image into uploads."
-msgstr "Resim yüklemelere kopyalanamadı."
+msgstr ""
 
 #: includes/admin/export-import.php:175
 msgid "Could not create export zip."
-msgstr "Dışa aktarma zip'i oluşturulamadı."
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:105
 #, php-format
 msgid "Could not create the \"%1$s\" category: %2$s"
-msgstr "\"%1$s\" kategorisi oluşturulamadı: %2$s"
+msgstr ""
 
 #: includes/admin/export-import.php:760
 msgid "Could not create uploads directory."
-msgstr "Yüklemeler dizini oluşturulamadı."
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:308
 msgid "Create a new category"
-msgstr "Yeni bir kategori oluşturun"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:278
 msgid "Create a new category for these words"
-msgstr "Bu kelimeler için yeni bir kategori oluşturun"
+msgstr ""
 
 #: includes/pages/recording-page.php:144
 msgid "Create a new recording page?"
@@ -386,11 +367,11 @@ msgstr "Yeni bir kayıt sayfası mı oluşturuyorsunuz?"
 
 #: includes/shortcodes/audio-recording-shortcode.php:581
 msgid "Create a word image"
-msgstr "Bir kelime görüntüsü oluşturun"
+msgstr ""
 
 #: includes/admin/word-images-fixer.php:108
 msgid "Create Missing Word-Image Posts"
-msgstr "Eksik Kelime-Resim Gönderileri Oluşturun"
+msgstr ""
 
 #: includes/pages/recording-page.php:137
 msgid "Create Recording Page"
@@ -398,12 +379,12 @@ msgstr "Kayıt Sayfası Oluştur"
 
 #: includes/admin/word-images-fixer.php:90
 msgid "Created %d word image posts."
-msgstr "Oluşturulan %d kelime resim gönderileri."
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:114
 #, php-format
 msgid "Created new category \"%s\"."
-msgstr "Yeni \"%s\" kategorisi oluşturuldu."
+msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:71
 msgid "Current User"
@@ -412,7 +393,7 @@ msgstr "Mevcut Kullanıcı"
 #: includes/shortcodes/audio-recording-shortcode.php:698
 #, php-format
 msgid "Current wordset filter: <strong>%s</strong>"
-msgstr "Geçerli sözcük kümesi filtresi: <strong>%s</strong>"
+msgstr ""
 
 #: includes/pages/recording-page.php:120
 msgid "Current:"
@@ -420,7 +401,7 @@ msgstr "Şu anda:"
 
 #: includes/taxonomies/word-category-taxonomy.php:552
 msgid "Currently disabled (no recording types selected)."
-msgstr "Şu anda devre dışı (hiçbir kayıt türü seçili değil)."
+msgstr ""
 
 #: includes/user-roles/audio-recorder-role.php:175
 #: includes/user-roles/audio-recorder-role.php:275
@@ -437,8 +418,6 @@ msgid ""
 "Decide how often starred words appear: normal mix, starred twice, or only "
 "starred."
 msgstr ""
-"Yıldızlı kelimelerin ne sıklıkta görüneceğine karar verin: normal karışım, "
-"iki kez yıldızlı veya sadece yıldızlı."
 
 #: includes/pages/recording-page.php:116
 msgid "Default Recording Page"
@@ -450,33 +429,31 @@ msgstr "Varsayılan Kelime Seti"
 
 #: includes/shortcodes/audio-recording-shortcode.php:301
 msgid "Defaults to Isolation only for new categories."
-msgstr "Varsayılan olarak yalnızca yeni kategoriler için İzolasyon'dur."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:288
 #: includes/taxonomies/word-category-taxonomy.php:502
 #: includes/taxonomies/word-category-taxonomy.php:537
 msgid "Desired Recording Types"
-msgstr "İstenen Kayıt Türleri"
+msgstr ""
 
 #: includes/admin/recording-types-admin.php:163
 msgid "Desired recording types"
-msgstr "İstenen kayıt türleri"
+msgstr ""
 
 #: includes/admin/export-import.php:108
 msgid "Download export (.zip)"
-msgstr "Dışa aktarımı indirin (.zip)"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:285
 msgid "e.g., Food"
-msgstr "örneğin, Gıda"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:280
 msgid ""
 "Each line will become a new draft word post with the title automatically "
 "capitalized."
 msgstr ""
-"Her satır, başlığı otomatik olarak büyük harfle yazılan yeni bir taslak "
-"kelime gönderisi haline gelecektir."
 
 #: includes/pages/recording-page.php:126
 #: includes/post-types/word-audio-post-type.php:127
@@ -498,13 +475,11 @@ msgstr "Kayıt Türünü Düzenle"
 #: includes/shortcodes/audio-recording-shortcode.php:611
 #: includes/shortcodes/audio-recording-shortcode.php:641
 msgid "Edit Word Images"
-msgstr "Kelime Görüntülerini Düzenleme"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:183
 msgid "Enter a category name or disable \"Create new category\"."
 msgstr ""
-"Bir kategori adı girin veya \"Yeni kategori oluştur\" seçeneğini devre dışı "
-"bırakın."
 
 #: includes/taxonomies/word-category-taxonomy.php:1160
 msgid "Enter names separated by commas, tabs or new lines…"
@@ -512,7 +487,7 @@ msgstr "Virgül, sekme veya yeni satır ile ayrılmış isimleri girin.."
 
 #: includes/admin/bulk-word-import-admin.php:279
 msgid "Enter one word per line"
-msgstr "Satır başına bir kelime girin"
+msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:164
 msgid "Enter the language for this word set."
@@ -525,7 +500,7 @@ msgstr "Bu kategori için çevrilmiş adı girin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:307
 msgid "Enter the word in the target language"
-msgstr "Kelimeyi hedef dilde girin"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:163
 msgid "Error:"
@@ -537,7 +512,7 @@ msgstr "Hata: Mikrofona erişilemedi"
 
 #: includes/admin/export-import.php:59
 msgid "Errors:"
-msgstr "Hatalar:"
+msgstr ""
 
 #: includes/user-roles/audio-recorder-role.php:157
 #: includes/user-roles/audio-recorder-role.php:261
@@ -546,50 +521,47 @@ msgstr "Kayıt Türlerini Hariç Tut"
 
 #: includes/admin/export-import.php:87
 msgid "Export"
-msgstr "İhracat"
+msgstr ""
 
 #: includes/admin/export-import.php:84
 msgid ""
 "Export word categories and word image posts (with their images) to a single "
 "zip. Import the zip on another site to recreate them."
 msgstr ""
-"Kelime kategorilerini ve kelime resmi gönderilerini (resimleriyle birlikte) "
-"tek bir zip'e aktarın. Bunları yeniden oluşturmak için zip'i başka bir "
-"siteye aktarın."
 
 #: includes/admin/bulk-word-import-admin.php:154
 #, php-format
 msgid "Failed to create \"%1$s\": %2$s"
-msgstr "\"%1$s\" oluşturulamadı: %2$s"
+msgstr ""
 
 #: includes/admin/export-import.php:689
 #, php-format
 msgid "Failed to create word image \"%s\": %s"
-msgstr "\"%s\" sözcük görüntüsü oluşturulamadı: %s"
+msgstr ""
 
 #: includes/admin/export-import.php:729
 #, php-format
 msgid "Failed to import image for \"%1$s\": %2$s"
-msgstr "\"%1$s\" için görüntü içe aktarılamadı: %2$s"
+msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:942
 #: includes/admin/missing-audio-admin-page.php:1037
 msgid "Failed to run regex on post ID %d"
-msgstr "Gönderi kimliği %d üzerinde regex çalıştırılamadı"
+msgstr ""
 
 #: includes/admin/export-import.php:681
 #, php-format
 msgid "Failed to update word image \"%s\": %s"
-msgstr "\"%s\" sözcük görüntüsü güncellenemedi: %s"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:58
 msgid "Faster"
-msgstr "Daha hızlı"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:99
 #: includes/shortcodes/quiz-pages-shortcodes.php:521
 msgid "Faster transitions"
-msgstr "Daha hızlı geçişler"
+msgstr ""
 
 #: includes/post-types/word-image-post-type.php:211
 #: includes/post-types/words-post-type.php:220
@@ -598,15 +570,13 @@ msgstr "Öne Çıkan Görsel"
 
 #: includes/admin/word-images-fixer.php:99
 msgid "Fix Word Images (Legacy Cleanup)"
-msgstr "Kelime Görüntülerini Düzeltme (Eski Temizleme)"
+msgstr ""
 
 #: includes/admin/uploads/image-upload-form.php:28
 msgid ""
 "Generate word posts for these word sets (applies only when the category "
 "quizzes without audio):"
 msgstr ""
-"Bu kelime setleri için kelime gönderileri oluşturun (yalnızca kategori "
-"sınavları ses olmadan yapıldığında geçerlidir):"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:839
 msgid "Go"
@@ -640,11 +610,10 @@ msgstr "https://stronganchortech.com"
 #: includes/admin/uploads/image-upload-form.php:43
 msgid "If left empty, generated word posts will not be assigned to a word set."
 msgstr ""
-"Boş bırakılırsa, oluşturulan sözcük gönderileri bir sözcük kümesine atanmaz."
 
 #: includes/taxonomies/word-category-taxonomy.php:550
 msgid "If none selected, recording is disabled for this category."
-msgstr "Hiçbiri seçilmezse, bu kategori için kayıt devre dışı bırakılır."
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:175
 msgid "If using wordsets, the wordset contains words for this category"
@@ -655,81 +624,80 @@ msgstr ""
 #: includes/admin/export-import.php:735
 #, php-format
 msgid "Image file for \"%s\" is missing from the zip."
-msgstr "\"%s\" için resim dosyası zipte eksik."
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:381
 #: includes/taxonomies/word-category-taxonomy.php:436
 msgid "Images"
-msgstr "Görüntüler"
+msgstr ""
 
 #: includes/admin/export-import.php:113 includes/admin/export-import.php:145
 msgid "Import"
-msgstr "İthalat"
+msgstr ""
 
 #: includes/admin/export-import.php:743
 msgid "Import complete."
-msgstr "İthalat tamamlandı."
+msgstr ""
 
 #: includes/admin/export-import.php:545
 msgid "Import failed: could not open zip file."
-msgstr "İçe aktarma başarısız oldu: zip dosyası açılamadı."
+msgstr ""
 
 #: includes/admin/export-import.php:242
 msgid "Import failed: could not upload file."
-msgstr "İçe aktarma başarısız oldu: dosya yüklenemedi."
+msgstr ""
 
 #: includes/admin/export-import.php:565
 msgid "Import failed: data.json is not valid JSON."
-msgstr "İçe aktarma başarısız oldu: data.json geçerli bir JSON değil."
+msgstr ""
 
 #: includes/admin/export-import.php:557
 msgid "Import failed: data.json not found inside the zip."
-msgstr "İçe aktarma başarısız oldu: data.json zip içinde bulunamadı."
+msgstr ""
 
 #: includes/admin/export-import.php:333
 msgid "Import failed: invalid server zip name."
-msgstr "İçe aktarma başarısız: geçersiz sunucu zip adı."
+msgstr ""
 
 #: includes/admin/export-import.php:330
 msgid "Import failed: no server zip selected."
-msgstr "İçe aktarma başarısız oldu: sunucu zip'i seçilmedi."
+msgstr ""
 
 #: includes/admin/export-import.php:599
 msgid "Import failed: payload missing categories or word images."
 msgstr ""
-"İçe aktarma başarısız: yükte eksik kategoriler veya sözcük resimleri var."
 
 #: includes/admin/export-import.php:229
 msgid "Import failed: please choose a zip file to import."
-msgstr "İçe aktarma başarısız: lütfen içe aktarmak için bir zip dosyası seçin."
+msgstr ""
 
 #: includes/admin/export-import.php:336
 msgid "Import failed: selected file is not a zip."
-msgstr "İçe aktarma başarısız: seçilen dosya bir zip değil."
+msgstr ""
 
 #: includes/admin/export-import.php:341
 msgid "Import failed: selected server zip was not found."
-msgstr "İçe aktarma başarısız oldu: seçilen sunucu zip'i bulunamadı."
+msgstr ""
 
 #: includes/admin/export-import.php:350
 msgid "Import failed: selected zip is outside the import directory."
-msgstr "İçe aktarma başarısız oldu: seçilen zip içe aktarma dizininin dışında."
+msgstr ""
 
 #: includes/admin/export-import.php:251
 msgid "Import failed: server import folder is not available."
-msgstr "İçe aktarma başarısız oldu: sunucu içe aktarma klasörü mevcut değil."
+msgstr ""
 
 #: includes/admin/export-import.php:539
 msgid "Import failed: uploaded file is missing."
-msgstr "İçe aktarma başarısız: yüklenen dosya eksik."
+msgstr ""
 
 #: includes/admin/export-import.php:744
 msgid "Import finished with some errors."
-msgstr "İçe aktarma işlemi bazı hatalarla tamamlandı."
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:316
 msgid "Import words"
-msgstr "İthal kelimeler"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:17
 #: includes/taxonomies/recording-type-taxonomy.php:44
@@ -763,7 +731,6 @@ msgstr "Çalışmaya devam edin!"
 #: includes/shortcodes/user-study-dashboard.php:56
 msgid "Keep the default smooth pacing or speed up after correct answers."
 msgstr ""
-"Varsayılan yumuşak tempoyu koruyun veya doğru cevaplardan sonra hızlandırın."
 
 #: includes/taxonomies/language-taxonomy.php:11
 #: includes/taxonomies/wordset-taxonomy.php:162
@@ -781,7 +748,7 @@ msgstr "Diller"
 
 #: includes/shortcodes/user-study-dashboard.php:48
 msgid "Learn"
-msgstr "Öğrenmek"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:160
 msgid "Learning Complete!"
@@ -805,35 +772,35 @@ msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:287
 msgid "Leave unassigned"
-msgstr "Atanmamış bırakın"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:299
 msgid "Leave uncategorized"
-msgstr "Kategorize edilmemiş bırakın"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:49
 msgid "Listen"
-msgstr "Dinle"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:162
 msgid "Listening Complete"
-msgstr "Dinleme Tamamlandı"
+msgstr ""
 
 #: includes/admin/word-images-fixer.php:9
 msgid "LL Fix Word Images"
-msgstr "LL Fix Word Görüntüleri"
+msgstr ""
 
 #: includes/admin/export-import.php:82
 msgid "LL Tools Export/Import"
-msgstr "LL Araçları İhracat/İthalat"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:256
 msgid "LL Tools — Bulk Word Import"
-msgstr "LL Araçları - Toplu Kelime İçe Aktarma"
+msgstr ""
 
 #: includes/admin/word-images-fixer.php:8
 msgid "LL Tools — Fix Word Images"
-msgstr "LL Araçları - Kelime Görüntülerini Düzeltme"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:170
 msgid "Loading Error"
@@ -846,7 +813,7 @@ msgstr "Giriş yap"
 #: includes/user-study.php:216 includes/user-study.php:232
 #: includes/user-study.php:248
 msgid "Login required."
-msgstr "Giriş gerekli."
+msgstr ""
 
 #: includes/post-types/words-post-type.php:443
 msgid "Mark for Audio Reprocessing"
@@ -866,7 +833,7 @@ msgstr "Yeni Ses Kaydı"
 
 #: includes/shortcodes/audio-recording-shortcode.php:284
 msgid "New Category Name"
-msgstr "Yeni Kategori Adı"
+msgstr ""
 
 #: includes/taxonomies/recording-type-taxonomy.php:17
 msgid "New Recording Type Name"
@@ -875,11 +842,11 @@ msgstr "Yeni Kayıt Tipi Adı"
 #: includes/shortcodes/audio-recording-shortcode.php:898
 #, php-format
 msgid "New word %s"
-msgstr "Yeni kelime %s"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:182
 msgid "New word setup failed:"
-msgstr "Yeni kelime kurulumu başarısız oldu:"
+msgstr ""
 
 #: includes/post-types/words-post-type.php:324
 msgid "No"
@@ -899,12 +866,12 @@ msgstr "Çöp kutusunda ses kaydı bulunamadı"
 
 #: includes/shortcodes/user-study-dashboard.php:50
 msgid "No categories available for this word set yet."
-msgstr "Bu kelime seti için henüz kategori mevcut değil."
+msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:1396
 #: includes/admin/missing-audio-admin-page.php:1528
 msgid "No headers selected for matching."
-msgstr "Eşleştirme için seçilen başlık yok."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:178
 msgid "No images need audio in this category."
@@ -932,26 +899,24 @@ msgstr "Kayıt sayfası bulunamadı."
 
 #: includes/shortcodes/audio-recording-shortcode.php:679
 msgid "No recording types are configured in your system."
-msgstr "Sisteminizde hiçbir kayıt türü yapılandırılmamıştır."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:298
 msgid "No recording types available."
-msgstr "Kayıt türü mevcut değil."
+msgstr ""
 
 #: includes/admin/recording-types-admin.php:178
 msgid "No recording types defined yet."
-msgstr "Henüz tanımlanmış kayıt türü yok."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:577
 msgid ""
 "No word images have been created yet. Please create some word images first."
 msgstr ""
-"Henüz hiçbir kelime görseli oluşturulmadı. Lütfen önce bazı kelime "
-"görselleri oluşturun."
 
 #: includes/admin/uploads/image-upload-form.php:45
 msgid "No word sets available."
-msgstr "Hiçbir kelime seti mevcut değil."
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:172
 msgid "No words could be loaded for this quiz. Please check that:"
@@ -959,19 +924,17 @@ msgstr "Bu test için hiçbir kelime yüklenemedi. Lütfen kontrol edin:"
 
 #: includes/admin/export-import.php:137
 msgid "No zip files found in the server import folder yet."
-msgstr "Sunucu içe aktarma klasöründe henüz zip dosyası bulunamadı."
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:114
 msgid "None"
-msgstr "Hiçbiri"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:311
 msgid ""
 "Optional. If provided, the new category will be created and used for all "
 "imported words."
 msgstr ""
-"İsteğe bağlı. Sağlanırsa, yeni kategori oluşturulur ve içe aktarılan tüm "
-"kelimeler için kullanılır."
 
 #: includes/user-roles/audio-recorder-role.php:180
 #: includes/user-roles/audio-recorder-role.php:279
@@ -984,7 +947,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:122
 msgid "Or select a zip already on the server"
-msgstr "Veya sunucuda zaten bulunan bir zip seçin"
+msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:74
 msgid "Other Users"
@@ -1008,7 +971,7 @@ msgstr "Mükemmel!"
 
 #: includes/admin/word-images-fixer.php:80
 msgid "Permission denied"
-msgstr "İzin reddedildi"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:1174
 msgid "Permission denied or invalid nonce."
@@ -1021,12 +984,12 @@ msgstr "Oyun"
 
 #: includes/shortcodes/user-study-dashboard.php:54
 msgid "Play audio"
-msgstr "Ses çalma"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:373
 #: includes/taxonomies/word-category-taxonomy.php:424
 msgid "Play audio (default)"
-msgstr "Ses çal (varsayılan)"
+msgstr ""
 
 #. %s: login URL
 #: includes/shortcodes/user-study-dashboard.php:26
@@ -1035,26 +998,24 @@ msgid ""
 "Please <a href=\"%s\">log in</a> to save your study preferences. We will "
 "bring you back to this page after you sign in."
 msgstr ""
-"Çalışma tercihlerinizi kaydetmek için lütfen <a href=\"%s\">log in</a> yapın."
-" Oturum açtıktan sonra sizi bu sayfaya geri getireceğiz."
 
 #: includes/admin/bulk-word-import-admin.php:125
 msgid "Please provide at least one word to import."
-msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:47
 msgid "Practice"
-msgstr "Uygulama"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:144
 #: includes/shortcodes/flashcard-widget.php:186
 #: includes/shortcodes/quiz-pages-shortcodes.php:565
 msgid "Practice Mode"
-msgstr "Alıştırma Modu"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:181
 msgid "Preparing new word..."
-msgstr "Yeni kelime hazırlanıyor..."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:15
 #: includes/taxonomies/recording-type-taxonomy.php:42
@@ -1065,17 +1026,15 @@ msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
 msgid ""
 "Quiz page cleanup completed. %d invalid pages removed and valid pages synced."
 msgstr ""
-"Sınav sayfası temizleme işlemi tamamlandı. d geçersiz sayfalar kaldırıldı ve "
-"geçerli sayfalar senkronize edildi."
 
 #: includes/pages/quiz-pages.php:512
 msgid "Quiz Page Management"
-msgstr "Sınav Sayfası Yönetimi"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:371
 #: includes/taxonomies/word-category-taxonomy.php:420
 msgid "Quiz Prompt Type"
-msgstr "Sınav İstemi Türü"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:135
 #: includes/shortcodes/quiz-pages-shortcodes.php:557
@@ -1089,7 +1048,7 @@ msgstr "Sınav seçimi"
 #: includes/pages/embed-page.php:19 includes/pages/quiz-pages.php:38
 #, php-format
 msgid "Quiz: %s"
-msgstr "Sınav: %s"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:357
 msgid "Record"
@@ -1097,7 +1056,7 @@ msgstr "Kayıt"
 
 #: includes/shortcodes/audio-recording-shortcode.php:244
 msgid "Record a New Word"
-msgstr "Yeni Kelime Kaydet"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:376
 msgid "Record again"
@@ -1109,7 +1068,7 @@ msgstr "Ses Kaydet"
 
 #: includes/shortcodes/audio-recording-shortcode.php:231
 msgid "Record New Word"
-msgstr "Yeni Kelime Kaydet"
+msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:148
 msgid "Recorded By"
@@ -1145,7 +1104,7 @@ msgstr "Kayıt Sayfasını Yeniden Oluştur"
 #: includes/shortcodes/flashcard-widget.php:198
 #: includes/shortcodes/quiz-pages-shortcodes.php:567
 msgid "Replay Listening"
-msgstr "Tekrar Dinleme"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:167
 #: includes/shortcodes/quiz-pages-shortcodes.php:588
@@ -1154,7 +1113,7 @@ msgstr "Yeniden Başla"
 
 #: includes/admin/recording-types-admin.php:187
 msgid "Save"
-msgstr "Kaydet"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:378
 msgid "Save and continue"
@@ -1162,7 +1121,7 @@ msgstr "Kaydet ve devam et"
 
 #: includes/shortcodes/user-study-dashboard.php:46
 msgid "Saved."
-msgstr "Kurtuldum."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:165
 #| msgid "Saved %s. Next type selected."
@@ -1174,8 +1133,6 @@ msgid ""
 "Scan for words that have a featured image but no corresponding "
 "\"word_images\" post, and create them."
 msgstr ""
-"Öne çıkan bir görseli olan ancak buna karşılık gelen bir \"word_images\" "
-"gönderisi olmayan kelimeleri tarayın ve bunları oluşturun."
 
 #: includes/post-types/word-audio-post-type.php:18
 msgid "Search Audio Recordings"
@@ -1187,11 +1144,11 @@ msgstr "Kayıt Türlerini Ara"
 
 #: includes/admin/missing-audio-admin-page.php:31
 msgid "Security check failed."
-msgstr "Güvenlik kontrolü başarısız oldu."
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:51
 msgid "Select a category to see its words."
-msgstr "Kelimelerini görmek için bir kategori seçin."
+msgstr ""
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:798
 msgid "Select a quiz…"
@@ -1199,7 +1156,7 @@ msgstr "Bir sınav seçin.."
 
 #: includes/admin/export-import.php:124
 msgid "Select a zip file"
-msgstr "Bir zip dosyası seçin"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:31
 #: includes/admin/uploads/audio-upload-form.php:88
@@ -1212,25 +1169,18 @@ msgid ""
 "Select the recording types that make sense for words in this category. Leave "
 "all unchecked to disable recording for this category."
 msgstr ""
-"Bu kategorideki kelimeler için anlamlı olan kayıt türlerini seçin. Bu "
-"kategorinin kaydını devre dışı bırakmak için tümünü işaretlemeyin."
 
 #: includes/admin/export-import.php:106
 msgid ""
 "Selecting a category exports that category and its children, plus all word "
 "images assigned to them. Choose “All categories” for a full export."
 msgstr ""
-"Bir kategori seçildiğinde, o kategori ve alt kategorileri ile bunlara "
-"atanmış tüm sözcük resimleri dışa aktarılır. Tam bir dışa aktarma için \"Tüm "
-"kategoriler \"i seçin."
 
 #: includes/admin/export-import.php:140
 msgid ""
 "Server import folder could not be created. Please check permissions before "
 "using server-side imports."
 msgstr ""
-"Sunucu içe aktarma klasörü oluşturulamadı. Sunucu tarafı içe aktarmaları "
-"kullanmadan önce lütfen izinleri kontrol edin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:174
 msgid "Server returned invalid response format"
@@ -1238,7 +1188,7 @@ msgstr "Sunucu geçersiz yanıt biçimi döndürdü"
 
 #: includes/shortcodes/audio-recording-shortcode.php:683
 msgid "Set Up Recording Types"
-msgstr "Kayıt Türlerini Ayarlama"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:223
 msgid "Set:"
@@ -1247,7 +1197,7 @@ msgstr "Set:"
 #: includes/taxonomies/word-category-taxonomy.php:374
 #: includes/taxonomies/word-category-taxonomy.php:425
 msgid "Show image"
-msgstr "Resmi göster"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:360
 msgid "Skip"
@@ -1264,7 +1214,7 @@ msgstr "Bu tür atlandı. Sonraki tip seçildi."
 #: includes/admin/export-import.php:723
 #, php-format
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
-msgstr "Dosya yolu geçersiz olduğu için \"%s\" için küçük resim atlandı."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:176
 msgid "Skipping..."
@@ -1284,20 +1234,20 @@ msgstr "Konuşmacı Görevlendirmesi"
 
 #: includes/shortcodes/user-study-dashboard.php:57
 msgid "Standard"
-msgstr "Standart"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:98
 #: includes/shortcodes/quiz-pages-shortcodes.php:520
 msgid "Standard pace"
-msgstr "Standart hız"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:52
 msgid "Star all"
-msgstr "Tüm yıldızlar"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:45
 msgid "Starred"
-msgstr "Yıldızlı"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:26
 msgid "Start"
@@ -1318,7 +1268,7 @@ msgstr "Strong Anchor Tech"
 #: templates/flashcard-widget-template.php:73
 #: includes/shortcodes/quiz-pages-shortcodes.php:495
 msgid "Study Settings"
-msgstr "Çalışma Ayarları"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:162
 msgid "Success! Recording will be processed later."
@@ -1343,24 +1293,23 @@ msgstr "Modu Değiştir"
 #: includes/shortcodes/flashcard-widget.php:191
 #: includes/shortcodes/quiz-pages-shortcodes.php:493
 msgid "Switch to Learning Mode"
-msgstr "Öğrenme Moduna Geçin"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:72
 #: includes/shortcodes/flashcard-widget.php:197
 #: includes/shortcodes/quiz-pages-shortcodes.php:494
 msgid "Switch to Listening Mode"
-msgstr "Dinleme Moduna Geçin"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:70
 #: includes/shortcodes/flashcard-widget.php:185
 #: includes/shortcodes/quiz-pages-shortcodes.php:492
 msgid "Switch to Practice Mode"
-msgstr "Alıştırma Moduna Geçin"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:90
 msgid "Switch word sets to load their categories and words."
 msgstr ""
-"Kategorilerini ve kelimelerini yüklemek için kelime setlerini değiştirin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:175
 msgid "Switching category..."
@@ -1373,24 +1322,23 @@ msgstr "Hedef Dili"
 #: includes/taxonomies/word-category-taxonomy.php:383
 #: includes/taxonomies/word-category-taxonomy.php:438
 msgid "Text (title)"
-msgstr "Metin (başlık)"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:382
 #: includes/taxonomies/word-category-taxonomy.php:437
 msgid "Text (translation)"
-msgstr "Metin (çeviri)"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:385
 #: includes/taxonomies/word-category-taxonomy.php:440
 msgid "Text + audio pairs"
-msgstr "Metin + ses çiftleri"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:387
 #: includes/taxonomies/word-category-taxonomy.php:442
 msgid ""
 "Text can use either translation or title; audio options play the word audio."
 msgstr ""
-"Metin, çeviri veya başlık kullanabilir; ses seçenekleri ses kelimesini çalar."
 
 #: includes/shortcodes/flashcard-widget.php:173
 msgid "The category exists and has words"
@@ -1400,35 +1348,29 @@ msgstr "Kategori mevcuttur ve kelimeleri vardır"
 #, php-format
 msgid ""
 "The word \"%1$s\" was created but could not be assigned to the category: %2$s"
-msgstr "\"%1$s\" sözcüğü oluşturuldu ancak şu kategoriye atanamadı: %2$s"
+msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:176
 #, php-format
 msgid ""
 "The word \"%1$s\" was created but could not be assigned to the word set: %2$s"
-msgstr "\"%1$s\" sözcüğü oluşturuldu ancak sözcük kümesine atanamadı: %2$s"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:702
 msgid ""
 "This means all available images already have the required recording types. "
 "Great work!"
 msgstr ""
-"Bu, mevcut tüm görüntülerin zaten gerekli kayıt türlerine sahip olduğu "
-"anlamına gelir. Harika bir çalışma!"
 
 #: includes/admin/export-import.php:85
 msgid ""
 "Tip: For large media libraries, export/import one category at a time to keep "
 "the bundle size smaller."
 msgstr ""
-"İpucu: Büyük medya kitaplıklarında, paket boyutunu daha küçük tutmak için "
-"her seferinde bir kategoriyi dışa/içe aktarın."
 
 #: includes/admin/recording-types-admin.php:181
 msgid "Tip: Uncheck all and click Save to reset to main defaults."
 msgstr ""
-"İpucu: Tümünün işaretini kaldırın ve ana varsayılanlara sıfırlamak için "
-"Kaydet'e tıklayın."
 
 #: templates/flashcard-widget-template.php:96
 #: templates/flashcard-widget-template.php:97
@@ -1436,7 +1378,7 @@ msgstr ""
 #: includes/shortcodes/quiz-pages-shortcodes.php:519
 #: includes/shortcodes/user-study-dashboard.php:55
 msgid "Transition speed"
-msgstr "Geçiş hızı"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:173
 #: includes/taxonomies/word-category-taxonomy.php:194
@@ -1479,15 +1421,15 @@ msgstr "Uncategorized"
 
 #: includes/admin/recording-types-admin.php:155
 msgid "Uncategorized Defaults"
-msgstr "Genel Varsayılanlar"
+msgstr ""
 
 #: includes/admin/recording-types-admin.php:78
 msgid "Uncategorized defaults reset to main recording types."
-msgstr "Genel varsayılanlar ana kayıt türlerine sıfırlanır."
+msgstr ""
 
 #: includes/admin/recording-types-admin.php:81
 msgid "Uncategorized defaults updated."
-msgstr "Kategorize edilmemiş varsayılanlar güncellendi."
+msgstr ""
 
 #: templates/flashcard-widget-template.php:33
 msgid "Uncheck All"
@@ -1495,7 +1437,7 @@ msgstr "Seçimleri Kaldır"
 
 #: includes/shortcodes/user-study-dashboard.php:53
 msgid "Unstar all"
-msgstr "Hepsini kaldırın"
+msgstr ""
 
 #: includes/taxonomies/recording-type-taxonomy.php:15
 msgid "Update Recording Type"
@@ -1503,7 +1445,7 @@ msgstr "Kayıt Türünü Güncelle"
 
 #: includes/admin/export-import.php:118
 msgid "Upload export zip (optional)"
-msgstr "Dışa aktarma zip'ini yükleyin (isteğe bağlı)"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:164
 msgid "Upload failed:"
@@ -1515,8 +1457,6 @@ msgid ""
 "Upload the zip to %s and refresh this page to select it. If both fields are "
 "used, the uploaded file takes precedence."
 msgstr ""
-"Zip dosyasını %s'ye yükleyin ve seçmek için bu sayfayı yenileyin. Her iki "
-"alan da kullanılıyorsa, yüklenen dosya önceliklidir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:161
 msgid "Uploading..."
@@ -1527,8 +1467,6 @@ msgid ""
 "Use a zip generated by the exporter above. Imports categories, word image "
 "posts, and their images."
 msgstr ""
-"Yukarıdaki ihracatçı tarafından oluşturulan bir zip kullanın. Kategorileri, "
-"kelime resmi gönderilerini ve bunların resimlerini içe aktarır."
 
 #: includes/post-types/word-audio-post-type.php:156
 msgid "User not found"
@@ -1544,7 +1482,7 @@ msgstr "Kullanıcı Profilini Görüntüle"
 
 #: includes/taxonomies/word-category-taxonomy.php:427
 msgid "Whether to start rounds with audio or with the word image."
-msgstr "Turların sesle mi yoksa kelime görüntüsüyle mi başlatılacağı."
+msgstr ""
 
 #: includes/user-roles/audio-recorder-role.php:134
 #: includes/user-roles/audio-recorder-role.php:242
@@ -1565,7 +1503,7 @@ msgstr "Word Audio"
 #: includes/shortcodes/quiz-pages-shortcodes.php:511
 #: includes/shortcodes/user-study-dashboard.php:92
 msgid "Word inclusion"
-msgstr "Kelime ekleme"
+msgstr ""
 
 #: includes/post-types/words-post-type.php:221
 #: includes/user-roles/audio-recorder-role.php:123
@@ -1576,15 +1514,15 @@ msgstr "Kelime Seti"
 
 #: includes/shortcodes/user-study-dashboard.php:42
 msgid "Word set"
-msgstr "Kelime seti"
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:306
 msgid "Word Text (optional)"
-msgstr "Kelimeyi yaz (isteğe bağlı)"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:44
 msgid "Words"
-msgstr "Kelimeler"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:174
 msgid "Words are properly assigned to the category"
@@ -1592,7 +1530,7 @@ msgstr "Kelimeler kategoriye uygun şekilde atanır"
 
 #: includes/admin/bulk-word-import-admin.php:277
 msgid "Words to import"
-msgstr "İçe aktarılacak kelimeler"
+msgstr ""
 
 #: includes/post-types/words-post-type.php:323
 msgid "Yes"
@@ -1600,11 +1538,11 @@ msgstr "Evet"
 
 #: includes/admin/export-import.php:156
 msgid "You do not have permission to export LL Tools data."
-msgstr "LL Tools verilerini dışa aktarma izniniz yok."
+msgstr ""
 
 #: includes/admin/export-import.php:204
 msgid "You do not have permission to import LL Tools data."
-msgstr "LL Tools verilerini içe aktarma izniniz yok."
+msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:33
 msgid ""
@@ -1620,22 +1558,16 @@ msgid ""
 "You have %d word image(s) with featured images in categories (%s), but all "
 "images in the selected wordset already have recordings."
 msgstr ""
-"Öne çıkan görüntülere sahip %d kelime görüntü(ler)iniz var (%s "
-"kategorilerinde), ancak seçilen kelime kümesindeki tüm görüntülerin zaten "
-"kayıtları var."
 
 #: includes/shortcodes/audio-recording-shortcode.php:634
 msgid ""
 "You have %d word image(s) with featured images, but none are assigned to any "
 "word categories."
 msgstr ""
-"Öne çıkan görsellere sahip %d kelime görsel(ler)iniz var, ancak hiçbiri "
-"herhangi bir kelime kategorisine atanmamış."
 
 #: includes/shortcodes/audio-recording-shortcode.php:604
 msgid "You have %d word image(s), but none have a featured image set."
 msgstr ""
-"D kelime görsel(ler)iniz var, ancak hiçbirinin öne çıkan görsel seti yok."
 
 #: includes/shortcodes/audio-recording-shortcode.php:27
 msgid "You must be logged in to record audio."
@@ -1647,19 +1579,17 @@ msgstr "Doğru yoldasın."
 
 #: includes/shortcodes/user-study-dashboard.php:76
 msgid "Your study plan"
-msgstr "Çalışma planınız"
+msgstr ""
 
 #: includes/admin/export-import.php:161 includes/admin/export-import.php:209
 msgid "ZipArchive is not available on this server."
-msgstr "ZipArchive bu sunucuda mevcut değil."
+msgstr ""
 
 #: includes/admin/export-import.php:69
 msgid ""
 "ZipArchive is not available on this server. Please enable it to use the "
 "export/import tool."
 msgstr ""
-"ZipArchive bu sunucuda mevcut değil. Lütfen dışa/içe aktarma aracını "
-"kullanmak için etkinleştirin."
 
 #: includes/admin/uploads/audio-upload-form.php:98
 msgid "— Select —"
@@ -1669,19 +1599,19 @@ msgstr "- Seçiniz -"
 #: includes/shortcodes/quiz-pages-shortcodes.php:514
 #: includes/shortcodes/user-study-dashboard.php:96
 msgid "★ Starred only"
-msgstr "sadece yıldızlı"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:91
 #: includes/shortcodes/quiz-pages-shortcodes.php:513
 #: includes/shortcodes/user-study-dashboard.php:95
 msgid "★☆★ Starred twice"
-msgstr "★☆★ İki kez yıldızlandı"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:90
 #: includes/shortcodes/quiz-pages-shortcodes.php:512
 #: includes/shortcodes/user-study-dashboard.php:94
 msgid "☆★ All words once"
-msgstr "☆★ Tüm kelimeler bir kez"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:161
 msgid "✓"

@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-10-10 13:41+0000\n"
+"PO-Revision-Date: 2025-10-10 13:48+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -149,6 +149,10 @@ msgstr "Toplu Resim Ekleme"
 #: includes/shortcodes/flashcard-widget.php:122
 msgid "Categories"
 msgstr "Kategoriler"
+
+#: includes/shortcodes/audio-recording-shortcode.php:137
+msgid "Category switched. Ready to record."
+msgstr "Kategori değiştirildi. Kayda hazır."
 
 #: includes/shortcodes/audio-recording-shortcode.php:126
 msgid "Category:"
@@ -426,6 +430,10 @@ msgstr "Çöp kutusunda ses kaydı bulunamadı"
 msgid "No categories available for audio recordings at this time. Thank you!"
 msgstr "Şu anda ses kayıtları için kategori bulunmamaktadır. Teşekkürler!"
 
+#: includes/shortcodes/audio-recording-shortcode.php:136
+msgid "No images need audio in this category."
+msgstr "Bu kategoride hiçbir görüntü ses gerektirmez."
+
 #: includes/shortcodes/audio-recording-shortcode.php:73
 msgid ""
 "No images need audio recordings in the selected category at this time. Thank "
@@ -502,11 +510,11 @@ msgstr "Sonuçlar"
 msgid "Quiz selection"
 msgstr "Sınav seçimi"
 
-#: includes/shortcodes/audio-recording-shortcode.php:221
+#: includes/shortcodes/audio-recording-shortcode.php:226
 msgid "Record"
 msgstr "Kayıt"
 
-#: includes/shortcodes/audio-recording-shortcode.php:240
+#: includes/shortcodes/audio-recording-shortcode.php:245
 msgid "Record again"
 msgstr "Tekrar kaydedin"
 
@@ -527,7 +535,7 @@ msgstr "Kayıt Tarihi"
 msgid "Recording Type"
 msgstr "Kayıt Türü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:201
+#: includes/shortcodes/audio-recording-shortcode.php:206
 msgid "Recording Type:"
 msgstr "Kayıt Türü:"
 
@@ -536,7 +544,7 @@ msgstr "Kayıt Türü:"
 msgid "Recording Types"
 msgstr "Kayıt Türleri"
 
-#: includes/shortcodes/audio-recording-shortcode.php:252
+#: includes/shortcodes/audio-recording-shortcode.php:257
 msgid "recordings completed"
 msgstr "kayıtlar tamamlandı"
 
@@ -549,15 +557,14 @@ msgstr "Kayıt Sayfasını Yeniden Oluştur"
 msgid "Restart Quiz"
 msgstr "Yeniden Başla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:242
+#: includes/shortcodes/audio-recording-shortcode.php:247
 msgid "Save and continue"
 msgstr "Kaydet ve devam et"
 
 #: includes/shortcodes/audio-recording-shortcode.php:123
-#, fuzzy
 #| msgid "Saved %s. Next type selected."
 msgid "Saved. Next type selected."
-msgstr "Kaydedildi %s. Sonraki tip seçildi."
+msgstr "Kaydedildi. Sonraki tip seçildi."
 
 #: includes/post-types/word-audio-post-type.php:18
 msgid "Search Audio Recordings"
@@ -581,17 +588,25 @@ msgstr "Kategorileri Seç"
 msgid "Server returned invalid response format"
 msgstr "Sunucu geçersiz yanıt biçimi döndürdü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:172
+#: includes/shortcodes/audio-recording-shortcode.php:177
 msgid "Set:"
 msgstr "Set:"
 
-#: includes/shortcodes/audio-recording-shortcode.php:224
+#: includes/shortcodes/audio-recording-shortcode.php:229
 msgid "Skip"
 msgstr "Atla"
+
+#: includes/shortcodes/audio-recording-shortcode.php:135
+msgid "Skip failed:"
+msgstr "Skip başarısız oldu:"
 
 #: includes/shortcodes/audio-recording-shortcode.php:124
 msgid "Skipped this type. Next type selected."
 msgstr "Bu tür atlandı. Sonraki tip seçildi."
+
+#: includes/shortcodes/audio-recording-shortcode.php:134
+msgid "Skipping..."
+msgstr "Atlıyor..."
 
 #: includes/shortcodes/flashcard-widget.php:126
 msgid "Something went wrong"
@@ -635,6 +650,10 @@ msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] "Başarıyla %d kategorisi eklendi."
 msgstr[1] "Başarıyla %d kategori eklendi."
+
+#: includes/shortcodes/audio-recording-shortcode.php:138
+msgid "Switch failed:"
+msgstr "Anahtar başarısız oldu:"
 
 #: templates/flashcard-widget-template.php:54
 #: includes/shortcodes/quiz-pages-shortcodes.php:396
