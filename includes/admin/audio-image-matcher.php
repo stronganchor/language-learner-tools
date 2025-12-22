@@ -258,8 +258,12 @@ add_action('wp_ajax_ll_aim_assign', function() {
 });
 
 /* ----------------------------------------------------------------------
- * AUTO-LAUNCH LOGIC (unchanged)
+ * AUTO-LAUNCH LOGIC (disabled by default)
  * --------------------------------------------------------------------*/
+
+function ll_aim_autolaunch_enabled() {
+    return (bool) apply_filters('ll_aim_autolaunch_enabled', false);
+}
 
 function ll_aim_term_has_posttype($term_id, $post_type) {
     $q = new WP_Query([
@@ -310,6 +314,7 @@ function ll_aim_category_has_unmatched_work($term_id) {
 }
 
 function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
+    if (!ll_aim_autolaunch_enabled()) return;
     if ($post->post_type !== 'words') return;
     if (wp_is_post_revision($post_id)) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
@@ -336,6 +341,7 @@ function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
 add_action('save_post', 'll_aim_maybe_queue_autolaunch_on_words_save', 10, 3);
 
 function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) {
+    if (!ll_aim_autolaunch_enabled()) return;
     if ($post->post_type !== 'word_images') return;
     if (wp_is_post_revision($post_id)) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
@@ -359,6 +365,7 @@ function ll_aim_maybe_queue_autolaunch_on_images_save($post_id, $post, $update) 
 add_action('save_post', 'll_aim_maybe_queue_autolaunch_on_images_save', 10, 3);
 
 function ll_aim_admin_autolaunch_redirect() {
+    if (!ll_aim_autolaunch_enabled()) return;
     if (!is_user_logged_in()) return;
     if (wp_doing_ajax()) return;
 

@@ -244,7 +244,7 @@
         buildImageGrid();
     });
 
-    (function autoStartFromURL() {
+    (function preselectFromURL() {
         const q = new URLSearchParams(location.search);
         const id = q.get('term_id') || q.get('category') || q.get('cat') || q.get('word_category');
         const slug = q.get('category_slug') || q.get('slug');
@@ -269,7 +269,7 @@
 
         if (!val) return;
         $catSel.val(val).trigger('change');
-        if ($start && !$start.prop('disabled')) $start.trigger('click');
+        // Autostart disabled; user must click "Start Matching."
     })();
 
 })(jQuery);

@@ -371,6 +371,47 @@
   display: none !important;
 }
 
+.ll-user-study-dashboard .ll-word-star.ll-word-star {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #111827 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  cursor: pointer !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  text-transform: none !important;
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+}
+
+.ll-user-study-dashboard .ll-word-star.ll-word-star.active {
+  background: #fde68a !important;
+  border-color: #f59e0b !important;
+  color: #111827 !important;
+}
+
+.ll-user-study-dashboard #ll-study-words .ll-word-star.active,
+.ll-user-study-dashboard .ll-word-row .ll-word-star.active {
+  background: #fde68a !important;
+  background-color: #fde68a !important;
+  background-image: none !important;
+  border-color: #f59e0b !important;
+  color: #111827 !important;
+}
+
 @media (max-width: 768px) {
   .ll-study-grid--top {
     grid-template-columns: 1fr;
