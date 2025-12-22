@@ -219,33 +219,35 @@ function ll_handle_audio_file_uploads() {
         }
     }
 
-    // If we succeeded on at least one file, try to jump straight into the matcher.
-    // Pick the first selected category that has images AND unmatched words.
-    $redirect_term_id = 0;
-    if (!empty($success_matches) && !empty($selected_categories)) {
-        foreach ($selected_categories as $maybe_tid) {
-            $maybe_tid = intval($maybe_tid);
+    if (apply_filters('ll_aim_autolaunch_enabled', false)) {
+        // If we succeeded on at least one file, try to jump straight into the matcher.
+        // Pick the first selected category that has images AND unmatched words.
+        $redirect_term_id = 0;
+        if (!empty($success_matches) && !empty($selected_categories)) {
+            foreach ($selected_categories as $maybe_tid) {
+                $maybe_tid = intval($maybe_tid);
 
-            // Check if this category has work to do
-            if (function_exists('ll_aim_category_has_unmatched_work')) {
-                if (ll_aim_category_has_unmatched_work($maybe_tid)) {
-                    $redirect_term_id = $maybe_tid;
-                    break;
+                // Check if this category has work to do
+                if (function_exists('ll_aim_category_has_unmatched_work')) {
+                    if (ll_aim_category_has_unmatched_work($maybe_tid)) {
+                        $redirect_term_id = $maybe_tid;
+                        break;
+                    }
                 }
             }
         }
-    }
 
-    if ($redirect_term_id && is_user_logged_in()) {
-        $key = 'll_aim_autolaunch_' . get_current_user_id();
-        set_transient($key, intval($redirect_term_id), 120);
+        if ($redirect_term_id && is_user_logged_in()) {
+            $key = 'll_aim_autolaunch_' . get_current_user_id();
+            set_transient($key, intval($redirect_term_id), 120);
 
-        $url = add_query_arg(
-            ['page' => 'll-audio-image-matcher', 'term_id' => intval($redirect_term_id), 'autostart' => 1],
-            admin_url('tools.php')
-        );
-        wp_safe_redirect($url);
-        exit;
+            $url = add_query_arg(
+                ['page' => 'll-audio-image-matcher', 'term_id' => intval($redirect_term_id), 'autostart' => 1],
+                admin_url('tools.php')
+            );
+            wp_safe_redirect($url);
+            exit;
+        }
     }
 
     // Fallback: show the summary like before if no redirect was possible
