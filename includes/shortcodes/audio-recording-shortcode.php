@@ -695,6 +695,20 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
     $active_category_term = null;
     if (!empty($category_slug) && !$is_uncategorized_request) {
+        $active_category_term = get_term_by('slug', $category_slug, 'word-category');
+        if ($active_category_term && is_wp_error($active_category_term)) {
+            $active_category_term = null;
+        }
+    }
+    $active_category_term = null;
+    if (!empty($category_slug) && !$is_uncategorized_request) {
+        $term = get_term_by('slug', $category_slug, 'word-category');
+        if ($term && !is_wp_error($term)) {
+            $active_category_term = $term;
+        }
+    }
+    $active_category_term = null;
+    if (!empty($category_slug) && !$is_uncategorized_request) {
         $term = get_term_by('slug', $category_slug, 'word-category');
         if ($term && !is_wp_error($term)) {
             $active_category_term = $term;
@@ -1358,7 +1372,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         if (!empty($missing_types)) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
-                if ($active_category_term) {
+                if (isset($active_category_term) && $active_category_term) {
                     $category_name       = $active_category_term->name;
                     $category_slug_value = $active_category_term->slug;
                 } else {
@@ -1537,7 +1551,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $existing_types = ll_get_existing_recording_types_for_word($word_id);
 
         if (!empty($missing_types)) {
-            if ($active_category_term) {
+            if (isset($active_category_term) && $active_category_term) {
                 $category_name       = $active_category_term->name;
                 $category_slug_value = $active_category_term->slug;
             } else {
