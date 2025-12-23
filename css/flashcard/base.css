@@ -1696,6 +1696,10 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     text-transform: none !important;
 }
 
+#ll-tools-settings-panel[aria-hidden="true"] .ll-tools-settings-option.ll-tools-settings-option {
+    pointer-events: none !important;
+}
+
 #ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::before,
 #ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::after {
     content: "" !important;

@@ -65,7 +65,7 @@ function ll_tools_user_can_record() {
  * Helper function to set recording configuration for a user
  */
 function ll_set_user_recording_config($user_id, $config) {
-    $allowed_keys = ['wordset', 'category', 'language', 'include_recording_types', 'exclude_recording_types'];
+    $allowed_keys = ['wordset', 'category', 'language', 'include_recording_types', 'exclude_recording_types', 'allow_new_words'];
     $filtered_config = [];
 
     foreach ($allowed_keys as $key) {
@@ -181,6 +181,17 @@ function ll_audio_recorder_profile_fields($user) {
                 </p>
             </td>
         </tr>
+        <tr>
+            <th><label for="ll_allow_new_words"><?php _e('Allow New Words', 'll-tools-text-domain'); ?></label></th>
+            <td>
+                <input type="hidden" name="ll_recording_config[allow_new_words]" value="0" />
+                <label>
+                    <input type="checkbox" name="ll_recording_config[allow_new_words]" id="ll_allow_new_words" value="1"
+                        <?php checked(isset($config['allow_new_words']) ? $config['allow_new_words'] : '', '1'); ?> />
+                    <?php _e('Allow this user to record brand new words without existing posts or images.', 'll-tools-text-domain'); ?>
+                </label>
+            </td>
+        </tr>
     </table>
     <?php
 }
@@ -267,6 +278,16 @@ function ll_audio_recorder_new_user_fields() {
                 <p class="description">
                     <?php _e('Optional: Specify a custom URL to redirect this user to on login. Leave empty to use the default recording page.', 'll-tools-text-domain'); ?>
                 </p>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="ll_allow_new_words"><?php _e('Allow New Words', 'll-tools-text-domain'); ?></label></th>
+            <td>
+                <input type="hidden" name="ll_recording_config[allow_new_words]" value="0" />
+                <label>
+                    <input type="checkbox" name="ll_recording_config[allow_new_words]" id="ll_allow_new_words" value="1" />
+                    <?php _e('Allow this user to record brand new words without existing posts or images.', 'll-tools-text-domain'); ?>
+                </label>
             </td>
         </tr>
     </table>

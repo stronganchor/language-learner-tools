@@ -9,15 +9,58 @@ if (!defined('WPINC')) { die; }
 /**
  * Get translatable name for a recording type by slug
  */
-function ll_get_recording_type_name($slug) {
-    $names = [
+function ll_get_recording_type_name($slug, $term_name = '') {
+    $term = get_term_by('slug', $slug, 'recording_type');
+    if ($term && !is_wp_error($term)) {
+        $translated = get_term_meta((int) $term->term_id, 'term_translation', true);
+        if ($translated !== '') {
+            return $translated;
+        }
+    }
+
+    $english_defaults = [
+        'isolation'     => 'Isolation',
+        'question'      => 'Question',
+        'introduction'  => 'Introduction',
+        'sentence'      => 'In Sentence',
+    ];
+
+    $translated_defaults = [
         'isolation'     => __('Isolation', 'll-tools-text-domain'),
         'question'      => __('Question', 'll-tools-text-domain'),
         'introduction'  => __('Introduction', 'll-tools-text-domain'),
         'sentence'      => __('In Sentence', 'll-tools-text-domain'),
     ];
 
-    return isset($names[$slug]) ? $names[$slug] : ucfirst($slug);
+    if ($term_name !== '') {
+        if (!empty($english_defaults[$slug]) && $term_name !== $english_defaults[$slug]) {
+            return $term_name;
+        }
+        if (isset($translated_defaults[$slug]) && isset($english_defaults[$slug])) {
+            if ($translated_defaults[$slug] !== $english_defaults[$slug]) {
+                return $translated_defaults[$slug];
+            }
+        }
+        return $term_name;
+    }
+
+    if ($term && !is_wp_error($term) && !empty($term->name)) {
+        if (!empty($english_defaults[$slug]) && $term->name !== $english_defaults[$slug]) {
+            return $term->name;
+        }
+    }
+
+    if (isset($translated_defaults[$slug]) && isset($english_defaults[$slug])) {
+        if ($translated_defaults[$slug] !== $english_defaults[$slug]) {
+            return $translated_defaults[$slug];
+        }
+    }
+
+    if ($term && !is_wp_error($term) && !empty($term->name)) {
+        return $term->name;
+    }
+
+    return isset($translated_defaults[$slug]) ? $translated_defaults[$slug] : ucfirst($slug);
 }
 
 function ll_audio_recording_interface_shortcode($atts) {
@@ -49,18 +92,26 @@ function ll_audio_recording_interface_shortcode($atts) {
         'language' => '',
         'include_recording_types' => '',
         'exclude_recording_types' => '',
+        'allow_new_words' => '',
     ], $defaults), $atts);
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
+
+    $allow_new_words = !empty($atts['allow_new_words']);
 
     // Get available categories for the wordset
     $available_categories = ll_get_categories_for_wordset($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
 
     // If no categories available, provide helpful diagnostics
     if (empty($available_categories)) {
-        $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
-        return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+        if (!$allow_new_words) {
+            $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+            return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+        }
+        $available_categories = [
+            'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
+        ];
     }
 
     // Get images for the initial category (or first if none specified)
@@ -85,7 +136,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         }
     }
 
-    if (empty($images_needing_audio)) {
+    if (empty($images_needing_audio) && !$allow_new_words) {
         return '<div class="ll-recording-interface"><p>' .
                __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
                '</p></div>';
@@ -111,7 +162,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             if ($term && !is_wp_error($term)) {
                 $dropdown_types[] = [
                     'slug' => $term->slug,
-                    'name' => ll_get_recording_type_name($term->slug),
+                    'name' => ll_get_recording_type_name($term->slug, $term->name),
                     'term_id' => $term->term_id,
                 ];
             }
@@ -120,6 +171,17 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // Get current user info for display
     $current_user = wp_get_current_user();
+
+    $all_recording_types = [];
+    if ($allow_new_words) {
+        $all_recording_types = get_terms([
+            'taxonomy'   => 'recording_type',
+            'hide_empty' => false,
+        ]);
+        if (is_wp_error($all_recording_types)) {
+            $all_recording_types = [];
+        }
+    }
 
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
@@ -131,6 +193,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'wordset_ids'     => $wordset_term_ids,
         'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
         'recording_types' => $dropdown_types,
+        'allow_new_words' => $allow_new_words,
         'user_display_name' => $current_user->display_name,
         'require_all_types' => true,
         'initial_category' => $initial_category,
@@ -158,6 +221,9 @@ function ll_audio_recording_interface_shortcode($atts) {
             'no_images_in_category'=> __('No images need audio in this category.', 'll-tools-text-domain'),
             'category_switched'   => __('Category switched. Ready to record.', 'll-tools-text-domain'),
             'switch_failed'       => __('Switch failed:', 'll-tools-text-domain'),
+            'new_word_preparing'  => __('Preparing new word...', 'll-tools-text-domain'),
+            'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
+            'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -171,11 +237,12 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     ob_start();
     ?>
+    <?php $initial_count = is_array($images_needing_audio) ? count($images_needing_audio) : 0; ?>
     <div class="ll-recording-interface">
         <!-- Compact header - progress, category, wordset, user -->
         <div class="ll-recording-header">
             <div class="ll-recording-progress">
-                <span class="ll-current-num">1</span> / <span class="ll-total-num"><?php echo count($images_needing_audio); ?></span>
+                <span class="ll-current-num"><?php echo $initial_count ? 1 : 0; ?></span> / <span class="ll-total-num"><?php echo $initial_count; ?></span>
             </div>
 
             <div class="ll-category-selector">
@@ -201,10 +268,98 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
             <?php endif; ?>
 
+            <?php if ($allow_new_words): ?>
+            <div class="ll-new-word-toggle">
+                <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-toggle">
+                    <?php _e('Record New Word', 'll-tools-text-domain'); ?>
+                </button>
+            </div>
+            <?php endif; ?>
+
             <div class="ll-recorder-info">
                 <?php echo esc_html($current_user->display_name); ?>
             </div>
         </div>
+
+        <?php if ($allow_new_words): ?>
+        <div class="ll-new-word-panel" style="display: none;">
+            <div class="ll-new-word-card">
+                <h3><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
+                <p class="ll-new-word-status" id="ll-new-word-status"></p>
+                <div class="ll-new-word-row">
+                    <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-new-word-category">
+                        <?php
+                        $uncat_label = __('Uncategorized', 'll-tools-text-domain');
+                        $category_terms = get_terms([
+                            'taxonomy'   => 'word-category',
+                            'hide_empty' => false,
+                        ]);
+                        if (is_wp_error($category_terms)) { $category_terms = []; }
+                        $category_options = [];
+                        foreach ($category_terms as $term) {
+                            if ($term->slug === 'uncategorized') {
+                                $uncat_label = $term->name ?: $uncat_label;
+                                continue;
+                            }
+                            $category_options[$term->slug] = $term->name;
+                        }
+                        if (!empty($category_options)) {
+                            asort($category_options, SORT_FLAG_CASE | SORT_NATURAL);
+                        }
+                        ?>
+                        <option value="uncategorized"><?php echo esc_html($uncat_label); ?></option>
+                        <?php foreach ($category_options as $slug => $name): ?>
+                            <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="ll-new-word-row ll-new-word-checkbox">
+                    <label>
+                        <input type="checkbox" id="ll-new-word-create-category" />
+                        <?php _e('Create a new category for these words', 'll-tools-text-domain'); ?>
+                    </label>
+                </div>
+
+                <div class="ll-new-word-create-fields" style="display: none;">
+                    <div class="ll-new-word-row">
+                        <label for="ll-new-word-category-name"><?php _e('New Category Name', 'll-tools-text-domain'); ?></label>
+                        <input type="text" id="ll-new-word-category-name" placeholder="<?php esc_attr_e('e.g., Food', 'll-tools-text-domain'); ?>" />
+                    </div>
+                    <div class="ll-new-word-row">
+                        <label><?php _e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
+                        <div class="ll-new-word-types">
+                            <?php if (!empty($all_recording_types)): ?>
+                                <?php foreach ($all_recording_types as $type): ?>
+                                    <label>
+                                        <input type="checkbox" value="<?php echo esc_attr($type->slug); ?>" <?php checked($type->slug, 'isolation'); ?> />
+                                        <?php echo esc_html(ll_get_recording_type_name($type->slug, $type->name)); ?>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <em><?php _e('No recording types available.', 'll-tools-text-domain'); ?></em>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ll-new-word-row">
+                    <label for="ll-new-word-text-target"><?php _e('Target Word (optional)', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll-new-word-text-target" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
+                </div>
+                <div class="ll-new-word-row">
+                    <label for="ll-new-word-text-translation"><?php _e('Translation (optional)', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll-new-word-text-translation" placeholder="<?php esc_attr_e('Enter the translation', 'll-tools-text-domain'); ?>" />
+                </div>
+
+                <div class="ll-new-word-actions">
+                    <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Continue to Recording', 'll-tools-text-domain'); ?></button>
+                    <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="ll-recording-main">
             <?php
@@ -545,6 +700,20 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
             $active_category_term = $term;
         }
     }
+    $active_category_term = null;
+    if (!empty($category_slug) && !$is_uncategorized_request) {
+        $term = get_term_by('slug', $category_slug, 'word-category');
+        if ($term && !is_wp_error($term)) {
+            $active_category_term = $term;
+        }
+    }
+    $active_category_term = null;
+    if (!empty($category_slug) && !$is_uncategorized_request) {
+        $term = get_term_by('slug', $category_slug, 'word-category');
+        if ($term && !is_wp_error($term)) {
+            $active_category_term = $term;
+        }
+    }
 
     $all_types = get_terms([
         'taxonomy' => 'recording_type',
@@ -626,7 +795,7 @@ function ll_get_images_for_recording_handler() {
         if ($term) {
             $dropdown_types[] = [
                 'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug),
+                'name' => ll_get_recording_type_name($term->slug, $term->name),
                 'term_id' => $term->term_id,
             ];
         }
@@ -635,6 +804,222 @@ function ll_get_images_for_recording_handler() {
     wp_send_json_success([
         'images' => $images,
         'recording_types' => $dropdown_types,
+    ]);
+}
+
+// AJAX: prepare a new word (and optional category) for recording
+add_action('wp_ajax_ll_prepare_new_word_recording', 'll_prepare_new_word_recording_handler');
+
+function ll_prepare_new_word_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to record audio');
+    }
+
+    $config = function_exists('ll_get_user_recording_config') ? ll_get_user_recording_config(get_current_user_id()) : [];
+    $allow_new = is_array($config) && !empty($config['allow_new_words']);
+    if (!$allow_new && !current_user_can('manage_options')) {
+        wp_send_json_error('New word recording is not enabled for your account');
+    }
+
+    $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
+    $target_text = ll_sanitize_word_title_text($target_text_raw);
+    $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
+    $translation_text = trim($translation_text);
+
+    $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
+    $create_category = !empty($_POST['create_category']);
+    $new_category_name = sanitize_text_field($_POST['new_category_name'] ?? '');
+
+    $posted_ids = [];
+    if (isset($_POST['wordset_ids'])) {
+        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
+        if (is_array($decoded)) {
+            $posted_ids = array_map('intval', $decoded);
+        }
+    }
+    $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
+    if (empty($posted_ids)) {
+        $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
+    $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
+
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
+    if (is_wp_error($all_types) || empty($all_types)) {
+        wp_send_json_error('No recording types are configured');
+    }
+
+    $category_term = null;
+    $category_name = __('Uncategorized', 'll-tools-text-domain');
+    $category_slug_value = 'uncategorized';
+    $category_term_id = 0;
+
+    if ($create_category) {
+        if ($new_category_name === '') {
+            wp_send_json_error('Missing new category name');
+        }
+        $existing = term_exists($new_category_name, 'word-category');
+        if (is_array($existing)) {
+            $category_term_id = (int) $existing['term_id'];
+        } elseif ($existing) {
+            $category_term_id = (int) $existing;
+        } else {
+            $created = wp_insert_term($new_category_name, 'word-category');
+            if (is_wp_error($created)) {
+                wp_send_json_error('Failed to create category: ' . $created->get_error_message());
+            }
+            $category_term_id = (int) $created['term_id'];
+        }
+
+        $selected_types = isset($_POST['new_category_types']) ? (array) $_POST['new_category_types'] : [];
+        $selected_types = array_values(array_unique(array_filter(array_map('sanitize_text_field', $selected_types))));
+        $selected_types = array_values(array_intersect($selected_types, $all_types));
+        if (empty($selected_types)) {
+            $selected_types = in_array('isolation', $all_types, true) ? ['isolation'] : array_slice($all_types, 0, 1);
+        }
+        update_term_meta($category_term_id, 'll_desired_recording_types', $selected_types);
+
+        $category_term = get_term($category_term_id, 'word-category');
+    } elseif (!empty($category_slug) && $category_slug !== 'uncategorized') {
+        $category_term = get_term_by('slug', $category_slug, 'word-category');
+    } elseif ($category_slug === 'uncategorized') {
+        $maybe_uncat = get_term_by('slug', 'uncategorized', 'word-category');
+        if ($maybe_uncat && !is_wp_error($maybe_uncat)) {
+            $category_term = $maybe_uncat;
+        }
+    }
+
+    if ($category_term && !is_wp_error($category_term)) {
+        $category_term_id = (int) $category_term->term_id;
+        $category_name = $category_term->name;
+        $category_slug_value = $category_term->slug;
+    }
+
+    if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
+        wp_send_json_error('Recording is disabled for this category');
+    }
+
+    $desired_types = [];
+    if ($category_term_id) {
+        $desired_types = ll_tools_get_desired_recording_types_for_category($category_term_id);
+    }
+    if (empty($desired_types)) {
+        $desired_types = ll_tools_get_uncategorized_desired_recording_types();
+    }
+
+    $include_types = $include_types_csv ? array_map('trim', explode(',', $include_types_csv)) : [];
+    $exclude_types = $exclude_types_csv ? array_map('trim', explode(',', $exclude_types_csv)) : [];
+
+    $filtered_types = $all_types;
+    if (!empty($include_types)) {
+        $filtered_types = array_values(array_intersect($filtered_types, $include_types));
+    } elseif (!empty($exclude_types)) {
+        $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
+    }
+    $filtered_types = array_values(array_intersect($desired_types, $filtered_types));
+
+    if (empty($filtered_types)) {
+        wp_send_json_error('No recording types are available for this category');
+    }
+
+    $store_in_title = (get_option('ll_word_title_language_role', 'target') === 'target');
+    if ($create_category) {
+        $store_in_title = true;
+    } elseif ($category_term && function_exists('ll_tools_get_category_quiz_config')) {
+        $cat_cfg = ll_tools_get_category_quiz_config($category_term);
+        $opt_type = isset($cat_cfg['option_type']) ? (string) $cat_cfg['option_type'] : '';
+        if ($opt_type === 'text_title') {
+            $store_in_title = true;
+        } elseif (in_array($opt_type, ['text_translation', 'text_audio'], true)) {
+            $store_in_title = false;
+        }
+    }
+
+    $placeholder = sprintf(
+        __('New word %s', 'll-tools-text-domain'),
+        date_i18n('Y-m-d H:i', current_time('timestamp'))
+    );
+    if ($store_in_title) {
+        $post_title = $target_text !== '' ? $target_text : $placeholder;
+    } else {
+        $post_title = $translation_text !== '' ? $translation_text : $placeholder;
+    }
+
+    $word_id = wp_insert_post([
+        'post_title'  => $post_title,
+        'post_type'   => 'words',
+        'post_status' => 'draft',
+    ]);
+
+    if (is_wp_error($word_id) || !$word_id) {
+        $err = is_wp_error($word_id) ? $word_id->get_error_message() : 'Unknown error';
+        wp_send_json_error('Failed to create word: ' . $err);
+    }
+
+    if ($store_in_title) {
+        if ($translation_text !== '') {
+            update_post_meta($word_id, 'word_translation', $translation_text);
+        }
+    } else {
+        if ($target_text !== '') {
+            update_post_meta($word_id, 'word_translation', $target_text);
+        }
+    }
+
+    if ($category_term_id) {
+        wp_set_object_terms($word_id, [$category_term_id], 'word-category');
+    }
+
+    if (!empty($posted_ids)) {
+        wp_set_object_terms($word_id, array_map('intval', $posted_ids), 'wordset');
+    }
+
+    $display_text = $target_text !== '' ? $target_text : $post_title;
+
+    $dropdown_types = [];
+    foreach ($filtered_types as $slug) {
+        $term = get_term_by('slug', $slug, 'recording_type');
+        if ($term && !is_wp_error($term)) {
+            $dropdown_types[] = [
+                'slug' => $term->slug,
+                'name' => ll_get_recording_type_name($term->slug, $term->name),
+                'term_id' => $term->term_id,
+            ];
+        }
+    }
+
+    $item = [
+        'id'               => 0,
+        'title'            => $display_text,
+        'image_url'        => '',
+        'category_name'    => $category_name,
+        'category_slug'    => $category_slug_value,
+        'word_id'          => (int) $word_id,
+        'word_title'       => $display_text,
+        'word_translation' => $store_in_title
+            ? ($translation_text !== '' ? $translation_text : '')
+            : ($target_text !== '' ? $target_text : ''),
+        'use_word_display' => true,
+        'missing_types'    => array_values($filtered_types),
+        'existing_types'   => [],
+        'is_text_only'     => true,
+    ];
+
+    wp_send_json_success([
+        'word' => $item,
+        'recording_types' => $dropdown_types,
+        'category' => [
+            'slug' => $category_slug_value,
+            'name' => $category_name,
+            'term_id' => $category_term_id,
+        ],
     ]);
 }
 
