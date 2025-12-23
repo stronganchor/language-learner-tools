@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-12-22 17:01+0000\n"
+"PO-Revision-Date: 2025-12-23 05:42+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Loco https://localise.biz/\n"
-"X-Loco-Version: 2.8.0; wp-6.8.3; php-8.2.23\n"
+"X-Loco-Version: 2.8.0; wp-6.9; php-8.2.23\n"
 "X-Domain: ll-tools-text-domain"
 
 #: includes/admin/bulk-word-import-admin.php:202
@@ -521,7 +521,7 @@ msgstr "Bu kategori için çevrilmiş adı girin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:353
 msgid "Enter the translation"
-msgstr ""
+msgstr "Çeviriyi girin"
 
 #: includes/shortcodes/audio-recording-shortcode.php:349
 msgid "Enter the word in the target language"
@@ -781,7 +781,7 @@ msgstr "Diller"
 
 #: includes/shortcodes/user-study-dashboard.php:48
 msgid "Learn"
-msgstr "Öğrenmek"
+msgstr "Öğren"
 
 #: includes/shortcodes/flashcard-widget.php:160
 msgid "Learning Complete!"
@@ -1044,7 +1044,7 @@ msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
 
 #: includes/shortcodes/user-study-dashboard.php:47
 msgid "Practice"
-msgstr "Uygulama"
+msgstr "Tekrarla"
 
 #: templates/flashcard-widget-template.php:144
 #: includes/shortcodes/flashcard-widget.php:186
@@ -1372,7 +1372,7 @@ msgstr "Hedef Dili"
 
 #: includes/shortcodes/audio-recording-shortcode.php:348
 msgid "Target Word (optional)"
-msgstr ""
+msgstr "Hedef Kelime (isteğe bağlı)"
 
 #: includes/taxonomies/word-category-taxonomy.php:383
 #: includes/taxonomies/word-category-taxonomy.php:438
@@ -1453,7 +1453,7 @@ msgstr "Çeviri"
 
 #: includes/shortcodes/audio-recording-shortcode.php:352
 msgid "Translation (optional)"
-msgstr ""
+msgstr "Çeviri (isteğe bağlı)"
 
 #: includes/admin/settings.php:103
 msgid "Translation Language"
@@ -1673,13 +1673,13 @@ msgstr "- Seçiniz -"
 #: includes/shortcodes/quiz-pages-shortcodes.php:514
 #: includes/shortcodes/user-study-dashboard.php:96
 msgid "★ Starred only"
-msgstr "sadece yıldızlı"
+msgstr "Sadece yıldızlılar"
 
 #: templates/flashcard-widget-template.php:91
 #: includes/shortcodes/quiz-pages-shortcodes.php:513
 #: includes/shortcodes/user-study-dashboard.php:95
 msgid "★☆★ Starred twice"
-msgstr "★☆★ İki kez yıldızlandı"
+msgstr "★☆★ Yıldızlılar iki kere"
 
 #: templates/flashcard-widget-template.php:90
 #: includes/shortcodes/quiz-pages-shortcodes.php:512

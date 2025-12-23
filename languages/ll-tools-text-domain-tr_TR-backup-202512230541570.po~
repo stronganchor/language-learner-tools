@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2025-12-22 16:29+0000\n"
+"PO-Revision-Date: 2025-12-23 05:40+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Loco https://localise.biz/\n"
-"X-Loco-Version: 2.8.0; wp-6.8.3; php-8.2.23\n"
+"X-Loco-Version: 2.8.0; wp-6.9; php-8.2.23\n"
 "X-Domain: ll-tools-text-domain"
 
 #: includes/admin/bulk-word-import-admin.php:202
@@ -82,7 +82,7 @@ msgstr "(eski)"
 msgid "-- Default --"
 msgstr "-- Varsayılan --"
 
-#: includes/shortcodes/audio-recording-shortcode.php:637
+#: includes/shortcodes/audio-recording-shortcode.php:683
 msgid ""
 "<strong>To fix this:</strong> Edit each word image and assign it to at least "
 "one word category."
@@ -90,7 +90,7 @@ msgstr ""
 "<strong>Bunu düzeltmek için:</strong> Her kelime görselini düzenleyin ve en "
 "az bir kelime kategorisine atayın."
 
-#: includes/shortcodes/audio-recording-shortcode.php:607
+#: includes/shortcodes/audio-recording-shortcode.php:653
 msgid ""
 "<strong>To fix this:</strong> Edit each word image and set a featured image "
 "using the \"Featured Image\" panel on the right side of the editor."
@@ -152,7 +152,7 @@ msgstr "Tüm kategoriler"
 msgid "All Recording Types"
 msgstr "Tüm Kayıt Türleri"
 
-#: includes/shortcodes/audio-recording-shortcode.php:167
+#: includes/shortcodes/audio-recording-shortcode.php:210
 msgid "All recordings completed for the selected set. Thank you!"
 msgstr "Seçilen set için tüm kayıtlar tamamlandı. Teşekkürler!"
 
@@ -221,7 +221,7 @@ msgstr "Ses Kaydı Detayları"
 msgid "Audio Recording Page Created!"
 msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
-#: includes/shortcodes/audio-recording-shortcode.php:312
+#: includes/shortcodes/audio-recording-shortcode.php:358
 msgid "Back to Existing Words"
 msgstr "Mevcut Kelimelere Geri Dön"
 
@@ -245,7 +245,7 @@ msgstr "Toplu Resim Ekleme"
 msgid "Categories"
 msgstr "Kategoriler"
 
-#: includes/shortcodes/audio-recording-shortcode.php:247
+#: includes/shortcodes/audio-recording-shortcode.php:290
 msgid "Category"
 msgstr "Kategori"
 
@@ -263,11 +263,11 @@ msgstr "Kategori \"%s\" oluşturulamadı: %s"
 msgid "Category scope"
 msgstr "Kategori kapsamı"
 
-#: includes/shortcodes/audio-recording-shortcode.php:179
+#: includes/shortcodes/audio-recording-shortcode.php:222
 msgid "Category switched. Ready to record."
 msgstr "Kategori değiştirildi. Kayda hazır."
 
-#: includes/shortcodes/audio-recording-shortcode.php:168
+#: includes/shortcodes/audio-recording-shortcode.php:211
 msgid "Category:"
 msgstr "Kategori:"
 
@@ -342,7 +342,7 @@ msgstr ""
 "Bu kullanıcının ses kayıt arayüzünü kullandığında ne kaydetmesi gerektiğini "
 "yapılandırın."
 
-#: includes/shortcodes/audio-recording-shortcode.php:311
+#: includes/shortcodes/audio-recording-shortcode.php:357
 msgid "Continue to Recording"
 msgstr "Kayda Devam Et"
 
@@ -376,7 +376,7 @@ msgstr "Yüklemeler dizini oluşturulamadı."
 msgid "Create a new category"
 msgstr "Yeni bir kategori oluşturun"
 
-#: includes/shortcodes/audio-recording-shortcode.php:278
+#: includes/shortcodes/audio-recording-shortcode.php:321
 msgid "Create a new category for these words"
 msgstr "Bu kelimeler için yeni bir kategori oluşturun"
 
@@ -384,7 +384,7 @@ msgstr "Bu kelimeler için yeni bir kategori oluşturun"
 msgid "Create a new recording page?"
 msgstr "Yeni bir kayıt sayfası mı oluşturuyorsunuz?"
 
-#: includes/shortcodes/audio-recording-shortcode.php:581
+#: includes/shortcodes/audio-recording-shortcode.php:627
 msgid "Create a word image"
 msgstr "Bir kelime görüntüsü oluşturun"
 
@@ -409,7 +409,7 @@ msgstr "Yeni \"%s\" kategorisi oluşturuldu."
 msgid "Current User"
 msgstr "Mevcut Kullanıcı"
 
-#: includes/shortcodes/audio-recording-shortcode.php:698
+#: includes/shortcodes/audio-recording-shortcode.php:744
 #, php-format
 msgid "Current wordset filter: <strong>%s</strong>"
 msgstr "Geçerli sözcük kümesi filtresi: <strong>%s</strong>"
@@ -448,11 +448,7 @@ msgstr "Varsayılan Kayıt Sayfası"
 msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
-#: includes/shortcodes/audio-recording-shortcode.php:301
-msgid "Defaults to Isolation only for new categories."
-msgstr "Varsayılan olarak yalnızca yeni kategoriler için İzolasyon'dur."
-
-#: includes/shortcodes/audio-recording-shortcode.php:288
+#: includes/shortcodes/audio-recording-shortcode.php:331
 #: includes/taxonomies/word-category-taxonomy.php:502
 #: includes/taxonomies/word-category-taxonomy.php:537
 msgid "Desired Recording Types"
@@ -466,7 +462,7 @@ msgstr "İstenen kayıt türleri"
 msgid "Download export (.zip)"
 msgstr "Dışa aktarımı indirin (.zip)"
 
-#: includes/shortcodes/audio-recording-shortcode.php:285
+#: includes/shortcodes/audio-recording-shortcode.php:328
 msgid "e.g., Food"
 msgstr "örneğin, Gıda"
 
@@ -495,12 +491,12 @@ msgstr "Sayfayı Düzenle"
 msgid "Edit Recording Type"
 msgstr "Kayıt Türünü Düzenle"
 
-#: includes/shortcodes/audio-recording-shortcode.php:611
-#: includes/shortcodes/audio-recording-shortcode.php:641
+#: includes/shortcodes/audio-recording-shortcode.php:657
+#: includes/shortcodes/audio-recording-shortcode.php:687
 msgid "Edit Word Images"
 msgstr "Kelime Görüntülerini Düzenleme"
 
-#: includes/shortcodes/audio-recording-shortcode.php:183
+#: includes/shortcodes/audio-recording-shortcode.php:226
 msgid "Enter a category name or disable \"Create new category\"."
 msgstr ""
 "Bir kategori adı girin veya \"Yeni kategori oluştur\" seçeneğini devre dışı "
@@ -523,15 +519,19 @@ msgstr "Bu kelime seti için dili girin."
 msgid "Enter the translated name for this category."
 msgstr "Bu kategori için çevrilmiş adı girin."
 
-#: includes/shortcodes/audio-recording-shortcode.php:307
+#: includes/shortcodes/audio-recording-shortcode.php:353
+msgid "Enter the translation"
+msgstr "Çeviriyi girin"
+
+#: includes/shortcodes/audio-recording-shortcode.php:349
 msgid "Enter the word in the target language"
 msgstr "Kelimeyi hedef dilde girin"
 
-#: includes/shortcodes/audio-recording-shortcode.php:163
+#: includes/shortcodes/audio-recording-shortcode.php:206
 msgid "Error:"
 msgstr "Hata:"
 
-#: includes/shortcodes/audio-recording-shortcode.php:171
+#: includes/shortcodes/audio-recording-shortcode.php:214
 msgid "Error: Could not access microphone"
 msgstr "Hata: Mikrofona erişilemedi"
 
@@ -624,7 +624,7 @@ msgstr "Aferin!"
 msgid "Has Featured Image"
 msgstr "Öne Çıkan Görsele Sahip"
 
-#: includes/shortcodes/audio-recording-shortcode.php:173
+#: includes/shortcodes/audio-recording-shortcode.php:216
 #, php-format
 msgid "HTTP %d: %s"
 msgstr "HTTP %d: %s"
@@ -731,7 +731,7 @@ msgstr "İçe aktarma işlemi bazı hatalarla tamamlandı."
 msgid "Import words"
 msgstr "İthal kelimeler"
 
-#: includes/shortcodes/audio-recording-shortcode.php:17
+#: includes/shortcodes/audio-recording-shortcode.php:32
 #: includes/taxonomies/recording-type-taxonomy.php:44
 msgid "In Sentence"
 msgstr "Örnek cümle içinde"
@@ -741,7 +741,7 @@ msgstr "Örnek cümle içinde"
 msgid "Include Recording Types"
 msgstr "Kayıt Türlerini Dahil Et"
 
-#: includes/shortcodes/audio-recording-shortcode.php:16
+#: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
@@ -750,7 +750,7 @@ msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
 msgid "Invalid category specified."
 msgstr "Geçersiz kategori belirtildi."
 
-#: includes/shortcodes/audio-recording-shortcode.php:14
+#: includes/shortcodes/audio-recording-shortcode.php:29
 #: includes/taxonomies/recording-type-taxonomy.php:41
 #: includes/admin/uploads/audio-upload-form.php:62
 msgid "Isolation"
@@ -781,7 +781,7 @@ msgstr "Diller"
 
 #: includes/shortcodes/user-study-dashboard.php:48
 msgid "Learn"
-msgstr "Öğrenmek"
+msgstr "Öğren"
 
 #: includes/shortcodes/flashcard-widget.php:160
 msgid "Learning Complete!"
@@ -839,7 +839,7 @@ msgstr "LL Araçları - Kelime Görüntülerini Düzeltme"
 msgid "Loading Error"
 msgstr "Yükleme Hatası"
 
-#: includes/shortcodes/audio-recording-shortcode.php:28
+#: includes/shortcodes/audio-recording-shortcode.php:71
 msgid "Log in"
 msgstr "Giriş yap"
 
@@ -864,7 +864,7 @@ msgstr "Yeni kelime oluşturmak yerine mevcut kelime gönderileriyle eşleştiri
 msgid "New Audio Recording"
 msgstr "Yeni Ses Kaydı"
 
-#: includes/shortcodes/audio-recording-shortcode.php:284
+#: includes/shortcodes/audio-recording-shortcode.php:327
 msgid "New Category Name"
 msgstr "Yeni Kategori Adı"
 
@@ -872,12 +872,12 @@ msgstr "Yeni Kategori Adı"
 msgid "New Recording Type Name"
 msgstr "Yeni Kayıt Tipi Adı"
 
-#: includes/shortcodes/audio-recording-shortcode.php:898
+#: includes/shortcodes/audio-recording-shortcode.php:946
 #, php-format
 msgid "New word %s"
 msgstr "Yeni kelime %s"
 
-#: includes/shortcodes/audio-recording-shortcode.php:182
+#: includes/shortcodes/audio-recording-shortcode.php:225
 msgid "New word setup failed:"
 msgstr "Yeni kelime kurulumu başarısız oldu:"
 
@@ -885,7 +885,7 @@ msgstr "Yeni kelime kurulumu başarısız oldu:"
 msgid "No"
 msgstr "Hayır"
 
-#: includes/shortcodes/audio-recording-shortcode.php:170
+#: includes/shortcodes/audio-recording-shortcode.php:213
 msgid "No audio blob to submit"
 msgstr "Gönderilecek ses bloğu yok"
 
@@ -906,11 +906,11 @@ msgstr "Bu kelime seti için henüz kategori mevcut değil."
 msgid "No headers selected for matching."
 msgstr "Eşleştirme için seçilen başlık yok."
 
-#: includes/shortcodes/audio-recording-shortcode.php:178
+#: includes/shortcodes/audio-recording-shortcode.php:221
 msgid "No images need audio in this category."
 msgstr "Bu kategoride hiçbir görüntü ses gerektirmez."
 
-#: includes/shortcodes/audio-recording-shortcode.php:98
+#: includes/shortcodes/audio-recording-shortcode.php:141
 msgid ""
 "No images need audio recordings in the selected category at this time. Thank "
 "you!"
@@ -930,11 +930,11 @@ msgstr "Sınav bulunamadı."
 msgid "No recording page found."
 msgstr "Kayıt sayfası bulunamadı."
 
-#: includes/shortcodes/audio-recording-shortcode.php:679
+#: includes/shortcodes/audio-recording-shortcode.php:725
 msgid "No recording types are configured in your system."
 msgstr "Sisteminizde hiçbir kayıt türü yapılandırılmamıştır."
 
-#: includes/shortcodes/audio-recording-shortcode.php:298
+#: includes/shortcodes/audio-recording-shortcode.php:341
 msgid "No recording types available."
 msgstr "Kayıt türü mevcut değil."
 
@@ -942,7 +942,7 @@ msgstr "Kayıt türü mevcut değil."
 msgid "No recording types defined yet."
 msgstr "Henüz tanımlanmış kayıt türü yok."
 
-#: includes/shortcodes/audio-recording-shortcode.php:577
+#: includes/shortcodes/audio-recording-shortcode.php:623
 msgid ""
 "No word images have been created yet. Please create some word images first."
 msgstr ""
@@ -1044,7 +1044,7 @@ msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
 
 #: includes/shortcodes/user-study-dashboard.php:47
 msgid "Practice"
-msgstr "Uygulama"
+msgstr "Tekrarla"
 
 #: templates/flashcard-widget-template.php:144
 #: includes/shortcodes/flashcard-widget.php:186
@@ -1052,11 +1052,11 @@ msgstr "Uygulama"
 msgid "Practice Mode"
 msgstr "Alıştırma Modu"
 
-#: includes/shortcodes/audio-recording-shortcode.php:181
+#: includes/shortcodes/audio-recording-shortcode.php:224
 msgid "Preparing new word..."
 msgstr "Yeni kelime hazırlanıyor..."
 
-#: includes/shortcodes/audio-recording-shortcode.php:15
+#: includes/shortcodes/audio-recording-shortcode.php:30
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
@@ -1091,15 +1091,15 @@ msgstr "Sınav seçimi"
 msgid "Quiz: %s"
 msgstr "Sınav: %s"
 
-#: includes/shortcodes/audio-recording-shortcode.php:357
+#: includes/shortcodes/audio-recording-shortcode.php:403
 msgid "Record"
 msgstr "Kayıt"
 
-#: includes/shortcodes/audio-recording-shortcode.php:244
+#: includes/shortcodes/audio-recording-shortcode.php:287
 msgid "Record a New Word"
-msgstr "Yeni Bir Kelime Kaydetme"
+msgstr "Yeni Kelime Kaydet"
 
-#: includes/shortcodes/audio-recording-shortcode.php:376
+#: includes/shortcodes/audio-recording-shortcode.php:422
 msgid "Record again"
 msgstr "Tekrar kaydedin"
 
@@ -1107,7 +1107,7 @@ msgstr "Tekrar kaydedin"
 msgid "Record Audio"
 msgstr "Ses Kaydet"
 
-#: includes/shortcodes/audio-recording-shortcode.php:231
+#: includes/shortcodes/audio-recording-shortcode.php:274
 msgid "Record New Word"
 msgstr "Yeni Kelime Kaydet"
 
@@ -1124,7 +1124,7 @@ msgstr "Kayıt Tarihi"
 msgid "Recording Type"
 msgstr "Kayıt Türü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:337
+#: includes/shortcodes/audio-recording-shortcode.php:383
 msgid "Recording Type:"
 msgstr "Kayıt Türü:"
 
@@ -1133,7 +1133,7 @@ msgstr "Kayıt Türü:"
 msgid "Recording Types"
 msgstr "Kayıt Türleri"
 
-#: includes/shortcodes/audio-recording-shortcode.php:388
+#: includes/shortcodes/audio-recording-shortcode.php:434
 msgid "recordings completed"
 msgstr "kayıtlar tamamlandı"
 
@@ -1156,7 +1156,7 @@ msgstr "Yeniden Başla"
 msgid "Save"
 msgstr "Kaydet"
 
-#: includes/shortcodes/audio-recording-shortcode.php:378
+#: includes/shortcodes/audio-recording-shortcode.php:424
 msgid "Save and continue"
 msgstr "Kaydet ve devam et"
 
@@ -1164,7 +1164,7 @@ msgstr "Kaydet ve devam et"
 msgid "Saved."
 msgstr "Kurtuldum."
 
-#: includes/shortcodes/audio-recording-shortcode.php:165
+#: includes/shortcodes/audio-recording-shortcode.php:208
 #| msgid "Saved %s. Next type selected."
 msgid "Saved. Next type selected."
 msgstr "Kaydedildi. Sonraki tip seçildi."
@@ -1232,15 +1232,15 @@ msgstr ""
 "Sunucu içe aktarma klasörü oluşturulamadı. Sunucu tarafı içe aktarmaları "
 "kullanmadan önce lütfen izinleri kontrol edin."
 
-#: includes/shortcodes/audio-recording-shortcode.php:174
+#: includes/shortcodes/audio-recording-shortcode.php:217
 msgid "Server returned invalid response format"
 msgstr "Sunucu geçersiz yanıt biçimi döndürdü"
 
-#: includes/shortcodes/audio-recording-shortcode.php:683
+#: includes/shortcodes/audio-recording-shortcode.php:729
 msgid "Set Up Recording Types"
 msgstr "Kayıt Türlerini Ayarlama"
 
-#: includes/shortcodes/audio-recording-shortcode.php:223
+#: includes/shortcodes/audio-recording-shortcode.php:266
 msgid "Set:"
 msgstr "Set:"
 
@@ -1249,15 +1249,15 @@ msgstr "Set:"
 msgid "Show image"
 msgstr "Resmi göster"
 
-#: includes/shortcodes/audio-recording-shortcode.php:360
+#: includes/shortcodes/audio-recording-shortcode.php:406
 msgid "Skip"
 msgstr "Atla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:177
+#: includes/shortcodes/audio-recording-shortcode.php:220
 msgid "Skip failed:"
 msgstr "Skip başarısız oldu:"
 
-#: includes/shortcodes/audio-recording-shortcode.php:166
+#: includes/shortcodes/audio-recording-shortcode.php:209
 msgid "Skipped this type. Next type selected."
 msgstr "Bu tür atlandı. Sonraki tip seçildi."
 
@@ -1266,7 +1266,7 @@ msgstr "Bu tür atlandı. Sonraki tip seçildi."
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
 msgstr "Dosya yolu geçersiz olduğu için \"%s\" için küçük resim atlandı."
 
-#: includes/shortcodes/audio-recording-shortcode.php:176
+#: includes/shortcodes/audio-recording-shortcode.php:219
 msgid "Skipping..."
 msgstr "Atlıyor..."
 
@@ -1307,7 +1307,7 @@ msgstr "Başla"
 msgid "Start Quiz"
 msgstr "Başla"
 
-#: includes/shortcodes/audio-recording-shortcode.php:172
+#: includes/shortcodes/audio-recording-shortcode.php:215
 msgid "Starting upload for image:"
 msgstr "Görüntü için yükleme başlatılıyor:"
 
@@ -1320,7 +1320,7 @@ msgstr "Strong Anchor Tech"
 msgid "Study Settings"
 msgstr "Çalışma Ayarları"
 
-#: includes/shortcodes/audio-recording-shortcode.php:162
+#: includes/shortcodes/audio-recording-shortcode.php:205
 msgid "Success! Recording will be processed later."
 msgstr "Başarılı! Kayıt daha sonra işlenecektir."
 
@@ -1330,7 +1330,7 @@ msgid_plural "Successfully added %d categories."
 msgstr[0] "Başarıyla %d kategorisi eklendi."
 msgstr[1] "Başarıyla %d kategori eklendi."
 
-#: includes/shortcodes/audio-recording-shortcode.php:180
+#: includes/shortcodes/audio-recording-shortcode.php:223
 msgid "Switch failed:"
 msgstr "Anahtar başarısız oldu:"
 
@@ -1362,13 +1362,17 @@ msgid "Switch word sets to load their categories and words."
 msgstr ""
 "Kategorilerini ve kelimelerini yüklemek için kelime setlerini değiştirin."
 
-#: includes/shortcodes/audio-recording-shortcode.php:175
+#: includes/shortcodes/audio-recording-shortcode.php:218
 msgid "Switching category..."
 msgstr "Kategori değiştiriliyor..."
 
 #: includes/admin/settings.php:102
 msgid "Target Language"
 msgstr "Hedef Dili"
+
+#: includes/shortcodes/audio-recording-shortcode.php:348
+msgid "Target Word (optional)"
+msgstr "Hedef Kelime (isteğe bağlı)"
 
 #: includes/taxonomies/word-category-taxonomy.php:383
 #: includes/taxonomies/word-category-taxonomy.php:438
@@ -1408,7 +1412,7 @@ msgid ""
 "The word \"%1$s\" was created but could not be assigned to the word set: %2$s"
 msgstr "\"%1$s\" sözcüğü oluşturuldu ancak sözcük kümesine atanamadı: %2$s"
 
-#: includes/shortcodes/audio-recording-shortcode.php:702
+#: includes/shortcodes/audio-recording-shortcode.php:748
 msgid ""
 "This means all available images already have the required recording types. "
 "Great work!"
@@ -1447,6 +1451,10 @@ msgstr "Çeviri"
 msgid "Translation"
 msgstr "Çeviri"
 
+#: includes/shortcodes/audio-recording-shortcode.php:352
+msgid "Translation (optional)"
+msgstr "Çeviri (isteğe bağlı)"
+
 #: includes/admin/settings.php:103
 msgid "Translation Language"
 msgstr "Çeviri Dili"
@@ -1467,13 +1475,13 @@ msgstr ""
 msgid "Unassigned"
 msgstr "Atanmamış"
 
-#: includes/shortcodes/audio-recording-shortcode.php:70
-#: includes/shortcodes/audio-recording-shortcode.php:169
-#: includes/shortcodes/audio-recording-shortcode.php:250
-#: includes/shortcodes/audio-recording-shortcode.php:552
-#: includes/shortcodes/audio-recording-shortcode.php:649
-#: includes/shortcodes/audio-recording-shortcode.php:812
-#: includes/shortcodes/audio-recording-shortcode.php:1159
+#: includes/shortcodes/audio-recording-shortcode.php:113
+#: includes/shortcodes/audio-recording-shortcode.php:212
+#: includes/shortcodes/audio-recording-shortcode.php:293
+#: includes/shortcodes/audio-recording-shortcode.php:598
+#: includes/shortcodes/audio-recording-shortcode.php:695
+#: includes/shortcodes/audio-recording-shortcode.php:860
+#: includes/shortcodes/audio-recording-shortcode.php:1219
 msgid "Uncategorized"
 msgstr "Uncategorized"
 
@@ -1505,7 +1513,7 @@ msgstr "Kayıt Türünü Güncelle"
 msgid "Upload export zip (optional)"
 msgstr "Dışa aktarma zip'ini yükleyin (isteğe bağlı)"
 
-#: includes/shortcodes/audio-recording-shortcode.php:164
+#: includes/shortcodes/audio-recording-shortcode.php:207
 msgid "Upload failed:"
 msgstr "Yükleme başarısız oldu:"
 
@@ -1518,7 +1526,7 @@ msgstr ""
 "Zip dosyasını %s'ye yükleyin ve seçmek için bu sayfayı yenileyin. Her iki "
 "alan da kullanılıyorsa, yüklenen dosya önceliklidir."
 
-#: includes/shortcodes/audio-recording-shortcode.php:161
+#: includes/shortcodes/audio-recording-shortcode.php:204
 msgid "Uploading..."
 msgstr "Yükleniyor..."
 
@@ -1578,10 +1586,6 @@ msgstr "Kelime Seti"
 msgid "Word set"
 msgstr "Kelime seti"
 
-#: includes/shortcodes/audio-recording-shortcode.php:306
-msgid "Word Text (optional)"
-msgstr "Word Metni (isteğe bağlı)"
-
 #: includes/shortcodes/user-study-dashboard.php:44
 msgid "Words"
 msgstr "Kelimeler"
@@ -1606,7 +1610,7 @@ msgstr "LL Tools verilerini dışa aktarma izniniz yok."
 msgid "You do not have permission to import LL Tools data."
 msgstr "LL Tools verilerini içe aktarma izniniz yok."
 
-#: includes/shortcodes/audio-recording-shortcode.php:33
+#: includes/shortcodes/audio-recording-shortcode.php:76
 msgid ""
 "You do not have permission to record audio. If you think this is a mistake, "
 "ask for the \"Audio Recorder\" user role to be added to your user account."
@@ -1614,7 +1618,7 @@ msgstr ""
 "Ses kaydetme izniniz yok. Bunun bir hata olduğunu düşünüyorsanız, kullanıcı "
 "hesabınıza \"Ses Kaydedici\" kullanıcı rolünün eklenmesini isteyin."
 
-#: includes/shortcodes/audio-recording-shortcode.php:690
+#: includes/shortcodes/audio-recording-shortcode.php:736
 #, php-format
 msgid ""
 "You have %d word image(s) with featured images in categories (%s), but all "
@@ -1624,7 +1628,7 @@ msgstr ""
 "kategorilerinde), ancak seçilen kelime kümesindeki tüm görüntülerin zaten "
 "kayıtları var."
 
-#: includes/shortcodes/audio-recording-shortcode.php:634
+#: includes/shortcodes/audio-recording-shortcode.php:680
 msgid ""
 "You have %d word image(s) with featured images, but none are assigned to any "
 "word categories."
@@ -1632,12 +1636,12 @@ msgstr ""
 "Öne çıkan görsellere sahip %d kelime görsel(ler)iniz var, ancak hiçbiri "
 "herhangi bir kelime kategorisine atanmamış."
 
-#: includes/shortcodes/audio-recording-shortcode.php:604
+#: includes/shortcodes/audio-recording-shortcode.php:650
 msgid "You have %d word image(s), but none have a featured image set."
 msgstr ""
 "D kelime görsel(ler)iniz var, ancak hiçbirinin öne çıkan görsel seti yok."
 
-#: includes/shortcodes/audio-recording-shortcode.php:27
+#: includes/shortcodes/audio-recording-shortcode.php:70
 msgid "You must be logged in to record audio."
 msgstr "Ses kaydı yapmak için oturum açmış olmanız gerekir."
 

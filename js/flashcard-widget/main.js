@@ -21,6 +21,15 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
+    function setStarModeOverride(mode) {
+        const normalized = mode ? normalizeStarMode(mode) : null;
+        State.starModeOverride = normalized;
+        if (root.llToolsFlashcardsData) {
+            root.llToolsFlashcardsData.starModeOverride = normalized;
+        }
+        return normalized;
+    }
+
     function getCurrentWordsetKey() {
         const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
             ? root.llToolsFlashcardsData.wordset
@@ -88,6 +97,7 @@
         __LLTimers.clear();
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
+        setStarModeOverride(null);
 
         // IMPORTANT: pause the *previous* audio session (snapshot the id now)
         try {
@@ -262,32 +272,37 @@
     }
 
     // If "starred only" is selected but no starred words exist in the current quiz
-    // selection, temporarily fall back to weighted mode for this quiz session only
+    // selection, temporarily fall back to normal mode for this quiz session only
     // without changing the saved user preference.
-    function maybeFallbackStarModeForSingleCategoryQuiz() {
+    function maybeFallbackStarModeForSingleCategoryQuiz(reason) {
         try {
             const prefs = ensureStudyPrefs();
             const flashState = root.llToolsFlashcardsData || {};
 
             const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'normal';
             const starMode = normalizeStarMode(modeRaw);
-            State.starModeOverride = null;
-            if (root.llToolsFlashcardsData) {
-                root.llToolsFlashcardsData.starModeOverride = null;
-            }
             if (starMode !== 'only') return;
+            if (State.starModeOverride) return;
 
             const canUse = canUseStarOnlyForCurrentSelection();
             if (!canUse) {
-                State.starModeOverride = 'weighted';
-                if (root.llToolsFlashcardsData) {
-                    root.llToolsFlashcardsData.starModeOverride = 'weighted';
+                setStarModeOverride('normal');
+                State.completedCategories = {};
+                restoreCategorySelection();
+                if (State.isLearningMode) {
+                    const learning = root.LLFlashcards?.Modes?.Learning;
+                    if (learning && typeof learning.initialize === 'function') {
+                        State.wordsToIntroduce = [];
+                        try { learning.initialize(); } catch (err) { console.warn('Learning mode reinit failed', err); }
+                    }
                 }
-                console.warn('LL Tools: No starred words available for this quiz; using weighted mode for this quiz only.');
+                console.warn('LL Tools: No starred words available for this quiz; using normal mode for this quiz only.', reason || '');
+                return true;
             }
         } catch (e) {
             console.warn('LL Tools: Star-mode fallback failed', e);
         }
+        return false;
     }
 
     // Determine whether "starred only" should be available for the current selection
@@ -406,6 +421,9 @@
         }
 
         function getStarMode() {
+            if (State && State.starModeOverride) {
+                return normalizeStarMode(State.starModeOverride);
+            }
             const prefs = ensurePrefs();
             const modeFromPrefs = prefs.starMode || prefs.star_mode;
             const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
@@ -726,7 +744,12 @@
             if (!wordId) return;
             currentWord = word;
             const starredNow = setStarState(wordId, desiredState);
-            const starMode = getStarMode();
+            let starMode = getStarMode();
+            if (starMode === 'only' && !starredNow) {
+                if (maybeFallbackStarModeForSingleCategoryQuiz('star-change')) {
+                    starMode = getStarMode();
+                }
+            }
             State.starPlayCounts = State.starPlayCounts || {};
             if (State.starPlayCounts[wordId] === undefined) {
                 State.starPlayCounts[wordId] = 0;
