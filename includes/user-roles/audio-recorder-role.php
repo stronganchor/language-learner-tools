@@ -65,7 +65,7 @@ function ll_tools_user_can_record() {
  * Helper function to set recording configuration for a user
  */
 function ll_set_user_recording_config($user_id, $config) {
-    $allowed_keys = ['wordset', 'category', 'language', 'include_recording_types', 'exclude_recording_types', 'allow_new_words'];
+    $allowed_keys = ['wordset', 'category', 'language', 'include_recording_types', 'exclude_recording_types', 'allow_new_words', 'auto_process_recordings'];
     $filtered_config = [];
 
     foreach ($allowed_keys as $key) {
@@ -192,6 +192,20 @@ function ll_audio_recorder_profile_fields($user) {
                 </label>
             </td>
         </tr>
+        <tr>
+            <th><label for="ll_auto_process_recordings"><?php _e('Auto-process Recordings', 'll-tools-text-domain'); ?></label></th>
+            <td>
+                <input type="hidden" name="ll_recording_config[auto_process_recordings]" value="0" />
+                <label>
+                    <input type="checkbox" name="ll_recording_config[auto_process_recordings]" id="ll_auto_process_recordings" value="1"
+                        <?php checked(isset($config['auto_process_recordings']) ? $config['auto_process_recordings'] : '', '1'); ?> />
+                    <?php _e('Process recordings immediately and publish them after review.', 'll-tools-text-domain'); ?>
+                </label>
+                <p class="description">
+                    <?php _e('Applies trimming, noise reduction, and loudness normalization in the recording interface so the recorder can review and adjust trim boundaries before saving.', 'll-tools-text-domain'); ?>
+                </p>
+            </td>
+        </tr>
     </table>
     <?php
 }
@@ -288,6 +302,19 @@ function ll_audio_recorder_new_user_fields() {
                     <input type="checkbox" name="ll_recording_config[allow_new_words]" id="ll_allow_new_words" value="1" />
                     <?php _e('Allow this user to record brand new words without existing posts or images.', 'll-tools-text-domain'); ?>
                 </label>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="ll_auto_process_recordings"><?php _e('Auto-process Recordings', 'll-tools-text-domain'); ?></label></th>
+            <td>
+                <input type="hidden" name="ll_recording_config[auto_process_recordings]" value="0" />
+                <label>
+                    <input type="checkbox" name="ll_recording_config[auto_process_recordings]" id="ll_auto_process_recordings" value="1" />
+                    <?php _e('Process recordings immediately and publish them after review.', 'll-tools-text-domain'); ?>
+                </label>
+                <p class="description">
+                    <?php _e('Applies trimming, noise reduction, and loudness normalization in the recording interface so the recorder can review and adjust trim boundaries before saving.', 'll-tools-text-domain'); ?>
+                </p>
             </td>
         </tr>
     </table>

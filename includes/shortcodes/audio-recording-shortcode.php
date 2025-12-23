@@ -93,12 +93,14 @@ function ll_audio_recording_interface_shortcode($atts) {
         'include_recording_types' => '',
         'exclude_recording_types' => '',
         'allow_new_words' => '',
+        'auto_process_recordings' => '',
     ], $defaults), $atts);
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
 
     $allow_new_words = !empty($atts['allow_new_words']);
+    $auto_process_recordings = !empty($atts['auto_process_recordings']);
 
     // Get available categories for the wordset
     $available_categories = ll_get_categories_for_wordset($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
@@ -142,7 +144,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                '</p></div>';
     }
 
-    ll_enqueue_recording_assets();
+    ll_enqueue_recording_assets($auto_process_recordings);
 
     // Get recording types for dropdown (based on initial images)
     $recording_types = [];
@@ -199,10 +201,12 @@ function ll_audio_recording_interface_shortcode($atts) {
         'initial_category' => $initial_category,
         'include_types'    => $atts['include_recording_types'],
         'exclude_types'    => $atts['exclude_recording_types'],
+        'auto_process_recordings' => $auto_process_recordings,
         'current_user_id'  => get_current_user_id(),
         'i18n' => [
             'uploading' => __('Uploading...', 'll-tools-text-domain'),
             'success' => __('Success! Recording will be processed later.', 'll-tools-text-domain'),
+            'success_processed' => __('Success! Recording published.', 'll-tools-text-domain'),
             'error_prefix' => __('Error:', 'll-tools-text-domain'),
             'upload_failed' => __('Upload failed:', 'll-tools-text-domain'),
             'saved_next_type' => __('Saved. Next type selected.', 'll-tools-text-domain'),
@@ -212,6 +216,9 @@ function ll_audio_recording_interface_shortcode($atts) {
             'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
             'no_blob' => __('No audio blob to submit', 'll-tools-text-domain'),
             'microphone_error' => __('Error: Could not access microphone', 'll-tools-text-domain'),
+            'processing' => __('Processing audio...', 'll-tools-text-domain'),
+            'processing_ready' => __('Review the processed audio below.', 'll-tools-text-domain'),
+            'processing_failed' => __('Audio processing failed. You can upload the raw recording instead.', 'll-tools-text-domain'),
             'starting_upload' => __('Starting upload for image:', 'll-tools-text-domain'),
             'http_error' => __('HTTP %d: %s', 'll-tools-text-domain'),
             'invalid_response' => __('Server returned invalid response format', 'll-tools-text-domain'),
@@ -428,6 +435,17 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <div id="ll-upload-status" class="ll-upload-status"></div>
             </div>
         </div>
+
+        <?php if ($auto_process_recordings): ?>
+        <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
+            <h2><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
+            <div id="ll-review-files-container"></div>
+            <div class="ll-review-actions">
+                <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="ll-recording-complete" style="display:none;">
             <h2>✓</h2>
@@ -1935,7 +1953,7 @@ function ll_image_has_word_with_audio($image_post_id) {
 /**
  * Enqueue recording interface assets
  */
-function ll_enqueue_recording_assets() {
+function ll_enqueue_recording_assets($auto_process_recordings = false) {
     // Enqueue flashcard styles first so recording interface can use them
     wp_enqueue_style(
         'll-flashcard-style',
@@ -1976,6 +1994,15 @@ function ll_enqueue_recording_assets() {
         ],
         filemtime(LL_TOOLS_BASE_PATH . 'css/recording-interface.css')
     );
+
+    if ($auto_process_recordings) {
+        wp_enqueue_style(
+            'll-audio-processor-css',
+            plugins_url('css/audio-processor.css', LL_TOOLS_MAIN_FILE),
+            ['ll-recording-interface'],
+            filemtime(LL_TOOLS_BASE_PATH . 'css/audio-processor.css')
+        );
+    }
 
     wp_enqueue_script(
         'll-audio-recorder',
@@ -2106,6 +2133,13 @@ function ll_handle_recording_upload() {
     }
 
     $current_user_id = get_current_user_id();
+    $auto_processed_request = isset($_POST['auto_processed']) ? sanitize_text_field($_POST['auto_processed']) : '';
+    $auto_processed_request = ($auto_processed_request === '1');
+    $user_recording_config = function_exists('ll_get_user_recording_config')
+        ? ll_get_user_recording_config($current_user_id)
+        : [];
+    $auto_process_allowed = is_array($user_recording_config) && !empty($user_recording_config['auto_process_recordings']);
+    $auto_publish = $auto_processed_request && $auto_process_allowed;
 
     if (empty($_FILES['audio'])) {
         wp_send_json_error('Missing data');
@@ -2220,7 +2254,7 @@ function ll_handle_recording_upload() {
     $audio_post_id = wp_insert_post([
         'post_title'  => $title,
         'post_type'   => 'word_audio',
-        'post_status' => 'draft',
+        'post_status' => $auto_publish ? 'publish' : 'draft',
         'post_parent' => $word_id,
         'post_author' => $current_user_id,
     ]);
@@ -2233,7 +2267,11 @@ function ll_handle_recording_upload() {
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
-    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+    if ($auto_publish) {
+        update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
+    } else {
+        update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
+    }
     update_post_meta($audio_post_id, '_ll_raw_recording_format', $extension);
 
     if (!empty($recording_type)) {
@@ -2242,6 +2280,16 @@ function ll_handle_recording_upload() {
 
     if (!get_post_meta($word_id, 'word_audio_file', true)) {
         update_post_meta($word_id, 'word_audio_file', $relative_path);
+    }
+
+    if ($auto_publish) {
+        $parent_word = get_post($word_id);
+        if ($parent_word && $parent_word->post_status !== 'publish') {
+            wp_update_post([
+                'ID'          => $word_id,
+                'post_status' => 'publish',
+            ]);
+        }
     }
 
     // Recompute remaining types using the same rules as the UI: honor desired types

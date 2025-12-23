@@ -12,6 +12,8 @@
     let newWordStage = 'inactive';
     let savedExistingState = null;
     let lastNewWordCategory = null;
+    let processingState = null;
+    let processingAudioContext = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -19,6 +21,12 @@
     const requireAll = !!window.ll_recorder_data?.require_all_types;
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
+    const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
+    const processingDefaults = {
+        enableTrim: true,
+        enableNoise: true,
+        enableLoudness: true
+    };
 
     if (images.length === 0 && !allowNewWords) return;
 
@@ -28,6 +36,7 @@
         check: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
         redo: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>',
         skip: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>',
+        play: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
     };
 
     document.addEventListener('DOMContentLoaded', init);
@@ -45,6 +54,12 @@
 
         if (window.llRecorder && window.llRecorder.recordBtn) {
             window.llRecorder.recordBtn.innerHTML = icons.record;
+        }
+        if (window.llRecorder && window.llRecorder.reviewRedoBtn) {
+            window.llRecorder.reviewRedoBtn.innerHTML = icons.redo;
+        }
+        if (window.llRecorder && window.llRecorder.reviewSubmitBtn) {
+            window.llRecorder.reviewSubmitBtn.innerHTML = icons.check;
         }
     }
 
@@ -81,6 +96,10 @@
             newWordTextTranslation: document.getElementById('ll-new-word-text-translation'),
             newWordStartBtn: document.getElementById('ll-new-word-start'),
             newWordBackBtn: document.getElementById('ll-new-word-back'),
+            processingReview: document.getElementById('ll-recording-review'),
+            reviewContainer: document.getElementById('ll-review-files-container'),
+            reviewRedoBtn: document.getElementById('ll-review-redo'),
+            reviewSubmitBtn: document.getElementById('ll-review-submit'),
         };
     }
 
@@ -491,7 +510,7 @@
         if (type) el.status.classList.add(type);
     }
 
-    function handleSuccessfulUpload(recordingType, remaining) {
+    function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         if (!Array.isArray(images[currentImageIndex].existing_types)) {
             images[currentImageIndex].existing_types = [];
         }
@@ -507,7 +526,10 @@
             return true; // Signal that we're staying on this image
         }
 
-        showStatus(i18n.success || 'Success! Recording will be processed later.', 'success');
+        const successMessage = autoProcessed
+            ? (i18n.success_processed || 'Success! Recording published.')
+            : (i18n.success || 'Success! Recording will be processed later.');
+        showStatus(successMessage, 'success');
         setTimeout(() => loadImage(currentImageIndex + 1), 800);
         return false; // Signal that we're moving to next image
     }
@@ -518,6 +540,12 @@
         el.redoBtn.addEventListener('click', redo);
         el.submitBtn.addEventListener('click', submitAndNext);
         el.skipBtn.addEventListener('click', skipToNext);
+        if (el.reviewRedoBtn) {
+            el.reviewRedoBtn.addEventListener('click', redo);
+        }
+        if (el.reviewSubmitBtn) {
+            el.reviewSubmitBtn.addEventListener('click', submitAndNext);
+        }
     }
 
     // Proactively surface likely microphone issues so users know what to fix
@@ -607,7 +635,6 @@
         el.title.textContent = displayTitle;
         if (img.is_text_only && el.textDisplay) {
             el.textDisplay.textContent = displayTitle;
-            fitTextToContainer(el.textDisplay);
         }
         if (!img.is_text_only) {
             // Remove text styling so image cards match quiz styling
@@ -636,6 +663,9 @@
 
         setTypeForCurrentImage();
         resetRecordingState();
+        if (img.is_text_only && el.textDisplay) {
+            requestAnimationFrame(() => fitTextToContainer(el.textDisplay));
+        }
     }
 
     function resetRecordingState() {
@@ -651,8 +681,24 @@
         el.playbackControls.style.display = 'none';
         el.status.textContent = '';
         el.status.className = 'll-upload-status';
+        if (el.processingReview) {
+            el.processingReview.style.display = 'none';
+        }
+        if (el.reviewContainer) {
+            el.reviewContainer.innerHTML = '';
+        }
+        if (el.reviewSubmitBtn) {
+            el.reviewSubmitBtn.disabled = false;
+        }
+        if (el.reviewRedoBtn) {
+            el.reviewRedoBtn.disabled = false;
+        }
+        if (!newWordMode && el.mainScreen) {
+            el.mainScreen.style.display = 'flex';
+        }
         currentBlob = null;
         audioChunks = [];
+        processingState = null;
     }
 
     async function toggleRecording() {
@@ -825,19 +871,67 @@
         window.llRecorder.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    function handleRecordingStopped() {
+    async function handleRecordingStopped() {
         const el = window.llRecorder;
 
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         currentBlob = new Blob(audioChunks, { type: mimeType });
-        const url = URL.createObjectURL(currentBlob);
 
-        el.playbackAudio.src = url;
         el.recordBtn.style.display = 'none';
         el.recordBtn.disabled = true;
         el.indicator.style.display = 'none';
-        el.playbackControls.style.display = 'block';
         el.skipBtn.disabled = false;
+
+        if (!autoProcessEnabled) {
+            showRawPlayback(currentBlob);
+            return;
+        }
+
+        showStatus(i18n.processing || 'Processing audio...', 'info');
+        if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = true;
+        if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = true;
+
+        try {
+            const processed = await processRecordedBlob(currentBlob, { ...processingDefaults });
+            processingState = {
+                originalBuffer: processed.originalBuffer,
+                processedBuffer: processed.processedBuffer,
+                trimStart: processed.trimStart,
+                trimEnd: processed.trimEnd,
+                options: { ...processingDefaults },
+                manualBoundaries: false
+            };
+            showProcessingReview();
+            showStatus(i18n.processing_ready || 'Review the processed audio below.', 'success');
+        } catch (error) {
+            console.error('Audio processing failed:', error);
+            processingState = null;
+            showStatus(i18n.processing_failed || 'Audio processing failed. You can upload the raw recording instead.', 'error');
+            showRawPlayback(currentBlob);
+        } finally {
+            if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
+            if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+        }
+    }
+
+    function showRawPlayback(blob) {
+        const el = window.llRecorder;
+        if (el.processingReview) {
+            el.processingReview.style.display = 'none';
+        }
+        if (el.reviewContainer) {
+            el.reviewContainer.innerHTML = '';
+        }
+        if (el.mainScreen) {
+            el.mainScreen.style.display = 'flex';
+        }
+        if (!el.playbackControls || !el.playbackAudio) {
+            return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        el.playbackAudio.src = url;
+        el.playbackControls.style.display = 'block';
 
         el.redoBtn.innerHTML = icons.redo;
         el.submitBtn.innerHTML = icons.check;
@@ -845,6 +939,73 @@
         el.playbackAudio.play().catch(err => {
             console.log('Auto-play prevented by browser:', err);
         });
+    }
+
+    function showProcessingReview() {
+        const el = window.llRecorder;
+        if (!el.processingReview || !el.reviewContainer || !processingState) {
+            showRawPlayback(currentBlob);
+            return;
+        }
+
+        el.reviewContainer.innerHTML = '';
+        const reviewFile = createReviewFileElement(processingState);
+        el.reviewContainer.appendChild(reviewFile);
+        el.processingReview.style.display = 'block';
+        if (el.mainScreen) {
+            el.mainScreen.style.display = 'none';
+        }
+        if (el.playbackControls) {
+            el.playbackControls.style.display = 'none';
+        }
+
+        requestAnimationFrame(() => {
+            renderWaveform(reviewFile, processingState.originalBuffer, processingState.trimStart, processingState.trimEnd);
+            setupAudioPlayback(reviewFile, processingState.processedBuffer);
+            setupBoundaryDragging(reviewFile, processingState.originalBuffer);
+            const audio = reviewFile.querySelector('audio');
+            if (audio) {
+                audio.play().catch(() => {});
+            }
+        });
+    }
+
+    async function processRecordedBlob(blob, options) {
+        if (!processingAudioContext) {
+            processingAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (processingAudioContext.state === 'suspended') {
+            await processingAudioContext.resume();
+        }
+
+        const arrayBuffer = await blob.arrayBuffer();
+        const originalBuffer = await processingAudioContext.decodeAudioData(arrayBuffer.slice(0));
+
+        let processedBuffer = originalBuffer;
+        let trimStart = 0;
+        let trimEnd = originalBuffer.length;
+
+        if (options.enableTrim) {
+            const trimResult = detectSilenceBoundaries(originalBuffer);
+            trimStart = trimResult.start;
+            trimEnd = trimResult.end;
+            processedBuffer = trimSilence(originalBuffer, trimStart, trimEnd);
+        }
+
+        if (options.enableNoise) {
+            processedBuffer = await reduceNoise(processedBuffer);
+        }
+
+        if (options.enableLoudness) {
+            processedBuffer = await normalizeLoudness(processedBuffer);
+        }
+
+        return {
+            originalBuffer,
+            processedBuffer,
+            trimStart,
+            trimEnd
+        };
     }
 
     function redo() {
@@ -891,6 +1052,8 @@
         const el = window.llRecorder;
         const img = images[currentImageIndex];
         const recordingType = el.recordingTypeSelect?.value || 'isolation';
+        const autoProcessed = autoProcessEnabled && !!processingState?.processedBuffer;
+        const uploadBlob = autoProcessed ? audioBufferToWav(processingState.processedBuffer) : currentBlob;
 
         const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
@@ -902,6 +1065,8 @@
         el.submitBtn.disabled = true;
         el.redoBtn.disabled = true;
         el.skipBtn.disabled = false;
+        if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = true;
+        if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = true;
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
@@ -918,7 +1083,7 @@
 
         // Extension detection - prioritize quality formats
         let extension = '.wav';
-        const blobType = currentBlob.type.toLowerCase();
+        const blobType = uploadBlob.type.toLowerCase();
         if (blobType.includes('wav')) {
             extension = '.wav';
         } else if (blobType.includes('pcm')) {
@@ -931,12 +1096,15 @@
             extension = '.aac';
         } else {
             // Shouldn't reach here based on our format selection
-            console.warn('Unexpected blob type:', currentBlob.type);
+            console.warn('Unexpected blob type:', uploadBlob.type);
             extension = '.webm';  // Fallback just in case
         }
 
-        console.log('Blob type:', currentBlob.type, 'Extension:', extension);
-        formData.append('audio', currentBlob, `${img.title}${extension}`);
+        console.log('Blob type:', uploadBlob.type, 'Extension:', extension);
+        formData.append('audio', uploadBlob, `${img.title}${extension}`);
+        if (autoProcessed) {
+            formData.append('auto_processed', '1');
+        }
 
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
@@ -946,7 +1114,7 @@
             if (response.ok && contentType.includes('application/json')) {
                 data = await response.json();
             } else {
-                return await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
+                return await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
             }
 
             if (data.success) {
@@ -954,16 +1122,16 @@
                     img.word_id = data.data.word_id;
                 }
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
-                handleSuccessfulUpload(recordingType, remaining);
+                handleSuccessfulUpload(recordingType, remaining, autoProcessed);
             } else {
-                await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
+                await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
             }
         } catch (err) {
-            await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes });
+            await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
         }
     }
 
-    async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes }) {
+    async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed }) {
         const activeCategory = window.llRecorder?.categorySelect?.value || '';
         try {
             const fd = new FormData();
@@ -985,7 +1153,7 @@
 
             if (verifyData?.success && verifyData.data?.found_audio_post_id) {
                 const remaining = Array.isArray(verifyData.data.remaining_types) ? verifyData.data.remaining_types : [];
-                handleSuccessfulUpload(recordingType, remaining);
+                handleSuccessfulUpload(recordingType, remaining, autoProcessed);
                 return;
             }
 
@@ -998,7 +1166,606 @@
             const el = window.llRecorder;
             el.submitBtn.disabled = false;
             el.redoBtn.disabled = false;
+            if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
+            if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
         }
+    }
+
+    // Auto-processing review helpers
+    function createReviewFileElement(data) {
+        const div = document.createElement('div');
+        div.className = 'll-review-file';
+
+        const img = images[currentImageIndex] || {};
+        const displayTitle = window.llRecorder?.title?.textContent || img.title || '';
+        const imageUrl = img.image_url || '';
+        const categoryLabel = img.category_name || i18n.uncategorized || 'Uncategorized';
+        const imageHtml = (!img.is_text_only && imageUrl)
+            ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(displayTitle)}" class="ll-review-thumbnail">`
+            : '';
+        const categoryHtml = `<span class="ll-review-category"><strong>${escapeHtml(i18n.category || 'Category:')}</strong> ${escapeHtml(categoryLabel)}</span>`;
+        div.innerHTML = `
+            <div class="ll-review-header">
+                <div class="ll-review-title-section">
+                    ${imageHtml}
+                    <div class="ll-review-title-info">
+                        <h3 class="ll-review-title">${escapeHtml(displayTitle)}</h3>
+                        <div class="ll-review-metadata">
+                            ${categoryHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="ll-waveform-container">
+                <canvas class="ll-waveform-canvas"></canvas>
+            </div>
+            <div class="ll-playback-controls">
+                <button type="button" class="ll-btn ll-btn-secondary ll-review-play" title="Play" aria-label="Play"></button>
+                <audio controls preload="auto"></audio>
+            </div>
+        `;
+
+        const playButton = div.querySelector('.ll-review-play');
+        if (playButton) {
+            playButton.innerHTML = icons.play;
+            playButton.addEventListener('click', () => {
+                const audio = div.querySelector('audio');
+                if (!audio) return;
+                audio.currentTime = 0;
+                audio.play().catch(() => {});
+            });
+        }
+
+        return div;
+    }
+
+    function wireReviewEvents(container) {
+        const trim = container.querySelector('.ll-file-trim');
+        const noise = container.querySelector('.ll-file-noise');
+        const loudness = container.querySelector('.ll-file-loudness');
+
+        [trim, noise, loudness].forEach(control => {
+            if (control) {
+                control.addEventListener('change', () => updateProcessedAudio(container));
+            }
+        });
+
+        const reprocessBtn = container.querySelector('.ll-reprocess-btn');
+        if (reprocessBtn) {
+            reprocessBtn.addEventListener('click', () => reprocessCurrentRecording(container));
+        }
+    }
+
+    function getProcessingContext() {
+        if (!processingAudioContext) {
+            processingAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (processingAudioContext.state === 'suspended') {
+            processingAudioContext.resume().catch(() => {});
+        }
+        return processingAudioContext;
+    }
+
+    function renderWaveform(container, audioBuffer, trimStart, trimEnd) {
+        const canvas = container.querySelector('.ll-waveform-canvas');
+        const waveformContainer = container.querySelector('.ll-waveform-container');
+        if (!canvas || !waveformContainer) return;
+
+        const rect = waveformContainer.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            return;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const channelData = audioBuffer.getChannelData(0);
+        const samplesPerPixel = Math.floor(channelData.length / rect.width);
+        const centerY = rect.height / 2;
+
+        ctx.fillStyle = '#2ecc71';
+        ctx.strokeStyle = '#27ae60';
+        ctx.lineWidth = 1;
+
+        for (let x = 0; x < rect.width; x++) {
+            const start = x * samplesPerPixel;
+            const end = start + samplesPerPixel;
+            let min = 1;
+            let max = -1;
+
+            for (let i = start; i < end && i < channelData.length; i++) {
+                const sample = channelData[i];
+                if (sample < min) min = sample;
+                if (sample > max) max = sample;
+            }
+
+            const yTop = centerY - (max * centerY);
+            const yBottom = centerY - (min * centerY);
+            const height = yBottom - yTop;
+
+            ctx.fillRect(x, yTop, 1, height);
+        }
+
+        addTrimBoundaries(waveformContainer, trimStart, trimEnd, audioBuffer.length);
+    }
+
+    function addTrimBoundaries(container, trimStart, trimEnd, totalSamples) {
+        const startPercent = (trimStart / totalSamples) * 100;
+        const endPercent = (trimEnd / totalSamples) * 100;
+
+        container.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
+
+        const startBoundary = document.createElement('div');
+        startBoundary.className = 'll-trim-boundary ll-start';
+        startBoundary.style.left = startPercent + '%';
+        startBoundary.dataset.position = trimStart;
+        container.appendChild(startBoundary);
+
+        const endBoundary = document.createElement('div');
+        endBoundary.className = 'll-trim-boundary ll-end';
+        endBoundary.style.left = endPercent + '%';
+        endBoundary.dataset.position = trimEnd;
+        container.appendChild(endBoundary);
+
+        if (trimStart > 0) {
+            const startRegion = document.createElement('div');
+            startRegion.className = 'll-trimmed-region ll-start';
+            startRegion.style.width = startPercent + '%';
+            container.appendChild(startRegion);
+        }
+
+        if (trimEnd < totalSamples) {
+            const endRegion = document.createElement('div');
+            endRegion.className = 'll-trimmed-region ll-end';
+            endRegion.style.left = endPercent + '%';
+            endRegion.style.width = (100 - endPercent) + '%';
+            container.appendChild(endRegion);
+        }
+    }
+
+    function setupAudioPlayback(container, audioBuffer) {
+        const audio = container.querySelector('audio');
+        if (!audio) return;
+
+        const blob = audioBufferToWav(audioBuffer);
+        if (audio.dataset.blobUrl) {
+            URL.revokeObjectURL(audio.dataset.blobUrl);
+        }
+        const url = URL.createObjectURL(blob);
+        audio.dataset.blobUrl = url;
+        audio.src = url;
+    }
+
+    function setupBoundaryDragging(container, audioBuffer) {
+        const waveformContainer = container.querySelector('.ll-waveform-container');
+        if (!waveformContainer) return;
+
+        const startBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-start');
+        const endBoundary = waveformContainer.querySelector('.ll-trim-boundary.ll-end');
+        if (!startBoundary || !endBoundary) return;
+
+        let isDragging = false;
+        let currentBoundary = null;
+        let containerRect = null;
+
+        const startDrag = (e, boundary) => {
+            isDragging = true;
+            currentBoundary = boundary;
+            containerRect = waveformContainer.getBoundingClientRect();
+            waveformContainer.style.cursor = 'ew-resize';
+            e.preventDefault();
+        };
+
+        const onDrag = (e) => {
+            if (!isDragging || !currentBoundary || !containerRect) return;
+
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const relativeX = clientX - containerRect.left;
+            const percent = Math.max(0, Math.min(100, (relativeX / containerRect.width) * 100));
+
+            const isStart = currentBoundary.classList.contains('ll-start');
+            const otherBoundary = isStart ? endBoundary : startBoundary;
+            const otherPercent = parseFloat(otherBoundary.style.left);
+
+            let constrainedPercent = percent;
+            if (isStart && percent >= otherPercent - 1) {
+                constrainedPercent = otherPercent - 1;
+            } else if (!isStart && percent <= otherPercent + 1) {
+                constrainedPercent = otherPercent + 1;
+            }
+
+            currentBoundary.style.left = constrainedPercent + '%';
+            const samplePosition = Math.floor((constrainedPercent / 100) * audioBuffer.length);
+            currentBoundary.dataset.position = samplePosition;
+
+            updateTrimmedRegions(waveformContainer, startBoundary, endBoundary);
+            e.preventDefault();
+        };
+
+        const endDrag = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            waveformContainer.style.cursor = '';
+
+            const newTrimStart = parseInt(startBoundary.dataset.position, 10);
+            const newTrimEnd = parseInt(endBoundary.dataset.position, 10);
+
+            if (processingState) {
+                processingState.trimStart = newTrimStart;
+                processingState.trimEnd = newTrimEnd;
+                processingState.manualBoundaries = true;
+                updateProcessedAudio(container);
+            }
+
+            currentBoundary = null;
+            containerRect = null;
+        };
+
+        startBoundary.addEventListener('mousedown', (e) => startDrag(e, startBoundary));
+        endBoundary.addEventListener('mousedown', (e) => startDrag(e, endBoundary));
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', endDrag);
+
+        startBoundary.addEventListener('touchstart', (e) => startDrag(e, startBoundary));
+        endBoundary.addEventListener('touchstart', (e) => startDrag(e, endBoundary));
+        document.addEventListener('touchmove', onDrag, { passive: false });
+        document.addEventListener('touchend', endDrag);
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.removedNodes.forEach((node) => {
+                    if (node === container) {
+                        document.removeEventListener('mousemove', onDrag);
+                        document.removeEventListener('mouseup', endDrag);
+                        document.removeEventListener('touchmove', onDrag);
+                        document.removeEventListener('touchend', endDrag);
+                        observer.disconnect();
+                    }
+                });
+            });
+        });
+        if (!container.parentNode) {
+            return;
+        }
+        observer.observe(container.parentNode, { childList: true });
+    }
+
+    function updateTrimmedRegions(container, startBoundary, endBoundary) {
+        const startPercent = parseFloat(startBoundary.style.left);
+        const endPercent = parseFloat(endBoundary.style.left);
+
+        container.querySelectorAll('.ll-trimmed-region').forEach(el => el.remove());
+
+        if (startPercent > 0) {
+            const startRegion = document.createElement('div');
+            startRegion.className = 'll-trimmed-region ll-start';
+            startRegion.style.width = startPercent + '%';
+            container.appendChild(startRegion);
+        }
+
+        if (endPercent < 100) {
+            const endRegion = document.createElement('div');
+            endRegion.className = 'll-trimmed-region ll-end';
+            endRegion.style.left = endPercent + '%';
+            endRegion.style.width = (100 - endPercent) + '%';
+            container.appendChild(endRegion);
+        }
+    }
+
+    async function updateProcessedAudio(container) {
+        if (!processingState) return;
+
+        const audioElement = container.querySelector('audio');
+        if (!audioElement) return;
+
+        audioElement.style.opacity = '0.5';
+        try {
+            const enableTrimControl = container.querySelector('.ll-file-trim');
+            const enableNoiseControl = container.querySelector('.ll-file-noise');
+            const enableLoudnessControl = container.querySelector('.ll-file-loudness');
+            const enableTrim = enableTrimControl ? enableTrimControl.checked : true;
+            const enableNoise = enableNoiseControl ? enableNoiseControl.checked : true;
+            const enableLoudness = enableLoudnessControl ? enableLoudnessControl.checked : true;
+
+            let processedBuffer = processingState.originalBuffer;
+
+            if (enableTrim) {
+                processedBuffer = trimSilence(processingState.originalBuffer, processingState.trimStart, processingState.trimEnd);
+            }
+
+            if (enableNoise) {
+                processedBuffer = await reduceNoise(processedBuffer);
+            }
+
+            if (enableLoudness) {
+                processedBuffer = await normalizeLoudness(processedBuffer);
+            }
+
+            processingState.processedBuffer = processedBuffer;
+            processingState.options = { enableTrim, enableNoise, enableLoudness };
+
+            setupAudioPlayback(container, processedBuffer);
+        } catch (error) {
+            console.error('Error updating processed audio:', error);
+        } finally {
+            audioElement.style.opacity = '1';
+        }
+    }
+
+    async function reprocessCurrentRecording(container) {
+        if (!processingState) return;
+
+        const enableTrimControl = container.querySelector('.ll-file-trim');
+        const enableNoiseControl = container.querySelector('.ll-file-noise');
+        const enableLoudnessControl = container.querySelector('.ll-file-loudness');
+        const enableTrim = enableTrimControl ? enableTrimControl.checked : true;
+        const enableNoise = enableNoiseControl ? enableNoiseControl.checked : true;
+        const enableLoudness = enableLoudnessControl ? enableLoudnessControl.checked : true;
+
+        const reprocessBtn = container.querySelector('.ll-reprocess-btn');
+        const originalText = reprocessBtn ? reprocessBtn.textContent : '';
+        if (reprocessBtn) {
+            reprocessBtn.textContent = 'Processing...';
+            reprocessBtn.disabled = true;
+        }
+
+        try {
+            let trimStart = processingState.trimStart;
+            let trimEnd = processingState.trimEnd;
+
+            if (enableTrim && !processingState.manualBoundaries) {
+                const detected = detectSilenceBoundaries(processingState.originalBuffer);
+                trimStart = detected.start;
+                trimEnd = detected.end;
+            }
+
+            let processedBuffer = processingState.originalBuffer;
+
+            if (enableTrim) {
+                processedBuffer = trimSilence(processingState.originalBuffer, trimStart, trimEnd);
+            }
+
+            if (enableNoise) {
+                processedBuffer = await reduceNoise(processedBuffer);
+            }
+
+            if (enableLoudness) {
+                processedBuffer = await normalizeLoudness(processedBuffer);
+            }
+
+            processingState.processedBuffer = processedBuffer;
+            processingState.trimStart = trimStart;
+            processingState.trimEnd = trimEnd;
+            processingState.options = { enableTrim, enableNoise, enableLoudness };
+
+            const waveformContainer = container.querySelector('.ll-waveform-container');
+            if (waveformContainer) {
+                waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
+            }
+            renderWaveform(container, processingState.originalBuffer, trimStart, trimEnd);
+            setupAudioPlayback(container, processedBuffer);
+            setupBoundaryDragging(container, processingState.originalBuffer);
+        } catch (error) {
+            console.error('Error reprocessing audio:', error);
+            showStatus(i18n.processing_failed || 'Audio processing failed. You can upload the raw recording instead.', 'error');
+        } finally {
+            if (reprocessBtn) {
+                reprocessBtn.textContent = originalText;
+                reprocessBtn.disabled = false;
+            }
+        }
+    }
+
+    function detectSilenceBoundaries(audioBuffer) {
+        const channelData = audioBuffer.getChannelData(0);
+        const sampleRate = audioBuffer.sampleRate;
+        const threshold = 0.02;
+        const windowSize = Math.floor(0.01 * sampleRate);
+
+        let startIndex = 0;
+        for (let i = 0; i < channelData.length - windowSize; i++) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += Math.abs(channelData[i + j]);
+            }
+            const average = sum / windowSize;
+            if (average > threshold) {
+                startIndex = Math.max(0, i - Math.floor(0.1 * sampleRate));
+                break;
+            }
+        }
+
+        let endIndex = channelData.length;
+        for (let i = channelData.length - windowSize; i >= 0; i--) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += Math.abs(channelData[i + j]);
+            }
+            const average = sum / windowSize;
+            if (average > threshold) {
+                endIndex = Math.min(channelData.length, i + windowSize + Math.floor(0.3 * sampleRate));
+                break;
+            }
+        }
+
+        return { start: startIndex, end: endIndex };
+    }
+
+    function trimSilence(audioBuffer, startIndex, endIndex) {
+        if (endIndex <= startIndex) {
+            return audioBuffer;
+        }
+
+        const trimmedLength = endIndex - startIndex;
+        const context = getProcessingContext();
+        const trimmedBuffer = context.createBuffer(
+            audioBuffer.numberOfChannels,
+            trimmedLength,
+            audioBuffer.sampleRate
+        );
+
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const sourceData = audioBuffer.getChannelData(channel);
+            const targetData = trimmedBuffer.getChannelData(channel);
+            for (let i = 0; i < trimmedLength; i++) {
+                targetData[i] = sourceData[startIndex + i];
+            }
+        }
+
+        return trimmedBuffer;
+    }
+
+    async function reduceNoise(audioBuffer) {
+        const offlineContext = new OfflineAudioContext(
+            audioBuffer.numberOfChannels,
+            audioBuffer.length,
+            audioBuffer.sampleRate
+        );
+
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioBuffer;
+
+        const highpass = offlineContext.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 80;
+
+        const lowpass = offlineContext.createBiquadFilter();
+        lowpass.type = 'lowpass';
+        lowpass.frequency.value = 8000;
+
+        source.connect(highpass);
+        highpass.connect(lowpass);
+        lowpass.connect(offlineContext.destination);
+
+        source.start();
+        return await offlineContext.startRendering();
+    }
+
+    async function normalizeLoudness(audioBuffer) {
+        const currentLUFS = calculateLUFS(audioBuffer);
+        const targetGain = Math.pow(10, (-18.0 - currentLUFS) / 20);
+
+        const context = getProcessingContext();
+        const normalizedBuffer = context.createBuffer(
+            audioBuffer.numberOfChannels,
+            audioBuffer.length,
+            audioBuffer.sampleRate
+        );
+
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const sourceData = audioBuffer.getChannelData(channel);
+            const targetData = normalizedBuffer.getChannelData(channel);
+            for (let i = 0; i < sourceData.length; i++) {
+                targetData[i] = Math.max(-1, Math.min(1, sourceData[i] * targetGain));
+            }
+        }
+
+        return normalizedBuffer;
+    }
+
+    function calculateLUFS(audioBuffer) {
+        const sampleRate = audioBuffer.sampleRate;
+        const channelData = audioBuffer.getChannelData(0);
+
+        const blockSize = Math.floor(0.4 * sampleRate);
+        const hopSize = Math.floor(0.1 * sampleRate);
+
+        const gatingThreshold = -70;
+        const relativeThreshold = -10;
+
+        let blockLoudnesses = [];
+
+        for (let i = 0; i + blockSize < channelData.length; i += hopSize) {
+            let sumSquares = 0;
+            for (let j = 0; j < blockSize; j++) {
+                const sample = channelData[i + j];
+                sumSquares += sample * sample;
+            }
+
+            const meanSquare = sumSquares / blockSize;
+            const loudness = -0.691 + 10 * Math.log10(meanSquare);
+
+            if (loudness > gatingThreshold) {
+                blockLoudnesses.push(loudness);
+            }
+        }
+
+        if (blockLoudnesses.length === 0) {
+            return -70;
+        }
+
+        const avgLoudness = blockLoudnesses.reduce((a, b) => a + b, 0) / blockLoudnesses.length;
+        const relThreshold = avgLoudness + relativeThreshold;
+
+        const gatedLoudnesses = blockLoudnesses.filter(l => l >= relThreshold);
+
+        if (gatedLoudnesses.length === 0) {
+            return avgLoudness;
+        }
+
+        const gatedAvg = gatedLoudnesses.reduce((a, b) => a + b, 0) / gatedLoudnesses.length;
+        return gatedAvg;
+    }
+
+    function audioBufferToWav(audioBuffer) {
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const format = 1;
+        const bitDepth = 16;
+        const bytesPerSample = bitDepth / 8;
+        const blockAlign = numChannels * bytesPerSample;
+
+        const data = [];
+        for (let i = 0; i < audioBuffer.length; i++) {
+            for (let channel = 0; channel < numChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+                data.push(sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+            }
+        }
+
+        const dataLength = data.length * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataLength);
+        const view = new DataView(buffer);
+
+        const writeString = (offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + dataLength, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, format, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * blockAlign, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, bitDepth, true);
+        writeString(36, 'data');
+        view.setUint32(40, dataLength, true);
+
+        let offset = 44;
+        for (let i = 0; i < data.length; i++) {
+            view.setInt16(offset, data[i], true);
+            offset += 2;
+        }
+
+        return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     async function switchCategory() {
