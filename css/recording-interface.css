@@ -506,6 +506,77 @@
     color: #666;
 }
 
+.ll-recording-review {
+    margin-top: 1.5rem;
+}
+
+.ll-recording-review .ll-review-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ll-recording-review .ll-review-title-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.ll-recording-review .ll-review-header-actions {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.ll-recording-review .ll-review-actions {
+    border-top: 0;
+    padding-top: 0;
+    margin-top: 1rem;
+}
+
+.ll-recording-review .ll-playback-controls {
+    align-items: center;
+    margin: 0 auto;
+}
+
+.ll-recording-review .ll-playback-controls audio {
+    align-self: stretch;
+}
+
+.ll-recording-review .ll-review-play {
+    width: 56px;
+    height: 56px;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    color: #0ea5e9 !important;
+    background-color: #ffffff !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%) !important;
+    border: 2px solid #38bdf8 !important;
+    box-shadow: 0 6px 14px rgba(14, 165, 233, 0.18) !important;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.ll-recording-review .ll-review-play:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(14, 165, 233, 0.28) !important;
+    background: #e0f2fe !important;
+}
+
+.ll-recording-review .ll-review-play svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor !important;
+}
+
+.ll-recording-review .ll-reprocess-btn {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.85rem !important;
+}
+
 .ll-next-category-btn {
     display: inline-flex;
     align-items: center;
