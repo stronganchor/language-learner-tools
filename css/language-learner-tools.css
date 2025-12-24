@@ -176,43 +176,20 @@ p:has(.ll-word-audio) {
     content: "\1F4AC";
 }
 
-.word-grid.ll-word-grid .ll-study-recording-play {
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    border: 1px solid #d1d5db;
-    background: #ffffff;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-sizing: border-box;
-}
-
-.word-grid.ll-word-grid .ll-study-recording-play::before {
-    content: "";
-    width: 0;
-    height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 6px solid currentColor;
-    margin-left: 1px;
-}
-
 .word-grid.ll-word-grid .ll-study-recording-visualizer {
     display: inline-flex;
     align-items: flex-end;
     gap: 2px;
-    min-height: 14px;
+    min-height: 18px;
 }
 
 .word-grid.ll-word-grid .ll-study-recording-visualizer .bar {
     display: block;
-    flex: 0 0 3px;
-    width: 3px;
-    min-width: 3px;
-    max-width: 3px;
-    height: calc(var(--base, 6px) + 10px * var(--level, 0));
+    flex: 0 0 4px;
+    width: 4px;
+    min-width: 4px;
+    max-width: 4px;
+    height: calc(var(--base, 8px) + 12px * var(--level, 0));
     border-radius: 2px;
     background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
     opacity: 0.55;
@@ -221,9 +198,11 @@ p:has(.ll-word-audio) {
     box-sizing: border-box;
 }
 
-.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(2) { --base: 11px; }
-.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(3) { --base: 9px; }
-.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(4) { --base: 12px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(2) { --base: 12px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(3) { --base: 10px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(4) { --base: 14px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(5) { --base: 9px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(6) { --base: 15px; }
 
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing {
     border-color: #6366f1 !important;
@@ -238,6 +217,8 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(2) { animation-delay: 0.08s; }
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(3) { animation-delay: 0.15s; }
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(4) { animation-delay: 0.22s; }
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(5) { animation-delay: 0.29s; }
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(6) { animation-delay: 0.36s; }
 
 @keyframes ll-audio-mini-eq {
     0% { transform: scaleY(0.7); }
