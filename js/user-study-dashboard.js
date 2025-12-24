@@ -26,6 +26,227 @@
     const $transitionToggle = $root.find('[data-ll-transition-speed]');
 
     let currentAudio = null;
+    let currentAudioButton = null;
+    const recordingTypeOrder = ['question', 'isolation', 'introduction'];
+    const recordingIcons = {
+        question: '❓',
+        isolation: '🔍',
+        introduction: '💬'
+    };
+    const recordingLabels = {
+        question: i18n.recordingQuestion || 'Question',
+        isolation: i18n.recordingIsolation || 'Isolation',
+        introduction: i18n.recordingIntroduction || 'Introduction'
+    };
+    let vizContext = null;
+    let vizAnalyser = null;
+    let vizAnalyserData = null;
+    let vizTimeData = null;
+    let vizAnalyserConnected = false;
+    let vizRafId = null;
+    let vizBars = [];
+    let vizBarLevels = [];
+    let vizButton = null;
+    let vizAudio = null;
+    let vizSource = null;
+
+    function formatRecordingLabel(typeLabel) {
+        const template = i18n.playAudioType || '';
+        if (template && template.indexOf('%s') !== -1) {
+            return template.replace('%s', typeLabel);
+        }
+        if (template) {
+            return template + ' ' + typeLabel;
+        }
+        return 'Play ' + typeLabel + ' recording';
+    }
+
+    function selectRecordingUrl(word, type) {
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        let match = null;
+
+        if (preferredSpeaker) {
+            match = audioFiles.find(function (file) {
+                return file && file.url && file.recording_type === type && parseInt(file.speaker_user_id, 10) === preferredSpeaker;
+            });
+        }
+
+        if (!match) {
+            match = audioFiles.find(function (file) {
+                return file && file.url && file.recording_type === type;
+            });
+        }
+
+        return match ? match.url : '';
+    }
+
+    function ensureVisualizerContext() {
+        if (vizContext) { return vizContext; }
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) { return null; }
+        try {
+            vizContext = new Ctor();
+        } catch (_) {
+            vizContext = null;
+        }
+        return vizContext;
+    }
+
+    function ensureVisualizerAnalyser() {
+        const ctx = ensureVisualizerContext();
+        if (!ctx) { return null; }
+        if (!vizAnalyser) {
+            vizAnalyser = ctx.createAnalyser();
+            vizAnalyser.fftSize = 256;
+            vizAnalyser.smoothingTimeConstant = 0.65;
+            vizAnalyserData = new Uint8Array(vizAnalyser.frequencyBinCount);
+            vizTimeData = new Uint8Array(vizAnalyser.fftSize);
+        }
+        if (!vizAnalyserConnected) {
+            try {
+                vizAnalyser.connect(ctx.destination);
+                vizAnalyserConnected = true;
+            } catch (_) {
+                return null;
+            }
+        }
+        return vizAnalyser;
+    }
+
+    function setVisualizerBars(button) {
+        if (!button) { return false; }
+        const bars = button.querySelectorAll('.ll-study-recording-visualizer .bar');
+        if (!bars.length) { return false; }
+        vizBars = Array.from(bars);
+        vizBarLevels = vizBars.map(() => 0);
+        vizButton = button;
+        return true;
+    }
+
+    function resetVisualizerBars() {
+        if (!vizBars.length) { return; }
+        vizBars.forEach(function (bar) {
+            bar.style.setProperty('--level', '0');
+        });
+        vizBarLevels = vizBars.map(() => 0);
+    }
+
+    function stopVisualizer() {
+        if (vizRafId) {
+            cancelAnimationFrame(vizRafId);
+            vizRafId = null;
+        }
+        if (vizSource) {
+            try { vizSource.disconnect(); } catch (_) {}
+            vizSource = null;
+        }
+        if (vizButton) {
+            $(vizButton).removeClass('ll-study-recording-btn--js');
+        }
+        resetVisualizerBars();
+        vizBars = [];
+        vizBarLevels = [];
+        vizButton = null;
+        vizAudio = null;
+    }
+
+    function updateVisualizer() {
+        if (!vizAnalyser || !vizBars.length || !vizAnalyserData || !vizTimeData) {
+            vizRafId = null;
+            return;
+        }
+        if (!vizAudio) {
+            stopVisualizer();
+            return;
+        }
+        if (vizAudio.paused) {
+            if (vizAudio.currentTime === 0 && !vizAudio.ended) {
+                vizRafId = requestAnimationFrame(updateVisualizer);
+                return;
+            }
+            stopVisualizer();
+            return;
+        }
+        if (!vizContext || vizContext.state !== 'running') {
+            vizRafId = requestAnimationFrame(updateVisualizer);
+            return;
+        }
+
+        vizAnalyser.getByteFrequencyData(vizAnalyserData);
+        vizAnalyser.getByteTimeDomainData(vizTimeData);
+
+        const slice = Math.max(1, Math.floor(vizAnalyserData.length / vizBars.length));
+        let sumSquares = 0;
+        for (let i = 0; i < vizTimeData.length; i++) {
+            const deviation = vizTimeData[i] - 128;
+            sumSquares += deviation * deviation;
+        }
+        const rms = Math.min(1, Math.sqrt(sumSquares / vizTimeData.length) / 64);
+
+        for (let i = 0; i < vizBars.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < slice; j++) {
+                sum += vizAnalyserData[(i * slice) + j] || 0;
+            }
+            const avg = sum / slice;
+            const normalized = Math.max(0, (avg - 40) / 215);
+            const combined = Math.min(1, (normalized * 0.7) + (rms * 0.9));
+            const eased = Math.pow(combined, 1.35);
+
+            const previous = vizBarLevels[i] || 0;
+            const level = previous + (eased - previous) * 0.35;
+            vizBarLevels[i] = level;
+            vizBars[i].style.setProperty('--level', level.toFixed(3));
+        }
+
+        vizRafId = requestAnimationFrame(updateVisualizer);
+    }
+
+    function startVisualizer(audio, button) {
+        if (!audio || !button) { return; }
+        stopVisualizer();
+        const ctx = ensureVisualizerContext();
+        if (!ctx) { return; }
+        const resumePromise = (ctx.state === 'suspended') ? ctx.resume() : Promise.resolve();
+        const targetAudio = audio;
+        const targetButton = button;
+
+        resumePromise.then(function () {
+            if (targetAudio !== currentAudio || targetButton !== currentAudioButton) { return; }
+            const analyser = ensureVisualizerAnalyser();
+            if (!analyser) { return; }
+            if (!setVisualizerBars(button)) { return; }
+
+            let source = audio.__llStudyVisualizerSource;
+            if (!source) {
+                try {
+                    source = ctx.createMediaElementSource(audio);
+                    audio.__llStudyVisualizerSource = source;
+                } catch (_) {
+                    return;
+                }
+            }
+
+            try { source.disconnect(); } catch (_) {}
+            try {
+                source.connect(analyser);
+            } catch (_) {
+                try { source.connect(ctx.destination); } catch (_) {}
+                return;
+            }
+
+            vizSource = source;
+            vizAudio = audio;
+            vizButton = button;
+            $(button).addClass('ll-study-recording-btn--js');
+
+            if (vizRafId) {
+                cancelAnimationFrame(vizRafId);
+            }
+            updateVisualizer();
+        }).catch(function () {});
+    }
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -195,9 +416,8 @@
                     const isStarred = !!starredLookup[w.id];
                     if (isStarred) { totalStarredInView++; }
                     const row = $('<div>', {
-                        class: 'll-word-row',
-                        'data-word-id': w.id,
-                        'data-audio-url': w.audio || ''
+                        class: 'll-word-row' + (w.image ? '' : ' ll-word-row--no-image'),
+                        'data-word-id': w.id
                     });
                     $('<button>', {
                         type: 'button',
@@ -214,19 +434,53 @@
                             loading: 'lazy'
                         }).appendTo(thumb);
                         row.append(thumb);
-                    } else {
-                        $('<div>', { class: 'll-word-thumb placeholder', text: '...' }).appendTo(row);
                     }
 
                     $('<span>', { class: 'll-word-text', text: w.label || w.title }).appendTo(row);
 
-                    if (w.audio) {
-                        $('<button>', {
+                    const recordingsWrap = $('<div>', {
+                        class: 'll-word-recordings',
+                        'aria-label': i18n.recordingsLabel || 'Recordings'
+                    });
+                    let hasRecordings = false;
+                    recordingTypeOrder.forEach(function (type) {
+                        const icon = recordingIcons[type];
+                        if (!icon) { return; }
+                        const url = selectRecordingUrl(w, type);
+                        if (!url) { return; }
+                        hasRecordings = true;
+                        const label = recordingLabels[type] || type;
+                        const playLabel = formatRecordingLabel(label);
+                        const btn = $('<button>', {
                             type: 'button',
-                            class: 'll-word-audio',
-                            'aria-label': i18n.playAudio || 'Play audio',
-                            title: i18n.playAudio || 'Play audio'
-                        }).text('▶').appendTo(row);
+                            class: 'll-study-recording-btn ll-study-recording-btn--' + type,
+                            'data-audio-url': url,
+                            'data-recording-type': type,
+                            'aria-label': playLabel,
+                            title: playLabel
+                        });
+                        $('<span>', {
+                            class: 'll-study-recording-icon',
+                            'aria-hidden': 'true',
+                            'data-emoji': icon
+                        }).appendTo(btn);
+                        $('<span>', {
+                            class: 'll-study-recording-play',
+                            'aria-hidden': 'true'
+                        }).appendTo(btn);
+                        const viz = $('<span>', {
+                            class: 'll-study-recording-visualizer',
+                            'aria-hidden': 'true'
+                        });
+                        for (let i = 0; i < 4; i++) {
+                            $('<span>', { class: 'bar' }).appendTo(viz);
+                        }
+                        btn.append(viz);
+                        recordingsWrap.append(btn);
+                    });
+
+                    if (hasRecordings) {
+                        row.append(recordingsWrap);
                     }
 
                     list.append(row);
@@ -457,17 +711,66 @@
         });
     });
 
-    $wordsWrap.on('click', '.ll-word-audio', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const url = $(this).closest('.ll-word-row').data('audio-url');
-        if (!url) { return; }
+    function stopCurrentAudio() {
         if (currentAudio) {
             currentAudio.pause();
+            currentAudio.currentTime = 0;
         }
+        if (currentAudioButton) {
+            $(currentAudioButton).removeClass('is-playing');
+        }
+        stopVisualizer();
+        currentAudio = null;
+        currentAudioButton = null;
+    }
+
+    $wordsWrap.on('click', '.ll-study-recording-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const $btn = $(this);
+        const url = $btn.attr('data-audio-url') || '';
+        if (!url) { return; }
+
+        if (currentAudio && currentAudioButton === this) {
+            if (!currentAudio.paused) {
+                currentAudio.pause();
+                $btn.removeClass('is-playing');
+                return;
+            }
+            startVisualizer(currentAudio, this);
+            currentAudio.play().catch(function () {
+                stopVisualizer();
+            });
+            return;
+        }
+
+        stopCurrentAudio();
         currentAudio = new Audio(url);
-        if (currentAudio && currentAudio.play) {
-            currentAudio.play().catch(function () {});
+        currentAudioButton = this;
+        currentAudio.addEventListener('play', function () {
+            $btn.addClass('is-playing');
+        });
+        currentAudio.addEventListener('pause', function () {
+            $btn.removeClass('is-playing');
+            stopVisualizer();
+        });
+        currentAudio.addEventListener('ended', function () {
+            $btn.removeClass('is-playing');
+            stopVisualizer();
+            if (currentAudio === this) {
+                currentAudio = null;
+                currentAudioButton = null;
+            }
+        });
+        currentAudio.addEventListener('error', function () {
+            $btn.removeClass('is-playing');
+            stopVisualizer();
+        });
+        startVisualizer(currentAudio, this);
+        if (currentAudio.play) {
+            currentAudio.play().catch(function () {
+                stopVisualizer();
+            });
         }
     });
 

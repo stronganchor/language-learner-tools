@@ -354,10 +354,244 @@
         el.classList.remove(CLASS_FALLBACK);
     }
 
+    function createMiniVisualizer(options) {
+        const cfg = Object.assign({
+            barSelector: '.bar',
+            barClass: 'bar',
+            barCount: 0,
+            activeClass: 'll-audio-mini-visualizer--js',
+            noiseFloor: 25,
+            freqRange: 180,
+            rmsScale: 52,
+            freqWeight: 0.7,
+            rmsWeight: 1.05,
+            gain: 2,
+            levelPow: 1.05,
+            smoothing: 0.5
+        }, options || {});
+
+        let miniAudio = null;
+        let miniContainer = null;
+        let miniBars = [];
+        let miniLevels = [];
+        let miniRafId = null;
+        let miniAnalyser = null;
+        let miniAnalyserData = null;
+        let miniTimeData = null;
+        let miniSource = null;
+        let miniListeners = [];
+
+        function ensureMiniBars(container) {
+            if (!container) { return []; }
+            let bars = Array.from(container.querySelectorAll(cfg.barSelector));
+            if (!bars.length && cfg.barCount > 0 && root.document) {
+                const frag = root.document.createDocumentFragment();
+                for (let i = 0; i < cfg.barCount; i++) {
+                    const span = root.document.createElement('span');
+                    span.className = cfg.barClass;
+                    frag.appendChild(span);
+                    bars.push(span);
+                }
+                container.appendChild(frag);
+            }
+            return bars;
+        }
+
+        function ensureMiniAnalyser() {
+            const ctx = ensureAudioContext();
+            if (!ctx) return null;
+            if (!miniAnalyser) {
+                miniAnalyser = ctx.createAnalyser();
+                miniAnalyser.fftSize = 256;
+                miniAnalyser.smoothingTimeConstant = 0.65;
+                miniAnalyserData = new Uint8Array(miniAnalyser.frequencyBinCount);
+                miniTimeData = new Uint8Array(miniAnalyser.fftSize);
+            }
+            if (!miniAnalyser.__llConnected) {
+                try {
+                    miniAnalyser.connect(ctx.destination);
+                    miniAnalyser.__llConnected = true;
+                } catch (_) {}
+            }
+            return miniAnalyser;
+        }
+
+        function resetMiniBars() {
+            if (!miniBars.length) return;
+            miniBars.forEach(function (bar) {
+                bar.style.setProperty('--level', '0');
+            });
+            miniLevels = miniBars.map(() => 0);
+        }
+
+        function cancelMiniLoop() {
+            if (miniRafId) {
+                root.cancelAnimationFrame(miniRafId);
+                miniRafId = null;
+            }
+        }
+
+        function pauseMini() {
+            cancelMiniLoop();
+            resetMiniBars();
+        }
+
+        function stopMini() {
+            pauseMini();
+            if (miniAudio && miniListeners.length) {
+                miniListeners.forEach(function (item) {
+                    try { miniAudio.removeEventListener(item.type, item.handler); } catch (_) {}
+                });
+            }
+            miniListeners = [];
+            if (miniSource && miniAnalyser) {
+                try { miniSource.disconnect(miniAnalyser); } catch (_) {}
+            }
+            if (miniContainer && cfg.activeClass) {
+                try { miniContainer.classList.remove(cfg.activeClass); } catch (_) {}
+            }
+            miniAudio = null;
+            miniContainer = null;
+            miniBars = [];
+            miniLevels = [];
+            miniSource = null;
+        }
+
+        function updateMini() {
+            if (!miniAnalyser || !miniBars.length || !miniAnalyserData || !miniTimeData) {
+                miniRafId = null;
+                return;
+            }
+            if (!miniAudio || miniAudio.paused) {
+                pauseMini();
+                return;
+            }
+            const ctx = ensureAudioContext();
+            if (!ctx || ctx.state !== 'running') {
+                miniRafId = root.requestAnimationFrame(updateMini);
+                return;
+            }
+
+            miniAnalyser.getByteFrequencyData(miniAnalyserData);
+            miniAnalyser.getByteTimeDomainData(miniTimeData);
+
+            const slice = Math.max(1, Math.floor(miniAnalyserData.length / miniBars.length));
+            let sumSquares = 0;
+            for (let i = 0; i < miniTimeData.length; i++) {
+                const deviation = miniTimeData[i] - 128;
+                sumSquares += deviation * deviation;
+            }
+            const rms = Math.min(1, Math.sqrt(sumSquares / miniTimeData.length) / cfg.rmsScale);
+
+            for (let i = 0; i < miniBars.length; i++) {
+                let sum = 0;
+                for (let j = 0; j < slice; j++) {
+                    sum += miniAnalyserData[(i * slice) + j] || 0;
+                }
+                const avg = sum / slice;
+                const normalized = Math.max(0, (avg - cfg.noiseFloor) / cfg.freqRange);
+                const combined = Math.min(1, (normalized * cfg.freqWeight) + (rms * cfg.rmsWeight));
+                const boosted = Math.min(1, combined * cfg.gain);
+                const eased = Math.pow(boosted, cfg.levelPow);
+
+                const previous = miniLevels[i] || 0;
+                const level = previous + (eased - previous) * cfg.smoothing;
+                miniLevels[i] = level;
+                miniBars[i].style.setProperty('--level', level.toFixed(3));
+            }
+
+            miniRafId = root.requestAnimationFrame(updateMini);
+        }
+
+        function startMini() {
+            cancelMiniLoop();
+            updateMini();
+        }
+
+        function attachMini(audio, container) {
+            if (!audio || !container) {
+                stopMini();
+                return;
+            }
+
+            stopMini();
+            miniAudio = audio;
+            miniContainer = container;
+            miniBars = ensureMiniBars(container);
+            miniLevels = miniBars.map(() => 0);
+            if (!miniBars.length) { return; }
+
+            const ctx = ensureAudioContext();
+            const analyser = ensureMiniAnalyser();
+            if (!ctx || !analyser) { return; }
+
+            let source = audio.__llMiniVisualizerSource || audio.__llVisualizerSource;
+            if (!source) {
+                try {
+                    source = ctx.createMediaElementSource(audio);
+                    audio.__llMiniVisualizerSource = source;
+                } catch (_) {
+                    return;
+                }
+            }
+
+            miniSource = source;
+            try { source.disconnect(analyser); } catch (_) {}
+            try {
+                source.connect(analyser);
+            } catch (_) {
+                return;
+            }
+
+            const onPlay = function () {
+                if (ctx.state === 'suspended') {
+                    ctx.resume().then(function () {
+                        if (cfg.activeClass) {
+                            try { container.classList.add(cfg.activeClass); } catch (_) {}
+                        }
+                        startMini();
+                    }).catch(function () {
+                        if (cfg.activeClass) {
+                            try { container.classList.remove(cfg.activeClass); } catch (_) {}
+                        }
+                    });
+                } else {
+                    if (cfg.activeClass) {
+                        try { container.classList.add(cfg.activeClass); } catch (_) {}
+                    }
+                    startMini();
+                }
+            };
+            const onStop = function () { pauseMini(); };
+
+            miniListeners = [
+                { type: 'play', handler: onPlay },
+                { type: 'playing', handler: onPlay },
+                { type: 'pause', handler: onStop },
+                { type: 'ended', handler: onStop },
+                { type: 'emptied', handler: onStop },
+                { type: 'error', handler: onStop }
+            ];
+            miniListeners.forEach(function (item) {
+                try { audio.addEventListener(item.type, item.handler, { passive: true }); }
+                catch (_) { audio.addEventListener(item.type, item.handler); }
+            });
+
+            if (!audio.paused && !audio.ended) {
+                onPlay();
+            } else {
+                resetMiniBars();
+            }
+        }
+
+        return { attach: attachMini, stop: stopMini };
+    }
+
     namespace.AudioVisualizer = {
         prepareForListening: prepareForListening,
         followAudio: followAudio,
         stop: stopVisualizer,
-        reset: resetVisualizer
+        reset: resetVisualizer,
+        createMiniVisualizer: createMiniVisualizer
     };
 })(window);

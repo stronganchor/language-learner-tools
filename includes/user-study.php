@@ -157,6 +157,8 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'label'          => isset($w['label']) ? (string) $w['label'] : '',
                 'image'          => isset($w['image']) ? (string) $w['image'] : '',
                 'audio'          => isset($w['audio']) ? (string) $w['audio'] : '',
+                'audio_files'    => isset($w['audio_files']) ? (array) $w['audio_files'] : [],
+                'preferred_speaker_user_id' => isset($w['preferred_speaker_user_id']) ? (int) $w['preferred_speaker_user_id'] : 0,
                 'all_categories' => isset($w['all_categories']) ? (array) $w['all_categories'] : [$term->name],
                 'wordset_ids'    => isset($w['wordset_ids']) ? (array) $w['wordset_ids'] : [],
             ];
