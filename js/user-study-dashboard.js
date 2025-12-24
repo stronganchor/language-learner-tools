@@ -748,21 +748,23 @@
         currentAudio = new Audio(url);
         currentAudioButton = this;
         currentAudio.addEventListener('play', function () {
+            if (currentAudio !== this) { return; }
             $btn.addClass('is-playing');
         });
         currentAudio.addEventListener('pause', function () {
+            if (currentAudio !== this) { return; }
             $btn.removeClass('is-playing');
             stopVisualizer();
         });
         currentAudio.addEventListener('ended', function () {
+            if (currentAudio !== this) { return; }
             $btn.removeClass('is-playing');
             stopVisualizer();
-            if (currentAudio === this) {
-                currentAudio = null;
-                currentAudioButton = null;
-            }
+            currentAudio = null;
+            currentAudioButton = null;
         });
         currentAudio.addEventListener('error', function () {
+            if (currentAudio !== this) { return; }
             $btn.removeClass('is-playing');
             stopVisualizer();
         });

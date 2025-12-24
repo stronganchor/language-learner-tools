@@ -38,9 +38,21 @@ p:has(.ll-word-audio) {
 }
 
 /* Title of a word in the word-grid */
-.word-grid h3 {
+.word-grid .ll-word-title-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: -25px;
+    width: 100%;
+    text-align: center;
+}
+
+.word-grid .word-title {
     font-size: 18px !important;
-    margin-top: -25px !important;
+    margin: 0 !important;
+    line-height: 1.2;
 }
 
 /* Image displayed for a word in the word-grid */
@@ -63,6 +75,22 @@ p:has(.ll-word-audio) {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Adds shadow for depth */
 }
 
+.word-grid.ll-word-grid .word-item {
+    text-align: center !important;
+}
+
+.word-grid.ll-word-grid .word-image-container {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.word-grid.ll-word-grid .word-title,
+.word-grid.ll-word-grid .word-example,
+.word-grid.ll-word-grid .word-translation {
+    text-align: center !important;
+}
+
 /* Example Sentence Styles */
 .word-example {
     margin-top: -15px !important;
@@ -71,4 +99,194 @@ p:has(.ll-word-audio) {
 /* English Translation of Example Sentence */
 .word-translation {
     margin-top: -20px !important;
+}
+
+/* Word Grid Recording Buttons + Star */
+.word-grid.ll-word-grid .ll-word-recordings {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    width: 100%;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn {
+    height: 32px !important;
+    min-height: 32px !important;
+    min-width: 92px !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    padding: 0 8px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+    box-sizing: border-box !important;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn:hover {
+    background: #e0f2fe !important;
+    border-color: #38bdf8 !important;
+    color: #0ea5e9 !important;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn:focus-visible {
+    outline: 3px solid #38bdf8 !important;
+    outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+    -webkit-text-size-adjust: none !important;
+    line-height: 1 !important;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-icon::before {
+    display: block;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn--question .ll-study-recording-icon::before {
+    content: "\2753";
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn--isolation .ll-study-recording-icon::before {
+    content: "\1F50D";
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn--introduction .ll-study-recording-icon::before {
+    content: "\1F4AC";
+}
+
+.word-grid.ll-word-grid .ll-study-recording-play {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-play::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 6px solid currentColor;
+    margin-left: 1px;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-visualizer {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-height: 14px;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar {
+    display: block;
+    flex: 0 0 3px;
+    width: 3px;
+    min-width: 3px;
+    max-width: 3px;
+    height: calc(var(--base, 6px) + 10px * var(--level, 0));
+    border-radius: 2px;
+    background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
+    opacity: 0.55;
+    transform-origin: center bottom;
+    transition: height 0.12s ease-out, opacity 0.2s ease-out;
+    box-sizing: border-box;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(2) { --base: 11px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(3) { --base: 9px; }
+.word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(4) { --base: 12px; }
+
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
+    opacity: 0.95;
+    animation: ll-audio-mini-eq 1s ease-in-out infinite;
+}
+
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(2) { animation-delay: 0.08s; }
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(3) { animation-delay: 0.15s; }
+.word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(4) { animation-delay: 0.22s; }
+
+@keyframes ll-audio-mini-eq {
+    0% { transform: scaleY(0.7); }
+    35% { transform: scaleY(1.35); }
+    65% { transform: scaleY(0.9); }
+    100% { transform: scaleY(1); }
+}
+
+.word-grid.ll-word-grid .ll-word-star {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #111827 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+}
+
+.word-grid.ll-word-grid .ll-word-star::before {
+    content: "\2606";
+}
+
+.word-grid.ll-word-grid .ll-word-star.active::before {
+    content: "\2605";
+}
+
+.word-grid.ll-word-grid .ll-word-star.active {
+    background: #fde68a !important;
+    border-color: #f59e0b !important;
+    color: #111827 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-star:focus-visible {
+    outline: 3px solid #f59e0b !important;
+    outline-offset: 2px;
 }
