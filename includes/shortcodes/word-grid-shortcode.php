@@ -234,9 +234,8 @@ function ll_tools_word_grid_shortcode($atts) {
                 $play_label = sprintf($play_label_template, $label);
                 $recordings_html .= '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '" aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '">';
                 $recordings_html .= '<span class="ll-study-recording-icon" aria-hidden="true"></span>';
-                $recordings_html .= '<span class="ll-study-recording-play" aria-hidden="true"></span>';
                 $recordings_html .= '<span class="ll-study-recording-visualizer" aria-hidden="true">';
-                for ($i = 0; $i < 4; $i++) {
+                for ($i = 0; $i < 6; $i++) {
                     $recordings_html .= '<span class="bar"></span>';
                 }
                 $recordings_html .= '</span>';

@@ -138,7 +138,7 @@
             vizRafId = null;
         }
         if (vizSource) {
-            try { vizSource.disconnect(); } catch (_) {}
+            try { vizSource.disconnect(); } catch (_) { }
             vizSource = null;
         }
         if (vizButton) {
@@ -228,11 +228,11 @@
                 }
             }
 
-            try { source.disconnect(); } catch (_) {}
+            try { source.disconnect(); } catch (_) { }
             try {
                 source.connect(analyser);
             } catch (_) {
-                try { source.connect(ctx.destination); } catch (_) {}
+                try { source.connect(ctx.destination); } catch (_) { }
                 return;
             }
 
@@ -245,7 +245,7 @@
                 cancelAnimationFrame(vizRafId);
             }
             updateVisualizer();
-        }).catch(function () {});
+        }).catch(function () { });
     }
 
     function normalizeStarMode(mode) {
@@ -464,15 +464,11 @@
                             'aria-hidden': 'true',
                             'data-emoji': icon
                         }).appendTo(btn);
-                        $('<span>', {
-                            class: 'll-study-recording-play',
-                            'aria-hidden': 'true'
-                        }).appendTo(btn);
                         const viz = $('<span>', {
                             class: 'll-study-recording-visualizer',
                             'aria-hidden': 'true'
                         });
-                        for (let i = 0; i < 4; i++) {
+                        for (let i = 0; i < 6; i++) {
                             $('<span>', { class: 'bar' }).appendTo(viz);
                         }
                         btn.append(viz);
