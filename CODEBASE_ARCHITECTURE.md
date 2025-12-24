@@ -1,261 +1,329 @@
 ---
-title: Language Learner Tools — Codebase Architecture (AI Guide)
+title: Language Learner Tools - Codebase Architecture (AI Guide)
 entry_points:
   - language-learner-tools.php
-read_first:
   - includes/bootstrap.php
-  - includes/assets.php
+read_first:
+  - language-learner-tools.php
+  - includes/bootstrap.php
   - includes/template-loader.php
+  - includes/assets.php
   - includes/pages/quiz-pages.php
   - includes/pages/embed-page.php
-  - includes/admin/audio-image-matcher.php
+  - includes/pages/recording-page.php
+  - includes/shortcodes/flashcard-widget.php
+  - includes/shortcodes/audio-recording-shortcode.php
+  - includes/user-study.php
+  - includes/shortcodes/user-study-dashboard.php
+  - includes/taxonomies/word-category-taxonomy.php
+  - includes/taxonomies/wordset-taxonomy.php
+  - includes/post-types/words-post-type.php
+  - includes/post-types/word-audio-post-type.php
+  - includes/admin/settings.php
+  - includes/admin/audio-processor-admin.php
   - js/flashcard-widget/main.js
   - js/flashcard-widget/selection.js
+  - js/flashcard-widget/modes/listening.js
 ---
 
-# What this plugin does (30-second tour)
-Vocabulary platform for WordPress:
-- **CPTs** for words, images, and audio (with multiple recordings per word).
-- **Taxonomies** for word categories, word sets, language, parts of speech, and recording types.
-- **Quizzes** (flashcards) with **two modes**: Practice (adaptive difficulty) and Learning (guided word introduction with mastery tracking).
-- **Auto-generated pages** (`/quiz/<category>`) and **embeddable pages** (`/embed/<category>`) with wordset filtering and mode selection.
-- **Audio recording & processing workflow**: Recording interface → Audio Processor → Audio Review → Recording Types.
-- **Admin tools** to record/process audio, match audio↔images, review content, manage word sets.
-- **Roles/caps** to gate lightweight editors, word-set managers, and audio recorders.
+# Overview (30-second tour)
+- WordPress plugin for vocabulary-driven language learning.
+- Custom post types for words, word images, and word audio recordings.
+- Taxonomies for word categories, word sets, language, part of speech, and recording types.
+- Flashcard quizzes with three modes (practice, learning, listening) and per-category prompt/option config.
+- Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
+- Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
+- Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
+- Template override system and GitHub update checker (main/dev branch).
 
-# Directory map (high level)
+# Entry points and runtime flow
+- `language-learner-tools.php`
+  - Defines `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, `LL_TOOLS_MAIN_FILE`, `LL_TOOLS_MIN_WORDS_PER_QUIZ`.
+  - Registers GitHub update checker (branch from `ll_update_branch` option).
+  - Activation adds `view_ll_tools`, seeds default wordset and recording page via transients.
+  - Registers `/embed/<category>` rewrite + query var + template_include hook.
+- `includes/bootstrap.php`
+  - Loads all CPTs, taxonomies, admin tools, shortcodes, utilities, and vendor update checker.
+- `includes/assets.php`
+  - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
+  - Public enqueue pulls jQuery UI CSS (code.jquery.com) and canvas-confetti (cdn.jsdelivr).
+  - Non-admin style lives in `css/non-admin-style.css`.
+- `includes/pages/quiz-pages.php`
+  - Creates `/quiz` parent + child pages per `word-category` (meta `_ll_tools_word_category_id`).
+  - Syncs on category/content changes; daily and on file mtime change; manual cleanup in admin.
+  - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`.
+- `includes/pages/embed-page.php`
+  - Minimal page for iframes; noindex; uses `[flashcard_widget]`.
+  - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening`.
+  - Posts `ll-embed-ready` to parent when initialized.
+- `includes/pages/recording-page.php`
+  - Ensures a default recording page with `[audio_recording_interface]`.
+  - Redirects `audio_recorder` users on login to recording page (or user override).
+- `includes/lib/media-proxy.php`
+  - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
+
+# Directory map (top level)
 ```
-language-learner-tools.php # Plugin bootstrap + constants + rewrite for /embed/<slug>
+language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite
 includes/
-  assets.php               # Versioned enqueues (filemtime)
-  bootstrap.php            # Central includes/wiring
-  template-loader.php      # Theme override resolution for plugin templates
-  admin/                   # Admin pages (matcher, processor, review, missing audio, settings, recording types)
-    uploads/               # Audio/Image upload forms
-    api/deepl-api.php      # DeepL integration
-  i18n/language-switcher.php # Language UI helpers
-  lib/ll-matching.php      # Audio↔image matching heuristics/bookkeeping
-  pages/                   # Frontend pages (embed, quiz pages)
-  post-types/              # words, word_images, word_audio CPTs
-  shortcodes/              # All public shortcodes (flashcard, recording, grid, etc.)
-  taxonomies/              # wordset, word-category, language, part_of_speech, recording_type
-  user-roles/              # wordset_manager, ll_tools_editor, audio_recorder + menu trimming
-js/                        # Admin + frontend JS
-  flashcard-widget/        # Modular flashcard system (main, selection, state, learning mode, etc.)
-css/                       # Styles for quiz pages, recording, matcher, review, etc.
-templates/                 # Rendered by template-loader (quiz page, matcher, flashcards)
-vendor/                    # Third-party code (getid3, plugin-update-checker)
-data/                      # Files containing data (e.g. language codes)
+  assets.php                  # Versioned enqueue helper + public assets
+  bootstrap.php               # Central includes
+  template-loader.php         # Theme override resolver
+  lib/
+    ll-matching.php           # Audio <-> image matching heuristics
+    media-proxy.php           # Signed image proxy for quizzes
+  pages/
+    quiz-pages.php            # Auto /quiz pages + sync + assets
+    embed-page.php            # /embed/<category> template
+    recording-page.php        # Recording page creation + login redirect
+  post-types/
+    words-post-type.php
+    word-image-post-type.php
+    word-audio-post-type.php
+  taxonomies/
+    word-category-taxonomy.php
+    wordset-taxonomy.php
+    language-taxonomy.php
+    part-of-speech-taxonomy.php
+    recording-type-taxonomy.php
+  shortcodes/
+    flashcard-widget.php
+    quiz-pages-shortcodes.php
+    word-grid-shortcode.php
+    word-audio-shortcode.php
+    audio-recording-shortcode.php
+    image-copyright-grid-shortcode.php
+    language-switcher-shortcode.php
+    user-study-dashboard.php
+  admin/
+    settings.php
+    audio-processor-admin.php
+    audio-image-matcher.php
+    missing-audio-admin-page.php
+    recording-types-admin.php
+    bulk-translation-admin.php
+    bulk-word-import-admin.php
+    export-import.php
+    word-images-fixer.php
+    manage-wordsets.php
+    metabox-word-audio-parent.php
+    uploads/
+      audio-upload-form.php
+      image-upload-form.php
+    api/deepl-api.php
+  user-study.php
+  i18n/language-switcher.php
+  user-roles/
+    wordset-manager.php
+    ll-tools-editor.php
+    audio-recorder-role.php
+js/
+  flashcard-widget/           # Modular quiz system
+  audio-processor.js
+  audio-image-matcher.js
+  audio-recorder.js
+  quiz-pages.js
+  user-study-dashboard.js
+  word-audio.js
+  manage-wordsets.js
+  words-bulk-edit.js
+  word-images-bulk-edit.js
+css/
+  language-learner-tools.css
+  quiz-pages.css
+  quiz-pages-style.css
+  recording-interface.css
+  audio-processor.css
+  audio-image-matcher.css
+  user-study-dashboard.css
+  flashcard/
+    base.css
+    mode-practice.css
+    mode-learning.css
+    mode-listening.css
+templates/
+  flashcard-widget-template.php
+  quiz-page-template.php
+  audio-image-matcher-template.php
+media/
+  right-answer.mp3
+  wrong-answer.mp3
+  play-symbol.svg
+  stop-symbol.svg
+data/
+  iso-languages/              # ISO 639 language tables
+vendor/
+  getid3/                     # audio metadata
+  plugin-update-checker/      # GitHub update checker
 ```
+Note: `includes/admin/migrate-word-audio.php` exists as a legacy migration tool but is not loaded by default.
 
 # Core data model (canonical)
-- **Custom Post Types**
-  - `words` — main vocabulary entries (supports title, editor, thumbnail, custom fields).
-  - `word_images` — image library for vocab (featured image, copyright meta).
-  - `word_audio` — individual recordings; categorized by recording type. Multiple audio files can be attached to a single word.
-- **Taxonomies**
-  - `wordset` (flat) — groups of words (also used for permissions & UI scoping).
-  - `word-category` — semantic categories ("people", animals, etc.).
-  - `language` — language tagging.
-  - `part_of_speech` — noun/verb/adj… (pre-seeded).
-  - `recording_type` — e.g., isolation, sentence, question, introduction.
-- **Common meta**
-  - Image usage bookkeeping (e.g., `_ll_picked_count`, `_ll_picked_last`).
-  - Word ↔ auto-picked image reference (e.g., `_ll_autopicked_image_id`).
-  - Per-image `copyright_info` for the copyright grid.
-  - Quiz page marker: `_ll_tools_word_category_id` on auto-generated pages.
+## Custom post types
+- `words` (public, REST)
+  - Key meta: `word_translation`, legacy `word_english_meaning`, legacy `word_audio_file`.
+  - Other meta: `word_example_sentence`, `word_example_sentence_translation`, `similar_word_id`.
+  - Publish guard: requires at least one published `word_audio` when category config needs audio.
+    - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
+- `word_images` (public, REST)
+  - Featured image is the media asset.
+  - Meta: `copyright_info`, plus translation fields used by grids.
+- `word_audio` (admin-only UI, REST)
+  - Child of `words` via `post_parent`.
+  - Meta: `audio_file_path`, `recording_date`, `speaker_user_id` or `speaker_name`, `_ll_needs_audio_processing`.
+  - Terms: `recording_type` (isolation, sentence, question, introduction, etc).
 
-# Contracts & invariants (don't break)
-- **Capabilities gate admin tools.** Use `view_ll_tools` and/or taxonomy caps like `edit_wordsets`.
-- **AJAX/POST must verify nonces and caps.** Return JSON responses.
-- **Slugs are public contracts.** Changing CPT or taxonomy slugs is a migration (rewrite flushing + data updates).
-- **Template resolution order** (see `includes/template-loader.php`):
-  1) Child theme: `wp-content/themes/<child>/ll-tools/<template>`
-  2) Parent theme: `wp-content/themes/<parent>/ll-tools/<template>`
-  3) Plugin fallback: `plugins/language-learner-tools/templates/<template>`
-- **Learning mode state is client-side only.** Server provides data; JS manages introduction, progress, and mastery tracking.
+## Taxonomies
+- `word-category` (hierarchical; attached to `words` and `word_images`)
+  - Translation meta: `term_translation` when translation is enabled.
+  - Quiz config meta: `ll_quiz_prompt_type` (audio|image), `ll_quiz_option_type` (image|text_translation|text_title|audio|text_audio).
+  - Desired recording types: `ll_desired_recording_types` (list of slugs; sentinel `__none__` disables recording for the category).
+  - Helpers: `ll_tools_get_category_display_name()`, `ll_tools_get_category_quiz_config()`, `ll_can_category_generate_quiz()`.
+- `wordset` (flat; attached to `words`)
+  - Meta: `ll_language`, `manager_user_id`.
+  - Capabilities: `edit_wordsets` etc; non-admins see only managed wordsets.
+  - Active wordset resolution: `ll_tools_get_active_wordset_id()`; default seeded on activation.
+- `language` (attached to `words`, populated from `data/iso-languages` on first run).
+- `part_of_speech` (attached to `words`).
+- `recording_type` (attached to `word_audio`).
 
-# Runtime entry points & routing
-- **Plugin bootstrap:** `language-learner-tools.php`
-  - Defines `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, `LL_TOOLS_MAIN_FILE`.
-  - Registers rewrite for **`/embed/<category-slug>`** → `includes/pages/embed-page.php`.
-- **Template rendering:** via `ll_tools_render_template()` / `ll_tools_capture_template()` with the search order above.
-- **Quiz page UI:** `templates/quiz-page-template.php` (spinner until embed signals ready).
-- **Asset versioning:** `ll_enqueue_asset_by_timestamp($path, $handle)` enqueues by `filemtime`.
+## Common meta and flags
+- `_ll_tools_word_category_id` on auto-generated quiz pages.
+- `_ll_picked_count`, `_ll_picked_last`, `_ll_autopicked_image_id` for image matching usage tracking.
+- `_ll_needs_audio_processing` for unprocessed audio queue.
 
-# Admin tools (open these files first)
-- **Audio ↔ Image Matcher:** `includes/admin/audio-image-matcher.php`
-  - UI template in `templates/audio-image-matcher-template.php`
-  - Frontend logic in `js/audio-image-matcher.js`
-  - Matching helpers in `includes/lib/ll-matching.php` (scoring/normalization and "picked" bookkeeping).
-- **Audio Processor:** `includes/admin/audio-processor-admin.php` + `js/audio-processor.js`
-  - Batch-process uploaded audio files.
-  - Auto-match to words by filename.
-  - Assign recording types.
-  - Create `word_audio` posts and publish after processing.
-- **Recording Types Admin:** `includes/admin/recording-types-admin.php`
-  - Manage the `recording_type` taxonomy terms.
-- **Missing Audio report:** `includes/admin/missing-audio-admin-page.php` (clearable cache table).
-- **Word Set management:** `includes/admin/manage-wordsets.php` (auto-creates an iframe page into Word Set term admin).
+## User meta and per-user state
+- User study state (from `includes/user-study.php`):
+  - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_star_mode`, `ll_user_fast_transitions`.
+- Audio recorder config (from `includes/user-roles/audio-recorder-role.php`):
+  - `ll_recording_config` (wordset, category, recording type filters, allow_new_words, auto_process_recordings).
+  - `ll_recording_page_url` (custom redirect on login).
 
-# Roles & permissions
-- **`wordset_manager`** (`includes/user-roles/wordset-manager.php`) — Can manage wordsets and basic content.
-- **`ll_tools_editor`** (`includes/user-roles/ll-tools-editor.php`) — Can upload files, edit categories/wordsets, access LL Tools pages.
-- **`audio_recorder`** (`includes/user-roles/audio-recorder-role.php`) — Dedicated role for audio contributors with limited admin access.
-- **Administrator** is granted `view_ll_tools` on activation and stripped on deactivation.
-- Admin menu trimmed for these roles to reduce clutter.
+# Settings and options
+Core settings live in `includes/admin/settings.php`:
+- `ll_target_language`, `ll_translation_language`.
+- `ll_enable_category_translation`, `ll_category_translation_source`.
+- `ll_word_title_language_role` (target vs translation).
+- `ll_max_options_override` (max multiple-choice options).
+- `ll_flashcard_image_size` (small/medium/large).
+- `ll_hide_recording_titles` (recording UI).
+- `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
+- `ll_update_branch` (main/dev) for GitHub update checker.
 
-# Shortcodes (user-facing API)
-Located in `includes/shortcodes/`:
-- `flashcard-widget.php` — `[flashcard_widget]` (start popup, category selection, quiz UI; JS in `js/flashcard-widget/`). Supports `quiz_mode` (`practice` | `learning`) and `wordset` filtering.
-- `quiz-pages-shortcodes.php` — `[quiz_pages_grid]` and `[quiz_pages_dropdown]` with wordset filtering and popup mode support.
-- `word-audio-shortcode.php` — `[word_audio]` inline audio player markup; paired with `js/word-audio.js`.
-- `word-grid-shortcode.php` — `[word_grid]` grid of word cards with wordset filtering.
-- `audio-recording-shortcode.php` — `[audio_recording]` recording interface for contributors.
-- `image-copyright-grid-shortcode.php` — `[image_copyright_grid posts_per_page="12"]` (styles in `css/image-copyright-style.css`).
-- `language-switcher-shortcode.php` — `[language_switcher]` UI helpers.
+# Public UI surfaces and routes
+## Shortcodes (user-facing)
+- `[flashcard_widget]` (controller: `includes/shortcodes/flashcard-widget.php`)
+  - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening), `wordset`, `wordset_fallback`.
+- `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
+- `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
+- `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
+- `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
+- `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
+- `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
+- `[language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
+- `[ll_user_study_dashboard]` (`includes/shortcodes/user-study-dashboard.php`).
 
-# Flashcard widget (module map)
-`js/flashcard-widget/` is split into small modules:
-- **`main.js`** — Bootstrap, mode switching, quiz round orchestration, word introduction handling.
-- **`selection.js`** — Word selection logic for both practice and learning modes. Contains `selectLearningModeWord()` with adaptive introduction and mastery tracking.
-- **`state.js`** — Shared state management (categories, rounds, learning mode state, progress tracking).
-- **`audio.js`** — Audio playback, feedback sounds, `selectBestAudio()` for choosing recording type by priority.
-- **`loader.js`** — Resource preloading (audio/images) with chunked loading for performance.
-- **`options.js`** — Dynamic option count calculation based on screen space and performance.
-- **`cards.js`** — Card rendering (image/text) with font sizing logic.
-- **`dom.js`** — DOM manipulation helpers, progress bar updates, mode switcher button.
-- **`effects.js`** — Confetti and visual effects.
-- **`results.js`** — Results screen rendering for both modes.
-- **`category-selection.js`** — Category picker UI.
-- **`util.js`** — Small utilities (randomSort, measureTextWidth, etc.).
+## Routes
+- `/quiz/<category>` auto pages (created/synced by `includes/pages/quiz-pages.php`).
+  - Optional params: `?mode=practice|learning|listening`.
+- `/embed/<category>` embed page (handled by `includes/pages/embed-page.php`).
+  - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening`.
 
-# Learning Mode (detailed)
-**Client-side implementation** in `js/flashcard-widget/selection.js` and `main.js`:
+# Flashcard widget architecture
+## PHP controller
+- `includes/shortcodes/flashcard-widget.php` builds categories, initial words, and localizes JS data into `llToolsFlashcardsData`.
+- Data includes category config, wordset scope, user study preferences, and mode UI labels/icons.
 
-## State Management (`state.js`)
-- `isLearningMode` — Boolean flag for mode.
-- `introducedWordIDs` — Array of word IDs that have been introduced.
-- `wordIntroductionProgress` — Object tracking introduction repetitions per word (target: 3).
-- `wordCorrectCounts` — Object tracking correct answers per word (mastery target: 3).
-- `wordsToIntroduce` — Queue of word IDs not yet introduced.
-- `totalWordCount` — Fixed total (set once on init).
-- `wrongAnswerQueue` — IDs of words answered incorrectly.
-- `wordsAnsweredSinceLastIntro` — Set of IDs answered correctly since last introduction.
-- `learningChoiceCount` — Current number of answer choices (2-5, adaptive).
-- `learningCorrectStreak` — Consecutive correct answers (grows choice count).
-- `MIN_CORRECT_COUNT` — Mastery threshold (3).
-- `AUDIO_REPETITIONS` — Introduction audio plays (3).
+## JS module map (`js/flashcard-widget/`)
+- `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and session guards.
+- `state.js` - shared state container and constants.
+- `selection.js` - category/word selection, prompt rendering, and star-weighted selection.
+- `modes/practice.js`, `modes/learning.js`, `modes/listening.js` - mode-specific flows.
+- `audio.js` - playback + `selectBestAudio()` priority logic.
+- `loader.js` - preloading and cache management (wordset aware).
+- `options.js` - option count calculation and layout constraints.
+- `cards.js` - card rendering and font sizing.
+- `dom.js` - DOM helpers and progress UI.
+- `effects.js` - confetti and visual feedback.
+- `results.js` - end-of-quiz UI.
+- `audio-visualizer.js` - animated loading/listening visualizer.
+- `mode-config.js` - merges default mode UI labels/icons with `llToolsFlashcardsData.modeUi`.
+- `category-selection.js`, `util.js` - supporting UI/utility helpers.
 
-## Selection Logic (`selectLearningModeWord()`)
-1. **Introduction Bootstrap**: Introduce 2 words initially, then 1 at a time.
-2. **Practice Prioritization**:
-   - Pending wrongs first (with spacing to avoid immediate repeats).
-   - Words not yet answered this cycle.
-   - Words below mastery threshold (prioritize least-known).
-   - Sprinkle in completed words for variety.
-3. **Introduction Trigger**: New word introduced when all current words answered correctly this cycle and no pending wrongs.
-4. **Finish Condition**: All words introduced AND all meet `MIN_CORRECT_COUNT`.
+## Mode behavior (high level)
+- Practice mode: standard multiple-choice quiz with adaptive option count.
+- Learning mode: guided introduction + mastery tracking.
+  - Implementation: `js/flashcard-widget/modes/learning.js` + `selection.js`.
+  - State highlights: `introducedWordIDs`, `wordIntroductionProgress`, `wordCorrectCounts`, `wrongAnswerQueue` (with `dueTurn`), `learningChoiceCount`, `learningCorrectStreak`.
+  - Defaults: `MIN_CHOICE_COUNT` = 2, `MAX_CHOICE_COUNT` = 6, `MIN_CORRECT_COUNT` = 3.
+  - Progress UI updated via `Dom.updateLearningProgress()`.
+- Listening mode: audio-first playback with simplified UI and visualizer.
+  - Implementation: `js/flashcard-widget/modes/listening.js` + `audio-visualizer.js`.
+  - Uses study prefs (`llToolsStudyPrefs`) to honor star mode and fast transitions.
 
-## Introduction Flow (`handleWordIntroduction()` in `main.js`)
-1. Display 1-2 words (first intro shows 2, subsequent show 1).
-2. Play audio 3 times per word with alternating recording types (intro/isolation pattern).
-3. Disable user interaction during introduction.
-4. Track introduction progress in `wordIntroductionProgress`.
-5. Mark as introduced in `introducedWordIDs` after all repetitions.
-6. Automatically transition to quiz after introduction.
+# Admin tools and workflows
+## Core Tools menu pages (files)
+- Audio Processor: `includes/admin/audio-processor-admin.php` + `js/audio-processor.js`.
+- Audio Image Matcher: `includes/admin/audio-image-matcher.php`, `templates/audio-image-matcher-template.php`, `js/audio-image-matcher.js`.
+- Missing Audio report: `includes/admin/missing-audio-admin-page.php`.
+- Recording Types admin: `includes/admin/recording-types-admin.php`.
+- Bulk Translations: `includes/admin/bulk-translation-admin.php` (DeepL + dictionary fallback).
+- Bulk Word Import: `includes/admin/bulk-word-import-admin.php` (Turkish casing support).
+- Export/Import: `includes/admin/export-import.php` (zip of categories + word_images + attachments).
+- Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
+- Languages admin: `includes/taxonomies/language-taxonomy.php`.
+- Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).
+- Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
 
-## Adaptive Difficulty (`LearningMode.recordAnswerResult()`)
-- **Correct Answer**: Increment `wordCorrectCounts`, add to `wordsAnsweredSinceLastIntro`, remove from wrong queue, increment streak.
-  - Streak ≥10 → 5 choices
-  - Streak ≥6 → 4 choices
-  - Streak ≥3 → 3 choices
-  - Default → 2 choices
-- **Wrong Answer**: Add to `wrongAnswerQueue`, reset streak, reduce choice count by 1 (min 2).
-- **Constraints**: Respect screen space (`canAddMoreCards()`), introduced word count, site-wide max, text mode limits (4 max).
+## Audio workflow (end to end)
+- Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
+- Bulk upload: `[audio_upload_form]` and `[image_upload_form]` allow admin uploads.
+- Processing: Audio Processor runs in browser, uses `lamejs` from CDN for MP3 encoding.
+- Storage: `word_audio` posts store `audio_file_path` and `recording_type` terms; parent word published only when audio exists.
 
-## Progress Visualization
-Dual-progress bar in `dom.js`:
-- **Introduced Fill**: Tracks introduction progress (introduction repetitions / total × 3).
-- **Completed Fill**: Tracks mastery progress (correct answers / total × 3).
+# Template override system
+- Resolver: `includes/template-loader.php`.
+- Search order:
+  1. Child theme: `wp-content/themes/<child>/ll-tools/<template>`
+  2. Parent theme: `wp-content/themes/<parent>/ll-tools/<template>`
+  3. Plugin fallback: `templates/<template>`
 
-# Quizzes & embeds
-- **Embeds**: rewrite rule maps `/embed/<category>` → `includes/pages/embed-page.php`, which renders the in-iframe quiz view. Supports `?wordset=<slug>` and `?mode=<practice|learning>` params.
-- **Standalone quiz pages**: rendered with `templates/quiz-page-template.php` and orchestrated by `includes/pages/quiz-pages.php` (CSS: `css/quiz-pages.css` + `css/quiz-pages-style.css`). Supports `?mode=<practice|learning>` param.
-- **Wordset Filtering**: Both quiz pages and grids support wordset filtering via URL param or shortcode attribute.
+# External dependencies and assets
+- CDNs: jQuery UI CSS (code.jquery.com), canvas-confetti (cdn.jsdelivr), lamejs (cdn.jsdelivr).
+- DeepL API integration: `includes/admin/api/deepl-api.php`.
+- getID3: used for audio validation in `includes/admin/uploads/audio-upload-form.php`.
+- Media proxy may fetch remote image URLs via `wp_remote_get()` fallback.
 
-# Audio Recording & Processing Workflow
+# Contracts and invariants (do not break)
+- Capabilities gate admin tools: use `view_ll_tools` or stricter.
+- AJAX and POST handlers must verify nonces and capabilities.
+- Slugs are public contracts: `words`, `word_images`, `word_audio`, `word-category`, `wordset`, `recording_type`.
+- Auto quiz pages rely on `_ll_tools_word_category_id` meta and the `/quiz` parent page.
+- Learning state is client-side only; do not persist it server-side.
+- Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
+- Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
+- Template overrides must follow the resolver order in `includes/template-loader.php`.
 
-## Recording (`includes/shortcodes/audio-recording-shortcode.php`)
-- Browser-based recording interface via `[audio_recording]`.
-- Uses MediaRecorder API.
-- Preview playback before upload.
-- Paired with `js/audio-recorder.js` and `css/recording-interface.css`.
+# Common tasks (file pointers)
+- Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.
+- Update quiz mode logic: `js/flashcard-widget/modes/*.js`, `js/flashcard-widget/selection.js`.
+- Modify quiz UI: `templates/flashcard-widget-template.php`, `css/flashcard/*.css`.
+- Adjust auto quiz pages: `includes/pages/quiz-pages.php`, `templates/quiz-page-template.php`.
+- Edit embed behavior: `includes/pages/embed-page.php`.
+- Tune audio/image matching: `includes/lib/ll-matching.php`, `includes/admin/audio-image-matcher.php`.
+- Adjust recording interface: `includes/shortcodes/audio-recording-shortcode.php`, `js/audio-recorder.js`, `css/recording-interface.css`.
+- Change audio processing: `includes/admin/audio-processor-admin.php`, `js/audio-processor.js`, `css/audio-processor.css`.
+- Modify user study dashboard: `includes/user-study.php`, `includes/shortcodes/user-study-dashboard.php`, `js/user-study-dashboard.js`.
+- Update settings/options: `includes/admin/settings.php`.
 
-## Processing (`includes/admin/audio-processor-admin.php`)
-1. Admin uploads audio files in bulk.
-2. Processor attempts to match filenames to word titles (fuzzy matching).
-3. Admin assigns recording type (introduction, isolation, question, sentence).
-4. Creates `word_audio` posts and attaches to matched words.
-5. Publishes processed audio (and parent words) immediately.
-6. Styles: `css/audio-processor.css`, Logic: `js/audio-processor.js`.
-
-## Recording Types (`recording_type` taxonomy)
-- **Introduction**: Full introduction audio (e.g., "Merhaba. That means hello in Turkish.")
-- **Isolation**: Word spoken in isolation.
-- **Question**: Word used in a question.
-- **Sentence**: Word used in a sentence.
-- Used by `FlashcardAudio.selectBestAudio()` to choose contextually appropriate audio.
-- Learning mode prefers introduction audio during introduction phase, question audio during quiz.
-- Practice mode prefers question/isolation audio.
-
-# Matching & media notes
-- **Matching heuristics** are centralized in `includes/lib/ll-matching.php` (string normalization, candidate ranking, and "picked" counters to shade used images in the UI).
-- **Recording types** taxonomy (`recording_type`) classifies `word_audio` items (e.g., isolation / sentence / question / introduction).
-- **Audio selection priority** (`FlashcardAudio.selectBestAudio()`): Accepts an array of preferred types (e.g., `['introduction', 'isolation']`) and returns the first match, falling back to any available audio.
-
-# i18n and external services
-- **DeepL** integration is isolated in `includes/admin/api/deepl-api.php`.
-- **Text domain**: `ll-tools-text-domain`; language files under `/languages`.
-
-# Styling & UX
-- Public styles in `css/language-learner-tools.css` (word grids, audio snippets).
-- **Quiz** layout/styles in `css/quiz-pages.css` and `css/quiz-pages-style.css` (spinner, responsive wrappers).
-- **Admin matcher** in `css/audio-image-matcher.css`.
-- **Recording UI** in `css/recording-interface.css`.
-- **Audio Processor** in `css/audio-processor.css`.
-- **Flashcard widget** base styles in `css/flashcard/base.css`; mode overrides live in `css/flashcard/mode-*.css` (includes mode switcher button, progress bars).
-
-# Common tasks (with file pointers)
-- **Register/adjust CPTs or taxonomies** → `includes/post-types/*.php`, `includes/taxonomies/*.php`
-- **Add/trim capabilities for roles** → `includes/user-roles/*.php`
-- **Change enqueue/versioning behavior** → `includes/assets.php`
-- **Override a template in a theme** → copy from `/templates/*` to `wp-content/themes/<child>/ll-tools/*`
-- **Tweak quiz page UX** → `templates/quiz-page-template.php`, `css/quiz-pages*.css`, `js/quiz-pages.js`
-- **Tune audio/image matching** → `includes/lib/ll-matching.php`, `includes/admin/audio-image-matcher.php`, `js/audio-image-matcher.js`
-- **Adjust learning mode logic** → `js/flashcard-widget/selection.js` (`selectLearningModeWord`, `LearningMode.recordAnswerResult`)
-- **Modify word introduction flow** → `js/flashcard-widget/main.js` (`handleWordIntroduction`)
-- **Add new recording type** → Add term to `recording_type` taxonomy, update `FlashcardAudio.selectBestAudio()` priority lists
-- **Customize audio processing** → `includes/admin/audio-processor-admin.php`, `js/audio-processor.js`
-
-# Guardrails for AI edits
-- **Always** check capability before rendering admin pages or processing actions (`current_user_can('view_ll_tools')` or stricter).
-- **Always** verify nonces on AJAX/forms.
-- **Never** hardcode URLs—use `plugins_url()`, `admin_url()`, constants (`LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`).
-- **Keep slugs stable** (`words`, `wordset`, `word-category`, etc.); if you must change, coordinate rewrite flush and data migration.
-- **Learning mode is client-side** — Server provides data, JS manages state. Don't try to track learning state server-side.
-- **Audio selection is contextual** — Use `selectBestAudio()` with appropriate priority arrays for different contexts (intro vs. quiz).
-
-# Search hints (ripgrep/LSP)
-- `"register_post_type( 'words'"` for the main CPT.
-- `"register_post_type( 'word_audio'"` for the audio CPT.
-- `"register_taxonomy('wordset'"` for Word Set caps/REST settings.
-- `"register_taxonomy('recording_type'"` for the recording types taxonomy.
-- `"add_submenu_page('tools.php'"` to find LL Tools admin entries.
-- `"ll_tools_render_template("` to trace views.
-- `"flashcard_widget"` / `"image_copyright_grid"` / `"audio_recording"` for shortcode entry points.
-- `"selectLearningModeWord"` for learning mode word selection logic.
-- `"handleWordIntroduction"` for word introduction flow.
-- `"LearningMode.recordAnswerResult"` for adaptive difficulty logic.
-- `"selectBestAudio"` for audio selection by recording type.
-- `"ll_tools_get_active_wordset_id"` for wordset filtering logic.
+# Search hints (ripgrep)
+- `register_post_type( 'words'` / `register_post_type( 'word_audio'`.
+- `register_taxonomy('word-category'` / `register_taxonomy('wordset'` / `register_taxonomy('recording_type'`.
+- `_ll_tools_word_category_id` for auto quiz pages.
+- `ll_tools_get_category_quiz_config` and `ll_can_category_generate_quiz` for quiz eligibility.
+- `ll_tools_get_active_wordset_id` for default wordset logic.
+- `ll_get_words_by_category` for quiz data payloads.
+- `llToolsFlashcardsData` for front-end localization data.
+- `audio_recording_interface` for recording UI.
+- `ll_user_study_` for study preferences.
+- `ll_tools_get_masked_image_url` for signed image proxy.
