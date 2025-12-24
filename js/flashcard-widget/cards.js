@@ -3,6 +3,7 @@
     const { Util } = root.LLFlashcards;
     const { State } = root.LLFlashcards;
     const { Dom } = root.LLFlashcards;
+    let optionMiniViz = null;
 
     function createImageCard(word) {
         const $c = $('<div>', {
@@ -57,6 +58,16 @@
             } catch (_) { /* ignore */ }
             const audioEl = audioApi.createAudio ? audioApi.createAudio(word.audio, { type: 'option' }) : new Audio(word.audio);
             if (!audioEl) { resolve(); return; }
+            const vizApi = root.LLFlashcards && root.LLFlashcards.AudioVisualizer;
+            if (vizApi && typeof vizApi.createMiniVisualizer === 'function') {
+                if (!optionMiniViz) {
+                    optionMiniViz = vizApi.createMiniVisualizer();
+                }
+                const vizEl = $card && typeof $card.find === 'function' ? $card.find('.ll-audio-mini-visualizer')[0] : null;
+                if (vizEl) {
+                    optionMiniViz.attach(audioEl, vizEl);
+                }
+            }
 
             let settled = false;
             const finish = function () {

@@ -25,6 +25,7 @@
 
     let repeatAudio = null;
     let repeatAudioListeners = [];
+    let repeatMiniViz = null;
 
     function ensureRepeatButtonContent() {
         const $btn = $('#ll-tools-repeat-flashcard');
@@ -99,6 +100,9 @@
         }
         repeatAudio = null;
         repeatAudioListeners = [];
+        if (repeatMiniViz && typeof repeatMiniViz.stop === 'function') {
+            repeatMiniViz.stop();
+        }
     }
 
     function bindRepeatButtonAudio(audio) {
@@ -109,6 +113,16 @@
             return;
         }
         repeatAudio = audio;
+        if (namespace.AudioVisualizer && typeof namespace.AudioVisualizer.createMiniVisualizer === 'function') {
+            if (!repeatMiniViz) {
+                repeatMiniViz = namespace.AudioVisualizer.createMiniVisualizer();
+            }
+            const $btn = $('#ll-tools-repeat-flashcard');
+            const vizEl = $btn.length ? $btn.find('.ll-audio-mini-visualizer')[0] : null;
+            if (vizEl) {
+                repeatMiniViz.attach(audio, vizEl);
+            }
+        }
         const onPlay = function () { setRepeatButtonInternal('stop'); };
         const onStop = function () { setRepeatButtonInternal('play'); };
         repeatAudioListeners = [

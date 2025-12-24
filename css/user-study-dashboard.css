@@ -236,16 +236,21 @@
 
 .ll-user-study-dashboard .ll-word-list {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
   align-items: stretch;
   width: 100%;
 }
 
 .ll-user-study-dashboard .ll-word-row {
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas:
+    "star thumb text"
+    "recordings recordings recordings";
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 8px;
   padding: 10px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -253,7 +258,25 @@
   min-height: 60px;
   min-width: 0;
   width: 100%;
-  flex-wrap: nowrap;
+}
+
+.ll-user-study-dashboard .ll-word-row.ll-word-row--no-image {
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "star text"
+    "recordings recordings";
+}
+
+.ll-user-study-dashboard .ll-word-star {
+  grid-area: star;
+}
+
+.ll-user-study-dashboard .ll-word-thumb {
+  grid-area: thumb;
+}
+
+.ll-user-study-dashboard .ll-word-text {
+  grid-area: text;
 }
 
 .ll-word-text {
@@ -323,35 +346,138 @@
   font-size: 12px;
 }
 
-.ll-word-audio {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-weight: 700;
-  min-width: 34px;
-  padding: 0;
-  line-height: 1;
+.ll-user-study-dashboard .ll-word-recordings {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  flex-wrap: wrap;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 0;
+  width: 100%;
+  grid-area: recordings;
 }
 
-.ll-word-audio:hover {
-  background: #e0f2fe;
-  border-color: #38bdf8;
-  color: #0ea5e9;
+.ll-user-study-dashboard .ll-study-recording-btn {
+  height: 32px !important;
+  min-height: 32px !important;
+  min-width: 92px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  text-transform: none !important;
+  box-sizing: border-box !important;
 }
 
-.ll-user-study-dashboard .ll-word-audio {
+.ll-user-study-dashboard .ll-study-recording-btn:hover {
+  background: #e0f2fe !important;
+  border-color: #38bdf8 !important;
+  color: #0ea5e9 !important;
+}
+
+.ll-user-study-dashboard .ll-study-recording-btn:focus-visible {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 2px;
+}
+
+.ll-user-study-dashboard .ll-study-recording-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+  -webkit-text-size-adjust: none !important;
+  line-height: 1 !important;
+}
+
+.ll-user-study-dashboard .ll-study-recording-icon::before {
+  content: attr(data-emoji);
+  display: block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ll-user-study-dashboard .ll-study-recording-play {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.ll-user-study-dashboard .ll-study-recording-play::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  margin-left: 1px;
+}
+
+.ll-user-study-dashboard .ll-study-recording-visualizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-height: 14px;
+}
+
+.ll-user-study-dashboard .ll-study-recording-visualizer .bar {
+  display: block;
+  flex: 0 0 3px;
+  width: 3px;
+  min-width: 3px;
+  max-width: 3px;
+  height: calc(var(--base, 6px) + 10px * var(--level, 0));
+  border-radius: 2px;
+  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
+  opacity: 0.55;
+  transform-origin: center bottom;
+  transition: height 0.12s ease-out, opacity 0.2s ease-out;
+  box-sizing: border-box;
+}
+
+.ll-user-study-dashboard .ll-study-recording-visualizer .bar:nth-child(2) { --base: 11px; }
+.ll-user-study-dashboard .ll-study-recording-visualizer .bar:nth-child(3) { --base: 9px; }
+.ll-user-study-dashboard .ll-study-recording-visualizer .bar:nth-child(4) { --base: 12px; }
+
+.ll-user-study-dashboard .ll-study-recording-btn.is-playing {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+}
+
+.ll-user-study-dashboard .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
+  opacity: 0.95;
+  animation: ll-audio-mini-eq 1s ease-in-out infinite;
+}
+
+.ll-user-study-dashboard .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(2) { animation-delay: 0.08s; }
+.ll-user-study-dashboard .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(3) { animation-delay: 0.15s; }
+.ll-user-study-dashboard .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(4) { animation-delay: 0.22s; }
+
+@keyframes ll-audio-mini-eq {
+  0% { transform: scaleY(0.7); }
+  35% { transform: scaleY(1.35); }
+  65% { transform: scaleY(0.9); }
+  100% { transform: scaleY(1); }
 }
 
 .ll-badge {
@@ -420,7 +546,7 @@
 
 @media (max-width: 640px) {
   .ll-user-study-dashboard .ll-word-list {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 
   .ll-user-study-dashboard .ll-word-text {
