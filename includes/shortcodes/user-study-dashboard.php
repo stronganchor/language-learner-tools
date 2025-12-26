@@ -6,6 +6,21 @@ if (!defined('WPINC')) { die; }
  * Shortcode to render a user-facing study dashboard with wordset/category/word selections.
  * Usage: [ll_user_study_dashboard]
  */
+function ll_tools_user_study_enqueue_assets() {
+    ll_enqueue_asset_by_timestamp('/css/user-study-dashboard.css', 'll-tools-study-dashboard');
+    ll_enqueue_asset_by_timestamp('/js/user-study-dashboard.js', 'll-tools-study-dashboard', ['jquery'], true);
+}
+
+function ll_tools_user_study_maybe_enqueue_assets() {
+    if (is_admin()) { return; }
+    $post = get_queried_object();
+    if (!$post instanceof WP_Post) { return; }
+    if (!isset($post->post_content)) { return; }
+    if (!has_shortcode($post->post_content, 'll_user_study_dashboard')) { return; }
+    ll_tools_user_study_enqueue_assets();
+}
+add_action('wp_enqueue_scripts', 'll_tools_user_study_maybe_enqueue_assets');
+
 function ll_tools_user_study_dashboard_shortcode($atts) {
     if (!is_user_logged_in()) {
         global $wp;
@@ -35,8 +50,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
     $payload = ll_tools_build_user_study_payload(get_current_user_id());
     $nonce   = wp_create_nonce('ll_user_study');
 
-    ll_enqueue_asset_by_timestamp('/css/user-study-dashboard.css', 'll-tools-study-dashboard');
-    ll_enqueue_asset_by_timestamp('/js/user-study-dashboard.js', 'll-tools-study-dashboard', ['jquery'], true);
+    ll_tools_user_study_enqueue_assets();
 
     $i18n = [
         'wordsetLabel'     => __('Word set', 'll-tools-text-domain'),
