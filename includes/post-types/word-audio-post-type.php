@@ -50,6 +50,7 @@ function ll_word_audio_columns($columns) {
     $new_columns = [];
     $new_columns['cb'] = $columns['cb'];
     $new_columns['title'] = __('Word', 'll-tools-text-domain');
+    $new_columns['word_categories'] = __('Categories', 'll-tools-text-domain');
     $new_columns['speaker'] = __('Speaker', 'll-tools-text-domain');
     $new_columns['recording_type'] = __('Type', 'll-tools-text-domain');
     $new_columns['audio_file'] = __('Audio File', 'll-tools-text-domain');
@@ -60,6 +61,28 @@ function ll_word_audio_columns($columns) {
 add_action('manage_word_audio_posts_custom_column', 'll_word_audio_column_content', 10, 2);
 function ll_word_audio_column_content($column, $post_id) {
     switch ($column) {
+        case 'word_categories':
+            $parent_id = (int) get_post_field('post_parent', $post_id);
+            if ($parent_id) {
+                $terms = get_the_terms($parent_id, 'word-category');
+                if ($terms && !is_wp_error($terms)) {
+                    $links = [];
+                    foreach ($terms as $term) {
+                        $url = add_query_arg(
+                            ['post_type' => 'word_audio', 'word_category' => $term->term_id],
+                            admin_url('edit.php')
+                        );
+                        $links[] = '<a href="' . esc_url($url) . '">' . esc_html($term->name) . '</a>';
+                    }
+                    echo implode(', ', $links);
+                } else {
+                    echo '—';
+                }
+            } else {
+                echo '—';
+            }
+            break;
+
         case 'speaker':
             $user_id = get_post_meta($post_id, 'speaker_user_id', true);
             if ($user_id) {
@@ -90,6 +113,132 @@ function ll_word_audio_column_content($column, $post_id) {
             }
             break;
     }
+}
+
+/**
+ * Word Audio admin page filters and default sort
+ */
+add_action('admin_init', 'll_modify_word_audio_admin_page');
+function ll_modify_word_audio_admin_page() {
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    add_action('restrict_manage_posts', 'll_add_word_audio_filters');
+    add_action('pre_get_posts', 'll_apply_word_audio_filters');
+}
+
+function ll_add_word_audio_filters() {
+    global $typenow;
+
+    if ($typenow !== 'word_audio' || !current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $selected_category = isset($_GET['word_category']) ? (int) $_GET['word_category'] : 0;
+    $selected_type = isset($_GET['recording_type']) ? sanitize_text_field($_GET['recording_type']) : '';
+
+    wp_dropdown_categories([
+        'show_option_all' => __('All Categories', 'll-tools-text-domain'),
+        'taxonomy'        => 'word-category',
+        'name'            => 'word_category',
+        'orderby'         => 'name',
+        'selected'        => $selected_category,
+        'show_count'      => 0,
+        'hide_empty'      => 0,
+        'hierarchical'    => 1,
+        'value_field'     => 'term_id',
+    ]);
+
+    $recording_types = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+    ]);
+
+    echo '<select name="recording_type">';
+    echo '<option value="">' . __('All Recording Types', 'll-tools-text-domain') . '</option>';
+
+    if (!is_wp_error($recording_types)) {
+        foreach ($recording_types as $recording_type) {
+            printf(
+                '<option value="%s"%s>%s</option>',
+                esc_attr($recording_type->slug),
+                selected($selected_type, $recording_type->slug, false),
+                esc_html($recording_type->name)
+            );
+        }
+    }
+
+    echo '</select>';
+}
+
+function ll_apply_word_audio_filters($query) {
+    global $pagenow;
+
+    if (!is_admin() || $pagenow !== 'edit.php' || !$query->is_main_query()) {
+        return;
+    }
+
+    if ($query->get('post_type') !== 'word_audio' || !current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    if (empty($_GET['orderby'])) {
+        $query->set('orderby', 'date');
+    }
+
+    if (empty($_GET['order'])) {
+        $query->set('order', 'DESC');
+    }
+
+    $recording_type = isset($_GET['recording_type']) ? sanitize_text_field($_GET['recording_type']) : '';
+    if ($recording_type !== '') {
+        $tax_query = (array) $query->get('tax_query');
+        $tax_query[] = [
+            'taxonomy' => 'recording_type',
+            'field'    => 'slug',
+            'terms'    => $recording_type,
+        ];
+        $query->set('tax_query', $tax_query);
+    }
+
+    $word_category_id = isset($_GET['word_category']) ? (int) $_GET['word_category'] : 0;
+    if ($word_category_id > 0) {
+        $query->set('ll_word_audio_category', $word_category_id);
+        add_filter('posts_where', 'll_word_audio_filter_by_category_where', 10, 2);
+    }
+}
+
+function ll_word_audio_filter_by_category_where($where, $query) {
+    global $wpdb;
+
+    if (!is_admin() || $query->get('post_type') !== 'word_audio') {
+        return $where;
+    }
+
+    $category_id = (int) $query->get('ll_word_audio_category');
+    if (!$category_id) {
+        return $where;
+    }
+
+    remove_filter('posts_where', 'll_word_audio_filter_by_category_where', 10);
+
+    $where .= $wpdb->prepare(
+        " AND {$wpdb->posts}.post_parent IN (
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            WHERE tt.taxonomy = 'word-category'
+              AND tt.term_id = %d
+              AND p.post_type = 'words'
+              AND p.post_status NOT IN ('trash','auto-draft')
+        )",
+        $category_id
+    );
+
+    return $where;
 }
 
 /**

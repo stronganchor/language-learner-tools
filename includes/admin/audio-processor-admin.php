@@ -35,20 +35,8 @@ function ll_enqueue_audio_processor_assets($hook) {
         }
     }
 
-    wp_enqueue_style(
-        'll-audio-processor-css',
-        plugins_url('css/audio-processor.css', LL_TOOLS_MAIN_FILE),
-        [],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/audio-processor.css')
-    );
-
-    wp_enqueue_script(
-        'll-audio-processor-js',
-        plugins_url('js/audio-processor.js', LL_TOOLS_MAIN_FILE),
-        [],
-        filemtime(LL_TOOLS_BASE_PATH . 'js/audio-processor.js'),
-        true
-    );
+    ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css');
+    ll_enqueue_asset_by_timestamp('/js/audio-processor.js', 'll-audio-processor-js', [], true);
 
     // Get all unprocessed recordings
     $recordings = ll_get_unprocessed_recordings();
@@ -157,6 +145,9 @@ function ll_render_audio_processor_page() {
                 <button id="ll-process-selected" class="button button-primary" disabled>
                     Process Selected (<span id="ll-selected-count">0</span>)
                 </button>
+                <button id="ll-delete-selected" class="ll-btn-danger" type="button" disabled>
+                    <span class="ll-btn-label">Delete Selected</span> (<span id="ll-delete-selected-count">0</span>)
+                </button>
             </div>
 
             <div id="ll-processor-status" class="ll-processor-status" style="display:none;">
@@ -168,19 +159,30 @@ function ll_render_audio_processor_page() {
 
             <div class="ll-recordings-list">
                 <?php foreach ($recordings as $recording): ?>
+                    <?php
+                    $recording_type_label = !empty($recording['recordingTypes'])
+                        ? implode(', ', $recording['recordingTypes'])
+                        : __('Unassigned', 'll-tools-text-domain');
+                    ?>
                     <div class="ll-recording-item" data-id="<?php echo esc_attr($recording['id']); ?>">
                         <label class="ll-recording-label">
                             <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
                             <div class="ll-recording-info">
                                 <strong><?php echo esc_html($recording['title']); ?></strong>
-                                <?php if (!empty($recording['categories'])): ?>
-                                    <span class="ll-recording-categories">
-                                        <?php echo esc_html(implode(', ', $recording['categories'])); ?>
+                                <div class="ll-recording-meta">
+                                    <?php if (!empty($recording['categories'])): ?>
+                                        <span class="ll-recording-categories">
+                                            <?php echo esc_html(implode(', ', $recording['categories'])); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <span class="ll-recording-type">
+                                        <span class="ll-recording-meta-label"><?php echo esc_html__('Type', 'll-tools-text-domain'); ?>:</span>
+                                        <span class="ll-recording-meta-value"><?php echo esc_html($recording_type_label); ?></span>
                                     </span>
-                                <?php endif; ?>
-                                <span class="ll-recording-date">
-                                    <?php echo esc_html(date('Y-m-d H:i', strtotime($recording['uploadDate']))); ?>
-                                </span>
+                                    <span class="ll-recording-date">
+                                        <?php echo esc_html(date('Y-m-d H:i', strtotime($recording['uploadDate']))); ?>
+                                    </span>
+                                </div>
                             </div>
                         </label>
                         <audio controls preload="none" src="<?php echo esc_url($recording['audioUrl']); ?>"></audio>

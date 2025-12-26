@@ -5,6 +5,7 @@
         recordings: [],
         selected: new Set(),
         processing: false,
+        deleting: false,
         audioContext: null,
         reviewData: new Map(),
         // Track last clicked checkbox index for shift-click range selection
@@ -36,6 +37,7 @@
         const selectAll = document.getElementById('ll-select-all');
         const deselectAll = document.getElementById('ll-deselect-all');
         const processBtn = document.getElementById('ll-process-selected');
+        const deleteBtn = document.getElementById('ll-delete-selected');
         const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
         const cbArray = Array.from(checkboxes);
 
@@ -129,6 +131,10 @@
             processBtn.addEventListener('click', processSelectedRecordings);
         }
 
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', deleteSelectedRecordings);
+        }
+
         document.addEventListener('click', (e) => {
             if (e.target.id === 'll-save-all') {
                 saveAllProcessedAudio();
@@ -175,11 +181,20 @@
     function updateSelectedCount() {
         const countEl = document.getElementById('ll-selected-count');
         const processBtn = document.getElementById('ll-process-selected');
+        const deleteBtn = document.getElementById('ll-delete-selected');
+        const deleteCountEl = document.getElementById('ll-delete-selected-count');
+        const isBusy = state.processing || state.deleting;
         if (countEl) {
             countEl.textContent = state.selected.size;
         }
+        if (deleteCountEl) {
+            deleteCountEl.textContent = state.selected.size;
+        }
         if (processBtn) {
-            processBtn.disabled = state.selected.size === 0 || state.processing;
+            processBtn.disabled = state.selected.size === 0 || isBusy;
+        }
+        if (deleteBtn) {
+            deleteBtn.disabled = state.selected.size === 0 || isBusy;
         }
     }
 
@@ -872,6 +887,85 @@
         }
 
         return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    async function deleteSelectedRecordings() {
+        if (state.deleting || state.processing || state.selected.size === 0) return;
+
+        const postIds = Array.from(state.selected);
+
+        if (!confirm(`Delete ${postIds.length} recording(s)? This action cannot be undone.`)) {
+            return;
+        }
+
+        const deleteBtn = document.getElementById('ll-delete-selected');
+        const deleteBtnLabel = deleteBtn ? deleteBtn.querySelector('.ll-btn-label') : null;
+
+        state.deleting = true;
+        if (deleteBtnLabel) {
+            deleteBtnLabel.textContent = 'Deleting...';
+        }
+        updateSelectedCount();
+
+        let deleted = 0;
+        let failed = 0;
+
+        for (const postId of postIds) {
+            try {
+                const success = await deleteRecordingById(postId);
+                if (success) {
+                    deleted++;
+                    removeRecordingItem(postId);
+                } else {
+                    failed++;
+                }
+            } catch (error) {
+                failed++;
+            }
+        }
+
+        state.deleting = false;
+        if (deleteBtnLabel) {
+            deleteBtnLabel.textContent = 'Delete Selected';
+        }
+        updateSelectedCount();
+
+        if (deleted > 0 && failed === 0) {
+            alert(`Deleted ${deleted} recording(s).`);
+        } else if (failed > 0) {
+            alert(`Deleted ${deleted} recording(s). Failed to delete ${failed}.`);
+        }
+
+        const remainingItems = document.querySelectorAll('.ll-recording-item');
+        if (remainingItems.length === 0) {
+            location.reload();
+        }
+    }
+
+    async function deleteRecordingById(postId) {
+        const response = await fetch(window.llAudioProcessor.ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'll_delete_audio_recording',
+                nonce: window.llAudioProcessor.nonce,
+                post_id: postId
+            })
+        });
+
+        const data = await response.json();
+        return !!data.success;
+    }
+
+    function removeRecordingItem(postId) {
+        const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
+        if (item) {
+            item.remove();
+        }
+        state.selected.delete(postId);
+        state.recordings = state.recordings.filter(recording => recording.id !== postId);
     }
 
     function deleteRecording(postId, button) {

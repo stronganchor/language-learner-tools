@@ -1833,7 +1833,8 @@
                 trimStart: processed.trimStart,
                 trimEnd: processed.trimEnd,
                 options: { ...processingDefaults },
-                manualBoundaries: false
+                manualBoundaries: false,
+                reviewReady: false
             };
             showProcessingReview();
             showStatus(i18n.processing_ready || 'Review the processed audio below.', 'success');
@@ -1887,10 +1888,12 @@
             return;
         }
 
+        syncProcessingReviewSlot();
         el.reviewContainer.innerHTML = '';
         const reviewFile = createReviewFileElement(processingState);
         el.reviewContainer.appendChild(reviewFile);
         el.processingReview.style.display = 'block';
+        processingState.reviewReady = true;
         if (!isNewWordPanelActive() && el.mainScreen) {
             el.mainScreen.style.display = 'none';
         }
@@ -2019,7 +2022,14 @@
             }
         }
         const recordingType = el.recordingTypeSelect?.value || 'isolation';
-        const autoProcessed = autoProcessEnabled && !!processingState?.processedBuffer;
+        if (autoProcessEnabled && processingState && !processingState.reviewReady) {
+            if (el.processingReview && el.reviewContainer) {
+                showProcessingReview();
+                showStatus(i18n.processing_ready || 'Review the processed audio below.', 'info');
+                return;
+            }
+        }
+        const autoProcessed = autoProcessEnabled && !!processingState?.processedBuffer && !!processingState?.reviewReady;
         const uploadBlob = autoProcessed ? audioBufferToWav(processingState.processedBuffer) : currentBlob;
 
         const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
