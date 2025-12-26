@@ -25,6 +25,7 @@ function ll_tools_register_or_refresh_audio_recorder_role() {
             array(
                 'read'         => true,
                 'upload_files' => true,
+                'view_ll_tools' => true,
             )
         );
         $role = get_role('audio_recorder'); // re-fetch for safety
@@ -37,6 +38,9 @@ function ll_tools_register_or_refresh_audio_recorder_role() {
         }
         if (!$role->has_cap('upload_files')) {
             $role->add_cap('upload_files');
+        }
+        if (!$role->has_cap('view_ll_tools')) {
+            $role->add_cap('view_ll_tools');
         }
     }
 }
