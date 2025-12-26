@@ -57,6 +57,29 @@
     cursor: not-allowed;
 }
 
+.ll-btn-secondary {
+    background: #f3f4f5;
+    border: 1px solid #c3c4c7;
+    color: #1d2327;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.2;
+    appearance: none;
+}
+
+.ll-btn-secondary:hover {
+    background: #e5e7ea;
+    border-color: #a7aaad;
+}
+
+.ll-btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .ll-recordings-list {
     margin-top: 20px;
 }
@@ -286,10 +309,6 @@
     flex: 1;
 }
 
-.ll-reprocess-btn {
-    white-space: nowrap;
-}
-
 /* Action Buttons */
 .ll-review-actions {
     display: flex;
@@ -352,11 +371,6 @@
 /* Processing state */
 audio[style*="opacity: 0.5"] {
     pointer-events: none;
-}
-
-.ll-reprocess-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
 }
 
 /* Visual feedback for trim regions */

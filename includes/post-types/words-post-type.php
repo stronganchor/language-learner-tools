@@ -294,12 +294,21 @@ function ll_make_words_columns_sortable($columns) {
 function ll_add_words_filters() {
     global $typenow;
     if ($typenow === 'words') {
-        $selected_category = isset($_GET['word_category']) ? $_GET['word_category'] : '';
+        $selected_category = isset($_GET['word_category']) ? (string) $_GET['word_category'] : '';
         $selected_image = isset($_GET['has_image']) ? $_GET['has_image'] : '';
+        $uncategorized_value = 'll_uncategorized';
 
         // Category filter with accurate counts
         echo '<select name="word_category">';
         echo '<option value="">' . __('All Categories', 'll-tools-text-domain') . '</option>';
+        $uncategorized_count = ll_get_uncategorized_term_count('word-category', 'words');
+        printf(
+            '<option value="%s"%s>%s (%d)</option>',
+            esc_attr($uncategorized_value),
+            selected($selected_category, $uncategorized_value, false),
+            esc_html__('Uncategorized', 'll-tools-text-domain'),
+            intval($uncategorized_count)
+        );
         ll_render_category_dropdown_with_counts('word-category', 'words', $selected_category);
         echo '</select>';
 
@@ -379,6 +388,31 @@ function ll_render_category_dropdown_with_counts($taxonomy, $post_type, $selecte
     }
 }
 
+/**
+ * Count published posts that have no assigned terms in a taxonomy.
+ *
+ * @param string $taxonomy  Taxonomy slug.
+ * @param string $post_type Post type to count (e.g. 'words').
+ * @return int
+ */
+function ll_get_uncategorized_term_count($taxonomy, $post_type) {
+    $q = new WP_Query([
+        'post_type'      => $post_type,
+        'post_status'    => 'publish',
+        'tax_query'      => [[
+            'taxonomy' => $taxonomy,
+            'operator' => 'NOT EXISTS',
+        ]],
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => false,
+    ]);
+    $count = $q->found_posts;
+    wp_reset_postdata();
+
+    return (int) $count;
+}
+
 // Apply the selected filters to the query
 function ll_apply_words_filters($query) {
     global $pagenow;
@@ -387,16 +421,28 @@ function ll_apply_words_filters($query) {
         return;
     }
 
+    if (!$query->is_main_query()) {
+        return;
+    }
+
     // Build a combined tax_query so category + wordset can both apply
     $tax_query = array();
 
     // Filter by category (term_id)
     if (!empty($_GET['word_category'])) {
-        $tax_query[] = array(
-            'taxonomy' => 'word-category',
-            'field'    => 'term_id',
-            'terms'    => (int) $_GET['word_category'],
-        );
+        $category_filter = (string) $_GET['word_category'];
+        if ($category_filter === 'll_uncategorized') {
+            $tax_query[] = array(
+                'taxonomy' => 'word-category',
+                'operator' => 'NOT EXISTS',
+            );
+        } else {
+            $tax_query[] = array(
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => (int) $category_filter,
+            );
+        }
     }
 
     // Filter by word set (slug from the dropdown)

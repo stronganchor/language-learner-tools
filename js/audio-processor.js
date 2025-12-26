@@ -142,9 +142,10 @@
                 cancelReview();
             } else if (e.target.id === 'll-delete-all-review') {
                 deleteAllReviewRecordings();
-            } else if (e.target.classList.contains('ll-reprocess-btn')) {
-                const postId = parseInt(e.target.dataset.postId);
-                reprocessSingleFile(postId);
+            } else if (e.target.classList.contains('ll-remove-review-btn') || e.target.closest('.ll-remove-review-btn')) {
+                const btn = e.target.classList.contains('ll-remove-review-btn') ? e.target : e.target.closest('.ll-remove-review-btn');
+                const postId = parseInt(btn.dataset.postId);
+                removeReviewRecording(postId);
             } else if (e.target.classList.contains('ll-delete-review-btn') || e.target.closest('.ll-delete-review-btn')) {
                 const btn = e.target.classList.contains('ll-delete-review-btn') ? e.target : e.target.closest('.ll-delete-review-btn');
                 const postId = parseInt(btn.dataset.postId);
@@ -512,6 +513,9 @@
                     <div class="ll-review-options">
                         ${recordingTypeSelect}
                     </div>
+                    <button class="ll-btn-secondary ll-remove-review-btn" data-post-id="${postId}" type="button" title="Remove from this batch">
+                        Remove
+                    </button>
                     <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="Delete this recording">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -525,7 +529,6 @@
             </div>
             <div class="ll-playback-controls">
                 <audio controls preload="auto"></audio>
-                <button class="button ll-reprocess-btn" data-post-id="${postId}">Reprocess</button>
             </div>
         `;
 
@@ -754,55 +757,17 @@
             const enableNoise = container.querySelector('.ll-file-noise').checked;
             const enableLoudness = container.querySelector('.ll-file-loudness').checked;
 
-            let processedBuffer = data.originalBuffer;
-
-            if (enableTrim) {
-                processedBuffer = trimSilence(data.originalBuffer, data.trimStart, data.trimEnd);
-            }
-
-            if (enableNoise) {
-                processedBuffer = await reduceNoise(processedBuffer);
-            }
-
-            if (enableLoudness) {
-                processedBuffer = await normalizeLoudness(processedBuffer);
-            }
-
-            data.processedBuffer = processedBuffer;
-            data.options = { enableTrim, enableNoise, enableLoudness };
-
-            setupAudioPlayback(container, processedBuffer);
-        } catch (error) {
-            console.error('Error updating processed audio:', error);
-        } finally {
-            audioElement.style.opacity = '1';
-        }
-    }
-
-    async function reprocessSingleFile(postId) {
-        const data = state.reviewData.get(postId);
-        if (!data) return;
-
-        const container = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
-        if (!container) return;
-
-        const enableTrim = container.querySelector('.ll-file-trim').checked;
-        const enableNoise = container.querySelector('.ll-file-noise').checked;
-        const enableLoudness = container.querySelector('.ll-file-loudness').checked;
-
-        const reprocessBtn = container.querySelector('.ll-reprocess-btn');
-        const originalText = reprocessBtn.textContent;
-        reprocessBtn.textContent = 'Processing...';
-        reprocessBtn.disabled = true;
-
-        try {
             let trimStart = data.trimStart;
             let trimEnd = data.trimEnd;
+            let shouldRerender = false;
 
             if (enableTrim && !data.manualBoundaries && (!data.options || !data.options.enableTrim)) {
                 const detected = detectSilenceBoundaries(data.originalBuffer);
                 trimStart = detected.start;
                 trimEnd = detected.end;
+                data.trimStart = trimStart;
+                data.trimEnd = trimEnd;
+                shouldRerender = true;
             }
 
             let processedBuffer = data.originalBuffer;
@@ -820,23 +785,22 @@
             }
 
             data.processedBuffer = processedBuffer;
-            data.trimStart = trimStart;
-            data.trimEnd = trimEnd;
             data.options = { enableTrim, enableNoise, enableLoudness };
 
-            const waveformContainer = container.querySelector('.ll-waveform-container');
-            if (waveformContainer) {
-                waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
-                renderWaveform(container, data.originalBuffer, data.trimStart, data.trimEnd);
-                setupAudioPlayback(container, data.processedBuffer);
-                setupBoundaryDragging(container, postId, data.originalBuffer);
+            if (shouldRerender) {
+                const waveformContainer = container.querySelector('.ll-waveform-container');
+                if (waveformContainer) {
+                    waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
+                    renderWaveform(container, data.originalBuffer, trimStart, trimEnd);
+                    setupBoundaryDragging(container, postId, data.originalBuffer);
+                }
             }
+
+            setupAudioPlayback(container, processedBuffer);
         } catch (error) {
-            console.error('Error reprocessing file:', error);
-            alert('Error reprocessing file: ' + error.message);
+            console.error('Error updating processed audio:', error);
         } finally {
-            reprocessBtn.textContent = originalText;
-            reprocessBtn.disabled = false;
+            audioElement.style.opacity = '1';
         }
     }
 
@@ -1086,6 +1050,31 @@
                     deleteBtn.style.opacity = '1';
                 }
             });
+    }
+
+    function removeReviewRecording(postId) {
+        const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
+        if (!reviewFile) return;
+
+        const data = state.reviewData.get(postId);
+        const title = data ? data.recording.title : 'this recording';
+
+        if (!confirm(`Remove "${title}" from this batch? It will remain unprocessed.`)) {
+            return;
+        }
+
+        reviewFile.style.opacity = '0';
+        reviewFile.style.transform = 'translateY(-10px)';
+        reviewFile.style.transition = 'all 0.3s ease';
+
+        setTimeout(() => {
+            reviewFile.remove();
+            state.reviewData.delete(postId);
+
+            if (state.reviewData.size === 0) {
+                location.reload();
+            }
+        }, 300);
     }
 
     function deleteAllReviewRecordings() {
