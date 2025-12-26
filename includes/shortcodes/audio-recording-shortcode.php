@@ -196,6 +196,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
         'recording_types' => $dropdown_types,
         'allow_new_words' => $allow_new_words,
+        'assembly_enabled' => ((string) get_option('ll_assemblyai_api_key', '') !== ''),
+        'deepl_enabled'    => ((string) get_option('ll_deepl_api_key', '') !== ''),
         'user_display_name' => $current_user->display_name,
         'require_all_types' => true,
         'initial_category' => $initial_category,
@@ -231,6 +233,13 @@ function ll_audio_recording_interface_shortcode($atts) {
             'new_word_preparing'  => __('Preparing new word...', 'll-tools-text-domain'),
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
             'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
+            'new_word_missing_recording' => __('Record audio before saving this word.', 'll-tools-text-domain'),
+            'transcribing'        => __('Transcribing...', 'll-tools-text-domain'),
+            'translating'         => __('Translating...', 'll-tools-text-domain'),
+            'transcription_failed'=> __('Transcription failed:', 'll-tools-text-domain'),
+            'transcription_unavailable' => __('Speech-to-text is not available. Please enter the word manually.', 'll-tools-text-domain'),
+            'translation_failed'  => __('Translation failed:', 'll-tools-text-domain'),
+            'translation_ready'   => __('Translation ready.', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -292,7 +301,6 @@ function ll_audio_recording_interface_shortcode($atts) {
         <div class="ll-new-word-panel" style="display: none;">
             <div class="ll-new-word-card">
                 <h3><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
-                <p class="ll-new-word-status" id="ll-new-word-status"></p>
                 <div class="ll-new-word-row">
                     <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
                     <select id="ll-new-word-category">
@@ -351,6 +359,36 @@ function ll_audio_recording_interface_shortcode($atts) {
                     </div>
                 </div>
 
+                <div class="ll-new-word-recording">
+                    <div class="ll-new-word-recording-controls">
+                        <button id="ll-new-word-record-btn" class="ll-btn ll-btn-record"
+                                title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
+                        <div id="ll-new-word-recording-indicator" class="ll-recording-indicator" style="display:none;">
+                            <span class="ll-recording-dot"></span>
+                            <span id="ll-new-word-recording-timer">0:00</span>
+                        </div>
+                    </div>
+                    <div id="ll-new-word-recording-type" class="ll-new-word-recording-type" style="display:none;" role="status" aria-live="polite">
+                        <span class="ll-new-word-recording-type-dot" aria-hidden="true"></span>
+                        <span id="ll-new-word-recording-type-label" class="ll-new-word-recording-type-label"></span>
+                    </div>
+                    <div id="ll-new-word-playback-controls" class="ll-new-word-playback-controls" style="display:none;">
+                        <audio id="ll-new-word-playback-audio" controls></audio>
+                        <div class="ll-new-word-playback-actions">
+                            <button id="ll-new-word-redo-btn" class="ll-btn ll-btn-secondary"
+                                    title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ll-new-word-review-slot" class="ll-new-word-review-slot"></div>
+
+                <div class="ll-new-word-auto-status" id="ll-new-word-auto-status" style="display:none;" role="status" aria-live="polite" aria-busy="false">
+                    <span class="ll-new-word-auto-icon" aria-hidden="true">🤖</span>
+                    <span class="ll-new-word-auto-spinner" aria-hidden="true"></span>
+                    <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="<?php esc_attr_e('Cancel automatic transcription', 'll-tools-text-domain'); ?>">x</button>
+                </div>
+
                 <div class="ll-new-word-row">
                     <label for="ll-new-word-text-target"><?php _e('Target Word (optional)', 'll-tools-text-domain'); ?></label>
                     <input type="text" id="ll-new-word-text-target" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
@@ -361,7 +399,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                 </div>
 
                 <div class="ll-new-word-actions">
-                    <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Continue to Recording', 'll-tools-text-domain'); ?></button>
+                    <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Save and Continue', 'll-tools-text-domain'); ?></button>
                     <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
                 </div>
             </div>
@@ -437,12 +475,14 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
 
         <?php if ($auto_process_recordings): ?>
-        <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
-            <h2><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
-            <div id="ll-review-files-container"></div>
-            <div class="ll-review-actions">
-                <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
-                <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
+        <div id="ll-recording-review-slot" class="ll-recording-review-slot">
+            <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
+                <h2><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
+                <div id="ll-review-files-container"></div>
+                <div class="ll-review-actions">
+                    <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                    <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
+                </div>
             </div>
         </div>
         <?php endif; ?>
@@ -839,6 +879,86 @@ function ll_get_images_for_recording_handler() {
     ]);
 }
 
+// AJAX: fetch desired recording types for a category (new-word preflight)
+add_action('wp_ajax_ll_get_recording_types_for_category', 'll_get_recording_types_for_category_handler');
+
+function ll_get_recording_types_for_category_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to record audio');
+    }
+
+    $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
+    $include_types_csv = sanitize_text_field($_POST['include_types'] ?? '');
+    $exclude_types_csv = sanitize_text_field($_POST['exclude_types'] ?? '');
+
+    $all_types = get_terms(['taxonomy' => 'recording_type', 'fields' => 'slugs', 'hide_empty' => false]);
+    if (is_wp_error($all_types) || empty($all_types)) {
+        wp_send_json_error('No recording types are configured');
+    }
+
+    $category_term_id = 0;
+    if (!empty($category_slug) && $category_slug !== 'uncategorized') {
+        $category_term = get_term_by('slug', $category_slug, 'word-category');
+        if ($category_term && !is_wp_error($category_term)) {
+            $category_term_id = (int) $category_term->term_id;
+        }
+    } elseif ($category_slug === 'uncategorized') {
+        $maybe_uncat = get_term_by('slug', 'uncategorized', 'word-category');
+        if ($maybe_uncat && !is_wp_error($maybe_uncat)) {
+            $category_term_id = (int) $maybe_uncat->term_id;
+        }
+    }
+
+    if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
+        wp_send_json_error('Recording is disabled for this category');
+    }
+
+    $desired_types = [];
+    if ($category_term_id) {
+        $desired_types = ll_tools_get_desired_recording_types_for_category($category_term_id);
+    }
+    if (empty($desired_types)) {
+        $desired_types = ll_tools_get_uncategorized_desired_recording_types();
+    }
+
+    $include_types = $include_types_csv ? array_map('trim', explode(',', $include_types_csv)) : [];
+    $exclude_types = $exclude_types_csv ? array_map('trim', explode(',', $exclude_types_csv)) : [];
+
+    $filtered_types = $all_types;
+    if (!empty($include_types)) {
+        $filtered_types = array_values(array_intersect($filtered_types, $include_types));
+    } elseif (!empty($exclude_types)) {
+        $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
+    }
+    $filtered_types = array_values(array_intersect($desired_types, $filtered_types));
+
+    if (empty($filtered_types)) {
+        wp_send_json_error('No recording types are available for this category');
+    }
+
+    $dropdown_types = [];
+    foreach ($filtered_types as $slug) {
+        $term = get_term_by('slug', $slug, 'recording_type');
+        if ($term && !is_wp_error($term)) {
+            $dropdown_types[] = [
+                'slug' => $term->slug,
+                'name' => ll_get_recording_type_name($term->slug, $term->name),
+                'term_id' => $term->term_id,
+            ];
+        }
+    }
+
+    wp_send_json_success([
+        'recording_types' => $dropdown_types,
+    ]);
+}
+
 // AJAX: prepare a new word (and optional category) for recording
 add_action('wp_ajax_ll_prepare_new_word_recording', 'll_prepare_new_word_recording_handler');
 
@@ -1013,7 +1133,7 @@ function ll_prepare_new_word_recording_handler() {
         wp_set_object_terms($word_id, array_map('intval', $posted_ids), 'wordset');
     }
 
-    $display_text = $target_text !== '' ? $target_text : $post_title;
+    $display_text = $post_title;
 
     $dropdown_types = [];
     foreach ($filtered_types as $slug) {
@@ -1052,6 +1172,364 @@ function ll_prepare_new_word_recording_handler() {
             'name' => $category_name,
             'term_id' => $category_term_id,
         ],
+    ]);
+}
+
+/**
+ * Normalize a language code for external APIs (AssemblyAI/DeepL).
+ *
+ * @param string $raw
+ * @param string $case lower|upper
+ * @return string
+ */
+function ll_tools_normalize_language_code($raw, $case = 'lower') {
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return '';
+    }
+
+    $raw = str_replace('_', '-', $raw);
+    $raw = preg_replace('/[^A-Za-z\-]+/', '', $raw);
+    if (strpos($raw, '-') !== false) {
+        $parts = explode('-', $raw);
+        $raw = $parts[0];
+    }
+
+    $raw_lower = strtolower($raw);
+    if ($raw_lower === 'auto') {
+        return 'auto';
+    }
+
+    $iso3_map = [
+        'eng' => 'en',
+        'tur' => 'tr',
+        'deu' => 'de',
+        'ger' => 'de',
+        'fra' => 'fr',
+        'fre' => 'fr',
+        'spa' => 'es',
+        'ita' => 'it',
+        'por' => 'pt',
+        'rus' => 'ru',
+        'ara' => 'ar',
+        'hin' => 'hi',
+        'jpn' => 'ja',
+        'kor' => 'ko',
+        'zho' => 'zh',
+        'cmn' => 'zh',
+        'vie' => 'vi',
+        'nld' => 'nl',
+        'dut' => 'nl',
+        'swe' => 'sv',
+        'dan' => 'da',
+        'fin' => 'fi',
+        'nor' => 'no',
+        'pol' => 'pl',
+        'ces' => 'cs',
+        'cze' => 'cs',
+        'slk' => 'sk',
+        'hun' => 'hu',
+        'ron' => 'ro',
+        'rum' => 'ro',
+        'bul' => 'bg',
+        'ukr' => 'uk',
+        'heb' => 'he',
+        'ind' => 'id',
+        'msa' => 'ms',
+        'tha' => 'th',
+    ];
+
+    if (strlen($raw_lower) === 3 && isset($iso3_map[$raw_lower])) {
+        $raw_lower = $iso3_map[$raw_lower];
+    }
+
+    if (strlen($raw_lower) > 3) {
+        return '';
+    }
+
+    return ($case === 'upper') ? strtoupper($raw_lower) : $raw_lower;
+}
+
+/**
+ * Get the wordset language label for the current recording scope.
+ *
+ * @param array $wordset_ids
+ * @return string
+ */
+function ll_tools_get_wordset_language_label($wordset_ids) {
+    if (!is_array($wordset_ids)) {
+        return '';
+    }
+
+    foreach ($wordset_ids as $wsid) {
+        $lang = function_exists('ll_get_wordset_language') ? ll_get_wordset_language((int) $wsid) : '';
+        if (!empty($lang)) {
+            return $lang;
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Resolve AssemblyAI language code from wordset or settings.
+ *
+ * @param array $wordset_ids
+ * @return string
+ */
+function ll_tools_get_assemblyai_language_code($wordset_ids) {
+    $raw = ll_tools_get_wordset_language_label($wordset_ids);
+    if ($raw === '') {
+        $raw = (string) get_option('ll_target_language', '');
+    }
+
+    $normalized = ll_tools_normalize_language_code($raw, 'lower');
+    if ($normalized !== '' && $normalized !== 'auto' && strlen($normalized) !== 2) {
+        $normalized = '';
+    }
+    $normalized = apply_filters('ll_tools_assemblyai_language_code', $normalized, $raw, $wordset_ids);
+    return $normalized;
+}
+
+/**
+ * Resolve DeepL source/target language codes.
+ *
+ * @param array $wordset_ids
+ * @return array [source, target]
+ */
+function ll_tools_get_deepl_language_codes($wordset_ids) {
+    $source_raw = ll_tools_get_wordset_language_label($wordset_ids);
+    if ($source_raw === '') {
+        $source_raw = (string) get_option('ll_target_language', 'auto');
+    }
+    $target_raw = (string) get_option('ll_translation_language', '');
+
+    $source = ll_tools_normalize_language_code($source_raw, 'upper');
+    if ($source === 'AUTO') {
+        $source = 'auto';
+    }
+    $target = ll_tools_normalize_language_code($target_raw, 'upper');
+
+    return [$source, $target];
+}
+
+/**
+ * Determine whether a word should store the target language in the title.
+ *
+ * @param int $word_id
+ * @return bool
+ */
+function ll_tools_should_store_word_in_title($word_id) {
+    $store_in_title = (get_option('ll_word_title_language_role', 'target') === 'target');
+    $terms = wp_get_post_terms($word_id, 'word-category');
+    if (!empty($terms) && !is_wp_error($terms) && function_exists('ll_tools_get_category_quiz_config')) {
+        $cat_cfg = ll_tools_get_category_quiz_config($terms[0]);
+        $opt_type = isset($cat_cfg['option_type']) ? (string) $cat_cfg['option_type'] : '';
+        if ($opt_type === 'text_title') {
+            $store_in_title = true;
+        } elseif (in_array($opt_type, ['text_translation', 'text_audio'], true)) {
+            $store_in_title = false;
+        }
+    }
+    return $store_in_title;
+}
+
+// AJAX: update word title/translation text after transcription/manual edits
+add_action('wp_ajax_ll_update_new_word_text', 'll_update_new_word_text_handler');
+function ll_update_new_word_text_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $word_id = intval($_POST['word_id'] ?? 0);
+    if (!$word_id) {
+        wp_send_json_error('Missing word ID');
+    }
+
+    $word_post = get_post($word_id);
+    if (!$word_post || $word_post->post_type !== 'words') {
+        wp_send_json_error('Invalid word ID');
+    }
+
+    $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
+    $target_text = ll_sanitize_word_title_text($target_text_raw);
+    $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
+    $translation_text = trim($translation_text);
+
+    $store_in_title = ll_tools_should_store_word_in_title($word_id);
+    $new_title = $word_post->post_title;
+    if ($store_in_title && $target_text !== '') {
+        $new_title = $target_text;
+    } elseif (!$store_in_title && $translation_text !== '') {
+        $new_title = $translation_text;
+    }
+
+    if ($new_title !== $word_post->post_title) {
+        wp_update_post([
+            'ID'         => $word_id,
+            'post_title' => $new_title,
+        ]);
+    }
+
+    if ($store_in_title) {
+        if ($translation_text !== '') {
+            update_post_meta($word_id, 'word_translation', $translation_text);
+        }
+    } else {
+        if ($target_text !== '') {
+            update_post_meta($word_id, 'word_translation', $target_text);
+        }
+    }
+
+    $saved_translation = get_post_meta($word_id, 'word_translation', true);
+    if ($saved_translation === '') {
+        $saved_translation = get_post_meta($word_id, 'word_english_meaning', true);
+    }
+
+    wp_send_json_success([
+        'word_id'         => $word_id,
+        'post_title'      => $new_title,
+        'word_translation'=> $saved_translation,
+        'store_in_title'  => $store_in_title,
+    ]);
+}
+
+// AJAX: transcribe a recording with AssemblyAI, optionally translate via DeepL
+add_action('wp_ajax_ll_transcribe_recording', 'll_transcribe_recording_handler');
+function ll_transcribe_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    if (empty($_FILES['audio'])) {
+        wp_send_json_error('Missing audio file');
+    }
+
+    $posted_ids = [];
+    if (isset($_POST['wordset_ids'])) {
+        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
+        if (is_array($decoded)) {
+            $posted_ids = array_map('intval', $decoded);
+        }
+    }
+    $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
+    if (empty($posted_ids)) {
+        $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
+
+    if (!function_exists('ll_tools_assemblyai_transcribe_audio_file')) {
+        wp_send_json_error('AssemblyAI integration not available');
+    }
+
+    $result = ll_tools_assemblyai_transcribe_audio_file($_FILES['audio']['tmp_name'], $language_code);
+    if (is_wp_error($result)) {
+        $code = $result->get_error_code();
+        $message = $result->get_error_message();
+        wp_send_json_error([
+            'code' => $code,
+            'message' => $message,
+        ]);
+    }
+
+    $transcript = sanitize_text_field($result['text'] ?? '');
+    if ($transcript === '') {
+        wp_send_json_error('No transcript text returned');
+    }
+    $trimmed = trim($transcript);
+    $word_count = $trimmed === '' ? 0 : count(preg_split('/\s+/', $trimmed));
+    if ($word_count > 0 && $word_count <= 3) {
+        $transcript = preg_replace('/\.\s*$/', '', $trimmed);
+    }
+
+    $translation = '';
+    $source_lang = '';
+    $target_lang = '';
+    $has_deepl = ((string) get_option('ll_deepl_api_key') !== '');
+    if ($has_deepl && function_exists('translate_with_deepl')) {
+        [$source_lang, $target_lang] = ll_tools_get_deepl_language_codes($posted_ids);
+        if ($target_lang !== '') {
+            $translated = translate_with_deepl($transcript, $target_lang, $source_lang);
+            if ($translated !== null) {
+                $translation = sanitize_text_field($translated);
+            }
+        }
+    }
+
+    wp_send_json_success([
+        'transcript'      => $transcript,
+        'translation'     => $translation,
+        'source_language' => $source_lang,
+        'target_language' => $target_lang,
+        'language_code'   => $language_code,
+    ]);
+}
+
+// AJAX: translate text via DeepL (manual fallback)
+add_action('wp_ajax_ll_translate_recording_text', 'll_translate_recording_text_handler');
+function ll_translate_recording_text_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $text = sanitize_text_field($_POST['text'] ?? '');
+    if ($text === '') {
+        wp_send_json_error('Missing text');
+    }
+
+    $has_deepl = ((string) get_option('ll_deepl_api_key') !== '');
+    if (!$has_deepl || !function_exists('translate_with_deepl')) {
+        wp_send_json_error([
+            'code' => 'missing_key',
+            'message' => 'DeepL API key not configured',
+        ]);
+    }
+
+    $posted_ids = [];
+    if (isset($_POST['wordset_ids'])) {
+        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
+        if (is_array($decoded)) {
+            $posted_ids = array_map('intval', $decoded);
+        }
+    }
+    $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
+    if (empty($posted_ids)) {
+        $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    [$source_lang, $target_lang] = ll_tools_get_deepl_language_codes($posted_ids);
+    if ($target_lang === '') {
+        wp_send_json_error('Translation language is not configured');
+    }
+
+    $translated = translate_with_deepl($text, $target_lang, $source_lang);
+    if ($translated === null) {
+        wp_send_json_error('Translation failed');
+    }
+
+    wp_send_json_success([
+        'translation'     => sanitize_text_field($translated),
+        'source_language' => $source_lang,
+        'target_language' => $target_lang,
     ]);
 }
 

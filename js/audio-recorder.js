@@ -10,6 +10,21 @@
     let currentBlob = null;
     let newWordMode = false;
     let newWordStage = 'inactive';
+    let newWordUsingPanel = false;
+    let newWordPrepared = false;
+    let newWordTranscriptionDone = false;
+    let newWordTranscriptionInFlight = false;
+    let newWordTranslationInFlight = false;
+    let newWordAutoCancelled = false;
+    let newWordTranscribeAbort = null;
+    let newWordTranslateAbort = null;
+    let newWordAutoHideTimer = null;
+    let suppressNextScroll = false;
+    let newWordCategoryTypeCache = {};
+    let newWordCategoryTypeAbort = null;
+    let newWordLastSaved = { target: '', translation: '' };
+    let lastTranslationSource = '';
+    let activeRecordingControls = null;
     let savedExistingState = null;
     let lastNewWordCategory = null;
     let processingState = null;
@@ -22,6 +37,8 @@
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
+    const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
+    const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
     const processingDefaults = {
         enableTrim: true,
         enableNoise: true,
@@ -55,11 +72,17 @@
         if (window.llRecorder && window.llRecorder.recordBtn) {
             window.llRecorder.recordBtn.innerHTML = icons.record;
         }
+        if (window.llRecorder && window.llRecorder.newWordRecordBtn) {
+            window.llRecorder.newWordRecordBtn.innerHTML = icons.record;
+        }
         if (window.llRecorder && window.llRecorder.reviewRedoBtn) {
             window.llRecorder.reviewRedoBtn.innerHTML = icons.redo;
         }
         if (window.llRecorder && window.llRecorder.reviewSubmitBtn) {
             window.llRecorder.reviewSubmitBtn.innerHTML = icons.check;
+        }
+        if (window.llRecorder && window.llRecorder.newWordRedoBtn) {
+            window.llRecorder.newWordRedoBtn.innerHTML = icons.redo;
         }
     }
 
@@ -86,7 +109,10 @@
             recordingTypeSelect: document.getElementById('ll-recording-type'),
             newWordToggle: document.getElementById('ll-new-word-toggle'),
             newWordPanel: document.querySelector('.ll-new-word-panel'),
-            newWordStatus: document.getElementById('ll-new-word-status'),
+            newWordAutoStatus: document.getElementById('ll-new-word-auto-status'),
+            newWordAutoIcon: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-icon'),
+            newWordAutoSpinner: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-spinner'),
+            newWordAutoCancel: document.getElementById('ll-new-word-auto-cancel'),
             newWordCategory: document.getElementById('ll-new-word-category'),
             newWordCreateCategory: document.getElementById('ll-new-word-create-category'),
             newWordCategoryName: document.getElementById('ll-new-word-category-name'),
@@ -96,11 +122,58 @@
             newWordTextTranslation: document.getElementById('ll-new-word-text-translation'),
             newWordStartBtn: document.getElementById('ll-new-word-start'),
             newWordBackBtn: document.getElementById('ll-new-word-back'),
+            newWordRecordBtn: document.getElementById('ll-new-word-record-btn'),
+            newWordRecordingIndicator: document.getElementById('ll-new-word-recording-indicator'),
+            newWordRecordingTimer: document.getElementById('ll-new-word-recording-timer'),
+            newWordRecordingType: document.getElementById('ll-new-word-recording-type'),
+            newWordRecordingTypeLabel: document.getElementById('ll-new-word-recording-type-label'),
+            newWordPlaybackControls: document.getElementById('ll-new-word-playback-controls'),
+            newWordPlaybackAudio: document.getElementById('ll-new-word-playback-audio'),
+            newWordRedoBtn: document.getElementById('ll-new-word-redo-btn'),
             processingReview: document.getElementById('ll-recording-review'),
             reviewContainer: document.getElementById('ll-review-files-container'),
             reviewRedoBtn: document.getElementById('ll-review-redo'),
             reviewSubmitBtn: document.getElementById('ll-review-submit'),
         };
+    }
+
+    function isNewWordPanelActive() {
+        return newWordMode && newWordUsingPanel;
+    }
+
+    function getActiveControls() {
+        const el = window.llRecorder;
+        const isNewWord = isNewWordPanelActive();
+        if (isNewWord) {
+            return {
+                isNewWordPanel: true,
+                recordBtn: el.newWordRecordBtn,
+                indicator: el.newWordRecordingIndicator,
+                timer: el.newWordRecordingTimer,
+                playbackControls: el.newWordPlaybackControls,
+                playbackAudio: el.newWordPlaybackAudio,
+                redoBtn: el.newWordRedoBtn,
+                skipBtn: null,
+            };
+        }
+        return {
+            isNewWordPanel: false,
+            recordBtn: el.recordBtn,
+            indicator: el.indicator,
+            timer: el.timer,
+            playbackControls: el.playbackControls,
+            playbackAudio: el.playbackAudio,
+            redoBtn: el.redoBtn,
+            skipBtn: el.skipBtn,
+        };
+    }
+
+    function setNewWordActionState(disabled) {
+        const el = window.llRecorder;
+        if (el.newWordStartBtn) el.newWordStartBtn.disabled = !!disabled;
+        if (el.newWordBackBtn) el.newWordBackBtn.disabled = !!disabled;
+        if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = !!disabled;
+        if (el.newWordRedoBtn) el.newWordRedoBtn.disabled = !!disabled;
     }
 
     function setupCategorySelector() {
@@ -123,7 +196,16 @@
             el.newWordBackBtn.addEventListener('click', exitNewWordMode);
         }
         if (el.newWordStartBtn) {
-            el.newWordStartBtn.addEventListener('click', prepareNewWordRecording);
+            el.newWordStartBtn.addEventListener('click', handleNewWordSave);
+        }
+        if (el.newWordRecordBtn) {
+            el.newWordRecordBtn.addEventListener('click', handleNewWordRecordToggle);
+        }
+        if (el.newWordRedoBtn) {
+            el.newWordRedoBtn.addEventListener('click', redo);
+        }
+        if (el.newWordAutoCancel) {
+            el.newWordAutoCancel.addEventListener('click', cancelNewWordAuto);
         }
         if (el.newWordCreateCategory) {
             el.newWordCreateCategory.addEventListener('change', toggleNewCategoryFields);
@@ -131,6 +213,36 @@
         if (el.newWordCategory) {
             el.newWordCategory.addEventListener('change', () => {
                 lastNewWordCategory = el.newWordCategory.value || lastNewWordCategory;
+                updateNewWordRecordingTypeLabel();
+                if (!el.newWordCreateCategory?.checked && el.newWordCategory.value) {
+                    requestNewWordCategoryTypes(el.newWordCategory.value);
+                }
+            });
+        }
+        if (el.newWordTypesWrap) {
+            el.newWordTypesWrap.addEventListener('change', event => {
+                if (event.target && event.target.matches('input[type="checkbox"]')) {
+                    updateNewWordRecordingTypeLabel();
+                }
+            });
+        }
+        if (el.newWordTextTarget) {
+            el.newWordTextTarget.addEventListener('input', () => {
+                el.newWordTextTarget.dataset.llManual = '1';
+                clearNewWordFieldError(el.newWordTextTarget);
+            });
+            el.newWordTextTarget.addEventListener('blur', handleTargetBlur);
+        }
+        if (el.newWordTextTranslation) {
+            el.newWordTextTranslation.addEventListener('input', () => {
+                el.newWordTextTranslation.dataset.llManual = '1';
+                clearNewWordFieldError(el.newWordTextTranslation);
+            });
+            el.newWordTextTranslation.addEventListener('blur', handleTranslationBlur);
+        }
+        if (el.newWordCategoryName) {
+            el.newWordCategoryName.addEventListener('input', () => {
+                clearNewWordFieldError(el.newWordCategoryName);
             });
         }
     }
@@ -172,6 +284,15 @@
         }
         newWordMode = true;
         newWordStage = 'setup';
+        newWordUsingPanel = true;
+        newWordPrepared = false;
+        newWordTranscriptionDone = false;
+        newWordTranscriptionInFlight = false;
+        newWordTranslationInFlight = false;
+        newWordAutoCancelled = false;
+        newWordLastSaved = { target: '', translation: '' };
+        lastTranslationSource = '';
+        activeRecordingControls = null;
         showNewWordPanel();
     }
 
@@ -179,6 +300,16 @@
         const el = window.llRecorder;
         newWordMode = false;
         newWordStage = 'inactive';
+        newWordUsingPanel = false;
+        newWordPrepared = false;
+        newWordTranscriptionDone = false;
+        newWordTranscriptionInFlight = false;
+        newWordTranslationInFlight = false;
+        newWordAutoCancelled = false;
+        newWordLastSaved = { target: '', translation: '' };
+        activeRecordingControls = null;
+        resetNewWordAutoState();
+        syncProcessingReviewSlot();
         if (el.newWordPanel) el.newWordPanel.style.display = 'none';
         if (el.newWordToggle) el.newWordToggle.disabled = false;
         if (el.categorySelect) el.categorySelect.disabled = false;
@@ -227,28 +358,44 @@
 
     function showNewWordPanel() {
         const el = window.llRecorder;
+        newWordUsingPanel = true;
         if (el.mainScreen) el.mainScreen.style.display = 'none';
         if (el.completeScreen) el.completeScreen.style.display = 'none';
         if (el.newWordPanel) el.newWordPanel.style.display = 'block';
         if (el.categorySelect) el.categorySelect.disabled = true;
         if (el.newWordToggle) el.newWordToggle.disabled = true;
         resetNewWordForm();
+        syncProcessingReviewSlot();
+        scrollToTop();
     }
 
     function resetNewWordForm() {
         const el = window.llRecorder;
-        if (el.newWordStatus) {
-            el.newWordStatus.textContent = '';
-            el.newWordStatus.className = 'll-new-word-status';
-        }
+        newWordPrepared = false;
+        newWordTranscriptionDone = false;
+        newWordTranscriptionInFlight = false;
+        newWordTranslationInFlight = false;
+        newWordAutoCancelled = false;
+        activeRecordingControls = null;
+        currentBlob = null;
+        audioChunks = [];
+        processingState = null;
+        lastTranslationSource = '';
+        newWordLastSaved = { target: '', translation: '' };
+        resetNewWordAutoState();
         if (el.newWordTextTarget) {
             el.newWordTextTarget.value = '';
+            delete el.newWordTextTarget.dataset.llManual;
+            clearNewWordFieldError(el.newWordTextTarget);
         }
         if (el.newWordTextTranslation) {
             el.newWordTextTranslation.value = '';
+            delete el.newWordTextTranslation.dataset.llManual;
+            clearNewWordFieldError(el.newWordTextTranslation);
         }
         if (el.newWordCategoryName) {
             el.newWordCategoryName.value = '';
+            clearNewWordFieldError(el.newWordCategoryName);
         }
         if (el.newWordCreateCategory) {
             el.newWordCreateCategory.checked = false;
@@ -274,6 +421,48 @@
                 chk.checked = (chk.value === 'isolation');
             });
         }
+        if (el.newWordRecordBtn) {
+            el.newWordRecordBtn.style.display = 'inline-flex';
+            el.newWordRecordBtn.classList.remove('recording');
+            el.newWordRecordBtn.disabled = false;
+            el.newWordRecordBtn.innerHTML = icons.record;
+        }
+        if (el.newWordRecordingIndicator) {
+            el.newWordRecordingIndicator.style.display = 'none';
+        }
+        if (el.newWordRecordingTimer) {
+            el.newWordRecordingTimer.textContent = '0:00';
+        }
+        if (el.newWordRecordingType) {
+            el.newWordRecordingType.style.display = 'none';
+        }
+        if (el.newWordRecordingTypeLabel) {
+            el.newWordRecordingTypeLabel.textContent = '';
+        }
+        if (el.newWordPlaybackControls) {
+            el.newWordPlaybackControls.style.display = 'none';
+        }
+        if (el.newWordPlaybackAudio) {
+            el.newWordPlaybackAudio.removeAttribute('src');
+        }
+        if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
+        if (el.newWordBackBtn) el.newWordBackBtn.disabled = false;
+        updateNewWordRecordingTypeLabel();
+    }
+
+    function clearNewWordTextFields() {
+        const el = window.llRecorder;
+        if (el.newWordTextTarget) {
+            el.newWordTextTarget.value = '';
+            delete el.newWordTextTarget.dataset.llManual;
+            clearNewWordFieldError(el.newWordTextTarget);
+        }
+        if (el.newWordTextTranslation) {
+            el.newWordTextTranslation.value = '';
+            delete el.newWordTextTranslation.dataset.llManual;
+            clearNewWordFieldError(el.newWordTextTranslation);
+        }
+        lastTranslationSource = '';
     }
 
     function toggleNewCategoryFields() {
@@ -287,15 +476,616 @@
         }
         if (enabled && el.newWordCategoryName) {
             el.newWordCategoryName.focus();
+        } else if (el.newWordCategoryName) {
+            clearNewWordFieldError(el.newWordCategoryName);
+        }
+        updateNewWordRecordingTypeLabel();
+    }
+
+    function markNewWordFieldError(field) {
+        if (!field) return;
+        field.classList.add('ll-field-error');
+        field.setAttribute('aria-invalid', 'true');
+        field.focus();
+    }
+
+    function clearNewWordFieldError(field) {
+        if (!field) return;
+        field.classList.remove('ll-field-error');
+        field.removeAttribute('aria-invalid');
+    }
+
+    function setNewWordTextFieldsDisabled(disabled) {
+        const el = window.llRecorder;
+        if (el.newWordTextTarget) el.newWordTextTarget.disabled = !!disabled;
+        if (el.newWordTextTranslation) el.newWordTextTranslation.disabled = !!disabled;
+    }
+
+    function clearNewWordAutoTimer() {
+        if (newWordAutoHideTimer) {
+            clearTimeout(newWordAutoHideTimer);
+            newWordAutoHideTimer = null;
         }
     }
 
-    function showNewWordStatus(message, type) {
+    function hideNewWordAutoStatus() {
         const el = window.llRecorder;
-        if (!el.newWordStatus) return;
-        el.newWordStatus.textContent = message || '';
-        el.newWordStatus.className = 'll-new-word-status';
-        if (type) el.newWordStatus.classList.add(type);
+        if (!el.newWordAutoStatus) return;
+        el.newWordAutoStatus.style.display = 'none';
+        el.newWordAutoStatus.classList.remove('is-loading', 'is-error', 'is-success');
+        el.newWordAutoStatus.removeAttribute('aria-label');
+        el.newWordAutoStatus.removeAttribute('title');
+        el.newWordAutoStatus.setAttribute('aria-busy', 'false');
+    }
+
+    function updateNewWordAutoUI() {
+        const el = window.llRecorder;
+        if (!el.newWordAutoStatus) return;
+
+        const busy = (newWordTranscriptionInFlight || newWordTranslationInFlight) && !newWordAutoCancelled;
+        if (!busy) {
+            setNewWordTextFieldsDisabled(false);
+            if (
+                !newWordTranscriptionInFlight
+                && !newWordTranslationInFlight
+                && !el.newWordAutoStatus.classList.contains('is-error')
+                && !el.newWordAutoStatus.classList.contains('is-success')
+            ) {
+                hideNewWordAutoStatus();
+            }
+            return;
+        }
+
+        clearNewWordAutoTimer();
+        const label = newWordTranscriptionInFlight
+            ? (i18n.transcribing || 'Transcribing...')
+            : (i18n.translating || 'Translating...');
+
+        el.newWordAutoStatus.style.display = 'inline-flex';
+        el.newWordAutoStatus.classList.add('is-loading');
+        el.newWordAutoStatus.classList.remove('is-error', 'is-success');
+        el.newWordAutoStatus.setAttribute('aria-busy', 'true');
+        if (label) {
+            el.newWordAutoStatus.setAttribute('aria-label', label);
+            el.newWordAutoStatus.title = label;
+        }
+        if (el.newWordAutoSpinner) el.newWordAutoSpinner.style.display = 'inline-block';
+        if (el.newWordAutoCancel) el.newWordAutoCancel.style.display = 'inline-flex';
+        setNewWordTextFieldsDisabled(true);
+    }
+
+    function flashNewWordAutoStatus(state, label, timeout = 2400) {
+        const el = window.llRecorder;
+        if (!el.newWordAutoStatus) return;
+
+        clearNewWordAutoTimer();
+        el.newWordAutoStatus.style.display = 'inline-flex';
+        el.newWordAutoStatus.classList.remove('is-loading', 'is-error', 'is-success');
+        if (state) el.newWordAutoStatus.classList.add(`is-${state}`);
+        el.newWordAutoStatus.setAttribute('aria-busy', 'false');
+        if (label) {
+            el.newWordAutoStatus.setAttribute('aria-label', label);
+            el.newWordAutoStatus.title = label;
+        }
+        if (el.newWordAutoSpinner) el.newWordAutoSpinner.style.display = 'none';
+        if (el.newWordAutoCancel) el.newWordAutoCancel.style.display = 'none';
+
+        if (timeout > 0) {
+            newWordAutoHideTimer = setTimeout(() => {
+                if (!newWordTranscriptionInFlight && !newWordTranslationInFlight) {
+                    hideNewWordAutoStatus();
+                }
+            }, timeout);
+        }
+    }
+
+    function cancelNewWordAuto() {
+        newWordAutoCancelled = true;
+        if (newWordTranscriptionInFlight) {
+            newWordTranscriptionDone = true;
+        }
+        if (newWordTranscribeAbort) {
+            newWordTranscribeAbort.abort();
+            newWordTranscribeAbort = null;
+        }
+        if (newWordTranslateAbort) {
+            newWordTranslateAbort.abort();
+            newWordTranslateAbort = null;
+        }
+        newWordTranscriptionInFlight = false;
+        newWordTranslationInFlight = false;
+        updateNewWordAutoUI();
+    }
+
+    function resetNewWordAutoState() {
+        clearNewWordAutoTimer();
+        if (newWordTranscribeAbort) {
+            newWordTranscribeAbort.abort();
+            newWordTranscribeAbort = null;
+        }
+        if (newWordTranslateAbort) {
+            newWordTranslateAbort.abort();
+            newWordTranslateAbort = null;
+        }
+        hideNewWordAutoStatus();
+        setNewWordTextFieldsDisabled(false);
+    }
+
+    function scrollToTop() {
+        const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const behavior = prefersReduced ? 'auto' : 'smooth';
+        try {
+            window.scrollTo({ top: 0, behavior });
+        } catch (_) {
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+        }
+    }
+
+    function getReviewSlots() {
+        return {
+            main: document.getElementById('ll-recording-review-slot'),
+            newWord: document.getElementById('ll-new-word-review-slot'),
+        };
+    }
+
+    function toggleReviewSubmitVisibility(hide) {
+        const el = window.llRecorder;
+        if (!el.reviewSubmitBtn) return;
+        el.reviewSubmitBtn.style.display = hide ? 'none' : '';
+    }
+
+    function moveProcessingReviewToNewWordSlot() {
+        const el = window.llRecorder;
+        if (!el?.processingReview) return;
+        const slots = getReviewSlots();
+        if (!slots.newWord) return;
+        if (!slots.newWord.contains(el.processingReview)) {
+            slots.newWord.appendChild(el.processingReview);
+        }
+        toggleReviewSubmitVisibility(true);
+    }
+
+    function moveProcessingReviewToMainSlot() {
+        const el = window.llRecorder;
+        if (!el?.processingReview) return;
+        const slots = getReviewSlots();
+        if (!slots.main) return;
+        if (!slots.main.contains(el.processingReview)) {
+            slots.main.appendChild(el.processingReview);
+        }
+        toggleReviewSubmitVisibility(false);
+    }
+
+    function syncProcessingReviewSlot() {
+        if (newWordMode && newWordUsingPanel) {
+            moveProcessingReviewToNewWordSlot();
+        } else {
+            moveProcessingReviewToMainSlot();
+        }
+    }
+
+    async function handleNewWordRecordToggle() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+            return;
+        }
+        const shouldSuppressScroll = !newWordPrepared;
+        if (shouldSuppressScroll) {
+            suppressNextScroll = true;
+        }
+        const ready = await prepareNewWordRecording({ keepPanel: true });
+        if (!ready) {
+            if (shouldSuppressScroll) {
+                suppressNextScroll = false;
+            }
+            return;
+        }
+        await startRecording();
+    }
+
+    async function handleNewWordSave() {
+        submitAndNext();
+    }
+
+    function handleTargetBlur() {
+        const el = window.llRecorder;
+        if (!el.newWordTextTarget) return;
+        if (newWordTranscriptionInFlight || newWordTranslationInFlight) return;
+        const text = (el.newWordTextTarget.value || '').trim();
+        if (newWordPrepared) {
+            maybeUpdateNewWordText();
+        }
+        if (!text || !hasDeepl) return;
+        const translationField = el.newWordTextTranslation;
+        if (!translationField) return;
+        if ((translationField.value || '').trim() !== '') return;
+        if (translationField.dataset.llManual === '1') return;
+        if (text === lastTranslationSource) return;
+        maybeTranslateTargetText(text);
+    }
+
+    function handleTranslationBlur() {
+        if (newWordTranscriptionInFlight || newWordTranslationInFlight) return;
+        if (newWordPrepared) {
+            maybeUpdateNewWordText();
+        }
+    }
+
+    async function maybeUpdateNewWordText(force) {
+        if (!newWordPrepared) return true;
+        const el = window.llRecorder;
+        const targetText = (el.newWordTextTarget?.value || '').trim();
+        const translationText = (el.newWordTextTranslation?.value || '').trim();
+        if (!force && targetText === newWordLastSaved.target && translationText === newWordLastSaved.translation) {
+            return true;
+        }
+
+        const wordId = images[currentImageIndex]?.word_id || images[0]?.word_id || 0;
+        if (!wordId) {
+            flashNewWordAutoStatus('error', i18n.new_word_failed || 'New word setup failed:');
+            return false;
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'll_update_new_word_text');
+        formData.append('nonce', nonce);
+        formData.append('word_id', wordId);
+        formData.append('word_text_target', targetText);
+        formData.append('word_text_translation', translationText);
+
+        try {
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.data || data.message || 'Failed to update word text');
+            }
+            const responseData = data.data || {};
+            const postTitle = typeof responseData.post_title === 'string' ? responseData.post_title : '';
+            const savedTranslation = typeof responseData.word_translation === 'string' ? responseData.word_translation : '';
+            const storeInTitle = typeof responseData.store_in_title === 'boolean' ? responseData.store_in_title : null;
+
+            newWordLastSaved = { target: targetText, translation: translationText };
+            applyNewWordTextToState({
+                targetText,
+                translationText,
+                postTitle,
+                savedTranslation,
+                storeInTitle
+            });
+            refreshCurrentImageDisplay();
+            return true;
+        } catch (err) {
+            flashNewWordAutoStatus('error', (i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''));
+            return false;
+        }
+    }
+
+    function applyNewWordTextToState(payload) {
+        const img = images[currentImageIndex];
+        if (!img) return;
+
+        const targetText = payload?.targetText || '';
+        const translationText = payload?.translationText || '';
+        const postTitle = payload?.postTitle || '';
+        const savedTranslation = payload?.savedTranslation;
+        const storeInTitle = typeof payload?.storeInTitle === 'boolean' ? payload.storeInTitle : null;
+
+        const resolvedTitle = postTitle
+            || (storeInTitle === false ? (translationText || targetText) : (targetText || translationText));
+
+        if (resolvedTitle) {
+            img.title = resolvedTitle;
+            img.word_title = resolvedTitle;
+        }
+
+        if (typeof savedTranslation === 'string' && savedTranslation !== '') {
+            img.word_translation = savedTranslation;
+        } else if (typeof translationText === 'string') {
+            img.word_translation = translationText;
+        }
+
+        img.use_word_display = true;
+    }
+
+    function getBlobExtension(mimeType) {
+        const blobType = (mimeType || '').toLowerCase();
+        if (blobType.includes('wav')) return '.wav';
+        if (blobType.includes('pcm')) return '.wav';
+        if (blobType.includes('mpeg') || blobType.includes('mp3')) return '.mp3';
+        if (blobType.includes('mp4')) return '.mp4';
+        if (blobType.includes('aac')) return '.aac';
+        return '.webm';
+    }
+
+    async function maybeTranslateTargetText(text) {
+        const el = window.llRecorder;
+        if (!hasDeepl || !text) return;
+        if (newWordTranslationInFlight) return;
+
+        newWordAutoCancelled = false;
+        newWordTranslationInFlight = true;
+        if (newWordTranslateAbort) {
+            newWordTranslateAbort.abort();
+        }
+        const translateController = new AbortController();
+        newWordTranslateAbort = translateController;
+        updateNewWordAutoUI();
+
+        const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
+        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
+
+        const formData = new FormData();
+        formData.append('action', 'll_translate_recording_text');
+        formData.append('nonce', nonce);
+        formData.append('text', text);
+        formData.append('wordset_ids', JSON.stringify(wordsetIds));
+        formData.append('wordset', wordsetLegacy);
+
+        try {
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+                signal: translateController.signal
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                const message = data.data?.message || data.data || data.message || 'Translation failed';
+                throw new Error(message);
+            }
+
+            if (newWordAutoCancelled || translateController.signal.aborted) {
+                return;
+            }
+
+            const translation = data.data?.translation || '';
+            if (translation && el.newWordTextTranslation) {
+                if ((el.newWordTextTranslation.value || '').trim() === '' && el.newWordTextTranslation.dataset.llManual !== '1') {
+                    el.newWordTextTranslation.value = translation;
+                    el.newWordTextTranslation.dataset.llManual = '0';
+                }
+            }
+            lastTranslationSource = text;
+            if (newWordPrepared) {
+                await maybeUpdateNewWordText(true);
+            }
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                return;
+            }
+            flashNewWordAutoStatus('error', (i18n.translation_failed || 'Translation failed:') + ' ' + (err.message || ''));
+        } finally {
+            newWordTranslationInFlight = false;
+            if (newWordTranslateAbort === translateController) {
+                newWordTranslateAbort = null;
+            }
+            updateNewWordAutoUI();
+        }
+    }
+
+    async function maybeTranscribeNewWordRecording(blob) {
+        if (!blob || !isNewWordPanelActive() || newWordTranscriptionDone || newWordTranscriptionInFlight) return;
+        const el = window.llRecorder;
+
+        if (!hasAssemblyAI) {
+            newWordTranscriptionDone = true;
+            return;
+        }
+
+        newWordAutoCancelled = false;
+        newWordTranscriptionInFlight = true;
+        if (newWordTranscribeAbort) {
+            newWordTranscribeAbort.abort();
+        }
+        const transcribeController = new AbortController();
+        newWordTranscribeAbort = transcribeController;
+        updateNewWordAutoUI();
+
+        const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
+        const wordsetLegacy = window.ll_recorder_data?.wordset || '';
+        const filename = `recording${getBlobExtension(blob?.type || '')}`;
+
+        const formData = new FormData();
+        formData.append('action', 'll_transcribe_recording');
+        formData.append('nonce', nonce);
+        formData.append('audio', blob, filename);
+        formData.append('wordset_ids', JSON.stringify(wordsetIds));
+        formData.append('wordset', wordsetLegacy);
+
+        try {
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+                signal: transcribeController.signal
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                const message = data.data?.message || data.data || data.message || 'Transcription failed';
+                throw new Error(message);
+            }
+
+            if (newWordAutoCancelled || transcribeController.signal.aborted) {
+                return;
+            }
+
+            const transcript = (data.data?.transcript || '').trim();
+            const translation = (data.data?.translation || '').trim();
+
+            if (transcript && el.newWordTextTarget) {
+                if ((el.newWordTextTarget.value || '').trim() === '' || el.newWordTextTarget.dataset.llManual !== '1') {
+                    el.newWordTextTarget.value = transcript;
+                    el.newWordTextTarget.dataset.llManual = '0';
+                }
+            }
+
+            if (translation && el.newWordTextTranslation) {
+                if ((el.newWordTextTranslation.value || '').trim() === '' || el.newWordTextTranslation.dataset.llManual !== '1') {
+                    el.newWordTextTranslation.value = translation;
+                    el.newWordTextTranslation.dataset.llManual = '0';
+                }
+            }
+
+            if (newWordPrepared) {
+                await maybeUpdateNewWordText(true);
+            }
+
+            newWordTranscriptionDone = true;
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                return;
+            }
+            flashNewWordAutoStatus('error', (i18n.transcription_failed || 'Transcription failed:') + ' ' + (err.message || ''));
+        } finally {
+            newWordTranscriptionInFlight = false;
+            if (newWordTranscribeAbort === transcribeController) {
+                newWordTranscribeAbort = null;
+            }
+            updateNewWordAutoUI();
+        }
+    }
+
+    function getRecordingTypeLabel(slug, typeList) {
+        if (!slug) return '';
+        const types = Array.isArray(typeList) && typeList.length
+            ? typeList
+            : (Array.isArray(window.ll_recorder_data?.recording_types)
+                ? window.ll_recorder_data.recording_types
+                : []);
+        const match = types.find(item => (typeof item === 'string' ? item : item?.slug) === slug);
+        if (typeof match === 'object' && match) {
+            return match.name || match.slug || slug;
+        }
+        if (typeof match === 'string') {
+            return match;
+        }
+        return slug.charAt(0).toUpperCase() + slug.slice(1);
+    }
+
+    function getNewWordCreateCategoryTypes() {
+        const el = window.llRecorder;
+        if (!el?.newWordTypesWrap) return { types: [], selected: [] };
+        const inputs = Array.from(el.newWordTypesWrap.querySelectorAll('input[type="checkbox"]'));
+        const types = inputs
+            .map(input => {
+                const label = input.closest('label');
+                const name = label ? label.textContent.replace(/\s+/g, ' ').trim() : '';
+                return { slug: input.value, name };
+            })
+            .filter(type => type.slug);
+        const selected = inputs
+            .filter(input => input.checked)
+            .map(input => input.value)
+            .filter(Boolean);
+        return { types, selected };
+    }
+
+    async function requestNewWordCategoryTypes(categorySlug) {
+        if (!ajaxUrl || !nonce || !categorySlug) return;
+        if (newWordCategoryTypeCache[categorySlug]) return;
+        if (newWordCategoryTypeAbort) {
+            newWordCategoryTypeAbort.abort();
+        }
+        const controller = new AbortController();
+        newWordCategoryTypeAbort = controller;
+
+        const formData = new FormData();
+        formData.append('action', 'll_get_recording_types_for_category');
+        formData.append('nonce', nonce);
+        formData.append('category', categorySlug);
+        formData.append('include_types', window.ll_recorder_data?.include_types || '');
+        formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
+
+        try {
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData, signal: controller.signal });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                return;
+            }
+            const types = Array.isArray(data.data?.recording_types) ? data.data.recording_types : [];
+            newWordCategoryTypeCache[categorySlug] = prioritizeIsolation(types);
+            updateNewWordRecordingTypeLabel();
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                return;
+            }
+        } finally {
+            if (newWordCategoryTypeAbort === controller) {
+                newWordCategoryTypeAbort = null;
+            }
+        }
+    }
+
+    function updateNewWordRecordingTypeLabel() {
+        const el = window.llRecorder;
+        if (!el?.newWordRecordingType || !el.newWordRecordingTypeLabel) return;
+
+        if (!isNewWordPanelActive()) {
+            el.newWordRecordingType.style.display = 'none';
+            return;
+        }
+
+        let slug = '';
+        let label = '';
+
+        if (newWordPrepared) {
+            const img = images[currentImageIndex];
+            const missing = Array.isArray(img?.missing_types) ? img.missing_types : [];
+            slug = el.recordingTypeSelect?.value || missing[0] || '';
+            label = getRecordingTypeLabel(slug);
+        } else if (el.newWordCreateCategory?.checked) {
+            const { types, selected } = getNewWordCreateCategoryTypes();
+            const prioritized = selected.length ? prioritizeIsolation(selected) : prioritizeIsolation(types);
+            const first = prioritized[0];
+            slug = typeof first === 'string' ? first : first?.slug || '';
+            label = getRecordingTypeLabel(slug, types);
+        } else {
+            const categorySlug = el.newWordCategory?.value || lastNewWordCategory || 'uncategorized';
+            const cached = newWordCategoryTypeCache[categorySlug];
+            if (Array.isArray(cached) && cached.length) {
+                const prioritized = prioritizeIsolation(cached);
+                const first = prioritized[0];
+                slug = typeof first === 'string' ? first : first?.slug || '';
+                label = getRecordingTypeLabel(slug, cached);
+            } else if (categorySlug) {
+                requestNewWordCategoryTypes(categorySlug);
+            }
+        }
+
+        if (!label) {
+            el.newWordRecordingType.style.display = 'none';
+            return;
+        }
+
+        el.newWordRecordingTypeLabel.textContent = label;
+        el.newWordRecordingType.style.display = 'inline-flex';
     }
 
     function updateRecordingTypeOptions(types) {
@@ -303,6 +1093,7 @@
         if (!el.recordingTypeSelect) return;
         el.recordingTypeSelect.innerHTML = '';
         if (!Array.isArray(types) || types.length === 0) {
+            updateNewWordRecordingTypeLabel();
             return;
         }
         if (types.length && typeof types[0] === 'object') {
@@ -319,17 +1110,34 @@
             option.textContent = label;
             el.recordingTypeSelect.appendChild(option);
         });
+        updateNewWordRecordingTypeLabel();
     }
 
-    async function prepareNewWordRecording() {
+    function prioritizeIsolation(list) {
+        if (!Array.isArray(list)) return list;
+        const hasIsolation = list.some(item => (typeof item === 'string' ? item : item?.slug) === 'isolation');
+        if (!hasIsolation) return list.slice();
+        return list.slice().sort((a, b) => {
+            const aSlug = (typeof a === 'string' ? a : a?.slug);
+            const bSlug = (typeof b === 'string' ? b : b?.slug);
+            if (aSlug === 'isolation') return -1;
+            if (bSlug === 'isolation') return 1;
+            return 0;
+        });
+    }
+
+    async function prepareNewWordRecording(options = {}) {
+        const { keepPanel = false } = options;
         const el = window.llRecorder;
-        if (!el.newWordPanel || !allowNewWords) return;
+        if (!el.newWordPanel || !allowNewWords) return false;
+        if (newWordPrepared) return true;
 
         const createCategory = !!el.newWordCreateCategory?.checked;
         const newCategoryName = (el.newWordCategoryName?.value || '').trim();
         if (createCategory && !newCategoryName) {
-            showNewWordStatus(i18n.new_word_missing_category || 'Enter a category name or disable "Create new category".', 'error');
-            return;
+            markNewWordFieldError(el.newWordCategoryName);
+            flashNewWordAutoStatus('error', i18n.new_word_missing_category || 'Enter a category name or disable "Create new category".');
+            return false;
         }
 
         const targetText = (el.newWordTextTarget?.value || '').trim();
@@ -337,9 +1145,9 @@
         const category = el.newWordCategory?.value || 'uncategorized';
         lastNewWordCategory = category;
 
-        showNewWordStatus(i18n.new_word_preparing || 'Preparing new word...', 'info');
         if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
         if (el.newWordBackBtn) el.newWordBackBtn.disabled = true;
+        if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = true;
 
         const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
@@ -386,7 +1194,10 @@
             if (!word) {
                 throw new Error('Missing word data');
             }
-            const recordingTypes = data.data?.recording_types || [];
+            const recordingTypes = prioritizeIsolation(data.data?.recording_types || []);
+            if (Array.isArray(word.missing_types)) {
+                word.missing_types = prioritizeIsolation(word.missing_types);
+            }
 
             if (data.data?.category?.slug && el.newWordCategory) {
                 const slug = data.data.category.slug;
@@ -408,37 +1219,63 @@
             currentImageIndex = 0;
             updateRecordingTypeOptions(recordingTypes);
 
-            newWordMode = true;
+            newWordPrepared = true;
             newWordStage = 'recording';
-            if (el.newWordPanel) el.newWordPanel.style.display = 'none';
-            if (el.mainScreen) el.mainScreen.style.display = 'flex';
+            newWordUsingPanel = !!keepPanel;
+            newWordTranscriptionDone = false;
+            newWordTranscriptionInFlight = false;
+            newWordLastSaved = { target: targetText, translation: translationText };
+
             if (el.categorySelect) el.categorySelect.disabled = true;
             if (el.newWordToggle) el.newWordToggle.disabled = true;
 
+            if (keepPanel) {
+                if (el.newWordPanel) el.newWordPanel.style.display = 'block';
+                if (el.mainScreen) el.mainScreen.style.display = 'none';
+            } else {
+                if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+                if (el.mainScreen) el.mainScreen.style.display = 'flex';
+            }
+            syncProcessingReviewSlot();
+
             loadImage(0);
-            showNewWordStatus('', '');
+            return true;
         } catch (err) {
-            showNewWordStatus((i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''), 'error');
+            flashNewWordAutoStatus('error', (i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''));
+            return false;
         } finally {
-            if (el.newWordStartBtn) el.newWordStartBtn.disabled = false;
+            if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
             if (el.newWordBackBtn) el.newWordBackBtn.disabled = false;
+            if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = false;
         }
     }
 
     // Fit text inside its container for text-only cards
-    function fitTextToContainer(el) {
+    function fitTextToContainer(el, attempt = 0) {
         if (!el) return;
         const card = el.closest('.flashcard-container');
         if (!card) return;
 
+        const rect = card.getBoundingClientRect();
+        if (rect.width <= 5 || rect.height <= 5) {
+            if (attempt < 4) {
+                requestAnimationFrame(() => fitTextToContainer(el, attempt + 1));
+            }
+            return;
+        }
+
+        const computed = getComputedStyle(el);
+        const paddingX = (parseFloat(computed.paddingLeft) || 0) + (parseFloat(computed.paddingRight) || 0);
+        const paddingY = (parseFloat(computed.paddingTop) || 0) + (parseFloat(computed.paddingBottom) || 0);
+
         // Match quiz sizing: measure available box and shrink until it fits
-        const boxH = Math.max(1, card.clientHeight - 15);
-        const boxW = Math.max(1, card.clientWidth - 15);
+        const boxH = Math.max(1, rect.height - paddingY);
+        const boxW = Math.max(1, rect.width - paddingX);
         const fontFamily = (window.LLFlashcards && LLFlashcards.Util && typeof LLFlashcards.Util.measureTextWidth === 'function')
             ? null
             : (getComputedStyle(el).fontFamily || 'sans-serif');
 
-        const measureWidth = (text, fs) => {
+        const measureWidth = (text, fs, nowrap) => {
             if (window.LLFlashcards && LLFlashcards.Util && typeof LLFlashcards.Util.measureTextWidth === 'function') {
                 return LLFlashcards.Util.measureTextWidth(text, fs + 'px ' + (fontFamily || getComputedStyle(el).fontFamily || 'sans-serif'));
             }
@@ -448,7 +1285,8 @@
             clone.style.position = 'absolute';
             clone.style.fontSize = fs + 'px';
             clone.style.lineHeight = fs + 'px';
-            clone.style.maxWidth = boxW + 'px';
+            clone.style.whiteSpace = nowrap ? 'nowrap' : 'normal';
+            clone.style.maxWidth = nowrap ? 'none' : rect.width + 'px';
             clone.style.width = 'auto';
             card.appendChild(clone);
             const w = clone.scrollWidth;
@@ -457,17 +1295,21 @@
         };
 
         const text = el.textContent || '';
+        const words = text.trim().split(/\s+/).filter(Boolean);
         const maxSize = 56;
         const minSize = 12;
         for (let fs = maxSize; fs >= minSize; fs--) {
-            const w = measureWidth(text, fs);
-            if (w > boxW) continue;
+            const longestWordWidth = words.length
+                ? Math.max(...words.map(word => measureWidth(word, fs, true)))
+                : measureWidth(text, fs, true);
+            if (longestWordWidth > boxW) continue;
             el.style.fontSize = fs + 'px';
             el.style.lineHeight = fs + 'px';
-            el.style.maxWidth = boxW + 'px';
+            el.style.maxWidth = rect.width + 'px';
             el.style.whiteSpace = 'normal';
-            el.style.wordBreak = 'break-word';
-            if (el.scrollHeight <= boxH) {
+            el.style.wordBreak = 'normal';
+            el.style.overflowWrap = 'break-word';
+            if ((el.scrollHeight - paddingY) <= boxH) {
                 break;
             }
         }
@@ -500,17 +1342,26 @@
             // Some themes/polyfills need a change event to redraw the visible part
             el.recordingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        updateNewWordRecordingTypeLabel();
     }
 
     function showStatus(message, type) {
         const el = window.llRecorder;
-        if (!el || !el.status) return;
+        if (!el) return;
+        if (isNewWordPanelActive()) {
+            if (type === 'error') {
+                flashNewWordAutoStatus('error', message);
+            }
+            return;
+        }
+        if (!el.status) return;
         el.status.textContent = message;
         el.status.className = 'll-upload-status';
         if (type) el.status.classList.add(type);
     }
 
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
+        const el = window.llRecorder;
         if (!Array.isArray(images[currentImageIndex].existing_types)) {
             images[currentImageIndex].existing_types = [];
         }
@@ -520,8 +1371,16 @@
         images[currentImageIndex].missing_types = remaining.slice();
 
         if (requireAll && remaining.length > 0) {
+            if (isNewWordPanelActive()) {
+                newWordUsingPanel = false;
+                if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+                if (el.mainScreen) el.mainScreen.style.display = 'flex';
+                syncProcessingReviewSlot();
+            }
             setTypeForCurrentImage();
             resetRecordingState();
+            refreshCurrentImageDisplay();
+            scrollToTop();
             showStatus(i18n.saved_next_type || 'Saved. Next type selected.', 'success');
             return true; // Signal that we're staying on this image
         }
@@ -529,6 +1388,7 @@
         const successMessage = autoProcessed
             ? (i18n.success_processed || 'Success! Recording published.')
             : (i18n.success || 'Success! Recording will be processed later.');
+        resetRecordingState();
         showStatus(successMessage, 'success');
         setTimeout(() => loadImage(currentImageIndex + 1), 800);
         return false; // Signal that we're moving to next image
@@ -536,15 +1396,18 @@
 
     function setupEventListeners() {
         const el = window.llRecorder;
-        el.recordBtn.addEventListener('click', toggleRecording);
-        el.redoBtn.addEventListener('click', redo);
-        el.submitBtn.addEventListener('click', submitAndNext);
-        el.skipBtn.addEventListener('click', skipToNext);
+        if (el.recordBtn) el.recordBtn.addEventListener('click', toggleRecording);
+        if (el.redoBtn) el.redoBtn.addEventListener('click', redo);
+        if (el.submitBtn) el.submitBtn.addEventListener('click', submitAndNext);
+        if (el.skipBtn) el.skipBtn.addEventListener('click', skipToNext);
         if (el.reviewRedoBtn) {
             el.reviewRedoBtn.addEventListener('click', redo);
         }
         if (el.reviewSubmitBtn) {
             el.reviewSubmitBtn.addEventListener('click', submitAndNext);
+        }
+        if (el.recordingTypeSelect) {
+            el.recordingTypeSelect.addEventListener('change', updateNewWordRecordingTypeLabel);
         }
     }
 
@@ -589,6 +1452,30 @@
         } catch (_) { /* ignore */ }
     }
 
+    function getDisplayTitleForImage(img) {
+        let displayTitle = decodeEntities(img?.title || '');
+        const targetLang = window.ll_recorder_data?.language || 'TR';
+        if (img?.use_word_display && img.word_title) {
+            displayTitle = decodeEntities(img.word_title);
+        } else if (img?.use_word_display && img.word_translation && img.word_translation.toLowerCase().includes(targetLang.toLowerCase())) {
+            displayTitle = decodeEntities(img.word_translation);
+        }
+        return displayTitle;
+    }
+
+    function refreshCurrentImageDisplay() {
+        const el = window.llRecorder;
+        const img = images[currentImageIndex];
+        if (!el || !img || !el.title) return;
+
+        const displayTitle = getDisplayTitleForImage(img);
+        el.title.textContent = displayTitle;
+        if (img.is_text_only && el.textDisplay) {
+            el.textDisplay.textContent = displayTitle;
+            requestAnimationFrame(() => fitTextToContainer(el.textDisplay));
+        }
+    }
+
     function loadImage(index) {
         if (index >= images.length) {
             showComplete();
@@ -596,8 +1483,14 @@
         }
 
         currentImageIndex = index;
+        if (suppressNextScroll) {
+            suppressNextScroll = false;
+        } else {
+            scrollToTop();
+        }
         const img = images[index];
         const el = window.llRecorder;
+        syncProcessingReviewSlot();
 
         el.currentNum.textContent = index + 1;
         el.totalNum.textContent = images.length;
@@ -611,7 +1504,7 @@
                 card.classList.add('text-based');
                 card.appendChild(el.textDisplay);
             }
-            el.textDisplay.style.display = 'flex';
+            el.textDisplay.style.display = 'block';
             el.imageContainer.querySelector('.flashcard-container').classList.add('text-based');
         } else {
             if (el.textDisplay) {
@@ -623,14 +1516,7 @@
             card.classList.remove('text-based');
         }
 
-        // NEW: Prefer word title over image title if available and matched
-        let displayTitle = decodeEntities(img.title); // Default to image title
-        const targetLang = window.ll_recorder_data?.language || 'TR'; // From localized data, e.g., 'TR'
-        if (img.use_word_display && img.word_title) {
-            displayTitle = decodeEntities(img.word_title); // Prefer word's target lang title
-        } else if (img.use_word_display && img.word_translation && img.word_translation.toLowerCase().includes(targetLang.toLowerCase())) {
-            displayTitle = decodeEntities(img.word_translation); // Use word's translation if it's in target lang
-        }
+        const displayTitle = getDisplayTitleForImage(img);
 
         el.title.textContent = displayTitle;
         if (img.is_text_only && el.textDisplay) {
@@ -670,17 +1556,31 @@
 
     function resetRecordingState() {
         const el = window.llRecorder;
-        el.recordBtn.style.display = 'inline-flex';
-        el.recordBtn.innerHTML = icons.record;
-        el.recordBtn.classList.remove('recording');
-        el.recordBtn.disabled = false;
-        el.skipBtn.disabled = false;
-        el.redoBtn.disabled = false;
-        el.submitBtn.disabled = false;
-        el.indicator.style.display = 'none';
-        el.playbackControls.style.display = 'none';
-        el.status.textContent = '';
-        el.status.className = 'll-upload-status';
+        if (el.recordBtn) {
+            el.recordBtn.style.display = 'inline-flex';
+            el.recordBtn.innerHTML = icons.record;
+            el.recordBtn.classList.remove('recording');
+            el.recordBtn.disabled = false;
+        }
+        if (el.skipBtn) el.skipBtn.disabled = false;
+        if (el.redoBtn) el.redoBtn.disabled = false;
+        if (el.submitBtn) el.submitBtn.disabled = false;
+        if (el.indicator) el.indicator.style.display = 'none';
+        if (el.playbackControls) el.playbackControls.style.display = 'none';
+        if (el.status) {
+            el.status.textContent = '';
+            el.status.className = 'll-upload-status';
+        }
+        if (el.newWordRecordBtn) {
+            el.newWordRecordBtn.style.display = 'inline-flex';
+            el.newWordRecordBtn.innerHTML = icons.record;
+            el.newWordRecordBtn.classList.remove('recording');
+            el.newWordRecordBtn.disabled = false;
+        }
+        if (el.newWordRecordingIndicator) el.newWordRecordingIndicator.style.display = 'none';
+        if (el.newWordPlaybackControls) el.newWordPlaybackControls.style.display = 'none';
+        if (el.newWordPlaybackAudio) el.newWordPlaybackAudio.removeAttribute('src');
+        if (el.newWordStartBtn && isNewWordPanelActive()) el.newWordStartBtn.disabled = true;
         if (el.processingReview) {
             el.processingReview.style.display = 'none';
         }
@@ -693,12 +1593,22 @@
         if (el.reviewRedoBtn) {
             el.reviewRedoBtn.disabled = false;
         }
-        if (!newWordMode && el.mainScreen) {
+        if (newWordMode) {
+            if (newWordUsingPanel) {
+                if (el.newWordPanel) el.newWordPanel.style.display = 'block';
+                if (el.mainScreen) el.mainScreen.style.display = 'none';
+            } else if (el.mainScreen) {
+                el.mainScreen.style.display = 'flex';
+                if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+            }
+        } else if (el.mainScreen) {
             el.mainScreen.style.display = 'flex';
+            if (el.newWordPanel) el.newWordPanel.style.display = 'none';
         }
         currentBlob = null;
         audioChunks = [];
         processingState = null;
+        activeRecordingControls = null;
     }
 
     async function toggleRecording() {
@@ -710,7 +1620,8 @@
     }
 
     async function startRecording() {
-        const el = window.llRecorder;
+        const controls = getActiveControls();
+        if (!controls || !controls.recordBtn) return;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -760,10 +1671,15 @@
             mediaRecorder.start();
             recordingStartTime = Date.now();
 
-            el.recordBtn.innerHTML = icons.stop;
-            el.recordBtn.classList.add('recording');
-            el.indicator.style.display = 'block';
-            el.skipBtn.disabled = true;
+            activeRecordingControls = controls;
+            controls.recordBtn.innerHTML = icons.stop;
+            controls.recordBtn.classList.add('recording');
+            if (controls.indicator) {
+                controls.indicator.style.display = 'block';
+            }
+            if (controls.skipBtn) {
+                controls.skipBtn.disabled = true;
+            }
 
             timerInterval = setInterval(updateTimer, 100);
 
@@ -774,9 +1690,10 @@
 
             const message = await buildMicErrorMessage(err);
             showStatus(message, 'error');
+            activeRecordingControls = null;
             // Make sure UI remains usable after failure
-            el.recordBtn.disabled = false;
-            el.skipBtn.disabled = false;
+            if (controls.recordBtn) controls.recordBtn.disabled = false;
+            if (controls.skipBtn) controls.skipBtn.disabled = false;
         }
     }
 
@@ -868,22 +1785,39 @@
         const elapsed = (Date.now() - recordingStartTime) / 1000;
         const minutes = Math.floor(elapsed / 60);
         const seconds = Math.floor(elapsed % 60);
-        window.llRecorder.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        const controls = activeRecordingControls || getActiveControls();
+        if (controls && controls.timer) {
+            controls.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
     }
 
     async function handleRecordingStopped() {
         const el = window.llRecorder;
+        const controls = activeRecordingControls || getActiveControls();
 
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         currentBlob = new Blob(audioChunks, { type: mimeType });
 
-        el.recordBtn.style.display = 'none';
-        el.recordBtn.disabled = true;
-        el.indicator.style.display = 'none';
-        el.skipBtn.disabled = false;
+        if (controls.recordBtn) {
+            controls.recordBtn.style.display = 'none';
+            controls.recordBtn.disabled = true;
+        }
+        if (controls.indicator) {
+            controls.indicator.style.display = 'none';
+        }
+        if (controls.skipBtn) {
+            controls.skipBtn.disabled = false;
+        }
+        if (isNewWordPanelActive() && el.newWordStartBtn) {
+            el.newWordStartBtn.disabled = false;
+        }
+
+        if (isNewWordPanelActive()) {
+            maybeTranscribeNewWordRecording(currentBlob);
+        }
 
         if (!autoProcessEnabled) {
-            showRawPlayback(currentBlob);
+            showRawPlayback(currentBlob, controls);
             return;
         }
 
@@ -914,29 +1848,34 @@
         }
     }
 
-    function showRawPlayback(blob) {
+    function showRawPlayback(blob, controlsOverride) {
         const el = window.llRecorder;
+        const controls = controlsOverride || getActiveControls();
         if (el.processingReview) {
             el.processingReview.style.display = 'none';
         }
         if (el.reviewContainer) {
             el.reviewContainer.innerHTML = '';
         }
-        if (el.mainScreen) {
+        if (!controls.isNewWordPanel && el.mainScreen) {
             el.mainScreen.style.display = 'flex';
         }
-        if (!el.playbackControls || !el.playbackAudio) {
+        if (!controls.playbackControls || !controls.playbackAudio) {
             return;
         }
 
         const url = URL.createObjectURL(blob);
-        el.playbackAudio.src = url;
-        el.playbackControls.style.display = 'block';
+        controls.playbackAudio.src = url;
+        controls.playbackControls.style.display = 'block';
 
-        el.redoBtn.innerHTML = icons.redo;
-        el.submitBtn.innerHTML = icons.check;
+        if (controls.redoBtn) {
+            controls.redoBtn.innerHTML = icons.redo;
+        }
+        if (!controls.isNewWordPanel && el.submitBtn) {
+            el.submitBtn.innerHTML = icons.check;
+        }
 
-        el.playbackAudio.play().catch(err => {
+        controls.playbackAudio.play().catch(err => {
             console.log('Auto-play prevented by browser:', err);
         });
     }
@@ -952,7 +1891,7 @@
         const reviewFile = createReviewFileElement(processingState);
         el.reviewContainer.appendChild(reviewFile);
         el.processingReview.style.display = 'block';
-        if (el.mainScreen) {
+        if (!isNewWordPanelActive() && el.mainScreen) {
             el.mainScreen.style.display = 'none';
         }
         if (el.playbackControls) {
@@ -1009,6 +1948,14 @@
     }
 
     function redo() {
+        if (newWordMode) {
+            newWordTranscriptionDone = false;
+            newWordTranscriptionInFlight = false;
+            newWordTranslationInFlight = false;
+            newWordAutoCancelled = false;
+            clearNewWordTextFields();
+            resetNewWordAutoState();
+        }
         resetRecordingState();
     }
 
@@ -1043,7 +1990,9 @@
 
     async function submitAndNext() {
         if (!currentBlob) {
-            const msg = i18n.no_blob || 'No audio captured. Please record before saving.';
+            const msg = newWordMode
+                ? (i18n.new_word_missing_recording || 'Record audio before saving this word.')
+                : (i18n.no_blob || 'No audio captured. Please record before saving.');
             console.error(msg);
             showStatus(msg, 'error');
             return;
@@ -1051,6 +2000,24 @@
 
         const el = window.llRecorder;
         const img = images[currentImageIndex];
+        if (!img) {
+            showStatus(i18n.upload_failed || 'Upload failed:', 'error');
+            return;
+        }
+        if (newWordMode) {
+            if (!newWordPrepared) {
+                flashNewWordAutoStatus('error', i18n.new_word_failed || 'New word setup failed:');
+                return;
+            }
+            if (newWordTranscriptionInFlight || newWordTranslationInFlight) {
+                updateNewWordAutoUI();
+                return;
+            }
+            const updated = await maybeUpdateNewWordText(true);
+            if (!updated) {
+                return;
+            }
+        }
         const recordingType = el.recordingTypeSelect?.value || 'isolation';
         const autoProcessed = autoProcessEnabled && !!processingState?.processedBuffer;
         const uploadBlob = autoProcessed ? audioBufferToWav(processingState.processedBuffer) : currentBlob;
@@ -1059,12 +2026,17 @@
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
         const includeTypes = window.ll_recorder_data?.include_types || '';
         const excludeTypes = window.ll_recorder_data?.exclude_types || '';
-        const activeCategory = el.categorySelect?.value || '';
+        const activeCategory = isNewWordPanelActive()
+            ? (img.category_slug || el.newWordCategory?.value || '')
+            : (el.categorySelect?.value || '');
 
         showStatus(i18n.uploading || 'Uploading...', 'uploading');
-        el.submitBtn.disabled = true;
-        el.redoBtn.disabled = true;
-        el.skipBtn.disabled = false;
+        if (el.submitBtn) el.submitBtn.disabled = true;
+        if (el.redoBtn) el.redoBtn.disabled = true;
+        if (el.skipBtn) el.skipBtn.disabled = false;
+        if (isNewWordPanelActive()) {
+            setNewWordActionState(true);
+        }
         if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = true;
         if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = true;
 
@@ -1082,23 +2054,7 @@
         formData.append('active_category', activeCategory);
 
         // Extension detection - prioritize quality formats
-        let extension = '.wav';
-        const blobType = uploadBlob.type.toLowerCase();
-        if (blobType.includes('wav')) {
-            extension = '.wav';
-        } else if (blobType.includes('pcm')) {
-            extension = '.wav';  // PCM is essentially WAV data
-        } else if (blobType.includes('mpeg') || blobType.includes('mp3')) {
-            extension = '.mp3';
-        } else if (blobType.includes('mp4')) {
-            extension = '.mp4';
-        } else if (blobType.includes('aac')) {
-            extension = '.aac';
-        } else {
-            // Shouldn't reach here based on our format selection
-            console.warn('Unexpected blob type:', uploadBlob.type);
-            extension = '.webm';  // Fallback just in case
-        }
+        const extension = getBlobExtension(uploadBlob.type);
 
         console.log('Blob type:', uploadBlob.type, 'Extension:', extension);
         formData.append('audio', uploadBlob, `${img.title}${extension}`);
@@ -1132,7 +2088,10 @@
     }
 
     async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed }) {
-        const activeCategory = window.llRecorder?.categorySelect?.value || '';
+        const el = window.llRecorder;
+        const activeCategory = isNewWordPanelActive()
+            ? (img?.category_slug || el?.newWordCategory?.value || '')
+            : (el?.categorySelect?.value || '');
         try {
             const fd = new FormData();
             fd.append('action', 'll_verify_recording');
@@ -1164,10 +2123,13 @@
             showStatus((i18n.upload_failed || 'Upload failed:') + ' ' + (e.message || 'Verify failed'), 'error');
         } finally {
             const el = window.llRecorder;
-            el.submitBtn.disabled = false;
-            el.redoBtn.disabled = false;
+            if (el.submitBtn) el.submitBtn.disabled = false;
+            if (el.redoBtn) el.redoBtn.disabled = false;
             if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
             if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+            if (isNewWordPanelActive()) {
+                setNewWordActionState(false);
+            }
         }
     }
 
@@ -1177,7 +2139,7 @@
         div.className = 'll-review-file';
 
         const img = images[currentImageIndex] || {};
-        const displayTitle = window.llRecorder?.title?.textContent || img.title || '';
+        const displayTitle = getDisplayTitleForImage(img) || window.llRecorder?.title?.textContent || img.title || '';
         const imageUrl = img.image_url || '';
         const categoryLabel = img.category_name || i18n.uncategorized || 'Uncategorized';
         const imageHtml = (!img.is_text_only && imageUrl)

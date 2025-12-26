@@ -43,6 +43,7 @@ require_once(__DIR__ . '/user-study.php');
 
 // Include API integrations
 require_once(__DIR__ . '/admin/api/deepl-api.php');
+require_once(__DIR__ . '/admin/api/assemblyai-api.php');
 
 // Include pages
 require_once(__DIR__ . '/pages/quiz-pages.php');

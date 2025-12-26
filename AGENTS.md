@@ -2,6 +2,7 @@ See `CODEBASE_ARCHITECTURE.md` for the canonical map of entry points, flows, and
 
 Codebase-specific guidelines:
 - When adding buttons or using emojis, ensure the styling remains consistent across WordPress themes and devices by applying explicit classes and theme-resistant CSS (avoid relying on theme defaults).
+- For user-facing pages, prefer icons and language-agnostic visual cues; keep text minimal and only when needed. Admin pages can be more verbose.
 - Use `ll_enqueue_asset_by_timestamp()` for plugin CSS/JS so `filemtime` versioning stays consistent.
 - Prefer `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, and `LL_TOOLS_MAIN_FILE` instead of hardcoded paths/URLs.
 - Admin pages and AJAX handlers should check `current_user_can('view_ll_tools')` (or stricter) and verify nonces.
