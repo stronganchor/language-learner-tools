@@ -25,6 +25,110 @@
     margin: 0;
 }
 
+/* Controls + List */
+.ll-processor-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.ll-btn-danger {
+    background: #d63638;
+    border: 1px solid #b32d2e;
+    color: #fff;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.2;
+    appearance: none;
+}
+
+.ll-btn-danger:hover {
+    background: #b32d2e;
+    border-color: #8a2424;
+}
+
+.ll-btn-danger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ll-recordings-list {
+    margin-top: 20px;
+}
+
+.ll-recording-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e2e4e7;
+}
+
+.ll-recording-item:last-child {
+    border-bottom: none;
+}
+
+.ll-recording-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.ll-recording-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ll-recording-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 12px;
+    color: #555;
+}
+
+.ll-recording-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #f0f6fc;
+    border: 1px solid #c6d8ef;
+}
+
+.ll-recording-meta-label {
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.ll-recording-date {
+    color: #646970;
+}
+
+.ll-recording-item audio {
+    max-width: 100%;
+}
+
+@media (max-width: 782px) {
+    .ll-recording-item {
+        align-items: flex-start;
+    }
+
+    .ll-recording-item audio {
+        width: 100%;
+    }
+}
+
 /* Review Interface */
 .ll-review-interface {
     display: none;
