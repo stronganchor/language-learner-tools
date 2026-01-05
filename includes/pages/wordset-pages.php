@@ -113,7 +113,18 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         $use_images = ($prompt_type === 'image') || ($option_type === 'image');
     }
 
+    $image_size = 'medium';
     if ($use_images) {
+        $image_size = apply_filters('ll_tools_wordset_preview_image_size', 'medium', 0, $category_id, $wordset_id);
+        if (function_exists('ll_tools_normalize_image_size')) {
+            $image_size = ll_tools_normalize_image_size($image_size);
+        } else {
+            $image_size = sanitize_key($image_size ?: 'medium');
+            if ($image_size === '') {
+                $image_size = 'medium';
+            }
+        }
+
         $image_query = new WP_Query([
             'post_type'      => 'words',
             'post_status'    => 'publish',
@@ -156,10 +167,10 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     continue;
                 }
                 $image_url = function_exists('ll_tools_get_masked_image_url')
-                    ? ll_tools_get_masked_image_url($image_id, 'thumbnail')
+                    ? ll_tools_get_masked_image_url($image_id, $image_size)
                     : '';
                 if ($image_url === '') {
-                    $image_url = wp_get_attachment_image_url($image_id, 'thumbnail') ?: '';
+                    $image_url = wp_get_attachment_image_url($image_id, $image_size) ?: '';
                 }
                 if ($image_url === '') {
                     continue;

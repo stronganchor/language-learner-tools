@@ -38,22 +38,25 @@ p:has(.ll-word-audio) {
 }
 
 /* Title of a word in the word-grid */
-.word-grid .ll-word-title-row {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: nowrap;
-    margin-top: -25px;
-    width: 100%;
-    text-align: center;
+.word-grid.ll-word-grid .ll-word-title-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    margin-top: -25px !important;
+    width: 100% !important;
+    text-align: center !important;
 }
 
-.word-grid .word-title {
+.word-grid.ll-word-grid .word-title {
     font-size: 18px !important;
     margin: 0 !important;
-    line-height: 1.2;
+    padding: 0 !important;
+    line-height: 1.2 !important;
     min-width: 0;
+    display: inline-block !important;
+    align-self: center !important;
 }
 
 /* Image displayed for a word in the word-grid */
@@ -254,6 +257,7 @@ p:has(.ll-word-audio) {
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
     align-self: center;
     vertical-align: middle;
+    flex: 0 0 auto;
 }
 
 .word-grid.ll-word-grid .ll-word-star::before {
@@ -276,7 +280,7 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid--text .ll-word-title-row {
-    margin-top: 0;
+    margin-top: 0 !important;
 }
 
 .word-grid.ll-word-grid--text .word-example {

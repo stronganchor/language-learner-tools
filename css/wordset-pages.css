@@ -112,6 +112,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    aspect-ratio: 1 / 1;
     border-radius: 10px;
     background: transparent;
     overflow: hidden;
@@ -125,8 +126,9 @@
 
 .ll-wordset-preview-item--image img {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
+    object-fit: contain;
 }
 
 .ll-wordset-preview-item--text {
