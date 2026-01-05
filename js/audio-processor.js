@@ -9,7 +9,11 @@
         audioContext: null,
         reviewData: new Map(),
         // Track last clicked checkbox index for shift-click range selection
-        lastSelectedIndex: null,
+        lastSelectedIndexByTab: {
+            queue: null,
+            duplicates: null
+        },
+        activeTab: 'queue',
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -29,8 +33,73 @@
         state.recordings = window.llAudioProcessor.recordings;
         state.recordingTypes = Array.isArray(window.llAudioProcessor.recordingTypes) ? window.llAudioProcessor.recordingTypes : [];
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        initTabs();
         wireEventListeners();
         updateSelectedCount();
+    }
+
+    function initTabs() {
+        const tabsWrapper = document.querySelector('.ll-audio-processor-tabs');
+        const tabButtons = document.querySelectorAll('.ll-audio-processor-tab');
+
+        if (!tabsWrapper || tabButtons.length === 0) {
+            return;
+        }
+
+        const initialTab = tabsWrapper.dataset.initialTab || tabButtons[0].dataset.tab || 'queue';
+        setActiveTab(initialTab, { skipClear: true });
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                if (!tab) {
+                    return;
+                }
+                setActiveTab(tab);
+            });
+        });
+    }
+
+    function setActiveTab(tab, options = {}) {
+        if (!tab || tab === state.activeTab) {
+            return;
+        }
+
+        state.activeTab = tab;
+
+        document.querySelectorAll('.ll-audio-processor-tab').forEach(btn => {
+            const isActive = btn.dataset.tab === tab;
+            btn.classList.toggle('is-active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        document.querySelectorAll('.ll-recordings-list').forEach(list => {
+            const isActive = list.dataset.tab === tab;
+            list.classList.toggle('is-active', isActive);
+            list.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+        });
+
+        state.lastSelectedIndexByTab[tab] = null;
+
+        if (!options.skipClear) {
+            clearSelections();
+        }
+    }
+
+    function clearSelections() {
+        document.querySelectorAll('.ll-recording-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        state.selected.clear();
+        updateSelectedCount();
+    }
+
+    function getActiveCheckboxes() {
+        const list = document.querySelector(`.ll-recordings-list[data-tab="${state.activeTab}"]`);
+        if (!list) {
+            return [];
+        }
+        return Array.from(list.querySelectorAll('.ll-recording-checkbox'));
     }
 
     function wireEventListeners() {
@@ -39,7 +108,6 @@
         const processBtn = document.getElementById('ll-process-selected');
         const deleteBtn = document.getElementById('ll-delete-selected');
         const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
-        const cbArray = Array.from(checkboxes);
 
         const enableTrim = document.getElementById('ll-enable-trim');
         const enableNoise = document.getElementById('ll-enable-noise');
@@ -63,7 +131,8 @@
 
         if (selectAll) {
             selectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
+                const activeCheckboxes = getActiveCheckboxes();
+                activeCheckboxes.forEach(cb => {
                     cb.checked = true;
                     state.selected.add(parseInt(cb.value));
                 });
@@ -73,7 +142,8 @@
 
         if (deselectAll) {
             deselectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
+                const activeCheckboxes = getActiveCheckboxes();
+                activeCheckboxes.forEach(cb => {
                     cb.checked = false;
                     state.selected.delete(parseInt(cb.value));
                 });
@@ -95,11 +165,17 @@
 
             // Add shift-click range selection (Gmail-style)
             cb.addEventListener('click', (e) => {
+                const list = e.currentTarget.closest('.ll-recordings-list');
+                const tab = list && list.dataset.tab ? list.dataset.tab : state.activeTab;
+                const cbArray = list ? Array.from(list.querySelectorAll('.ll-recording-checkbox')) : [];
                 const currentIndex = cbArray.indexOf(e.currentTarget);
+                const lastIndex = Number.isInteger(state.lastSelectedIndexByTab[tab])
+                    ? state.lastSelectedIndexByTab[tab]
+                    : null;
 
-                if (e.shiftKey && state.lastSelectedIndex !== null && state.lastSelectedIndex !== -1) {
-                    const start = Math.min(state.lastSelectedIndex, currentIndex);
-                    const end = Math.max(state.lastSelectedIndex, currentIndex);
+                if (e.shiftKey && lastIndex !== null && lastIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
                     const shouldCheck = e.currentTarget.checked;
 
                     for (let i = start; i <= end; i++) {
@@ -123,7 +199,7 @@
                 }
 
                 // Always remember the last clicked index
-                state.lastSelectedIndex = currentIndex;
+                state.lastSelectedIndexByTab[tab] = currentIndex;
             });
         });
 
@@ -450,10 +526,16 @@
         });
 
         const recordingsList = document.querySelector('.ll-recordings-list');
+        const tabs = document.querySelector('.ll-audio-processor-tabs');
         const processorControls = document.querySelector('.ll-processor-controls');
         const processingOptions = document.querySelector('.ll-processing-options');
 
-        if (recordingsList) recordingsList.style.display = 'none';
+        if (recordingsList) {
+            document.querySelectorAll('.ll-recordings-list').forEach(list => {
+                list.style.display = 'none';
+            });
+        }
+        if (tabs) tabs.style.display = 'none';
         if (processorControls) processorControls.style.display = 'none';
         if (processingOptions) processingOptions.style.display = 'none';
 

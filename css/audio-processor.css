@@ -26,6 +26,51 @@
 }
 
 /* Controls + List */
+.ll-audio-processor-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 20px 0 10px;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.ll-audio-processor-tab {
+    border: 1px solid #c3c4c7;
+    border-bottom: none;
+    background: #f6f7f7;
+    color: #1d2327;
+    padding: 8px 14px;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
+    appearance: none;
+}
+
+.ll-audio-processor-tab.is-active {
+    background: #fff;
+    border-color: #2271b1;
+    box-shadow: inset 0 -2px 0 #2271b1;
+}
+
+.ll-audio-processor-tab:focus {
+    outline: 2px solid #2271b1;
+    outline-offset: 2px;
+}
+
+.ll-tab-count {
+    background: #2271b1;
+    color: #fff;
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .ll-processor-controls {
     display: flex;
     flex-wrap: wrap;
@@ -82,6 +127,25 @@
 
 .ll-recordings-list {
     margin-top: 20px;
+    display: none;
+}
+
+.ll-recordings-list.is-active {
+    display: block;
+}
+
+.ll-recordings-empty {
+    margin-top: 10px;
+}
+
+.ll-duplicate-note {
+    background: #fff7e6;
+    border: 1px solid #f0d28a;
+    color: #7a4f01;
+    padding: 10px 12px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-size: 12px;
 }
 
 .ll-recording-item {
@@ -127,6 +191,18 @@
     border-radius: 3px;
     background: #f0f6fc;
     border: 1px solid #c6d8ef;
+}
+
+.ll-recording-duplicate {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #fff7e6;
+    border: 1px solid #f0d28a;
+    color: #7a4f01;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .ll-recording-meta-label {
