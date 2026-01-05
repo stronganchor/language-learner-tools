@@ -260,7 +260,7 @@ function ll_tools_get_active_wordset_id($explicit = 0): int {
 /**
  * On first request after activation/update:
  *  - Ensure at least one 'wordset' term exists (create "Default Word Set" if none).
- *  - Assign the default wordset (only one if it exists, otherwise the oldest) to words without one.
+ *  - Schedule a background backfill to assign the default wordset (only one if it exists, otherwise the oldest).
  */
 function ll_tools_maybe_seed_default_wordset_and_assign() {
     // Only run if activation/update set the transient.
@@ -304,12 +304,31 @@ function ll_tools_maybe_seed_default_wordset_and_assign() {
     }
     $default_wordset_id = (int) array_values($term_ids)[0];
 
-    // Find all "words" posts with no wordset term.
-    $orphans = new WP_Query([
+    ll_tools_schedule_wordset_backfill($default_wordset_id);
+}
+
+function ll_tools_schedule_wordset_backfill($wordset_id) {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        return;
+    }
+    if (!ll_tools_wordset_backfill_has_orphans()) {
+        delete_option('ll_tools_wordset_backfill_id');
+        return;
+    }
+
+    update_option('ll_tools_wordset_backfill_id', $wordset_id, false);
+    if (!wp_next_scheduled('ll_tools_backfill_wordset_batch')) {
+        wp_schedule_single_event(time() + 10, 'll_tools_backfill_wordset_batch');
+    }
+}
+
+function ll_tools_wordset_backfill_has_orphans() {
+    $ids = get_posts([
         'post_type'      => 'words',
         'post_status'    => 'any',
-        'posts_per_page' => -1,
         'fields'         => 'ids',
+        'posts_per_page' => 1,
         'no_found_rows'  => true,
         'tax_query'      => [[
             'taxonomy' => 'wordset',
@@ -317,9 +336,89 @@ function ll_tools_maybe_seed_default_wordset_and_assign() {
         ]],
     ]);
 
-    if (!is_wp_error($orphans) && !empty($orphans->posts)) {
-        foreach ($orphans->posts as $post_id) {
-            wp_set_object_terms((int) $post_id, $default_wordset_id, 'wordset', false);
-        }
+    return !empty($ids);
+}
+
+function ll_tools_maybe_resume_wordset_backfill() {
+    $wordset_id = (int) get_option('ll_tools_wordset_backfill_id', 0);
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        return;
+    }
+    if (!wp_next_scheduled('ll_tools_backfill_wordset_batch')) {
+        wp_schedule_single_event(time() + 10, 'll_tools_backfill_wordset_batch');
     }
 }
+add_action('init', 'll_tools_maybe_resume_wordset_backfill', 25);
+
+function ll_tools_backfill_wordset_batch() {
+    if (!taxonomy_exists('wordset') || !post_type_exists('words')) {
+        return;
+    }
+
+    $wordset_id = (int) get_option('ll_tools_wordset_backfill_id', 0);
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        delete_option('ll_tools_wordset_backfill_id');
+        return;
+    }
+
+    if (get_transient('ll_tools_wordset_backfill_running')) {
+        if (!wp_next_scheduled('ll_tools_backfill_wordset_batch')) {
+            wp_schedule_single_event(time() + 60, 'll_tools_backfill_wordset_batch');
+        }
+        return;
+    }
+    set_transient('ll_tools_wordset_backfill_running', 1, 2 * MINUTE_IN_SECONDS);
+
+    $batch_size = (int) apply_filters('ll_tools_wordset_backfill_batch_size', 200);
+    if ($batch_size < 1) {
+        $batch_size = 200;
+    }
+
+    $post_ids = get_posts([
+        'post_type'      => 'words',
+        'post_status'    => 'any',
+        'fields'         => 'ids',
+        'posts_per_page' => $batch_size,
+        'no_found_rows'  => true,
+        'tax_query'      => [[
+            'taxonomy' => 'wordset',
+            'operator' => 'NOT EXISTS',
+        ]],
+    ]);
+
+    if (empty($post_ids)) {
+        delete_transient('ll_tools_wordset_backfill_running');
+        delete_option('ll_tools_wordset_backfill_id');
+        wp_update_term_count_now([$wordset_id], 'wordset');
+        return;
+    }
+
+    $category_ids = [];
+    wp_defer_term_counting(true);
+    foreach ($post_ids as $post_id) {
+        wp_set_object_terms((int) $post_id, $wordset_id, 'wordset', false);
+        $post_categories = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($post_categories) && !empty($post_categories)) {
+            $category_ids = array_merge($category_ids, $post_categories);
+        }
+    }
+    wp_defer_term_counting(false);
+
+    delete_transient('ll_tools_wordset_backfill_running');
+
+    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        $category_ids = array_values(array_unique(array_map('intval', $category_ids)));
+        ll_tools_bump_category_cache_version($category_ids);
+    }
+
+    if (ll_tools_wordset_backfill_has_orphans()) {
+        if (!wp_next_scheduled('ll_tools_backfill_wordset_batch')) {
+            wp_schedule_single_event(time() + 10, 'll_tools_backfill_wordset_batch');
+        }
+        return;
+    }
+
+    delete_option('ll_tools_wordset_backfill_id');
+    wp_update_term_count_now([$wordset_id], 'wordset');
+}
+add_action('ll_tools_backfill_wordset_batch', 'll_tools_backfill_wordset_batch');

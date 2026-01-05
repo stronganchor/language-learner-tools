@@ -411,6 +411,9 @@ add_action('save_post_words',       'll_tools_sync_categories_for_post', 10, 3);
 add_action('save_post_word_images', 'll_tools_sync_categories_for_post', 10, 3);
 
 function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxonomy) {
+    if ($taxonomy === 'wordset' && get_transient('ll_tools_wordset_backfill_running')) {
+        return;
+    }
     $post = get_post($object_id);
     if (!$post || !in_array($post->post_type, ['words','word_images'], true)) return;
 
