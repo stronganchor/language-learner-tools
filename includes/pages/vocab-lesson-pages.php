@@ -102,7 +102,16 @@ function ll_tools_can_generate_vocab_lesson($category, int $wordset_id): bool {
         $min_words = 1;
     }
 
-    $query = new WP_Query([
+    $requires_images = true;
+    if (function_exists('ll_tools_get_category_quiz_config')) {
+        $quiz_config = ll_tools_get_category_quiz_config($category);
+        $option_type = (string) ($quiz_config['option_type'] ?? '');
+        if (strpos($option_type, 'text') === 0) {
+            $requires_images = false;
+        }
+    }
+
+    $query_args = [
         'post_type'      => 'words',
         'post_status'    => 'publish',
         'posts_per_page' => $min_words,
@@ -120,13 +129,17 @@ function ll_tools_can_generate_vocab_lesson($category, int $wordset_id): bool {
                 'terms'    => [$wordset_id],
             ],
         ],
-        'meta_query' => [
+    ];
+    if ($requires_images) {
+        $query_args['meta_query'] = [
             [
                 'key'     => '_thumbnail_id',
                 'compare' => 'EXISTS',
             ],
-        ],
-    ]);
+        ];
+    }
+
+    $query = new WP_Query($query_args);
 
     return count($query->posts) >= $min_words;
 }
@@ -157,7 +170,6 @@ function ll_tools_get_vocab_lesson_category_ids_for_wordset(int $wordset_id, boo
     $sql = $wpdb->prepare("
         SELECT tt_cat.term_id, COUNT(DISTINCT p.ID) as word_count
         FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID AND pm.meta_key = %s
         INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
         INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
         INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
@@ -171,10 +183,13 @@ function ll_tools_get_vocab_lesson_category_ids_for_wordset(int $wordset_id, boo
           AND t_cat.slug <> %s
         GROUP BY tt_cat.term_id
         HAVING word_count >= %d
-    ", '_thumbnail_id', 'words', 'publish', 'wordset', $wordset_id, 'word-category', 'uncategorized', $min_words);
+    ", 'words', 'publish', 'wordset', $wordset_id, 'word-category', 'uncategorized', $min_words);
 
     $ids = array_map('intval', (array) $wpdb->get_col($sql));
     $ids = array_values(array_filter($ids, function ($id) { return $id > 0; }));
+    $ids = array_values(array_filter($ids, function ($id) use ($wordset_id) {
+        return ll_tools_can_generate_vocab_lesson((int) $id, $wordset_id);
+    }));
 
     wp_cache_set($cache_key, $ids, 'll_tools', HOUR_IN_SECONDS);
     return $ids;

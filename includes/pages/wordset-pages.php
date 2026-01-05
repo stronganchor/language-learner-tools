@@ -77,7 +77,7 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
     return $rows;
 }
 
-function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 4): array {
+function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2): array {
     $limit = max(1, (int) $limit);
     $items = [];
 
@@ -173,7 +173,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     ];
 }
 
-function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 4): array {
+function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 2): array {
     $wordset = get_term($wordset_id, 'wordset');
     if (!$wordset || is_wp_error($wordset)) {
         return [];

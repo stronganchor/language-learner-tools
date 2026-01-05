@@ -112,6 +112,17 @@ function ll_tools_word_grid_shortcode($atts) {
     $sanitized_category = sanitize_text_field($atts['category']);
     $sanitized_wordset = sanitize_text_field($atts['wordset']);
 
+    $category_term = null;
+    $is_text_based = false;
+    if ($sanitized_category !== '') {
+        $category_term = get_term_by('slug', $sanitized_category, 'word-category');
+    }
+    if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
+        $quiz_config = ll_tools_get_category_quiz_config($category_term);
+        $option_type = (string) ($quiz_config['option_type'] ?? '');
+        $is_text_based = (strpos($option_type, 'text') === 0);
+    }
+
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery'], true);
 
     $user_study_state = [
@@ -146,15 +157,17 @@ function ll_tools_word_grid_shortcode($atts) {
         'post_type' => 'words',
         'post_status' => 'publish',
         'posts_per_page' => -1,
-        'meta_query' => array(
+        'orderby' => 'date', // Order by date
+        'order' => 'ASC', // Ascending order
+    );
+    if (!$is_text_based) {
+        $args['meta_query'] = array(
             array(
                 'key' => '_thumbnail_id', // Checks if the post has a featured image.
                 'compare' => 'EXISTS'
             ),
-        ),
-        'orderby' => 'date', // Order by date
-        'order' => 'ASC', // Ascending order
-    );
+        );
+    }
 
     $tax_query = [];
     if (!empty($sanitized_category)) {
@@ -198,7 +211,11 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Loop
     if ($query->have_posts()) {
-        echo '<div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid>'; // Grid container
+        $grid_classes = 'word-grid ll-word-grid';
+        if ($is_text_based) {
+            $grid_classes .= ' ll-word-grid--text';
+        }
+        echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" data-ll-word-grid>'; // Grid container
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
@@ -209,11 +226,11 @@ function ll_tools_word_grid_shortcode($atts) {
             // Individual item
             echo '<div class="word-item">';
             // Featured image with container
-			if (has_post_thumbnail()) {
-				echo '<div class="word-image-container">'; // Start new container
-				echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
-				echo '</div>'; // Close container
-			}
+            if (!$is_text_based && has_post_thumbnail()) {
+                echo '<div class="word-image-container">'; // Start new container
+                echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
+                echo '</div>'; // Close container
+            }
 
             // Word title and meaning
             $title_text = get_the_title();
