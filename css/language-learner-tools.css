@@ -43,7 +43,7 @@ p:has(.ll-word-audio) {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     margin-top: -25px;
     width: 100%;
     text-align: center;
@@ -53,6 +53,7 @@ p:has(.ll-word-audio) {
     font-size: 18px !important;
     margin: 0 !important;
     line-height: 1.2;
+    min-width: 0;
 }
 
 /* Image displayed for a word in the word-grid */
@@ -251,6 +252,8 @@ p:has(.ll-word-audio) {
     appearance: none !important;
     text-transform: none !important;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+    align-self: center;
+    vertical-align: middle;
 }
 
 .word-grid.ll-word-grid .ll-word-star::before {
@@ -270,4 +273,16 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-star:focus-visible {
     outline: 3px solid #f59e0b !important;
     outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid--text .ll-word-title-row {
+    margin-top: 0;
+}
+
+.word-grid.ll-word-grid--text .word-example {
+    margin-top: 6px !important;
+}
+
+.word-grid.ll-word-grid--text .word-translation {
+    margin-top: 4px !important;
 }

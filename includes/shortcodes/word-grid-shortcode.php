@@ -106,11 +106,27 @@ function ll_tools_word_grid_shortcode($atts) {
     $atts = shortcode_atts(array(
         'category' => '', // Default category to empty
         'wordset'  => '', // Optional wordset filter
+        'deepest_only' => '', // When truthy, restrict to lowest-level categories.
     ), $atts);
 
     // Sanitize the category attribute
     $sanitized_category = sanitize_text_field($atts['category']);
     $sanitized_wordset = sanitize_text_field($atts['wordset']);
+    $deepest_only = false;
+    if (!empty($atts['deepest_only'])) {
+        $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    $category_term = null;
+    $is_text_based = false;
+    if ($sanitized_category !== '') {
+        $category_term = get_term_by('slug', $sanitized_category, 'word-category');
+    }
+    if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
+        $quiz_config = ll_tools_get_category_quiz_config($category_term);
+        $option_type = (string) ($quiz_config['option_type'] ?? '');
+        $is_text_based = (strpos($option_type, 'text') === 0);
+    }
 
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery'], true);
 
@@ -146,15 +162,17 @@ function ll_tools_word_grid_shortcode($atts) {
         'post_type' => 'words',
         'post_status' => 'publish',
         'posts_per_page' => -1,
-        'meta_query' => array(
+        'orderby' => 'date', // Order by date
+        'order' => 'ASC', // Ascending order
+    );
+    if (!$is_text_based) {
+        $args['meta_query'] = array(
             array(
                 'key' => '_thumbnail_id', // Checks if the post has a featured image.
                 'compare' => 'EXISTS'
             ),
-        ),
-        'orderby' => 'date', // Order by date
-        'order' => 'ASC', // Ascending order
-    );
+        );
+    }
 
     $tax_query = [];
     if (!empty($sanitized_category)) {
@@ -181,6 +199,23 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Query
     $query = new WP_Query($args);
+    if ($deepest_only && $category_term && function_exists('ll_get_deepest_categories')) {
+        $filtered_posts = [];
+        foreach ((array) $query->posts as $post_obj) {
+            $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+            if ($post_id <= 0) {
+                continue;
+            }
+            $deepest_terms = ll_get_deepest_categories($post_id);
+            $deepest_ids = wp_list_pluck((array) $deepest_terms, 'term_id');
+            if (in_array((int) $category_term->term_id, $deepest_ids, true)) {
+                $filtered_posts[] = $post_obj;
+            }
+        }
+        $query->posts = $filtered_posts;
+        $query->post_count = count($filtered_posts);
+        $query->current_post = -1;
+    }
     $word_ids = wp_list_pluck($query->posts, 'ID');
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids);
     $main_recording_types = function_exists('ll_tools_get_main_recording_types')
@@ -198,7 +233,11 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Loop
     if ($query->have_posts()) {
-        echo '<div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid>'; // Grid container
+        $grid_classes = 'word-grid ll-word-grid';
+        if ($is_text_based) {
+            $grid_classes .= ' ll-word-grid--text';
+        }
+        echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" data-ll-word-grid>'; // Grid container
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
@@ -209,11 +248,11 @@ function ll_tools_word_grid_shortcode($atts) {
             // Individual item
             echo '<div class="word-item">';
             // Featured image with container
-			if (has_post_thumbnail()) {
-				echo '<div class="word-image-container">'; // Start new container
-				echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
-				echo '</div>'; // Close container
-			}
+            if (!$is_text_based && has_post_thumbnail()) {
+                echo '<div class="word-image-container">'; // Start new container
+                echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
+                echo '</div>'; // Close container
+            }
 
             // Word title and meaning
             $title_text = get_the_title();

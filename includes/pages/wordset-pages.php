@@ -23,17 +23,19 @@ function ll_tools_get_wordset_page_term() {
 }
 
 function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
-    global $wpdb;
-
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
     }
 
-    $min_words = (int) apply_filters('ll_tools_wordset_page_min_words', 1, $wordset_id);
-    if ($min_words < 1) {
-        $min_words = 1;
+    $wordset_min = (int) apply_filters('ll_tools_wordset_page_min_words', 1, $wordset_id);
+    if ($wordset_min < 1) {
+        $wordset_min = 1;
     }
+    $lesson_min = function_exists('ll_tools_get_vocab_lesson_min_word_count')
+        ? ll_tools_get_vocab_lesson_min_word_count(null, $wordset_id)
+        : $wordset_min;
+    $min_words = max($wordset_min, $lesson_min);
 
     $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words;
     $cached = wp_cache_get($cache_key, 'll_tools');
@@ -41,94 +43,136 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
         return $cached;
     }
 
-    $sql = $wpdb->prepare("
-        SELECT tt_cat.term_id, COUNT(DISTINCT p.ID) as word_count
-        FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
-        INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
-        INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
-        INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
-        INNER JOIN {$wpdb->terms} t_cat ON t_cat.term_id = tt_cat.term_id
-        WHERE p.post_type   = %s
-          AND p.post_status = %s
-          AND tt_ws.taxonomy  = %s
-          AND tt_ws.term_id  = %d
-          AND tt_cat.taxonomy = %s
-          AND t_cat.slug <> %s
-        GROUP BY tt_cat.term_id
-        HAVING word_count >= %d
-        ORDER BY t_cat.name ASC
-    ", 'words', 'publish', 'wordset', $wordset_id, 'word-category', 'uncategorized', $min_words);
+    $counts = function_exists('ll_tools_get_vocab_lesson_deepest_counts_for_wordset')
+        ? ll_tools_get_vocab_lesson_deepest_counts_for_wordset($wordset_id)
+        : ['all' => [], 'with_images' => []];
 
-    $rows = (array) $wpdb->get_results($sql, ARRAY_A);
-    $rows = array_values(array_filter(array_map(function ($row) {
-        $term_id = isset($row['term_id']) ? (int) $row['term_id'] : 0;
-        $count = isset($row['word_count']) ? (int) $row['word_count'] : 0;
-        if ($term_id <= 0 || $count <= 0) {
-            return null;
+    $category_ids = array_unique(array_merge(array_keys($counts['all']), array_keys($counts['with_images'])));
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+
+    $eligible_ids = [];
+    $counts_map = [];
+    foreach ($category_ids as $category_id) {
+        if (!function_exists('ll_tools_get_vocab_lesson_category_word_count')) {
+            continue;
         }
-        return [
-            'term_id' => $term_id,
-            'word_count' => $count,
-        ];
-    }, $rows)));
+        $count = ll_tools_get_vocab_lesson_category_word_count($category_id, $wordset_id, $counts);
+        if ($count < $min_words) {
+            continue;
+        }
+        if (function_exists('ll_tools_can_generate_vocab_lesson') && !ll_tools_can_generate_vocab_lesson($category_id, $wordset_id)) {
+            continue;
+        }
+        $eligible_ids[] = $category_id;
+        $counts_map[$category_id] = $count;
+    }
+
+    if (empty($eligible_ids)) {
+        wp_cache_set($cache_key, [], 'll_tools', HOUR_IN_SECONDS);
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'include'    => $eligible_ids,
+        'hide_empty' => false,
+        'orderby'    => 'name',
+    ]);
+
+    $rows = [];
+    if (!is_wp_error($terms)) {
+        foreach ($terms as $term) {
+            $term_id = (int) $term->term_id;
+            $count = (int) ($counts_map[$term_id] ?? 0);
+            if ($term_id <= 0 || $count <= 0) {
+                continue;
+            }
+            $rows[] = [
+                'term_id' => $term_id,
+                'word_count' => $count,
+            ];
+        }
+    }
 
     wp_cache_set($cache_key, $rows, 'll_tools', HOUR_IN_SECONDS);
     return $rows;
 }
 
-function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 4): array {
+function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     $limit = max(1, (int) $limit);
     $items = [];
+    $query_limit = max($limit * 3, $limit);
+    $deepest_only = function_exists('ll_get_deepest_categories');
+    $use_images = ($requires_images !== null) ? (bool) $requires_images : true;
+    if ($requires_images === null && function_exists('ll_tools_vocab_lesson_category_requires_images')) {
+        $use_images = ll_tools_vocab_lesson_category_requires_images($category_id);
+    } elseif ($requires_images === null && function_exists('ll_tools_get_category_quiz_config')) {
+        $config = ll_tools_get_category_quiz_config($category_id);
+        $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
+        $option_type = (string) ($config['option_type'] ?? '');
+        $use_images = ($prompt_type === 'image') || ($option_type === 'image');
+    }
 
-    $image_query = new WP_Query([
-        'post_type'      => 'words',
-        'post_status'    => 'publish',
-        'posts_per_page' => $limit,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'orderby'        => 'date',
-        'order'          => 'DESC',
-        'tax_query'      => [
-            [
-                'taxonomy' => 'word-category',
-                'field'    => 'term_id',
-                'terms'    => [$category_id],
+    if ($use_images) {
+        $image_query = new WP_Query([
+            'post_type'      => 'words',
+            'post_status'    => 'publish',
+            'posts_per_page' => $query_limit,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'tax_query'      => [
+                [
+                    'taxonomy' => 'word-category',
+                    'field'    => 'term_id',
+                    'terms'    => [$category_id],
+                ],
+                [
+                    'taxonomy' => 'wordset',
+                    'field'    => 'term_id',
+                    'terms'    => [$wordset_id],
+                ],
             ],
-            [
-                'taxonomy' => 'wordset',
-                'field'    => 'term_id',
-                'terms'    => [$wordset_id],
+            'meta_query' => [
+                [
+                    'key'     => '_thumbnail_id',
+                    'compare' => 'EXISTS',
+                ],
             ],
-        ],
-        'meta_query' => [
-            [
-                'key'     => '_thumbnail_id',
-                'compare' => 'EXISTS',
-            ],
-        ],
-    ]);
+        ]);
 
-    if (!empty($image_query->posts)) {
-        foreach ($image_query->posts as $word_id) {
-            $image_id = get_post_thumbnail_id($word_id);
-            if (!$image_id) {
-                continue;
+        if (!empty($image_query->posts)) {
+            foreach ($image_query->posts as $word_id) {
+                if ($deepest_only) {
+                    $deepest_terms = ll_get_deepest_categories($word_id);
+                    $deepest_ids = wp_list_pluck((array) $deepest_terms, 'term_id');
+                    if (!in_array((int) $category_id, $deepest_ids, true)) {
+                        continue;
+                    }
+                }
+                $image_id = get_post_thumbnail_id($word_id);
+                if (!$image_id) {
+                    continue;
+                }
+                $image_url = function_exists('ll_tools_get_masked_image_url')
+                    ? ll_tools_get_masked_image_url($image_id, 'thumbnail')
+                    : '';
+                if ($image_url === '') {
+                    $image_url = wp_get_attachment_image_url($image_id, 'thumbnail') ?: '';
+                }
+                if ($image_url === '') {
+                    continue;
+                }
+                $items[] = [
+                    'type' => 'image',
+                    'url'  => $image_url,
+                    'alt'  => get_the_title($word_id),
+                ];
+                if (count($items) >= $limit) {
+                    break;
+                }
             }
-            $image_url = function_exists('ll_tools_get_masked_image_url')
-                ? ll_tools_get_masked_image_url($image_id, 'thumbnail')
-                : '';
-            if ($image_url === '') {
-                $image_url = wp_get_attachment_image_url($image_id, 'thumbnail') ?: '';
-            }
-            if ($image_url === '') {
-                continue;
-            }
-            $items[] = [
-                'type' => 'image',
-                'url'  => $image_url,
-                'alt'  => get_the_title($word_id),
-            ];
         }
     }
 
@@ -136,7 +180,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         $text_query = new WP_Query([
             'post_type'      => 'words',
             'post_status'    => 'publish',
-            'posts_per_page' => $limit,
+            'posts_per_page' => $query_limit,
             'fields'         => 'ids',
             'no_found_rows'  => true,
             'orderby'        => 'date',
@@ -156,6 +200,13 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         ]);
 
         foreach ($text_query->posts as $word_id) {
+            if ($deepest_only) {
+                $deepest_terms = ll_get_deepest_categories($word_id);
+                $deepest_ids = wp_list_pluck((array) $deepest_terms, 'term_id');
+                if (!in_array((int) $category_id, $deepest_ids, true)) {
+                    continue;
+                }
+            }
             $label = get_the_title($word_id);
             if ($label === '') {
                 continue;
@@ -164,16 +215,19 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 'type'  => 'text',
                 'label' => $label,
             ];
+            if (count($items) >= $limit) {
+                break;
+            }
         }
     }
 
     return [
         'items' => $items,
-        'has_images' => !empty($items) && ($items[0]['type'] ?? '') === 'image',
+        'has_images' => $use_images && !empty($items) && ($items[0]['type'] ?? '') === 'image',
     ];
 }
 
-function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 4): array {
+function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 2): array {
     $wordset = get_term($wordset_id, 'wordset');
     if (!$wordset || is_wp_error($wordset)) {
         return [];
@@ -221,7 +275,26 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ? ll_tools_get_category_display_name($category)
             : $category->name;
 
-        $preview = ll_tools_get_wordset_category_preview($wordset_id, (int) $category->term_id, $preview_limit);
+        $requires_images = true;
+        if (function_exists('ll_tools_vocab_lesson_category_requires_images')) {
+            $requires_images = ll_tools_vocab_lesson_category_requires_images($category);
+        } elseif (function_exists('ll_tools_get_category_quiz_config')) {
+            $config = ll_tools_get_category_quiz_config($category);
+            $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
+            $option_type = (string) ($config['option_type'] ?? '');
+            $requires_images = ($prompt_type === 'image') || ($option_type === 'image');
+        }
+
+        $image_preview_limit = max(1, (int) $preview_limit);
+        $text_preview_limit = max(4, $image_preview_limit);
+        $preview_limit_for_category = $requires_images ? $image_preview_limit : $text_preview_limit;
+
+        $preview = ll_tools_get_wordset_category_preview(
+            $wordset_id,
+            (int) $category->term_id,
+            $preview_limit_for_category,
+            $requires_images
+        );
 
         $items[] = [
             'id'         => (int) $category->term_id,
@@ -230,6 +303,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'count'      => (int) ($row['word_count'] ?? 0),
             'preview'    => $preview['items'],
             'has_images' => (bool) $preview['has_images'],
+            'preview_limit' => $preview_limit_for_category,
             'url'        => get_permalink($lesson_post_id),
         ];
     }
