@@ -55,7 +55,11 @@ get_header();
                             <?php
                             $preview_items = array_values((array) $cat['preview']);
                             $preview_count = count($preview_items);
-                            $preview_limit = 2;
+                            $preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
+                            if ($preview_limit < 1) {
+                                $preview_limit = 1;
+                            }
+                            $displayed_count = min($preview_count, $preview_limit);
                             ?>
                             <?php foreach (array_slice($preview_items, 0, $preview_limit) as $preview) : ?>
                                 <?php if (($preview['type'] ?? '') === 'image') : ?>
@@ -68,12 +72,13 @@ get_header();
                                     </span>
                                 <?php endif; ?>
                             <?php endforeach; ?>
-                            <?php for ($i = $preview_count; $i < $preview_limit; $i++) : ?>
+                            <?php for ($i = $displayed_count; $i < $preview_limit; $i++) : ?>
                                 <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
                             <?php endfor; ?>
                         <?php else : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                            <?php for ($i = 0; $i < $preview_limit; $i++) : ?>
+                                <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                            <?php endfor; ?>
                         <?php endif; ?>
                     </div>
                     <div class="ll-wordset-card__meta">

@@ -130,15 +130,18 @@
 }
 
 .ll-wordset-preview-item--text {
-    background: #1f6b5c;
-    color: #f5f7f3;
+    background: #ffffff !important;
+    color: #111827 !important;
     padding: 8px;
     text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ll-wordset-preview-text {
     font-size: 0.78rem;
-    line-height: 1.1;
+    line-height: 1.2;
+    font-weight: 600;
+    color: inherit !important;
     letter-spacing: 0.01em;
     display: -webkit-box;
     -webkit-line-clamp: 3;

@@ -106,11 +106,16 @@ function ll_tools_word_grid_shortcode($atts) {
     $atts = shortcode_atts(array(
         'category' => '', // Default category to empty
         'wordset'  => '', // Optional wordset filter
+        'deepest_only' => '', // When truthy, restrict to lowest-level categories.
     ), $atts);
 
     // Sanitize the category attribute
     $sanitized_category = sanitize_text_field($atts['category']);
     $sanitized_wordset = sanitize_text_field($atts['wordset']);
+    $deepest_only = false;
+    if (!empty($atts['deepest_only'])) {
+        $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
+    }
 
     $category_term = null;
     $is_text_based = false;
@@ -194,6 +199,23 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Query
     $query = new WP_Query($args);
+    if ($deepest_only && $category_term && function_exists('ll_get_deepest_categories')) {
+        $filtered_posts = [];
+        foreach ((array) $query->posts as $post_obj) {
+            $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+            if ($post_id <= 0) {
+                continue;
+            }
+            $deepest_terms = ll_get_deepest_categories($post_id);
+            $deepest_ids = wp_list_pluck((array) $deepest_terms, 'term_id');
+            if (in_array((int) $category_term->term_id, $deepest_ids, true)) {
+                $filtered_posts[] = $post_obj;
+            }
+        }
+        $query->posts = $filtered_posts;
+        $query->post_count = count($filtered_posts);
+        $query->current_post = -1;
+    }
     $word_ids = wp_list_pluck($query->posts, 'ID');
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids);
     $main_recording_types = function_exists('ll_tools_get_main_recording_types')
