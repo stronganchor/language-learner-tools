@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 4.6.8
+Version: 4.6.9
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -90,6 +90,30 @@ add_filter('upgrader_source_selection', function ($source, $remote_source, $upgr
     // Fall back to the original source if rename fails to avoid aborting the upgrade.
     return $source;
 }, 9, 3);
+
+add_action('upgrader_process_complete', function ($upgrader, $options) {
+    if (empty($options['action']) || empty($options['type'])) {
+        return;
+    }
+    if ($options['action'] !== 'update' || $options['type'] !== 'plugin') {
+        return;
+    }
+
+    $plugins = [];
+    if (!empty($options['plugins'])) {
+        $plugins = (array) $options['plugins'];
+    } elseif (!empty($options['plugin'])) {
+        $plugins = [(string) $options['plugin']];
+    }
+
+    if (empty($plugins)) {
+        return;
+    }
+
+    if (in_array(plugin_basename(LL_TOOLS_MAIN_FILE), $plugins, true)) {
+        set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+    }
+}, 10, 2);
 
 // Actions to take on plugin activation
 register_activation_hook(__FILE__, function () {
