@@ -9,7 +9,11 @@
         audioContext: null,
         reviewData: new Map(),
         // Track last clicked checkbox index for shift-click range selection
-        lastSelectedIndex: null,
+        lastSelectedIndexByTab: {
+            queue: null,
+            duplicates: null
+        },
+        activeTab: 'queue',
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -29,8 +33,73 @@
         state.recordings = window.llAudioProcessor.recordings;
         state.recordingTypes = Array.isArray(window.llAudioProcessor.recordingTypes) ? window.llAudioProcessor.recordingTypes : [];
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        initTabs();
         wireEventListeners();
         updateSelectedCount();
+    }
+
+    function initTabs() {
+        const tabsWrapper = document.querySelector('.ll-audio-processor-tabs');
+        const tabButtons = document.querySelectorAll('.ll-audio-processor-tab');
+
+        if (!tabsWrapper || tabButtons.length === 0) {
+            return;
+        }
+
+        const initialTab = tabsWrapper.dataset.initialTab || tabButtons[0].dataset.tab || 'queue';
+        setActiveTab(initialTab, { skipClear: true });
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                if (!tab) {
+                    return;
+                }
+                setActiveTab(tab);
+            });
+        });
+    }
+
+    function setActiveTab(tab, options = {}) {
+        if (!tab || tab === state.activeTab) {
+            return;
+        }
+
+        state.activeTab = tab;
+
+        document.querySelectorAll('.ll-audio-processor-tab').forEach(btn => {
+            const isActive = btn.dataset.tab === tab;
+            btn.classList.toggle('is-active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        document.querySelectorAll('.ll-recordings-list').forEach(list => {
+            const isActive = list.dataset.tab === tab;
+            list.classList.toggle('is-active', isActive);
+            list.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+        });
+
+        state.lastSelectedIndexByTab[tab] = null;
+
+        if (!options.skipClear) {
+            clearSelections();
+        }
+    }
+
+    function clearSelections() {
+        document.querySelectorAll('.ll-recording-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        state.selected.clear();
+        updateSelectedCount();
+    }
+
+    function getActiveCheckboxes() {
+        const list = document.querySelector(`.ll-recordings-list[data-tab="${state.activeTab}"]`);
+        if (!list) {
+            return [];
+        }
+        return Array.from(list.querySelectorAll('.ll-recording-checkbox'));
     }
 
     function wireEventListeners() {
@@ -39,7 +108,6 @@
         const processBtn = document.getElementById('ll-process-selected');
         const deleteBtn = document.getElementById('ll-delete-selected');
         const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
-        const cbArray = Array.from(checkboxes);
 
         const enableTrim = document.getElementById('ll-enable-trim');
         const enableNoise = document.getElementById('ll-enable-noise');
@@ -63,7 +131,8 @@
 
         if (selectAll) {
             selectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
+                const activeCheckboxes = getActiveCheckboxes();
+                activeCheckboxes.forEach(cb => {
                     cb.checked = true;
                     state.selected.add(parseInt(cb.value));
                 });
@@ -73,7 +142,8 @@
 
         if (deselectAll) {
             deselectAll.addEventListener('click', () => {
-                checkboxes.forEach(cb => {
+                const activeCheckboxes = getActiveCheckboxes();
+                activeCheckboxes.forEach(cb => {
                     cb.checked = false;
                     state.selected.delete(parseInt(cb.value));
                 });
@@ -95,11 +165,17 @@
 
             // Add shift-click range selection (Gmail-style)
             cb.addEventListener('click', (e) => {
+                const list = e.currentTarget.closest('.ll-recordings-list');
+                const tab = list && list.dataset.tab ? list.dataset.tab : state.activeTab;
+                const cbArray = list ? Array.from(list.querySelectorAll('.ll-recording-checkbox')) : [];
                 const currentIndex = cbArray.indexOf(e.currentTarget);
+                const lastIndex = Number.isInteger(state.lastSelectedIndexByTab[tab])
+                    ? state.lastSelectedIndexByTab[tab]
+                    : null;
 
-                if (e.shiftKey && state.lastSelectedIndex !== null && state.lastSelectedIndex !== -1) {
-                    const start = Math.min(state.lastSelectedIndex, currentIndex);
-                    const end = Math.max(state.lastSelectedIndex, currentIndex);
+                if (e.shiftKey && lastIndex !== null && lastIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
                     const shouldCheck = e.currentTarget.checked;
 
                     for (let i = start; i <= end; i++) {
@@ -123,7 +199,7 @@
                 }
 
                 // Always remember the last clicked index
-                state.lastSelectedIndex = currentIndex;
+                state.lastSelectedIndexByTab[tab] = currentIndex;
             });
         });
 
@@ -142,9 +218,10 @@
                 cancelReview();
             } else if (e.target.id === 'll-delete-all-review') {
                 deleteAllReviewRecordings();
-            } else if (e.target.classList.contains('ll-reprocess-btn')) {
-                const postId = parseInt(e.target.dataset.postId);
-                reprocessSingleFile(postId);
+            } else if (e.target.classList.contains('ll-remove-review-btn') || e.target.closest('.ll-remove-review-btn')) {
+                const btn = e.target.classList.contains('ll-remove-review-btn') ? e.target : e.target.closest('.ll-remove-review-btn');
+                const postId = parseInt(btn.dataset.postId);
+                removeReviewRecording(postId);
             } else if (e.target.classList.contains('ll-delete-review-btn') || e.target.closest('.ll-delete-review-btn')) {
                 const btn = e.target.classList.contains('ll-delete-review-btn') ? e.target : e.target.closest('.ll-delete-review-btn');
                 const postId = parseInt(btn.dataset.postId);
@@ -449,10 +526,16 @@
         });
 
         const recordingsList = document.querySelector('.ll-recordings-list');
+        const tabs = document.querySelector('.ll-audio-processor-tabs');
         const processorControls = document.querySelector('.ll-processor-controls');
         const processingOptions = document.querySelector('.ll-processing-options');
 
-        if (recordingsList) recordingsList.style.display = 'none';
+        if (recordingsList) {
+            document.querySelectorAll('.ll-recordings-list').forEach(list => {
+                list.style.display = 'none';
+            });
+        }
+        if (tabs) tabs.style.display = 'none';
         if (processorControls) processorControls.style.display = 'none';
         if (processingOptions) processingOptions.style.display = 'none';
 
@@ -512,6 +595,9 @@
                     <div class="ll-review-options">
                         ${recordingTypeSelect}
                     </div>
+                    <button class="ll-btn-secondary ll-remove-review-btn" data-post-id="${postId}" type="button" title="Remove from this batch">
+                        Remove
+                    </button>
                     <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="Delete this recording">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -525,7 +611,6 @@
             </div>
             <div class="ll-playback-controls">
                 <audio controls preload="auto"></audio>
-                <button class="button ll-reprocess-btn" data-post-id="${postId}">Reprocess</button>
             </div>
         `;
 
@@ -754,55 +839,17 @@
             const enableNoise = container.querySelector('.ll-file-noise').checked;
             const enableLoudness = container.querySelector('.ll-file-loudness').checked;
 
-            let processedBuffer = data.originalBuffer;
-
-            if (enableTrim) {
-                processedBuffer = trimSilence(data.originalBuffer, data.trimStart, data.trimEnd);
-            }
-
-            if (enableNoise) {
-                processedBuffer = await reduceNoise(processedBuffer);
-            }
-
-            if (enableLoudness) {
-                processedBuffer = await normalizeLoudness(processedBuffer);
-            }
-
-            data.processedBuffer = processedBuffer;
-            data.options = { enableTrim, enableNoise, enableLoudness };
-
-            setupAudioPlayback(container, processedBuffer);
-        } catch (error) {
-            console.error('Error updating processed audio:', error);
-        } finally {
-            audioElement.style.opacity = '1';
-        }
-    }
-
-    async function reprocessSingleFile(postId) {
-        const data = state.reviewData.get(postId);
-        if (!data) return;
-
-        const container = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
-        if (!container) return;
-
-        const enableTrim = container.querySelector('.ll-file-trim').checked;
-        const enableNoise = container.querySelector('.ll-file-noise').checked;
-        const enableLoudness = container.querySelector('.ll-file-loudness').checked;
-
-        const reprocessBtn = container.querySelector('.ll-reprocess-btn');
-        const originalText = reprocessBtn.textContent;
-        reprocessBtn.textContent = 'Processing...';
-        reprocessBtn.disabled = true;
-
-        try {
             let trimStart = data.trimStart;
             let trimEnd = data.trimEnd;
+            let shouldRerender = false;
 
             if (enableTrim && !data.manualBoundaries && (!data.options || !data.options.enableTrim)) {
                 const detected = detectSilenceBoundaries(data.originalBuffer);
                 trimStart = detected.start;
                 trimEnd = detected.end;
+                data.trimStart = trimStart;
+                data.trimEnd = trimEnd;
+                shouldRerender = true;
             }
 
             let processedBuffer = data.originalBuffer;
@@ -820,23 +867,22 @@
             }
 
             data.processedBuffer = processedBuffer;
-            data.trimStart = trimStart;
-            data.trimEnd = trimEnd;
             data.options = { enableTrim, enableNoise, enableLoudness };
 
-            const waveformContainer = container.querySelector('.ll-waveform-container');
-            if (waveformContainer) {
-                waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
-                renderWaveform(container, data.originalBuffer, data.trimStart, data.trimEnd);
-                setupAudioPlayback(container, data.processedBuffer);
-                setupBoundaryDragging(container, postId, data.originalBuffer);
+            if (shouldRerender) {
+                const waveformContainer = container.querySelector('.ll-waveform-container');
+                if (waveformContainer) {
+                    waveformContainer.querySelectorAll('.ll-trim-boundary, .ll-trimmed-region').forEach(el => el.remove());
+                    renderWaveform(container, data.originalBuffer, trimStart, trimEnd);
+                    setupBoundaryDragging(container, postId, data.originalBuffer);
+                }
             }
+
+            setupAudioPlayback(container, processedBuffer);
         } catch (error) {
-            console.error('Error reprocessing file:', error);
-            alert('Error reprocessing file: ' + error.message);
+            console.error('Error updating processed audio:', error);
         } finally {
-            reprocessBtn.textContent = originalText;
-            reprocessBtn.disabled = false;
+            audioElement.style.opacity = '1';
         }
     }
 
@@ -1086,6 +1132,31 @@
                     deleteBtn.style.opacity = '1';
                 }
             });
+    }
+
+    function removeReviewRecording(postId) {
+        const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
+        if (!reviewFile) return;
+
+        const data = state.reviewData.get(postId);
+        const title = data ? data.recording.title : 'this recording';
+
+        if (!confirm(`Remove "${title}" from this batch? It will remain unprocessed.`)) {
+            return;
+        }
+
+        reviewFile.style.opacity = '0';
+        reviewFile.style.transform = 'translateY(-10px)';
+        reviewFile.style.transition = 'all 0.3s ease';
+
+        setTimeout(() => {
+            reviewFile.remove();
+            state.reviewData.delete(postId);
+
+            if (state.reviewData.size === 0) {
+                location.reload();
+            }
+        }, 300);
     }
 
     function deleteAllReviewRecordings() {

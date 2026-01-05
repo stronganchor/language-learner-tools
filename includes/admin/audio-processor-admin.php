@@ -38,8 +38,9 @@ function ll_enqueue_audio_processor_assets($hook) {
     ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css');
     ll_enqueue_asset_by_timestamp('/js/audio-processor.js', 'll-audio-processor-js', [], true);
 
-    // Get all unprocessed recordings
-    $recordings = ll_get_unprocessed_recordings();
+    // Get all unprocessed recordings (grouped with duplicates)
+    $recording_sets = ll_get_unprocessed_recordings();
+    $recordings = isset($recording_sets['all']) ? $recording_sets['all'] : [];
 
     wp_localize_script('ll-audio-processor-js', 'llAudioProcessor', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -49,6 +50,49 @@ function ll_enqueue_audio_processor_assets($hook) {
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
+
+function ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug) {
+    $type_key = $recording_type_slug ? $recording_type_slug : '__none__';
+    return $parent_word_id . '::' . $type_key;
+}
+
+function ll_audio_processor_get_published_recording_map($parent_word_ids) {
+    $parent_word_ids = array_values(array_unique(array_filter(array_map('intval', $parent_word_ids))));
+    if (empty($parent_word_ids)) {
+        return [];
+    }
+
+    $published_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'post_parent__in' => $parent_word_ids,
+        'fields' => 'ids',
+    ]);
+
+    if (empty($published_ids) || is_wp_error($published_ids)) {
+        return [];
+    }
+
+    $published_by_key = [];
+    foreach ($published_ids as $audio_post_id) {
+        $parent_word_id = wp_get_post_parent_id($audio_post_id);
+        if (!$parent_word_id) {
+            continue;
+        }
+
+        $recording_type_slugs = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'slugs']);
+        $recording_type_slug = (!is_wp_error($recording_type_slugs) && !empty($recording_type_slugs)) ? $recording_type_slugs[0] : '';
+        $key = ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug);
+
+        if (!isset($published_by_key[$key])) {
+            $published_by_key[$key] = [];
+        }
+        $published_by_key[$key][] = (int) $audio_post_id;
+    }
+
+    return $published_by_key;
+}
 
 function ll_get_unprocessed_recordings() {
     $args = [
@@ -68,6 +112,7 @@ function ll_get_unprocessed_recordings() {
 
     $query = new WP_Query($args);
     $recordings = [];
+    $parent_word_ids = [];
 
     if ($query->have_posts()) {
         while ($query->have_posts()) {
@@ -88,6 +133,7 @@ function ll_get_unprocessed_recordings() {
                 $recording_type_terms = wp_get_post_terms($audio_post_id, 'recording_type');
                 $recording_type_names = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'name') : [];
                 $recording_type_slugs = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'slug') : [];
+                $recording_type_slug = !empty($recording_type_slugs) ? $recording_type_slugs[0] : '';
 
                 // Get image thumbnail
                 $image_url = get_the_post_thumbnail_url($parent_word_id, 'thumbnail');
@@ -100,25 +146,111 @@ function ll_get_unprocessed_recordings() {
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
                     'wordsets' => $wordset_names,
                     'recordingTypes' => $recording_type_names,
-                    'recordingType' => !empty($recording_type_slugs) ? $recording_type_slugs[0] : '',
+                    'recordingType' => $recording_type_slug,
                     'imageUrl' => $image_url ?: '',
+                    'parentWordId' => (int) $parent_word_id,
+                    'recordingKey' => ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug),
                 ];
+
+                $parent_word_ids[] = (int) $parent_word_id;
             }
         }
         wp_reset_postdata();
     }
 
-    return $recordings;
+    $published_by_key = ll_audio_processor_get_published_recording_map($parent_word_ids);
+    $queue = [];
+    $duplicates = [];
+    $seen_keys = [];
+
+    foreach ($recordings as $recording) {
+        $key = $recording['recordingKey'];
+        $published_ids = isset($published_by_key[$key]) ? $published_by_key[$key] : [];
+        $has_published_duplicate = false;
+
+        if (!empty($published_ids)) {
+            if (count($published_ids) > 1 || (count($published_ids) === 1 && (int) $published_ids[0] !== (int) $recording['id'])) {
+                $has_published_duplicate = true;
+            }
+        }
+
+        if ($has_published_duplicate) {
+            $recording['duplicateReason'] = 'published';
+            $duplicates[] = $recording;
+            continue;
+        }
+
+        if (isset($seen_keys[$key])) {
+            $recording['duplicateReason'] = 'queued';
+            $duplicates[] = $recording;
+            continue;
+        }
+
+        $recording['duplicateReason'] = '';
+        $queue[] = $recording;
+        $seen_keys[$key] = true;
+    }
+
+    return [
+        'queue' => $queue,
+        'duplicates' => $duplicates,
+        'all' => $recordings,
+    ];
+}
+
+function ll_render_audio_processor_recording_item($recording, $duplicate_reason = '') {
+    $recording_type_label = !empty($recording['recordingTypes'])
+        ? implode(', ', $recording['recordingTypes'])
+        : __('Unassigned', 'll-tools-text-domain');
+
+    $duplicate_label = '';
+    if ($duplicate_reason === 'published') {
+        $duplicate_label = __('Published audio exists', 'll-tools-text-domain');
+    } elseif ($duplicate_reason === 'queued') {
+        $duplicate_label = __('Duplicate in queue', 'll-tools-text-domain');
+    }
+    ?>
+    <div class="ll-recording-item" data-id="<?php echo esc_attr($recording['id']); ?>">
+        <label class="ll-recording-label">
+            <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
+            <div class="ll-recording-info">
+                <strong><?php echo esc_html($recording['title']); ?></strong>
+                <div class="ll-recording-meta">
+                    <?php if (!empty($recording['categories'])): ?>
+                        <span class="ll-recording-categories">
+                            <?php echo esc_html(implode(', ', $recording['categories'])); ?>
+                        </span>
+                    <?php endif; ?>
+                    <span class="ll-recording-type">
+                        <span class="ll-recording-meta-label"><?php echo esc_html__('Type', 'll-tools-text-domain'); ?>:</span>
+                        <span class="ll-recording-meta-value"><?php echo esc_html($recording_type_label); ?></span>
+                    </span>
+                    <?php if ($duplicate_label): ?>
+                        <span class="ll-recording-duplicate"><?php echo esc_html($duplicate_label); ?></span>
+                    <?php endif; ?>
+                    <span class="ll-recording-date">
+                        <?php echo esc_html(date('Y-m-d H:i', strtotime($recording['uploadDate']))); ?>
+                    </span>
+                </div>
+            </div>
+        </label>
+        <audio controls preload="none" src="<?php echo esc_url($recording['audioUrl']); ?>"></audio>
+    </div>
+    <?php
 }
 
 function ll_render_audio_processor_page() {
-    $recordings = ll_get_unprocessed_recordings();
+    $recording_sets = ll_get_unprocessed_recordings();
+    $queue_recordings = isset($recording_sets['queue']) ? $recording_sets['queue'] : [];
+    $duplicate_recordings = isset($recording_sets['duplicates']) ? $recording_sets['duplicates'] : [];
+    $has_recordings = !empty($queue_recordings) || !empty($duplicate_recordings);
+    $active_tab = !empty($queue_recordings) ? 'queue' : 'duplicates';
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1>Audio Processor</h1>
         <p>Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.</p>
 
-        <?php if (empty($recordings)): ?>
+        <?php if (!$has_recordings): ?>
             <div class="notice notice-info">
                 <p>No unprocessed audio recordings found.</p>
             </div>
@@ -157,37 +289,68 @@ function ll_render_audio_processor_page() {
                 <p class="ll-status-text">Processing...</p>
             </div>
 
-            <div class="ll-recordings-list">
-                <?php foreach ($recordings as $recording): ?>
-                    <?php
-                    $recording_type_label = !empty($recording['recordingTypes'])
-                        ? implode(', ', $recording['recordingTypes'])
-                        : __('Unassigned', 'll-tools-text-domain');
-                    ?>
-                    <div class="ll-recording-item" data-id="<?php echo esc_attr($recording['id']); ?>">
-                        <label class="ll-recording-label">
-                            <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
-                            <div class="ll-recording-info">
-                                <strong><?php echo esc_html($recording['title']); ?></strong>
-                                <div class="ll-recording-meta">
-                                    <?php if (!empty($recording['categories'])): ?>
-                                        <span class="ll-recording-categories">
-                                            <?php echo esc_html(implode(', ', $recording['categories'])); ?>
-                                        </span>
-                                    <?php endif; ?>
-                                    <span class="ll-recording-type">
-                                        <span class="ll-recording-meta-label"><?php echo esc_html__('Type', 'll-tools-text-domain'); ?>:</span>
-                                        <span class="ll-recording-meta-value"><?php echo esc_html($recording_type_label); ?></span>
-                                    </span>
-                                    <span class="ll-recording-date">
-                                        <?php echo esc_html(date('Y-m-d H:i', strtotime($recording['uploadDate']))); ?>
-                                    </span>
-                                </div>
-                            </div>
-                        </label>
-                        <audio controls preload="none" src="<?php echo esc_url($recording['audioUrl']); ?>"></audio>
+            <div class="ll-audio-processor-tabs" role="tablist" data-initial-tab="<?php echo esc_attr($active_tab); ?>">
+                <button
+                    type="button"
+                    class="ll-audio-processor-tab <?php echo $active_tab === 'queue' ? 'is-active' : ''; ?>"
+                    data-tab="queue"
+                    role="tab"
+                    aria-selected="<?php echo $active_tab === 'queue' ? 'true' : 'false'; ?>"
+                    aria-controls="ll-recordings-queue"
+                >
+                    <span class="ll-tab-label"><?php echo esc_html__('Queue', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-tab-count" data-tab-count="queue"><?php echo esc_html(count($queue_recordings)); ?></span>
+                </button>
+                <button
+                    type="button"
+                    class="ll-audio-processor-tab <?php echo $active_tab === 'duplicates' ? 'is-active' : ''; ?>"
+                    data-tab="duplicates"
+                    role="tab"
+                    aria-selected="<?php echo $active_tab === 'duplicates' ? 'true' : 'false'; ?>"
+                    aria-controls="ll-recordings-duplicates"
+                >
+                    <span class="ll-tab-label"><?php echo esc_html__('Duplicates', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-tab-count" data-tab-count="duplicates"><?php echo esc_html(count($duplicate_recordings)); ?></span>
+                </button>
+            </div>
+
+            <div
+                id="ll-recordings-queue"
+                class="ll-recordings-list <?php echo $active_tab === 'queue' ? 'is-active' : ''; ?>"
+                data-tab="queue"
+                role="tabpanel"
+                aria-hidden="<?php echo $active_tab === 'queue' ? 'false' : 'true'; ?>"
+            >
+                <?php if (empty($queue_recordings)): ?>
+                    <div class="notice notice-info ll-recordings-empty">
+                        <p><?php echo esc_html__('No unique recordings in the queue. Check the duplicates tab for additional recordings.', 'll-tools-text-domain'); ?></p>
                     </div>
-                <?php endforeach; ?>
+                <?php else: ?>
+                    <?php foreach ($queue_recordings as $recording): ?>
+                        <?php ll_render_audio_processor_recording_item($recording); ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <div
+                id="ll-recordings-duplicates"
+                class="ll-recordings-list <?php echo $active_tab === 'duplicates' ? 'is-active' : ''; ?>"
+                data-tab="duplicates"
+                role="tabpanel"
+                aria-hidden="<?php echo $active_tab === 'duplicates' ? 'false' : 'true'; ?>"
+            >
+                <?php if (!empty($duplicate_recordings)): ?>
+                    <div class="ll-duplicate-note">
+                        <?php echo esc_html__('Duplicates are hidden so you can process one recording per word and recording type first.', 'll-tools-text-domain'); ?>
+                    </div>
+                    <?php foreach ($duplicate_recordings as $recording): ?>
+                        <?php ll_render_audio_processor_recording_item($recording, isset($recording['duplicateReason']) ? $recording['duplicateReason'] : ''); ?>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="notice notice-info ll-recordings-empty">
+                        <p><?php echo esc_html__('No duplicates found.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- Review Interface (shown after processing) -->
