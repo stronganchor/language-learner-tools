@@ -116,10 +116,14 @@ function ll_word_audio_extract_context($atts, $content) {
         $word_post = ll_find_post_by_exact_title($normalized_content, 'words');
     }
 
-    // Retrieve the audio file for this word (if a matching word post exists)
+    // Retrieve the audio file for this word (prefer processed word_audio posts).
     $audio_file = '';
     if (!empty($word_post)) {
-        $audio_file = get_post_meta($word_post->ID, 'word_audio_file', true);
+        if (function_exists('ll_get_word_audio_url')) {
+            $audio_file = ll_get_word_audio_url($word_post->ID);
+        } else {
+            $audio_file = get_post_meta($word_post->ID, 'word_audio_file', true);
+        }
     }
 
     return array(
