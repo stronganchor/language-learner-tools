@@ -261,6 +261,14 @@
         flex-direction: column;
         align-items: flex-start;
     }
+
+    .ll-vocab-lesson-actions {
+        width: 100%;
+    }
+
+    .ll-vocab-lesson-settings {
+        margin-left: auto;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

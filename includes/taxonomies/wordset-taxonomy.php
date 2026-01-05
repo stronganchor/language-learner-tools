@@ -258,12 +258,12 @@ function ll_tools_get_active_wordset_id($explicit = 0): int {
 }
 
 /**
- * On first request after activation:
+ * On first request after activation/update:
  *  - Ensure at least one 'wordset' term exists (create "Default Word Set" if none).
- *  - If exactly one wordset exists, assign it to all 'words' posts that have none.
+ *  - Assign the default wordset (only one if it exists, otherwise the oldest) to words without one.
  */
 function ll_tools_maybe_seed_default_wordset_and_assign() {
-    // Only run if activation set the transient.
+    // Only run if activation/update set the transient.
     if (!get_transient('ll_tools_seed_default_wordset')) {
         return;
     }
@@ -274,11 +274,13 @@ function ll_tools_maybe_seed_default_wordset_and_assign() {
         return;
     }
 
-    // Collect existing wordset terms.
+    // Collect existing wordset terms (oldest first).
     $term_ids = get_terms([
         'taxonomy'   => 'wordset',
         'hide_empty' => false,
         'fields'     => 'ids',
+        'orderby'    => 'term_id',
+        'order'      => 'ASC',
     ]);
     if (is_wp_error($term_ids)) {
         return;
@@ -297,11 +299,10 @@ function ll_tools_maybe_seed_default_wordset_and_assign() {
         $term_ids = [(int) $created['term_id']];
     }
 
-    // Only auto-assign when exactly one wordset exists.
-    if (count($term_ids) !== 1) {
+    if (empty($term_ids)) {
         return;
     }
-    $the_only_wordset_id = (int) array_values($term_ids)[0];
+    $default_wordset_id = (int) array_values($term_ids)[0];
 
     // Find all "words" posts with no wordset term.
     $orphans = new WP_Query([
@@ -318,7 +319,7 @@ function ll_tools_maybe_seed_default_wordset_and_assign() {
 
     if (!is_wp_error($orphans) && !empty($orphans->posts)) {
         foreach ($orphans->posts as $post_id) {
-            wp_set_object_terms((int) $post_id, $the_only_wordset_id, 'wordset', false);
+            wp_set_object_terms((int) $post_id, $default_wordset_id, 'wordset', false);
         }
     }
 }
