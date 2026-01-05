@@ -105,10 +105,12 @@ function ll_tools_word_grid_shortcode($atts) {
     // Shortcode attributes with defaults
     $atts = shortcode_atts(array(
         'category' => '', // Default category to empty
+        'wordset'  => '', // Optional wordset filter
     ), $atts);
 
     // Sanitize the category attribute
     $sanitized_category = sanitize_text_field($atts['category']);
+    $sanitized_wordset = sanitize_text_field($atts['wordset']);
 
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery'], true);
 
@@ -129,8 +131,10 @@ function ll_tools_word_grid_shortcode($atts) {
         'isLoggedIn' => is_user_logged_in(),
         'state'      => $user_study_state,
         'i18n'       => [
-            'starLabel'   => __('Star word', 'll-tools-text-domain'),
-            'unstarLabel' => __('Unstar word', 'll-tools-text-domain'),
+            'starLabel'      => __('Star word', 'll-tools-text-domain'),
+            'unstarLabel'    => __('Unstar word', 'll-tools-text-domain'),
+            'starAllLabel'   => __('Star all', 'll-tools-text-domain'),
+            'unstarAllLabel' => __('Unstar all', 'll-tools-text-domain'),
         ],
     ]);
 
@@ -152,15 +156,27 @@ function ll_tools_word_grid_shortcode($atts) {
         'order' => 'ASC', // Ascending order
     );
 
-    // Check if the category attribute is not empty
+    $tax_query = [];
     if (!empty($sanitized_category)) {
-        $args['tax_query'] = array(
-            array(
-                'taxonomy' => 'word-category',
-                'field' => 'slug',
-                'terms' => $sanitized_category,
-            ),
-        );
+        $tax_query[] = [
+            'taxonomy' => 'word-category',
+            'field' => 'slug',
+            'terms' => $sanitized_category,
+        ];
+    }
+    if (!empty($sanitized_wordset)) {
+        $is_numeric = ctype_digit($sanitized_wordset);
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field'    => $is_numeric ? 'term_id' : 'slug',
+            'terms'    => $is_numeric ? [(int) $sanitized_wordset] : $sanitized_wordset,
+        ];
+    }
+    if (!empty($tax_query)) {
+        if (count($tax_query) > 1) {
+            $tax_query['relation'] = 'AND';
+        }
+        $args['tax_query'] = $tax_query;
     }
 
     // The Query

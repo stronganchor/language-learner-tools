@@ -239,6 +239,7 @@ function ll_render_settings_page() {
                 dropdown.prop('disabled', !(isEnabled && hasLanguages));
             }
 
+
             // Initial state
             updateDropdownState();
 

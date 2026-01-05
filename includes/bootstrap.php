@@ -12,6 +12,7 @@ require_once __DIR__ . '/lib/media-proxy.php';
 require_once(__DIR__ . '/post-types/words-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
+require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
 
 // Include taxonomies
 require_once(__DIR__ . '/taxonomies/word-category-taxonomy.php');
@@ -50,6 +51,8 @@ require_once(__DIR__ . '/pages/quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOLS_MAIN_FILE')) {
     ll_tools_register_autopage_activation(LL_TOOLS_MAIN_FILE);
 }
+require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
+require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 

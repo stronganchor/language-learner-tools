@@ -269,12 +269,50 @@
     let starredIds = normalizeIds(state.starred_word_ids);
     let saveTimer = null;
     let internalStarChange = false;
+    const $starToggles = $('[data-ll-word-grid-star-toggle]');
+    const $starModeButtons = $('.ll-vocab-lesson-star-mode');
+    const $lessonSettings = $('.ll-vocab-lesson-settings');
+
+    function getStudySettings() {
+        return (window.LLFlashcards && window.LLFlashcards.StudySettings)
+            ? window.LLFlashcards.StudySettings
+            : null;
+    }
 
     function normalizeIds(arr) {
         return (arr || []).map(function (v) { return parseInt(v, 10) || 0; })
             .filter(function (v) { return v > 0; })
             .filter(function (v, idx, list) { return list.indexOf(v) === idx; });
     }
+
+    function normalizeStarMode(mode) {
+        const studySettings = getStudySettings();
+        if (studySettings && typeof studySettings.normalizeStarMode === 'function') {
+            return studySettings.normalizeStarMode(mode);
+        }
+        const normalized = String(mode || '').toLowerCase();
+        if (normalized === 'weighted' || normalized === 'only' || normalized === 'normal') {
+            return normalized;
+        }
+        return 'normal';
+    }
+
+    function setStarModeLocal(mode) {
+        const normalized = normalizeStarMode(mode);
+        state.star_mode = normalized;
+        state.starMode = normalized;
+        return normalized;
+    }
+
+    let currentStarMode = normalizeStarMode(
+        (getStudySettings() && typeof getStudySettings().getStarMode === 'function')
+            ? getStudySettings().getStarMode()
+            : (state.star_mode ||
+                state.starMode ||
+                (window.llToolsFlashcardsData && (window.llToolsFlashcardsData.starMode || window.llToolsFlashcardsData.star_mode)) ||
+                'normal')
+    );
+    setStarModeLocal(currentStarMode);
 
     function isStarred(wordId) {
         return starredIds.indexOf(wordId) !== -1;
@@ -283,6 +321,163 @@
     function setStarredIds(ids) {
         starredIds = normalizeIds(ids);
         state.starred_word_ids = starredIds.slice();
+    }
+
+    function setStarMode(mode) {
+        const normalized = setStarModeLocal(mode);
+
+        if (window.llToolsStudyPrefs) {
+            window.llToolsStudyPrefs.starMode = normalized;
+            window.llToolsStudyPrefs.star_mode = normalized;
+        }
+
+        if (window.llToolsFlashcardsData) {
+            window.llToolsFlashcardsData.starMode = normalized;
+            window.llToolsFlashcardsData.star_mode = normalized;
+            if (window.llToolsFlashcardsData.userStudyState) {
+                window.llToolsFlashcardsData.userStudyState.star_mode = normalized;
+            }
+        }
+
+        return normalized;
+    }
+
+    function getGridWordIds($grid) {
+        const ids = [];
+        $grid.find('.ll-word-grid-star[data-word-id]').each(function () {
+            const wordId = parseInt($(this).attr('data-word-id'), 10) || 0;
+            if (wordId) {
+                ids.push(wordId);
+            }
+        });
+        return normalizeIds(ids);
+    }
+
+    function getGridForToggle($toggle) {
+        let $grid = $();
+        const $scope = $toggle.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page');
+        if ($scope.length) {
+            $grid = $scope.find('[data-ll-word-grid]').first();
+        }
+        if (!$grid.length) {
+            $grid = $grids.first();
+        }
+        return $grid;
+    }
+
+    function updateStarToggle($toggle) {
+        const $grid = getGridForToggle($toggle);
+        const wordIds = $grid.length ? getGridWordIds($grid) : [];
+        const hasWords = wordIds.length > 0;
+        const allStarred = hasWords && wordIds.every(function (wordId) {
+            return isStarred(wordId);
+        });
+        const label = allStarred ? (i18n.unstarAllLabel || '') : (i18n.starAllLabel || '');
+        const iconChar = allStarred ? '\u2605' : '\u2606';
+        const $icon = $toggle.find('.ll-vocab-lesson-star-icon');
+        const $label = $toggle.find('.ll-vocab-lesson-star-label');
+        if ($icon.length) {
+            $icon.text(iconChar);
+        }
+        if (label) {
+            if ($label.length) {
+                $label.text(label);
+            } else {
+                $toggle.text(iconChar + ' ' + label);
+            }
+        }
+        $toggle.toggleClass('active', allStarred);
+        $toggle.attr('aria-pressed', allStarred ? 'true' : 'false');
+        $toggle.prop('disabled', !hasWords);
+    }
+
+    function updateAllStarToggles() {
+        if (!$starToggles.length) { return; }
+        $starToggles.each(function () {
+            updateStarToggle($(this));
+        });
+    }
+
+    function canUseStarOnlyForGrid($grid) {
+        const wordIds = $grid.length ? getGridWordIds($grid) : [];
+        if (!wordIds.length) {
+            return false;
+        }
+        return wordIds.some(function (wordId) {
+            return isStarred(wordId);
+        });
+    }
+
+    function updateStarModeButtons() {
+        if (!$starModeButtons.length) { return; }
+        const studySettings = getStudySettings();
+        if (studySettings && typeof studySettings.syncStarModeButtons === 'function') {
+            studySettings.syncStarModeButtons($starModeButtons, {
+                canUseStarOnly: function (button) {
+                    const $grid = getGridForToggle($(button));
+                    return canUseStarOnlyForGrid($grid);
+                }
+            });
+            if (typeof studySettings.getStarMode === 'function') {
+                setStarModeLocal(studySettings.getStarMode());
+            }
+            return;
+        }
+        const currentMode = normalizeStarMode(state.star_mode || 'normal');
+
+        $starModeButtons.each(function () {
+            const $btn = $(this);
+            const mode = normalizeStarMode($btn.data('star-mode') || '');
+            if (!mode) { return; }
+            const $grid = getGridForToggle($btn);
+            const allowOnly = canUseStarOnlyForGrid($grid);
+            const shouldDisable = (mode === 'only') && !allowOnly;
+            const isActive = mode === currentMode;
+
+            $btn.toggleClass('active', isActive).attr('aria-pressed', isActive ? 'true' : 'false');
+            $btn.prop('disabled', shouldDisable).attr('aria-disabled', shouldDisable ? 'true' : 'false');
+        });
+    }
+
+    function applyStarModeSelection(mode) {
+        const normalized = normalizeStarMode(mode);
+        if (!normalized) { return false; }
+        const studySettings = getStudySettings();
+        if (studySettings && typeof studySettings.applyStarMode === 'function') {
+            studySettings.applyStarMode(normalized);
+            if (typeof studySettings.getStarMode === 'function') {
+                setStarModeLocal(studySettings.getStarMode());
+            } else {
+                setStarModeLocal(normalized);
+            }
+            return true;
+        }
+        setStarMode(normalized);
+        saveStateDebounced();
+        return false;
+    }
+
+    function setLessonSettingsOpen($wrap, shouldOpen) {
+        if (!$wrap || !$wrap.length) { return; }
+        const $panel = $wrap.find('.ll-vocab-lesson-settings-panel');
+        const $button = $wrap.find('.ll-vocab-lesson-settings-button');
+        if (!$panel.length || !$button.length) { return; }
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $button.attr('aria-expanded', open ? 'true' : 'false');
+        $wrap.toggleClass('is-open', open);
+        if (open) {
+            updateStarModeButtons();
+        }
+    }
+
+    function closeLessonSettings(except) {
+        if (!$lessonSettings.length) { return; }
+        $lessonSettings.each(function () {
+            const $wrap = $(this);
+            if (except && $wrap.is(except)) { return; }
+            setLessonSettingsOpen($wrap, false);
+        });
     }
 
     function updateStarButton($btn, shouldStar) {
@@ -309,6 +504,13 @@
         if (window.llToolsFlashcardsData.userStudyState) {
             window.llToolsFlashcardsData.userStudyState.starred_word_ids = synced;
         }
+        if (window.llToolsStudyPrefs) {
+            window.llToolsStudyPrefs.starredWordIds = synced;
+            window.llToolsStudyPrefs.starred_word_ids = synced;
+        }
+        if (window.llToolsStudyData && window.llToolsStudyData.payload && window.llToolsStudyData.payload.state) {
+            window.llToolsStudyData.payload.state.starred_word_ids = synced;
+        }
     }
 
     function saveStateDebounced() {
@@ -325,6 +527,104 @@
                 fast_transitions: state.fast_transitions ? 1 : 0
             });
         }, 300);
+    }
+
+    if ($starToggles.length) {
+        $starToggles.on('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $toggle = $(this);
+            if ($toggle.prop('disabled')) { return; }
+            const $grid = getGridForToggle($toggle);
+            if (!$grid.length) { return; }
+            const wordIds = getGridWordIds($grid);
+            if (!wordIds.length) {
+                updateStarToggle($toggle);
+                return;
+            }
+
+            const current = new Set(starredIds);
+            const allStarred = wordIds.every(function (wordId) {
+                return current.has(wordId);
+            });
+            const shouldStar = !allStarred;
+            const changed = [];
+
+            wordIds.forEach(function (wordId) {
+                const hasStar = current.has(wordId);
+                if (shouldStar && !hasStar) {
+                    current.add(wordId);
+                    changed.push({ wordId: wordId, starred: true });
+                } else if (!shouldStar && hasStar) {
+                    current.delete(wordId);
+                    changed.push({ wordId: wordId, starred: false });
+                }
+            });
+
+            if (!changed.length) {
+                updateStarToggle($toggle);
+                return;
+            }
+
+            setStarredIds(Array.from(current));
+            changed.forEach(function (entry) {
+                updateStarButtons(entry.wordId, entry.starred);
+            });
+            setStudyPrefsGlobal();
+            saveStateDebounced();
+
+            internalStarChange = true;
+            try {
+                changed.forEach(function (entry) {
+                    $(document).trigger('lltools:star-changed', [entry]);
+                });
+            } finally {
+                internalStarChange = false;
+            }
+
+            updateAllStarToggles();
+            updateStarModeButtons();
+        });
+    }
+
+    if ($lessonSettings.length) {
+        $lessonSettings.on('click', '.ll-vocab-lesson-settings-button', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $wrap = $(this).closest('.ll-vocab-lesson-settings');
+            const $panel = $wrap.find('.ll-vocab-lesson-settings-panel');
+            const isOpen = $panel.attr('aria-hidden') === 'false';
+            closeLessonSettings($wrap);
+            setLessonSettingsOpen($wrap, !isOpen);
+        });
+
+        $lessonSettings.on('click', '.ll-vocab-lesson-settings-panel', function (e) {
+            e.stopPropagation();
+        });
+
+        $(document).on('pointerdown.llLessonSettings', function (e) {
+            if ($(e.target).closest('.ll-vocab-lesson-settings').length) { return; }
+            closeLessonSettings();
+        });
+
+        $(document).on('keydown.llLessonSettings', function (e) {
+            if (e.key === 'Escape') {
+                closeLessonSettings();
+            }
+        });
+    }
+
+    if ($starModeButtons.length) {
+        $starModeButtons.on('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $btn = $(this);
+            if ($btn.prop('disabled')) { return; }
+            const mode = normalizeStarMode($btn.data('star-mode') || '');
+            if (!mode) { return; }
+            applyStarModeSelection(mode);
+            updateStarModeButtons();
+        });
     }
 
     $grids.on('click', '.ll-word-grid-star', function (e) {
@@ -344,6 +644,8 @@
         updateStarButtons(wordId, shouldStar);
         setStudyPrefsGlobal();
         saveStateDebounced();
+        updateAllStarToggles();
+        updateStarModeButtons();
 
         internalStarChange = true;
         try {
@@ -372,5 +674,10 @@
         updateStarButtons(wordId, shouldStar);
         setStudyPrefsGlobal();
         saveStateDebounced();
+        updateAllStarToggles();
+        updateStarModeButtons();
     });
+
+    updateAllStarToggles();
+    updateStarModeButtons();
 })(jQuery);

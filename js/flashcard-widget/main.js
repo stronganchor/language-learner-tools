@@ -942,33 +942,51 @@
         };
     }
 
-    function syncSettingsPanelSelections() {
-        const { $panel } = getSettingsElements();
-        if (!$panel.length) return;
+    function syncStarModeButtons($buttons, options) {
+        if (!$buttons || !$buttons.length) return;
         const prefs = ensureStudyPrefs();
         const starMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'normal');
-        const fast = !!prefersFastTransitions();
-        const canUseStarOnly = canUseStarOnlyForCurrentSelection();
+        const defaultCanUse = canUseStarOnlyForCurrentSelection();
+        const hasOverride = options && Object.prototype.hasOwnProperty.call(options, 'canUseStarOnly');
+        const override = hasOverride ? options.canUseStarOnly : null;
 
-        $panel.find('[data-star-mode]').each(function () {
-            const val = String($(this).data('star-mode') || '');
+        $buttons.each(function () {
+            const $btn = $(this);
+            const val = String($btn.data('star-mode') || '');
+            if (!val) { return; }
+            let allowOnly = defaultCanUse;
+            if (typeof override === 'function') {
+                try {
+                    allowOnly = !!override(this, $btn);
+                } catch (_) {
+                    allowOnly = defaultCanUse;
+                }
+            } else if (typeof override === 'boolean') {
+                allowOnly = override;
+            }
+
             const isActive = val === starMode;
-            const shouldDisable = (val === 'only') && !canUseStarOnly;
+            const shouldDisable = (val === 'only') && !allowOnly;
 
-            $(this).toggleClass('active', isActive).attr('aria-pressed', isActive ? 'true' : 'false');
+            $btn.toggleClass('active', isActive).attr('aria-pressed', isActive ? 'true' : 'false');
 
             if (shouldDisable) {
-                $(this)
-                    .prop('disabled', true)
+                $btn.prop('disabled', true)
                     .attr('aria-disabled', 'true')
                     .removeClass('active')
                     .attr('aria-pressed', 'false');
             } else {
-                $(this)
-                    .prop('disabled', false)
+                $btn.prop('disabled', false)
                     .attr('aria-disabled', 'false');
             }
         });
+    }
+
+    function syncSettingsPanelSelections() {
+        const { $panel } = getSettingsElements();
+        if (!$panel.length) return;
+        const fast = !!prefersFastTransitions();
+        syncStarModeButtons($panel.find('[data-star-mode]'));
 
         $panel.find('[data-speed]').each(function () {
             const val = String($(this).data('speed') || '');
@@ -2011,6 +2029,21 @@
     }
 
     root.LLFlashcards = root.LLFlashcards || {};
+    root.LLFlashcards.StudySettings = {
+        normalizeStarMode: normalizeStarMode,
+        syncStarModeButtons: syncStarModeButtons,
+        getStarMode: function () {
+            const prefs = ensureStudyPrefs();
+            const fallback = root.llToolsFlashcardsData || {};
+            return normalizeStarMode(prefs.starMode || prefs.star_mode || fallback.starMode || fallback.star_mode || 'normal');
+        },
+        applyStarMode: function (mode) {
+            const normalized = normalizeStarMode(mode);
+            if (!normalized) return;
+            applyStudyPrefsFromUI({ starMode: normalized });
+        },
+        canUseStarOnlyForCurrentSelection: canUseStarOnlyForCurrentSelection
+    };
     root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);

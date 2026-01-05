@@ -1137,8 +1137,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     position: absolute;
     right: 0;
     bottom: 64px;
-    width: 320px;
-    max-width: 80vw;
+    width: max-content;
+    max-width: 90vw;
     background: #ffffff;
     color: #0f172a;
     border: 1px solid #e5e7eb;
@@ -1151,6 +1151,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     transition: opacity 0.15s ease, transform 0.15s ease;
     z-index: 10002;
     isolation: isolate;
+    overflow-x: auto;
 }
 
 .ll-tools-settings-panel[aria-hidden="false"] {
@@ -1340,7 +1341,17 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     float: none;
 }
 
-#ll-tools-settings-panel .ll-tools-settings-option {
+.ll-tools-settings-panel .ll-tools-settings-options {
+    grid-template-columns: max-content;
+    width: max-content;
+}
+
+.ll-tools-settings-panel .ll-tools-settings-option {
+    white-space: nowrap;
+}
+
+#ll-tools-settings-panel .ll-tools-settings-option,
+.ll-tools-settings-panel .ll-tools-settings-option {
     background: #f8fafc !important;
     border-color: #e5e7eb !important;
     color: #111827 !important;
@@ -1348,31 +1359,38 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     pointer-events: auto !important;
 }
 
-#ll-tools-settings-panel .ll-tools-settings-option:hover {
+#ll-tools-settings-panel .ll-tools-settings-option:hover,
+.ll-tools-settings-panel .ll-tools-settings-option:hover {
     border-color: #cbd5e1 !important;
     background: #eef2ff !important;
 }
 
-#ll-tools-settings-panel .ll-tools-settings-option:active {
+#ll-tools-settings-panel .ll-tools-settings-option:active,
+.ll-tools-settings-panel .ll-tools-settings-option:active {
     background: #dbeafe !important;
     border-color: #cbd5e1 !important;
 }
 
 #ll-tools-settings-panel .ll-tools-settings-option.active,
-#ll-tools-settings-panel .ll-tools-settings-option[aria-pressed="true"] {
+#ll-tools-settings-panel .ll-tools-settings-option[aria-pressed="true"],
+.ll-tools-settings-panel .ll-tools-settings-option.active,
+.ll-tools-settings-panel .ll-tools-settings-option[aria-pressed="true"] {
     background: #1d4ed8 !important;
     color: #ffffff !important;
     border-color: #1d4ed8 !important;
     box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25) !important;
 }
 
-#ll-tools-settings-panel .ll-tools-settings-option:focus-visible {
+#ll-tools-settings-panel .ll-tools-settings-option:focus-visible,
+.ll-tools-settings-panel .ll-tools-settings-option:focus-visible {
     outline: 2px solid #38bdf8 !important;
     outline-offset: 2px;
 }
 
 #ll-tools-settings-panel .ll-tools-settings-option:disabled,
-#ll-tools-settings-panel .ll-tools-settings-option[aria-disabled="true"] {
+#ll-tools-settings-panel .ll-tools-settings-option[aria-disabled="true"],
+.ll-tools-settings-panel .ll-tools-settings-option:disabled,
+.ll-tools-settings-panel .ll-tools-settings-option[aria-disabled="true"] {
     background: #f3f4f6 !important;
     color: #9ca3af !important;
     border-color: #e5e7eb !important;
@@ -1644,12 +1662,13 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     stroke-linejoin: round !important;
 }
 
-#ll-tools-settings-panel.ll-tools-settings-panel {
+#ll-tools-settings-panel.ll-tools-settings-panel,
+.ll-tools-settings-panel.ll-tools-settings-panel {
     position: absolute !important;
     right: 0 !important;
     bottom: 64px !important;
-    width: 320px !important;
-    max-width: 80vw !important;
+    width: max-content !important;
+    max-width: 90vw !important;
     padding: 14px !important;
     background: #ffffff !important;
     color: #0f172a !important;
@@ -1661,15 +1680,18 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     transform: translateY(8px) !important;
     pointer-events: none !important;
     isolation: isolate !important;
+    overflow-x: auto !important;
 }
 
-#ll-tools-settings-panel[aria-hidden="false"] {
+#ll-tools-settings-panel[aria-hidden="false"],
+.ll-tools-settings-panel[aria-hidden="false"] {
     opacity: 1 !important;
     transform: translateY(0) !important;
     pointer-events: auto !important;
 }
 
-#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option {
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option,
+.ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -1696,24 +1718,49 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     pointer-events: auto !important;
     float: none !important;
     text-transform: none !important;
+    white-space: nowrap !important;
 }
 
-#ll-tools-settings-panel[aria-hidden="true"] .ll-tools-settings-option.ll-tools-settings-option {
+#ll-tools-settings-panel[aria-hidden="true"] .ll-tools-settings-option.ll-tools-settings-option,
+.ll-tools-settings-panel[aria-hidden="true"] .ll-tools-settings-option.ll-tools-settings-option {
     pointer-events: none !important;
 }
 
 #ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::before,
-#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::after {
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::after,
+.ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::before,
+.ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option::after {
     content: "" !important;
     display: none !important;
 }
 
 #ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option.active,
-#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option[aria-pressed="true"] {
+#ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option[aria-pressed="true"],
+.ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option.active,
+.ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option[aria-pressed="true"] {
     background: #1d4ed8 !important;
     color: #ffffff !important;
     border-color: #1d4ed8 !important;
     box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25) !important;
+}
+
+@media (max-width: 600px) {
+    #ll-tools-settings-panel.ll-tools-settings-panel,
+    .ll-tools-settings-panel.ll-tools-settings-panel {
+        width: min(90vw, 320px) !important;
+        max-width: 90vw !important;
+    }
+
+    #ll-tools-settings-panel .ll-tools-settings-options,
+    .ll-tools-settings-panel .ll-tools-settings-options {
+        width: 100% !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    #ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option,
+    .ll-tools-settings-panel .ll-tools-settings-option.ll-tools-settings-option {
+        white-space: normal !important;
+    }
 }
 
 /* Prevent theme button styles from touching the star toggle */
