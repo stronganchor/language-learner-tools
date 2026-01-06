@@ -238,6 +238,47 @@ p:has(.ll-word-audio) {
     font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", serif;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-ipa-superscript {
+    align-self: flex-start;
+    justify-self: flex-start;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    margin-top: 6px !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-superscript[aria-hidden="true"] {
+    display: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-superscript:hover {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-superscript:focus-visible {
+    outline: 3px solid rgba(56, 189, 248, 0.5) !important;
+    outline-offset: 2px;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-ipa-keyboard {
     display: flex;
     flex-wrap: wrap;
@@ -322,10 +363,22 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-edit-recording-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-recording-title {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 8px;
+    min-width: 0;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-recording-btn {
+    margin-left: auto;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-recording-icon {

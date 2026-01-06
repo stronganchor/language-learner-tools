@@ -539,6 +539,7 @@ function ll_tools_word_grid_shortcode($atts) {
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'ipa'         => ll_tools_word_grid_label_with_code(__('IPA', 'll-tools-text-domain'), $target_lang_code),
+        'ipa_superscript' => __('Superscript selection', 'll-tools-text-domain'),
         'save'        => __('Save', 'll-tools-text-domain'),
         'cancel'      => __('Cancel', 'll-tools-text-domain'),
     ];
@@ -673,6 +674,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         'text' => (string) ($entry['recording_text'] ?? ''),
                         'translation' => (string) ($entry['recording_translation'] ?? ''),
                         'ipa' => (string) ($entry['recording_ipa'] ?? ''),
+                        'audio_url' => $audio_url,
                     ];
                 }
             }
@@ -732,13 +734,27 @@ function ll_tools_word_grid_shortcode($atts) {
                         $recording_text = (string) ($recording['text'] ?? '');
                         $recording_translation = (string) ($recording['translation'] ?? '');
                         $recording_ipa = (string) ($recording['ipa'] ?? '');
+                        $recording_audio_url = (string) ($recording['audio_url'] ?? '');
                         $recording_text_id = 'll-word-edit-recording-text-' . $recording_id;
                         $recording_translation_id = 'll-word-edit-recording-translation-' . $recording_id;
                         $recording_ipa_id = 'll-word-edit-recording-ipa-' . $recording_id;
                         echo '<div class="ll-word-edit-recording" data-recording-id="' . esc_attr($recording_id) . '" data-recording-type="' . esc_attr($recording_type) . '">';
                         echo '<div class="ll-word-edit-recording-header">';
+                        echo '<div class="ll-word-edit-recording-title">';
                         echo '<span class="ll-word-edit-recording-icon" aria-hidden="true"></span>';
                         echo '<span class="ll-word-edit-recording-name">' . esc_html($recording_label) . '</span>';
+                        echo '</div>';
+                        if ($recording_audio_url !== '') {
+                            $recording_play_label = sprintf($play_label_template, $recording_label);
+                            echo '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-word-edit-recording-btn ll-study-recording-btn--' . esc_attr($recording_type) . '" data-audio-url="' . esc_url($recording_audio_url) . '" data-recording-type="' . esc_attr($recording_type) . '" data-recording-id="' . esc_attr($recording_id) . '" aria-label="' . esc_attr($recording_play_label) . '" title="' . esc_attr($recording_play_label) . '">';
+                            echo '<span class="ll-study-recording-icon" aria-hidden="true"></span>';
+                            echo '<span class="ll-study-recording-visualizer" aria-hidden="true">';
+                            for ($i = 0; $i < 4; $i++) {
+                                echo '<span class="bar"></span>';
+                            }
+                            echo '</span>';
+                            echo '</button>';
+                        }
                         echo '</div>';
                         echo '<div class="ll-word-edit-recording-fields">';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_text_id) . '">' . esc_html($edit_labels['text']) . '</label>';
@@ -749,6 +765,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         echo '<div class="ll-word-edit-input-wrap ll-word-edit-input-wrap--ipa">';
                         echo '<input type="text" class="ll-word-edit-input ll-word-edit-input--ipa" id="' . esc_attr($recording_ipa_id) . '" data-ll-recording-input="ipa" value="' . esc_attr($recording_ipa) . '" />';
                         echo '</div>';
+                        echo '<button type="button" class="ll-word-edit-ipa-superscript" data-ll-ipa-superscript aria-hidden="true" aria-label="' . esc_attr($edit_labels['ipa_superscript']) . '" title="' . esc_attr($edit_labels['ipa_superscript']) . '"><span aria-hidden="true">x&sup2;</span></button>';
                         echo '<div class="ll-word-edit-ipa-keyboard" data-ll-ipa-keyboard aria-hidden="true"></div>';
                         echo '</div>';
                         echo '</div>';
