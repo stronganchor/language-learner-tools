@@ -328,8 +328,6 @@ function ll_tools_word_grid_shortcode($atts) {
             $display_values = ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
-            $word_example_sentence = get_post_meta($word_id, 'word_example_sentence', true);
-            $word_example_translation = get_post_meta($word_id, 'word_example_sentence_translation', true);
 
             // Individual item
             echo '<div class="word-item" data-word-id="' . esc_attr($word_id) . '">';
@@ -487,11 +485,6 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '</div>';
             }
 
-            // Example sentences
-            if ($word_example_sentence && $word_example_translation) {
-                echo '<p class="word-example">' . esc_html($word_example_sentence) . '</p>';
-                echo '<p class="word-translation"><em>' . esc_html($word_example_translation) . '</em></p>';
-            }
             // Audio buttons
             if ($has_recordings) {
                 if ($has_recording_caption) {
