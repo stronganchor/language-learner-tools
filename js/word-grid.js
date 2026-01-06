@@ -6,6 +6,7 @@
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
     const editI18n = cfg.editI18n || {};
+    const transcribeI18n = cfg.transcribeI18n || {};
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -850,6 +851,34 @@
         });
     }
 
+    function collectRecordingInputs($item) {
+        const recordings = [];
+        $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
+            const $rec = $(this);
+            const recId = parseInt($rec.attr('data-recording-id'), 10) || 0;
+            if (!recId) { return; }
+            const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
+            const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
+            recordings.push({
+                id: recId,
+                recording_text: text,
+                recording_translation: translation
+            });
+        });
+        return recordings;
+    }
+
+    function setTranscribeStatus($wrap, message, isError) {
+        const $status = $wrap.find('[data-ll-transcribe-status]').first();
+        if (!$status.length) { return; }
+        $status.text(message || '');
+        $status.toggleClass('is-error', !!isError);
+    }
+
+    function formatTranscribeProgress(template, current, total) {
+        return (template || '').replace('%1$d', String(current)).replace('%2$d', String(total));
+    }
+
     function formatRecordingCaption(text, translation) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
@@ -1039,6 +1068,163 @@
                 $saveBtn.prop('disabled', false);
                 $cancelBtn.prop('disabled', false);
                 $item.removeAttr('aria-busy');
+            });
+        });
+    }
+
+    if (canEdit && ajaxUrl && editNonce) {
+        const transcribeMessages = Object.assign({
+            confirm: '',
+            working: 'Transcribing...',
+            progress: 'Transcribing %1$d of %2$d...',
+            done: 'Transcription complete.',
+            none: 'No recordings need text.',
+            error: 'Unable to transcribe recordings.'
+        }, transcribeI18n || {});
+
+        function applyRecordingUpdate(rec) {
+            if (!rec) { return; }
+            const wordId = parseInt(rec.word_id, 10) || 0;
+            const recId = parseInt(rec.id, 10) || 0;
+            if (!wordId || !recId) { return; }
+            const $item = $grids.find('.word-item[data-word-id="' + wordId + '"]').first();
+            if (!$item.length) { return; }
+            const $rec = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]');
+            if ($rec.length) {
+                if (typeof rec.recording_text === 'string') {
+                    $rec.find('[data-ll-recording-input="text"]').val(rec.recording_text);
+                }
+                if (typeof rec.recording_translation === 'string') {
+                    $rec.find('[data-ll-recording-input="translation"]').val(rec.recording_translation);
+                }
+                const recordings = collectRecordingInputs($item);
+                applyRecordingCaptions($item, recordings);
+                updateOriginalInputs($item);
+            } else {
+                const $row = $item.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
+                if ($row.length) {
+                    const caption = formatRecordingCaption(rec.recording_text, rec.recording_translation);
+                    const $text = $row.find('.ll-word-recording-text').first();
+                    if (caption) {
+                        if ($text.length) {
+                            $text.text(caption);
+                        } else {
+                            $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
+                        }
+                    } else {
+                        $text.remove();
+                    }
+                }
+            }
+        }
+
+        function applyWordUpdate(word) {
+            if (!word) { return; }
+            const wordId = parseInt(word.id || word.word_id, 10) || 0;
+            if (!wordId) { return; }
+            const $item = $grids.find('.word-item[data-word-id="' + wordId + '"]').first();
+            if (!$item.length) { return; }
+            if (typeof word.word_text === 'string') {
+                $item.find('[data-ll-word-text]').text(word.word_text);
+                $item.find('[data-ll-word-input="word"]').val(word.word_text);
+            }
+            if (typeof word.word_translation === 'string') {
+                $item.find('[data-ll-word-translation]').text(word.word_translation);
+                $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
+            }
+            updateTitleWraps();
+            updateOriginalInputs($item);
+        }
+
+        $('[data-ll-transcribe-recordings]').on('click', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
+            const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
+            if (!lessonId) { return; }
+            if (transcribeMessages.confirm) {
+                const confirmed = window.confirm(transcribeMessages.confirm);
+                if (!confirmed) { return; }
+            }
+            $btn.prop('disabled', true);
+            $wrap.attr('aria-busy', 'true');
+            setTranscribeStatus($wrap, transcribeMessages.working, false);
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_get_lesson_transcribe_queue',
+                nonce: editNonce,
+                lesson_id: lessonId
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    setTranscribeStatus($wrap, transcribeMessages.error, true);
+                    $btn.prop('disabled', false);
+                    $wrap.removeAttr('aria-busy');
+                    return;
+                }
+                const data = response.data || {};
+                const queue = Array.isArray(data.queue) ? data.queue.slice() : [];
+                const total = parseInt(data.total, 10) || queue.length;
+                if (!queue.length) {
+                    setTranscribeStatus($wrap, transcribeMessages.none, false);
+                    $btn.prop('disabled', false);
+                    $wrap.removeAttr('aria-busy');
+                    return;
+                }
+
+                let completed = 0;
+                let hadError = false;
+                const processNext = function () {
+                    if (!queue.length) {
+                        if (hadError) {
+                            setTranscribeStatus($wrap, transcribeMessages.error, true);
+                        } else {
+                            setTranscribeStatus($wrap, transcribeMessages.done, false);
+                        }
+                        $btn.prop('disabled', false);
+                        $wrap.removeAttr('aria-busy');
+                        return;
+                    }
+                    const next = queue.shift();
+                    const recordingId = parseInt(next.recording_id, 10) || 0;
+                    if (!recordingId) {
+                        processNext();
+                        return;
+                    }
+                    completed += 1;
+                    setTranscribeStatus(
+                        $wrap,
+                        formatTranscribeProgress(transcribeMessages.progress, completed, total),
+                        false
+                    );
+
+                    $.post(ajaxUrl, {
+                        action: 'll_tools_transcribe_recording_by_id',
+                        nonce: editNonce,
+                        lesson_id: lessonId,
+                        recording_id: recordingId
+                    }).done(function (res) {
+                        if (res && res.success === true) {
+                            const rec = res.data && res.data.recording ? res.data.recording : null;
+                            if (rec) {
+                                applyRecordingUpdate(rec);
+                            }
+                            const word = res.data && res.data.word ? res.data.word : null;
+                            if (word) {
+                                applyWordUpdate(word);
+                            }
+                        } else {
+                            hadError = true;
+                        }
+                    }).always(function () {
+                        processNext();
+                    });
+                };
+
+                processNext();
+            }).fail(function () {
+                setTranscribeStatus($wrap, transcribeMessages.error, true);
+                $btn.prop('disabled', false);
+                $wrap.removeAttr('aria-busy');
             });
         });
     }

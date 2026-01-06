@@ -97,6 +97,54 @@
     gap: 10px;
 }
 
+.ll-vocab-lesson-transcribe {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ll-vocab-lesson-transcribe-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ll-vocab-lesson-transcribe-btn {
+    border-color: #cbd5e1 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+
+.ll-vocab-lesson-transcribe-btn:hover {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+}
+
+.ll-vocab-lesson-transcribe-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: inherit;
+}
+
+.ll-vocab-lesson-transcribe-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.ll-vocab-lesson-transcribe-status {
+    font-size: 12px;
+    color: var(--ll-vlp-muted);
+    min-height: 1em;
+}
+
+.ll-vocab-lesson-transcribe-status.is-error {
+    color: #b91c1c;
+}
+
 .ll-vocab-lesson-star-toggle {
     margin: 0;
 }

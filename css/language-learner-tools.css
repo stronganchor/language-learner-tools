@@ -53,13 +53,13 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-title-row {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;
     flex-wrap: nowrap !important;
     margin-top: -25px !important;
-    width: auto !important;
+    width: 100% !important;
     max-width: 100%;
     text-align: center !important;
 }
@@ -89,8 +89,8 @@ p:has(.ll-word-audio) {
 
 .word-grid.ll-word-grid .ll-word-translation {
     display: inline-block;
-    color: #475569;
-    font-weight: 400;
+    color: #666666 !important;
+    font-weight: 400 !important;
     white-space: nowrap;
 }
 
@@ -385,10 +385,11 @@ p:has(.ll-word-audio) {
 
 /* Image displayed for a word in the word-grid */
 .word-image {
-    max-width: 100%;
-    height: auto;
-    margin-bottom: 0px;
-    border-radius: 0px;
+    display: block !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin-bottom: 0 !important;
+    border-radius: 0 !important;
 }
 
 /* Container for the word image to enable rounded corners */
@@ -401,6 +402,7 @@ p:has(.ll-word-audio) {
     border-radius: 10px;
     overflow: hidden; /* Ensure the rounded corners clip the content */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Adds shadow for depth */
+    line-height: 0 !important;
 }
 
 .word-grid.ll-word-grid .word-item {
@@ -431,7 +433,7 @@ p:has(.ll-word-audio) {
 
 /* Word Grid Recording Buttons + Star */
 .word-grid.ll-word-grid .ll-word-recordings {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 6px;
@@ -441,14 +443,16 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-recordings--with-text {
-    display: inline-flex !important;
+    display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     flex-wrap: nowrap !important;
     gap: 8px;
-    width: auto !important;
-    max-width: 100%;
+    width: fit-content !important;
+    max-width: 100% !important;
     text-align: left;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-row {
@@ -458,6 +462,8 @@ p:has(.ll-word-audio) {
     width: 100% !important;
     justify-content: flex-start !important;
     flex-wrap: wrap;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text {

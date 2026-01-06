@@ -98,6 +98,132 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
     return $rows;
 }
 
+function ll_tools_get_image_dimensions_for_size(int $attachment_id, string $size = 'full'): array {
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0) {
+        return [
+            'width' => 0,
+            'height' => 0,
+            'ratio' => '',
+        ];
+    }
+
+    $size = sanitize_key($size ?: 'full');
+    $width = 0;
+    $height = 0;
+    $meta = wp_get_attachment_metadata($attachment_id);
+    if (is_array($meta)) {
+        if ($size !== 'full' && !empty($meta['sizes'][$size]['width']) && !empty($meta['sizes'][$size]['height'])) {
+            $width = (int) $meta['sizes'][$size]['width'];
+            $height = (int) $meta['sizes'][$size]['height'];
+        }
+        if (($width <= 0 || $height <= 0) && !empty($meta['width']) && !empty($meta['height'])) {
+            $width = (int) $meta['width'];
+            $height = (int) $meta['height'];
+        }
+    }
+
+    if ($width <= 0 || $height <= 0) {
+        $src = wp_get_attachment_image_src($attachment_id, $size);
+        if (is_array($src) && !empty($src[1]) && !empty($src[2])) {
+            $width = (int) $src[1];
+            $height = (int) $src[2];
+        }
+    }
+
+    if (($width <= 0 || $height <= 0) && function_exists('ll_tools_resolve_image_path_for_size')) {
+        $path = ll_tools_resolve_image_path_for_size($attachment_id, $size);
+        if ($path && file_exists($path) && is_readable($path)) {
+            $image_size = @getimagesize($path);
+            if (is_array($image_size) && !empty($image_size[0]) && !empty($image_size[1])) {
+                $width = (int) $image_size[0];
+                $height = (int) $image_size[1];
+            }
+        }
+    }
+
+    if (($width <= 0 || $height <= 0) && $size !== 'full') {
+        $src = wp_get_attachment_image_src($attachment_id, 'full');
+        if (is_array($src) && !empty($src[1]) && !empty($src[2])) {
+            $width = (int) $src[1];
+            $height = (int) $src[2];
+        }
+    }
+
+    $ratio = ($width > 0 && $height > 0) ? ($width . ' / ' . $height) : '';
+
+    return [
+        'width' => $width,
+        'height' => $height,
+        'ratio' => $ratio,
+    ];
+}
+
+function ll_tools_get_image_ratio_value(array $dimensions): float {
+    $width = (int) ($dimensions['width'] ?? 0);
+    $height = (int) ($dimensions['height'] ?? 0);
+    if ($width <= 0 || $height <= 0) {
+        return 0.0;
+    }
+    return $width / $height;
+}
+
+function ll_tools_select_wordset_preview_image_size(int $attachment_id, string $preferred_size): array {
+    $preferred_size = sanitize_key($preferred_size ?: 'full');
+    $preferred_dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, $preferred_size);
+    $full_dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, 'full');
+    $full_ratio = ll_tools_get_image_ratio_value($full_dimensions);
+    $tolerance = 0.02;
+
+    $candidates = array_values(array_unique(array_filter([
+        $preferred_size,
+        'medium_large',
+        'large',
+        'full',
+    ])));
+
+    foreach ($candidates as $size) {
+        $dimensions = $preferred_dimensions;
+        if ($size === 'full') {
+            $dimensions = $full_dimensions;
+        } elseif ($size !== $preferred_size) {
+            $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, $size);
+        }
+
+        $ratio = ll_tools_get_image_ratio_value($dimensions);
+        if ($ratio <= 0) {
+            continue;
+        }
+        if ($full_ratio <= 0) {
+            return [
+                'size' => $size,
+                'dimensions' => $dimensions,
+                'full_dimensions' => $full_dimensions,
+            ];
+        }
+
+        $diff = abs($ratio - $full_ratio) / $full_ratio;
+        if ($diff <= $tolerance) {
+            return [
+                'size' => $size,
+                'dimensions' => $dimensions,
+                'full_dimensions' => $full_dimensions,
+            ];
+        }
+    }
+
+    return [
+        'size' => $preferred_size,
+        'dimensions' => $preferred_dimensions,
+        'full_dimensions' => $full_dimensions,
+    ];
+}
+
+function ll_tools_get_image_aspect_ratio_for_size(int $attachment_id, string $size = 'full'): string {
+    $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, $size);
+    return $dimensions['ratio'] ?? '';
+}
+
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     $limit = max(1, (int) $limit);
     $items = [];
@@ -114,6 +240,8 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     }
 
     $image_size = 'medium';
+    $preview_aspect_ratio = '';
+    $ratio_cache_key = '';
     if ($use_images) {
         $image_size = apply_filters('ll_tools_wordset_preview_image_size', 'medium', 0, $category_id, $wordset_id);
         if (function_exists('ll_tools_normalize_image_size')) {
@@ -154,6 +282,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         ]);
 
         if (!empty($image_query->posts)) {
+            $did_set_ratio = false;
+            $did_select_size = false;
+            $first_dimensions = [];
             foreach ($image_query->posts as $word_id) {
                 if ($deepest_only) {
                     $deepest_terms = ll_get_deepest_categories($word_id);
@@ -166,6 +297,23 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 if (!$image_id) {
                     continue;
                 }
+
+                if (!$did_select_size) {
+                    $size_info = ll_tools_select_wordset_preview_image_size($image_id, $image_size);
+                    $image_size = (string) ($size_info['size'] ?? $image_size);
+                    $first_dimensions = (array) ($size_info['dimensions'] ?? []);
+                    $did_select_size = true;
+
+                    $ratio_cache_key = 'll_wordset_preview_ratio_v2_' . $wordset_id . '_' . $category_id . '_' . $image_size;
+                    $cached_ratio = wp_cache_get($ratio_cache_key, 'll_tools');
+                    if ($cached_ratio === false) {
+                        $cached_ratio = get_transient($ratio_cache_key);
+                    }
+                    if ($cached_ratio !== false && $cached_ratio !== '') {
+                        $preview_aspect_ratio = (string) $cached_ratio;
+                    }
+                }
+
                 $image_url = function_exists('ll_tools_get_masked_image_url')
                     ? ll_tools_get_masked_image_url($image_id, $image_size)
                     : '';
@@ -175,10 +323,34 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 if ($image_url === '') {
                     continue;
                 }
+                $dimensions = $first_dimensions;
+                if (empty($dimensions)) {
+                    $dimensions = ll_tools_get_image_dimensions_for_size($image_id, $image_size);
+                }
+                $first_dimensions = [];
+                $ratio = (string) ($dimensions['ratio'] ?? '');
+                $width = (int) ($dimensions['width'] ?? 0);
+                $height = (int) ($dimensions['height'] ?? 0);
+                if ($ratio !== '' && !$did_set_ratio) {
+                    if ($preview_aspect_ratio !== $ratio) {
+                        $preview_aspect_ratio = $ratio;
+                        if ($ratio_cache_key !== '') {
+                            wp_cache_set($ratio_cache_key, $preview_aspect_ratio, 'll_tools', DAY_IN_SECONDS);
+                            set_transient($ratio_cache_key, $preview_aspect_ratio, DAY_IN_SECONDS);
+                        }
+                    }
+                    $did_set_ratio = true;
+                }
+                if ($ratio === '' && $preview_aspect_ratio !== '') {
+                    $ratio = $preview_aspect_ratio;
+                }
                 $items[] = [
                     'type' => 'image',
                     'url'  => $image_url,
                     'alt'  => get_the_title($word_id),
+                    'ratio' => $ratio,
+                    'width' => $width,
+                    'height' => $height,
                 ];
                 if (count($items) >= $limit) {
                     break;
@@ -235,6 +407,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     return [
         'items' => $items,
         'has_images' => $use_images && !empty($items) && ($items[0]['type'] ?? '') === 'image',
+        'preview_aspect_ratio' => $preview_aspect_ratio,
     ];
 }
 
@@ -314,9 +487,16 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'count'      => (int) ($row['word_count'] ?? 0),
             'preview'    => $preview['items'],
             'has_images' => (bool) $preview['has_images'],
+            'preview_aspect_ratio' => $preview['preview_aspect_ratio'] ?? '',
             'preview_limit' => $preview_limit_for_category,
             'url'        => get_permalink($lesson_post_id),
         ];
+    }
+
+    if (!empty($items)) {
+        usort($items, static function ($a, $b) {
+            return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        });
     }
 
     return apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);

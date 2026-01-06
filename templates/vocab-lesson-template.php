@@ -12,6 +12,12 @@ if (have_posts()) {
 
     $wordset = $wordset_id ? get_term($wordset_id, 'wordset') : null;
     $category = $category_id ? get_term($category_id, 'word-category') : null;
+    $can_edit_words = function_exists('ll_tools_user_can_edit_vocab_words')
+        ? ll_tools_user_can_edit_vocab_words()
+        : (is_user_logged_in() && current_user_can('view_ll_tools'));
+    $can_transcribe = $can_edit_words
+        && function_exists('ll_tools_can_transcribe_recordings')
+        && ll_tools_can_transcribe_recordings();
 
     $display_name = '';
     if ($category && !is_wp_error($category)) {
@@ -60,6 +66,28 @@ if (have_posts()) {
                         <button type="button" class="ll-vocab-lesson-star-toggle ll-study-btn tiny ghost ll-group-star" data-ll-word-grid-star-toggle aria-pressed="false">
                             <?php echo '&#9734; ' . esc_html__('Star all', 'll-tools-text-domain'); ?>
                         </button>
+                        <?php if ($can_transcribe) : ?>
+                            <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
+                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                        <span class="ll-vocab-lesson-transcribe-icon">
+                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                <path d="M10 3a3 3 0 0 0-3 3v3a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                                                <path d="M4.5 9.5v.5a5.5 5.5 0 0 0 11 0v-.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                                <path d="M10 15.5v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
+                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                <path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                            </svg>
+                                        </span>
+                                    </span>
+                                    <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto captions', 'll-tools-text-domain'); ?></span>
+                                </button>
+                                <span class="ll-vocab-lesson-transcribe-status" data-ll-transcribe-status aria-live="polite"></span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
