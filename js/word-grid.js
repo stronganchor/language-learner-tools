@@ -892,6 +892,18 @@
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         $toggle.attr('aria-expanded', open ? 'true' : 'false');
         $item.toggleClass('ll-word-edit-open', open);
+        if (open) {
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+            $item.data('llEditScrollY', scrollY);
+        } else {
+            const scrollY = $item.data('llEditScrollY');
+            if (typeof scrollY === 'number') {
+                $item.removeData('llEditScrollY');
+                window.requestAnimationFrame(function () {
+                    window.scrollTo(0, scrollY);
+                });
+            }
+        }
     }
 
     function setRecordingsPanelOpen($item, shouldOpen) {
