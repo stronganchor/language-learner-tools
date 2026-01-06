@@ -113,6 +113,37 @@ function ll_tools_word_grid_select_audio_url(array $audio_files, string $type, i
     return isset($entry['url']) ? (string) $entry['url'] : '';
 }
 
+function ll_tools_word_grid_format_language_code(string $raw): string {
+    $raw = trim($raw);
+    if ($raw === '') {
+        return '';
+    }
+
+    $raw = str_replace('_', '-', $raw);
+    $raw = preg_replace('/[^A-Za-z\-]+/', '', $raw);
+    $raw = trim($raw, '-');
+    if ($raw === '') {
+        return '';
+    }
+
+    $code = strtoupper($raw);
+    if ($code === 'AUTO') {
+        return '';
+    }
+    if (strpos($code, '-') === false && strlen($code) > 6) {
+        return '';
+    }
+
+    return $code;
+}
+
+function ll_tools_word_grid_label_with_code(string $label, string $code): string {
+    if ($code === '') {
+        return $label;
+    }
+    return $label . ' (' . $code . ')';
+}
+
 function ll_tools_word_grid_resolve_display_text(int $word_id): array {
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
@@ -312,13 +343,30 @@ function ll_tools_word_grid_shortcode($atts) {
         'isolation'    => __('Isolation', 'll-tools-text-domain'),
         'introduction' => __('Introduction', 'll-tools-text-domain'),
     ];
+
+    $target_lang_raw = '';
+    if ($sanitized_wordset !== '') {
+        $wordset_field = ctype_digit($sanitized_wordset) ? 'term_id' : 'slug';
+        $wordset_value = ctype_digit($sanitized_wordset) ? (int) $sanitized_wordset : $sanitized_wordset;
+        $wordset_term = get_term_by($wordset_field, $wordset_value, 'wordset');
+        if ($wordset_term && !is_wp_error($wordset_term) && function_exists('ll_get_wordset_language')) {
+            $target_lang_raw = (string) ll_get_wordset_language((int) $wordset_term->term_id);
+        }
+    }
+    if ($target_lang_raw === '') {
+        $target_lang_raw = (string) get_option('ll_target_language', '');
+    }
+    $translation_lang_raw = (string) get_option('ll_translation_language', '');
+    $target_lang_code = ll_tools_word_grid_format_language_code($target_lang_raw);
+    $translation_lang_code = ll_tools_word_grid_format_language_code($translation_lang_raw);
+
     $play_label_template = __('Play %s recording', 'll-tools-text-domain');
     $edit_labels = [
         'edit_word'   => __('Edit word', 'll-tools-text-domain'),
-        'word'        => __('Word', 'll-tools-text-domain'),
-        'translation' => __('Translation', 'll-tools-text-domain'),
+        'word'        => ll_tools_word_grid_label_with_code(__('Word', 'll-tools-text-domain'), $target_lang_code),
+        'translation' => ll_tools_word_grid_label_with_code(__('Translation', 'll-tools-text-domain'), $translation_lang_code),
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
-        'text'        => __('Text', 'll-tools-text-domain'),
+        'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'save'        => __('Save', 'll-tools-text-domain'),
         'cancel'      => __('Cancel', 'll-tools-text-domain'),
     ];
@@ -367,15 +415,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $play_label = sprintf($play_label_template, $label);
                 $recording_text = trim((string) ($entry['recording_text'] ?? ''));
                 $recording_translation = trim((string) ($entry['recording_translation'] ?? ''));
-                $recording_caption = '';
-                if ($recording_text !== '' && $recording_translation !== '') {
-                    $recording_caption = $recording_text . ' (' . $recording_translation . ')';
-                } elseif ($recording_text !== '') {
-                    $recording_caption = $recording_text;
-                } elseif ($recording_translation !== '') {
-                    $recording_caption = '(' . $recording_translation . ')';
-                }
-                if ($recording_caption !== '') {
+                if ($recording_text !== '' || $recording_translation !== '') {
                     $has_recording_caption = true;
                 }
                 $recording_id_attr = '';
@@ -392,7 +432,8 @@ function ll_tools_word_grid_shortcode($atts) {
                 $recording_button .= '</button>';
                 $recording_rows[] = [
                     'button' => $recording_button,
-                    'text' => $recording_caption,
+                    'text' => $recording_text,
+                    'translation' => $recording_translation,
                     'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
                 ];
 
@@ -503,8 +544,15 @@ function ll_tools_word_grid_shortcode($atts) {
                         $row_id_attr = !empty($row['id']) ? ' data-recording-id="' . esc_attr((int) $row['id']) . '"' : '';
                         $recordings_html .= '<div class="ll-word-recording-row"' . $row_id_attr . '>';
                         $recordings_html .= $row['button'];
-                        if (!empty($row['text'])) {
-                            $recordings_html .= '<span class="ll-word-recording-text">' . esc_html($row['text']) . '</span>';
+                        if (!empty($row['text']) || !empty($row['translation'])) {
+                            $recordings_html .= '<span class="ll-word-recording-text">';
+                            if (!empty($row['text'])) {
+                                $recordings_html .= '<span class="ll-word-recording-text-main">' . esc_html($row['text']) . '</span>';
+                            }
+                            if (!empty($row['translation'])) {
+                                $recordings_html .= '<span class="ll-word-recording-text-translation">' . esc_html($row['translation']) . '</span>';
+                            }
+                            $recordings_html .= '</span>';
                         }
                         $recordings_html .= '</div>';
                     }

@@ -372,12 +372,82 @@
         });
     }
 
-    function scheduleTitleWrapUpdate() {
-        clearTimeout(titleWrapTimer);
-        titleWrapTimer = setTimeout(updateTitleWraps, 50);
+    function updateRecordingRowWidths() {
+        $grids.find('.word-item').each(function () {
+            const item = this;
+            if (!item) { return; }
+            const itemRect = item.getBoundingClientRect();
+            if (!itemRect.width) { return; }
+            const itemStyle = window.getComputedStyle(item);
+            const paddingX = parseGapValue(itemStyle.paddingLeft) + parseGapValue(itemStyle.paddingRight);
+            const contentWidth = Math.max(0, itemRect.width - paddingX);
+
+            $(item).find('.ll-word-recording-row').each(function () {
+                const row = this;
+                const textWrap = row.querySelector('.ll-word-recording-text');
+                if (!textWrap) {
+                    row.style.removeProperty('width');
+                    return;
+                }
+                const mainEl = textWrap.querySelector('.ll-word-recording-text-main');
+                const translationEl = textWrap.querySelector('.ll-word-recording-text-translation');
+                const mainText = mainEl ? (mainEl.textContent || '').trim() : '';
+                const translationText = translationEl ? (translationEl.textContent || '').trim() : '';
+
+                if (!mainText && !translationText) {
+                    row.style.removeProperty('width');
+                    return;
+                }
+
+                const rowStyle = window.getComputedStyle(row);
+                const rowGap = parseGapValue(rowStyle.columnGap || rowStyle.gap || '0');
+                const textStyle = window.getComputedStyle(textWrap);
+                const textGap = parseGapValue(textStyle.columnGap || textStyle.gap || '0');
+                const btnEl = row.querySelector('.ll-study-recording-btn');
+                const btnWidth = btnEl ? btnEl.getBoundingClientRect().width : 0;
+                const availableTextWidth = Math.max(0, contentWidth - btnWidth - rowGap);
+
+                let mainWidth = 0;
+                if (mainText) {
+                    mainWidth = measureTextWidth(mainText, mainEl || textWrap);
+                }
+                let translationWidth = 0;
+                if (translationText) {
+                    translationWidth = measureTextWidth('(' + translationText + ')', translationEl || textWrap);
+                }
+
+                const hasBoth = mainWidth > 0 && translationWidth > 0;
+                const combinedWidth = hasBoth ? (mainWidth + translationWidth + textGap) : Math.max(mainWidth, translationWidth);
+                let lineWidth = combinedWidth;
+                if (combinedWidth > availableTextWidth) {
+                    lineWidth = Math.max(mainWidth, translationWidth);
+                }
+
+                let targetWidth = btnWidth + rowGap + lineWidth;
+                if (contentWidth > 0) {
+                    targetWidth = Math.min(contentWidth, targetWidth);
+                }
+
+                if (targetWidth > 0) {
+                    row.style.width = targetWidth.toFixed(2) + 'px';
+                } else {
+                    row.style.removeProperty('width');
+                }
+            });
+        });
     }
 
-    updateTitleWraps();
+    function updateGridLayouts() {
+        updateTitleWraps();
+        updateRecordingRowWidths();
+    }
+
+    function scheduleTitleWrapUpdate() {
+        clearTimeout(titleWrapTimer);
+        titleWrapTimer = setTimeout(updateGridLayouts, 50);
+    }
+
+    updateGridLayouts();
     $(window).on('resize.llWordTitleWrap', scheduleTitleWrapUpdate);
 
     if (!isLoggedIn) { return; }
@@ -879,19 +949,52 @@
         return (template || '').replace('%1$d', String(current)).replace('%2$d', String(total));
     }
 
-    function formatRecordingCaption(text, translation) {
+    function getRecordingCaptionParts(text, translation) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
-        if (cleanText && cleanTranslation) {
-            return cleanText + ' (' + cleanTranslation + ')';
+        return {
+            text: cleanText,
+            translation: cleanTranslation,
+            hasCaption: !!(cleanText || cleanTranslation)
+        };
+    }
+
+    function renderRecordingCaption($row, parts) {
+        if (!$row || !parts) { return; }
+        let $textWrap = $row.find('.ll-word-recording-text').first();
+
+        if (!parts.hasCaption) {
+            $textWrap.remove();
+            return;
         }
-        if (cleanText) {
-            return cleanText;
+
+        if (!$textWrap.length) {
+            $textWrap = $('<span>', { class: 'll-word-recording-text' }).appendTo($row);
         }
-        if (cleanTranslation) {
-            return '(' + cleanTranslation + ')';
+
+        let $main = $textWrap.find('.ll-word-recording-text-main').first();
+        if (parts.text) {
+            if (!$main.length) {
+                $main = $('<span>', { class: 'll-word-recording-text-main' }).appendTo($textWrap);
+            }
+            $main.text(parts.text);
+        } else {
+            $main.remove();
         }
-        return '';
+
+        let $translation = $textWrap.find('.ll-word-recording-text-translation').first();
+        if (parts.translation) {
+            if (!$translation.length) {
+                $translation = $('<span>', { class: 'll-word-recording-text-translation' }).appendTo($textWrap);
+            }
+            $translation.text(parts.translation);
+        } else {
+            $translation.remove();
+        }
+
+        if (!$textWrap.children().length) {
+            $textWrap.remove();
+        }
     }
 
     function applyRecordingCaptions($item, recordings) {
@@ -904,9 +1007,9 @@
         recordings.forEach(function (rec) {
             const recId = parseInt(rec.id, 10) || 0;
             if (!recId) { return; }
-            const caption = formatRecordingCaption(rec.recording_text, rec.recording_translation);
+            const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation);
             captionMap[recId] = caption;
-            if (caption) {
+            if (caption.hasCaption) {
                 hasCaption = true;
             }
         });
@@ -918,15 +1021,13 @@
                 $buttons.each(function () {
                     const $btn = $(this);
                     const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
-                    const caption = recId ? (captionMap[recId] || '') : '';
+                    const caption = recId ? (captionMap[recId] || null) : null;
                     const $row = $('<div>', { class: 'll-word-recording-row' });
                     if (recId) {
                         $row.attr('data-recording-id', recId);
                     }
                     $row.append($btn);
-                    if (caption) {
-                        $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
-                    }
+                    renderRecordingCaption($row, caption);
                     $wrap.append($row);
                 });
             } else {
@@ -936,17 +1037,8 @@
                         || parseInt($row.find('.ll-word-grid-recording-btn').attr('data-recording-id'), 10)
                         || 0;
                     if (!recId) { return; }
-                    const caption = captionMap[recId] || '';
-                    const $text = $row.find('.ll-word-recording-text').first();
-                    if (caption) {
-                        if ($text.length) {
-                            $text.text(caption);
-                        } else {
-                            $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
-                        }
-                    } else {
-                        $text.remove();
-                    }
+                    const caption = captionMap[recId] || null;
+                    renderRecordingCaption($row, caption);
                 });
             }
         } else if ($wrap.hasClass('ll-word-recordings--with-text')) {
@@ -1057,7 +1149,7 @@
                     });
                     applyRecordingCaptions($item, data.recordings);
                 }
-                updateTitleWraps();
+                updateGridLayouts();
                 updateOriginalInputs($item);
                 setEditStatus($item, '');
                 setRecordingsPanelOpen($item, false);
@@ -1103,19 +1195,11 @@
             } else {
                 const $row = $item.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
                 if ($row.length) {
-                    const caption = formatRecordingCaption(rec.recording_text, rec.recording_translation);
-                    const $text = $row.find('.ll-word-recording-text').first();
-                    if (caption) {
-                        if ($text.length) {
-                            $text.text(caption);
-                        } else {
-                            $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
-                        }
-                    } else {
-                        $text.remove();
-                    }
+                    const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation);
+                    renderRecordingCaption($row, caption);
                 }
             }
+            updateRecordingRowWidths();
         }
 
         function applyWordUpdate(word) {
@@ -1132,7 +1216,7 @@
                 $item.find('[data-ll-word-translation]').text(word.word_translation);
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
             }
-            updateTitleWraps();
+            updateGridLayouts();
             updateOriginalInputs($item);
         }
 

@@ -70,13 +70,6 @@ if (have_posts()) {
                             <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
                                 <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings', 'll-tools-text-domain'); ?>">
                                     <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
-                                        <span class="ll-vocab-lesson-transcribe-icon">
-                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                                                <path d="M10 3a3 3 0 0 0-3 3v3a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
-                                                <path d="M4.5 9.5v.5a5.5 5.5 0 0 0 11 0v-.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                                                <path d="M10 15.5v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                                            </svg>
-                                        </span>
                                         <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
                                             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
                                                 <path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
