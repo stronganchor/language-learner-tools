@@ -1039,7 +1039,63 @@
 
     const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\. ]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
+    const ipaSuperscriptMap = {
+        'a': 'ᵃ',
+        'b': 'ᵇ',
+        'c': 'ᶜ',
+        'd': 'ᵈ',
+        'e': 'ᵉ',
+        'f': 'ᶠ',
+        'g': 'ᵍ',
+        'h': 'ʰ',
+        'i': 'ᶦ',
+        'j': 'ʲ',
+        'k': 'ᵏ',
+        'l': 'ˡ',
+        'm': 'ᵐ',
+        'n': 'ᶰ',
+        'o': 'ᵒ',
+        'p': 'ᵖ',
+        'r': 'ʳ',
+        's': 'ˢ',
+        't': 'ᵗ',
+        'u': 'ᵘ',
+        'v': 'ᵛ',
+        'w': 'ʷ',
+        'x': 'ˣ',
+        'y': 'ʸ',
+        'z': 'ᶻ',
+        'A': 'ᴬ',
+        'B': 'ᴮ',
+        'D': 'ᴰ',
+        'E': 'ᴱ',
+        'G': 'ᴳ',
+        'H': 'ᴴ',
+        'I': 'ᴵ',
+        'J': 'ᴶ',
+        'K': 'ᴷ',
+        'L': 'ᴸ',
+        'M': 'ᴹ',
+        'N': 'ᴺ',
+        'O': 'ᴼ',
+        'P': 'ᴾ',
+        'R': 'ᴿ',
+        'T': 'ᵀ',
+        'U': 'ᵁ',
+        'W': 'ᵂ',
+        'Y': 'ᵞ',
+        'ʙ': 'ᴮ',
+        'ɢ': 'ᴳ',
+        'ʜ': 'ᴴ',
+        'ɪ': 'ᴵ',
+        'ʟ': 'ᴸ',
+        'ɴ': 'ᴺ',
+        'ʀ': 'ᴿ',
+        'ʊ': 'ᵁ',
+        'ʏ': 'ᵞ'
+    };
     let activeIpaInput = null;
+    let activeIpaSelection = null;
 
     function sanitizeIpaValue(value) {
         const raw = (value || '').toString();
@@ -1058,6 +1114,45 @@
             out = out.trim();
         }
         return out;
+    }
+
+    function updateIpaSelection(input) {
+        if (!input || typeof input.selectionStart !== 'number' || typeof input.selectionEnd !== 'number') {
+            activeIpaSelection = null;
+            return;
+        }
+        activeIpaSelection = {
+            start: input.selectionStart,
+            end: input.selectionEnd
+        };
+    }
+
+    function toIpaSuperscript(text) {
+        return Array.from((text || '').toString()).map(function (ch) {
+            return ipaSuperscriptMap[ch] || ch;
+        }).join('');
+    }
+
+    function applySuperscriptToSelection(input) {
+        if (!input) { return; }
+        const selection = (typeof input.selectionStart === 'number' && typeof input.selectionEnd === 'number')
+            ? { start: input.selectionStart, end: input.selectionEnd }
+            : activeIpaSelection;
+        if (!selection || selection.end <= selection.start) {
+            return;
+        }
+        const value = (input.value || '').toString();
+        const selected = value.slice(selection.start, selection.end);
+        if (!selected) { return; }
+        const transformed = toIpaSuperscript(selected);
+        if (transformed === selected) { return; }
+        input.value = value.slice(0, selection.start) + transformed + value.slice(selection.end);
+        const newEnd = selection.start + transformed.length;
+        if (input.setSelectionRange) {
+            input.setSelectionRange(selection.start, newEnd);
+        }
+        $(input).trigger('input');
+        updateIpaSelection(input);
     }
 
     function extractIpaSpecialChars(value) {
@@ -1199,12 +1294,15 @@
 
     function showIpaKeyboard($input) {
         if (!$input || !$input.length) { return; }
-        const $keyboard = $input.closest('.ll-word-edit-recording').find('[data-ll-ipa-keyboard]').first();
+        const $recording = $input.closest('.ll-word-edit-recording');
+        const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
         if (!$keyboard.length) { return; }
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars);
         if (keyCount > 0) {
             $keyboard.attr('aria-hidden', 'false');
+            $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
             activeIpaInput = $input.get(0);
         } else {
             $keyboard.attr('aria-hidden', 'true');
@@ -1214,6 +1312,7 @@
 
     function hideIpaKeyboards() {
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         activeIpaInput = null;
     }
 
@@ -1313,6 +1412,11 @@
 
         $grids.on('focus', '.ll-word-edit-input--ipa', function () {
             showIpaKeyboard($(this));
+            updateIpaSelection(this);
+        });
+
+        $grids.on('click keyup mouseup', '.ll-word-edit-input--ipa', function () {
+            updateIpaSelection(this);
         });
 
         $grids.on('input', '.ll-word-edit-input--ipa', function () {
@@ -1327,6 +1431,21 @@
             if (updated || activeIpaInput === this) {
                 showIpaKeyboard($input);
             }
+            updateIpaSelection(this);
+        });
+
+        $grids.on('mousedown', '[data-ll-ipa-superscript]', function (e) {
+            e.preventDefault();
+        });
+
+        $grids.on('click', '[data-ll-ipa-superscript]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $wrap = $(this).closest('.ll-word-edit-input-wrap--ipa');
+            const input = $wrap.find('.ll-word-edit-input--ipa').get(0) || activeIpaInput;
+            if (!input) { return; }
+            applySuperscriptToSelection(input);
+            input.focus();
         });
 
         $grids.on('click', '.ll-word-ipa-key', function (e) {
@@ -1339,7 +1458,7 @@
         });
 
         $(document).on('click.llWordGridIpa', function (e) {
-            if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard').length) {
+            if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard, .ll-word-edit-ipa-superscript').length) {
                 return;
             }
             hideIpaKeyboards();
