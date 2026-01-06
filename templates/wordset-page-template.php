@@ -49,8 +49,14 @@ get_header();
     <?php else : ?>
         <div class="ll-wordset-grid" role="list">
             <?php foreach ($categories as $cat) : ?>
+                <?php
+                $preview_style = '';
+                if (!empty($cat['preview_aspect_ratio'])) {
+                    $preview_style = ' style="--ll-wordset-preview-aspect: ' . esc_attr($cat['preview_aspect_ratio']) . ';"';
+                }
+                ?>
                 <a class="ll-wordset-card" href="<?php echo esc_url($cat['url']); ?>" role="listitem" aria-label="<?php echo esc_attr($cat['name']); ?>">
-                    <div class="ll-wordset-card__preview <?php echo $cat['has_images'] ? 'has-images' : 'has-text'; ?>">
+                    <div class="ll-wordset-card__preview <?php echo $cat['has_images'] ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
                         <?php if (!empty($cat['preview'])) : ?>
                             <?php
                             $preview_items = array_values((array) $cat['preview']);
@@ -63,8 +69,19 @@ get_header();
                             ?>
                             <?php foreach (array_slice($preview_items, 0, $preview_limit) as $preview) : ?>
                                 <?php if (($preview['type'] ?? '') === 'image') : ?>
-                                    <span class="ll-wordset-preview-item ll-wordset-preview-item--image">
-                                        <img src="<?php echo esc_url($preview['url']); ?>" alt="<?php echo esc_attr($preview['alt'] ?? ''); ?>" loading="lazy" />
+                                    <?php
+                                    $preview_ratio_style = '';
+                                    if (!empty($preview['ratio'])) {
+                                        $ratio_value = esc_attr($preview['ratio']);
+                                        $preview_ratio_style = ' style="aspect-ratio: ' . $ratio_value . ' !important;"';
+                                    }
+                                    $preview_width = !empty($preview['width']) ? (int) $preview['width'] : 0;
+                                    $preview_height = !empty($preview['height']) ? (int) $preview['height'] : 0;
+                                    $preview_width_attr = $preview_width > 0 ? ' width="' . esc_attr($preview_width) . '"' : '';
+                                    $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
+                                    ?>
+                                    <span class="ll-wordset-preview-item ll-wordset-preview-item--image"<?php echo $preview_ratio_style; ?>>
+                                        <img src="<?php echo esc_url($preview['url']); ?>" alt="<?php echo esc_attr($preview['alt'] ?? ''); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" />
                                     </span>
                                 <?php else : ?>
                                     <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
