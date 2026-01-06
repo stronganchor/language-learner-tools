@@ -68,16 +68,52 @@ if (have_posts()) {
                         </button>
                         <?php if ($can_transcribe) : ?>
                             <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
-                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings', 'll-tools-text-domain'); ?>">
-                                    <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
-                                        <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
-                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                                                <path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                                            </svg>
+                                <div class="ll-vocab-lesson-transcribe-actions" role="group" aria-label="<?php echo esc_attr__('Captions', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--auto" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings', 'll-tools-text-domain'); ?>">
+                                        <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                            <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
+                                                <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                    <path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                                </svg>
+                                            </span>
                                         </span>
-                                    </span>
-                                    <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto captions', 'll-tools-text-domain'); ?></span>
-                                </button>
+                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto captions', 'll-tools-text-domain'); ?></span>
+                                    </button>
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--replace" data-ll-transcribe-replace data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Replace captions for this lesson', 'll-tools-text-domain'); ?>">
+                                        <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                            <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--refresh">
+                                                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                                    <path d="M4 7h9a6 6 0 1 1 0 12h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    <path d="M4 7l3-3M4 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </span>
+                                        </span>
+                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Replace', 'll-tools-text-domain'); ?></span>
+                                    </button>
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--clear" data-ll-transcribe-clear data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Clear captions for this lesson', 'll-tools-text-domain'); ?>">
+                                        <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                            <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--clear">
+                                                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                                    <path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    <path d="M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </span>
+                                        </span>
+                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Clear', 'll-tools-text-domain'); ?></span>
+                                    </button>
+                                    <button type="button" class="ll-study-btn tiny ghost ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--cancel" data-ll-transcribe-cancel data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Cancel transcription', 'll-tools-text-domain'); ?>" disabled>
+                                        <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                            <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--cancel">
+                                                <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                    <path d="M5.5 5.5 14.5 14.5M14.5 5.5 5.5 14.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                                </svg>
+                                            </span>
+                                        </span>
+                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?></span>
+                                    </button>
+                                </div>
                                 <span class="ll-vocab-lesson-transcribe-status" data-ll-transcribe-status aria-live="polite"></span>
                             </div>
                         <?php endif; ?>

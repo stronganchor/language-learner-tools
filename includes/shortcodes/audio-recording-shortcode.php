@@ -1251,6 +1251,44 @@ function ll_tools_normalize_language_code($raw, $case = 'lower') {
 }
 
 /**
+ * Resolve a language code from labels, IDs, or taxonomy names.
+ *
+ * @param string $raw
+ * @param string $case lower|upper
+ * @return string
+ */
+function ll_tools_resolve_language_code_from_label($raw, $case = 'lower') {
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return '';
+    }
+
+    $normalized = ll_tools_normalize_language_code($raw, $case);
+    if ($normalized !== '' && $normalized !== 'auto') {
+        return $normalized;
+    }
+
+    $term = null;
+    if (ctype_digit($raw)) {
+        $term = get_term((int) $raw, 'language');
+    }
+    if (!$term || is_wp_error($term)) {
+        $term = get_term_by('slug', sanitize_title($raw), 'language');
+    }
+    if (!$term || is_wp_error($term)) {
+        $term = get_term_by('name', $raw, 'language');
+    }
+    if ($term && !is_wp_error($term)) {
+        $normalized = ll_tools_normalize_language_code((string) $term->slug, $case);
+        if ($normalized !== '') {
+            return $normalized;
+        }
+    }
+
+    return '';
+}
+
+/**
  * Get the wordset language label for the current recording scope.
  *
  * @param array $wordset_ids
@@ -1283,8 +1321,11 @@ function ll_tools_get_assemblyai_language_code($wordset_ids) {
         $raw = (string) get_option('ll_target_language', '');
     }
 
-    $normalized = ll_tools_normalize_language_code($raw, 'lower');
+    $normalized = ll_tools_resolve_language_code_from_label($raw, 'lower');
     if ($normalized !== '' && $normalized !== 'auto' && strlen($normalized) !== 2) {
+        $normalized = '';
+    }
+    if ($normalized === 'auto') {
         $normalized = '';
     }
     $normalized = apply_filters('ll_tools_assemblyai_language_code', $normalized, $raw, $wordset_ids);
@@ -1304,11 +1345,11 @@ function ll_tools_get_deepl_language_codes($wordset_ids) {
     }
     $target_raw = (string) get_option('ll_translation_language', '');
 
-    $source = ll_tools_normalize_language_code($source_raw, 'upper');
+    $source = ll_tools_resolve_language_code_from_label($source_raw, 'upper');
     if ($source === 'AUTO') {
         $source = 'auto';
     }
-    $target = ll_tools_normalize_language_code($target_raw, 'upper');
+    $target = ll_tools_resolve_language_code_from_label($target_raw, 'upper');
 
     return [$source, $target];
 }
@@ -1445,7 +1486,11 @@ function ll_transcribe_recording_handler() {
         ]);
     }
 
-    $transcript = sanitize_text_field($result['text'] ?? '');
+    $transcript = trim((string) ($result['text'] ?? ''));
+    if ($transcript !== '' && function_exists('ll_tools_normalize_transcript_case')) {
+        $transcript = ll_tools_normalize_transcript_case($transcript, $posted_ids);
+    }
+    $transcript = sanitize_text_field($transcript);
     if ($transcript === '') {
         wp_send_json_error('No transcript text returned');
     }

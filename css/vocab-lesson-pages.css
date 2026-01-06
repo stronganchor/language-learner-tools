@@ -104,6 +104,13 @@
     flex-wrap: wrap;
 }
 
+.ll-vocab-lesson-transcribe-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
 .ll-vocab-lesson-transcribe-icons {
     display: inline-flex;
     align-items: center;
@@ -119,6 +126,46 @@
 .ll-vocab-lesson-transcribe-btn:hover {
     border-color: #94a3b8 !important;
     background: #f8fafc !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--replace {
+    border-color: #bfdbfe !important;
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--replace:hover {
+    border-color: #93c5fd !important;
+    background: #dbeafe !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--clear {
+    border-color: #fecaca !important;
+    background: #fef2f2 !important;
+    color: #b91c1c !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--clear:hover {
+    border-color: #fca5a5 !important;
+    background: #fee2e2 !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--cancel {
+    border-color: #e2e8f0 !important;
+    background: transparent !important;
+    color: #475569 !important;
+}
+
+.ll-vocab-lesson-transcribe-btn--cancel:hover {
+    border-color: #cbd5e1 !important;
+    background: #f8fafc !important;
+}
+
+.ll-vocab-lesson-transcribe-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .ll-vocab-lesson-transcribe-icon {

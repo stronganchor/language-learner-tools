@@ -210,6 +210,63 @@ p:has(.ll-word-audio) {
     border-color: #38bdf8;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::before,
+.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::after {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::before {
+    content: "[";
+}
+
+.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::after {
+    content: "]";
+}
+
+.word-grid.ll-word-grid .ll-word-edit-input--ipa {
+    flex: 1 1 auto;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-keyboard {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-keyboard[aria-hidden="true"] {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-ipa-key {
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-radius: 6px !important;
+    padding: 4px 8px !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-ipa-key:hover {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-recordings-toggle {
     margin-top: 10px;
     display: inline-flex !important;
@@ -496,6 +553,22 @@ p:has(.ll-word-audio) {
     content: ")";
 }
 
+.word-grid.ll-word-grid .ll-word-recording-ipa {
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    display: block !important;
+    color: #666666 !important;
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-ipa::before {
+    content: "[";
+}
+
+.word-grid.ll-word-grid .ll-word-recording-ipa::after {
+    content: "]";
+}
 .word-grid.ll-word-grid .ll-study-recording-btn {
     height: 32px !important;
     min-height: 32px !important;
