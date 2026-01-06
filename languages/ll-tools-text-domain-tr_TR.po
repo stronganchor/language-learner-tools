@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-01-05 05:34+0000\n"
+"PO-Revision-Date: 2026-01-05 15:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -120,7 +120,7 @@ msgstr "Yeni Kayıt Türü Ekle"
 
 #: includes/post-types/vocab-lesson-post-type.php:12
 msgid "Add New Vocab Lesson"
-msgstr ""
+msgstr "Yeni Kelime Dersi Ekle"
 
 #: includes/shortcodes/user-study-dashboard.php:132
 msgid "All"
@@ -170,6 +170,9 @@ msgid ""
 "recording interface so the recorder can review and adjust trim boundaries "
 "before saving."
 msgstr ""
+"Kayıt arayüzünde kırpma, gürültü azaltma ve ses yüksekliği normalleştirme "
+"uygular, böylece kayıt cihazı kaydetmeden önce kırpma sınırlarını gözden "
+"geçirebilir ve ayarlayabilir."
 
 #: includes/admin/bulk-word-import-admin.php:296
 msgid "Assign to existing category"
@@ -217,16 +220,16 @@ msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 #: includes/user-roles/audio-recorder-role.php:200
 #: includes/user-roles/audio-recorder-role.php:312
 msgid "Auto-process Recordings"
-msgstr ""
+msgstr "Kayıtları Otomatik İşleme"
 
 #: templates/vocab-lesson-template.php:48
 #, php-format
 msgid "Back to %s"
-msgstr ""
+msgstr "Geri %s"
 
 #: templates/vocab-lesson-template.php:48
 msgid "Back to Word Set"
-msgstr ""
+msgstr "Kelime Setine Geri Dön"
 
 #: includes/admin/uploads/audio-upload-form.php:111
 msgid "Bulk Add Audio"
@@ -313,6 +316,10 @@ msgid ""
 " (and a wordset landing page at /{wordset}). Saving will sync pages "
 "automatically."
 msgstr ""
+"Hangi kelime setlerinin /{kelime seti}/{kategori} adresinde kelime dersi "
+"sayfaları alması gerektiğini seçin (ve /{wordset} adresinde bir kelime "
+"kümesi açılış sayfası). Kaydetme işlemi sayfaları otomatik olarak senkronize "
+"edecektir."
 
 #: includes/pages/quiz-pages.php:516
 msgid "Clean Up & Sync Quiz Pages"
@@ -470,7 +477,7 @@ msgstr "Kayıt Türünü Düzenle"
 
 #: includes/post-types/vocab-lesson-post-type.php:13
 msgid "Edit Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersini Düzenle"
 
 #: includes/taxonomies/word-category-taxonomy.php:1160
 msgid "Enter names separated by commas, tabs or new lines…"
@@ -701,7 +708,7 @@ msgstr "Geçersiz kategori belirtildi."
 
 #: includes/pages/vocab-lesson-pages.php:736
 msgid "Invalid vocab lesson settings request."
-msgstr ""
+msgstr "Geçersiz kelime dersi ayarları isteği."
 
 #: includes/shortcodes/user-study-dashboard.php:71
 #: includes/shortcodes/word-grid-shortcode.php:192
@@ -822,7 +829,7 @@ msgstr "Yeni Kayıt Tipi Adı"
 
 #: includes/post-types/vocab-lesson-post-type.php:14
 msgid "New Vocab Lesson"
-msgstr ""
+msgstr "Yeni Kelime Dersi"
 
 #: includes/post-types/words-post-type.php:333
 msgid "No"
@@ -847,7 +854,7 @@ msgstr "Eşleştirme için seçilen başlık yok."
 
 #: templates/wordset-page-template.php:47
 msgid "No lesson categories yet."
-msgstr ""
+msgstr "Henüz ders kategorisi yok."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:815
 msgid "No quiz pages are available yet."
@@ -867,16 +874,18 @@ msgstr "Henüz tanımlanmış kayıt türü yok."
 
 #: includes/post-types/vocab-lesson-post-type.php:17
 msgid "No vocab lessons found"
-msgstr ""
+msgstr "Kelime dersi bulunamadı"
 
 #: includes/post-types/vocab-lesson-post-type.php:18
 msgid "No vocab lessons found in Trash"
-msgstr ""
+msgstr "No vocab lessons found in Çöp Kutusu"
 
 #: includes/pages/vocab-lesson-pages.php:812
 msgid ""
 "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
+"Henüz hiçbir kelime seti etkinleştirilmemiştir, bu nedenle hiçbir kelime "
+"dersi sayfası oluşturulmayacaktır."
 
 #: includes/admin/uploads/image-upload-form.php:45
 msgid "No word sets available."
@@ -884,7 +893,7 @@ msgstr "Hiçbir kelime seti mevcut değil."
 
 #: includes/pages/vocab-lesson-pages.php:808
 msgid "No word sets found yet."
-msgstr ""
+msgstr "Henüz bir haber bulunamadı."
 
 #: includes/shortcodes/flashcard-widget.php:172
 msgid "No words could be loaded for this quiz. Please check that:"
@@ -892,7 +901,7 @@ msgstr "Bu test için hiçbir kelime yüklenemedi. Lütfen kontrol edin:"
 
 #: includes/shortcodes/word-grid-shortcode.php:268
 msgid "No words found in this category."
-msgstr ""
+msgstr "Bu kategoride kelime bulunamadı."
 
 #: includes/admin/export-import.php:137
 msgid "No zip files found in the server import folder yet."
@@ -960,7 +969,7 @@ msgstr "Oyun"
 #: includes/shortcodes/word-grid-shortcode.php:195
 #, php-format
 msgid "Play %s recording"
-msgstr ""
+msgstr "%s kaydını oynat"
 
 #: includes/shortcodes/user-study-dashboard.php:68
 msgid "Play audio"
@@ -999,7 +1008,7 @@ msgstr "Tekrar Modu"
 #: includes/user-roles/audio-recorder-role.php:206
 #: includes/user-roles/audio-recorder-role.php:317
 msgid "Process recordings immediately and publish them after review."
-msgstr ""
+msgstr "Kayıtları hemen işleyin ve inceledikten sonra yayınlayın."
 
 #: includes/shortcodes/user-study-dashboard.php:70
 #: includes/shortcodes/word-grid-shortcode.php:191
@@ -1009,7 +1018,7 @@ msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
 
 #: templates/vocab-lesson-template.php:65
 msgid "Quiz modes"
-msgstr ""
+msgstr "Sınav modları"
 
 #: includes/pages/quiz-pages.php:505
 msgid ""
@@ -1066,7 +1075,7 @@ msgstr "Kayıt Türleri"
 #: includes/shortcodes/user-study-dashboard.php:73
 #: includes/shortcodes/word-grid-shortcode.php:261
 msgid "Recordings"
-msgstr ""
+msgstr "Kayıtlar"
 
 #: includes/pages/recording-page.php:137
 msgid "Recreate Recording Page"
@@ -1089,11 +1098,11 @@ msgstr "Kaydet"
 
 #: includes/pages/vocab-lesson-pages.php:816
 msgid "Save Settings & Sync"
-msgstr ""
+msgstr "Ayarları Kaydet ve Senkronize Et"
 
 #: includes/shortcodes/user-study-dashboard.php:60
 msgid "Saved."
-msgstr "Kurtuldum."
+msgstr "Kaydedildi."
 
 #: includes/admin/word-images-fixer.php:100
 msgid ""
@@ -1113,7 +1122,7 @@ msgstr "Kayıt Türlerini Ara"
 
 #: includes/post-types/vocab-lesson-post-type.php:16
 msgid "Search Vocab Lessons"
-msgstr ""
+msgstr "Kelime Derslerini Ara"
 
 #: includes/admin/missing-audio-admin-page.php:31
 msgid "Security check failed."
@@ -1202,7 +1211,7 @@ msgstr "Tümünü işaretle"
 #: includes/shortcodes/word-grid-shortcode.php:134
 #: includes/shortcodes/word-grid-shortcode.php:228
 msgid "Star word"
-msgstr ""
+msgstr "Yıldız kelimesi"
 
 #: includes/shortcodes/user-study-dashboard.php:59
 msgid "Starred"
@@ -1261,7 +1270,7 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:817
 msgid "Sync Now"
-msgstr ""
+msgstr "Şimdi Senkronize Et"
 
 #: includes/admin/settings.php:102
 msgid "Target Language"
@@ -1386,7 +1395,7 @@ msgstr "Hepsini kaldır"
 #: includes/shortcodes/word-grid-shortcode.php:135
 #: includes/shortcodes/word-grid-shortcode.php:227
 msgid "Unstar word"
-msgstr ""
+msgstr "Yıldızsız kelime"
 
 #: includes/taxonomies/recording-type-taxonomy.php:15
 msgid "Update Recording Type"
@@ -1427,30 +1436,32 @@ msgstr "Kullanıcı Profilini Görüntüle"
 
 #: includes/post-types/vocab-lesson-post-type.php:15
 msgid "View Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersini Görüntüle"
 
 #: includes/post-types/vocab-lesson-post-type.php:11
 msgid "Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersi"
 
 #: includes/pages/vocab-lesson-pages.php:792
 msgid "Vocab Lesson Settings"
-msgstr ""
+msgstr "Kelime Dersi Ayarları"
 
 #: includes/pages/vocab-lesson-pages.php:777
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
+"Kelime dersi senkronizasyonu tamamlandı. d oluşturuldu, %d güncellendi, %d "
+"kaldırıldı."
 
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
 msgid "Vocab Lessons"
-msgstr ""
+msgstr "Kelime Dersleri"
 
 #: includes/pages/vocab-lesson-pages.php:52
 #, php-format
 msgid "Vocab: %1$s (%2$s)"
-msgstr ""
+msgstr "Kelime: %1$s (%2$s)"
 
 #: includes/taxonomies/word-category-taxonomy.php:427
 msgid "Whether to start rounds with audio or with the word image."
@@ -1491,7 +1502,7 @@ msgstr "Kelime seti"
 
 #: templates/wordset-page-template.php:11
 msgid "Word set not found."
-msgstr ""
+msgstr "Kelime seti bulunamadı."
 
 #: includes/shortcodes/user-study-dashboard.php:58
 msgid "Words"
@@ -1507,7 +1518,7 @@ msgstr "İçe aktarılacak kelimeler"
 
 #: templates/wordset-page-template.php:82
 msgid "Words: %d"
-msgstr ""
+msgstr "Kelimeler: %d"
 
 #: includes/post-types/words-post-type.php:332
 msgid "Yes"
@@ -1523,7 +1534,7 @@ msgstr "LL Tools verilerini içe aktarma izniniz yok."
 
 #: includes/pages/vocab-lesson-pages.php:732
 msgid "You do not have permission to update vocab lesson settings."
-msgstr ""
+msgstr "Kelime dersi ayarlarını güncelleme izniniz yok."
 
 #: includes/shortcodes/flashcard-widget.php:166
 msgid "You're on the right track..."

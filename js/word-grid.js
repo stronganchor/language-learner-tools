@@ -5,7 +5,10 @@
     const ajaxUrl = cfg.ajaxUrl || '';
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
+    const editI18n = cfg.editI18n || {};
     const isLoggedIn = !!cfg.isLoggedIn;
+    const canEdit = !!cfg.canEdit;
+    const editNonce = cfg.editNonce || '';
     const state = Object.assign({
         wordset_id: 0,
         category_ids: [],
@@ -263,6 +266,118 @@
             });
         }
     });
+
+    let titleWrapTimer = null;
+
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d');
+
+    function parseGapValue(value) {
+        if (!value) { return 0; }
+        const parts = value.toString().split(' ');
+        const parsed = parseFloat(parts[0]);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function getFontString(el) {
+        if (!el) { return ''; }
+        const style = window.getComputedStyle(el);
+        if (style.font && style.font !== '') {
+            return style.font;
+        }
+        return [
+            style.fontStyle || 'normal',
+            style.fontVariant || 'normal',
+            style.fontWeight || 'normal',
+            style.fontSize || '16px',
+            style.fontFamily || 'sans-serif'
+        ].join(' ');
+    }
+
+    function measureTextWidth(text, el) {
+        if (!measureCtx || !text) { return 0; }
+        const font = getFontString(el);
+        if (font) {
+            measureCtx.font = font;
+        }
+        return measureCtx.measureText(text).width || 0;
+    }
+
+    function updateTitleWraps() {
+        $grids.find('.word-item').each(function () {
+            const $item = $(this);
+            const item = $item.get(0);
+            const rowEl = $item.find('.ll-word-title-row').get(0);
+            const titleEl = $item.find('.word-title').get(0);
+            const textEl = $item.find('[data-ll-word-text]').get(0);
+            const translationEl = $item.find('[data-ll-word-translation]').get(0);
+            if (!item || !rowEl || !titleEl || !textEl || !translationEl) {
+                $item.removeClass('ll-word-title--stack');
+                if (item) {
+                    item.style.removeProperty('--ll-word-title-width');
+                }
+                return;
+            }
+            const translationText = (translationEl.textContent || '').trim();
+            if (!translationText) {
+                $item.removeClass('ll-word-title--stack');
+                item.style.removeProperty('--ll-word-title-width');
+                return;
+            }
+
+            $item.removeClass('ll-word-title--stack');
+            item.style.removeProperty('--ll-word-title-width');
+
+            const itemStyle = window.getComputedStyle(item);
+            const itemWidth = item.getBoundingClientRect().width;
+            const paddingX = parseGapValue(itemStyle.paddingLeft) + parseGapValue(itemStyle.paddingRight);
+            const contentWidth = Math.max(0, itemWidth - paddingX);
+
+            const rowStyle = window.getComputedStyle(rowEl);
+            const rowGap = parseGapValue(rowStyle.columnGap || rowStyle.gap || '0');
+            const starEl = rowEl.querySelector('.ll-word-star');
+            const editEl = rowEl.querySelector('.ll-word-edit-toggle');
+            const starWidth = starEl ? starEl.getBoundingClientRect().width : 0;
+            const editWidth = editEl ? editEl.getBoundingClientRect().width : 0;
+            let gapCount = 0;
+            if (starEl && editEl) {
+                gapCount = 2;
+            } else if (starEl || editEl) {
+                gapCount = 1;
+            }
+            const availableWidth = Math.max(0, contentWidth - starWidth - editWidth - (rowGap * gapCount));
+            if (availableWidth <= 0) {
+                return;
+            }
+
+            const titleStyle = window.getComputedStyle(titleEl);
+            const titleGap = parseGapValue(titleStyle.columnGap || titleStyle.gap || '0');
+            const rawText = (textEl.textContent || '').trim();
+            const rawTranslation = translationText;
+            const measuredTextWidth = measureTextWidth(rawText, textEl);
+            const measuredTranslationWidth = measureTextWidth(rawTranslation ? ('(' + rawTranslation + ')') : '', translationEl);
+            const combinedWidth = measuredTextWidth + measuredTranslationWidth + (rawTranslation ? titleGap : 0);
+            const cushion = 2;
+
+            if (combinedWidth <= availableWidth) {
+                $item.removeClass('ll-word-title--stack');
+                item.style.setProperty('--ll-word-title-width', (combinedWidth + cushion) + 'px');
+            } else {
+                $item.addClass('ll-word-title--stack');
+                const widestLine = Math.max(measuredTextWidth, measuredTranslationWidth);
+                const targetWidth = Math.min(availableWidth, widestLine);
+                item.style.setProperty('--ll-word-title-width', (targetWidth + cushion) + 'px');
+            }
+        });
+    }
+
+    function scheduleTitleWrapUpdate() {
+        clearTimeout(titleWrapTimer);
+        titleWrapTimer = setTimeout(updateTitleWraps, 50);
+    }
+
+    updateTitleWraps();
+    $(window).on('resize.llWordTitleWrap', scheduleTitleWrapUpdate);
 
     if (!isLoggedIn) { return; }
 
@@ -677,6 +792,256 @@
         updateAllStarToggles();
         updateStarModeButtons();
     });
+
+    const editMessages = {
+        saving: editI18n.saving || 'Saving...',
+        saved: editI18n.saved || 'Saved.',
+        error: editI18n.error || 'Unable to save changes.'
+    };
+
+    function setEditPanelOpen($item, shouldOpen) {
+        const $panel = $item.find('[data-ll-word-edit-panel]').first();
+        const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+        if (!$panel.length || !$toggle.length) { return; }
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $toggle.attr('aria-expanded', open ? 'true' : 'false');
+        $item.toggleClass('ll-word-edit-open', open);
+    }
+
+    function setRecordingsPanelOpen($item, shouldOpen) {
+        const $panel = $item.find('[data-ll-word-recordings-panel]').first();
+        const $toggle = $item.find('[data-ll-word-recordings-toggle]').first();
+        if (!$panel.length || !$toggle.length) { return; }
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $toggle.attr('aria-expanded', open ? 'true' : 'false');
+        $item.toggleClass('ll-word-recordings-open', open);
+    }
+
+    function cacheOriginalInputs($item) {
+        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+            const $input = $(this);
+            $input.data('original', $input.val() || '');
+        });
+    }
+
+    function restoreOriginalInputs($item) {
+        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+            const $input = $(this);
+            const original = $input.data('original');
+            if (typeof original === 'string') {
+                $input.val(original);
+            }
+        });
+    }
+
+    function setEditStatus($item, message, isError) {
+        const $status = $item.find('[data-ll-word-edit-status]').first();
+        if (!$status.length) { return; }
+        $status.text(message || '');
+        $status.toggleClass('is-error', !!isError);
+    }
+
+    function updateOriginalInputs($item) {
+        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+            const $input = $(this);
+            $input.data('original', $input.val() || '');
+        });
+    }
+
+    function formatRecordingCaption(text, translation) {
+        const cleanText = (text || '').toString().trim();
+        const cleanTranslation = (translation || '').toString().trim();
+        if (cleanText && cleanTranslation) {
+            return cleanText + ' (' + cleanTranslation + ')';
+        }
+        if (cleanText) {
+            return cleanText;
+        }
+        if (cleanTranslation) {
+            return '(' + cleanTranslation + ')';
+        }
+        return '';
+    }
+
+    function applyRecordingCaptions($item, recordings) {
+        if (!Array.isArray(recordings)) { return; }
+        const $wrap = $item.find('.ll-word-recordings').first();
+        if (!$wrap.length) { return; }
+        const captionMap = {};
+        let hasCaption = false;
+
+        recordings.forEach(function (rec) {
+            const recId = parseInt(rec.id, 10) || 0;
+            if (!recId) { return; }
+            const caption = formatRecordingCaption(rec.recording_text, rec.recording_translation);
+            captionMap[recId] = caption;
+            if (caption) {
+                hasCaption = true;
+            }
+        });
+
+        const $buttons = $wrap.find('.ll-word-grid-recording-btn');
+        if (hasCaption) {
+            if (!$wrap.hasClass('ll-word-recordings--with-text')) {
+                $wrap.empty().addClass('ll-word-recordings--with-text');
+                $buttons.each(function () {
+                    const $btn = $(this);
+                    const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
+                    const caption = recId ? (captionMap[recId] || '') : '';
+                    const $row = $('<div>', { class: 'll-word-recording-row' });
+                    if (recId) {
+                        $row.attr('data-recording-id', recId);
+                    }
+                    $row.append($btn);
+                    if (caption) {
+                        $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
+                    }
+                    $wrap.append($row);
+                });
+            } else {
+                $wrap.find('.ll-word-recording-row').each(function () {
+                    const $row = $(this);
+                    const recId = parseInt($row.attr('data-recording-id'), 10)
+                        || parseInt($row.find('.ll-word-grid-recording-btn').attr('data-recording-id'), 10)
+                        || 0;
+                    if (!recId) { return; }
+                    const caption = captionMap[recId] || '';
+                    const $text = $row.find('.ll-word-recording-text').first();
+                    if (caption) {
+                        if ($text.length) {
+                            $text.text(caption);
+                        } else {
+                            $('<span>', { class: 'll-word-recording-text', text: caption }).appendTo($row);
+                        }
+                    } else {
+                        $text.remove();
+                    }
+                });
+            }
+        } else if ($wrap.hasClass('ll-word-recordings--with-text')) {
+            $wrap.removeClass('ll-word-recordings--with-text').empty();
+            $buttons.each(function () {
+                $wrap.append(this);
+            });
+        }
+    }
+
+    if (canEdit && ajaxUrl && editNonce) {
+        $grids.find('.word-item').each(function () {
+            cacheOriginalInputs($(this));
+        });
+
+        $grids.on('click', '[data-ll-word-edit-toggle]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            const $panel = $item.find('[data-ll-word-edit-panel]').first();
+            if (!$panel.length) { return; }
+            const isOpen = $panel.attr('aria-hidden') === 'false';
+            setEditPanelOpen($item, !isOpen);
+            if (!isOpen) {
+                setEditStatus($item, '');
+            }
+        });
+
+        $grids.on('click', '[data-ll-word-recordings-toggle]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            const $panel = $item.find('[data-ll-word-recordings-panel]').first();
+            if (!$panel.length) { return; }
+            const isOpen = $panel.attr('aria-hidden') === 'false';
+            setRecordingsPanelOpen($item, !isOpen);
+        });
+
+        $grids.on('click', '[data-ll-word-edit-cancel]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            restoreOriginalInputs($item);
+            setEditStatus($item, '');
+            setEditPanelOpen($item, false);
+        });
+
+        $grids.on('click', '[data-ll-word-edit-save]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            const wordId = parseInt($item.data('word-id'), 10) || 0;
+            if (!wordId) { return; }
+
+            const wordText = ($item.find('[data-ll-word-input="word"]').val() || '').toString();
+            const wordTranslation = ($item.find('[data-ll-word-input="translation"]').val() || '').toString();
+            const recordings = [];
+
+            $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
+                const $rec = $(this);
+                const recId = parseInt($rec.attr('data-recording-id'), 10) || 0;
+                if (!recId) { return; }
+                const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
+                const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
+                recordings.push({ id: recId, text: text, translation: translation });
+            });
+
+            const $saveBtn = $(this);
+            const $cancelBtn = $item.find('[data-ll-word-edit-cancel]');
+            $saveBtn.prop('disabled', true);
+            $cancelBtn.prop('disabled', true);
+            $item.attr('aria-busy', 'true');
+            setEditStatus($item, editMessages.saving, false);
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_update_word',
+                nonce: editNonce,
+                word_id: wordId,
+                word_text: wordText,
+                word_translation: wordTranslation,
+                recordings: JSON.stringify(recordings)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    setEditStatus($item, editMessages.error, true);
+                    return;
+                }
+                const data = response.data || {};
+                if (typeof data.word_text === 'string') {
+                    $item.find('[data-ll-word-text]').text(data.word_text);
+                    $item.find('[data-ll-word-input="word"]').val(data.word_text);
+                }
+                if (typeof data.word_translation === 'string') {
+                    $item.find('[data-ll-word-translation]').text(data.word_translation);
+                    $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
+                }
+                if (Array.isArray(data.recordings)) {
+                    data.recordings.forEach(function (rec) {
+                        const recId = parseInt(rec.id, 10) || 0;
+                        if (!recId) { return; }
+                        const $rec = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]');
+                        if (!$rec.length) { return; }
+                        if (typeof rec.recording_text === 'string') {
+                            $rec.find('[data-ll-recording-input="text"]').val(rec.recording_text);
+                        }
+                        if (typeof rec.recording_translation === 'string') {
+                            $rec.find('[data-ll-recording-input="translation"]').val(rec.recording_translation);
+                        }
+                    });
+                    applyRecordingCaptions($item, data.recordings);
+                }
+                updateTitleWraps();
+                updateOriginalInputs($item);
+                setEditStatus($item, '');
+                setRecordingsPanelOpen($item, false);
+                setEditPanelOpen($item, false);
+            }).fail(function () {
+                setEditStatus($item, editMessages.error, true);
+            }).always(function () {
+                $saveBtn.prop('disabled', false);
+                $cancelBtn.prop('disabled', false);
+                $item.removeAttr('aria-busy');
+            });
+        });
+    }
 
     updateAllStarToggles();
     updateStarModeButtons();
