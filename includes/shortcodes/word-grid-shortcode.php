@@ -127,7 +127,19 @@ function ll_tools_word_grid_sanitize_ipa(string $text): string {
     return trim($text);
 }
 
-function ll_tools_word_grid_extract_ipa_special_chars(string $text): array {
+function ll_tools_word_grid_is_ipa_separator(string $char): bool {
+    return $char === '.' || preg_match('/\s/u', $char);
+}
+
+function ll_tools_word_grid_is_ipa_combining_mark(string $char): bool {
+    return preg_match('/[\x{0300}-\x{036F}]/u', $char) === 1;
+}
+
+function ll_tools_word_grid_is_ipa_tie_bar(string $char): bool {
+    return preg_match('/[\x{035C}\x{0361}]/u', $char) === 1;
+}
+
+function ll_tools_word_grid_tokenize_ipa(string $text): array {
     $text = ll_tools_word_grid_sanitize_ipa($text);
     if ($text === '') {
         return [];
@@ -138,12 +150,89 @@ function ll_tools_word_grid_extract_ipa_special_chars(string $text): array {
         return [];
     }
 
-    $special = [];
+    $tokens = [];
+    $buffer = '';
+    $pending = '';
+    $tie_pending = false;
+
     foreach ($chars as $char) {
-        if ($char === '' || preg_match('/[A-Za-z]/', $char) || preg_match('/\s/u', $char) || $char === '.') {
+        if (ll_tools_word_grid_is_ipa_separator($char)) {
+            if ($buffer !== '') {
+                $tokens[] = $buffer;
+                $buffer = '';
+            }
+            $pending = '';
+            $tie_pending = false;
             continue;
         }
-        $special[$char] = true;
+
+        if (ll_tools_word_grid_is_ipa_combining_mark($char)) {
+            if ($buffer === '') {
+                $pending .= $char;
+            } else {
+                $buffer .= $char;
+            }
+            if (ll_tools_word_grid_is_ipa_tie_bar($char) && $buffer !== '') {
+                $tie_pending = true;
+            }
+            continue;
+        }
+
+        if ($buffer === '') {
+            $buffer = $pending . $char;
+            $pending = '';
+            $tie_pending = false;
+            continue;
+        }
+
+        if ($tie_pending) {
+            $buffer .= $char;
+            $tie_pending = false;
+            continue;
+        }
+
+        $tokens[] = $buffer;
+        $buffer = $pending . $char;
+        $pending = '';
+        $tie_pending = false;
+    }
+
+    if ($buffer !== '') {
+        $tokens[] = $buffer;
+    }
+
+    return $tokens;
+}
+
+function ll_tools_word_grid_is_special_ipa_token(string $token): bool {
+    $token = trim($token);
+    if ($token === '') {
+        return false;
+    }
+    if (ll_tools_word_grid_is_ipa_separator($token)) {
+        return false;
+    }
+    if (preg_match('/[\x{0300}-\x{036F}]/u', $token)) {
+        return true;
+    }
+    if (preg_match('/[^A-Za-z]/u', $token)) {
+        return true;
+    }
+    return false;
+}
+
+function ll_tools_word_grid_extract_ipa_special_chars(string $text): array {
+    $tokens = ll_tools_word_grid_tokenize_ipa($text);
+    if (empty($tokens)) {
+        return [];
+    }
+
+    $special = [];
+    foreach ($tokens as $token) {
+        if (!ll_tools_word_grid_is_special_ipa_token($token)) {
+            continue;
+        }
+        $special[$token] = true;
     }
 
     return array_keys($special);
@@ -155,22 +244,33 @@ function ll_tools_word_grid_get_wordset_ipa_special_chars(int $wordset_id): arra
     }
 
     $raw = get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true);
+    $tokens = [];
     if (is_string($raw)) {
-        $raw = preg_split('//u', $raw, -1, PREG_SPLIT_NO_EMPTY);
+        $tokens = ll_tools_word_grid_tokenize_ipa($raw);
+    } elseif (is_array($raw)) {
+        foreach ($raw as $entry) {
+            if (!is_string($entry) || $entry === '') {
+                continue;
+            }
+            $entry_tokens = ll_tools_word_grid_tokenize_ipa($entry);
+            if (!empty($entry_tokens)) {
+                $tokens = array_merge($tokens, $entry_tokens);
+            }
+        }
+    } else {
+        return [];
     }
-    if (!is_array($raw)) {
+
+    if (empty($tokens)) {
         return [];
     }
 
     $cleaned = [];
-    foreach ($raw as $char) {
-        if (!is_string($char) || $char === '') {
+    foreach ($tokens as $token) {
+        if (!ll_tools_word_grid_is_special_ipa_token($token)) {
             continue;
         }
-        if (preg_match('/[A-Za-z]/', $char) || preg_match('/\s/u', $char) || $char === '.') {
-            continue;
-        }
-        $cleaned[$char] = true;
+        $cleaned[$token] = true;
     }
 
     return array_keys($cleaned);
@@ -480,6 +580,8 @@ function ll_tools_word_grid_shortcode($atts) {
             'saving' => __('Saving...', 'll-tools-text-domain'),
             'saved'  => __('Saved.', 'll-tools-text-domain'),
             'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
+            'ipaCommon' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'ipaWordset' => __('Wordset IPA symbols', 'll-tools-text-domain'),
         ],
         'transcribeI18n' => [
             'confirm'        => __('Transcribe missing recordings for this lesson?', 'll-tools-text-domain'),

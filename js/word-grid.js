@@ -8,6 +8,7 @@
     const editI18n = cfg.editI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
+    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -1025,32 +1026,117 @@
     }
 
     const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\. ]/u;
+    const ipaCombiningMark = /[\u0300-\u036F]/u;
     let activeIpaInput = null;
 
     function sanitizeIpaValue(value) {
-        const chars = Array.from((value || '').toString());
+        const raw = (value || '').toString();
+        const chars = Array.from(raw);
         let out = '';
         chars.forEach(function (ch) {
             if (ipaAllowedChar.test(ch)) {
                 out += ch;
             }
         });
-        out = out.replace(/\s+/g, ' ').trim();
+        const hadTrailingSpace = /\s$/.test(out);
+        out = out.replace(/\s+/g, ' ').replace(/^\s+/, '');
+        if (hadTrailingSpace) {
+            out = out.replace(/\s+$/, ' ');
+        } else {
+            out = out.trim();
+        }
         return out;
     }
 
     function extractIpaSpecialChars(value) {
-        const chars = Array.from((value || '').toString());
+        const tokens = tokenizeIpa(value);
         const found = [];
         const seen = new Set();
-        chars.forEach(function (ch) {
-            if (!ipaAllowedChar.test(ch)) { return; }
-            if (/[A-Za-z]/.test(ch) || ch === ' ' || ch === '.') { return; }
-            if (seen.has(ch)) { return; }
-            seen.add(ch);
-            found.push(ch);
+        tokens.forEach(function (token) {
+            if (!isSpecialIpaToken(token)) { return; }
+            if (seen.has(token)) { return; }
+            seen.add(token);
+            found.push(token);
         });
         return found;
+    }
+
+    function isIpaSeparator(ch) {
+        return ch === '.' || /\s/.test(ch);
+    }
+
+    function isCombiningMark(ch) {
+        return ipaCombiningMark.test(ch);
+    }
+
+    function isTieBar(ch) {
+        return ch === '\u0361' || ch === '\u035C';
+    }
+
+    function tokenizeIpa(value) {
+        const sanitized = sanitizeIpaValue(value);
+        if (!sanitized) { return []; }
+        const chars = Array.from(sanitized);
+        const tokens = [];
+        let buffer = '';
+        let pending = '';
+        let tiePending = false;
+
+        chars.forEach(function (ch) {
+            if (isIpaSeparator(ch)) {
+                if (buffer) {
+                    tokens.push(buffer);
+                    buffer = '';
+                }
+                pending = '';
+                tiePending = false;
+                return;
+            }
+
+            if (isCombiningMark(ch)) {
+                if (buffer) {
+                    buffer += ch;
+                } else {
+                    pending += ch;
+                }
+                if (isTieBar(ch) && buffer) {
+                    tiePending = true;
+                }
+                return;
+            }
+
+            if (!buffer) {
+                buffer = pending + ch;
+                pending = '';
+                tiePending = false;
+                return;
+            }
+
+            if (tiePending) {
+                buffer += ch;
+                tiePending = false;
+                return;
+            }
+
+            tokens.push(buffer);
+            buffer = pending + ch;
+            pending = '';
+            tiePending = false;
+        });
+
+        if (buffer) {
+            tokens.push(buffer);
+        }
+
+        return tokens;
+    }
+
+    function isSpecialIpaToken(token) {
+        if (!token) { return false; }
+        if (isIpaSeparator(token)) { return false; }
+        if (ipaCombiningMark.test(token)) { return true; }
+        if (/[^A-Za-z]/u.test(token)) { return true; }
+        return false;
     }
 
     function mergeIpaSpecialChars(newChars) {
@@ -1066,12 +1152,27 @@
     }
 
     function renderIpaKeyboard($keyboard, chars) {
-        if (!$keyboard || !$keyboard.length) { return; }
+        if (!$keyboard || !$keyboard.length) { return 0; }
         $keyboard.empty();
-        if (!Array.isArray(chars) || !chars.length) {
-            return;
+
+        const merged = [];
+        const seen = new Set();
+        const pushUnique = function (ch) {
+            if (!ch || seen.has(ch)) { return; }
+            seen.add(ch);
+            merged.push(ch);
+        };
+
+        ipaCommonChars.forEach(pushUnique);
+        if (Array.isArray(chars)) {
+            chars.forEach(pushUnique);
         }
-        chars.forEach(function (ch) {
+
+        if (!merged.length) {
+            return 0;
+        }
+
+        merged.forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
@@ -1080,6 +1181,8 @@
                 'aria-label': ch
             }).appendTo($keyboard);
         });
+
+        return merged.length;
     }
 
     function showIpaKeyboard($input) {
@@ -1087,8 +1190,8 @@
         const $keyboard = $input.closest('.ll-word-edit-recording').find('[data-ll-ipa-keyboard]').first();
         if (!$keyboard.length) { return; }
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
-        renderIpaKeyboard($keyboard, ipaSpecialChars);
-        if ($keyboard.children().length) {
+        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars);
+        if (keyCount > 0) {
             $keyboard.attr('aria-hidden', 'false');
             activeIpaInput = $input.get(0);
         } else {
@@ -1216,13 +1319,14 @@
 
         $grids.on('click', '.ll-word-ipa-key', function (e) {
             e.preventDefault();
+            e.stopPropagation();
             const ch = $(this).attr('data-ipa-char') || $(this).text();
             if (!activeIpaInput || !ch) { return; }
             insertIpaChar(activeIpaInput, ch);
             activeIpaInput.focus();
         });
 
-        $(document).on('mousedown.llWordGridIpa', function (e) {
+        $(document).on('click.llWordGridIpa', function (e) {
             if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard').length) {
                 return;
             }
