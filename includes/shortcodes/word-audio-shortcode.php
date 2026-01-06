@@ -322,6 +322,56 @@ function ll_normalize_case($text) {
 }
 
 /**
+ * Normalize transcription casing to sentence case with Turkish-aware I handling.
+ *
+ * @param string $text
+ * @param array $wordset_ids
+ * @return string
+ */
+function ll_tools_normalize_transcript_case($text, array $wordset_ids = []) {
+    $text = trim((string) $text);
+    if ($text === '') {
+        return '';
+    }
+
+    $language_raw = '';
+    if (!empty($wordset_ids) && function_exists('ll_tools_get_wordset_language_label')) {
+        $language_raw = ll_tools_get_wordset_language_label($wordset_ids);
+    }
+    if ($language_raw === '') {
+        $language_raw = (string) get_option('ll_target_language', '');
+    }
+    $language_code = function_exists('ll_tools_resolve_language_code_from_label')
+        ? ll_tools_resolve_language_code_from_label($language_raw, 'lower')
+        : '';
+    $is_turkish = ($language_code === 'tr');
+
+    if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+        if ($is_turkish) {
+            $lower = str_replace(['I', 'İ'], ['ı', 'i'], $text);
+            $lower = mb_strtolower($lower, 'UTF-8');
+            $first = mb_substr($lower, 0, 1, 'UTF-8');
+            $rest = mb_substr($lower, 1, null, 'UTF-8');
+            if ($first === 'i') {
+                $first = 'İ';
+            } elseif ($first === 'ı') {
+                $first = 'I';
+            } else {
+                $first = mb_strtoupper($first, 'UTF-8');
+            }
+            return $first . $rest;
+        }
+
+        $lower = mb_strtolower($text, 'UTF-8');
+        $first = mb_substr($lower, 0, 1, 'UTF-8');
+        $rest = mb_substr($lower, 1, null, 'UTF-8');
+        return mb_strtoupper($first, 'UTF-8') . $rest;
+    }
+
+    return ucfirst(strtolower($text));
+}
+
+/**
  * Remove a word from the missing-audio cache when a recording exists.
  */
 function ll_tools_clear_missing_audio_for_word($word_id, $word_title = '') {

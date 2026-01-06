@@ -7,6 +7,8 @@
     const i18n = cfg.i18n || {};
     const editI18n = cfg.editI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
+    const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
+    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -391,10 +393,12 @@
                 }
                 const mainEl = textWrap.querySelector('.ll-word-recording-text-main');
                 const translationEl = textWrap.querySelector('.ll-word-recording-text-translation');
+                const ipaEl = textWrap.querySelector('.ll-word-recording-ipa');
                 const mainText = mainEl ? (mainEl.textContent || '').trim() : '';
                 const translationText = translationEl ? (translationEl.textContent || '').trim() : '';
+                const ipaText = ipaEl ? (ipaEl.textContent || '').trim() : '';
 
-                if (!mainText && !translationText) {
+                if (!mainText && !translationText && !ipaText) {
                     row.style.removeProperty('width');
                     return;
                 }
@@ -415,12 +419,22 @@
                 if (translationText) {
                     translationWidth = measureTextWidth('(' + translationText + ')', translationEl || textWrap);
                 }
+                let ipaWidth = 0;
+                if (ipaText) {
+                    ipaWidth = measureTextWidth('[' + ipaText + ']', ipaEl || textWrap);
+                }
 
                 const hasBoth = mainWidth > 0 && translationWidth > 0;
                 const combinedWidth = hasBoth ? (mainWidth + translationWidth + textGap) : Math.max(mainWidth, translationWidth);
                 let lineWidth = combinedWidth;
                 if (combinedWidth > availableTextWidth) {
                     lineWidth = Math.max(mainWidth, translationWidth);
+                }
+                if (ipaWidth > lineWidth) {
+                    lineWidth = ipaWidth;
+                }
+                if (availableTextWidth > 0) {
+                    lineWidth = Math.min(lineWidth, availableTextWidth);
                 }
 
                 let targetWidth = btnWidth + rowGap + lineWidth;
@@ -929,10 +943,12 @@
             if (!recId) { return; }
             const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
             const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
+            const ipa = ($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString();
             recordings.push({
                 id: recId,
                 recording_text: text,
-                recording_translation: translation
+                recording_translation: translation,
+                recording_ipa: ipa
             });
         });
         return recordings;
@@ -949,13 +965,15 @@
         return (template || '').replace('%1$d', String(current)).replace('%2$d', String(total));
     }
 
-    function getRecordingCaptionParts(text, translation) {
+    function getRecordingCaptionParts(text, translation, ipa) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
+        const cleanIpa = (ipa || '').toString().trim();
         return {
             text: cleanText,
             translation: cleanTranslation,
-            hasCaption: !!(cleanText || cleanTranslation)
+            ipa: cleanIpa,
+            hasCaption: !!(cleanText || cleanTranslation || cleanIpa)
         };
     }
 
@@ -992,9 +1010,213 @@
             $translation.remove();
         }
 
+        let $ipa = $textWrap.find('.ll-word-recording-ipa').first();
+        if (parts.ipa) {
+            if (!$ipa.length) {
+                $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
+            }
+            $ipa.text(parts.ipa);
+        } else {
+            $ipa.remove();
+        }
+
         if (!$textWrap.children().length) {
             $textWrap.remove();
         }
+    }
+
+    const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\. ]/u;
+    const ipaCombiningMark = /[\u0300-\u036F]/u;
+    let activeIpaInput = null;
+
+    function sanitizeIpaValue(value) {
+        const raw = (value || '').toString();
+        const chars = Array.from(raw);
+        let out = '';
+        chars.forEach(function (ch) {
+            if (ipaAllowedChar.test(ch)) {
+                out += ch;
+            }
+        });
+        const hadTrailingSpace = /\s$/.test(out);
+        out = out.replace(/\s+/g, ' ').replace(/^\s+/, '');
+        if (hadTrailingSpace) {
+            out = out.replace(/\s+$/, ' ');
+        } else {
+            out = out.trim();
+        }
+        return out;
+    }
+
+    function extractIpaSpecialChars(value) {
+        const tokens = tokenizeIpa(value);
+        const found = [];
+        const seen = new Set();
+        tokens.forEach(function (token) {
+            if (!isSpecialIpaToken(token)) { return; }
+            if (seen.has(token)) { return; }
+            seen.add(token);
+            found.push(token);
+        });
+        return found;
+    }
+
+    function isIpaSeparator(ch) {
+        return ch === '.' || /\s/.test(ch);
+    }
+
+    function isCombiningMark(ch) {
+        return ipaCombiningMark.test(ch);
+    }
+
+    function isTieBar(ch) {
+        return ch === '\u0361' || ch === '\u035C';
+    }
+
+    function tokenizeIpa(value) {
+        const sanitized = sanitizeIpaValue(value);
+        if (!sanitized) { return []; }
+        const chars = Array.from(sanitized);
+        const tokens = [];
+        let buffer = '';
+        let pending = '';
+        let tiePending = false;
+
+        chars.forEach(function (ch) {
+            if (isIpaSeparator(ch)) {
+                if (buffer) {
+                    tokens.push(buffer);
+                    buffer = '';
+                }
+                pending = '';
+                tiePending = false;
+                return;
+            }
+
+            if (isCombiningMark(ch)) {
+                if (buffer) {
+                    buffer += ch;
+                } else {
+                    pending += ch;
+                }
+                if (isTieBar(ch) && buffer) {
+                    tiePending = true;
+                }
+                return;
+            }
+
+            if (!buffer) {
+                buffer = pending + ch;
+                pending = '';
+                tiePending = false;
+                return;
+            }
+
+            if (tiePending) {
+                buffer += ch;
+                tiePending = false;
+                return;
+            }
+
+            tokens.push(buffer);
+            buffer = pending + ch;
+            pending = '';
+            tiePending = false;
+        });
+
+        if (buffer) {
+            tokens.push(buffer);
+        }
+
+        return tokens;
+    }
+
+    function isSpecialIpaToken(token) {
+        if (!token) { return false; }
+        if (isIpaSeparator(token)) { return false; }
+        if (ipaCombiningMark.test(token)) { return true; }
+        if (/[^A-Za-z]/u.test(token)) { return true; }
+        return false;
+    }
+
+    function mergeIpaSpecialChars(newChars) {
+        if (!Array.isArray(newChars) || !newChars.length) { return false; }
+        let updated = false;
+        newChars.forEach(function (ch) {
+            if (ipaSpecialChars.indexOf(ch) === -1) {
+                ipaSpecialChars.push(ch);
+                updated = true;
+            }
+        });
+        return updated;
+    }
+
+    function renderIpaKeyboard($keyboard, chars) {
+        if (!$keyboard || !$keyboard.length) { return 0; }
+        $keyboard.empty();
+
+        const merged = [];
+        const seen = new Set();
+        const pushUnique = function (ch) {
+            if (!ch || seen.has(ch)) { return; }
+            seen.add(ch);
+            merged.push(ch);
+        };
+
+        ipaCommonChars.forEach(pushUnique);
+        if (Array.isArray(chars)) {
+            chars.forEach(pushUnique);
+        }
+
+        if (!merged.length) {
+            return 0;
+        }
+
+        merged.forEach(function (ch) {
+            $('<button>', {
+                type: 'button',
+                class: 'll-word-ipa-key',
+                text: ch,
+                'data-ipa-char': ch,
+                'aria-label': ch
+            }).appendTo($keyboard);
+        });
+
+        return merged.length;
+    }
+
+    function showIpaKeyboard($input) {
+        if (!$input || !$input.length) { return; }
+        const $keyboard = $input.closest('.ll-word-edit-recording').find('[data-ll-ipa-keyboard]').first();
+        if (!$keyboard.length) { return; }
+        $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars);
+        if (keyCount > 0) {
+            $keyboard.attr('aria-hidden', 'false');
+            activeIpaInput = $input.get(0);
+        } else {
+            $keyboard.attr('aria-hidden', 'true');
+            activeIpaInput = null;
+        }
+    }
+
+    function hideIpaKeyboards() {
+        $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        activeIpaInput = null;
+    }
+
+    function insertIpaChar(input, ch) {
+        if (!input || !ch) { return; }
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        const value = input.value || '';
+        const nextValue = value.slice(0, start) + ch + value.slice(end);
+        input.value = nextValue;
+        const cursor = start + ch.length;
+        if (input.setSelectionRange) {
+            input.setSelectionRange(cursor, cursor);
+        }
+        $(input).trigger('input');
     }
 
     function applyRecordingCaptions($item, recordings) {
@@ -1007,7 +1229,7 @@
         recordings.forEach(function (rec) {
             const recId = parseInt(rec.id, 10) || 0;
             if (!recId) { return; }
-            const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation);
+            const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa);
             captionMap[recId] = caption;
             if (caption.hasCaption) {
                 hasCaption = true;
@@ -1077,6 +1299,40 @@
             setRecordingsPanelOpen($item, !isOpen);
         });
 
+        $grids.on('focus', '.ll-word-edit-input--ipa', function () {
+            showIpaKeyboard($(this));
+        });
+
+        $grids.on('input', '.ll-word-edit-input--ipa', function () {
+            const $input = $(this);
+            const raw = ($input.val() || '').toString();
+            const sanitized = sanitizeIpaValue(raw);
+            if (raw !== sanitized) {
+                $input.val(sanitized);
+            }
+            const newChars = extractIpaSpecialChars(sanitized);
+            const updated = mergeIpaSpecialChars(newChars);
+            if (updated || activeIpaInput === this) {
+                showIpaKeyboard($input);
+            }
+        });
+
+        $grids.on('click', '.ll-word-ipa-key', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ch = $(this).attr('data-ipa-char') || $(this).text();
+            if (!activeIpaInput || !ch) { return; }
+            insertIpaChar(activeIpaInput, ch);
+            activeIpaInput.focus();
+        });
+
+        $(document).on('click.llWordGridIpa', function (e) {
+            if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard').length) {
+                return;
+            }
+            hideIpaKeyboards();
+        });
+
         $grids.on('click', '[data-ll-word-edit-cancel]', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1103,7 +1359,8 @@
                 if (!recId) { return; }
                 const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
                 const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
-                recordings.push({ id: recId, text: text, translation: translation });
+                const ipa = ($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString();
+                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa });
             });
 
             const $saveBtn = $(this);
@@ -1146,6 +1403,9 @@
                         if (typeof rec.recording_translation === 'string') {
                             $rec.find('[data-ll-recording-input="translation"]').val(rec.recording_translation);
                         }
+                        if (typeof rec.recording_ipa === 'string') {
+                            $rec.find('[data-ll-recording-input="ipa"]').val(rec.recording_ipa);
+                        }
                     });
                     applyRecordingCaptions($item, data.recordings);
                 }
@@ -1167,10 +1427,15 @@
     if (canEdit && ajaxUrl && editNonce) {
         const transcribeMessages = Object.assign({
             confirm: '',
+            confirmReplace: '',
+            confirmClear: '',
             working: 'Transcribing...',
             progress: 'Transcribing %1$d of %2$d...',
             done: 'Transcription complete.',
             none: 'No recordings need text.',
+            clearing: 'Clearing captions...',
+            cleared: 'Captions cleared.',
+            cancelled: 'Transcription cancelled.',
             error: 'Unable to transcribe recordings.'
         }, transcribeI18n || {});
 
@@ -1189,13 +1454,16 @@
                 if (typeof rec.recording_translation === 'string') {
                     $rec.find('[data-ll-recording-input="translation"]').val(rec.recording_translation);
                 }
+                if (typeof rec.recording_ipa === 'string') {
+                    $rec.find('[data-ll-recording-input="ipa"]').val(rec.recording_ipa);
+                }
                 const recordings = collectRecordingInputs($item);
                 applyRecordingCaptions($item, recordings);
                 updateOriginalInputs($item);
             } else {
                 const $row = $item.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
                 if ($row.length) {
-                    const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation);
+                    const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa);
                     renderRecordingCaption($row, caption);
                 }
             }
@@ -1220,73 +1488,160 @@
             updateOriginalInputs($item);
         }
 
-        $('[data-ll-transcribe-recordings]').on('click', function (e) {
-            e.preventDefault();
-            const $btn = $(this);
-            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
-            const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
-            if (!lessonId) { return; }
-            if (transcribeMessages.confirm) {
-                const confirmed = window.confirm(transcribeMessages.confirm);
+        function getTranscribeState($wrap) {
+            let state = $wrap.data('llTranscribeState');
+            if (!state) {
+                state = {
+                    active: false,
+                    cancelled: false,
+                    request: null,
+                    queue: [],
+                    total: 0,
+                    completed: 0,
+                    hadError: false,
+                    force: false
+                };
+                $wrap.data('llTranscribeState', state);
+            }
+            return state;
+        }
+
+        function setTranscribeControls($wrap, isActive) {
+            $wrap.find('[data-ll-transcribe-recordings]').prop('disabled', isActive);
+            $wrap.find('[data-ll-transcribe-replace]').prop('disabled', isActive);
+            $wrap.find('[data-ll-transcribe-clear]').prop('disabled', isActive);
+            $wrap.find('[data-ll-transcribe-cancel]').prop('disabled', !isActive);
+        }
+
+        function finishTranscribe($wrap, message, isError) {
+            const state = getTranscribeState($wrap);
+            state.active = false;
+            state.cancelled = false;
+            state.request = null;
+            state.queue = [];
+            state.total = 0;
+            state.completed = 0;
+            state.hadError = false;
+            state.force = false;
+            setTranscribeControls($wrap, false);
+            $wrap.removeAttr('aria-busy');
+            if (typeof message === 'string') {
+                setTranscribeStatus($wrap, message, !!isError);
+            }
+        }
+
+        function clearRecordingMetaById(recId) {
+            const $rec = $grids.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]');
+            if ($rec.length) {
+                const $item = $rec.closest('.word-item');
+                $rec.find('[data-ll-recording-input="text"]').val('');
+                $rec.find('[data-ll-recording-input="translation"]').val('');
+                const recordings = collectRecordingInputs($item);
+                applyRecordingCaptions($item, recordings);
+                updateOriginalInputs($item);
+                updateRecordingRowWidths();
+                return;
+            }
+            const $row = $grids.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
+            if ($row.length) {
+                const ipa = $row.find('.ll-word-recording-ipa').text() || '';
+                renderRecordingCaption($row, getRecordingCaptionParts('', '', ipa));
+                updateRecordingRowWidths();
+            }
+        }
+
+        function applyClearedRecordings(clearedIds) {
+            if (!Array.isArray(clearedIds)) { return; }
+            clearedIds.forEach(function (recId) {
+                const id = parseInt(recId, 10) || 0;
+                if (!id) { return; }
+                clearRecordingMetaById(id);
+            });
+        }
+
+        function runLessonTranscription($wrap, lessonId, options) {
+            const state = getTranscribeState($wrap);
+            if (state.active) { return; }
+            const mode = options && options.mode ? options.mode : 'missing';
+            const force = !!(options && options.force);
+            const confirmMessage = options && options.confirmMessage ? options.confirmMessage : '';
+            if (confirmMessage) {
+                const confirmed = window.confirm(confirmMessage);
                 if (!confirmed) { return; }
             }
-            $btn.prop('disabled', true);
+
+            state.active = true;
+            state.cancelled = false;
+            state.hadError = false;
+            state.force = force;
+            state.queue = [];
+            state.total = 0;
+            state.completed = 0;
+            setTranscribeControls($wrap, true);
             $wrap.attr('aria-busy', 'true');
             setTranscribeStatus($wrap, transcribeMessages.working, false);
 
-            $.post(ajaxUrl, {
+            state.request = $.post(ajaxUrl, {
                 action: 'll_tools_get_lesson_transcribe_queue',
                 nonce: editNonce,
-                lesson_id: lessonId
+                lesson_id: lessonId,
+                mode: mode
             }).done(function (response) {
+                if (state.cancelled) {
+                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                    return;
+                }
                 if (!response || response.success !== true) {
-                    setTranscribeStatus($wrap, transcribeMessages.error, true);
-                    $btn.prop('disabled', false);
-                    $wrap.removeAttr('aria-busy');
+                    finishTranscribe($wrap, transcribeMessages.error, true);
                     return;
                 }
                 const data = response.data || {};
                 const queue = Array.isArray(data.queue) ? data.queue.slice() : [];
                 const total = parseInt(data.total, 10) || queue.length;
                 if (!queue.length) {
-                    setTranscribeStatus($wrap, transcribeMessages.none, false);
-                    $btn.prop('disabled', false);
-                    $wrap.removeAttr('aria-busy');
+                    finishTranscribe($wrap, transcribeMessages.none, false);
                     return;
                 }
 
-                let completed = 0;
-                let hadError = false;
+                state.queue = queue;
+                state.total = total;
+                state.completed = 0;
+
                 const processNext = function () {
-                    if (!queue.length) {
-                        if (hadError) {
-                            setTranscribeStatus($wrap, transcribeMessages.error, true);
-                        } else {
-                            setTranscribeStatus($wrap, transcribeMessages.done, false);
-                        }
-                        $btn.prop('disabled', false);
-                        $wrap.removeAttr('aria-busy');
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
                         return;
                     }
-                    const next = queue.shift();
+                    if (!state.queue.length) {
+                        const message = state.hadError ? transcribeMessages.error : transcribeMessages.done;
+                        finishTranscribe($wrap, message, state.hadError);
+                        return;
+                    }
+
+                    const next = state.queue.shift();
                     const recordingId = parseInt(next.recording_id, 10) || 0;
                     if (!recordingId) {
                         processNext();
                         return;
                     }
-                    completed += 1;
+
+                    state.completed += 1;
                     setTranscribeStatus(
                         $wrap,
-                        formatTranscribeProgress(transcribeMessages.progress, completed, total),
+                        formatTranscribeProgress(transcribeMessages.progress, state.completed, state.total),
                         false
                     );
 
-                    $.post(ajaxUrl, {
+                    state.request = $.post(ajaxUrl, {
                         action: 'll_tools_transcribe_recording_by_id',
                         nonce: editNonce,
                         lesson_id: lessonId,
-                        recording_id: recordingId
+                        recording_id: recordingId,
+                        force: state.force ? 1 : 0
                     }).done(function (res) {
+                        if (state.cancelled) {
+                            return;
+                        }
                         if (res && res.success === true) {
                             const rec = res.data && res.data.recording ? res.data.recording : null;
                             if (rec) {
@@ -1297,19 +1652,124 @@
                                 applyWordUpdate(word);
                             }
                         } else {
-                            hadError = true;
+                            state.hadError = true;
+                        }
+                    }).fail(function () {
+                        if (!state.cancelled) {
+                            state.hadError = true;
                         }
                     }).always(function () {
+                        state.request = null;
                         processNext();
                     });
                 };
 
                 processNext();
             }).fail(function () {
-                setTranscribeStatus($wrap, transcribeMessages.error, true);
-                $btn.prop('disabled', false);
-                $wrap.removeAttr('aria-busy');
+                if (state.cancelled) {
+                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                    return;
+                }
+                finishTranscribe($wrap, transcribeMessages.error, true);
             });
+        }
+
+        function runClearCaptions($wrap, lessonId) {
+            const state = getTranscribeState($wrap);
+            if (state.active) { return; }
+            if (transcribeMessages.confirmClear) {
+                const confirmed = window.confirm(transcribeMessages.confirmClear);
+                if (!confirmed) { return; }
+            }
+
+            state.active = true;
+            state.cancelled = false;
+            setTranscribeControls($wrap, true);
+            $wrap.attr('aria-busy', 'true');
+            setTranscribeStatus($wrap, transcribeMessages.clearing, false);
+
+            state.request = $.post(ajaxUrl, {
+                action: 'll_tools_clear_lesson_transcriptions',
+                nonce: editNonce,
+                lesson_id: lessonId
+            }).done(function (response) {
+                if (state.cancelled) {
+                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                    return;
+                }
+                if (!response || response.success !== true) {
+                    finishTranscribe($wrap, transcribeMessages.error, true);
+                    return;
+                }
+                const data = response.data || {};
+                const cleared = Array.isArray(data.cleared) ? data.cleared : [];
+                if (cleared.length) {
+                    applyClearedRecordings(cleared);
+                    finishTranscribe($wrap, transcribeMessages.cleared, false);
+                } else {
+                    finishTranscribe($wrap, transcribeMessages.none, false);
+                }
+            }).fail(function () {
+                if (state.cancelled) {
+                    finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                    return;
+                }
+                finishTranscribe($wrap, transcribeMessages.error, true);
+            });
+        }
+
+        function cancelLessonTranscription($wrap) {
+            const state = getTranscribeState($wrap);
+            if (!state.active) { return; }
+            state.cancelled = true;
+            if (state.request && typeof state.request.abort === 'function') {
+                state.request.abort();
+            } else {
+                finishTranscribe($wrap, transcribeMessages.cancelled, false);
+            }
+        }
+
+        $('[data-ll-transcribe-recordings]').on('click', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
+            const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
+            if (!lessonId) { return; }
+            runLessonTranscription($wrap, lessonId, {
+                mode: 'missing',
+                force: false,
+                confirmMessage: transcribeMessages.confirm
+            });
+        });
+
+        $('[data-ll-transcribe-replace]').on('click', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
+            const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
+            if (!lessonId) { return; }
+            runLessonTranscription($wrap, lessonId, {
+                mode: 'all',
+                force: true,
+                confirmMessage: transcribeMessages.confirmReplace
+            });
+        });
+
+        $('[data-ll-transcribe-clear]').on('click', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
+            const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
+            if (!lessonId) { return; }
+            runClearCaptions($wrap, lessonId);
+        });
+
+        $('[data-ll-transcribe-cancel]').on('click', function (e) {
+            e.preventDefault();
+            const $btn = $(this);
+            const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
+            if (!$wrap.length) { return; }
+            cancelLessonTranscription($wrap);
         });
     }
 
