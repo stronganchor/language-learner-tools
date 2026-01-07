@@ -122,7 +122,7 @@ function ll_tools_word_grid_sanitize_ipa(string $text): string {
         return '';
     }
 
-    $text = preg_replace('/[^A-Za-z\x{00C0}-\x{02FF}\x{0300}-\x{036F}\x{0370}-\x{03FF}\x{1D00}-\x{1DFF}\.\s]/u', '', $text);
+    $text = preg_replace('/[^A-Za-z\x{00C0}-\x{02FF}\x{0300}-\x{036F}\x{0370}-\x{03FF}\x{1D00}-\x{1DFF}\x{10784}\.\s]/u', '', $text);
     $text = preg_replace('/\s+/u', ' ', $text);
     return trim($text);
 }
@@ -562,6 +562,49 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
             }
         }
+    }
+
+    $ipa_counts = [];
+    $count_audio_by_word = $audio_by_word;
+    if ($wordset_id > 0 && function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')) {
+        $wordset_word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
+        if (!empty($wordset_word_ids)) {
+            $count_audio_by_word = ll_tools_word_grid_collect_audio_files($wordset_word_ids, true);
+        }
+    }
+    if (!empty($count_audio_by_word)) {
+        foreach ($count_audio_by_word as $entries) {
+            foreach ((array) $entries as $entry) {
+                $ipa_value = isset($entry['recording_ipa']) ? (string) $entry['recording_ipa'] : '';
+                if ($ipa_value === '') {
+                    continue;
+                }
+                $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+                    ? ll_tools_word_grid_tokenize_ipa($ipa_value)
+                    : preg_split('//u', $ipa_value, -1, PREG_SPLIT_NO_EMPTY);
+                foreach ((array) $tokens as $token) {
+                    if (function_exists('ll_tools_word_grid_is_special_ipa_token')
+                        && !ll_tools_word_grid_is_special_ipa_token($token)) {
+                        continue;
+                    }
+                    if (!isset($ipa_counts[$token])) {
+                        $ipa_counts[$token] = 0;
+                    }
+                    $ipa_counts[$token] += 1;
+                }
+            }
+        }
+    }
+
+    if (!empty($ipa_special_chars)) {
+        usort($ipa_special_chars, function ($a, $b) use ($ipa_counts) {
+            $count_a = (int) ($ipa_counts[$a] ?? 0);
+            $count_b = (int) ($ipa_counts[$b] ?? 0);
+            if ($count_a === $count_b) {
+                return strnatcasecmp((string) $a, (string) $b);
+            }
+            return ($count_b <=> $count_a);
+        });
     }
 
     wp_localize_script('ll-tools-word-grid', 'llToolsWordGridData', [

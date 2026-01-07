@@ -41,6 +41,7 @@ require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
 require_once(__DIR__ . '/admin/export-import.php');
 require_once(__DIR__ . '/admin/word-images-fixer.php');
 require_once(__DIR__ . '/admin/example-sentence-migration.php');
+require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
 require_once(__DIR__ . '/user-study.php');
 
 // Include API integrations
