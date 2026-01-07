@@ -12,7 +12,8 @@ function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_
 }
 
 function ll_tools_enqueue_public_assets() {
-    ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style');
+    ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
+    ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
     // jQuery UI if needed on front-end
     wp_enqueue_script('jquery-ui-autocomplete');
     wp_enqueue_style('jquery-ui-css','https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');

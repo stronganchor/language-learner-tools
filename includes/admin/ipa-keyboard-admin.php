@@ -22,7 +22,8 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
         return;
     }
 
-    ll_enqueue_asset_by_timestamp('/css/ipa-keyboard-admin.css', 'll-ipa-keyboard-admin-css');
+    ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
+    ll_enqueue_asset_by_timestamp('/css/ipa-keyboard-admin.css', 'll-ipa-keyboard-admin-css', ['ll-ipa-fonts']);
     ll_enqueue_asset_by_timestamp('/js/ipa-keyboard-admin.js', 'll-ipa-keyboard-admin-js', ['jquery'], true);
 
     wp_localize_script('ll-ipa-keyboard-admin-js', 'llIpaKeyboardAdmin', [
@@ -219,8 +220,8 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
         }
     }
 
-    $manual_symbols = function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
-        ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
+    $manual_symbols = function_exists('ll_tools_word_grid_get_wordset_ipa_manual_symbols')
+        ? ll_tools_word_grid_get_wordset_ipa_manual_symbols($wordset_id)
         : [];
 
     $default_symbols = ll_tools_ipa_keyboard_get_default_symbols();
@@ -358,11 +359,12 @@ function ll_tools_update_recording_ipa_handler() {
 
     if ($clean !== '') {
         update_post_meta($recording_id, 'recording_ipa', $clean);
-        if (function_exists('ll_tools_word_grid_update_wordset_ipa_special_chars')) {
-            ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, $clean);
-        }
     } else {
         delete_post_meta($recording_id, 'recording_ipa');
+    }
+
+    if (function_exists('ll_tools_word_grid_update_wordset_ipa_special_chars')) {
+        ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, $clean);
     }
 
     wp_send_json_success([
@@ -389,12 +391,12 @@ function ll_tools_add_wordset_ipa_symbols_handler() {
         wp_send_json_error('No symbols found', 400);
     }
 
-    $existing = function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
-        ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
+    $existing = function_exists('ll_tools_word_grid_get_wordset_ipa_manual_symbols')
+        ? ll_tools_word_grid_get_wordset_ipa_manual_symbols($wordset_id)
         : [];
 
     $merged = array_values(array_unique(array_merge($existing, $symbols)));
-    update_term_meta($wordset_id, 'll_wordset_ipa_special_chars', $merged);
+    update_term_meta($wordset_id, 'll_wordset_ipa_manual_symbols', $merged);
 
     wp_send_json_success([
         'symbols' => $merged,
