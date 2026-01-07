@@ -235,7 +235,7 @@ p:has(.ll-word-audio) {
 
 .word-grid.ll-word-grid .ll-word-edit-input--ipa {
     flex: 1 1 auto;
-    font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", serif;
+    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-superscript {
@@ -299,7 +299,7 @@ p:has(.ll-word-audio) {
     padding: 4px 8px !important;
     font-size: 14px !important;
     line-height: 1 !important;
-    font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", serif !important;
+    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
     cursor: pointer !important;
     box-shadow: none !important;
     text-shadow: none !important;
@@ -621,7 +621,7 @@ p:has(.ll-word-audio) {
     color: #666666 !important;
     font-size: 12px !important;
     line-height: 1.3 !important;
-    font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", serif !important;
+    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-ipa::before {

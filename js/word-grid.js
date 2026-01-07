@@ -1037,8 +1037,13 @@
         }
     }
 
-    const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
+    const ipaAllowedChar = /[a-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
+    const ipaUppercaseMap = {
+        'R': 'ʀ',
+        'B': 'ʙ',
+        'G': 'ɢ'
+    };
     const ipaSuperscriptMap = {
         'a': 'ᵃ',
         'b': 'ᵇ',
@@ -1097,13 +1102,24 @@
     let activeIpaInput = null;
     let activeIpaSelection = null;
 
+    function normalizeIpaChar(ch) {
+        if (ch === "'" || ch === '’') {
+            return '\u02C8';
+        }
+        if (/[A-Z]/.test(ch)) {
+            return ipaUppercaseMap[ch] || ch.toLowerCase();
+        }
+        return ch;
+    }
+
     function sanitizeIpaValue(value) {
         const raw = (value || '').toString();
         const chars = Array.from(raw);
         let out = '';
         chars.forEach(function (ch) {
-            if (ipaAllowedChar.test(ch)) {
-                out += ch;
+            const normalized = normalizeIpaChar(ch);
+            if (ipaAllowedChar.test(normalized)) {
+                out += normalized;
             }
         });
         const hadTrailingSpace = /\s$/.test(out);
@@ -1264,7 +1280,7 @@
         if (!token) { return false; }
         if (isIpaSeparator(token)) { return false; }
         if (ipaCombiningMark.test(token)) { return true; }
-        if (/[^A-Za-z]/u.test(token)) { return true; }
+        if (/[^a-z]/u.test(token)) { return true; }
         return false;
     }
 
