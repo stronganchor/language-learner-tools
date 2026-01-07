@@ -8,7 +8,7 @@
     const editI18n = cfg.editI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
-    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ'];
+    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -1037,7 +1037,7 @@
         }
     }
 
-    const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\. ]/u;
+    const ipaAllowedChar = /[A-Za-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
     const ipaSuperscriptMap = {
         'a': 'ᵃ',
@@ -1084,7 +1084,7 @@
         'U': 'ᵁ',
         'W': 'ᵂ',
         'Y': 'ᵞ',
-        'ʙ': 'ᴮ',
+        'ʙ': '\u{10784}',
         'ɢ': 'ᴳ',
         'ʜ': 'ᴴ',
         'ɪ': 'ᴵ',
@@ -1128,8 +1128,30 @@
     }
 
     function toIpaSuperscript(text) {
-        return Array.from((text || '').toString()).map(function (ch) {
-            return ipaSuperscriptMap[ch] || ch;
+        const chars = Array.from((text || '').toString());
+        if (!chars.length) { return ''; }
+
+        const clusters = [];
+        chars.forEach(function (ch) {
+            if (ipaCombiningMark.test(ch)) {
+                if (!clusters.length) {
+                    clusters.push([ch]);
+                } else {
+                    clusters[clusters.length - 1].push(ch);
+                }
+                return;
+            }
+            clusters.push([ch]);
+        });
+
+        return clusters.map(function (cluster) {
+            if (!cluster.length) { return ''; }
+            const base = cluster[0];
+            if (ipaCombiningMark.test(base)) {
+                return cluster.join('');
+            }
+            let baseOut = ipaSuperscriptMap[base] || base;
+            return baseOut + cluster.slice(1).join('');
         }).join('');
     }
 
@@ -1459,6 +1481,9 @@
 
         $(document).on('click.llWordGridIpa', function (e) {
             if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard, .ll-word-edit-ipa-superscript').length) {
+                return;
+            }
+            if (activeIpaInput && $(document.activeElement).closest('.ll-word-edit-input--ipa').length) {
                 return;
             }
             hideIpaKeyboards();

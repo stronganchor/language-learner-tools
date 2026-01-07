@@ -1,0 +1,94 @@
+.ll-ipa-admin-controls,
+.ll-ipa-admin-add {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.ll-ipa-wordset-select,
+.ll-ipa-add-input {
+    min-width: 240px;
+}
+
+.ll-ipa-admin-status {
+    margin: 10px 0 0;
+    color: #0f172a;
+}
+
+.ll-ipa-admin-status.is-error {
+    color: #b91c1c;
+}
+
+.ll-ipa-symbols {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.ll-ipa-empty {
+    padding: 12px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.ll-ipa-symbol {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.ll-ipa-symbol > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #f8fafc;
+}
+
+.ll-ipa-symbol > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-ipa-symbol-text {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", serif;
+}
+
+.ll-ipa-symbol-count {
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #475569;
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.ll-ipa-symbol-body {
+    padding: 12px;
+}
+
+.ll-ipa-recordings th,
+.ll-ipa-recordings td {
+    vertical-align: top;
+}
+
+.ll-ipa-recordings td:last-child {
+    width: 120px;
+}
+
+.ll-ipa-input {
+    width: 100%;
+    max-width: 280px;
+}
+
+.ll-ipa-translation {
+    color: #64748b;
+}
