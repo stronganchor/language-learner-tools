@@ -1187,11 +1187,63 @@
         }).join('');
     }
 
+    function getIpaSelectionBeforeCursor(input, cursor) {
+        if (!input || typeof cursor !== 'number' || cursor <= 0) {
+            return null;
+        }
+        const value = (input.value || '').toString();
+        if (!value) {
+            return null;
+        }
+        const codePoints = [];
+        let index = 0;
+        for (const ch of value) {
+            const start = index;
+            const end = index + ch.length;
+            codePoints.push({ ch: ch, start: start, end: end });
+            index = end;
+        }
+        if (!codePoints.length) {
+            return null;
+        }
+        let lastIndex = -1;
+        for (let i = 0; i < codePoints.length; i += 1) {
+            if (codePoints[i].end <= cursor) {
+                lastIndex = i;
+            } else {
+                break;
+            }
+        }
+        if (lastIndex < 0) {
+            return null;
+        }
+        let startIndex = lastIndex;
+        if (isCombiningMark(codePoints[lastIndex].ch)) {
+            while (startIndex >= 0 && isCombiningMark(codePoints[startIndex].ch)) {
+                startIndex -= 1;
+            }
+            if (startIndex < 0) {
+                startIndex = lastIndex;
+            }
+        }
+        return {
+            start: codePoints[startIndex].start,
+            end: codePoints[lastIndex].end
+        };
+    }
+
     function applySuperscriptToSelection(input) {
         if (!input) { return; }
-        const selection = (typeof input.selectionStart === 'number' && typeof input.selectionEnd === 'number')
-            ? { start: input.selectionStart, end: input.selectionEnd }
-            : activeIpaSelection;
+        const hasNativeSelection = (typeof input.selectionStart === 'number' && typeof input.selectionEnd === 'number');
+        let selection = hasNativeSelection ? { start: input.selectionStart, end: input.selectionEnd } : null;
+        if (!selection || selection.end <= selection.start) {
+            selection = hasNativeSelection
+                ? getIpaSelectionBeforeCursor(input, input.selectionStart)
+                : null;
+        }
+        if ((!selection || selection.end <= selection.start) && !hasNativeSelection && activeIpaSelection) {
+            selection = activeIpaSelection;
+        }
         if (!selection || selection.end <= selection.start) {
             return;
         }
@@ -1473,6 +1525,10 @@
             updateIpaSelection(this);
         });
 
+        $grids.on('select touchend', '.ll-word-edit-input--ipa', function () {
+            updateIpaSelection(this);
+        });
+
         $grids.on('input', '.ll-word-edit-input--ipa', function () {
             const $input = $(this);
             const raw = ($input.val() || '').toString();
@@ -1486,6 +1542,12 @@
                 showIpaKeyboard($input);
             }
             updateIpaSelection(this);
+        });
+
+        document.addEventListener('selectionchange', function () {
+            if (!activeIpaInput) { return; }
+            if (document.activeElement !== activeIpaInput) { return; }
+            updateIpaSelection(activeIpaInput);
         });
 
         $grids.on('mousedown', '[data-ll-ipa-superscript]', function (e) {
