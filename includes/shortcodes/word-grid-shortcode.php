@@ -127,13 +127,13 @@ function ll_tools_word_grid_normalize_ipa_text(string $text): string {
             return '';
         }
         if (preg_match('/^[Bb\x{0299}\x{1D2E}\x{10784}]$/u', $content)) {
-            return "\x{10784}";
+            return "\u{10784}";
         }
         return $content;
     }, $text);
 
     $text = wp_strip_all_tags($text);
-    $text = str_replace("\x{1D2E}", "\x{10784}", $text);
+    $text = str_replace("\u{1D2E}", "\u{10784}", $text);
 
     return $text;
 }
@@ -158,22 +158,22 @@ function ll_tools_word_grid_normalize_ipa_input(string $text): string {
     $out = '';
     foreach ($chars as $char) {
         if ($char === "'" || $char === '’') {
-            $out .= "\x{02C8}";
+            $out .= "\u{02C8}";
             continue;
         }
         if (strlen($char) === 1) {
             $ord = ord($char);
             if ($ord >= 65 && $ord <= 90) {
                 if ($char === 'R') {
-                    $out .= "\x{0280}";
+                    $out .= "\u{0280}";
                     continue;
                 }
                 if ($char === 'B') {
-                    $out .= "\x{0299}";
+                    $out .= "\u{0299}";
                     continue;
                 }
                 if ($char === 'G') {
-                    $out .= "\x{0262}";
+                    $out .= "\u{0262}";
                     continue;
                 }
                 $out .= strtolower($char);
@@ -193,9 +193,37 @@ function ll_tools_word_grid_sanitize_ipa(string $text): string {
     }
 
     $text = ll_tools_word_grid_normalize_ipa_input($text);
-    $text = preg_replace('/[^a-z\x{00C0}-\x{02FF}\x{0300}-\x{036F}\x{0370}-\x{03FF}\x{1D00}-\x{1DFF}\x{10784}\.\s]/u', '', $text);
-    $text = preg_replace('/\s+/u', ' ', $text);
-    return trim($text);
+
+    $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return '';
+    }
+
+    $out = '';
+    foreach ($chars as $char) {
+        if ($char === "\u{10784}" || $char === '.') {
+            $out .= $char;
+            continue;
+        }
+        if (ll_tools_word_grid_is_ipa_combining_mark($char)) {
+            $out .= $char;
+            continue;
+        }
+        if (preg_match('/\s/u', $char)) {
+            $out .= ' ';
+            continue;
+        }
+        if (preg_match('/[a-z]/u', $char)) {
+            $out .= $char;
+            continue;
+        }
+        if (preg_match('/[\x{00C0}-\x{02FF}\x{0370}-\x{03FF}\x{1D00}-\x{1DFF}]/u', $char)) {
+            $out .= $char;
+        }
+    }
+
+    $out = preg_replace('/\s+/u', ' ', $out);
+    return trim((string) $out);
 }
 
 function ll_tools_word_grid_is_ipa_separator(string $char): bool {
