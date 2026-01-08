@@ -233,9 +233,16 @@ p:has(.ll-word-audio) {
     content: "]";
 }
 
+.ll-ipa,
+.word-grid.ll-word-grid .ll-word-edit-input--ipa,
+.word-grid.ll-word-grid .ll-word-ipa-key {
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif !important;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1 !important;
+    font-variant-ligatures: none !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-input--ipa {
     flex: 1 1 auto;
-    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-superscript {
@@ -299,7 +306,6 @@ p:has(.ll-word-audio) {
     padding: 4px 8px !important;
     font-size: 14px !important;
     line-height: 1 !important;
-    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
     cursor: pointer !important;
     box-shadow: none !important;
     text-shadow: none !important;
@@ -621,7 +627,6 @@ p:has(.ll-word-audio) {
     color: #666666 !important;
     font-size: 12px !important;
     line-height: 1.3 !important;
-    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-ipa::before {
@@ -632,12 +637,6 @@ p:has(.ll-word-audio) {
     content: "]";
 }
 
-.word-grid.ll-word-grid .ll-word-recording-ipa .ll-ipa-sup {
-    display: inline-block;
-    font-size: 0.75em;
-    line-height: 1;
-    vertical-align: super;
-}
 .word-grid.ll-word-grid .ll-study-recording-btn {
     height: 32px !important;
     min-height: 32px !important;
