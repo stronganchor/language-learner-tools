@@ -116,6 +116,35 @@ function ll_tools_word_grid_select_audio_url(array $audio_files, string $type, i
     return isset($entry['url']) ? (string) $entry['url'] : '';
 }
 
+function ll_tools_word_grid_supports_ipa_extended(): bool {
+    static $supports = null;
+    if ($supports !== null) {
+        return $supports;
+    }
+
+    global $wpdb;
+    if (!$wpdb || !method_exists($wpdb, 'has_cap') || !$wpdb->has_cap('utf8mb4')) {
+        $supports = false;
+        return $supports;
+    }
+
+    if (!empty($wpdb->charset) && stripos((string) $wpdb->charset, 'utf8mb4') === false) {
+        $supports = false;
+        return $supports;
+    }
+
+    if (method_exists($wpdb, 'get_col_charset')) {
+        $charset = $wpdb->get_col_charset($wpdb->postmeta, 'meta_value');
+        if ($charset && stripos((string) $charset, 'utf8mb4') === false) {
+            $supports = false;
+            return $supports;
+        }
+    }
+
+    $supports = true;
+    return $supports;
+}
+
 function ll_tools_word_grid_normalize_ipa_text(string $text): string {
     if ($text === '') {
         return '';
@@ -223,7 +252,13 @@ function ll_tools_word_grid_sanitize_ipa(string $text): string {
     }
 
     $out = preg_replace('/\s+/u', ' ', $out);
-    return trim((string) $out);
+    $out = trim((string) $out);
+
+    if (!ll_tools_word_grid_supports_ipa_extended()) {
+        $out = str_replace("\u{10784}", "\u{1D2E}", $out);
+    }
+
+    return $out;
 }
 
 function ll_tools_word_grid_is_ipa_separator(string $char): bool {
@@ -789,12 +824,27 @@ function ll_tools_word_grid_shortcode($atts) {
         });
     }
 
+    if (!empty($ipa_special_chars)) {
+        $normalized_chars = [];
+        foreach ($ipa_special_chars as $char) {
+            $normalized = ll_tools_word_grid_normalize_ipa_output((string) $char);
+            if ($normalized === '') {
+                continue;
+            }
+            if (!in_array($normalized, $normalized_chars, true)) {
+                $normalized_chars[] = $normalized;
+            }
+        }
+        $ipa_special_chars = $normalized_chars;
+    }
+
     wp_localize_script('ll-tools-word-grid', 'llToolsWordGridData', [
         'ajaxUrl'    => admin_url('admin-ajax.php'),
         'nonce'      => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
         'isLoggedIn' => is_user_logged_in(),
         'canEdit'    => $can_edit_words,
         'editNonce'  => $can_edit_words ? wp_create_nonce('ll_word_grid_edit') : '',
+        'supportsIpaExtended' => ll_tools_word_grid_supports_ipa_extended(),
         'state'      => $user_study_state,
         'i18n'       => [
             'starLabel'      => __('Star word', 'll-tools-text-domain'),
