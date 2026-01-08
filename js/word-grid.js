@@ -12,6 +12,7 @@
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
+    const supportsIpaExtended = cfg.supportsIpaExtended !== false;
     const state = Object.assign({
         wordset_id: 0,
         category_ids: [],
@@ -955,7 +956,7 @@
             if (!recId) { return; }
             const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
             const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
-            const ipa = ($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString();
+            const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
             recordings.push({
                 id: recId,
                 recording_text: text,
@@ -991,6 +992,14 @@
 
     function normalizeIpaOutput(value) {
         return (value || '').toString().replace(/\u1D2E/g, '\u{10784}');
+    }
+
+    function normalizeIpaForStorage(value) {
+        const raw = (value || '').toString();
+        if (supportsIpaExtended) {
+            return raw;
+        }
+        return raw.replace(/\u{10784}/gu, '\u1D2E');
     }
 
     function renderRecordingCaption($row, parts) {
@@ -1538,7 +1547,7 @@
                 if (!recId) { return; }
                 const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
                 const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
-                const ipa = ($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString();
+                const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
                 recordings.push({ id: recId, text: text, translation: translation, ipa: ipa });
             });
 
