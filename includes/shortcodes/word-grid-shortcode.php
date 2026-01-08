@@ -1070,7 +1070,7 @@ function ll_tools_word_grid_parse_recordings_payload($raw): array {
     if (is_string($raw)) {
         $decoded = json_decode(stripslashes($raw), true);
     } elseif (is_array($raw)) {
-        $decoded = $raw;
+        $decoded = function_exists('wp_unslash') ? wp_unslash($raw) : $raw;
     } else {
         return [];
     }
