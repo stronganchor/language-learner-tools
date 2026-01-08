@@ -1555,7 +1555,7 @@
                 word_id: wordId,
                 word_text: wordText,
                 word_translation: wordTranslation,
-                recordings: JSON.stringify(recordings)
+                recordings: recordings
             }).done(function (response) {
                 if (!response || response.success !== true) {
                     setEditStatus($item, editMessages.error, true);
