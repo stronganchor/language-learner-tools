@@ -989,6 +989,38 @@
         };
     }
 
+    function escapeHtml(value) {
+        return (value || '').toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatIpaHtml(ipa) {
+        const chars = Array.from((ipa || '').toString());
+        if (!chars.length) { return ''; }
+        const combiningMark = /[\u0300-\u036F]/u;
+        let out = '';
+        for (let i = 0; i < chars.length; i++) {
+            const ch = chars[i];
+            if (ch === '\u{10784}') {
+                let marks = '';
+                let j = i + 1;
+                while (j < chars.length && combiningMark.test(chars[j])) {
+                    marks += chars[j];
+                    j++;
+                }
+                out += '<span class="ll-ipa-sup">' + escapeHtml('\u0299' + marks) + '</span>';
+                i = j - 1;
+                continue;
+            }
+            out += escapeHtml(ch);
+        }
+        return out;
+    }
+
     function renderRecordingCaption($row, parts) {
         if (!$row || !parts) { return; }
         let $textWrap = $row.find('.ll-word-recording-text').first();
@@ -1027,7 +1059,7 @@
             if (!$ipa.length) {
                 $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
             }
-            $ipa.text(parts.ipa);
+            $ipa.html(formatIpaHtml(parts.ipa));
         } else {
             $ipa.remove();
         }

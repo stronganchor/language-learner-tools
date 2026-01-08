@@ -631,6 +631,13 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-recording-ipa::after {
     content: "]";
 }
+
+.word-grid.ll-word-grid .ll-word-recording-ipa .ll-ipa-sup {
+    display: inline-block;
+    font-size: 0.75em;
+    line-height: 1;
+    vertical-align: super;
+}
 .word-grid.ll-word-grid .ll-study-recording-btn {
     height: 32px !important;
     min-height: 32px !important;

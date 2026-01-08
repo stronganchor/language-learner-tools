@@ -177,6 +177,39 @@ function ll_tools_word_grid_is_ipa_combining_mark(string $char): bool {
     return preg_match('/[\x{0300}-\x{036F}]/u', $char) === 1;
 }
 
+function ll_tools_word_grid_format_ipa_display_html(string $ipa): string {
+    $ipa = trim($ipa);
+    if ($ipa === '') {
+        return '';
+    }
+
+    $chars = preg_split('//u', $ipa, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return esc_html($ipa);
+    }
+
+    $out = '';
+    $count = count($chars);
+    for ($i = 0; $i < $count; $i++) {
+        $char = $chars[$i];
+        if ($char === "\x{10784}") {
+            $marks = '';
+            $j = $i + 1;
+            while ($j < $count && ll_tools_word_grid_is_ipa_combining_mark($chars[$j])) {
+                $marks .= $chars[$j];
+                $j++;
+            }
+            $display = "\x{0299}" . $marks;
+            $out .= '<span class="ll-ipa-sup">' . esc_html($display) . '</span>';
+            $i = $j - 1;
+            continue;
+        }
+        $out .= esc_html($char);
+    }
+
+    return $out;
+}
+
 function ll_tools_word_grid_is_ipa_tie_bar(string $char): bool {
     return preg_match('/[\x{035C}\x{0361}]/u', $char) === 1;
 }
@@ -965,7 +998,7 @@ function ll_tools_word_grid_shortcode($atts) {
                                 $recordings_html .= '<span class="ll-word-recording-text-translation">' . esc_html($row['translation']) . '</span>';
                             }
                             if (!empty($row['ipa'])) {
-                                $recordings_html .= '<span class="ll-word-recording-ipa">' . esc_html($row['ipa']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';
                             }
                             $recordings_html .= '</span>';
                         }
