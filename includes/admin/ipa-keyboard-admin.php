@@ -162,7 +162,8 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
         if (!$word_id) {
             continue;
         }
-        $recording_ipa = trim((string) get_post_meta($recording_id, 'recording_ipa', true));
+        $recording_ipa_raw = (string) get_post_meta($recording_id, 'recording_ipa', true);
+        $recording_ipa = ll_tools_word_grid_normalize_ipa_output($recording_ipa_raw);
         if ($recording_ipa === '') {
             continue;
         }
@@ -369,7 +370,7 @@ function ll_tools_update_recording_ipa_handler() {
 
     wp_send_json_success([
         'recording_id' => $recording_id,
-        'recording_ipa' => (string) get_post_meta($recording_id, 'recording_ipa', true),
+        'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true)),
     ]);
 }
 

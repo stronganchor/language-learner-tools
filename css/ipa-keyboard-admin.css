@@ -59,7 +59,9 @@
 .ll-ipa-symbol-text {
     font-size: 18px;
     font-weight: 600;
-    font-family: "LL IPA", "Gentium Plus", "Charis SIL", "Doulos SIL", "Noto Serif", serif;
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
+    font-variant-ligatures: none;
 }
 
 .ll-ipa-symbol-count {
@@ -87,6 +89,9 @@
 .ll-ipa-input {
     width: 100%;
     max-width: 280px;
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
+    font-variant-ligatures: none;
 }
 
 .ll-ipa-translation {

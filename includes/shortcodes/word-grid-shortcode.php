@@ -116,10 +116,39 @@ function ll_tools_word_grid_select_audio_url(array $audio_files, string $type, i
     return isset($entry['url']) ? (string) $entry['url'] : '';
 }
 
+function ll_tools_word_grid_normalize_ipa_text(string $text): string {
+    if ($text === '') {
+        return '';
+    }
+
+    $text = preg_replace_callback('/<\s*sup[^>]*>(.*?)<\/\s*sup>/iu', function ($matches) {
+        $content = trim($matches[1] ?? '');
+        if ($content === '') {
+            return '';
+        }
+        if (preg_match('/^[Bb\x{0299}\x{1D2E}\x{10784}]$/u', $content)) {
+            return "\x{10784}";
+        }
+        return $content;
+    }, $text);
+
+    $text = wp_strip_all_tags($text);
+    $text = str_replace("\x{1D2E}", "\x{10784}", $text);
+
+    return $text;
+}
+
+function ll_tools_word_grid_normalize_ipa_output(string $text): string {
+    $text = ll_tools_word_grid_normalize_ipa_text($text);
+    return trim($text);
+}
+
 function ll_tools_word_grid_normalize_ipa_input(string $text): string {
     if ($text === '') {
         return '';
     }
+
+    $text = ll_tools_word_grid_normalize_ipa_text($text);
 
     $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
     if (!$chars) {
@@ -178,36 +207,12 @@ function ll_tools_word_grid_is_ipa_combining_mark(string $char): bool {
 }
 
 function ll_tools_word_grid_format_ipa_display_html(string $ipa): string {
-    $ipa = trim($ipa);
+    $ipa = ll_tools_word_grid_normalize_ipa_output($ipa);
     if ($ipa === '') {
         return '';
     }
 
-    $chars = preg_split('//u', $ipa, -1, PREG_SPLIT_NO_EMPTY);
-    if (!$chars) {
-        return esc_html($ipa);
-    }
-
-    $out = '';
-    $count = count($chars);
-    for ($i = 0; $i < $count; $i++) {
-        $char = $chars[$i];
-        if ($char === "\x{10784}") {
-            $marks = '';
-            $j = $i + 1;
-            while ($j < $count && ll_tools_word_grid_is_ipa_combining_mark($chars[$j])) {
-                $marks .= $chars[$j];
-                $j++;
-            }
-            $display = "\x{0299}" . $marks;
-            $out .= '<span class="ll-ipa-sup">' . esc_html($display) . '</span>';
-            $i = $j - 1;
-            continue;
-        }
-        $out .= esc_html($char);
-    }
-
-    return $out;
+    return esc_html($ipa);
 }
 
 function ll_tools_word_grid_is_ipa_tie_bar(string $char): bool {
@@ -834,7 +839,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $play_label = sprintf($play_label_template, $label);
                 $recording_text = trim((string) ($entry['recording_text'] ?? ''));
                 $recording_translation = trim((string) ($entry['recording_translation'] ?? ''));
-                $recording_ipa = trim((string) ($entry['recording_ipa'] ?? ''));
+                $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''));
                 if ($recording_text !== '' || $recording_translation !== '' || $recording_ipa !== '') {
                     $has_recording_caption = true;
                 }
@@ -865,7 +870,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         'label' => $label,
                         'text' => (string) ($entry['recording_text'] ?? ''),
                         'translation' => (string) ($entry['recording_translation'] ?? ''),
-                        'ipa' => (string) ($entry['recording_ipa'] ?? ''),
+                        'ipa' => ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? '')),
                         'audio_url' => $audio_url,
                     ];
                 }
@@ -925,7 +930,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         $recording_label = (string) ($recording['label'] ?? $recording_type);
                         $recording_text = (string) ($recording['text'] ?? '');
                         $recording_translation = (string) ($recording['translation'] ?? '');
-                        $recording_ipa = (string) ($recording['ipa'] ?? '');
+                        $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($recording['ipa'] ?? ''));
                         $recording_audio_url = (string) ($recording['audio_url'] ?? '');
                         $recording_text_id = 'll-word-edit-recording-text-' . $recording_id;
                         $recording_translation_id = 'll-word-edit-recording-translation-' . $recording_id;
@@ -998,7 +1003,7 @@ function ll_tools_word_grid_shortcode($atts) {
                                 $recordings_html .= '<span class="ll-word-recording-text-translation">' . esc_html($row['translation']) . '</span>';
                             }
                             if (!empty($row['ipa'])) {
-                                $recordings_html .= '<span class="ll-word-recording-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-ipa ll-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';
                             }
                             $recordings_html .= '</span>';
                         }
@@ -1437,7 +1442,7 @@ function ll_tools_word_grid_update_word_handler() {
             'id' => $recording_id,
             'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
             'recording_translation' => (string) get_post_meta($recording_id, 'recording_translation', true),
-            'recording_ipa' => (string) get_post_meta($recording_id, 'recording_ipa', true),
+            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true)),
         ];
     }
 
@@ -1727,7 +1732,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
             'word_id' => $word_id,
             'recording_text' => $recording_text,
             'recording_translation' => $recording_translation,
-            'recording_ipa' => (string) get_post_meta($recording_id, 'recording_ipa', true),
+            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true)),
         ],
     ];
     if ($word_payload) {

@@ -989,36 +989,8 @@
         };
     }
 
-    function escapeHtml(value) {
-        return (value || '').toString()
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    function formatIpaHtml(ipa) {
-        const chars = Array.from((ipa || '').toString());
-        if (!chars.length) { return ''; }
-        const combiningMark = /[\u0300-\u036F]/u;
-        let out = '';
-        for (let i = 0; i < chars.length; i++) {
-            const ch = chars[i];
-            if (ch === '\u{10784}') {
-                let marks = '';
-                let j = i + 1;
-                while (j < chars.length && combiningMark.test(chars[j])) {
-                    marks += chars[j];
-                    j++;
-                }
-                out += '<span class="ll-ipa-sup">' + escapeHtml('\u0299' + marks) + '</span>';
-                i = j - 1;
-                continue;
-            }
-            out += escapeHtml(ch);
-        }
-        return out;
+    function normalizeIpaOutput(value) {
+        return (value || '').toString().replace(/\u1D2E/g, '\u{10784}');
     }
 
     function renderRecordingCaption($row, parts) {
@@ -1057,9 +1029,9 @@
         let $ipa = $textWrap.find('.ll-word-recording-ipa').first();
         if (parts.ipa) {
             if (!$ipa.length) {
-                $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
+                $ipa = $('<span>', { class: 'll-word-recording-ipa ll-ipa' }).appendTo($textWrap);
             }
-            $ipa.html(formatIpaHtml(parts.ipa));
+            $ipa.text(normalizeIpaOutput(parts.ipa));
         } else {
             $ipa.remove();
         }
@@ -1103,7 +1075,7 @@
         'y': 'ʸ',
         'z': 'ᶻ',
         'A': 'ᴬ',
-        'B': 'ᴮ',
+        'B': '\u{10784}',
         'D': 'ᴰ',
         'E': 'ᴱ',
         'G': 'ᴳ',
@@ -1135,6 +1107,9 @@
     let activeIpaSelection = null;
 
     function normalizeIpaChar(ch) {
+        if (ch === '\u1D2E') {
+            return '\u{10784}';
+        }
         if (ch === "'" || ch === '’') {
             return '\u02C8';
         }
