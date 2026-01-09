@@ -587,6 +587,61 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
     ];
 }
 
+function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups): array {
+    if (empty($posts) || empty($groups)) {
+        return $posts;
+    }
+
+    $order_map = [];
+    $post_map = [];
+    foreach ($posts as $idx => $post) {
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if ($post_id <= 0) {
+            continue;
+        }
+        $order_map[$post_id] = $idx;
+        $post_map[$post_id] = $post;
+    }
+
+    if (empty($order_map)) {
+        return $posts;
+    }
+
+    $used = [];
+    $ordered_posts = [];
+    foreach ($groups as $group) {
+        if (empty($group['word_ids']) || !is_array($group['word_ids'])) {
+            continue;
+        }
+        $ids = array_values(array_filter(array_map('intval', $group['word_ids']), function ($id) use ($order_map) {
+            return $id > 0 && isset($order_map[$id]);
+        }));
+        if (empty($ids)) {
+            continue;
+        }
+        usort($ids, function ($a, $b) use ($order_map) {
+            return ($order_map[$a] ?? 0) <=> ($order_map[$b] ?? 0);
+        });
+        foreach ($ids as $id) {
+            if (isset($used[$id])) {
+                continue;
+            }
+            $ordered_posts[] = $post_map[$id];
+            $used[$id] = true;
+        }
+    }
+
+    foreach ($posts as $post) {
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if ($post_id <= 0 || isset($used[$post_id])) {
+            continue;
+        }
+        $ordered_posts[] = $post;
+    }
+
+    return $ordered_posts;
+}
+
 function ll_tools_user_can_edit_vocab_words(): bool {
     if (!is_user_logged_in() || !current_user_can('view_ll_tools')) {
         return false;
@@ -724,6 +779,16 @@ function ll_tools_word_grid_shortcode($atts) {
         $query->posts = $filtered_posts;
         $query->post_count = count($filtered_posts);
         $query->current_post = -1;
+    }
+
+    if ($category_term && $wordset_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
+        $maps = ll_tools_get_word_option_maps($wordset_id, (int) $category_term->term_id);
+        $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
+        if (!empty($groups)) {
+            $query->posts = ll_tools_word_grid_reorder_by_option_groups($query->posts, $groups);
+            $query->post_count = count($query->posts);
+            $query->current_post = -1;
+        }
     }
     $word_ids = wp_list_pluck($query->posts, 'ID');
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids, true);

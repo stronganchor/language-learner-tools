@@ -889,6 +889,16 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
     $query = new WP_Query($args);
     $words = [];
+    $group_maps = [
+        'group_map' => [],
+        'blocked_map' => [],
+    ];
+    $rules_wordset_id = (count($wordset_terms) === 1) ? (int) $wordset_terms[0] : 0;
+    if ($rules_wordset_id > 0 && $term_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
+        $group_maps = ll_tools_get_word_option_maps($rules_wordset_id, $term_id);
+    }
+    $group_map = $group_maps['group_map'] ?? [];
+    $blocked_map = $group_maps['blocked_map'] ?? [];
 
     foreach ($query->posts as $post) {
         if (get_post_status($post->ID) !== 'publish') {
@@ -972,6 +982,12 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $wordset_ids_for_word = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
         $wordset_ids_for_word = array_values(array_filter(array_map('intval', (array) $wordset_ids_for_word), function ($id) { return $id > 0; }));
         $similar_word_id = get_post_meta($word_id, '_ll_similar_word_id', true);
+        if ($similar_word_id === '' || $similar_word_id === null) {
+            $similar_word_id = get_post_meta($word_id, 'similar_word_id', true);
+        }
+
+        $group_label = isset($group_map[$word_id]) ? (string) $group_map[$word_id] : '';
+        $option_group = ($group_label !== '' && $term_id > 0) ? ($term_id . ':' . $group_label) : '';
 
         $word_data = [
             'id'              => $word_id,
@@ -986,6 +1002,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'wordset_ids'     => $wordset_ids_for_word,
             'has_audio'       => $has_audio,
             'has_image'       => ($image_id && !empty($image)),
+            'option_group'    => $option_group,
+            'option_blocked_ids' => isset($blocked_map[$word_id]) ? array_values(array_map('intval', (array) $blocked_map[$word_id])) : [],
         ];
 
         // Enforce required assets based on prompt + option selections

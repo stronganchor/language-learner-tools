@@ -497,8 +497,39 @@
             availableWords.push(...catWords);
         }
 
+        const targetId = targetWord ? parseInt(targetWord.id, 10) : 0;
+        const targetGroup = (targetWord && targetWord.option_group !== undefined && targetWord.option_group !== null)
+            ? String(targetWord.option_group).trim()
+            : '';
+        let blockedSet = null;
+        if (targetWord && Array.isArray(targetWord.option_blocked_ids) && targetWord.option_blocked_ids.length) {
+            blockedSet = new Set(targetWord.option_blocked_ids.map(function (id) {
+                return parseInt(id, 10);
+            }).filter(function (id) {
+                return id > 0;
+            }));
+        }
+
         // Shuffle available words
         availableWords = Util.randomlySort(availableWords);
+
+        if (targetGroup) {
+            const groupMembers = [];
+            const otherWords = [];
+            availableWords.forEach(function (w) {
+                const grp = (w && w.option_group !== undefined && w.option_group !== null)
+                    ? String(w.option_group).trim()
+                    : '';
+                if (grp === targetGroup) {
+                    groupMembers.push(w);
+                } else {
+                    otherWords.push(w);
+                }
+            });
+            if (groupMembers.length) {
+                availableWords = groupMembers.concat(otherWords);
+            }
+        }
 
         // Add target word first
         root.FlashcardLoader.loadResourcesForWord(targetWord, mode, targetCategoryName, config);
@@ -532,8 +563,12 @@
             const sameImg = (mode === 'image') && chosen.some(w => w.image === candidate.image);
             const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
             const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
+            const candidateId = parseInt(candidate.id, 10);
+            const isBlockedByTarget = blockedSet && candidateId > 0 && blockedSet.has(candidateId);
+            const isBlockedByCandidate = candidateId > 0 && targetId > 0 && Array.isArray(candidate.option_blocked_ids)
+                && candidate.option_blocked_ids.some(function (id) { return parseInt(id, 10) === targetId; });
 
-            if (!isDup && !isSim && !sameImg && !sameText) {
+            if (!isDup && !isSim && !sameImg && !sameText && !isBlockedByTarget && !isBlockedByCandidate) {
                 chosen.push(candidate);
                 if (isTextOptionMode) {
                     seenOptionTexts.add(normalizedText);

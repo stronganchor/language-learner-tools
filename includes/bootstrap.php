@@ -7,6 +7,7 @@ require_once(__DIR__ . '/assets.php');
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
 require_once __DIR__ . '/lib/media-proxy.php';
+require_once __DIR__ . '/lib/word-option-rules.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
@@ -42,6 +43,7 @@ require_once(__DIR__ . '/admin/export-import.php');
 require_once(__DIR__ . '/admin/word-images-fixer.php');
 require_once(__DIR__ . '/admin/example-sentence-migration.php');
 require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
+require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 require_once(__DIR__ . '/user-study.php');
 
 // Include API integrations
