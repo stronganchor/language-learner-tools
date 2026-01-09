@@ -8,6 +8,7 @@
 
     const $wordset = $('#ll-ipa-wordset');
     const $symbols = $('#ll-ipa-symbols');
+    const $letterMap = $('#ll-ipa-letter-map');
     const $status = $('#ll-ipa-admin-status');
     const $addInput = $('#ll-ipa-add-input');
     const $addBtn = $('#ll-ipa-add-btn');
@@ -137,9 +138,133 @@
         });
     }
 
+    function renderLetterMap(payload) {
+        const list = (payload && Array.isArray(payload.letter_map)) ? payload.letter_map : [];
+        $letterMap.empty();
+
+        const $add = $('<div>', { class: 'll-ipa-map-add' });
+        $add.append(
+            $('<div>', { class: 'll-ipa-map-add-title', text: i18n.mapAddLabel || 'Add manual mapping' })
+        );
+        const $addFields = $('<div>', { class: 'll-ipa-map-add-fields' });
+        const $addLetter = $('<input>', {
+            type: 'text',
+            class: 'll-ipa-map-add-letter',
+            placeholder: i18n.mapAddLettersPlaceholder || 'Letters (e.g. ll)',
+            'aria-label': i18n.mapAddLettersLabel || 'Letters'
+        });
+        const $addSymbols = $('<input>', {
+            type: 'text',
+            class: 'll-ipa-map-add-symbols',
+            placeholder: i18n.mapAddSymbolsPlaceholder || 'IPA symbols (e.g. r)',
+            'aria-label': i18n.mapAddSymbolsLabel || 'IPA symbols'
+        });
+        const $addBtn = $('<button>', {
+            type: 'button',
+            class: 'll-ipa-map-button ll-ipa-map-add-btn',
+            text: i18n.mapAdd || 'Add mapping'
+        });
+        $addFields.append($addLetter, $addSymbols, $addBtn);
+        $add.append($addFields);
+        if (i18n.mapAddHint) {
+            $add.append($('<div>', { class: 'll-ipa-map-add-hint', text: i18n.mapAddHint }));
+        }
+        $letterMap.append($add);
+
+        if (!list.length) {
+            $letterMap.append(
+                $('<div>', { class: 'll-ipa-empty', text: i18n.mapEmpty || 'No letter mappings found for this word set.' })
+            );
+            return;
+        }
+
+        const $table = $('<table>', { class: 'widefat striped ll-ipa-letter-table' });
+        const $thead = $('<thead>').append(
+            $('<tr>')
+                .append($('<th>', { text: i18n.mapLetterLabel || 'Letter(s)' }))
+                .append($('<th>', { text: i18n.mapAutoLabel || 'Auto map' }))
+                .append($('<th>', { text: i18n.mapManualLabel || 'Manual override' }))
+        );
+        $table.append($thead);
+
+        const $tbody = $('<tbody>');
+        list.forEach(function (entry) {
+            const letter = (entry && entry.letter) ? entry.letter : '';
+            const autoList = entry && Array.isArray(entry.auto) ? entry.auto : [];
+            const manualList = entry && Array.isArray(entry.manual) ? entry.manual : [];
+
+            const $autoCell = $('<td>');
+            if (autoList.length) {
+                const $autoWrap = $('<div>', { class: 'll-ipa-map-auto' });
+                autoList.forEach(function (autoEntry) {
+                    const symbol = autoEntry && autoEntry.symbol ? autoEntry.symbol : '';
+                    const count = autoEntry && typeof autoEntry.count === 'number' ? autoEntry.count : 0;
+                    if (!symbol) {
+                        return;
+                    }
+                    const $token = $('<span>', { class: 'll-ipa-map-token' });
+                    $token.append($('<span>', { class: 'll-ipa-map-token-symbol', text: symbol }));
+                    if (count) {
+                        $token.append($('<span>', { class: 'll-ipa-map-token-count', text: '(' + count + ')' }));
+                    }
+                    $autoWrap.append($token);
+                });
+                if ($autoWrap.children().length) {
+                    $autoCell.append($autoWrap);
+                } else {
+                    $autoCell.append(
+                        $('<span>', { class: 'll-ipa-map-empty', text: i18n.mapAutoEmpty || 'No mappings yet.' })
+                    );
+                }
+            } else {
+                $autoCell.append(
+                    $('<span>', { class: 'll-ipa-map-empty', text: i18n.mapAutoEmpty || 'No mappings yet.' })
+                );
+            }
+
+            const manualValue = manualList.filter(Boolean).join(' ');
+            const $input = $('<input>', {
+                type: 'text',
+                class: 'll-ipa-map-input',
+                value: manualValue,
+                placeholder: i18n.mapPlaceholder || 'e.g. r'
+            });
+
+            const $saveBtn = $('<button>', {
+                type: 'button',
+                class: 'll-ipa-map-button ll-ipa-map-save',
+                text: i18n.save || 'Save',
+                'data-letter': letter
+            });
+
+            const $clearBtn = $('<button>', {
+                type: 'button',
+                class: 'll-ipa-map-button ll-ipa-map-clear',
+                text: i18n.mapClear || 'Clear',
+                'data-letter': letter
+            });
+
+            const $manualCell = $('<td>');
+            const $controls = $('<div>', { class: 'll-ipa-map-controls' });
+            $controls.append($input, $saveBtn, $clearBtn);
+            $manualCell.append($controls);
+
+            const $row = $('<tr>', { 'data-letter': letter });
+            $row.append($('<td>', { class: 'll-ipa-map-letter', text: letter }));
+            $row.append($autoCell);
+            $row.append($manualCell);
+
+            $tbody.append($row);
+        });
+
+        $table.append($tbody);
+        $letterMap.append($table);
+    }
+
     function loadWordset(wordsetId) {
         currentWordsetId = wordsetId;
         $symbols.empty();
+        $letterMap.empty();
         setStatus('');
         if (!wordsetId) {
             return;
@@ -156,6 +281,7 @@
                 return;
             }
             renderSymbols(response.data || {});
+            renderLetterMap(response.data || {});
             setStatus('');
         }).fail(function () {
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);
@@ -232,6 +358,120 @@
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);
         }).always(function () {
             $btn.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $letterMap.on('click', '.ll-ipa-map-save', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const letter = ($btn.attr('data-letter') || $row.data('letter') || '').toString();
+        if (!letter || !currentWordsetId) {
+            return;
+        }
+        const $input = $row.find('.ll-ipa-map-input').first();
+        const symbols = ($input.val() || '').toString();
+        const $clearBtn = $row.find('.ll-ipa-map-clear').first();
+
+        const payload = {
+            action: 'll_tools_update_wordset_ipa_letter_map',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            letter: letter
+        };
+        if (symbols.trim()) {
+            payload.symbols = symbols;
+        } else {
+            payload.clear = 1;
+        }
+
+        $btn.prop('disabled', true);
+        $clearBtn.prop('disabled', true);
+        setStatus(i18n.saving || 'Saving...', false);
+        $.post(ajaxUrl, payload).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+                return;
+            }
+            setStatus(i18n.saved || 'Saved.', false);
+            loadWordset(currentWordsetId);
+        }).fail(function () {
+            setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+            $clearBtn.prop('disabled', false);
+        });
+    });
+
+    $letterMap.on('click', '.ll-ipa-map-add-btn', function () {
+        if (!currentWordsetId) {
+            setStatus(i18n.selectWordset || 'Select a word set first.', true);
+            return;
+        }
+        const $btn = $(this);
+        const $wrap = $btn.closest('.ll-ipa-map-add');
+        const $letter = $wrap.find('.ll-ipa-map-add-letter').first();
+        const $symbols = $wrap.find('.ll-ipa-map-add-symbols').first();
+        const letterValue = ($letter.val() || '').toString();
+        const symbolsValue = ($symbols.val() || '').toString();
+        if (!letterValue.trim() || !symbolsValue.trim()) {
+            setStatus(i18n.mapAddMissing || 'Enter letters and IPA symbols to add.', true);
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(i18n.saving || 'Saving...', false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_wordset_ipa_letter_map',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            letter: letterValue,
+            symbols: symbolsValue
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+                return;
+            }
+            $letter.val('');
+            $symbols.val('');
+            setStatus(i18n.saved || 'Saved.', false);
+            loadWordset(currentWordsetId);
+        }).fail(function () {
+            setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $letterMap.on('click', '.ll-ipa-map-clear', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const letter = ($btn.attr('data-letter') || $row.data('letter') || '').toString();
+        if (!letter || !currentWordsetId) {
+            return;
+        }
+        const $saveBtn = $row.find('.ll-ipa-map-save').first();
+
+        $btn.prop('disabled', true);
+        $saveBtn.prop('disabled', true);
+        setStatus(i18n.saving || 'Saving...', false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_wordset_ipa_letter_map',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            letter: letter,
+            clear: 1
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+                return;
+            }
+            setStatus(i18n.saved || 'Saved.', false);
+            loadWordset(currentWordsetId);
+        }).fail(function () {
+            setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+            $saveBtn.prop('disabled', false);
         });
     });
 })(jQuery);

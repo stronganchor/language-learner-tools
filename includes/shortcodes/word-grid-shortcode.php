@@ -269,6 +269,50 @@ function ll_tools_word_grid_is_ipa_combining_mark(string $char): bool {
     return preg_match('/[\x{0300}-\x{036F}]/u', $char) === 1;
 }
 
+function ll_tools_word_grid_is_ipa_post_modifier(string $char): bool {
+    return preg_match('/[\x{02B0}-\x{02B8}\x{02D0}\x{02D1}\x{02E0}-\x{02E4}\x{1D2C}-\x{1D6A}\x{1D9B}-\x{1DBF}\x{2070}-\x{209F}\x{10784}]/u', $char) === 1;
+}
+
+function ll_tools_word_grid_is_ipa_stress_marker(string $char): bool {
+    return $char === "\u{02C8}" || $char === "\u{02CC}";
+}
+
+function ll_tools_word_grid_strip_ipa_stress_markers(string $token): string {
+    if ($token === '') {
+        return '';
+    }
+    return str_replace(["\u{02C8}", "\u{02CC}"], '', $token);
+}
+
+function ll_tools_word_grid_clean_ipa_letter_map(array $map): array {
+    $cleaned = [];
+    foreach ($map as $letter => $ipa_counts) {
+        if (!is_array($ipa_counts)) {
+            continue;
+        }
+        $letter_key = ll_tools_word_grid_lowercase((string) $letter);
+        if ($letter_key === '') {
+            continue;
+        }
+        foreach ($ipa_counts as $ipa => $count) {
+            $ipa_key = ll_tools_word_grid_normalize_ipa_output((string) $ipa);
+            $ipa_key = ll_tools_word_grid_strip_ipa_stress_markers($ipa_key);
+            $ipa_key = trim($ipa_key);
+            if ($ipa_key === '') {
+                continue;
+            }
+            if (!isset($cleaned[$letter_key])) {
+                $cleaned[$letter_key] = [];
+            }
+            if (!isset($cleaned[$letter_key][$ipa_key])) {
+                $cleaned[$letter_key][$ipa_key] = 0;
+            }
+            $cleaned[$letter_key][$ipa_key] += max(1, (int) $count);
+        }
+    }
+    return $cleaned;
+}
+
 function ll_tools_word_grid_format_ipa_display_html(string $ipa): string {
     $ipa = ll_tools_word_grid_normalize_ipa_output($ipa);
     if ($ipa === '') {
@@ -318,6 +362,22 @@ function ll_tools_word_grid_tokenize_ipa(string $text): array {
             if (ll_tools_word_grid_is_ipa_tie_bar($char) && $buffer !== '') {
                 $tie_pending = true;
             }
+            continue;
+        }
+
+        if (ll_tools_word_grid_is_ipa_post_modifier($char)) {
+            if ($buffer !== '') {
+                $buffer .= $char;
+                continue;
+            }
+            if ($pending !== '') {
+                $buffer = $pending . $char;
+                $pending = '';
+                $tie_pending = false;
+                continue;
+            }
+            $buffer = $char;
+            $tie_pending = false;
             continue;
         }
 
@@ -520,6 +580,561 @@ function ll_tools_word_grid_update_wordset_ipa_special_chars(int $word_id, strin
         }
         ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
     }
+}
+
+function ll_tools_word_grid_lowercase(string $value): string {
+    return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+}
+
+function ll_tools_word_grid_prepare_text_letters(string $text): array {
+    $text = trim($text);
+    if ($text === '') {
+        return [];
+    }
+
+    $text = ll_tools_word_grid_lowercase($text);
+    $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return [];
+    }
+
+    $letters = [];
+    foreach ($chars as $char) {
+        if (!preg_match('/\p{L}/u', $char)) {
+            continue;
+        }
+        $letters[] = $char;
+    }
+
+    return $letters;
+}
+
+function ll_tools_word_grid_get_ipa_match_map(): array {
+    static $map = null;
+    if ($map !== null) {
+        return $map;
+    }
+
+    $map = [
+        "\u{027E}" => 'r',
+        "\u{0279}" => 'r',
+        "\u{027B}" => 'r',
+        "\u{0280}" => 'r',
+        "\u{0281}" => 'r',
+        "\u{027D}" => 'r',
+        "\u{0283}" => 'sh',
+        "\u{0292}" => 'zh',
+        "\u{03B8}" => 'th',
+        "\u{00F0}" => 'th',
+        "\u{014B}" => 'ng',
+        "\u{0272}" => 'ny',
+        "\u{0250}" => 'a',
+        "\u{0251}" => 'a',
+        "\u{0252}" => 'o',
+        "\u{00E6}" => 'a',
+        "\u{025B}" => 'e',
+        "\u{025C}" => 'e',
+        "\u{0259}" => 'e',
+        "\u{026A}" => 'i',
+        "\u{028A}" => 'u',
+        "\u{028C}" => 'u',
+        "\u{0254}" => 'o',
+        "\u{026F}" => 'u',
+        "\u{0268}" => 'i',
+        "\u{0289}" => 'u',
+        "\u{00F8}" => 'o',
+        "\u{0153}" => 'oe',
+        "\u{0276}" => 'oe',
+        "\u{0261}" => 'g',
+        "\u{0263}" => 'g',
+        "\u{028B}" => 'v',
+    ];
+
+    return $map;
+}
+
+function ll_tools_word_grid_normalize_text_segment_for_match(string $segment): string {
+    $segment = trim($segment);
+    if ($segment === '') {
+        return '';
+    }
+
+    $segment = ll_tools_word_grid_lowercase($segment);
+    $segment = preg_replace('/[^\p{L}]+/u', '', $segment);
+    if ($segment === '') {
+        return '';
+    }
+
+    if (function_exists('transliterator_transliterate')) {
+        $converted = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $segment);
+        if (is_string($converted) && $converted !== '') {
+            $segment = $converted;
+        }
+    } elseif (function_exists('iconv')) {
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT', $segment);
+        if (is_string($converted) && $converted !== '') {
+            $segment = $converted;
+        }
+    }
+
+    $segment = preg_replace('/[^a-z]+/', '', $segment);
+    return (string) $segment;
+}
+
+function ll_tools_word_grid_normalize_ipa_segment_for_match(string $segment): string {
+    $segment = ll_tools_word_grid_normalize_ipa_output($segment);
+    if ($segment === '') {
+        return '';
+    }
+
+    $segment = ll_tools_word_grid_lowercase($segment);
+    $segment = preg_replace('/[\s\.]+/u', '', $segment);
+    $segment = preg_replace('/[\x{0300}-\x{036F}]+/u', '', $segment);
+
+    $map = ll_tools_word_grid_get_ipa_match_map();
+    $chars = preg_split('//u', $segment, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return '';
+    }
+
+    $out = '';
+    foreach ($chars as $char) {
+        if (preg_match('/[a-z]/', $char)) {
+            $out .= $char;
+            continue;
+        }
+        if (isset($map[$char])) {
+            $out .= $map[$char];
+        }
+    }
+
+    return $out;
+}
+
+function ll_tools_word_grid_similarity_score(string $text_segment, string $ipa_segment): float {
+    $text_norm = ll_tools_word_grid_normalize_text_segment_for_match($text_segment);
+    $ipa_norm = ll_tools_word_grid_normalize_ipa_segment_for_match($ipa_segment);
+    if ($text_norm === '' || $ipa_norm === '') {
+        return 0.0;
+    }
+    if ($text_norm === $ipa_norm) {
+        return 1.0;
+    }
+
+    $distance = function_exists('levenshtein') ? levenshtein($text_norm, $ipa_norm) : null;
+    if ($distance === null) {
+        return ($text_norm[0] === $ipa_norm[0]) ? 0.5 : 0.0;
+    }
+    $max_len = max(strlen($text_norm), strlen($ipa_norm));
+    if ($max_len === 0) {
+        return 0.0;
+    }
+    $score = 1 - ($distance / $max_len);
+    if ($score < 0) {
+        return 0.0;
+    }
+    if ($score > 1) {
+        return 1.0;
+    }
+    return (float) $score;
+}
+
+function ll_tools_word_grid_align_text_to_ipa(array $letters, array $tokens): array {
+    $letter_count = count($letters);
+    $token_count = count($tokens);
+    if ($letter_count === 0 || $token_count === 0) {
+        return [
+            'matches' => [],
+            'matched_letters' => 0,
+            'matched_tokens' => 0,
+            'avg_score' => 0.0,
+            'total_score' => 0.0,
+        ];
+    }
+
+    $skip_penalty = 0.25;
+    $match_threshold = 0.55;
+    $multi_penalty = 0.05;
+
+    $dp = array_fill(0, $letter_count + 1, array_fill(0, $token_count + 1, null));
+    $dp[0][0] = ['score' => 0, 'prev' => null];
+
+    $update = function (int $i, int $j, float $score, array $prev) use (&$dp) {
+        $existing = $dp[$i][$j];
+        if ($existing === null || $score > $existing['score']) {
+            $dp[$i][$j] = [
+                'score' => $score,
+                'prev' => $prev,
+            ];
+        }
+    };
+
+    for ($i = 0; $i <= $letter_count; $i++) {
+        for ($j = 0; $j <= $token_count; $j++) {
+            $cell = $dp[$i][$j];
+            if ($cell === null) {
+                continue;
+            }
+
+            if ($i < $letter_count) {
+                $update($i + 1, $j, $cell['score'] - $skip_penalty, [
+                    'type' => 'skip_letter',
+                    'i' => $i,
+                    'j' => $j,
+                ]);
+            }
+            if ($j < $token_count) {
+                $update($i, $j + 1, $cell['score'] - $skip_penalty, [
+                    'type' => 'skip_token',
+                    'i' => $i,
+                    'j' => $j,
+                ]);
+            }
+
+            if ($i < $letter_count && $j < $token_count) {
+                $score = ll_tools_word_grid_similarity_score($letters[$i], $tokens[$j]);
+                if ($score >= $match_threshold) {
+                    $update($i + 1, $j + 1, $cell['score'] + $score, [
+                        'type' => 'match',
+                        'i' => $i,
+                        'j' => $j,
+                        'text' => $letters[$i],
+                        'ipa' => $tokens[$j],
+                        'text_len' => 1,
+                        'token_len' => 1,
+                        'score' => $score,
+                    ]);
+                }
+            }
+
+            if ($i < $letter_count && ($j + 1) < $token_count) {
+                $ipa_segment = $tokens[$j] . $tokens[$j + 1];
+                $score = ll_tools_word_grid_similarity_score($letters[$i], $ipa_segment);
+                if ($score >= $match_threshold) {
+                    $update($i + 1, $j + 2, $cell['score'] + $score - $multi_penalty, [
+                        'type' => 'match',
+                        'i' => $i,
+                        'j' => $j,
+                        'text' => $letters[$i],
+                        'ipa' => $ipa_segment,
+                        'text_len' => 1,
+                        'token_len' => 2,
+                        'score' => $score,
+                    ]);
+                }
+            }
+
+            if (($i + 1) < $letter_count && $j < $token_count) {
+                $text_segment = $letters[$i] . $letters[$i + 1];
+                $score = ll_tools_word_grid_similarity_score($text_segment, $tokens[$j]);
+                if ($score >= $match_threshold) {
+                    $update($i + 2, $j + 1, $cell['score'] + $score - $multi_penalty, [
+                        'type' => 'match',
+                        'i' => $i,
+                        'j' => $j,
+                        'text' => $text_segment,
+                        'ipa' => $tokens[$j],
+                        'text_len' => 2,
+                        'token_len' => 1,
+                        'score' => $score,
+                    ]);
+                }
+            }
+        }
+    }
+
+    $cell = $dp[$letter_count][$token_count];
+    if ($cell === null) {
+        return [
+            'matches' => [],
+            'matched_letters' => 0,
+            'matched_tokens' => 0,
+            'avg_score' => 0.0,
+            'total_score' => 0.0,
+        ];
+    }
+
+    $matches = [];
+    $matched_letters = 0;
+    $matched_tokens = 0;
+    $total_score = 0.0;
+    $i = $letter_count;
+    $j = $token_count;
+    while ($i > 0 || $j > 0) {
+        $cell = $dp[$i][$j];
+        if (!$cell || !isset($cell['prev'])) {
+            break;
+        }
+        $prev = $cell['prev'];
+        if (($prev['type'] ?? '') === 'match') {
+            $matches[] = [
+                'text' => (string) ($prev['text'] ?? ''),
+                'ipa' => (string) ($prev['ipa'] ?? ''),
+                'text_len' => (int) ($prev['text_len'] ?? 1),
+                'token_len' => (int) ($prev['token_len'] ?? 1),
+                'score' => (float) ($prev['score'] ?? 0),
+            ];
+            $matched_letters += (int) ($prev['text_len'] ?? 1);
+            $matched_tokens += (int) ($prev['token_len'] ?? 1);
+            $total_score += (float) ($prev['score'] ?? 0);
+        }
+        $i = (int) ($prev['i'] ?? 0);
+        $j = (int) ($prev['j'] ?? 0);
+    }
+
+    $matches = array_reverse($matches);
+    $avg_score = $matches ? ($total_score / count($matches)) : 0.0;
+
+    return [
+        'matches' => $matches,
+        'matched_letters' => $matched_letters,
+        'matched_tokens' => $matched_tokens,
+        'avg_score' => $avg_score,
+        'total_score' => $total_score,
+    ];
+}
+
+function ll_tools_word_grid_rebuild_wordset_ipa_letter_map(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $word_ids = function_exists('ll_tools_ipa_keyboard_get_word_ids_for_wordset')
+        ? ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id)
+        : get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'tax_query' => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => $wordset_id,
+                ],
+            ],
+        ]);
+
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), function ($id) { return $id > 0; }));
+    if (empty($word_ids)) {
+        update_term_meta($wordset_id, 'll_wordset_ipa_letter_map', []);
+        return [];
+    }
+
+    $recording_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'post_parent__in' => $word_ids,
+    ]);
+
+    $map = [];
+    foreach ((array) $recording_ids as $recording_id) {
+        $recording_id = (int) $recording_id;
+        if ($recording_id <= 0) {
+            continue;
+        }
+        $recording_text = trim((string) get_post_meta($recording_id, 'recording_text', true));
+        $recording_ipa = trim((string) get_post_meta($recording_id, 'recording_ipa', true));
+        if ($recording_text === '' || $recording_ipa === '') {
+            continue;
+        }
+
+        $letters = ll_tools_word_grid_prepare_text_letters($recording_text);
+        $tokens = ll_tools_word_grid_tokenize_ipa($recording_ipa);
+        if (!empty($tokens)) {
+            $tokens = array_values(array_filter($tokens, function ($token) {
+                return !ll_tools_word_grid_is_ipa_stress_marker((string) $token);
+            }));
+        }
+        if (empty($letters) || empty($tokens)) {
+            continue;
+        }
+
+        $alignment = ll_tools_word_grid_align_text_to_ipa($letters, $tokens);
+        if (empty($alignment['matches'])) {
+            continue;
+        }
+        $letter_coverage = $alignment['matched_letters'] / max(1, count($letters));
+        $token_coverage = $alignment['matched_tokens'] / max(1, count($tokens));
+        if ($alignment['avg_score'] < 0.55 || $letter_coverage < 0.55 || $token_coverage < 0.45) {
+            continue;
+        }
+
+        foreach ($alignment['matches'] as $match) {
+            $text_key = ll_tools_word_grid_lowercase((string) ($match['text'] ?? ''));
+            $ipa_key = ll_tools_word_grid_normalize_ipa_output((string) ($match['ipa'] ?? ''));
+            if ($text_key === '' || $ipa_key === '') {
+                continue;
+            }
+            if (!isset($map[$text_key])) {
+                $map[$text_key] = [];
+            }
+            if (!isset($map[$text_key][$ipa_key])) {
+                $map[$text_key][$ipa_key] = 0;
+            }
+            $map[$text_key][$ipa_key] += 1;
+        }
+    }
+
+    update_term_meta($wordset_id, 'll_wordset_ipa_letter_map', $map);
+    return $map;
+}
+
+function ll_tools_word_grid_get_wordset_ipa_letter_map(int $wordset_id): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $raw = get_term_meta($wordset_id, 'll_wordset_ipa_letter_map', true);
+    if (!is_array($raw)) {
+        return ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+    }
+    $cleaned = ll_tools_word_grid_clean_ipa_letter_map($raw);
+    if ($cleaned !== $raw) {
+        update_term_meta($wordset_id, 'll_wordset_ipa_letter_map', $cleaned);
+    }
+    return $cleaned;
+}
+
+function ll_tools_word_grid_get_wordset_ipa_letter_manual_map(int $wordset_id): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $raw = get_term_meta($wordset_id, 'll_wordset_ipa_letter_manual_map', true);
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $cleaned = [];
+    foreach ($raw as $letter => $symbols) {
+        $letter_key = ll_tools_word_grid_lowercase((string) $letter);
+        $letter_key = preg_replace('/[^\p{L}]+/u', '', $letter_key);
+        if ($letter_key === '') {
+            continue;
+        }
+
+        $tokens = [];
+        if (is_array($symbols)) {
+            $tokens = $symbols;
+        } elseif (is_string($symbols) && $symbols !== '') {
+            $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+                ? ll_tools_word_grid_tokenize_ipa($symbols)
+                : preg_split('//u', $symbols, -1, PREG_SPLIT_NO_EMPTY);
+        }
+
+        if (empty($tokens)) {
+            continue;
+        }
+
+        $seen = [];
+        $clean_tokens = [];
+        foreach ($tokens as $token) {
+            $token = ll_tools_word_grid_normalize_ipa_output((string) $token);
+            $token = ll_tools_word_grid_strip_ipa_stress_markers($token);
+            if ($token === '' || isset($seen[$token]) || ll_tools_word_grid_is_ipa_stress_marker($token)) {
+                continue;
+            }
+            $seen[$token] = true;
+            $clean_tokens[] = $token;
+        }
+        if (empty($clean_tokens)) {
+            continue;
+        }
+        $cleaned[$letter_key] = $clean_tokens;
+    }
+
+    return $cleaned;
+}
+
+function ll_tools_word_grid_get_wordset_ipa_letter_maps(int $wordset_id): array {
+    return [
+        'auto' => ll_tools_word_grid_get_wordset_ipa_letter_map($wordset_id),
+        'manual' => ll_tools_word_grid_get_wordset_ipa_letter_manual_map($wordset_id),
+    ];
+}
+
+function ll_tools_word_grid_update_wordset_ipa_letter_map(int $word_id): void {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return;
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($wordset_ids) || empty($wordset_ids)) {
+        return;
+    }
+
+    foreach ($wordset_ids as $wordset_id) {
+        $wordset_id = (int) $wordset_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+        ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+    }
+}
+
+function ll_tools_word_grid_prepare_ipa_letter_suggestions(array $auto_map, array $manual_map = [], int $limit = 6): array {
+    $limit = max(1, $limit);
+    $output = [];
+
+    foreach ($manual_map as $letter => $symbols) {
+        if (!is_array($symbols)) {
+            continue;
+        }
+        $letter_key = ll_tools_word_grid_lowercase((string) $letter);
+        $letter_key = preg_replace('/[^\p{L}]+/u', '', $letter_key);
+        if ($letter_key === '') {
+            continue;
+        }
+        $clean = [];
+        $seen = [];
+        foreach ($symbols as $symbol) {
+            $symbol = ll_tools_word_grid_normalize_ipa_output((string) $symbol);
+            $symbol = ll_tools_word_grid_strip_ipa_stress_markers($symbol);
+            if ($symbol === '' || isset($seen[$symbol]) || ll_tools_word_grid_is_ipa_stress_marker($symbol)) {
+                continue;
+            }
+            $seen[$symbol] = true;
+            $clean[] = $symbol;
+        }
+        if (empty($clean)) {
+            continue;
+        }
+        $output[$letter_key] = array_slice($clean, 0, $limit);
+    }
+
+    foreach ($auto_map as $letter => $ipa_counts) {
+        if (!is_array($ipa_counts)) {
+            continue;
+        }
+        $letter_key = ll_tools_word_grid_lowercase((string) $letter);
+        if ($letter_key === '') {
+            continue;
+        }
+        if (isset($output[$letter_key])) {
+            continue;
+        }
+        $clean_counts = [];
+        foreach ($ipa_counts as $ipa => $count) {
+            $ipa_key = ll_tools_word_grid_normalize_ipa_output((string) $ipa);
+            $ipa_key = ll_tools_word_grid_strip_ipa_stress_markers($ipa_key);
+            if ($ipa_key === '' || ll_tools_word_grid_is_ipa_stress_marker($ipa_key)) {
+                continue;
+            }
+            $clean_counts[$ipa_key] = max(1, (int) $count);
+        }
+        if (empty($clean_counts)) {
+            continue;
+        }
+        arsort($clean_counts);
+        $output[$letter_key] = array_slice(array_keys($clean_counts), 0, $limit);
+    }
+
+    return $output;
 }
 
 function ll_tools_word_grid_format_language_code(string $raw): string {
@@ -903,6 +1518,18 @@ function ll_tools_word_grid_shortcode($atts) {
         $ipa_special_chars = $normalized_chars;
     }
 
+    $ipa_letter_map = [];
+    if ($can_edit_words && $wordset_id > 0) {
+        $letter_maps = ll_tools_word_grid_get_wordset_ipa_letter_maps($wordset_id);
+        if (!empty($letter_maps['auto']) || !empty($letter_maps['manual'])) {
+            $ipa_letter_map = ll_tools_word_grid_prepare_ipa_letter_suggestions(
+                (array) ($letter_maps['auto'] ?? []),
+                (array) ($letter_maps['manual'] ?? []),
+                6
+            );
+        }
+    }
+
     wp_localize_script('ll-tools-word-grid', 'llToolsWordGridData', [
         'ajaxUrl'    => admin_url('admin-ajax.php'),
         'nonce'      => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
@@ -938,6 +1565,7 @@ function ll_tools_word_grid_shortcode($atts) {
             'error'          => __('Unable to transcribe recordings.', 'll-tools-text-domain'),
         ],
         'ipaSpecialChars' => $ipa_special_chars,
+        'ipaLetterMap' => $ipa_letter_map,
     ]);
 
     // The Loop
@@ -1102,6 +1730,14 @@ function ll_tools_word_grid_shortcode($atts) {
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_translation_id) . '">' . esc_html($edit_labels['translation']) . '</label>';
                         echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($recording_translation_id) . '" data-ll-recording-input="translation" value="' . esc_attr($recording_translation) . '" />';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_ipa_id) . '">' . esc_html($edit_labels['ipa']) . '</label>';
+                        if ($recording_audio_url !== '') {
+                            echo '<div class="ll-word-edit-ipa-audio" data-ll-ipa-audio aria-hidden="true">';
+                            echo '<div class="ll-word-edit-ipa-waveform" data-ll-ipa-waveform aria-hidden="true">';
+                            echo '<canvas class="ll-word-edit-ipa-waveform-canvas"></canvas>';
+                            echo '</div>';
+                            echo '<audio class="ll-word-edit-ipa-audio-player" controls preload="none" src="' . esc_url($recording_audio_url) . '"></audio>';
+                            echo '</div>';
+                        }
                         echo '<div class="ll-word-edit-input-wrap ll-word-edit-input-wrap--ipa">';
                         echo '<input type="text" class="ll-word-edit-input ll-word-edit-input--ipa" id="' . esc_attr($recording_ipa_id) . '" data-ll-recording-input="ipa" value="' . esc_attr($recording_ipa) . '" />';
                         echo '</div>';
@@ -1590,6 +2226,7 @@ function ll_tools_word_grid_update_word_handler() {
     }
 
     ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, '');
+    ll_tools_word_grid_update_wordset_ipa_letter_map($word_id);
 
     $display_values = ll_tools_word_grid_resolve_display_text($word_id);
 
