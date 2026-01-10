@@ -27,6 +27,21 @@
     margin-top: 16px;
 }
 
+.ll-ipa-admin-sections {
+    display: grid;
+    gap: 24px;
+    margin-top: 16px;
+}
+
+.ll-ipa-admin-section h2 {
+    margin: 0 0 6px;
+}
+
+.ll-ipa-admin-section .description {
+    margin: 0 0 12px;
+    color: #64748b;
+}
+
 .ll-ipa-empty {
     padding: 12px;
     border: 1px dashed #cbd5e1;
@@ -96,4 +111,142 @@
 
 .ll-ipa-translation {
     color: #64748b;
+}
+
+.ll-ipa-letter-map {
+    margin-top: 12px;
+}
+
+.ll-ipa-map-add {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.ll-ipa-map-add-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.ll-ipa-map-add-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-ipa-map-add-letter,
+.ll-ipa-map-add-symbols {
+    min-width: 200px;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+}
+
+.ll-ipa-map-add-symbols {
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
+    font-variant-ligatures: none;
+}
+
+.ll-ipa-map-add-hint {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.ll-ipa-letter-table th,
+.ll-ipa-letter-table td {
+    vertical-align: top;
+}
+
+.ll-ipa-map-letter {
+    width: 140px;
+    font-weight: 600;
+}
+
+.ll-ipa-map-auto {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ll-ipa-map-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #0f172a;
+    font-size: 14px;
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
+    font-variant-ligatures: none;
+}
+
+.ll-ipa-map-token-count {
+    font-size: 11px;
+    color: #475569;
+}
+
+.ll-ipa-map-empty {
+    color: #64748b;
+    font-style: italic;
+}
+
+.ll-ipa-map-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-ipa-map-input {
+    min-width: 220px;
+    max-width: 320px;
+    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
+    font-variant-ligatures: none;
+}
+
+.ll-ipa-map-button {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.ll-ipa-map-button:hover {
+    background: #e2e8f0;
+}
+
+.ll-ipa-map-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ll-ipa-map-save {
+    background: #0ea5e9;
+    border-color: #0284c7;
+    color: #ffffff;
+}
+
+.ll-ipa-map-save:hover {
+    background: #0284c7;
+}
+
+.ll-ipa-map-clear {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #9a3412;
+}
+
+.ll-ipa-map-clear:hover {
+    background: #ffedd5;
 }

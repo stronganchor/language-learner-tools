@@ -8,6 +8,7 @@
     const editI18n = cfg.editI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
+    const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
     const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
@@ -1052,6 +1053,8 @@
 
     const ipaAllowedChar = /[a-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
+    const ipaPostModifier = /[\u02B0-\u02B8\u02D0\u02D1\u02E0-\u02E4\u1D2C-\u1D6A\u1D9B-\u1DBF\u2070-\u209F\u{10784}]/u;
+    const ipaStressMarker = /[\u02C8\u02CC]/u;
     const ipaUppercaseMap = {
         'R': 'ʀ',
         'B': 'ʙ',
@@ -1112,8 +1115,46 @@
         'ʊ': 'ᵁ',
         'ʏ': 'ᵞ'
     };
+    const ipaMatchMap = {
+        '\u027e': 'r',
+        '\u0279': 'r',
+        '\u027b': 'r',
+        '\u0280': 'r',
+        '\u0281': 'r',
+        '\u027d': 'r',
+        '\u0283': 'sh',
+        '\u0292': 'zh',
+        '\u03b8': 'th',
+        '\u00f0': 'th',
+        '\u014b': 'ng',
+        '\u0272': 'ny',
+        '\u0250': 'a',
+        '\u0251': 'a',
+        '\u0252': 'o',
+        '\u00e6': 'a',
+        '\u025b': 'e',
+        '\u025c': 'e',
+        '\u0259': 'e',
+        '\u026a': 'i',
+        '\u028a': 'u',
+        '\u028c': 'u',
+        '\u0254': 'o',
+        '\u026f': 'u',
+        '\u0268': 'i',
+        '\u0289': 'u',
+        '\u00f8': 'o',
+        '\u0153': 'oe',
+        '\u0276': 'oe',
+        '\u0261': 'g',
+        '\u0263': 'g',
+        '\u028b': 'v'
+    };
     let activeIpaInput = null;
     let activeIpaSelection = null;
+    let lastIpaEdit = { input: null, type: null, time: 0 };
+    let waveformContext = null;
+    const waveformCache = new Map();
+    const waveformPending = new Map();
 
     function normalizeIpaChar(ch) {
         if (ch === '\u1D2E') {
@@ -1157,6 +1198,42 @@
             start: input.selectionStart,
             end: input.selectionEnd
         };
+        if (input === activeIpaInput) {
+            refreshIpaKeyboardForInput(input);
+        }
+    }
+
+    function setLastIpaEdit(input, type) {
+        lastIpaEdit = {
+            input: input || null,
+            type: type || null,
+            time: Date.now()
+        };
+    }
+
+    function getLastIpaEditType(input) {
+        if (!input || lastIpaEdit.input !== input) {
+            return null;
+        }
+        if (!lastIpaEdit.time || (Date.now() - lastIpaEdit.time) > 1500) {
+            return null;
+        }
+        return lastIpaEdit.type || null;
+    }
+
+    function updateLastIpaEditFromInputEvent(event, input) {
+        const original = event && event.originalEvent ? event.originalEvent : event;
+        const inputType = original && original.inputType ? original.inputType : '';
+        if (!inputType) {
+            return;
+        }
+        if (inputType.indexOf('delete') === 0) {
+            setLastIpaEdit(input, 'delete');
+        } else if (inputType.indexOf('insert') === 0) {
+            setLastIpaEdit(input, 'insert');
+        } else {
+            setLastIpaEdit(input, null);
+        }
     }
 
     function toIpaSuperscript(text) {
@@ -1218,8 +1295,9 @@
             return null;
         }
         let startIndex = lastIndex;
-        if (isCombiningMark(codePoints[lastIndex].ch)) {
-            while (startIndex >= 0 && isCombiningMark(codePoints[startIndex].ch)) {
+        if (isCombiningMark(codePoints[lastIndex].ch) || isPostModifier(codePoints[lastIndex].ch)) {
+            while (startIndex >= 0
+                && (isCombiningMark(codePoints[startIndex].ch) || isPostModifier(codePoints[startIndex].ch))) {
                 startIndex -= 1;
             }
             if (startIndex < 0) {
@@ -1257,6 +1335,7 @@
         if (input.setSelectionRange) {
             input.setSelectionRange(selection.start, newEnd);
         }
+        setLastIpaEdit(input, 'insert');
         $(input).trigger('input');
         updateIpaSelection(input);
     }
@@ -1282,8 +1361,34 @@
         return ipaCombiningMark.test(ch);
     }
 
+    function isPostModifier(ch) {
+        return ipaPostModifier.test(ch);
+    }
+
+    function isIpaStressMarker(ch) {
+        return ipaStressMarker.test(ch);
+    }
+
     function isTieBar(ch) {
         return ch === '\u0361' || ch === '\u035C';
+    }
+
+    function stripStressMarkersFromToken(token) {
+        if (!token) { return ''; }
+        return token.replace(/\u02C8|\u02CC/g, '');
+    }
+
+    function filterIpaTokensForMapping(tokens) {
+        if (!Array.isArray(tokens) || !tokens.length) { return []; }
+        const cleaned = [];
+        tokens.forEach(function (token) {
+            if (!token) { return; }
+            const stripped = stripStressMarkersFromToken(token);
+            if (!stripped) { return; }
+            if (isIpaStressMarker(stripped)) { return; }
+            cleaned.push(stripped);
+        });
+        return cleaned;
     }
 
     function tokenizeIpa(value) {
@@ -1315,6 +1420,22 @@
                 if (isTieBar(ch) && buffer) {
                     tiePending = true;
                 }
+                return;
+            }
+
+            if (isPostModifier(ch)) {
+                if (buffer) {
+                    buffer += ch;
+                    return;
+                }
+                if (pending) {
+                    buffer = pending + ch;
+                    pending = '';
+                    tiePending = false;
+                    return;
+                }
+                buffer = ch;
+                tiePending = false;
                 return;
             }
 
@@ -1364,7 +1485,444 @@
         return updated;
     }
 
-    function renderIpaKeyboard($keyboard, chars) {
+    function ensureWaveformContext() {
+        if (waveformContext) { return waveformContext; }
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) { return null; }
+        try {
+            waveformContext = new Ctor();
+        } catch (_) {
+            waveformContext = null;
+        }
+        return waveformContext;
+    }
+
+    function fetchAudioArrayBuffer(url) {
+        if (window.fetch) {
+            return fetch(url, { credentials: 'same-origin' }).then(function (resp) {
+                if (!resp.ok) {
+                    throw new Error('Waveform fetch failed');
+                }
+                return resp.arrayBuffer();
+            });
+        }
+        return new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.responseType = 'arraybuffer';
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr.response);
+                } else {
+                    reject(new Error('Waveform fetch failed'));
+                }
+            };
+            xhr.onerror = function () {
+                reject(new Error('Waveform fetch failed'));
+            };
+            xhr.send();
+        });
+    }
+
+    function decodeAudioBuffer(ctx, buffer) {
+        return new Promise(function (resolve, reject) {
+            if (!ctx) {
+                reject(new Error('Missing AudioContext'));
+                return;
+            }
+            const bufferCopy = buffer.slice(0);
+            const done = function (decoded) { resolve(decoded); };
+            const fail = function (err) { reject(err || new Error('Decode failed')); };
+            const result = ctx.decodeAudioData(bufferCopy, done, fail);
+            if (result && typeof result.then === 'function') {
+                result.then(resolve).catch(fail);
+            }
+        });
+    }
+
+    function loadWaveformBuffer(url) {
+        if (!url) { return Promise.reject(new Error('Missing URL')); }
+        if (waveformCache.has(url)) {
+            return Promise.resolve(waveformCache.get(url));
+        }
+        if (waveformPending.has(url)) {
+            return waveformPending.get(url);
+        }
+        const ctx = ensureWaveformContext();
+        if (!ctx) { return Promise.reject(new Error('No AudioContext')); }
+
+        const promise = fetchAudioArrayBuffer(url)
+            .then(function (buffer) { return decodeAudioBuffer(ctx, buffer); })
+            .then(function (decoded) {
+                waveformCache.set(url, decoded);
+                waveformPending.delete(url);
+                return decoded;
+            })
+            .catch(function (err) {
+                waveformPending.delete(url);
+                throw err;
+            });
+
+        waveformPending.set(url, promise);
+        return promise;
+    }
+
+    function drawWaveform(canvas, container, audioBuffer) {
+        if (!canvas || !container || !audioBuffer) { return; }
+        const rect = container.getBoundingClientRect();
+        const width = Math.floor(rect.width);
+        const height = Math.floor(rect.height);
+        if (!width || !height) { return; }
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { return; }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+
+        const channelData = audioBuffer.getChannelData(0);
+        if (!channelData || !channelData.length) { return; }
+
+        const samplesPerPixel = Math.max(1, Math.floor(channelData.length / width));
+        const centerY = height / 2;
+
+        ctx.fillStyle = '#2ecc71';
+
+        for (let x = 0; x < width; x++) {
+            const start = x * samplesPerPixel;
+            const end = Math.min(start + samplesPerPixel, channelData.length);
+            let min = 1;
+            let max = -1;
+
+            for (let i = start; i < end; i += 1) {
+                const sample = channelData[i];
+                if (sample < min) { min = sample; }
+                if (sample > max) { max = sample; }
+            }
+
+            const yTop = centerY - (max * centerY);
+            const yBottom = centerY - (min * centerY);
+            const height = yBottom - yTop;
+            ctx.fillRect(x, yTop, 1, height);
+        }
+    }
+
+    function renderIpaWaveform($recording) {
+        if (!$recording || !$recording.length) { return; }
+        const container = $recording.find('[data-ll-ipa-waveform]').get(0);
+        const canvas = container ? container.querySelector('.ll-word-edit-ipa-waveform-canvas') : null;
+        if (!container || !canvas) { return; }
+        const audio = $recording.find('.ll-word-edit-ipa-audio-player').get(0);
+        const url = audio ? (audio.currentSrc || audio.src || '') : '';
+        if (!url) { return; }
+
+        loadWaveformBuffer(url).then(function (buffer) {
+            if (!document.body.contains(container)) { return; }
+            drawWaveform(canvas, container, buffer);
+        }).catch(function () {});
+    }
+
+    function normalizeTextSegment(segment) {
+        if (!segment) { return ''; }
+        let text = segment.toString().toLocaleLowerCase();
+        if (text.normalize) {
+            text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        text = text.replace(/[^a-z]/g, '');
+        return text;
+    }
+
+    function normalizeIpaSegment(segment) {
+        if (!segment) { return ''; }
+        let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
+        if (text.normalize) {
+            text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        let out = '';
+        for (const ch of text) {
+            if (ch >= 'a' && ch <= 'z') {
+                out += ch;
+                continue;
+            }
+            if (ipaMatchMap[ch]) {
+                out += ipaMatchMap[ch];
+            }
+        }
+        return out;
+    }
+
+    function levenshteinDistance(a, b) {
+        if (a === b) { return 0; }
+        const alen = a.length;
+        const blen = b.length;
+        if (!alen) { return blen; }
+        if (!blen) { return alen; }
+        const row = new Array(blen + 1);
+        for (let j = 0; j <= blen; j += 1) {
+            row[j] = j;
+        }
+        for (let i = 1; i <= alen; i += 1) {
+            let prev = i - 1;
+            row[0] = i;
+            for (let j = 1; j <= blen; j += 1) {
+                const temp = row[j];
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                row[j] = Math.min(
+                    row[j] + 1,
+                    row[j - 1] + 1,
+                    prev + cost
+                );
+                prev = temp;
+            }
+        }
+        return row[blen];
+    }
+
+    function similarityScore(textSegment, ipaSegment) {
+        const textNorm = normalizeTextSegment(textSegment);
+        const ipaNorm = normalizeIpaSegment(ipaSegment);
+        if (!textNorm || !ipaNorm) { return 0; }
+        if (textNorm === ipaNorm) { return 1; }
+        const distance = levenshteinDistance(textNorm, ipaNorm);
+        const maxLen = Math.max(textNorm.length, ipaNorm.length);
+        if (!maxLen) { return 0; }
+        const score = 1 - (distance / maxLen);
+        return Math.max(0, Math.min(1, score));
+    }
+
+    function alignTextToIpa(letters, tokens) {
+        if (!letters.length || !tokens.length) { return null; }
+        const matchThreshold = 0.55;
+        const skipPenalty = 0.25;
+        const multiPenalty = 0.05;
+        const n = letters.length;
+        const m = tokens.length;
+        const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(null));
+        dp[0][0] = { score: 0, prev: null };
+
+        const update = function (i, j, score, prev) {
+            const cell = dp[i][j];
+            if (!cell || score > cell.score) {
+                dp[i][j] = { score: score, prev: prev };
+            }
+        };
+
+        for (let i = 0; i <= n; i += 1) {
+            for (let j = 0; j <= m; j += 1) {
+                const cell = dp[i][j];
+                if (!cell) { continue; }
+
+                if (i < n) {
+                    update(i + 1, j, cell.score - skipPenalty, { type: 'skip-text', i: i, j: j });
+                }
+                if (j < m) {
+                    update(i, j + 1, cell.score - skipPenalty, { type: 'skip-token', i: i, j: j });
+                }
+
+                if (i < n && j < m) {
+                    const score = similarityScore(letters[i], tokens[j]);
+                    if (score >= matchThreshold) {
+                        update(i + 1, j + 1, cell.score + score, {
+                            type: 'match',
+                            i: i,
+                            j: j,
+                            text: letters[i],
+                            ipa: tokens[j],
+                            textLen: 1,
+                            tokenLen: 1,
+                            score: score
+                        });
+                    }
+                }
+                if (i < n && (j + 1) < m) {
+                    const ipaSegment = tokens[j] + tokens[j + 1];
+                    const score = similarityScore(letters[i], ipaSegment);
+                    if (score >= matchThreshold) {
+                        update(i + 1, j + 2, cell.score + score - multiPenalty, {
+                            type: 'match',
+                            i: i,
+                            j: j,
+                            text: letters[i],
+                            ipa: ipaSegment,
+                            textLen: 1,
+                            tokenLen: 2,
+                            score: score
+                        });
+                    }
+                }
+                if ((i + 1) < n && j < m) {
+                    const textSegment = letters[i] + letters[i + 1];
+                    const score = similarityScore(textSegment, tokens[j]);
+                    if (score >= matchThreshold) {
+                        update(i + 2, j + 1, cell.score + score - multiPenalty, {
+                            type: 'match',
+                            i: i,
+                            j: j,
+                            text: textSegment,
+                            ipa: tokens[j],
+                            textLen: 2,
+                            tokenLen: 1,
+                            score: score
+                        });
+                    }
+                }
+            }
+        }
+
+        const endCell = dp[n][m];
+        if (!endCell) { return null; }
+
+        let matches = [];
+        let matchedLetters = 0;
+        let matchedTokens = 0;
+        let totalScore = 0;
+        let i = n;
+        let j = m;
+
+        while (i > 0 || j > 0) {
+            const cell = dp[i][j];
+            if (!cell || !cell.prev) { break; }
+            const prev = cell.prev;
+            if (prev.type === 'match') {
+                matches.push({
+                    textIndex: prev.i,
+                    tokenIndex: prev.j,
+                    textLength: prev.textLen,
+                    tokenLength: prev.tokenLen,
+                    score: prev.score
+                });
+                matchedLetters += prev.textLen;
+                matchedTokens += prev.tokenLen;
+                totalScore += prev.score;
+            }
+            i = prev.i || 0;
+            j = prev.j || 0;
+        }
+
+        if (!matches.length) { return null; }
+        matches = matches.reverse();
+        const avgScore = totalScore / matches.length;
+        const letterCoverage = matchedLetters / n;
+        const tokenCoverage = matchedTokens / m;
+        if (avgScore < 0.55 || letterCoverage < 0.55 || tokenCoverage < 0.45) {
+            return null;
+        }
+
+        return matches;
+    }
+
+    function getTextLetters(value) {
+        const raw = (value || '').toString();
+        if (!raw) { return []; }
+        const letters = [];
+        for (const ch of raw) {
+            if (/\p{L}/u.test(ch)) {
+                letters.push(ch.toLocaleLowerCase());
+            }
+        }
+        return letters;
+    }
+
+    function getLetterIndexForCursor(letters, tokens, cursorTokenCount, matches, cursorAtBoundary) {
+        if (!letters.length) { return -1; }
+        if (!tokens.length || cursorTokenCount <= 0) {
+            return 0;
+        }
+        if (!matches || !matches.length) {
+            let index = cursorTokenCount;
+            if (!cursorAtBoundary && index > 0) {
+                index -= 1;
+            }
+            return Math.min(letters.length - 1, index);
+        }
+        for (let i = 0; i < matches.length; i += 1) {
+            const match = matches[i];
+            const tokenStart = match.tokenIndex;
+            const tokenEnd = match.tokenIndex + match.tokenLength;
+            if (cursorTokenCount <= tokenStart) {
+                return match.textIndex;
+            }
+            if (cursorTokenCount < tokenEnd) {
+                return match.textIndex;
+            }
+            if (cursorTokenCount === tokenEnd) {
+                if (cursorAtBoundary) {
+                    const nextIndex = match.textIndex + match.textLength;
+                    if (nextIndex < letters.length) {
+                        return nextIndex;
+                    }
+                }
+                return match.textIndex;
+            }
+        }
+        const last = matches[matches.length - 1];
+        const nextIndex = last.textIndex + last.textLength;
+        if (nextIndex < letters.length) {
+            return nextIndex;
+        }
+        return letters.length - 1;
+    }
+
+    function getIpaSuggestionsForInput($input) {
+        if (!ipaLetterMap || !Object.keys(ipaLetterMap).length) { return []; }
+        if (!$input || !$input.length) { return []; }
+        const $recording = $input.closest('.ll-word-edit-recording');
+        if (!$recording.length) { return []; }
+        const textValue = ($recording.find('[data-ll-recording-input="text"]').val() || '').toString();
+        if (!textValue) { return []; }
+        const letters = getTextLetters(textValue);
+        if (!letters.length) { return []; }
+        const input = $input.get(0);
+        if (!input) { return []; }
+        const value = (input.value || '').toString();
+        const tokens = filterIpaTokensForMapping(tokenizeIpa(value));
+        const cursor = (typeof input.selectionStart === 'number') ? input.selectionStart : value.length;
+        const beforeTokens = filterIpaTokensForMapping(tokenizeIpa(value.slice(0, cursor)));
+        const tokensBefore = beforeTokens.length;
+        const prefixTokens = tokens.slice(0, tokensBefore);
+        const cursorAtEnd = cursor >= value.length;
+        const cursorAtBoundary = cursorAtEnd || beforeTokens.join('') === prefixTokens.join('');
+        const matches = alignTextToIpa(letters, tokens);
+        const lastEditType = getLastIpaEditType(input);
+        const advanceAtBoundary = lastEditType !== 'delete';
+        const letterIndex = getLetterIndexForCursor(
+            letters,
+            tokens,
+            tokensBefore,
+            matches,
+            cursorAtBoundary && advanceAtBoundary
+        );
+        if (letterIndex < 0 || letterIndex >= letters.length) { return []; }
+
+        const suggestions = [];
+        const seen = new Set();
+        const digraph = letters[letterIndex] + (letters[letterIndex + 1] || '');
+        const candidates = [];
+        if (digraph && ipaLetterMap[digraph]) {
+            candidates.push(digraph);
+        }
+        const letterKey = letters[letterIndex];
+        if (letterKey && ipaLetterMap[letterKey]) {
+            candidates.push(letterKey);
+        }
+        candidates.forEach(function (key) {
+            const entries = ipaLetterMap[key] || [];
+            entries.forEach(function (entry) {
+                if (!entry || seen.has(entry)) { return; }
+                seen.add(entry);
+                suggestions.push(entry);
+            });
+        });
+
+        return suggestions;
+    }
+
+    function renderIpaKeyboard($keyboard, chars, suggestions) {
         if (!$keyboard || !$keyboard.length) { return 0; }
         $keyboard.empty();
 
@@ -1376,6 +1934,9 @@
             merged.push(ch);
         };
 
+        if (Array.isArray(suggestions)) {
+            suggestions.forEach(pushUnique);
+        }
         ipaCommonChars.forEach(pushUnique);
         if (Array.isArray(chars)) {
             chars.forEach(pushUnique);
@@ -1398,14 +1959,35 @@
         return merged.length;
     }
 
+    function hideIpaAudio() {
+        $('[data-ll-ipa-audio]').attr('aria-hidden', 'true').each(function () {
+            const audio = $(this).find('audio').get(0);
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        });
+        $('[data-ll-ipa-waveform]').attr('aria-hidden', 'true');
+    }
+
     function showIpaKeyboard($input) {
         if (!$input || !$input.length) { return; }
         const $recording = $input.closest('.ll-word-edit-recording');
         const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
         if (!$keyboard.length) { return; }
+        const inputEl = $input.get(0);
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
-        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars);
+        const $audio = $recording.find('[data-ll-ipa-audio]').first();
+        const shouldAdjustScroll = $audio.length && $audio.attr('aria-hidden') !== 'false';
+        const initialTop = (shouldAdjustScroll && inputEl) ? inputEl.getBoundingClientRect().top : null;
+        $('[data-ll-ipa-audio]').not($audio).attr('aria-hidden', 'true').each(function () {
+            const audio = $(this).find('audio').get(0);
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        });
+        const suggestions = getIpaSuggestionsForInput($input);
+        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars, suggestions);
         if (keyCount > 0) {
             $keyboard.attr('aria-hidden', 'false');
             $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
@@ -1414,12 +1996,38 @@
             $keyboard.attr('aria-hidden', 'true');
             activeIpaInput = null;
         }
+        if ($audio.length) {
+            $audio.attr('aria-hidden', 'false');
+            $recording.find('[data-ll-ipa-waveform]').attr('aria-hidden', 'false');
+            requestAnimationFrame(function () {
+                renderIpaWaveform($recording);
+                if (shouldAdjustScroll && inputEl && typeof initialTop === 'number') {
+                    const newTop = inputEl.getBoundingClientRect().top;
+                    const delta = newTop - initialTop;
+                    if (Math.abs(delta) > 0.5) {
+                        window.scrollBy(0, delta);
+                    }
+                }
+            });
+        }
     }
 
     function hideIpaKeyboards() {
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
+        hideIpaAudio();
         activeIpaInput = null;
+    }
+
+    function refreshIpaKeyboardForInput(input) {
+        if (!input) { return; }
+        const $input = $(input);
+        const $recording = $input.closest('.ll-word-edit-recording');
+        if (!$recording.length) { return; }
+        const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
+        if (!$keyboard.length || $keyboard.attr('aria-hidden') === 'true') { return; }
+        const suggestions = getIpaSuggestionsForInput($input);
+        renderIpaKeyboard($keyboard, ipaSpecialChars, suggestions);
     }
 
     function insertIpaChar(input, ch) {
@@ -1433,6 +2041,7 @@
         if (input.setSelectionRange) {
             input.setSelectionRange(cursor, cursor);
         }
+        setLastIpaEdit(input, 'insert');
         $(input).trigger('input');
     }
 
@@ -1529,7 +2138,19 @@
             updateIpaSelection(this);
         });
 
-        $grids.on('input', '.ll-word-edit-input--ipa', function () {
+        $grids.on('keydown', '.ll-word-edit-input--ipa', function (event) {
+            if (!event || !event.key) { return; }
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+                setLastIpaEdit(this, 'delete');
+            } else if (event.key.length === 1) {
+                setLastIpaEdit(this, 'insert');
+            } else {
+                setLastIpaEdit(this, null);
+            }
+        });
+
+        $grids.on('input', '.ll-word-edit-input--ipa', function (event) {
+            updateLastIpaEditFromInputEvent(event, this);
             const $input = $(this);
             const raw = ($input.val() || '').toString();
             const sanitized = sanitizeIpaValue(raw);
@@ -1542,6 +2163,14 @@
                 showIpaKeyboard($input);
             }
             updateIpaSelection(this);
+        });
+
+        $grids.on('input', '[data-ll-recording-input="text"]', function () {
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            const ipaInput = $recording.find('.ll-word-edit-input--ipa').get(0);
+            if (ipaInput && ipaInput === activeIpaInput) {
+                refreshIpaKeyboardForInput(ipaInput);
+            }
         });
 
         document.addEventListener('selectionchange', function () {

@@ -40,6 +40,21 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'enterSymbols' => __('Enter one or more symbols to add.', 'll-tools-text-domain'),
             'noRecordings' => __('No recordings use this symbol yet.', 'll-tools-text-domain'),
             'save' => __('Save', 'll-tools-text-domain'),
+            'mapEmpty' => __('No letter mappings found for this word set.', 'll-tools-text-domain'),
+            'mapAutoEmpty' => __('No mappings yet.', 'll-tools-text-domain'),
+            'mapLetterLabel' => __('Letter(s)', 'll-tools-text-domain'),
+            'mapAutoLabel' => __('Auto map', 'll-tools-text-domain'),
+            'mapManualLabel' => __('Manual override', 'll-tools-text-domain'),
+            'mapPlaceholder' => __('e.g. r', 'll-tools-text-domain'),
+            'mapClear' => __('Clear', 'll-tools-text-domain'),
+            'mapAddLabel' => __('Add manual mapping', 'll-tools-text-domain'),
+            'mapAddLettersLabel' => __('Letters', 'll-tools-text-domain'),
+            'mapAddSymbolsLabel' => __('IPA symbols', 'll-tools-text-domain'),
+            'mapAddLettersPlaceholder' => __('Letters (e.g. ll)', 'll-tools-text-domain'),
+            'mapAddSymbolsPlaceholder' => __('IPA symbols (e.g. r)', 'll-tools-text-domain'),
+            'mapAddHint' => __('Use multiple letters to map digraphs like ll.', 'll-tools-text-domain'),
+            'mapAdd' => __('Add mapping', 'll-tools-text-domain'),
+            'mapAddMissing' => __('Enter letters and IPA symbols to add.', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -80,7 +95,18 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '</div>';
 
     echo '<div id="ll-ipa-admin-status" class="ll-ipa-admin-status" role="status" aria-live="polite"></div>';
+    echo '<div class="ll-ipa-admin-sections">';
+    echo '<div class="ll-ipa-admin-section ll-ipa-admin-section--symbols">';
+    echo '<h2>' . esc_html__('IPA Special Characters', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="description">' . esc_html__('Symbols used in this word set. Update recordings or add new symbols to the keyboard.', 'll-tools-text-domain') . '</p>';
     echo '<div id="ll-ipa-symbols" class="ll-ipa-symbols"></div>';
+    echo '</div>';
+    echo '<div class="ll-ipa-admin-section ll-ipa-admin-section--letter-map">';
+    echo '<h2>' . esc_html__('Letter to IPA Map', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="description">' . esc_html__('Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain') . '</p>';
+    echo '<div id="ll-ipa-letter-map" class="ll-ipa-letter-map"></div>';
+    echo '</div>';
+    echo '</div>';
     echo '</div>';
 }
 
@@ -265,6 +291,145 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
     return $entries;
 }
 
+function ll_tools_ipa_keyboard_normalize_letter_key(string $letter): string {
+    $letter = function_exists('ll_tools_word_grid_lowercase') ? ll_tools_word_grid_lowercase($letter) : strtolower($letter);
+    $letter = preg_replace('/[^\p{L}]+/u', '', $letter);
+    return (string) $letter;
+}
+
+function ll_tools_ipa_keyboard_normalize_ipa_token(string $token): string {
+    $token = trim($token);
+    if ($token === '') {
+        return '';
+    }
+    if (function_exists('ll_tools_word_grid_normalize_ipa_output')) {
+        $token = ll_tools_word_grid_normalize_ipa_output($token);
+    }
+    if (function_exists('ll_tools_word_grid_strip_ipa_stress_markers')) {
+        $token = ll_tools_word_grid_strip_ipa_stress_markers($token);
+    }
+    $token = trim((string) $token);
+    if (function_exists('ll_tools_word_grid_is_ipa_stress_marker')
+        && ll_tools_word_grid_is_ipa_stress_marker($token)) {
+        return '';
+    }
+    return $token;
+}
+
+function ll_tools_ipa_keyboard_build_letter_map_data(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $auto_map = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_map')
+        ? ll_tools_word_grid_get_wordset_ipa_letter_map($wordset_id)
+        : [];
+    $manual_map = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_manual_map')
+        ? ll_tools_word_grid_get_wordset_ipa_letter_manual_map($wordset_id)
+        : [];
+
+    if (empty($auto_map) && empty($manual_map)) {
+        return [];
+    }
+
+    $entries = [];
+
+    $merge_auto = function ($letter, $ipa_counts) use (&$entries) {
+        if (!is_array($ipa_counts)) {
+            return;
+        }
+        $letter_key = ll_tools_ipa_keyboard_normalize_letter_key((string) $letter);
+        if ($letter_key === '') {
+            return;
+        }
+        if (!isset($entries[$letter_key])) {
+            $entries[$letter_key] = [
+                'letter' => $letter_key,
+                'auto_counts' => [],
+                'manual' => [],
+            ];
+        }
+        foreach ($ipa_counts as $ipa => $count) {
+            $ipa_key = ll_tools_ipa_keyboard_normalize_ipa_token((string) $ipa);
+            if ($ipa_key === '') {
+                continue;
+            }
+            $entries[$letter_key]['auto_counts'][$ipa_key] = (int) ($entries[$letter_key]['auto_counts'][$ipa_key] ?? 0)
+                + max(1, (int) $count);
+        }
+    };
+
+    $merge_manual = function ($letter, $symbols) use (&$entries) {
+        if (!is_array($symbols)) {
+            return;
+        }
+        $letter_key = ll_tools_ipa_keyboard_normalize_letter_key((string) $letter);
+        if ($letter_key === '') {
+            return;
+        }
+        if (!isset($entries[$letter_key])) {
+            $entries[$letter_key] = [
+                'letter' => $letter_key,
+                'auto_counts' => [],
+                'manual' => [],
+            ];
+        }
+        foreach ($symbols as $symbol) {
+            $ipa_key = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol);
+            if ($ipa_key === '' || in_array($ipa_key, $entries[$letter_key]['manual'], true)) {
+                continue;
+            }
+            $entries[$letter_key]['manual'][] = $ipa_key;
+        }
+    };
+
+    foreach ($auto_map as $letter => $ipa_counts) {
+        $merge_auto($letter, $ipa_counts);
+    }
+    foreach ($manual_map as $letter => $symbols) {
+        $merge_manual($letter, $symbols);
+    }
+
+    $list = [];
+    foreach ($entries as $entry) {
+        $auto_entries = [];
+        foreach ((array) ($entry['auto_counts'] ?? []) as $symbol => $count) {
+            $auto_entries[] = [
+                'symbol' => $symbol,
+                'count' => (int) $count,
+            ];
+        }
+        usort($auto_entries, function ($a, $b) {
+            $count_a = (int) ($a['count'] ?? 0);
+            $count_b = (int) ($b['count'] ?? 0);
+            if ($count_a === $count_b) {
+                return strnatcasecmp((string) ($a['symbol'] ?? ''), (string) ($b['symbol'] ?? ''));
+            }
+            return ($count_b <=> $count_a);
+        });
+
+        $list[] = [
+            'letter' => (string) ($entry['letter'] ?? ''),
+            'auto' => $auto_entries,
+            'manual' => array_values((array) ($entry['manual'] ?? [])),
+        ];
+    }
+
+    usort($list, function ($a, $b) {
+        $letter_a = (string) ($a['letter'] ?? '');
+        $letter_b = (string) ($b['letter'] ?? '');
+        $len_a = function_exists('mb_strlen') ? mb_strlen($letter_a, 'UTF-8') : strlen($letter_a);
+        $len_b = function_exists('mb_strlen') ? mb_strlen($letter_b, 'UTF-8') : strlen($letter_b);
+        if ($len_a === $len_b) {
+            return strnatcasecmp($letter_a, $letter_b);
+        }
+        return ($len_a <=> $len_b);
+    });
+
+    return $list;
+}
+
 function ll_tools_ipa_keyboard_prepare_add_symbols(string $input): array {
     $input = trim($input);
     if ($input === '') {
@@ -314,6 +479,7 @@ function ll_tools_get_ipa_keyboard_data_handler() {
     }
 
     $symbols = ll_tools_ipa_keyboard_build_symbol_data($wordset_id);
+    $letter_map = ll_tools_ipa_keyboard_build_letter_map_data($wordset_id);
 
     wp_send_json_success([
         'wordset' => [
@@ -321,6 +487,7 @@ function ll_tools_get_ipa_keyboard_data_handler() {
             'name' => (string) $wordset->name,
         ],
         'symbols' => $symbols,
+        'letter_map' => $letter_map,
     ]);
 }
 
@@ -367,6 +534,9 @@ function ll_tools_update_recording_ipa_handler() {
     if (function_exists('ll_tools_word_grid_update_wordset_ipa_special_chars')) {
         ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, $clean);
     }
+    if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_letter_map')) {
+        ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+    }
 
     wp_send_json_success([
         'recording_id' => $recording_id,
@@ -401,5 +571,77 @@ function ll_tools_add_wordset_ipa_symbols_handler() {
 
     wp_send_json_success([
         'symbols' => $merged,
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_update_wordset_ipa_letter_map', 'll_tools_update_wordset_ipa_letter_map_handler');
+function ll_tools_update_wordset_ipa_letter_map_handler() {
+    check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if ($wordset_id <= 0) {
+        wp_send_json_error('Invalid word set', 400);
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    if (!$wordset || is_wp_error($wordset)) {
+        wp_send_json_error('Invalid word set', 400);
+    }
+
+    $letter_raw = (string) ($_POST['letter'] ?? '');
+    $letter = ll_tools_ipa_keyboard_normalize_letter_key($letter_raw);
+    if ($letter === '') {
+        wp_send_json_error('Invalid letter', 400);
+    }
+
+    $manual_map = get_term_meta($wordset_id, 'll_wordset_ipa_letter_manual_map', true);
+    if (!is_array($manual_map)) {
+        $manual_map = [];
+    }
+
+    $clear = !empty($_POST['clear']);
+    $symbols_raw = trim((string) ($_POST['symbols'] ?? ''));
+
+    if ($clear || $symbols_raw === '') {
+        unset($manual_map[$letter]);
+    } else {
+        if (function_exists('ll_tools_word_grid_sanitize_ipa')) {
+            $symbols_raw = ll_tools_word_grid_sanitize_ipa($symbols_raw);
+        }
+        $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+            ? ll_tools_word_grid_tokenize_ipa($symbols_raw)
+            : preg_split('//u', $symbols_raw, -1, PREG_SPLIT_NO_EMPTY);
+
+        $clean_tokens = [];
+        $seen = [];
+        foreach ((array) $tokens as $token) {
+            $token = ll_tools_ipa_keyboard_normalize_ipa_token((string) $token);
+            if ($token === '' || isset($seen[$token])) {
+                continue;
+            }
+            $seen[$token] = true;
+            $clean_tokens[] = $token;
+        }
+
+        if (empty($clean_tokens)) {
+            unset($manual_map[$letter]);
+        } else {
+            $manual_map[$letter] = $clean_tokens;
+        }
+    }
+
+    if (empty($manual_map)) {
+        delete_term_meta($wordset_id, 'll_wordset_ipa_letter_manual_map');
+    } else {
+        update_term_meta($wordset_id, 'll_wordset_ipa_letter_manual_map', $manual_map);
+    }
+
+    wp_send_json_success([
+        'letter' => $letter,
+        'manual' => array_values((array) ($manual_map[$letter] ?? [])),
     ]);
 }
