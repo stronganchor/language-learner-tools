@@ -97,9 +97,19 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
         foreach ($word_ids as $word_id) {
             $word_id = (int) $word_id;
             if ($word_id > 0) {
-                $group_map[$word_id] = $label;
+                if (!isset($group_map[$word_id])) {
+                    $group_map[$word_id] = [];
+                }
+                $group_map[$word_id][] = $label;
             }
         }
+    }
+
+    foreach ($group_map as $word_id => $labels) {
+        $labels = array_values(array_unique(array_filter(array_map('strval', (array) $labels), function ($val) {
+            return $val !== '';
+        })));
+        $group_map[$word_id] = $labels;
     }
 
     $blocked_map = [];

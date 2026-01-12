@@ -986,8 +986,17 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $similar_word_id = get_post_meta($word_id, 'similar_word_id', true);
         }
 
-        $group_label = isset($group_map[$word_id]) ? (string) $group_map[$word_id] : '';
-        $option_group = ($group_label !== '' && $term_id > 0) ? ($term_id . ':' . $group_label) : '';
+        $group_labels = isset($group_map[$word_id]) && is_array($group_map[$word_id]) ? $group_map[$word_id] : [];
+        $option_groups = [];
+        if ($term_id > 0 && !empty($group_labels)) {
+            foreach ($group_labels as $label) {
+                $label = trim((string) $label);
+                if ($label === '') {
+                    continue;
+                }
+                $option_groups[] = $term_id . ':' . $label;
+            }
+        }
 
         $word_data = [
             'id'              => $word_id,
@@ -1002,7 +1011,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'wordset_ids'     => $wordset_ids_for_word,
             'has_audio'       => $has_audio,
             'has_image'       => ($image_id && !empty($image)),
-            'option_group'    => $option_group,
+            'option_groups'   => $option_groups,
             'option_blocked_ids' => isset($blocked_map[$word_id]) ? array_values(array_map('intval', (array) $blocked_map[$word_id])) : [],
         ];
 
@@ -1021,6 +1030,49 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $words[] = $word_data;
         } else {
             $words[] = $word_data;
+        }
+    }
+
+    if (!empty($words) && $option_type === 'image' && function_exists('ll_tools_collect_word_image_hashes') && function_exists('ll_tools_find_similar_image_pairs')) {
+        $word_ids = array_values(array_unique(array_map(function ($row) {
+            return isset($row['id']) ? (int) $row['id'] : 0;
+        }, $words)));
+        $word_ids = array_values(array_filter($word_ids, function ($id) { return $id > 0; }));
+        if (!empty($word_ids)) {
+            $hashes = ll_tools_collect_word_image_hashes($word_ids);
+            $pairs = ll_tools_find_similar_image_pairs($hashes);
+            if (!empty($pairs)) {
+                $image_blocked = [];
+                foreach ($pairs as $pair) {
+                    $a = (int) ($pair['a'] ?? 0);
+                    $b = (int) ($pair['b'] ?? 0);
+                    if ($a <= 0 || $b <= 0) {
+                        continue;
+                    }
+                    if (!isset($image_blocked[$a])) {
+                        $image_blocked[$a] = [];
+                    }
+                    if (!isset($image_blocked[$b])) {
+                        $image_blocked[$b] = [];
+                    }
+                    $image_blocked[$a][$b] = true;
+                    $image_blocked[$b][$a] = true;
+                }
+                foreach ($words as $idx => $row) {
+                    $word_id = isset($row['id']) ? (int) $row['id'] : 0;
+                    if ($word_id <= 0 || empty($image_blocked[$word_id])) {
+                        continue;
+                    }
+                    $blocked_ids = isset($row['option_blocked_ids']) && is_array($row['option_blocked_ids'])
+                        ? $row['option_blocked_ids']
+                        : [];
+                    $blocked_ids = array_merge($blocked_ids, array_keys($image_blocked[$word_id]));
+                    $blocked_ids = array_values(array_unique(array_filter(array_map('intval', $blocked_ids), function ($id) {
+                        return $id > 0 && $id !== $word_id;
+                    })));
+                    $words[$idx]['option_blocked_ids'] = $blocked_ids;
+                }
+            }
         }
     }
 

@@ -1207,6 +1207,13 @@ function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups
         return $posts;
     }
 
+    $sorted_groups = $groups;
+    usort($sorted_groups, function ($left, $right) {
+        $left_label = isset($left['label']) ? trim((string) $left['label']) : '';
+        $right_label = isset($right['label']) ? trim((string) $right['label']) : '';
+        return strnatcasecmp($left_label, $right_label);
+    });
+
     $order_map = [];
     $post_map = [];
     foreach ($posts as $idx => $post) {
@@ -1224,7 +1231,7 @@ function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups
 
     $used = [];
     $ordered_posts = [];
-    foreach ($groups as $group) {
+    foreach ($sorted_groups as $group) {
         if (empty($group['word_ids']) || !is_array($group['word_ids'])) {
             continue;
         }
