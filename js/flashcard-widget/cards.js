@@ -166,7 +166,7 @@
         $c.fadeIn(200);
     }
 
-    function appendWordToContainer(word, optionType, promptType) {
+    function appendWordToContainer(word, optionType, promptType, ordered) {
         const mode = optionType || root.LLFlashcards.Selection.getCurrentDisplayMode();
         const isTextMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation');
         const $card = (mode === 'image')
@@ -176,7 +176,12 @@
                 : (mode === 'text_audio'
                     ? createAudioCard(word, true, promptType)
                     : (isTextMode ? createTextCard(word) : createTextCard(word))));
-        insertContainerAtRandom($card);
+        if (ordered) {
+            $('#ll-tools-flashcard').append($card);
+            $card.fadeIn(200);
+        } else {
+            insertContainerAtRandom($card);
+        }
         return $card;
     }
 

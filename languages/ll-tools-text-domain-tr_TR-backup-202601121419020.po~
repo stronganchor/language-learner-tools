@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-01-05 15:00+0000\n"
+"PO-Revision-Date: 2026-01-12 13:11+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -33,7 +33,7 @@ msgid_plural "%d empty lines were ignored."
 msgstr[0] "d boş satır göz ardı edildi."
 msgstr[1] "d boş satırlar göz ardı edildi."
 
-#: includes/taxonomies/word-category-taxonomy.php:1148
+#: includes/taxonomies/word-category-taxonomy.php:1228
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] "%d girişi başarısız oldu."
@@ -106,6 +106,22 @@ msgstr ""
 "DeepL destekli çeviriler, şablon geçersiz kılmaları ve hafif roller (\"Word "
 "Set Manager\", \"LL Tools Editor\")."
 
+#: includes/admin/ipa-keyboard-admin.php:94
+msgid "Add"
+msgstr "Ekle"
+
+#: includes/admin/word-option-rules-admin.php:768
+msgid "Add group"
+msgstr "Grup ekle"
+
+#: includes/admin/ipa-keyboard-admin.php:50
+msgid "Add manual mapping"
+msgstr "Manuel eşleme ekleyin"
+
+#: includes/admin/ipa-keyboard-admin.php:56
+msgid "Add mapping"
+msgstr "Eşleme ekleyin"
+
 #: includes/post-types/word-audio-post-type.php:14
 msgid "Add New Audio Recording"
 msgstr "Yeni Ses Kaydı Ekleme"
@@ -120,7 +136,23 @@ msgstr "Yeni Kayıt Türü Ekle"
 
 #: includes/post-types/vocab-lesson-post-type.php:12
 msgid "Add New Vocab Lesson"
+msgstr "Yeni Kelime Dersi Ekle"
+
+#: includes/admin/word-option-rules-admin.php:756
+msgid ""
+"Add one or more group names, then use the checkboxes below to assign words "
+"to multiple groups."
 msgstr ""
+"Bir veya daha fazla grup adı ekleyin, ardından birden fazla gruba sözcük "
+"atamak için aşağıdaki onay kutularını kullanın."
+
+#: includes/admin/word-option-rules-admin.php:898
+msgid "Add pair"
+msgstr "Çift ekle"
+
+#: includes/admin/ipa-keyboard-admin.php:92
+msgid "Add symbols"
+msgstr "Semboller ekleyin"
 
 #: includes/shortcodes/user-study-dashboard.php:132
 msgid "All"
@@ -170,10 +202,43 @@ msgid ""
 "recording interface so the recorder can review and adjust trim boundaries "
 "before saving."
 msgstr ""
+"Kayıt arayüzünde kırpma, gürültü azaltma ve ses yüksekliği normalleştirme "
+"uygular, böylece kayıt cihazı kaydetmeden önce kırpma sınırlarını gözden "
+"geçirebilir ve ayarlayabilir."
+
+#: templates/vocab-lesson-template.php:217
+#: templates/vocab-lesson-template.php:234
+msgid "Apply"
+msgstr "Uygula"
+
+#: templates/vocab-lesson-template.php:233
+msgid "Apply gender to all nouns"
+msgstr "Tüm isimlere cinsiyet uygulayın"
+
+#: includes/admin/word-option-rules-admin.php:1038
+msgid "Apply Import"
+msgstr "İthalat Uygula"
+
+#: templates/vocab-lesson-template.php:216
+msgid "Apply part of speech to all words"
+msgstr "Konuşma bölümünü tüm kelimelere uygulayın"
+
+#: includes/admin/word-option-rules-admin.php:1023
+msgid "Apply to category"
+msgstr "Kategoriye başvur"
+
+#: includes/admin/word-option-rules-admin.php:988
+msgid "Apply to word set"
+msgstr "Kelime setine uygula"
 
 #: includes/admin/bulk-word-import-admin.php:296
 msgid "Assign to existing category"
 msgstr "Mevcut kategoriye atama"
+
+#: includes/admin/word-option-rules-admin.php:847
+#, php-format
+msgid "Assign to group %s"
+msgstr "Grup %s'ye atama"
 
 #: includes/admin/bulk-word-import-admin.php:284
 msgid "Assign to word set"
@@ -183,6 +248,8 @@ msgstr "Sözcük kümesine atama"
 msgid "Associated Word"
 msgstr "İlişkili Kelime"
 
+#: includes/admin/word-option-rules-admin.php:778
+#: includes/admin/word-option-rules-admin.php:821
 #: includes/taxonomies/word-category-taxonomy.php:384
 #: includes/taxonomies/word-category-taxonomy.php:439
 msgid "Audio"
@@ -214,32 +281,65 @@ msgstr "Ses Kaydı Detayları"
 msgid "Audio Recording Page Created!"
 msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
+#: templates/vocab-lesson-template.php:136
+msgid "Auto captions"
+msgstr "Otomatik altyazılar"
+
+#: includes/admin/ipa-keyboard-admin.php:46
+msgid "Auto map"
+msgstr "Otomatik harita"
+
 #: includes/user-roles/audio-recorder-role.php:200
 #: includes/user-roles/audio-recorder-role.php:312
 msgid "Auto-process Recordings"
-msgstr ""
+msgstr "Kayıtları Otomatik İşleme"
 
-#: templates/vocab-lesson-template.php:48
+#: templates/vocab-lesson-template.php:128
+msgid "Auto-transcribe missing recordings"
+msgstr "Eksik kayıtları otomatik yazıya dökme"
+
+#: templates/vocab-lesson-template.php:111
 #, php-format
 msgid "Back to %s"
-msgstr ""
+msgstr "Geri %s"
 
-#: templates/vocab-lesson-template.php:48
+#: templates/vocab-lesson-template.php:111
 msgid "Back to Word Set"
+msgstr "Kelime Setine Geri Dön"
+
+#: includes/admin/word-option-rules-admin.php:863
+msgid "Blocked Pairs"
+msgstr "Engellenen Çiftler"
+
+#: includes/admin/word-option-rules-admin.php:864
+msgid "Blocked pairs will never appear as wrong answers for each other."
 msgstr ""
+"Engellenen çiftler asla birbirleri için yanlış cevap olarak görünmeyecektir."
 
 #: includes/admin/uploads/audio-upload-form.php:111
 msgid "Bulk Add Audio"
 msgstr "Toplu Ses Ekleme"
 
-#: includes/taxonomies/word-category-taxonomy.php:1156
-#: includes/taxonomies/word-category-taxonomy.php:1162
+#: includes/taxonomies/word-category-taxonomy.php:1236
+#: includes/taxonomies/word-category-taxonomy.php:1242
 msgid "Bulk Add Categories"
 msgstr "Toplu Kategori Ekleme"
 
 #: includes/admin/uploads/image-upload-form.php:50
 msgid "Bulk Add Images"
 msgstr "Toplu Resim Ekleme"
+
+#: templates/vocab-lesson-template.php:170
+msgid "Cancel"
+msgstr "İptal"
+
+#: templates/vocab-lesson-template.php:162
+msgid "Cancel transcription"
+msgstr "Transkripsiyonu iptal et"
+
+#: templates/vocab-lesson-template.php:127
+msgid "Captions"
+msgstr "Başlıklar"
 
 #: includes/post-types/word-audio-post-type.php:53
 #: includes/post-types/word-image-post-type.php:209
@@ -248,6 +348,10 @@ msgstr "Toplu Resim Ekleme"
 #: includes/shortcodes/user-study-dashboard.php:57
 msgid "Categories"
 msgstr "Kategoriler"
+
+#: includes/admin/word-option-rules-admin.php:607
+msgid "Category"
+msgstr "Kategori"
 
 #: includes/admin/bulk-word-import-admin.php:97
 #, php-format
@@ -263,7 +367,7 @@ msgstr "Kategori \"%s\" oluşturulamadı: %s"
 msgid "Category scope"
 msgstr "Kategori kapsamı"
 
-#: templates/flashcard-widget-template.php:34
+#: templates/flashcard-widget-template.php:43
 msgid "Check All"
 msgstr "Tümünü Seç"
 
@@ -307,18 +411,22 @@ msgstr ""
 "seçin. Ana varsayılanları (İzolasyon, Soru, Giriş) kullanmak için tümünü "
 "işaretlemeden bırakın."
 
-#: includes/pages/vocab-lesson-pages.php:793
+#: includes/pages/vocab-lesson-pages.php:1002
 msgid ""
 "Choose which word sets should get vocab lesson pages at /{wordset}/{category}"
 " (and a wordset landing page at /{wordset}). Saving will sync pages "
 "automatically."
 msgstr ""
+"Hangi kelime setlerinin /{kelime seti}/{kategori} adresinde kelime dersi "
+"sayfaları alması gerektiğini seçin (ve /{wordset} adresinde bir kelime "
+"kümesi açılış sayfası). Kaydetme işlemi sayfaları otomatik olarak senkronize "
+"edecektir."
 
-#: includes/pages/quiz-pages.php:516
+#: includes/pages/quiz-pages.php:519
 msgid "Clean Up & Sync Quiz Pages"
 msgstr "Sınav Sayfalarını Temizleme ve Senkronize Etme"
 
-#: includes/pages/quiz-pages.php:513
+#: includes/pages/quiz-pages.php:516
 msgid ""
 "Clean up quiz pages for categories that can no longer generate valid quizzes "
 "and sync pages for valid categories."
@@ -326,9 +434,22 @@ msgstr ""
 "Artık geçerli testler oluşturamayan kategoriler için test sayfalarını "
 "temizleyin ve geçerli kategoriler için sayfaları senkronize edin."
 
-#: templates/flashcard-widget-template.php:40
-#: templates/flashcard-widget-template.php:45
-#: includes/shortcodes/quiz-pages-shortcodes.php:472
+#: templates/vocab-lesson-template.php:160
+#: includes/admin/ipa-keyboard-admin.php:49
+msgid "Clear"
+msgstr "Temiz"
+
+#: templates/vocab-lesson-template.php:149
+msgid "Clear captions for this lesson"
+msgstr "Bu ders için açık başlıklar"
+
+#: includes/admin/word-option-rules-admin.php:954
+msgid "Click the x to remove a pair."
+msgstr "Bir çifti kaldırmak için x işaretine tıklayın."
+
+#: templates/flashcard-widget-template.php:49
+#: templates/flashcard-widget-template.php:54
+#: includes/shortcodes/quiz-pages-shortcodes.php:481
 msgid "Close"
 msgstr "Kapat"
 
@@ -341,12 +462,20 @@ msgstr ""
 "Bu kullanıcının ses kayıt arayüzünü kullandığında ne kaydetmesi gerektiğini "
 "yapılandırın."
 
+#: includes/admin/word-option-rules-admin.php:1012
+msgid "Confirm Import Target"
+msgstr "İçe Aktarma Hedefini Onayla"
+
+#: includes/admin/word-option-rules-admin.php:998
+msgid "Continue"
+msgstr "Devam et"
+
 #: includes/post-types/word-image-post-type.php:210
 msgid "Copyright Info"
 msgstr "Telif Hakkı Bilgisi"
 
-#: templates/flashcard-widget-template.php:138
-#: includes/shortcodes/quiz-pages-shortcodes.php:559
+#: templates/flashcard-widget-template.php:139
+#: includes/shortcodes/quiz-pages-shortcodes.php:560
 msgid "Correct:"
 msgstr "Doğru: "
 
@@ -426,7 +555,7 @@ msgstr ""
 msgid "Default Recording Page"
 msgstr "Varsayılan Kayıt Sayfası"
 
-#: includes/taxonomies/wordset-taxonomy.php:290
+#: includes/taxonomies/wordset-taxonomy.php:575
 msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
@@ -442,6 +571,42 @@ msgstr "İstenen kayıt türleri"
 #: includes/admin/export-import.php:108
 msgid "Download export (.zip)"
 msgstr "Dışa aktarımı indirin (.zip)"
+
+#: includes/admin/word-option-rules-admin.php:967
+msgid ""
+"Download group and pair settings for this category as JSON, mapped to image "
+"hashes."
+msgstr ""
+"Bu kategori için grup ve çift ayarlarını görüntü karmalarına eşlenmiş JSON "
+"olarak indirin."
+
+#: includes/admin/word-option-rules-admin.php:973
+msgid "Download JSON"
+msgstr "JSON İndir"
+
+#: includes/admin/audio-processor-admin.php:210
+msgid "Duplicate in queue"
+msgstr "Kuyrukta kopya"
+
+#: includes/admin/audio-processor-admin.php:312
+msgid "Duplicates"
+msgstr "Kopyalar"
+
+#: includes/admin/audio-processor-admin.php:344
+msgid ""
+"Duplicates are hidden so you can process one recording per word and "
+"recording type first."
+msgstr ""
+"Kopyalar gizlenir, böylece önce kelime ve kayıt türü başına bir kayıt "
+"işleyebilirsiniz."
+
+#: includes/admin/ipa-keyboard-admin.php:93
+msgid "e.g. IPA symbols"
+msgstr "örneğin IPA sembolleri"
+
+#: includes/admin/ipa-keyboard-admin.php:48
+msgid "e.g. r"
+msgstr "örn. r"
 
 #: includes/admin/bulk-word-import-admin.php:280
 msgid ""
@@ -470,17 +635,29 @@ msgstr "Kayıt Türünü Düzenle"
 
 #: includes/post-types/vocab-lesson-post-type.php:13
 msgid "Edit Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersini Düzenle"
 
-#: includes/taxonomies/word-category-taxonomy.php:1160
+#: includes/taxonomies/wordset-taxonomy.php:180
+msgid "Enable grammatical gender for this word set."
+msgstr "Bu sözcük kümesi için dilbilgisel cinsiyeti etkinleştirin."
+
+#: includes/admin/ipa-keyboard-admin.php:57
+msgid "Enter letters and IPA symbols to add."
+msgstr "Eklemek için harfleri ve IPA sembollerini girin."
+
+#: includes/taxonomies/word-category-taxonomy.php:1240
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr "Virgül, sekme veya yeni satır ile ayrılmış isimleri girin.."
+
+#: includes/admin/ipa-keyboard-admin.php:40
+msgid "Enter one or more symbols to add."
+msgstr "Eklemek için bir veya daha fazla sembol girin."
 
 #: includes/admin/bulk-word-import-admin.php:279
 msgid "Enter one word per line"
 msgstr "Satır başına bir kelime girin"
 
-#: includes/taxonomies/wordset-taxonomy.php:164
+#: includes/taxonomies/wordset-taxonomy.php:173
 msgid "Enter the language for this word set."
 msgstr "Bu kelime seti için dili girin."
 
@@ -499,6 +676,7 @@ msgid "Exclude Recording Types"
 msgstr "Kayıt Türlerini Hariç Tut"
 
 #: includes/admin/export-import.php:87
+#: includes/admin/word-option-rules-admin.php:966
 msgid "Export"
 msgstr "İhracat"
 
@@ -510,6 +688,11 @@ msgstr ""
 "Kelime kategorilerini ve kelime resmi gönderilerini (resimleriyle birlikte) "
 "tek bir zip'e aktarın. Bunları yeniden oluşturmak için zip'i başka bir "
 "siteye aktarın."
+
+#: includes/admin/word-option-rules-admin.php:1015
+#, php-format
+msgid "Exported from category: %s"
+msgstr "Kategori: %s'den dışa aktarıldı"
 
 #: includes/admin/bulk-word-import-admin.php:154
 #, php-format
@@ -540,8 +723,8 @@ msgstr "\"%s\" sözcük görüntüsü güncellenemedi: %s"
 msgid "Faster"
 msgstr "Daha hızlı"
 
-#: templates/flashcard-widget-template.php:99
-#: includes/shortcodes/quiz-pages-shortcodes.php:521
+#: templates/flashcard-widget-template.php:109
+#: includes/shortcodes/quiz-pages-shortcodes.php:531
 msgid "Faster transitions"
 msgstr "Daha hızlı geçişler"
 
@@ -553,6 +736,22 @@ msgstr "Öne Çıkan Görsel"
 #: includes/admin/word-images-fixer.php:99
 msgid "Fix Word Images (Legacy Cleanup)"
 msgstr "Kelime Görüntülerini Düzeltme (Eski Temizleme)"
+
+#: templates/vocab-lesson-template.php:44
+#: templates/vocab-lesson-template.php:223
+#: templates/vocab-lesson-template.php:226
+msgid "Gender"
+msgstr "Cinsiyet"
+
+#: templates/flashcard-widget-template.php:148
+#: includes/shortcodes/flashcard-widget.php:212
+#: includes/shortcodes/quiz-pages-shortcodes.php:569
+msgid "Gender Mode"
+msgstr "Cinsiyet Modu"
+
+#: includes/taxonomies/wordset-taxonomy.php:184
+msgid "Gender options"
+msgstr "Cinsiyet seçenekleri"
 
 #: includes/admin/uploads/image-upload-form.php:28
 msgid ""
@@ -573,6 +772,34 @@ msgstr "Ses İşlemcisine git"
 #: includes/shortcodes/flashcard-widget.php:164
 msgid "Good job!"
 msgstr "Aferin!"
+
+#: includes/taxonomies/wordset-taxonomy.php:177
+msgid "Grammatical gender"
+msgstr "Dilbilgisel cinsiyet"
+
+#: includes/admin/word-option-rules-admin.php:755
+msgid "Group names"
+msgstr "Grup isimleri"
+
+#: includes/admin/word-option-rules-admin.php:562
+msgid ""
+"Group words that should appear together as quiz options, and block pairs "
+"that should never be wrong answers for each other."
+msgstr ""
+"Test seçenekleri olarak birlikte görünmesi gereken kelimeleri gruplayın ve "
+"birbirleri için asla yanlış cevap olmaması gereken çiftleri engelleyin."
+
+#: includes/admin/word-option-rules-admin.php:752
+msgid ""
+"Groups are ordered alphabetically by label in the word grid. Prefix labels "
+"with numbers to force an order."
+msgstr ""
+"Gruplar kelime kılavuzunda etikete göre alfabetik olarak sıralanır. Bir "
+"sıralamayı zorlamak için etiketlerin önüne sayı ekleyin."
+
+#: includes/admin/word-option-rules-admin.php:750
+msgid "Groups of words that go together"
+msgstr "Birlikte kullanılan kelime grupları"
 
 #: includes/post-types/words-post-type.php:331
 msgid "Has Featured Image"
@@ -601,6 +828,10 @@ msgstr ""
 "Sözcük kümeleri kullanılıyorsa, sözcük kümesi bu kategori için sözcükler "
 "içerir"
 
+#: includes/admin/word-option-rules-admin.php:777
+msgid "Image"
+msgstr "Resim"
+
 #: includes/admin/export-import.php:735
 #, php-format
 msgid "Image file for \"%s\" is missing from the zip."
@@ -612,8 +843,13 @@ msgid "Images"
 msgstr "Görüntüler"
 
 #: includes/admin/export-import.php:113 includes/admin/export-import.php:145
+#: includes/admin/word-option-rules-admin.php:978
 msgid "Import"
 msgstr "İthalat"
+
+#: includes/admin/word-option-rules-admin.php:963
+msgid "Import / Export"
+msgstr "İthalat / İhracat"
 
 #: includes/admin/export-import.php:743
 msgid "Import complete."
@@ -672,9 +908,29 @@ msgstr "İçe aktarma başarısız oldu: sunucu içe aktarma klasörü mevcut de
 msgid "Import failed: uploaded file is missing."
 msgstr "İçe aktarma başarısız: yüklenen dosya eksik."
 
+#: includes/admin/word-option-rules-admin.php:984
+msgid "Import file"
+msgstr "Dosya içe aktarma"
+
+#: includes/admin/word-option-rules-admin.php:584
+msgid "Import file does not contain any image hashes."
+msgstr "İçe aktarma dosyası herhangi bir görüntü karması içermez."
+
+#: includes/admin/word-option-rules-admin.php:583
+msgid "Import file is not valid JSON."
+msgstr "İçe aktarma dosyası geçerli JSON değil."
+
 #: includes/admin/export-import.php:744
 msgid "Import finished with some errors."
 msgstr "İçe aktarma işlemi bazı hatalarla tamamlandı."
+
+#: includes/admin/word-option-rules-admin.php:1390
+msgid "Import session expired. Please start again."
+msgstr "İçe aktarma oturumunun süresi doldu. Lütfen yeniden başlatın."
+
+#: includes/admin/word-option-rules-admin.php:1042
+msgid "Import session expired. Please upload the file again."
+msgstr "İçe aktarma oturumunun süresi doldu. Lütfen dosyayı tekrar yükleyin."
 
 #: includes/admin/bulk-word-import-admin.php:316
 msgid "Import words"
@@ -690,7 +946,6 @@ msgid "Include Recording Types"
 msgstr "Kayıt Türlerini Dahil Et"
 
 #: includes/shortcodes/user-study-dashboard.php:72
-#: includes/shortcodes/word-grid-shortcode.php:193
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
@@ -699,12 +954,31 @@ msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
 msgid "Invalid category specified."
 msgstr "Geçersiz kategori belirtildi."
 
-#: includes/pages/vocab-lesson-pages.php:736
+#: includes/pages/vocab-lesson-pages.php:945
 msgid "Invalid vocab lesson settings request."
-msgstr ""
+msgstr "Geçersiz kelime dersi ayarları isteği."
+
+#: includes/admin/word-option-rules-admin.php:1269
+msgid "Invalid word set or category."
+msgstr "Geçersiz sözcük kümesi veya kategori."
+
+#: includes/admin/ipa-keyboard-admin.php:76
+msgid "IPA Keyboard Manager"
+msgstr "IPA Klavye Yöneticisi"
+
+#: includes/admin/ipa-keyboard-admin.php:100
+msgid "IPA Special Characters"
+msgstr "IPA Özel Karakterleri"
+
+#: includes/admin/ipa-keyboard-admin.php:52
+msgid "IPA symbols"
+msgstr "IPA sembolleri"
+
+#: includes/admin/ipa-keyboard-admin.php:54
+msgid "IPA symbols (e.g. r)"
+msgstr "IPA sembolleri (örn. r)"
 
 #: includes/shortcodes/user-study-dashboard.php:71
-#: includes/shortcodes/word-grid-shortcode.php:192
 #: includes/taxonomies/recording-type-taxonomy.php:41
 #: includes/admin/uploads/audio-upload-form.php:62
 msgid "Isolation"
@@ -720,7 +994,7 @@ msgstr ""
 "Varsayılan yumuşak tempoyu koruyun veya doğru cevaplardan sonra hızlandırın."
 
 #: includes/taxonomies/language-taxonomy.php:11
-#: includes/taxonomies/wordset-taxonomy.php:162
+#: includes/taxonomies/wordset-taxonomy.php:171
 msgid "Language"
 msgstr "Dil"
 
@@ -733,7 +1007,7 @@ msgstr "Dil Eğitimi Araçları"
 msgid "Languages"
 msgstr "Diller"
 
-#: templates/vocab-lesson-template.php:35
+#: templates/vocab-lesson-template.php:43
 #: includes/shortcodes/user-study-dashboard.php:62
 msgid "Learn"
 msgstr "Öğren"
@@ -742,9 +1016,9 @@ msgstr "Öğren"
 msgid "Learning Complete!"
 msgstr "Öğrenme Tamamlandı!"
 
-#: templates/flashcard-widget-template.php:145
-#: includes/shortcodes/flashcard-widget.php:192
-#: includes/shortcodes/quiz-pages-shortcodes.php:566
+#: templates/flashcard-widget-template.php:146
+#: includes/shortcodes/flashcard-widget.php:199
+#: includes/shortcodes/quiz-pages-shortcodes.php:567
 msgid "Learning Mode"
 msgstr "Öğrenme Modu"
 
@@ -766,7 +1040,23 @@ msgstr "Atanmamış bırakın"
 msgid "Leave uncategorized"
 msgstr "Kategorize edilmemiş bırakın"
 
-#: templates/vocab-lesson-template.php:36
+#: includes/admin/ipa-keyboard-admin.php:105
+msgid "Letter to IPA Map"
+msgstr "IPA Haritasına Mektup"
+
+#: includes/admin/ipa-keyboard-admin.php:45
+msgid "Letter(s)"
+msgstr "Mektup(lar)"
+
+#: includes/admin/ipa-keyboard-admin.php:51
+msgid "Letters"
+msgstr "Mektuplar"
+
+#: includes/admin/ipa-keyboard-admin.php:53
+msgid "Letters (e.g. ll)"
+msgstr "Harfler (örn. ll)"
+
+#: templates/vocab-lesson-template.php:45
 #: includes/shortcodes/user-study-dashboard.php:63
 msgid "Listen"
 msgstr "Dinle"
@@ -791,14 +1081,42 @@ msgstr "LL Araçları - Toplu Kelime İçe Aktarma"
 msgid "LL Tools — Fix Word Images"
 msgstr "LL Araçları - Kelime Görüntülerini Düzeltme"
 
+#: includes/admin/word-option-rules-admin.php:618
+msgid "Load words"
+msgstr "Kelimeleri yükle"
+
 #: includes/shortcodes/flashcard-widget.php:170
 msgid "Loading Error"
 msgstr "Yükleme Hatası"
+
+#: includes/admin/ipa-keyboard-admin.php:33
+msgid "Loading IPA symbols..."
+msgstr "IPA sembolleri yükleniyor..."
+
+#: includes/admin/word-option-rules-admin.php:943
+msgid "Locked"
+msgstr "Kilitli"
 
 #: includes/user-study.php:218 includes/user-study.php:234
 #: includes/user-study.php:250
 msgid "Login required."
 msgstr "Giriş gerekli."
+
+#: includes/admin/ipa-keyboard-admin.php:47
+msgid "Manual override"
+msgstr "Manuel geçersiz kılma"
+
+#: includes/admin/word-option-rules-admin.php:903
+msgid "Manual pair"
+msgstr "Manuel çift"
+
+#: includes/admin/ipa-keyboard-admin.php:106
+msgid ""
+"Mappings inferred from transcriptions. Add manual overrides to fix "
+"suggestion mistakes."
+msgstr ""
+"Transkripsiyonlardan çıkarılan eşlemeler. Öneri hatalarını düzeltmek için "
+"manuel geçersiz kılmalar ekleyin."
 
 #: includes/post-types/words-post-type.php:489
 msgid "Mark for Audio Reprocessing"
@@ -812,6 +1130,14 @@ msgstr "Orijinal kelime yerine çeviriye dayalı görüntüleri eşleştirin"
 msgid "Match to existing word posts instead of creating new ones"
 msgstr "Yeni kelime oluşturmak yerine mevcut kelime gönderileriyle eşleştirin"
 
+#: includes/admin/word-option-rules-admin.php:1263
+msgid "Missing word set or category for export."
+msgstr "Dışa aktarma için eksik kelime seti veya kategori."
+
+#: includes/admin/word-option-rules-admin.php:1395
+msgid "Missing word set or category for import."
+msgstr "İçe aktarma için eksik kelime seti veya kategori."
+
 #: includes/post-types/word-audio-post-type.php:16
 msgid "New Audio Recording"
 msgstr "Yeni Ses Kaydı"
@@ -822,11 +1148,15 @@ msgstr "Yeni Kayıt Tipi Adı"
 
 #: includes/post-types/vocab-lesson-post-type.php:14
 msgid "New Vocab Lesson"
-msgstr ""
+msgstr "Yeni Kelime Dersi"
 
 #: includes/post-types/words-post-type.php:333
 msgid "No"
 msgstr "Hayır"
+
+#: includes/admin/word-option-rules-admin.php:836
+msgid "No audio"
+msgstr "Ses yok"
 
 #: includes/post-types/word-audio-post-type.php:19
 msgid "No audio recordings found"
@@ -836,18 +1166,46 @@ msgstr "Ses kaydı bulunamadı"
 msgid "No audio recordings found in trash"
 msgstr "Çöp kutusunda ses kaydı bulunamadı"
 
+#: includes/admin/word-option-rules-admin.php:956
+msgid "No blocked pairs yet."
+msgstr "Henüz engellenmiş çift yok."
+
 #: includes/shortcodes/user-study-dashboard.php:64
 msgid "No categories available for this word set yet."
 msgstr "Bu kelime seti için henüz kategori mevcut değil."
+
+#: includes/admin/word-option-rules-admin.php:586
+msgid "No categories found for the selected word set."
+msgstr "Seçilen sözcük kümesi için kategori bulunamadı."
+
+#: includes/admin/audio-processor-admin.php:351
+msgid "No duplicates found."
+msgstr "Mükerrer bulunamadı."
 
 #: includes/admin/missing-audio-admin-page.php:1396
 #: includes/admin/missing-audio-admin-page.php:1528
 msgid "No headers selected for matching."
 msgstr "Eşleştirme için seçilen başlık yok."
 
+#: includes/admin/word-option-rules-admin.php:804
+msgid "No image"
+msgstr "Resim yok"
+
+#: includes/admin/ipa-keyboard-admin.php:34
+msgid "No IPA symbols found for this word set."
+msgstr "Bu sözcük kümesi için IPA sembolü bulunamadı."
+
 #: templates/wordset-page-template.php:47
 msgid "No lesson categories yet."
-msgstr ""
+msgstr "Henüz ders kategorisi yok."
+
+#: includes/admin/ipa-keyboard-admin.php:43
+msgid "No letter mappings found for this word set."
+msgstr "Bu kelime grubu için harf eşleştirmesi bulunamadı."
+
+#: includes/admin/ipa-keyboard-admin.php:44
+msgid "No mappings yet."
+msgstr "Henüz eşleme yok."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:815
 msgid "No quiz pages are available yet."
@@ -865,34 +1223,48 @@ msgstr "Kayıt sayfası bulunamadı."
 msgid "No recording types defined yet."
 msgstr "Henüz tanımlanmış kayıt türü yok."
 
+#: includes/admin/ipa-keyboard-admin.php:41
+msgid "No recordings use this symbol yet."
+msgstr "Henüz bu sembolü kullanan kayıt yok."
+
+#: includes/admin/audio-processor-admin.php:326
+msgid ""
+"No unique recordings in the queue. Check the duplicates tab for additional "
+"recordings."
+msgstr ""
+"Kuyrukta benzersiz kayıt yok. Ek kayıtlar için yinelenenler sekmesini "
+"kontrol edin."
+
 #: includes/post-types/vocab-lesson-post-type.php:17
 msgid "No vocab lessons found"
-msgstr ""
+msgstr "Kelime dersi bulunamadı"
 
 #: includes/post-types/vocab-lesson-post-type.php:18
 msgid "No vocab lessons found in Trash"
-msgstr ""
+msgstr "No vocab lessons found in Çöp Kutusu"
 
-#: includes/pages/vocab-lesson-pages.php:812
+#: includes/pages/vocab-lesson-pages.php:1021
 msgid ""
 "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
+"Henüz hiçbir kelime seti etkinleştirilmemiştir, bu nedenle hiçbir kelime "
+"dersi sayfası oluşturulmayacaktır."
 
 #: includes/admin/uploads/image-upload-form.php:45
 msgid "No word sets available."
 msgstr "Hiçbir kelime seti mevcut değil."
 
-#: includes/pages/vocab-lesson-pages.php:808
+#: includes/pages/vocab-lesson-pages.php:1017
 msgid "No word sets found yet."
-msgstr ""
+msgstr "Henüz bir haber bulunamadı."
 
 #: includes/shortcodes/flashcard-widget.php:172
 msgid "No words could be loaded for this quiz. Please check that:"
 msgstr "Bu test için hiçbir kelime yüklenemedi. Lütfen kontrol edin:"
 
-#: includes/shortcodes/word-grid-shortcode.php:268
-msgid "No words found in this category."
-msgstr ""
+#: includes/admin/word-option-rules-admin.php:629
+msgid "No words found for this word set and category."
+msgstr "Bu kelime seti ve kategori için kelime bulunamadı."
 
 #: includes/admin/export-import.php:137
 msgid "No zip files found in the server import folder yet."
@@ -901,6 +1273,18 @@ msgstr "Sunucu içe aktarma klasöründe henüz zip dosyası bulunamadı."
 #: includes/shortcodes/user-study-dashboard.php:133
 msgid "None"
 msgstr "Hiçbiri"
+
+#: templates/vocab-lesson-template.php:224
+msgid "Noun gender"
+msgstr "İsim cinsiyeti"
+
+#: includes/taxonomies/wordset-taxonomy.php:186
+msgid ""
+"One option per line (for example: ♂, ♀, neuter). Use custom text if you "
+"prefer."
+msgstr ""
+"Satır başına bir seçenek (örneğin: ♂, ♀, nötr). İsterseniz özel metin "
+"kullanın."
 
 #: includes/admin/bulk-word-import-admin.php:311
 msgid ""
@@ -927,17 +1311,33 @@ msgstr "Veya sunucuda zaten bulunan bir zip seçin"
 msgid "Other Users"
 msgstr "Diğer Kullanıcılar"
 
+#: includes/admin/word-option-rules-admin.php:912
+msgid "Pair"
+msgstr "Çift"
+
+#: includes/admin/word-option-rules-admin.php:865
+msgid "Pairs with the same image are locked and cannot be removed."
+msgstr "Aynı görüntüye sahip çiftler kilitlenir ve kaldırılamaz."
+
 #: includes/post-types/word-audio-post-type.php:21
 msgid "Parent Word:"
 msgstr "Ebeveyn kelimesi:"
 
+#: templates/vocab-lesson-template.php:195
+#: templates/vocab-lesson-template.php:202
+#: templates/vocab-lesson-template.php:206
+#: templates/vocab-lesson-template.php:209
 #: includes/taxonomies/part-of-speech-taxonomy.php:7
 msgid "Part of Speech"
-msgstr "Konuşma Parçası"
+msgstr "Sözcük Türü"
+
+#: templates/vocab-lesson-template.php:207
+msgid "Part of speech"
+msgstr "Sözcük türü"
 
 #: includes/taxonomies/part-of-speech-taxonomy.php:6
 msgid "Parts of Speech"
-msgstr "Konuşmanın Bölümleri"
+msgstr "Sözcük Türleri"
 
 #: includes/shortcodes/flashcard-widget.php:163
 msgid "Perfect!"
@@ -947,20 +1347,27 @@ msgstr "Mükemmel!"
 msgid "Permission denied"
 msgstr "İzin reddedildi"
 
-#: includes/taxonomies/word-category-taxonomy.php:1174
+#: includes/taxonomies/word-category-taxonomy.php:1254
 msgid "Permission denied or invalid nonce."
 msgstr "İzin reddedildi veya geçersiz nonce."
 
-#: templates/flashcard-widget-template.php:55
-#: includes/shortcodes/quiz-pages-shortcodes.php:478
+#: includes/admin/word-option-rules-admin.php:1052
+#: includes/admin/word-option-rules-admin.php:1255
+#: includes/admin/word-option-rules-admin.php:1304
+#: includes/admin/word-option-rules-admin.php:1381
+msgid "Permission denied."
+msgstr "İzin verilmedi."
+
+#: templates/flashcard-widget-template.php:64
+#: includes/shortcodes/quiz-pages-shortcodes.php:487
 msgid "Play"
 msgstr "Oyun"
 
+#: includes/admin/word-option-rules-admin.php:822
 #: includes/shortcodes/user-study-dashboard.php:69
-#: includes/shortcodes/word-grid-shortcode.php:195
 #, php-format
 msgid "Play %s recording"
-msgstr ""
+msgstr "%s kaydını oynat"
 
 #: includes/shortcodes/user-study-dashboard.php:68
 msgid "Play audio"
@@ -985,40 +1392,47 @@ msgstr ""
 msgid "Please provide at least one word to import."
 msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
 
-#: templates/vocab-lesson-template.php:34
+#: templates/vocab-lesson-template.php:42
 #: includes/shortcodes/user-study-dashboard.php:61
 msgid "Practice"
 msgstr "Tekrarla"
 
-#: templates/flashcard-widget-template.php:144
-#: includes/shortcodes/flashcard-widget.php:186
-#: includes/shortcodes/quiz-pages-shortcodes.php:565
+#: templates/flashcard-widget-template.php:145
+#: includes/shortcodes/flashcard-widget.php:193
+#: includes/shortcodes/quiz-pages-shortcodes.php:566
 msgid "Practice Mode"
 msgstr "Tekrar Modu"
 
 #: includes/user-roles/audio-recorder-role.php:206
 #: includes/user-roles/audio-recorder-role.php:317
 msgid "Process recordings immediately and publish them after review."
-msgstr ""
+msgstr "Kayıtları hemen işleyin ve inceledikten sonra yayınlayın."
+
+#: includes/admin/audio-processor-admin.php:208
+msgid "Published audio exists"
+msgstr "Yayınlanmış ses var"
 
 #: includes/shortcodes/user-study-dashboard.php:70
-#: includes/shortcodes/word-grid-shortcode.php:191
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
 
-#: templates/vocab-lesson-template.php:65
-msgid "Quiz modes"
-msgstr ""
+#: includes/admin/audio-processor-admin.php:301
+msgid "Queue"
+msgstr "Sıra"
 
-#: includes/pages/quiz-pages.php:505
+#: templates/vocab-lesson-template.php:249
+msgid "Quiz modes"
+msgstr "Sınav modları"
+
+#: includes/pages/quiz-pages.php:508
 msgid ""
 "Quiz page cleanup completed. %d invalid pages removed and valid pages synced."
 msgstr ""
 "Sınav sayfası temizleme işlemi tamamlandı. d geçersiz sayfalar kaldırıldı ve "
 "geçerli sayfalar senkronize edildi."
 
-#: includes/pages/quiz-pages.php:512
+#: includes/pages/quiz-pages.php:515
 msgid "Quiz Page Management"
 msgstr "Sınav Sayfası Yönetimi"
 
@@ -1027,8 +1441,8 @@ msgstr "Sınav Sayfası Yönetimi"
 msgid "Quiz Prompt Type"
 msgstr "Sınav İstemi Türü"
 
-#: templates/flashcard-widget-template.php:135
-#: includes/shortcodes/quiz-pages-shortcodes.php:557
+#: templates/flashcard-widget-template.php:136
+#: includes/shortcodes/quiz-pages-shortcodes.php:558
 msgid "Quiz Results"
 msgstr "Sonuçlar"
 
@@ -1040,6 +1454,10 @@ msgstr "Sınav seçimi"
 #, php-format
 msgid "Quiz: %s"
 msgstr "Sınav: %s"
+
+#: includes/admin/word-option-rules-admin.php:913
+msgid "Reason"
+msgstr "Sebep"
 
 #: includes/pages/recording-page.php:56
 msgid "Record Audio"
@@ -1064,17 +1482,34 @@ msgid "Recording Types"
 msgstr "Kayıt Türleri"
 
 #: includes/shortcodes/user-study-dashboard.php:73
-#: includes/shortcodes/word-grid-shortcode.php:261
 msgid "Recordings"
-msgstr ""
+msgstr "Kayıtlar"
 
 #: includes/pages/recording-page.php:137
 msgid "Recreate Recording Page"
 msgstr "Kayıt Sayfasını Yeniden Oluştur"
 
-#: templates/flashcard-widget-template.php:146
-#: includes/shortcodes/flashcard-widget.php:198
-#: includes/shortcodes/quiz-pages-shortcodes.php:567
+#: includes/admin/word-option-rules-admin.php:763
+#: includes/admin/word-option-rules-admin.php:911
+msgid "Remove"
+msgstr "Kaldırmak"
+
+#: includes/admin/word-option-rules-admin.php:927
+#, php-format
+msgid "Remove pair: %s"
+msgstr "Çifti kaldır: %s"
+
+#: templates/vocab-lesson-template.php:147
+msgid "Replace"
+msgstr "Değiştirin"
+
+#: templates/vocab-lesson-template.php:138
+msgid "Replace captions for this lesson"
+msgstr "Bu ders için altyazıları değiştirin"
+
+#: templates/flashcard-widget-template.php:147
+#: includes/shortcodes/flashcard-widget.php:205
+#: includes/shortcodes/quiz-pages-shortcodes.php:568
 msgid "Replay Listening"
 msgstr "Tekrar Dinleme"
 
@@ -1083,17 +1518,39 @@ msgstr "Tekrar Dinleme"
 msgid "Restart Quiz"
 msgstr "Yeniden Başla"
 
+#: includes/admin/ipa-keyboard-admin.php:77
+msgid ""
+"Review IPA symbols per word set, update recordings, and add new keyboard "
+"symbols."
+msgstr ""
+"Kelime seti başına IPA sembollerini gözden geçirin, kayıtları güncelleyin ve "
+"yeni klavye sembolleri ekleyin."
+
+#: includes/admin/word-option-rules-admin.php:905
+msgid "Same image"
+msgstr "Aynı resim"
+
+#: includes/admin/ipa-keyboard-admin.php:42
 #: includes/admin/recording-types-admin.php:187
 msgid "Save"
 msgstr "Kaydet"
 
-#: includes/pages/vocab-lesson-pages.php:816
-msgid "Save Settings & Sync"
-msgstr ""
+#: includes/admin/word-option-rules-admin.php:860
+msgid "Save groups"
+msgstr "Grupları kaydet"
 
+#: includes/pages/vocab-lesson-pages.php:1025
+msgid "Save Settings & Sync"
+msgstr "Ayarları Kaydet ve Senkronize Et"
+
+#: includes/admin/ipa-keyboard-admin.php:36
 #: includes/shortcodes/user-study-dashboard.php:60
 msgid "Saved."
 msgstr "Kaydedildi."
+
+#: includes/admin/ipa-keyboard-admin.php:35
+msgid "Saving..."
+msgstr "Tasarruf."
 
 #: includes/admin/word-images-fixer.php:100
 msgid ""
@@ -1113,29 +1570,78 @@ msgstr "Kayıt Türlerini Ara"
 
 #: includes/post-types/vocab-lesson-post-type.php:16
 msgid "Search Vocab Lessons"
-msgstr ""
+msgstr "Kelime Derslerini Ara"
 
 #: includes/admin/missing-audio-admin-page.php:31
 msgid "Security check failed."
 msgstr "Güvenlik kontrolü başarısız oldu."
 
+#: includes/admin/word-option-rules-admin.php:609
+msgid "Select a category"
+msgstr "Bir kategori seçin"
+
 #: includes/shortcodes/user-study-dashboard.php:65
 msgid "Select a category to see its words."
 msgstr "Kelimelerini görmek için bir kategori seçin."
+
+#: includes/admin/word-option-rules-admin.php:581
+msgid "Select a file to import."
+msgstr "İçe aktarmak için bir dosya seçin."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:798
 msgid "Select a quiz…"
 msgstr "Bir sınav seçin.."
 
+#: includes/admin/word-option-rules-admin.php:871
+#: includes/admin/word-option-rules-admin.php:886
+msgid "Select a word"
+msgstr "Bir kelime seçin"
+
+#: includes/admin/ipa-keyboard-admin.php:82
+#: includes/admin/word-option-rules-admin.php:597
+#: includes/admin/word-option-rules-admin.php:990
+msgid "Select a word set"
+msgstr "Bir sözcük kümesi seçin"
+
+#: includes/admin/word-option-rules-admin.php:622
+msgid "Select a word set and category to manage word option rules."
+msgstr ""
+"Sözcük seçeneği kurallarını yönetmek için bir sözcük kümesi ve kategori "
+"seçin."
+
+#: includes/admin/ipa-keyboard-admin.php:39
+msgid "Select a word set first."
+msgstr "Önce bir sözcük kümesi seçin."
+
+#: includes/admin/word-option-rules-admin.php:585
+msgid "Select a word set to apply the import to."
+msgstr "İçe aktarmayı uygulamak için bir sözcük kümesi seçin."
+
 #: includes/admin/export-import.php:124
 msgid "Select a zip file"
 msgstr "Bir zip dosyası seçin"
 
-#: templates/flashcard-widget-template.php:31
+#: templates/flashcard-widget-template.php:40
 #: includes/admin/uploads/audio-upload-form.php:88
 #: includes/admin/uploads/image-upload-form.php:23
 msgid "Select Categories"
 msgstr "Kategorileri Seç"
+
+#: templates/vocab-lesson-template.php:225
+msgid "Select gender"
+msgstr "Cinsiyet seçin"
+
+#: templates/vocab-lesson-template.php:208
+msgid "Select part of speech"
+msgstr "Konuşma bölümünü seçin"
+
+#: includes/admin/word-option-rules-admin.php:1017
+msgid ""
+"Select the category to apply these settings to. The suggested category has "
+"the most matching images."
+msgstr ""
+"Bu ayarların uygulanacağı kategoriyi seçin. Önerilen kategori en çok eşleşen "
+"görsele sahiptir."
 
 #: includes/taxonomies/word-category-taxonomy.php:511
 msgid ""
@@ -1167,6 +1673,10 @@ msgstr ""
 msgid "Show image"
 msgstr "Resmi göster"
 
+#: includes/admin/word-option-rules-admin.php:904
+msgid "Similar word"
+msgstr "Benzer kelime"
+
 #: includes/admin/export-import.php:723
 #, php-format
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
@@ -1175,6 +1685,10 @@ msgstr "Dosya yolu geçersiz olduğu için \"%s\" için küçük resim atlandı.
 #: includes/shortcodes/flashcard-widget.php:171
 msgid "Something went wrong"
 msgstr "Bir şeyler ters gitti"
+
+#: includes/admin/ipa-keyboard-admin.php:37
+msgid "Something went wrong. Please try again."
+msgstr "Bir şeyler yanlış gitti. Lütfen tekrar deneyin."
 
 #: includes/post-types/word-audio-post-type.php:54
 msgid "Speaker"
@@ -1188,31 +1702,25 @@ msgstr "Konuşmacı Görevlendirmesi"
 msgid "Standard"
 msgstr "Standart"
 
-#: templates/flashcard-widget-template.php:98
-#: includes/shortcodes/quiz-pages-shortcodes.php:520
+#: templates/flashcard-widget-template.php:108
+#: includes/shortcodes/quiz-pages-shortcodes.php:530
 msgid "Standard pace"
 msgstr "Standart hız"
 
-#: templates/vocab-lesson-template.php:59
+#: templates/vocab-lesson-template.php:123
 #: includes/shortcodes/user-study-dashboard.php:66
-#: includes/shortcodes/word-grid-shortcode.php:136
 msgid "Star all"
 msgstr "Tümünü işaretle"
-
-#: includes/shortcodes/word-grid-shortcode.php:134
-#: includes/shortcodes/word-grid-shortcode.php:228
-msgid "Star word"
-msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:59
 msgid "Starred"
 msgstr "Yıldızlı"
 
-#: templates/flashcard-widget-template.php:26
+#: templates/flashcard-widget-template.php:35
 msgid "Start"
 msgstr "Başla"
 
-#: templates/flashcard-widget-template.php:39
+#: templates/flashcard-widget-template.php:48
 msgid "Start Quiz"
 msgstr "Başla"
 
@@ -1220,37 +1728,47 @@ msgstr "Başla"
 msgid "Strong Anchor Tech"
 msgstr "Strong Anchor Tech"
 
-#: templates/flashcard-widget-template.php:73
-#: includes/shortcodes/quiz-pages-shortcodes.php:495
+#: templates/flashcard-widget-template.php:83
+#: includes/shortcodes/quiz-pages-shortcodes.php:505
 msgid "Study Settings"
 msgstr "Çalışma Ayarları"
 
-#: includes/taxonomies/word-category-taxonomy.php:1142
+#: templates/vocab-lesson-template.php:288
+msgid "Study settings"
+msgstr "Çalışma ayarları"
+
+#: includes/taxonomies/word-category-taxonomy.php:1222
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] "Başarıyla %d kategorisi eklendi."
 msgstr[1] "Başarıyla %d kategori eklendi."
 
-#: templates/flashcard-widget-template.php:129
-#: includes/shortcodes/quiz-pages-shortcodes.php:551
+#: templates/flashcard-widget-template.php:130
+#: includes/shortcodes/quiz-pages-shortcodes.php:552
 msgid "Switch Mode"
 msgstr "Modu Değiştir"
 
-#: templates/flashcard-widget-template.php:71
-#: includes/shortcodes/flashcard-widget.php:191
-#: includes/shortcodes/quiz-pages-shortcodes.php:493
+#: templates/flashcard-widget-template.php:82
+#: includes/shortcodes/flashcard-widget.php:211
+#: includes/shortcodes/quiz-pages-shortcodes.php:504
+msgid "Switch to Gender Mode"
+msgstr "Cinsiyet Moduna Geçin"
+
+#: templates/flashcard-widget-template.php:80
+#: includes/shortcodes/flashcard-widget.php:198
+#: includes/shortcodes/quiz-pages-shortcodes.php:502
 msgid "Switch to Learning Mode"
 msgstr "Öğrenme Moduna Geçin"
 
-#: templates/flashcard-widget-template.php:72
-#: includes/shortcodes/flashcard-widget.php:197
-#: includes/shortcodes/quiz-pages-shortcodes.php:494
+#: templates/flashcard-widget-template.php:81
+#: includes/shortcodes/flashcard-widget.php:204
+#: includes/shortcodes/quiz-pages-shortcodes.php:503
 msgid "Switch to Listening Mode"
 msgstr "Dinleme Moduna Geçin"
 
-#: templates/flashcard-widget-template.php:70
-#: includes/shortcodes/flashcard-widget.php:185
-#: includes/shortcodes/quiz-pages-shortcodes.php:492
+#: templates/flashcard-widget-template.php:79
+#: includes/shortcodes/flashcard-widget.php:192
+#: includes/shortcodes/quiz-pages-shortcodes.php:501
 msgid "Switch to Practice Mode"
 msgstr "Tekrar Moduna Geçin"
 
@@ -1259,9 +1777,21 @@ msgid "Switch word sets to load their categories and words."
 msgstr ""
 "Kategorilerini ve kelimelerini yüklemek için kelime setlerini değiştirin."
 
-#: includes/pages/vocab-lesson-pages.php:817
-msgid "Sync Now"
+#: includes/admin/ipa-keyboard-admin.php:38
+msgid "Symbols added."
+msgstr "Semboller eklendi."
+
+#: includes/admin/ipa-keyboard-admin.php:101
+msgid ""
+"Symbols used in this word set. Update recordings or add new symbols to the "
+"keyboard."
 msgstr ""
+"Bu kelime setinde kullanılan semboller. Kayıtları güncelleyin veya klavyeye "
+"yeni semboller ekleyin."
+
+#: includes/pages/vocab-lesson-pages.php:1026
+msgid "Sync Now"
+msgstr "Şimdi Senkronize Et"
 
 #: includes/admin/settings.php:102
 msgid "Target Language"
@@ -1319,10 +1849,10 @@ msgstr ""
 "İpucu: Tümünün işaretini kaldırın ve ana varsayılanlara sıfırlamak için "
 "Kaydet'e tıklayın."
 
-#: templates/flashcard-widget-template.php:96
-#: templates/flashcard-widget-template.php:97
-#: includes/shortcodes/quiz-pages-shortcodes.php:518
-#: includes/shortcodes/quiz-pages-shortcodes.php:519
+#: templates/flashcard-widget-template.php:106
+#: templates/flashcard-widget-template.php:107
+#: includes/shortcodes/quiz-pages-shortcodes.php:528
+#: includes/shortcodes/quiz-pages-shortcodes.php:529
 #: includes/shortcodes/user-study-dashboard.php:74
 msgid "Transition speed"
 msgstr "Geçiş hızı"
@@ -1340,7 +1870,7 @@ msgstr "Çeviri"
 msgid "Translation Language"
 msgstr "Çeviri Dili"
 
-#: includes/admin/audio-processor-admin.php:179
+#: includes/admin/audio-processor-admin.php:225
 #: includes/post-types/word-audio-post-type.php:55
 msgid "Type"
 msgstr "Tip"
@@ -1353,7 +1883,24 @@ msgstr ""
 "Bu kullanıcıdan hariç tutulacak türler. Yalnızca \"Türleri Dahil Et\" boşsa "
 "kullanılır."
 
-#: includes/admin/audio-processor-admin.php:165
+#: includes/admin/word-option-rules-admin.php:1400
+msgid "Unable to apply import rules."
+msgstr "İçe aktarma kuralları uygulanamıyor."
+
+#: includes/admin/word-option-rules-admin.php:588
+msgid "Unable to import word option settings."
+msgstr "Sözcük seçeneği ayarları içe aktarılamıyor."
+
+#: includes/admin/word-option-rules-admin.php:582
+msgid "Unable to read the import file."
+msgstr "İçe aktarma dosyası okunamıyor."
+
+#: includes/admin/word-option-rules-admin.php:567
+msgid "Unable to save word option rules. Please check your selections."
+msgstr ""
+"Kelime seçeneği kuralları kaydedilemiyor. Lütfen seçimlerinizi kontrol edin."
+
+#: includes/admin/audio-processor-admin.php:204
 #: includes/admin/uploads/audio-upload-form.php:72
 msgid "Unassigned"
 msgstr "Atanmamış"
@@ -1374,23 +1921,29 @@ msgstr "Genel varsayılanlar ana kayıt türlerine sıfırlanır."
 msgid "Uncategorized defaults updated."
 msgstr "Kategorize edilmemiş varsayılanlar güncellendi."
 
-#: templates/flashcard-widget-template.php:33
+#: templates/flashcard-widget-template.php:42
 msgid "Uncheck All"
 msgstr "Seçimleri Kaldır"
 
+#: includes/admin/word-option-rules-admin.php:938
+msgid "Unknown"
+msgstr "Bilinmiyor"
+
 #: includes/shortcodes/user-study-dashboard.php:67
-#: includes/shortcodes/word-grid-shortcode.php:137
 msgid "Unstar all"
 msgstr "Hepsini kaldır"
-
-#: includes/shortcodes/word-grid-shortcode.php:135
-#: includes/shortcodes/word-grid-shortcode.php:227
-msgid "Unstar word"
-msgstr ""
 
 #: includes/taxonomies/recording-type-taxonomy.php:15
 msgid "Update Recording Type"
 msgstr "Kayıt Türünü Güncelle"
+
+#: includes/admin/word-option-rules-admin.php:979
+msgid ""
+"Upload an exported JSON file and select the word set to apply it to. You "
+"will confirm the category on the next step."
+msgstr ""
+"Dışa aktarılmış bir JSON dosyası yükleyin ve uygulanacak kelime setini seçin."
+" Bir sonraki adımda kategoriyi onaylayacaksınız."
 
 #: includes/admin/export-import.php:118
 msgid "Upload export zip (optional)"
@@ -1413,6 +1966,18 @@ msgstr ""
 "Yukarıdaki ihracatçı tarafından oluşturulan bir zip kullanın. Kategorileri, "
 "kelime resmi gönderilerini ve bunların resimlerini içe aktarır."
 
+#: includes/admin/ipa-keyboard-admin.php:55
+msgid "Use multiple letters to map digraphs like ll."
+msgstr "Ll gibi digrafları eşlemek için birden fazla harf kullanın."
+
+#: includes/admin/word-option-rules-admin.php:751
+msgid ""
+"Use the same label for words that should be used together for wrong answers. "
+"Leave blank to keep a word ungrouped."
+msgstr ""
+"Yanlış cevaplar için birlikte kullanılması gereken kelimeler için aynı "
+"etiketi kullanın. Bir kelimeyi gruplanmamış halde tutmak için boş bırakın."
+
 #: includes/post-types/word-audio-post-type.php:305
 msgid "User not found"
 msgstr "Kullanıcı bulunamadı"
@@ -1427,30 +1992,32 @@ msgstr "Kullanıcı Profilini Görüntüle"
 
 #: includes/post-types/vocab-lesson-post-type.php:15
 msgid "View Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersini Görüntüle"
 
 #: includes/post-types/vocab-lesson-post-type.php:11
 msgid "Vocab Lesson"
-msgstr ""
+msgstr "Kelime Dersi"
 
-#: includes/pages/vocab-lesson-pages.php:792
+#: includes/pages/vocab-lesson-pages.php:1001
 msgid "Vocab Lesson Settings"
-msgstr ""
+msgstr "Kelime Dersi Ayarları"
 
-#: includes/pages/vocab-lesson-pages.php:777
+#: includes/pages/vocab-lesson-pages.php:986
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
+"Kelime dersi senkronizasyonu tamamlandı. d oluşturuldu, %d güncellendi, %d "
+"kaldırıldı."
 
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
 msgid "Vocab Lessons"
-msgstr ""
+msgstr "Kelime Dersleri"
 
 #: includes/pages/vocab-lesson-pages.php:52
 #, php-format
 msgid "Vocab: %1$s (%2$s)"
-msgstr ""
+msgstr "Kelime: %1$s (%2$s)"
 
 #: includes/taxonomies/word-category-taxonomy.php:427
 msgid "Whether to start rounds with audio or with the word image."
@@ -1461,23 +2028,51 @@ msgstr "Turların sesle mi yoksa kelime görüntüsüyle mi başlatılacağı."
 msgid "Which word set should this user record?"
 msgstr "Bu kullanıcı hangi kelime kümesini kaydetmelidir?"
 
+#: includes/admin/word-option-rules-admin.php:779
 #: includes/post-types/word-audio-post-type.php:52
 msgid "Word"
 msgstr "Kelime"
+
+#: includes/admin/word-option-rules-admin.php:869
+msgid "Word A"
+msgstr "Kelime A"
 
 #: includes/post-types/word-audio-post-type.php:11
 msgid "Word Audio"
 msgstr "Word Audio"
 
-#: templates/flashcard-widget-template.php:88
-#: templates/flashcard-widget-template.php:89
-#: includes/shortcodes/quiz-pages-shortcodes.php:510
-#: includes/shortcodes/quiz-pages-shortcodes.php:511
+#: includes/admin/word-option-rules-admin.php:884
+msgid "Word B"
+msgstr "Kelime B"
+
+#: templates/vocab-lesson-template.php:204
+msgid "Word details"
+msgstr "Kelime detayları"
+
+#: templates/flashcard-widget-template.php:98
+#: templates/flashcard-widget-template.php:99
+#: templates/vocab-lesson-template.php:296
+#: templates/vocab-lesson-template.php:298
+#: templates/vocab-lesson-template.php:299
+#: includes/shortcodes/quiz-pages-shortcodes.php:520
+#: includes/shortcodes/quiz-pages-shortcodes.php:521
 #: includes/shortcodes/user-study-dashboard.php:111
 msgid "Word inclusion"
 msgstr "Kelime seçimi"
 
-#: templates/vocab-lesson-template.php:54
+#: includes/admin/word-option-rules-admin.php:561
+msgid "Word Option Pairing"
+msgstr "Kelime Seçeneği Eşleştirme"
+
+#: includes/admin/word-option-rules-admin.php:565
+msgid "Word option rules saved."
+msgstr "Kelime seçeneği kuralları kaydedildi."
+
+#: includes/admin/word-option-rules-admin.php:1409
+msgid "Word option settings imported."
+msgstr "Kelime seçeneği ayarları içe aktarıldı."
+
+#: templates/vocab-lesson-template.php:117
 #: includes/post-types/words-post-type.php:221
 #: includes/user-roles/audio-recorder-role.php:127
 #: includes/user-roles/audio-recorder-role.php:250
@@ -1485,13 +2080,15 @@ msgstr "Kelime seçimi"
 msgid "Word Set"
 msgstr "Kelime Seti"
 
+#: includes/admin/ipa-keyboard-admin.php:80
+#: includes/admin/word-option-rules-admin.php:595
 #: includes/shortcodes/user-study-dashboard.php:56
 msgid "Word set"
 msgstr "Kelime seti"
 
 #: templates/wordset-page-template.php:11
 msgid "Word set not found."
-msgstr ""
+msgstr "Kelime seti bulunamadı."
 
 #: includes/shortcodes/user-study-dashboard.php:58
 msgid "Words"
@@ -1505,9 +2102,9 @@ msgstr "Kelimeler kategoriye uygun şekilde atanır"
 msgid "Words to import"
 msgstr "İçe aktarılacak kelimeler"
 
-#: templates/wordset-page-template.php:82
+#: templates/wordset-page-template.php:103
 msgid "Words: %d"
-msgstr ""
+msgstr "Kelimeler: %d"
 
 #: includes/post-types/words-post-type.php:332
 msgid "Yes"
@@ -1521,9 +2118,14 @@ msgstr "LL Tools verilerini dışa aktarma izniniz yok."
 msgid "You do not have permission to import LL Tools data."
 msgstr "LL Tools verilerini içe aktarma izniniz yok."
 
-#: includes/pages/vocab-lesson-pages.php:732
+#: includes/pages/vocab-lesson-pages.php:941
 msgid "You do not have permission to update vocab lesson settings."
-msgstr ""
+msgstr "Kelime dersi ayarlarını güncelleme izniniz yok."
+
+#: includes/admin/ipa-keyboard-admin.php:65
+#: includes/admin/word-option-rules-admin.php:536
+msgid "You do not have sufficient permissions to access this page."
+msgstr "Bu sayfaya erişmek için yeterli izniniz yok."
 
 #: includes/shortcodes/flashcard-widget.php:166
 msgid "You're on the right track..."
@@ -1549,20 +2151,23 @@ msgstr ""
 msgid "— Select —"
 msgstr "- Seçiniz -"
 
-#: templates/flashcard-widget-template.php:92
-#: includes/shortcodes/quiz-pages-shortcodes.php:514
+#: templates/flashcard-widget-template.php:102
+#: templates/vocab-lesson-template.php:302
+#: includes/shortcodes/quiz-pages-shortcodes.php:524
 #: includes/shortcodes/user-study-dashboard.php:115
 msgid "★ Starred only"
 msgstr "★ Sadece yıldızlılar"
 
-#: templates/flashcard-widget-template.php:91
-#: includes/shortcodes/quiz-pages-shortcodes.php:513
+#: templates/flashcard-widget-template.php:101
+#: templates/vocab-lesson-template.php:301
+#: includes/shortcodes/quiz-pages-shortcodes.php:523
 #: includes/shortcodes/user-study-dashboard.php:114
 msgid "★☆★ Starred twice"
 msgstr "★☆★ Yıldızlılar iki kere"
 
-#: templates/flashcard-widget-template.php:90
-#: includes/shortcodes/quiz-pages-shortcodes.php:512
+#: templates/flashcard-widget-template.php:100
+#: templates/vocab-lesson-template.php:300
+#: includes/shortcodes/quiz-pages-shortcodes.php:522
 #: includes/shortcodes/user-study-dashboard.php:113
 msgid "☆★ All words once"
 msgstr "☆★ Tüm kelimeler bir kez"

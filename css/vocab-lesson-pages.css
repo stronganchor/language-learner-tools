@@ -260,6 +260,110 @@
     --ll-tools-fab-size: 36px;
 }
 
+.ll-vocab-lesson-bulk {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    --ll-tools-fab-size: 36px;
+}
+
+.ll-vocab-lesson-bulk-button.ll-tools-settings-button {
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    border-radius: 999px !important;
+    padding: 6px 12px !important;
+    gap: 8px;
+    background: var(--ll-vlp-accent) !important;
+    background-color: var(--ll-vlp-accent) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(31, 107, 92, 0.2);
+}
+
+.ll-vocab-lesson-bulk-button.ll-tools-settings-button:hover {
+    background: #185547 !important;
+    background-color: #185547 !important;
+    box-shadow: 0 10px 20px rgba(31, 107, 92, 0.25);
+}
+
+.ll-vocab-lesson-bulk-button .mode-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ll-vocab-lesson-bulk-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.ll-vocab-lesson-bulk-panel.ll-tools-settings-panel {
+    top: calc(100% + 10px) !important;
+    bottom: auto !important;
+    right: 0 !important;
+    width: min(320px, 90vw) !important;
+    overflow-x: auto;
+}
+
+.ll-vocab-lesson-bulk-section {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-vocab-lesson-bulk-section + .ll-vocab-lesson-bulk-section {
+    margin-top: 12px;
+}
+
+.ll-vocab-lesson-bulk-heading {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ll-vlp-muted);
+}
+
+.ll-vocab-lesson-bulk-controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-vocab-lesson-bulk-select {
+    width: 100%;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 13px;
+    appearance: auto;
+    -webkit-appearance: menulist;
+    background-image: none;
+}
+
+.ll-vocab-lesson-bulk-select:focus {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    border-color: rgba(31, 107, 92, 0.6);
+}
+
+.ll-vocab-lesson-bulk-status {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--ll-vlp-muted);
+    min-height: 1em;
+}
+
+.ll-vocab-lesson-bulk-status.is-error {
+    color: #b91c1c;
+}
+
 .ll-vocab-lesson-settings-button.ll-tools-settings-button {
     background: #6b7280 !important;
     background-color: #6b7280 !important;
@@ -355,10 +459,19 @@
     line-height: 1;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
     -webkit-text-size-adjust: none;
+    color: var(--ll-vlp-text);
 }
 
 .ll-vocab-lesson-mode-icon::before {
     content: attr(data-emoji);
+}
+
+.ll-vocab-lesson-mode-icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    fill: currentColor;
+    stroke: currentColor;
 }
 
 .ll-vocab-lesson-content {

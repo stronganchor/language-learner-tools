@@ -1466,6 +1466,14 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     line-height: 1;
 }
 
+.quiz-mode-button .button-icon svg {
+    width: 20px !important;
+    height: 20px !important;
+    display: block !important;
+    fill: currentColor !important;
+    stroke: currentColor !important;
+}
+
 /* Hide mode switcher during results */
 #quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher {
     display: none !important;
@@ -1485,6 +1493,11 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 
     .quiz-mode-button .button-icon::before {
         font-size: 18px;
+    }
+
+    .quiz-mode-button .button-icon svg {
+        width: 18px !important;
+        height: 18px !important;
     }
 
 }

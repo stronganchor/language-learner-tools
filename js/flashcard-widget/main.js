@@ -893,6 +893,27 @@
         }
     }
 
+    function isGenderSupportedForSelection(categoryNames) {
+        try {
+            if (Selection && typeof Selection.isGenderSupportedForCategories === 'function') {
+                return Selection.isGenderSupportedForCategories(categoryNames);
+            }
+            if (!Selection || typeof Selection.getCategoryConfig !== 'function') return false;
+            const names = Array.isArray(categoryNames) ? categoryNames : [];
+            if (!names.length) return false;
+            return names.every(function (name) {
+                const cfg = Selection.getCategoryConfig(name);
+                return cfg.gender_supported === true;
+            });
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function isGenderSupportedForCurrentSelection() {
+        return isGenderSupportedForSelection(State.categoryNames);
+    }
+
 
 
     const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
@@ -911,12 +932,18 @@
                 label: 'Switch to Listening Mode',
                 icon: '🎧',
                 className: 'listening-mode'
+            },
+            gender: {
+                label: 'Switch to Gender Mode',
+                icon: '',
+                className: 'gender-mode'
             }
         };
 
     function getActiveModeModule() {
         const Modes = root.LLFlashcards && root.LLFlashcards.Modes;
         if (!Modes) return null;
+        if (State.isGenderMode && Modes.Gender) return Modes.Gender;
         if (State.isListeningMode && Modes.Listening) return Modes.Listening;
         if (State.isLearningMode && Modes.Learning) return Modes.Learning;
         return Modes.Practice || null;
@@ -1169,17 +1196,19 @@
     }
 
     function refreshModeMenuOptions() {
-        const current = State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice');
+        const current = State.isGenderMode ? 'gender'
+            : (State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice'));
         const $wrap = $('#ll-tools-mode-switcher-wrap');
         const $menu = $('#ll-tools-mode-menu');
         if (!$wrap.length || !$menu.length) return;
         const learningAllowed = isLearningSupportedForCurrentSelection();
+        const genderAllowed = isGenderSupportedForCurrentSelection();
 
         // Ensure wrapper is visible when widget active
         $wrap.css('display', 'block');
 
         // Update icons/labels and active state
-        ['learning', 'practice', 'listening'].forEach(function (mode) {
+        ['learning', 'practice', 'gender', 'listening'].forEach(function (mode) {
             const cfg = MODE_SWITCH_CONFIG[mode] || {};
             const $btn = $menu.find('.ll-tools-mode-option.' + mode);
             if (!$btn.length) return;
@@ -1199,7 +1228,8 @@
             }
             // Active vs inactive
             const isActive = (mode === current);
-            const isDisabled = (mode === 'learning' && !learningAllowed);
+            const isDisabled = (mode === 'learning' && !learningAllowed)
+                || (mode === 'gender' && !genderAllowed);
             $btn.toggleClass('active', isActive);
             $btn.toggleClass('disabled', isDisabled);
             if (isActive || isDisabled) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': isActive ? 'true' : 'false', 'aria-disabled': 'true' }); }
@@ -1259,6 +1289,10 @@
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
+        if (newMode === 'gender' && !isGenderSupportedForCurrentSelection()) {
+            console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
+            newMode = 'practice';
+        }
 
         const $btn = $('#ll-tools-mode-switcher');
         if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
@@ -1288,6 +1322,7 @@
 
             State.isLearningMode = (targetMode === 'learning');
             State.isListeningMode = (targetMode === 'listening');
+            State.isGenderMode = (targetMode === 'gender');
             restoreCategorySelection();
 
             const activeModule = getActiveModeModule();
@@ -1736,16 +1771,28 @@
             }
 
             return root.FlashcardAudio.startNewSession().then(function () {
+                const requestedCategories = Array.isArray(selectedCategories)
+                    ? selectedCategories.filter(Boolean)
+                    : (selectedCategories ? [selectedCategories] : []);
                 let requestedMode = mode;
                 if (requestedMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
+                if (requestedMode === 'gender' && !isGenderSupportedForSelection(requestedCategories)) {
+                    console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
+                    requestedMode = 'practice';
+                }
 
+                State.isLearningMode = false;
+                State.isListeningMode = false;
+                State.isGenderMode = false;
                 if (requestedMode === 'learning') {
                     State.isLearningMode = true;
                 } else if (requestedMode === 'listening') {
                     State.isListeningMode = true;
+                } else if (requestedMode === 'gender') {
+                    State.isGenderMode = true;
                 }
 
                 const activeModule = getActiveModeModule();
@@ -1795,6 +1842,7 @@
                 updateModeSwitcherPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
+                $('#restart-gender-mode').off('click').on('click', () => switchMode('gender'));
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
@@ -2007,9 +2055,11 @@
         $('#ll-tools-listening-controls').remove();
         const wasLearning = State.isLearningMode;
         const wasListening = State.isListeningMode;
+        const wasGender = State.isGenderMode;
         State.reset();
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
+        State.isGenderMode = wasGender;
         restoreCategorySelection();
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {

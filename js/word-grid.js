@@ -6,6 +6,7 @@
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
     const editI18n = cfg.editI18n || {};
+    const bulkI18n = cfg.bulkI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
     const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
@@ -474,6 +475,7 @@
     const $starToggles = $('[data-ll-word-grid-star-toggle]');
     const $starModeButtons = $('.ll-vocab-lesson-star-mode');
     const $lessonSettings = $('.ll-vocab-lesson-settings');
+    const $bulkEditors = $('[data-ll-word-grid-bulk]');
 
     function getStudySettings() {
         return (window.LLFlashcards && window.LLFlashcards.StudySettings)
@@ -682,6 +684,26 @@
         });
     }
 
+    function setBulkEditorOpen($wrap, shouldOpen) {
+        if (!$wrap || !$wrap.length) { return; }
+        const $panel = $wrap.find('.ll-vocab-lesson-bulk-panel');
+        const $button = $wrap.find('.ll-vocab-lesson-bulk-button');
+        if (!$panel.length || !$button.length) { return; }
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $button.attr('aria-expanded', open ? 'true' : 'false');
+        $wrap.toggleClass('is-open', open);
+    }
+
+    function closeBulkEditors(except) {
+        if (!$bulkEditors.length) { return; }
+        $bulkEditors.each(function () {
+            const $wrap = $(this);
+            if (except && $wrap.is(except)) { return; }
+            setBulkEditorOpen($wrap, false);
+        });
+    }
+
     function updateStarButton($btn, shouldStar) {
         $btn.toggleClass('active', shouldStar);
         $btn.attr('aria-pressed', shouldStar ? 'true' : 'false');
@@ -816,6 +838,33 @@
         });
     }
 
+    if ($bulkEditors.length) {
+        $bulkEditors.on('click', '.ll-vocab-lesson-bulk-button', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+            const $panel = $wrap.find('.ll-vocab-lesson-bulk-panel');
+            const isOpen = $panel.attr('aria-hidden') === 'false';
+            closeBulkEditors($wrap);
+            setBulkEditorOpen($wrap, !isOpen);
+        });
+
+        $bulkEditors.on('click', '.ll-vocab-lesson-bulk-panel', function (e) {
+            e.stopPropagation();
+        });
+
+        $(document).on('pointerdown.llLessonBulk', function (e) {
+            if ($(e.target).closest('[data-ll-word-grid-bulk]').length) { return; }
+            closeBulkEditors();
+        });
+
+        $(document).on('keydown.llLessonBulk', function (e) {
+            if (e.key === 'Escape') {
+                closeBulkEditors();
+            }
+        });
+    }
+
     if ($starModeButtons.length) {
         $starModeButtons.on('click', function (e) {
             e.preventDefault();
@@ -885,6 +934,16 @@
         saved: editI18n.saved || 'Saved.',
         error: editI18n.error || 'Unable to save changes.'
     };
+    const bulkMessages = {
+        saving: bulkI18n.saving || 'Updating...',
+        posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
+        genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',
+        pluralitySuccess: bulkI18n.pluralitySuccess || 'Updated %d nouns.',
+        posMissing: bulkI18n.posMissing || 'Choose a part of speech.',
+        genderMissing: bulkI18n.genderMissing || 'Choose a gender.',
+        pluralityMissing: bulkI18n.pluralityMissing || 'Choose a plurality option.',
+        error: bulkI18n.error || 'Unable to update words.'
+    };
 
     function setEditPanelOpen($item, shouldOpen) {
         const $panel = $item.find('[data-ll-word-edit-panel]').first();
@@ -919,20 +978,21 @@
     }
 
     function cacheOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
     }
 
     function restoreOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             const original = $input.data('original');
             if (typeof original === 'string') {
                 $input.val(original);
             }
         });
+        setMetaFieldState($item);
     }
 
     function setEditStatus($item, message, isError) {
@@ -942,8 +1002,85 @@
         $status.toggleClass('is-error', !!isError);
     }
 
+    function formatBulkMessage(template, count) {
+        const safe = template || '';
+        return safe.replace('%1$d', String(count)).replace('%d', String(count));
+    }
+
+    function setBulkStatus($wrap, message, isError) {
+        const $status = $wrap.find('[data-ll-bulk-status]').first();
+        if (!$status.length) { return; }
+        $status.text(message || '');
+        $status.toggleClass('is-error', !!isError);
+    }
+
+    function setWordMetaText($item, selector, value) {
+        const $el = $item.find(selector).first();
+        if (!$el.length) { return; }
+        $el.text(value || '');
+    }
+
+    function updateWordMetaRow($item) {
+        const $row = $item.find('[data-ll-word-meta]').first();
+        if (!$row.length) { return; }
+        const posText = ($row.find('[data-ll-word-pos]').text() || '').trim();
+        const genderText = ($row.find('[data-ll-word-gender]').text() || '').trim();
+        const pluralityText = ($row.find('[data-ll-word-plurality]').text() || '').trim();
+        $row.toggleClass('ll-word-meta-row--empty', !(posText || genderText || pluralityText));
+    }
+
+    function setMetaFieldState($item, posSlug) {
+        const resolved = (posSlug || ($item.find('[data-ll-word-input="part_of_speech"]').val() || '')).toString();
+        const isNoun = resolved === 'noun';
+        const $genderField = $item.find('[data-ll-word-gender-field]').first();
+        if ($genderField.length) {
+            $genderField.toggleClass('ll-word-edit-gender--hidden', !isNoun);
+            $genderField.attr('aria-hidden', isNoun ? 'false' : 'true');
+            const $select = $genderField.find('select[data-ll-word-input="gender"]').first();
+            if ($select.length) {
+                $select.prop('disabled', !isNoun);
+            }
+        }
+        const $pluralityField = $item.find('[data-ll-word-plurality-field]').first();
+        if ($pluralityField.length) {
+            $pluralityField.toggleClass('ll-word-edit-plurality--hidden', !isNoun);
+            $pluralityField.attr('aria-hidden', isNoun ? 'false' : 'true');
+            const $select = $pluralityField.find('select[data-ll-word-input="plurality"]').first();
+            if ($select.length) {
+                $select.prop('disabled', !isNoun);
+            }
+        }
+    }
+
+    function applyPosMetaUpdate($item, posData, genderData, pluralityData) {
+        if (posData && Object.prototype.hasOwnProperty.call(posData, 'slug')) {
+            $item.find('[data-ll-word-input="part_of_speech"]').val(posData.slug || '');
+        }
+        if (posData && Object.prototype.hasOwnProperty.call(posData, 'label')) {
+            setWordMetaText($item, '[data-ll-word-pos]', posData.label || '');
+        }
+        if (genderData && Object.prototype.hasOwnProperty.call(genderData, 'value')) {
+            $item.find('[data-ll-word-input="gender"]').val(genderData.value || '');
+        }
+        if (genderData && Object.prototype.hasOwnProperty.call(genderData, 'label')) {
+            setWordMetaText($item, '[data-ll-word-gender]', genderData.label || '');
+        }
+        if (pluralityData && Object.prototype.hasOwnProperty.call(pluralityData, 'value')) {
+            $item.find('[data-ll-word-input="plurality"]').val(pluralityData.value || '');
+        }
+        if (pluralityData && Object.prototype.hasOwnProperty.call(pluralityData, 'label')) {
+            setWordMetaText($item, '[data-ll-word-plurality]', pluralityData.label || '');
+        }
+        updateWordMetaRow($item);
+        if (posData && Object.prototype.hasOwnProperty.call(posData, 'slug')) {
+            setMetaFieldState($item, posData.slug || '');
+        } else {
+            setMetaFieldState($item);
+        }
+    }
+
     function updateOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], input[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
@@ -2102,6 +2239,172 @@
             cacheOriginalInputs($(this));
         });
 
+        function getBulkContext($wrap) {
+            const $scope = $wrap.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page');
+            const $grid = ($scope.length ? $scope : $(document)).find('[data-ll-word-grid]').first();
+            if (!$grid.length) { return null; }
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            const categoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
+            if (!wordsetId || !categoryId) { return null; }
+            return { $grid: $grid, wordsetId: wordsetId, categoryId: categoryId };
+        }
+
+        function setBulkBusy($wrap, isBusy) {
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply]')
+                .prop('disabled', isBusy);
+            $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
+        }
+
+        if ($bulkEditors.length) {
+            $bulkEditors.on('click', '[data-ll-bulk-pos-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+                const posSlug = ($wrap.find('[data-ll-bulk-pos]').val() || '').toString();
+                if (!posSlug) {
+                    setBulkStatus($wrap, bulkMessages.posMissing, true);
+                    return;
+                }
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                    return;
+                }
+                setBulkBusy($wrap, true);
+                setBulkStatus($wrap, bulkMessages.saving, false);
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: 'pos',
+                    part_of_speech: posSlug,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        setBulkStatus($wrap, bulkMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const posData = data.part_of_speech || {};
+                    const clearGender = data.gender_cleared === true;
+                    const clearPlurality = data.plurality_cleared === true;
+                    ids.forEach(function (id) {
+                        const wordId = parseInt(id, 10) || 0;
+                        if (!wordId) { return; }
+                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                        if (!$item.length) { return; }
+                        const genderData = clearGender ? { value: '', label: '' } : null;
+                        const pluralityData = clearPlurality ? { value: '', label: '' } : null;
+                        applyPosMetaUpdate($item, posData, genderData, pluralityData);
+                        updateOriginalInputs($item);
+                    });
+                    updateGridLayouts();
+                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.posSuccess, ids.length), false);
+                }).fail(function () {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                }).always(function () {
+                    setBulkBusy($wrap, false);
+                });
+            });
+
+            $bulkEditors.on('click', '[data-ll-bulk-gender-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+                const genderValue = ($wrap.find('[data-ll-bulk-gender]').val() || '').toString();
+                if (!genderValue) {
+                    setBulkStatus($wrap, bulkMessages.genderMissing, true);
+                    return;
+                }
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                    return;
+                }
+                setBulkBusy($wrap, true);
+                setBulkStatus($wrap, bulkMessages.saving, false);
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: 'gender',
+                    grammatical_gender: genderValue,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        setBulkStatus($wrap, bulkMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const genderData = data.grammatical_gender || {};
+                    ids.forEach(function (id) {
+                        const wordId = parseInt(id, 10) || 0;
+                        if (!wordId) { return; }
+                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                        if (!$item.length) { return; }
+                        applyPosMetaUpdate($item, null, genderData, null);
+                        updateOriginalInputs($item);
+                    });
+                    updateGridLayouts();
+                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.genderSuccess, ids.length), false);
+                }).fail(function () {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                }).always(function () {
+                    setBulkBusy($wrap, false);
+                });
+            });
+
+            $bulkEditors.on('click', '[data-ll-bulk-plurality-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+                const pluralityValue = ($wrap.find('[data-ll-bulk-plurality]').val() || '').toString();
+                if (!pluralityValue) {
+                    setBulkStatus($wrap, bulkMessages.pluralityMissing, true);
+                    return;
+                }
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                    return;
+                }
+                setBulkBusy($wrap, true);
+                setBulkStatus($wrap, bulkMessages.saving, false);
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: 'plurality',
+                    grammatical_plurality: pluralityValue,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        setBulkStatus($wrap, bulkMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const pluralityData = data.grammatical_plurality || {};
+                    ids.forEach(function (id) {
+                        const wordId = parseInt(id, 10) || 0;
+                        if (!wordId) { return; }
+                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                        if (!$item.length) { return; }
+                        applyPosMetaUpdate($item, null, null, pluralityData);
+                        updateOriginalInputs($item);
+                    });
+                    updateGridLayouts();
+                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.pluralitySuccess, ids.length), false);
+                }).fail(function () {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                }).always(function () {
+                    setBulkBusy($wrap, false);
+                });
+            });
+        }
+
         $grids.on('click', '[data-ll-word-edit-toggle]', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -2123,6 +2426,12 @@
             if (!$panel.length) { return; }
             const isOpen = $panel.attr('aria-hidden') === 'false';
             setRecordingsPanelOpen($item, !isOpen);
+        });
+
+        $grids.on('change', '[data-ll-word-input="part_of_speech"]', function () {
+            const $item = $(this).closest('.word-item');
+            const posSlug = ($(this).val() || '').toString();
+            setMetaFieldState($item, posSlug);
         });
 
         $grids.on('focus', '.ll-word-edit-input--ipa', function () {
@@ -2230,6 +2539,11 @@
 
             const wordText = ($item.find('[data-ll-word-input="word"]').val() || '').toString();
             const wordTranslation = ($item.find('[data-ll-word-input="translation"]').val() || '').toString();
+            const partOfSpeech = ($item.find('[data-ll-word-input="part_of_speech"]').val() || '').toString();
+            const gender = ($item.find('[data-ll-word-input="gender"]').val() || '').toString();
+            const plurality = ($item.find('[data-ll-word-input="plurality"]').val() || '').toString();
+            const $grid = $item.closest('[data-ll-word-grid]');
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
             const recordings = [];
 
             $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
@@ -2255,6 +2569,10 @@
                 word_id: wordId,
                 word_text: wordText,
                 word_translation: wordTranslation,
+                part_of_speech: partOfSpeech,
+                grammatical_gender: gender,
+                grammatical_plurality: plurality,
+                wordset_id: wordsetId,
                 recordings: recordings
             }).done(function (response) {
                 if (!response || response.success !== true) {
@@ -2287,6 +2605,9 @@
                         }
                     });
                     applyRecordingCaptions($item, data.recordings);
+                }
+                if (data.part_of_speech || data.grammatical_gender || data.grammatical_plurality) {
+                    applyPosMetaUpdate($item, data.part_of_speech || {}, data.grammatical_gender || {}, data.grammatical_plurality || {});
                 }
                 updateGridLayouts();
                 updateOriginalInputs($item);
@@ -2362,6 +2683,9 @@
             if (typeof word.word_translation === 'string') {
                 $item.find('[data-ll-word-translation]').text(word.word_translation);
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
+            }
+            if (word.part_of_speech || word.grammatical_gender || word.grammatical_plurality) {
+                applyPosMetaUpdate($item, word.part_of_speech || {}, word.grammatical_gender || {}, word.grammatical_plurality || {});
             }
             updateGridLayouts();
             updateOriginalInputs($item);

@@ -178,6 +178,13 @@ function ll_flashcards_get_messages(): array {
 
 /** Return UI metadata (icon + labels) for each quiz mode */
 function ll_flashcards_get_mode_ui_config(): array {
+    $gender_svg = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+        . '<circle cx="7.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
+        . '<circle cx="16.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
+        . '<path d="M7.5 12.5v6.5M5 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
+        . '<path d="M18.5 7.5l4-4M20.5 3.5h2M22.5 3.5v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />'
+        . '</svg>';
+
     return [
         'practice' => [
             'icon'              => '❓',
@@ -196,6 +203,13 @@ function ll_flashcards_get_mode_ui_config(): array {
             'className'         => 'listening-mode',
             'switchLabel'       => __('Switch to Listening Mode', 'll-tools-text-domain'),
             'resultsButtonText' => __('Replay Listening', 'll-tools-text-domain'),
+        ],
+        'gender' => [
+            'icon'              => '',
+            'svg'               => $gender_svg,
+            'className'         => 'gender-mode',
+            'switchLabel'       => __('Switch to Gender Mode', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Gender Mode', 'll-tools-text-domain'),
         ],
     ];
 }
@@ -228,6 +242,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'll-tools-flashcard-mode-listening',
         ['ll-tools-flashcard-style']
     );
+    ll_enqueue_asset_by_timestamp(
+        '/css/flashcard/mode-gender.css',
+        'll-tools-flashcard-mode-gender',
+        ['ll-tools-flashcard-style']
+    );
 
     $shortcode_folder = '/js/flashcard-widget/';
 
@@ -250,6 +269,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection'], true);
 
     // Main orchestrator depends on the mode modules as well
     ll_enqueue_asset_by_timestamp(
@@ -263,7 +283,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
             'll-tools-flashcard-options',
             'll-flc-mode-learning',
             'll-flc-mode-practice',
-            'll-flc-mode-listening'
+            'll-flc-mode-listening',
+            'll-flc-mode-gender'
         ],
         true
     );
@@ -298,6 +319,13 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     }
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
+    $gender_wordset_id = (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0;
+    $gender_enabled = ($gender_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
+        ? ll_tools_wordset_has_grammatical_gender($gender_wordset_id)
+        : false;
+    $gender_options = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options'))
+        ? ll_tools_wordset_get_gender_options($gender_wordset_id)
+        : [];
 
     // Pull saved study prefs (stars/fast transitions) for logged-in users so the widget can reflect them outside the dashboard.
     $user_study_state = [
@@ -336,6 +364,10 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'fast_transitions'     => !empty($user_study_state['fast_transitions']),
         'userStudyState'       => $user_study_state,
         'userStudyNonce'       => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
+        'genderEnabled'        => $gender_enabled,
+        'genderWordsetId'      => $gender_wordset_id,
+        'genderOptions'        => $gender_options,
+        'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -455,6 +487,24 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
  */
 function ll_process_categories($categories, $use_translations, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
     $processed = [];
+    $gender_wordset_id = (count((array) $wordset_ids) === 1) ? (int) $wordset_ids[0] : 0;
+    $gender_enabled = ($gender_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
+        ? ll_tools_wordset_has_grammatical_gender($gender_wordset_id)
+        : false;
+    $gender_options = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options'))
+        ? ll_tools_wordset_get_gender_options($gender_wordset_id)
+        : [];
+    $gender_lookup = [];
+    foreach ($gender_options as $option) {
+        $key = strtolower(trim((string) $option));
+        if (function_exists('ll_tools_wordset_strip_variation_selectors')) {
+            $key = ll_tools_wordset_strip_variation_selectors($key);
+        }
+        if ($key !== '') {
+            $gender_lookup[$key] = true;
+        }
+    }
+
     foreach ($categories as $category) {
         if (!ll_can_category_generate_quiz($category, $min_word_count, $wordset_ids)) continue;
 
@@ -483,6 +533,39 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             ? ( get_term_meta($category->term_id, 'term_translation', true) ?: $category->name )
             : $category->name;
 
+        $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+        $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+        $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+
+        $gender_word_count = 0;
+        if ($gender_enabled && !empty($words_in_mode)) {
+            foreach ($words_in_mode as $word) {
+                if (!is_array($word)) {
+                    continue;
+                }
+                $pos = $word['part_of_speech'] ?? [];
+                $pos = is_array($pos) ? $pos : [$pos];
+                $pos = array_map('strtolower', array_map('strval', $pos));
+                if (!in_array('noun', $pos, true)) {
+                    continue;
+                }
+                $gender_raw = (string) ($word['grammatical_gender'] ?? '');
+                $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+                    ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
+                    : trim($gender_raw);
+                $gender = strtolower(trim($gender_label));
+                if ($gender === '' || (empty($gender_lookup) || !isset($gender_lookup[$gender]))) {
+                    continue;
+                }
+                if (($requires_image && empty($word['has_image'])) || ($requires_audio && empty($word['has_audio']))) {
+                    continue;
+                }
+                $gender_word_count++;
+            }
+        }
+
         $processed[] = [
             'id'          => $category->term_id,
             'slug'        => $category->slug,
@@ -494,6 +577,8 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'learning_supported' => $learning_supported,
             'use_titles'  => $config['use_titles'],
             'word_count'  => count($words_in_mode),
+            'gender_word_count' => $gender_word_count,
+            'gender_supported' => ($gender_enabled && $gender_word_count >= $min_word_count),
         ];
     }
     return $processed;

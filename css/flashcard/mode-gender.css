@@ -1,0 +1,4 @@
+/* Gender mode: light emphasis for text options */
+.ll-gender-option .quiz-text {
+    font-weight: 600;
+}
