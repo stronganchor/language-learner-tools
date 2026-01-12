@@ -498,9 +498,15 @@
         }
 
         const targetId = targetWord ? parseInt(targetWord.id, 10) : 0;
-        const targetGroup = (targetWord && targetWord.option_group !== undefined && targetWord.option_group !== null)
-            ? String(targetWord.option_group).trim()
-            : '';
+        const targetGroups = new Set();
+        if (targetWord && Array.isArray(targetWord.option_groups)) {
+            targetWord.option_groups.forEach(function (grp) {
+                const val = (grp !== undefined && grp !== null) ? String(grp).trim() : '';
+                if (val) {
+                    targetGroups.add(val);
+                }
+            });
+        }
         let blockedSet = null;
         if (targetWord && Array.isArray(targetWord.option_blocked_ids) && targetWord.option_blocked_ids.length) {
             blockedSet = new Set(targetWord.option_blocked_ids.map(function (id) {
@@ -513,21 +519,27 @@
         // Shuffle available words
         availableWords = Util.randomlySort(availableWords);
 
-        if (targetGroup) {
-            const groupMembers = [];
-            const otherWords = [];
+        if (targetGroups.size) {
+            const grouped = [];
+            const others = [];
             availableWords.forEach(function (w) {
-                const grp = (w && w.option_group !== undefined && w.option_group !== null)
-                    ? String(w.option_group).trim()
-                    : '';
-                if (grp === targetGroup) {
-                    groupMembers.push(w);
+                const groups = Array.isArray(w && w.option_groups) ? w.option_groups : [];
+                let sharesGroup = false;
+                for (let i = 0; i < groups.length; i++) {
+                    const val = (groups[i] !== undefined && groups[i] !== null) ? String(groups[i]).trim() : '';
+                    if (val && targetGroups.has(val)) {
+                        sharesGroup = true;
+                        break;
+                    }
+                }
+                if (sharesGroup) {
+                    grouped.push(w);
                 } else {
-                    otherWords.push(w);
+                    others.push(w);
                 }
             });
-            if (groupMembers.length) {
-                availableWords = groupMembers.concat(otherWords);
+            if (grouped.length) {
+                availableWords = Util.randomlySort(grouped).concat(Util.randomlySort(others));
             }
         }
 
@@ -560,7 +572,6 @@
 
             const isDup = chosen.some(w => w.id === candidate.id);
             const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
-            const sameImg = (mode === 'image') && chosen.some(w => w.image === candidate.image);
             const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
             const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
             const candidateId = parseInt(candidate.id, 10);
@@ -568,7 +579,7 @@
             const isBlockedByCandidate = candidateId > 0 && targetId > 0 && Array.isArray(candidate.option_blocked_ids)
                 && candidate.option_blocked_ids.some(function (id) { return parseInt(id, 10) === targetId; });
 
-            if (!isDup && !isSim && !sameImg && !sameText && !isBlockedByTarget && !isBlockedByCandidate) {
+            if (!isDup && !isSim && !sameText && !isBlockedByTarget && !isBlockedByCandidate) {
                 chosen.push(candidate);
                 if (isTextOptionMode) {
                     seenOptionTexts.add(normalizedText);

@@ -182,6 +182,74 @@
   margin-top: 18px;
 }
 
+.ll-tools-word-options .ll-tools-word-options-group-editor {
+  margin: 12px 0 16px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-input {
+  min-width: 220px;
+  max-width: 360px;
+  width: 100%;
+}
+
+.ll-tools-word-options .ll-tools-word-options-add-group {
+  margin-top: 6px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-cell {
+  text-align: center;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-check input[type="checkbox"] {
+  transform: scale(1.05);
+}
+
+.ll-tools-word-options .ll-tools-word-options-remove-pair {
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #ef4444;
+  background: #fff5f5;
+  background-image: none;
+  color: #b91c1c;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: none;
+  text-shadow: none;
+  appearance: none;
+  text-transform: none;
+}
+
+.ll-tools-word-options .ll-tools-word-options-remove-pair:hover {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.ll-tools-word-options .ll-tools-word-options-remove-pair:focus-visible {
+  outline: 3px solid #fca5a5;
+  outline-offset: 2px;
+}
+
 .ll-tools-word-options .ll-tools-word-options-reasons {
   display: flex;
   flex-wrap: wrap;
@@ -205,6 +273,28 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.ll-tools-word-options .ll-tools-word-options-import-export {
+  display: grid;
+  gap: 18px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-import-export h3 {
+  margin-bottom: 6px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-import,
+.ll-tools-word-options .ll-tools-word-options-export,
+.ll-tools-word-options .ll-tools-word-options-import-confirm {
+  padding: 12px;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ll-tools-word-options .ll-tools-word-options-import-confirm {
+  border-color: #cbd5e1;
 }
 
 .ll-tools-word-options .ll-tools-button {

@@ -8,6 +8,7 @@ require_once(__DIR__ . '/assets.php');
 require_once __DIR__ . '/template-loader.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
+require_once __DIR__ . '/lib/image-hash.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
