@@ -73,11 +73,22 @@
         return true;
     }
 
+    function isGenderSupportedForResults() {
+        try {
+            const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
+            const categories = State && State.categoryNames;
+            if (Selection && typeof Selection.isGenderSupportedForCategories === 'function') {
+                return Selection.isGenderSupportedForCategories(categories);
+            }
+        } catch (_) { /* no-op */ }
+        return false;
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
-        $('#restart-practice-mode, #restart-learning-mode').show();
+        $('#restart-practice-mode, #restart-learning-mode, #restart-gender-mode').show();
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
@@ -88,6 +99,7 @@
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
         const learningAllowed = isLearningSupportedForResults();
+        const genderAllowed = isGenderSupportedForResults();
         const categoriesForDisplay = getCategoryNamesForDisplay();
         const categoriesLabel = msgs.categoriesLabel || 'Categories';
         const renderCategories = function (shouldShow) {
@@ -138,6 +150,11 @@
             $('#restart-quiz').hide();
             $('#quiz-mode-buttons').show();
             $('#restart-practice-mode, #restart-learning-mode').show();
+            if (genderAllowed) {
+                $('#restart-gender-mode').show();
+            } else {
+                $('#restart-gender-mode').hide();
+            }
             $('#restart-listening-mode').hide();
             Dom.hideLoading();
             $('#ll-tools-repeat-flashcard').hide();
@@ -168,6 +185,7 @@
             $('#quiz-mode-buttons').show();
             $('#restart-practice-mode').hide();
             $('#restart-learning-mode').hide();
+            $('#restart-gender-mode').hide();
             $('#restart-listening-mode').show();
             Dom.hideLoading();
             $('#ll-tools-repeat-flashcard').hide();
@@ -214,6 +232,11 @@
             } else {
                 $('#restart-learning-mode').hide();
             }
+            if (genderAllowed) {
+                $('#restart-gender-mode').show();
+            } else {
+                $('#restart-gender-mode').hide();
+            }
             $('#restart-listening-mode').hide();
             renderCategories(true);
 
@@ -243,6 +266,11 @@
             $('#restart-learning-mode').show();
         } else {
             $('#restart-learning-mode').hide();
+        }
+        if (genderAllowed) {
+            $('#restart-gender-mode').show();
+        } else {
+            $('#restart-gender-mode').hide();
         }
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();

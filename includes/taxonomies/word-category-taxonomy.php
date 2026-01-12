@@ -847,6 +847,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'masked_image_url'     => true,
+        'include_pos'          => true,
+        'include_gender'       => true,
+        'include_plurality'    => true,
     ];
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
 
@@ -981,6 +984,13 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $all_categories  = wp_get_post_terms($word_id, 'word-category', ['fields' => 'names']);
         $wordset_ids_for_word = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
         $wordset_ids_for_word = array_values(array_filter(array_map('intval', (array) $wordset_ids_for_word), function ($id) { return $id > 0; }));
+        $part_of_speech = wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'slugs']);
+        if (is_wp_error($part_of_speech)) {
+            $part_of_speech = [];
+        }
+        $part_of_speech = array_values(array_filter(array_map('sanitize_key', (array) $part_of_speech)));
+        $grammatical_gender = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
+        $grammatical_plurality = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
         $similar_word_id = get_post_meta($word_id, '_ll_similar_word_id', true);
         if ($similar_word_id === '' || $similar_word_id === null) {
             $similar_word_id = get_post_meta($word_id, 'similar_word_id', true);
@@ -1007,6 +1017,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'preferred_speaker_user_id' => $preferred_speaker,
             'image'           => $image ?: '',
             'all_categories'  => $all_categories,
+            'part_of_speech'  => $part_of_speech,
+            'grammatical_gender' => $grammatical_gender,
+            'grammatical_plurality' => $grammatical_plurality,
             'similar_word_id' => $similar_word_id ?: '',
             'wordset_ids'     => $wordset_ids_for_word,
             'has_audio'       => $has_audio,
@@ -1067,7 +1080,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                         ? $row['option_blocked_ids']
                         : [];
                     $blocked_ids = array_merge($blocked_ids, array_keys($image_blocked[$word_id]));
-                    $blocked_ids = array_values(array_unique(array_filter(array_map('intval', $blocked_ids), function ($id) {
+                    $blocked_ids = array_values(array_unique(array_filter(array_map('intval', $blocked_ids), function ($id) use ($word_id) {
                         return $id > 0 && $id !== $word_id;
                     })));
                     $words[$idx]['option_blocked_ids'] = $blocked_ids;

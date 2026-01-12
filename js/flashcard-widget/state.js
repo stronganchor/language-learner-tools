@@ -59,6 +59,7 @@
         // Learning/listening mode data
         isLearningMode: false,
         isListeningMode: false,
+        isGenderMode: false,
         introducedWordIDs: [],
         wordIntroductionProgress: {},
         wordCorrectCounts: {},
@@ -274,6 +275,7 @@
             // Reset learning mode data
             this.isLearningMode = false;
             this.isListeningMode = false;
+            this.isGenderMode = false;
             this.wordsLinear = [];
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;

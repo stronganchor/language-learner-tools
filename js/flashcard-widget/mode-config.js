@@ -20,6 +20,12 @@
             switchLabel: 'Switch to Listening Mode',
             resultsButtonText: 'Replay Listening',
         },
+        gender: {
+            icon: '',
+            className: 'gender-mode',
+            switchLabel: 'Switch to Gender Mode',
+            resultsButtonText: 'Gender Mode',
+        },
     };
 
     const localized = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
@@ -49,6 +55,7 @@
         switchConfig[mode] = {
             label: derivedLabel,
             icon: cfg.icon || '',
+            svg: cfg.svg || '',
             className,
         };
     });

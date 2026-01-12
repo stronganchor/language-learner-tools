@@ -4,6 +4,15 @@ $mode_ui = (isset($mode_ui) && is_array($mode_ui)) ? $mode_ui : [];
 $practice_mode_ui = $mode_ui['practice'] ?? [];
 $learning_mode_ui = $mode_ui['learning'] ?? [];
 $listening_mode_ui = $mode_ui['listening'] ?? [];
+$gender_mode_ui = $mode_ui['gender'] ?? [];
+$render_mode_icon = function (array $cfg, string $fallback, string $class = 'mode-icon'): void {
+  if (!empty($cfg['svg'])) {
+    echo '<span class="' . esc_attr($class) . '" aria-hidden="true">' . $cfg['svg'] . '</span>';
+    return;
+  }
+  $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
+  echo '<span class="' . esc_attr($class) . '" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
+};
 ?>
 <?php if (!empty($quiz_font)): ?>
 <style>
@@ -65,11 +74,12 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
         <audio controls class="hidden"></audio>
       </div>
 
-      <!-- Mode switcher: single toggle that expands to 3 fixed-order options -->
+      <!-- Mode switcher: single toggle that expands to fixed-order options -->
       <?php
         $practice_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
         $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
         $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
+        $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
         $settings_label = __('Study Settings', 'll-tools-text-domain');
       ?>
       <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
@@ -103,27 +113,18 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           </div>
         <?php endif; ?>
         <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-          <!-- Fixed order: learning (top), practice (middle), listening (bottom) -->
+          <!-- Fixed order: learning, practice, gender, listening -->
           <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
-            <?php if (!empty($learning_mode_ui['icon'])): ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($learning_mode_ui['icon']); ?>"></span>
-            <?php else: ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="🎓"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
           </button>
           <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
-            <?php if (!empty($practice_mode_ui['icon'])): ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($practice_mode_ui['icon']); ?>"></span>
-            <?php else: ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="❓"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
+          </button>
+          <button class="ll-tools-mode-option gender" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender">
+            <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
           </button>
           <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
-            <?php if (!empty($listening_mode_ui['icon'])): ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($listening_mode_ui['icon']); ?>"></span>
-            <?php else: ?>
-              <span class="mode-icon" aria-hidden="true" data-emoji="🎧"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
           </button>
         </div>
         <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
@@ -144,23 +145,22 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
             $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
             $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
             $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
+            $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
           ?>
           <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
-            <?php if (!empty($practice_mode_ui['icon'])): ?>
-              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($practice_mode_ui['icon']); ?>"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>
             <?php echo esc_html($practice_label); ?>
           </button>
           <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
-            <?php if (!empty($learning_mode_ui['icon'])): ?>
-              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($learning_mode_ui['icon']); ?>"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
             <?php echo esc_html($learning_label); ?>
           </button>
+          <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
+            <?php echo esc_html($gender_results_label); ?>
+          </button>
           <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
-            <?php if (!empty($listening_mode_ui['icon'])): ?>
-              <span class="button-icon" aria-hidden="true" data-emoji="<?php echo esc_attr($listening_mode_ui['icon']); ?>"></span>
-            <?php endif; ?>
+            <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
             <?php echo esc_html($listening_label); ?>
           </button>
         </div>

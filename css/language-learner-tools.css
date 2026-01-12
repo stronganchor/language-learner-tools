@@ -107,6 +107,57 @@ p:has(.ll-word-audio) {
     content: ")";
 }
 
+.word-grid.ll-word-grid .ll-word-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-row--empty {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag:empty {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif !important;
+    font-variant-emoji: text;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--plurality {
+    border-color: #bae6fd;
+    background: #e0f2fe;
+    color: #0369a1;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
 .word-grid.ll-word-grid .word-item.ll-word-title--stack .word-title {
     justify-content: center;
 }
@@ -185,6 +236,16 @@ p:has(.ll-word-audio) {
     gap: 8px;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-fields--meta {
+    margin-top: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.word-grid.ll-word-grid .ll-word-edit-field {
+    display: grid;
+    gap: 6px;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-label {
     font-size: 11px;
     font-weight: 700;
@@ -204,6 +265,20 @@ p:has(.ll-word-audio) {
     line-height: 1.3;
     box-sizing: border-box;
     appearance: none;
+}
+
+.word-grid.ll-word-grid select.ll-word-edit-input {
+    appearance: auto;
+    -webkit-appearance: menulist;
+    background-image: none;
+    padding-right: 12px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-gender--hidden {
+    display: none;
+}
+.word-grid.ll-word-grid .ll-word-edit-plurality--hidden {
+    display: none;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-input:focus {

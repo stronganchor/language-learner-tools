@@ -1202,6 +1202,51 @@ function ll_tools_word_grid_resolve_display_text(int $word_id): array {
     ];
 }
 
+function ll_tools_word_grid_collect_part_of_speech_terms(array $word_ids): array {
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) { return $id > 0; }));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $terms = wp_get_object_terms($word_ids, 'part_of_speech', [
+        'fields' => 'all_with_object_id',
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($terms as $term) {
+        $word_id = isset($term->object_id) ? (int) $term->object_id : 0;
+        if ($word_id <= 0) {
+            continue;
+        }
+        if (isset($map[$word_id])) {
+            continue;
+        }
+        $map[$word_id] = [
+            'slug' => (string) $term->slug,
+            'label' => (string) $term->name,
+            'term_id' => (int) $term->term_id,
+        ];
+    }
+
+    return $map;
+}
+
+function ll_tools_word_grid_get_wordset_id_for_word(int $word_id): int {
+    if ($word_id <= 0) {
+        return 0;
+    }
+    $term_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($term_ids) || empty($term_ids)) {
+        return 0;
+    }
+    return (int) $term_ids[0];
+}
+
 function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups): array {
     if (empty($posts) || empty($groups)) {
         return $posts;
@@ -1324,6 +1369,14 @@ function ll_tools_word_grid_shortcode($atts) {
             $wordset_term = null;
         }
     }
+    $wordset_has_gender = false;
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
+        $wordset_has_gender = ll_tools_wordset_has_grammatical_gender($wordset_id);
+    }
+    $wordset_has_plurality = false;
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_plurality')) {
+        $wordset_has_plurality = ll_tools_wordset_has_plurality($wordset_id);
+    }
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery'], true);
 
     $can_edit_words = ll_tools_user_can_edit_vocab_words()
@@ -1338,6 +1391,26 @@ function ll_tools_word_grid_shortcode($atts) {
     ];
     if (is_user_logged_in() && function_exists('ll_tools_get_user_study_state')) {
         $user_study_state = ll_tools_get_user_study_state();
+    }
+    $part_of_speech_terms = [];
+    if ($can_edit_words) {
+        $part_of_speech_terms = get_terms([
+            'taxonomy' => 'part_of_speech',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+        if (is_wp_error($part_of_speech_terms)) {
+            $part_of_speech_terms = [];
+        }
+    }
+    $gender_options = [];
+    if ($wordset_has_gender && function_exists('ll_tools_wordset_get_gender_options')) {
+        $gender_options = ll_tools_wordset_get_gender_options($wordset_id);
+    }
+    $plurality_options = [];
+    if ($wordset_has_plurality && function_exists('ll_tools_wordset_get_plurality_options')) {
+        $plurality_options = ll_tools_wordset_get_plurality_options($wordset_id);
     }
 
     // Start output buffering
@@ -1413,6 +1486,10 @@ function ll_tools_word_grid_shortcode($atts) {
         }
     }
     $word_ids = wp_list_pluck($query->posts, 'ID');
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+    $part_of_speech_by_word = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids, true);
     $main_recording_types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
@@ -1558,6 +1635,16 @@ function ll_tools_word_grid_shortcode($atts) {
             'ipaCommon' => __('Common IPA symbols', 'll-tools-text-domain'),
             'ipaWordset' => __('Wordset IPA symbols', 'll-tools-text-domain'),
         ],
+        'bulkI18n' => [
+            'saving' => __('Updating...', 'll-tools-text-domain'),
+            'posSuccess' => __('Updated %d words.', 'll-tools-text-domain'),
+            'genderSuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
+            'pluralitySuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
+            'posMissing' => __('Choose a part of speech.', 'll-tools-text-domain'),
+            'genderMissing' => __('Choose a gender.', 'll-tools-text-domain'),
+            'pluralityMissing' => __('Choose a plurality option.', 'll-tools-text-domain'),
+            'error' => __('Unable to update words.', 'll-tools-text-domain'),
+        ],
         'transcribeI18n' => [
             'confirm'        => __('Transcribe missing recordings for this lesson?', 'll-tools-text-domain'),
             'confirmReplace' => __('Replace captions for this lesson?', 'll-tools-text-domain'),
@@ -1581,13 +1668,50 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($is_text_based) {
             $grid_classes .= ' ll-word-grid--text';
         }
-        echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" data-ll-word-grid>'; // Grid container
+        $grid_attrs = 'data-ll-word-grid';
+        if ($wordset_id > 0) {
+            $grid_attrs .= ' data-ll-wordset-id="' . esc_attr($wordset_id) . '"';
+        }
+        if ($category_term && !is_wp_error($category_term)) {
+            $grid_attrs .= ' data-ll-category-id="' . esc_attr((int) $category_term->term_id) . '"';
+        }
+        if ($wordset_has_gender) {
+            $grid_attrs .= ' data-ll-gender-enabled="1"';
+        }
+        if ($wordset_has_plurality) {
+            $grid_attrs .= ' data-ll-plurality-enabled="1"';
+        }
+        echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" ' . $grid_attrs . '>'; // Grid container
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
             $display_values = ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
+            $pos_entry = $part_of_speech_by_word[$word_id] ?? [];
+            $pos_slug = isset($pos_entry['slug']) ? (string) $pos_entry['slug'] : '';
+            $pos_label = isset($pos_entry['label']) ? (string) $pos_entry['label'] : '';
+            $is_noun = ($pos_slug === 'noun');
+            $gender_value = '';
+            $gender_label = '';
+            if ($wordset_has_gender && $wordset_id > 0 && $is_noun) {
+                $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
+                if ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_label')) {
+                    $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
+                } else {
+                    $gender_label = $gender_value;
+                }
+            }
+            $plurality_value = '';
+            $plurality_label = '';
+            if ($wordset_has_plurality && $wordset_id > 0 && $is_noun) {
+                $plurality_value = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
+                if ($plurality_value !== '' && function_exists('ll_tools_wordset_get_plurality_label')) {
+                    $plurality_label = ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value);
+                } else {
+                    $plurality_label = $plurality_value;
+                }
+            }
 
             // Individual item
             echo '<div class="word-item" data-word-id="' . esc_attr($word_id) . '">';
@@ -1679,6 +1803,15 @@ function ll_tools_word_grid_shortcode($atts) {
             echo '<span class="ll-word-translation" data-ll-word-translation>' . esc_html($translation_text) . '</span>';
             echo '</h3>';
             echo '</div>';
+            $meta_row_class = 'll-word-meta-row';
+            if ($pos_label === '' && $gender_label === '' && $plurality_label === '') {
+                $meta_row_class .= ' ll-word-meta-row--empty';
+            }
+            echo '<div class="' . esc_attr($meta_row_class) . '" data-ll-word-meta>';
+            echo '<span class="ll-word-meta-tag ll-word-meta-tag--pos" data-ll-word-pos>' . esc_html($pos_label) . '</span>';
+            echo '<span class="ll-word-meta-tag ll-word-meta-tag--gender" data-ll-word-gender>' . esc_html($gender_label) . '</span>';
+            echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
+            echo '</div>';
 
             if ($can_edit_words) {
                 $word_input_id = 'll-word-edit-word-' . $word_id;
@@ -1689,6 +1822,83 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($word_input_id) . '" data-ll-word-input="word" value="' . esc_attr($word_text) . '" />';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($translation_input_id) . '">' . esc_html($edit_labels['translation']) . '</label>';
                 echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($translation_input_id) . '" data-ll-word-input="translation" value="' . esc_attr($translation_text) . '" />';
+                echo '</div>';
+                echo '<div class="ll-word-edit-fields ll-word-edit-fields--meta">';
+                $pos_input_id = 'll-word-edit-pos-' . $word_id;
+                echo '<div class="ll-word-edit-field">';
+                echo '<label class="ll-word-edit-label" for="' . esc_attr($pos_input_id) . '">' . esc_html__('Part of speech', 'll-tools-text-domain') . '</label>';
+                echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($pos_input_id) . '" data-ll-word-input="part_of_speech">';
+                echo '<option value="">' . esc_html__('None', 'll-tools-text-domain') . '</option>';
+                foreach ($part_of_speech_terms as $term) {
+                    $term_slug = (string) ($term->slug ?? '');
+                    $term_label = (string) ($term->name ?? '');
+                    if ($term_slug === '') {
+                        continue;
+                    }
+                    echo '<option value="' . esc_attr($term_slug) . '"' . selected($term_slug, $pos_slug, false) . '>' . esc_html($term_label) . '</option>';
+                }
+                echo '</select>';
+                echo '</div>';
+                if ($wordset_has_gender) {
+                    $gender_input_id = 'll-word-edit-gender-' . $word_id;
+                    $gender_field_class = 'll-word-edit-field ll-word-edit-gender';
+                    if (!$is_noun) {
+                        $gender_field_class .= ' ll-word-edit-gender--hidden';
+                    }
+                    echo '<div class="' . esc_attr($gender_field_class) . '" data-ll-word-gender-field aria-hidden="' . ($is_noun ? 'false' : 'true') . '">';
+                    echo '<label class="ll-word-edit-label" for="' . esc_attr($gender_input_id) . '">' . esc_html__('Gender', 'll-tools-text-domain') . '</label>';
+                    echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($gender_input_id) . '" data-ll-word-input="gender"' . ($is_noun ? '' : ' disabled') . '>';
+                    echo '<option value="">' . esc_html__('None', 'll-tools-text-domain') . '</option>';
+                    $gender_found = false;
+                    foreach ($gender_options as $option) {
+                        $option_value = (string) $option;
+                        if ($option_value === '') {
+                            continue;
+                        }
+                        if ($option_value === $gender_value) {
+                            $gender_found = true;
+                        }
+                        $option_label = function_exists('ll_tools_wordset_format_gender_display_label')
+                            ? ll_tools_wordset_format_gender_display_label($option_value)
+                            : $option_value;
+                        echo '<option value="' . esc_attr($option_value) . '"' . selected($option_value, $gender_value, false) . '>' . esc_html($option_label) . '</option>';
+                    }
+                    if ($gender_value !== '' && !$gender_found) {
+                        $fallback_label = function_exists('ll_tools_wordset_format_gender_display_label')
+                            ? ll_tools_wordset_format_gender_display_label($gender_value)
+                            : $gender_value;
+                        echo '<option value="' . esc_attr($gender_value) . '" selected>' . esc_html($fallback_label) . '</option>';
+                    }
+                    echo '</select>';
+                    echo '</div>';
+                }
+                if ($wordset_has_plurality) {
+                    $plurality_input_id = 'll-word-edit-plurality-' . $word_id;
+                    $plurality_field_class = 'll-word-edit-field ll-word-edit-plurality';
+                    if (!$is_noun) {
+                        $plurality_field_class .= ' ll-word-edit-plurality--hidden';
+                    }
+                    echo '<div class="' . esc_attr($plurality_field_class) . '" data-ll-word-plurality-field aria-hidden="' . ($is_noun ? 'false' : 'true') . '">';
+                    echo '<label class="ll-word-edit-label" for="' . esc_attr($plurality_input_id) . '">' . esc_html__('Plurality', 'll-tools-text-domain') . '</label>';
+                    echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($plurality_input_id) . '" data-ll-word-input="plurality"' . ($is_noun ? '' : ' disabled') . '>';
+                    echo '<option value="">' . esc_html__('None', 'll-tools-text-domain') . '</option>';
+                    $plurality_found = false;
+                    foreach ($plurality_options as $option) {
+                        $option_value = (string) $option;
+                        if ($option_value === '') {
+                            continue;
+                        }
+                        if ($option_value === $plurality_value) {
+                            $plurality_found = true;
+                        }
+                        echo '<option value="' . esc_attr($option_value) . '"' . selected($option_value, $plurality_value, false) . '>' . esc_html($option_value) . '</option>';
+                    }
+                    if ($plurality_value !== '' && !$plurality_found) {
+                        echo '<option value="' . esc_attr($plurality_value) . '" selected>' . esc_html($plurality_value) . '</option>';
+                    }
+                    echo '</select>';
+                    echo '</div>';
+                }
                 echo '</div>';
 
                 if (!empty($edit_recordings)) {
@@ -2124,6 +2334,38 @@ function ll_tools_fill_missing_word_fields_from_recording(int $word_id, string $
     ];
 }
 
+function ll_tools_word_grid_bump_category_cache_for_words(array $word_ids, int $fallback_category_id = 0): void {
+    if (!function_exists('ll_tools_bump_category_cache_version')) {
+        return;
+    }
+
+    $touched = [];
+    foreach ($word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if ($word_id <= 0) {
+            continue;
+        }
+        $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($term_ids)) {
+            continue;
+        }
+        foreach ($term_ids as $term_id) {
+            $term_id = (int) $term_id;
+            if ($term_id > 0) {
+                $touched[$term_id] = true;
+            }
+        }
+    }
+
+    if (empty($touched) && $fallback_category_id > 0) {
+        $touched[$fallback_category_id] = true;
+    }
+
+    if (!empty($touched)) {
+        ll_tools_bump_category_cache_version(array_keys($touched));
+    }
+}
+
 add_action('wp_ajax_ll_tools_word_grid_update_word', 'll_tools_word_grid_update_word_handler');
 function ll_tools_word_grid_update_word_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
@@ -2189,6 +2431,119 @@ function ll_tools_word_grid_update_word_handler() {
         }
     }
 
+    $pos_updated = array_key_exists('part_of_speech', $_POST);
+    $pos_slug = '';
+    $pos_label = '';
+    if ($pos_updated) {
+        $pos_slug = sanitize_text_field($_POST['part_of_speech'] ?? '');
+        $pos_slug = sanitize_title($pos_slug);
+        if ($pos_slug !== '') {
+            $pos_term = get_term_by('slug', $pos_slug, 'part_of_speech');
+            if ($pos_term && !is_wp_error($pos_term)) {
+                wp_set_object_terms($word_id, [$pos_term->term_id], 'part_of_speech', false);
+                $pos_slug = (string) $pos_term->slug;
+                $pos_label = (string) $pos_term->name;
+            } else {
+                $pos_slug = '';
+                wp_set_object_terms($word_id, [], 'part_of_speech', false);
+            }
+        } else {
+            wp_set_object_terms($word_id, [], 'part_of_speech', false);
+        }
+    }
+    if (!$pos_updated) {
+        $pos_terms = wp_get_post_terms($word_id, 'part_of_speech', ['orderby' => 'name', 'order' => 'ASC']);
+        if (!is_wp_error($pos_terms) && !empty($pos_terms)) {
+            $pos_slug = (string) $pos_terms[0]->slug;
+            $pos_label = (string) $pos_terms[0]->name;
+        }
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if ($wordset_id <= 0) {
+        $wordset_id = ll_tools_word_grid_get_wordset_id_for_word($word_id);
+    }
+    if ($wordset_id > 0 && !has_term($wordset_id, 'wordset', $word_id)) {
+        $wordset_id = ll_tools_word_grid_get_wordset_id_for_word($word_id);
+    }
+    $gender_enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
+        ? ll_tools_wordset_has_grammatical_gender($wordset_id)
+        : false;
+    $plurality_enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_plurality'))
+        ? ll_tools_wordset_has_plurality($wordset_id)
+        : false;
+    $is_noun = ($pos_slug === 'noun');
+    $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
+    $gender_label = '';
+    $gender_submitted = array_key_exists('grammatical_gender', $_POST);
+    if ($gender_submitted || $pos_updated) {
+        $submitted_gender = sanitize_text_field($_POST['grammatical_gender'] ?? '');
+        $submitted_gender = trim($submitted_gender);
+        if (!$gender_enabled || !$is_noun) {
+            if ($gender_value !== '') {
+                delete_post_meta($word_id, 'll_grammatical_gender');
+            }
+            $gender_value = '';
+        } else {
+            $allowed = function_exists('ll_tools_wordset_get_gender_options')
+                ? ll_tools_wordset_get_gender_options($wordset_id)
+                : [];
+            if ($submitted_gender === '') {
+                delete_post_meta($word_id, 'll_grammatical_gender');
+                $gender_value = '';
+            } elseif (in_array($submitted_gender, $allowed, true) || $submitted_gender === $gender_value) {
+                update_post_meta($word_id, 'll_grammatical_gender', $submitted_gender);
+                $gender_value = $submitted_gender;
+            } else {
+                delete_post_meta($word_id, 'll_grammatical_gender');
+                $gender_value = '';
+            }
+        }
+    }
+    if (!$gender_enabled || !$is_noun) {
+        $gender_value = '';
+        $gender_label = '';
+    } elseif ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_label')) {
+        $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
+    } else {
+        $gender_label = $gender_value;
+    }
+    $plurality_value = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
+    $plurality_label = '';
+    $plurality_submitted = array_key_exists('grammatical_plurality', $_POST);
+    if ($plurality_submitted || $pos_updated) {
+        $submitted_plurality = sanitize_text_field($_POST['grammatical_plurality'] ?? '');
+        $submitted_plurality = trim($submitted_plurality);
+        if (!$plurality_enabled || !$is_noun) {
+            if ($plurality_value !== '') {
+                delete_post_meta($word_id, 'll_grammatical_plurality');
+            }
+            $plurality_value = '';
+        } else {
+            $plurality_allowed = function_exists('ll_tools_wordset_get_plurality_options')
+                ? ll_tools_wordset_get_plurality_options($wordset_id)
+                : [];
+            if ($submitted_plurality === '') {
+                delete_post_meta($word_id, 'll_grammatical_plurality');
+                $plurality_value = '';
+            } elseif (in_array($submitted_plurality, $plurality_allowed, true) || $submitted_plurality === $plurality_value) {
+                update_post_meta($word_id, 'll_grammatical_plurality', $submitted_plurality);
+                $plurality_value = $submitted_plurality;
+            } else {
+                delete_post_meta($word_id, 'll_grammatical_plurality');
+                $plurality_value = '';
+            }
+        }
+    }
+    if (!$plurality_enabled || !$is_noun) {
+        $plurality_value = '';
+        $plurality_label = '';
+    } elseif ($plurality_value !== '' && function_exists('ll_tools_wordset_get_plurality_label')) {
+        $plurality_label = ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value);
+    } else {
+        $plurality_label = $plurality_value;
+    }
+
     $recordings_payload = ll_tools_word_grid_parse_recordings_payload($_POST['recordings'] ?? '');
     $recordings_out = [];
     foreach ($recordings_payload as $recording) {
@@ -2235,6 +2590,8 @@ function ll_tools_word_grid_update_word_handler() {
     ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, '');
     ll_tools_word_grid_update_wordset_ipa_letter_map($word_id);
 
+    ll_tools_word_grid_bump_category_cache_for_words([$word_id]);
+
     $display_values = ll_tools_word_grid_resolve_display_text($word_id);
 
     wp_send_json_success([
@@ -2242,7 +2599,192 @@ function ll_tools_word_grid_update_word_handler() {
         'word_text' => $display_values['word_text'],
         'word_translation' => $display_values['translation_text'],
         'recordings' => $recordings_out,
+        'part_of_speech' => [
+            'slug' => $pos_slug,
+            'label' => $pos_label,
+        ],
+        'grammatical_gender' => [
+            'value' => $gender_value,
+            'label' => $gender_label,
+        ],
+        'grammatical_plurality' => [
+            'value' => $plurality_value,
+            'label' => $plurality_label,
+        ],
     ]);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_bulk_update', 'll_tools_word_grid_bulk_update_handler');
+function ll_tools_word_grid_bulk_update_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    $category_id = (int) ($_POST['category_id'] ?? 0);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        wp_send_json_error('Missing wordset or category', 400);
+    }
+
+    $mode = sanitize_text_field($_POST['mode'] ?? '');
+    if (!in_array($mode, ['pos', 'gender', 'plurality'], true)) {
+        wp_send_json_error('Invalid mode', 400);
+    }
+
+    $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
+    if (empty($word_ids)) {
+        wp_send_json_success([
+            'word_ids' => [],
+            'count' => 0,
+        ]);
+    }
+
+    if ($mode === 'pos') {
+        $pos_slug = sanitize_text_field($_POST['part_of_speech'] ?? '');
+        $pos_slug = sanitize_title($pos_slug);
+        if ($pos_slug === '') {
+            wp_send_json_error('Missing part of speech', 400);
+        }
+        $term = get_term_by('slug', $pos_slug, 'part_of_speech');
+        if (!$term || is_wp_error($term)) {
+            wp_send_json_error('Invalid part of speech', 400);
+        }
+
+        $clear_gender = ($term->slug !== 'noun');
+        $clear_plurality = ($term->slug !== 'noun');
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            wp_set_object_terms($word_id, [(int) $term->term_id], 'part_of_speech', false);
+            if ($clear_gender) {
+                delete_post_meta($word_id, 'll_grammatical_gender');
+            }
+            if ($clear_plurality) {
+                delete_post_meta($word_id, 'll_grammatical_plurality');
+            }
+        }
+
+        ll_tools_word_grid_bump_category_cache_for_words($word_ids, $category_id);
+
+        wp_send_json_success([
+            'word_ids' => $word_ids,
+            'count' => count($word_ids),
+            'part_of_speech' => [
+                'slug' => (string) $term->slug,
+                'label' => (string) $term->name,
+            ],
+            'gender_cleared' => $clear_gender,
+            'plurality_cleared' => $clear_plurality,
+        ]);
+    }
+
+    if ($mode === 'gender') {
+        if (!function_exists('ll_tools_wordset_has_grammatical_gender') || !ll_tools_wordset_has_grammatical_gender($wordset_id)) {
+            wp_send_json_error('Gender not enabled', 400);
+        }
+
+        $gender_value = sanitize_text_field($_POST['grammatical_gender'] ?? '');
+        $gender_value = trim($gender_value);
+        if ($gender_value === '') {
+            wp_send_json_error('Missing gender', 400);
+        }
+
+        $allowed = function_exists('ll_tools_wordset_get_gender_options')
+            ? ll_tools_wordset_get_gender_options($wordset_id)
+            : [];
+        if (!in_array($gender_value, $allowed, true)) {
+            wp_send_json_error('Invalid gender', 400);
+        }
+
+        $pos_map = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+        $updated = [];
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $pos_slug = isset($pos_map[$word_id]['slug']) ? (string) $pos_map[$word_id]['slug'] : '';
+            if ($pos_slug !== 'noun') {
+                continue;
+            }
+            update_post_meta($word_id, 'll_grammatical_gender', $gender_value);
+            $updated[] = $word_id;
+        }
+
+        $gender_label = function_exists('ll_tools_wordset_get_gender_label')
+            ? ll_tools_wordset_get_gender_label($wordset_id, $gender_value)
+            : $gender_value;
+
+        if (!empty($updated)) {
+            ll_tools_word_grid_bump_category_cache_for_words($updated, $category_id);
+        }
+
+        wp_send_json_success([
+            'word_ids' => $updated,
+            'count' => count($updated),
+            'skipped' => max(0, count($word_ids) - count($updated)),
+            'grammatical_gender' => [
+                'value' => $gender_value,
+                'label' => $gender_label,
+            ],
+        ]);
+    }
+
+    if ($mode === 'plurality') {
+        if (!function_exists('ll_tools_wordset_has_plurality') || !ll_tools_wordset_has_plurality($wordset_id)) {
+            wp_send_json_error('Plurality not enabled', 400);
+        }
+
+        $plurality_value = sanitize_text_field($_POST['grammatical_plurality'] ?? '');
+        $plurality_value = trim($plurality_value);
+        if ($plurality_value === '') {
+            wp_send_json_error('Missing plurality', 400);
+        }
+
+        $plurality_allowed = function_exists('ll_tools_wordset_get_plurality_options')
+            ? ll_tools_wordset_get_plurality_options($wordset_id)
+            : [];
+        if (!in_array($plurality_value, $plurality_allowed, true)) {
+            wp_send_json_error('Invalid plurality', 400);
+        }
+
+        $pos_map = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+        $updated = [];
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $pos_slug = isset($pos_map[$word_id]['slug']) ? (string) $pos_map[$word_id]['slug'] : '';
+            if ($pos_slug !== 'noun') {
+                continue;
+            }
+            update_post_meta($word_id, 'll_grammatical_plurality', $plurality_value);
+            $updated[] = $word_id;
+        }
+
+        $plurality_label = function_exists('ll_tools_wordset_get_plurality_label')
+            ? ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value)
+            : $plurality_value;
+
+        if (!empty($updated)) {
+            ll_tools_word_grid_bump_category_cache_for_words($updated, $category_id);
+        }
+
+        wp_send_json_success([
+            'word_ids' => $updated,
+            'count' => count($updated),
+            'skipped' => max(0, count($word_ids) - count($updated)),
+            'grammatical_plurality' => [
+                'value' => $plurality_value,
+                'label' => $plurality_label,
+            ],
+        ]);
+    }
 }
 
 add_action('wp_ajax_ll_tools_get_lesson_transcribe_queue', 'll_tools_get_lesson_transcribe_queue_handler');

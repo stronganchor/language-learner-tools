@@ -7,7 +7,7 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
-    function getCategoryConfig(name) {
+    function getRawCategoryConfig(name) {
         const base = {
             prompt_type: 'audio',
             option_type: State.DEFAULT_DISPLAY_MODE,
@@ -19,6 +19,116 @@
             : [];
         const found = cats.find(c => c && c.name === name);
         return Object.assign({}, base, found || {});
+    }
+
+    function getCategoryConfig(name) {
+        const cfg = getRawCategoryConfig(name);
+        if (State && State.isGenderMode && isGenderModeEnabled()) {
+            cfg.option_type = 'text';
+        }
+        return cfg;
+    }
+
+    function stripGenderVariation(value) {
+        return (value === null || value === undefined)
+            ? ''
+            : String(value).replace(/[\uFE0E\uFE0F]/g, '');
+    }
+
+    function formatGenderDisplayLabel(value) {
+        const cleaned = stripGenderVariation(value).trim();
+        if (cleaned === '♂' || cleaned === '♀') {
+            return cleaned + '\uFE0E';
+        }
+        return cleaned || String(value || '');
+    }
+
+    function getGenderOptions() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = Array.isArray(data.genderOptions) ? data.genderOptions : [];
+        const options = [];
+        const seen = {};
+        raw.forEach(function (opt) {
+            const val = stripGenderVariation((opt === null || opt === undefined) ? '' : String(opt)).trim();
+            if (!val) return;
+            const key = val.toLowerCase();
+            if (seen[key]) return;
+            seen[key] = true;
+            options.push(val);
+        });
+        return options;
+    }
+
+    function isGenderModeEnabled() {
+        const data = root.llToolsFlashcardsData || {};
+        return !!data.genderEnabled && getGenderOptions().length >= 2;
+    }
+
+    function normalizeGenderValue(value, options) {
+        const base = stripGenderVariation((value === null || value === undefined) ? '' : String(value)).trim();
+        if (!base) return '';
+        const lowered = base.toLowerCase();
+        for (let i = 0; i < options.length; i++) {
+            const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+            if (!opt) continue;
+            if (opt.toLowerCase() === lowered) return opt;
+        }
+        if (lowered === 'masculine' || lowered === 'feminine') {
+            const symbol = lowered === 'masculine' ? '♂' : '♀';
+            for (let i = 0; i < options.length; i++) {
+                const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+                if (!opt) continue;
+                if (opt === symbol) return opt;
+            }
+        }
+        return '';
+    }
+
+    function getGenderAssetRequirements(categoryName) {
+        const cfg = getRawCategoryConfig(categoryName);
+        const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
+        const promptType = cfg.prompt_type || 'audio';
+        const requiresAudio = (promptType === 'audio') || opt === 'audio' || opt === 'text_audio';
+        const requiresImage = (promptType === 'image') || opt === 'image';
+        return { requiresAudio, requiresImage };
+    }
+
+    function isGenderEligibleWord(word, options, categoryName) {
+        if (!word || !options || !options.length) return false;
+        const posRaw = word.part_of_speech;
+        const pos = Array.isArray(posRaw) ? posRaw : (posRaw ? [posRaw] : []);
+        const isNoun = pos.some(function (p) { return String(p).toLowerCase() === 'noun'; });
+        if (!isNoun) return false;
+
+        const genderLabel = normalizeGenderValue(word.grammatical_gender, options);
+        if (!genderLabel) return false;
+
+        const requirements = getGenderAssetRequirements(categoryName || getTargetCategoryName(word));
+        const hasImage = !!(word.image || word.has_image);
+        const hasAudio = !!(word.audio || word.has_audio);
+        if (requirements.requiresImage && !hasImage) return false;
+        if (requirements.requiresAudio && !hasAudio) return false;
+
+        word.__gender_label = genderLabel;
+        return true;
+    }
+
+    function getGenderWordsByCategory() {
+        const source = State.wordsByCategory || {};
+        const options = getGenderOptions();
+        const out = {};
+        Object.keys(source).forEach(function (name) {
+            const list = Array.isArray(source[name]) ? source[name] : [];
+            out[name] = list.filter(function (word) { return isGenderEligibleWord(word, options, name); });
+        });
+        return out;
+    }
+
+    function getActiveWordsByCategory() {
+        if (State && State.isGenderMode && isGenderModeEnabled()) {
+            return getGenderWordsByCategory();
+        }
+        return State.wordsByCategory || {};
     }
 
     function getCategoryDisplayMode(name) {
@@ -106,7 +216,7 @@
     }
 
     function getAvailableUnusedWords(name, starredLookup, starMode) {
-        const list = State.wordsByCategory[name] || [];
+        const list = getActiveWordsByCategory()[name] || [];
         if (!Array.isArray(list) || !list.length) return [];
         const counts = getStarPlayCounts();
         const filtered = list.filter(function (w) {
@@ -165,6 +275,25 @@
             });
         } catch (_) {
             return true;
+        }
+    }
+
+    function isGenderSupportedForCategories(categoryNames) {
+        if (!isGenderModeEnabled()) return false;
+        try {
+            const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+            if (!Array.isArray(names) || !names.length) return false;
+            const minCount = parseInt((root.llToolsFlashcardsData && root.llToolsFlashcardsData.genderMinCount) || '', 10) || 2;
+            return names.every(function (name) {
+                const cfg = getCategoryConfig(name);
+                if (typeof cfg.gender_supported === 'boolean') {
+                    return cfg.gender_supported;
+                }
+                const list = getGenderWordsByCategory()[name] || [];
+                return list.length >= minCount;
+            });
+        } catch (_) {
+            return false;
         }
     }
 
@@ -327,7 +456,7 @@
                 root.FlashcardLoader.preloadNextCategories && root.FlashcardLoader.preloadNextCategories();
                 root.LLFlashcards.Dom.updateCategoryNameDisplay(State.currentCategoryName);
             }
-            State.currentCategory = State.wordsByCategory[candidateCategoryName];
+            State.currentCategory = getActiveWordsByCategory()[candidateCategoryName];
             State.categoryRoundCount[candidateCategoryName] = (State.categoryRoundCount[candidateCategoryName] || 0) + 1;
             State.currentCategoryRoundCount++;
         }
@@ -338,7 +467,7 @@
         pruneCompletedCategories();
         let found = null;
         for (let name of State.categoryNames) {
-            const w = selectTargetWord(State.wordsByCategory[name], name);
+            const w = selectTargetWord(getActiveWordsByCategory()[name], name);
             // Age the round count even when not selected, so queued items can mature
             State.categoryRoundCount[name] = (State.categoryRoundCount[name] || 0) + 1;
             if (w) { found = w; break; }
@@ -367,9 +496,9 @@
             if (!State.firstCategoryName) {
                 State.firstCategoryName = State.categoryNames[Math.floor(Math.random() * State.categoryNames.length)];
             }
-            target = selectTargetWord(State.wordsByCategory[State.firstCategoryName], State.firstCategoryName);
+            target = selectTargetWord(getActiveWordsByCategory()[State.firstCategoryName], State.firstCategoryName);
             State.currentCategoryName = State.firstCategoryName;
-            State.currentCategory = State.wordsByCategory[State.currentCategoryName];
+            State.currentCategory = getActiveWordsByCategory()[State.currentCategoryName];
         } else {
             const queue = State.categoryRepetitionQueues[State.currentCategoryName];
             const hasReadyFromQueue = Array.isArray(queue) && queue.some(function (item) {
@@ -402,7 +531,7 @@
                     return null;
                 }
                 const nextName = State.categoryNames[0];
-                target = selectTargetWord(State.wordsByCategory[nextName], nextName);
+                target = selectTargetWord(getActiveWordsByCategory()[nextName], nextName);
             }
         }
         if (!target) {
@@ -455,16 +584,56 @@
             : false;
     }
 
+    function fillGenderQuizOptions(targetWord, config, targetCategoryName) {
+        const $ = root.jQuery;
+        if (!$ || !targetWord) return false;
+        if (!isGenderModeEnabled()) return false;
+
+        const genderOptions = getGenderOptions();
+        const genderLabel = normalizeGenderValue(targetWord.grammatical_gender, genderOptions) || targetWord.__gender_label || '';
+        if (!genderLabel || genderOptions.length < 2) return false;
+
+        const promptType = getCategoryPromptType(targetCategoryName);
+        State.currentOptionType = 'text';
+        State.currentPromptType = promptType;
+        renderPrompt(targetWord, config);
+
+        const $container = $('#ll-tools-flashcard');
+        const $content = $('#ll-tools-flashcard-content');
+        $container.removeClass('audio-line-layout');
+        $content.removeClass('audio-line-mode');
+
+        genderOptions.forEach(function (label, idx) {
+            const normalized = normalizeGenderValue(label, genderOptions);
+            const isCorrect = normalized && normalized === genderLabel;
+            const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + idx);
+            const optionWord = {
+                id: optionId,
+                title: label,
+                label: formatGenderDisplayLabel(label)
+            };
+            const $card = root.LLFlashcards.Cards.appendWordToContainer(optionWord, 'text', promptType, true);
+            $card.addClass('ll-gender-option');
+            root.LLFlashcards.Cards.addClickEventToCard($card, idx, targetWord, 'text', promptType);
+        });
+
+        $(document).trigger('ll-tools-options-ready');
+        return true;
+    }
+
     function fillQuizOptions(targetWord) {
         let chosen = [];
         const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
         if (targetCategoryName && targetCategoryName !== State.currentCategoryName) {
             State.currentCategoryName = targetCategoryName;
-            State.currentCategory = State.wordsByCategory[targetCategoryName] || State.currentCategory;
+            State.currentCategory = getActiveWordsByCategory()[targetCategoryName] || State.currentCategory;
             try { root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName); } catch (_) { /* no-op */ }
         }
 
         const config = getCategoryConfig(targetCategoryName);
+        if (State.isGenderMode && fillGenderQuizOptions(targetWord, config, targetCategoryName)) {
+            return;
+        }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
@@ -484,7 +653,7 @@
         if (State.isLearningMode) {
             // Collect all introduced words from all categories
             State.categoryNames.forEach(catName => {
-                const catWords = State.wordsByCategory[catName] || [];
+                const catWords = getActiveWordsByCategory()[catName] || [];
                 catWords.forEach(word => {
                     if (State.introducedWordIDs.includes(word.id)) {
                         availableWords.push(word);
@@ -493,7 +662,7 @@
             });
         } else {
             // Practice / listening: only use words from the current category
-            const catWords = State.wordsByCategory[targetCategoryName] || [];
+            const catWords = getActiveWordsByCategory()[targetCategoryName] || [];
             availableWords.push(...catWords);
         }
 
@@ -665,7 +834,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };
