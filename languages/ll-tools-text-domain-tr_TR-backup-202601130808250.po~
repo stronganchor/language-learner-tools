@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-01-12 12:38+0000\n"
+"PO-Revision-Date: 2026-01-13 08:08+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -33,7 +33,7 @@ msgid_plural "%d empty lines were ignored."
 msgstr[0] "d boş satır göz ardı edildi."
 msgstr[1] "d boş satırlar göz ardı edildi."
 
-#: includes/taxonomies/word-category-taxonomy.php:1228
+#: includes/taxonomies/word-category-taxonomy.php:1231
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] "%d girişi başarısız oldu."
@@ -106,7 +106,7 @@ msgstr ""
 "DeepL destekli çeviriler, şablon geçersiz kılmaları ve hafif roller (\"Word "
 "Set Manager\", \"LL Tools Editor\")."
 
-#: includes/admin/ipa-keyboard-admin.php:94
+#: includes/admin/ipa-keyboard-admin.php:100
 msgid "Add"
 msgstr "Ekle"
 
@@ -114,11 +114,11 @@ msgstr "Ekle"
 msgid "Add group"
 msgstr "Grup ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:50
+#: includes/admin/ipa-keyboard-admin.php:56
 msgid "Add manual mapping"
 msgstr "Manuel eşleme ekleyin"
 
-#: includes/admin/ipa-keyboard-admin.php:56
+#: includes/admin/ipa-keyboard-admin.php:62
 msgid "Add mapping"
 msgstr "Eşleme ekleyin"
 
@@ -150,7 +150,7 @@ msgstr ""
 msgid "Add pair"
 msgstr "Çift ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:92
+#: includes/admin/ipa-keyboard-admin.php:98
 msgid "Add symbols"
 msgstr "Semboller ekleyin"
 
@@ -206,12 +206,13 @@ msgstr ""
 "uygular, böylece kayıt cihazı kaydetmeden önce kırpma sınırlarını gözden "
 "geçirebilir ve ayarlayabilir."
 
-#: templates/vocab-lesson-template.php:217
-#: templates/vocab-lesson-template.php:234
+#: templates/vocab-lesson-template.php:248
+#: templates/vocab-lesson-template.php:270
+#: templates/vocab-lesson-template.php:288
 msgid "Apply"
-msgstr "Başvurmak"
+msgstr "Uygula"
 
-#: templates/vocab-lesson-template.php:233
+#: templates/vocab-lesson-template.php:269
 msgid "Apply gender to all nouns"
 msgstr "Tüm isimlere cinsiyet uygulayın"
 
@@ -219,9 +220,13 @@ msgstr "Tüm isimlere cinsiyet uygulayın"
 msgid "Apply Import"
 msgstr "İthalat Uygula"
 
-#: templates/vocab-lesson-template.php:216
+#: templates/vocab-lesson-template.php:247
 msgid "Apply part of speech to all words"
 msgstr "Konuşma bölümünü tüm kelimelere uygulayın"
+
+#: templates/vocab-lesson-template.php:287
+msgid "Apply plurality to all nouns"
+msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:1023
 msgid "Apply to category"
@@ -281,7 +286,7 @@ msgstr "Ses Kaydı Detayları"
 msgid "Audio Recording Page Created!"
 msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
-#: templates/vocab-lesson-template.php:136
+#: templates/vocab-lesson-template.php:161
 msgid "Auto captions"
 msgstr "Otomatik altyazılar"
 
@@ -294,18 +299,26 @@ msgstr "Otomatik harita"
 msgid "Auto-process Recordings"
 msgstr "Kayıtları Otomatik İşleme"
 
-#: templates/vocab-lesson-template.php:128
+#: templates/vocab-lesson-template.php:153
 msgid "Auto-transcribe missing recordings"
 msgstr "Eksik kayıtları otomatik yazıya dökme"
 
-#: templates/vocab-lesson-template.php:111
+#: templates/vocab-lesson-template.php:136
 #, php-format
 msgid "Back to %s"
 msgstr "Geri %s"
 
-#: templates/vocab-lesson-template.php:111
+#: templates/vocab-lesson-template.php:136
 msgid "Back to Word Set"
 msgstr "Kelime Setine Geri Dön"
+
+#: includes/admin/ipa-keyboard-admin.php:53
+msgid "Block mapping"
+msgstr ""
+
+#: includes/admin/ipa-keyboard-admin.php:54
+msgid "Blocked mappings"
+msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:863
 msgid "Blocked Pairs"
@@ -320,8 +333,8 @@ msgstr ""
 msgid "Bulk Add Audio"
 msgstr "Toplu Ses Ekleme"
 
-#: includes/taxonomies/word-category-taxonomy.php:1236
-#: includes/taxonomies/word-category-taxonomy.php:1242
+#: includes/taxonomies/word-category-taxonomy.php:1239
+#: includes/taxonomies/word-category-taxonomy.php:1245
 msgid "Bulk Add Categories"
 msgstr "Toplu Kategori Ekleme"
 
@@ -329,15 +342,20 @@ msgstr "Toplu Kategori Ekleme"
 msgid "Bulk Add Images"
 msgstr "Toplu Resim Ekleme"
 
-#: templates/vocab-lesson-template.php:170
+#: templates/vocab-lesson-template.php:226
+#: templates/vocab-lesson-template.php:233
+msgid "Bulk edit"
+msgstr ""
+
+#: templates/vocab-lesson-template.php:195
 msgid "Cancel"
 msgstr "İptal"
 
-#: templates/vocab-lesson-template.php:162
+#: templates/vocab-lesson-template.php:187
 msgid "Cancel transcription"
 msgstr "Transkripsiyonu iptal et"
 
-#: templates/vocab-lesson-template.php:127
+#: templates/vocab-lesson-template.php:152
 msgid "Captions"
 msgstr "Başlıklar"
 
@@ -434,12 +452,12 @@ msgstr ""
 "Artık geçerli testler oluşturamayan kategoriler için test sayfalarını "
 "temizleyin ve geçerli kategoriler için sayfaları senkronize edin."
 
-#: templates/vocab-lesson-template.php:160
+#: templates/vocab-lesson-template.php:185
 #: includes/admin/ipa-keyboard-admin.php:49
 msgid "Clear"
 msgstr "Temiz"
 
-#: templates/vocab-lesson-template.php:149
+#: templates/vocab-lesson-template.php:174
 msgid "Clear captions for this lesson"
 msgstr "Bu ders için açık başlıklar"
 
@@ -555,7 +573,7 @@ msgstr ""
 msgid "Default Recording Page"
 msgstr "Varsayılan Kayıt Sayfası"
 
-#: includes/taxonomies/wordset-taxonomy.php:417
+#: includes/taxonomies/wordset-taxonomy.php:800
 msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
@@ -600,7 +618,7 @@ msgstr ""
 "Kopyalar gizlenir, böylece önce kelime ve kayıt türü başına bir kayıt "
 "işleyebilirsiniz."
 
-#: includes/admin/ipa-keyboard-admin.php:93
+#: includes/admin/ipa-keyboard-admin.php:99
 msgid "e.g. IPA symbols"
 msgstr "örneğin IPA sembolleri"
 
@@ -637,15 +655,19 @@ msgstr "Kayıt Türünü Düzenle"
 msgid "Edit Vocab Lesson"
 msgstr "Kelime Dersini Düzenle"
 
-#: includes/taxonomies/wordset-taxonomy.php:180
+#: includes/taxonomies/wordset-taxonomy.php:189
 msgid "Enable grammatical gender for this word set."
 msgstr "Bu sözcük kümesi için dilbilgisel cinsiyeti etkinleştirin."
 
-#: includes/admin/ipa-keyboard-admin.php:57
+#: includes/taxonomies/wordset-taxonomy.php:201
+msgid "Enable plurality for this word set."
+msgstr ""
+
+#: includes/admin/ipa-keyboard-admin.php:63
 msgid "Enter letters and IPA symbols to add."
 msgstr "Eklemek için harfleri ve IPA sembollerini girin."
 
-#: includes/taxonomies/word-category-taxonomy.php:1240
+#: includes/taxonomies/word-category-taxonomy.php:1243
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr "Virgül, sekme veya yeni satır ile ayrılmış isimleri girin.."
 
@@ -657,7 +679,7 @@ msgstr "Eklemek için bir veya daha fazla sembol girin."
 msgid "Enter one word per line"
 msgstr "Satır başına bir kelime girin"
 
-#: includes/taxonomies/wordset-taxonomy.php:173
+#: includes/taxonomies/wordset-taxonomy.php:182
 msgid "Enter the language for this word set."
 msgstr "Bu kelime seti için dili girin."
 
@@ -669,6 +691,10 @@ msgstr "Bu kategori için çevrilmiş adı girin."
 #: includes/admin/export-import.php:59
 msgid "Errors:"
 msgstr "Hatalar:"
+
+#: includes/admin/ipa-keyboard-admin.php:50
+msgid "Examples"
+msgstr ""
 
 #: includes/user-roles/audio-recorder-role.php:161
 #: includes/user-roles/audio-recorder-role.php:279
@@ -738,8 +764,8 @@ msgid "Fix Word Images (Legacy Cleanup)"
 msgstr "Kelime Görüntülerini Düzeltme (Eski Temizleme)"
 
 #: templates/vocab-lesson-template.php:44
-#: templates/vocab-lesson-template.php:223
-#: templates/vocab-lesson-template.php:226
+#: templates/vocab-lesson-template.php:254
+#: templates/vocab-lesson-template.php:257
 msgid "Gender"
 msgstr "Cinsiyet"
 
@@ -749,7 +775,7 @@ msgstr "Cinsiyet"
 msgid "Gender Mode"
 msgstr "Cinsiyet Modu"
 
-#: includes/taxonomies/wordset-taxonomy.php:184
+#: includes/taxonomies/wordset-taxonomy.php:193
 msgid "Gender options"
 msgstr "Cinsiyet seçenekleri"
 
@@ -773,7 +799,7 @@ msgstr "Ses İşlemcisine git"
 msgid "Good job!"
 msgstr "Aferin!"
 
-#: includes/taxonomies/wordset-taxonomy.php:177
+#: includes/taxonomies/wordset-taxonomy.php:186
 msgid "Grammatical gender"
 msgstr "Dilbilgisel cinsiyet"
 
@@ -962,21 +988,25 @@ msgstr "Geçersiz kelime dersi ayarları isteği."
 msgid "Invalid word set or category."
 msgstr "Geçersiz sözcük kümesi veya kategori."
 
-#: includes/admin/ipa-keyboard-admin.php:76
+#: includes/admin/ipa-keyboard-admin.php:82
 msgid "IPA Keyboard Manager"
 msgstr "IPA Klavye Yöneticisi"
 
-#: includes/admin/ipa-keyboard-admin.php:100
+#: includes/admin/ipa-keyboard-admin.php:106
 msgid "IPA Special Characters"
 msgstr "IPA Özel Karakterleri"
 
-#: includes/admin/ipa-keyboard-admin.php:52
+#: includes/admin/ipa-keyboard-admin.php:58
 msgid "IPA symbols"
 msgstr "IPA sembolleri"
 
-#: includes/admin/ipa-keyboard-admin.php:54
+#: includes/admin/ipa-keyboard-admin.php:60
 msgid "IPA symbols (e.g. r)"
 msgstr "IPA sembolleri (örn. r)"
+
+#: includes/admin/ipa-keyboard-admin.php:52
+msgid "IPA:"
+msgstr ""
 
 #: includes/shortcodes/user-study-dashboard.php:71
 #: includes/taxonomies/recording-type-taxonomy.php:41
@@ -994,7 +1024,7 @@ msgstr ""
 "Varsayılan yumuşak tempoyu koruyun veya doğru cevaplardan sonra hızlandırın."
 
 #: includes/taxonomies/language-taxonomy.php:11
-#: includes/taxonomies/wordset-taxonomy.php:171
+#: includes/taxonomies/wordset-taxonomy.php:180
 msgid "Language"
 msgstr "Dil"
 
@@ -1040,7 +1070,7 @@ msgstr "Atanmamış bırakın"
 msgid "Leave uncategorized"
 msgstr "Kategorize edilmemiş bırakın"
 
-#: includes/admin/ipa-keyboard-admin.php:105
+#: includes/admin/ipa-keyboard-admin.php:111
 msgid "Letter to IPA Map"
 msgstr "IPA Haritasına Mektup"
 
@@ -1048,11 +1078,11 @@ msgstr "IPA Haritasına Mektup"
 msgid "Letter(s)"
 msgstr "Mektup(lar)"
 
-#: includes/admin/ipa-keyboard-admin.php:51
+#: includes/admin/ipa-keyboard-admin.php:57
 msgid "Letters"
 msgstr "Mektuplar"
 
-#: includes/admin/ipa-keyboard-admin.php:53
+#: includes/admin/ipa-keyboard-admin.php:59
 msgid "Letters (e.g. ll)"
 msgstr "Harfler (örn. ll)"
 
@@ -1110,7 +1140,7 @@ msgstr "Manuel geçersiz kılma"
 msgid "Manual pair"
 msgstr "Manuel çift"
 
-#: includes/admin/ipa-keyboard-admin.php:106
+#: includes/admin/ipa-keyboard-admin.php:112
 msgid ""
 "Mappings inferred from transcriptions. Add manual overrides to fix "
 "suggestion mistakes."
@@ -1274,13 +1304,25 @@ msgstr "Sunucu içe aktarma klasöründe henüz zip dosyası bulunamadı."
 msgid "None"
 msgstr "Hiçbiri"
 
-#: templates/vocab-lesson-template.php:224
+#: templates/vocab-lesson-template.php:255
 msgid "Noun gender"
 msgstr "İsim cinsiyeti"
 
-#: includes/taxonomies/wordset-taxonomy.php:186
-msgid "One option per line (for example: masculine, feminine, neuter)."
-msgstr "Her satır için bir seçenek (örneğin: eril, dişil, nötr)."
+#: templates/vocab-lesson-template.php:278
+msgid "Noun plurality"
+msgstr ""
+
+#: includes/taxonomies/wordset-taxonomy.php:207
+msgid "One option per line (for example: singular, plural, dual)."
+msgstr ""
+
+#: includes/taxonomies/wordset-taxonomy.php:195
+msgid ""
+"One option per line (for example: ♂, ♀, neuter). Use custom text if you "
+"prefer."
+msgstr ""
+"Satır başına bir seçenek (örneğin: ♂, ♀, nötr). İsterseniz özel metin "
+"kullanın."
 
 #: includes/admin/bulk-word-import-admin.php:311
 msgid ""
@@ -1319,15 +1361,13 @@ msgstr "Aynı görüntüye sahip çiftler kilitlenir ve kaldırılamaz."
 msgid "Parent Word:"
 msgstr "Ebeveyn kelimesi:"
 
-#: templates/vocab-lesson-template.php:195
-#: templates/vocab-lesson-template.php:202
-#: templates/vocab-lesson-template.php:206
-#: templates/vocab-lesson-template.php:209
+#: templates/vocab-lesson-template.php:237
+#: templates/vocab-lesson-template.php:240
 #: includes/taxonomies/part-of-speech-taxonomy.php:7
 msgid "Part of Speech"
 msgstr "Sözcük Türü"
 
-#: templates/vocab-lesson-template.php:207
+#: templates/vocab-lesson-template.php:238
 msgid "Part of speech"
 msgstr "Sözcük türü"
 
@@ -1343,7 +1383,7 @@ msgstr "Mükemmel!"
 msgid "Permission denied"
 msgstr "İzin reddedildi"
 
-#: includes/taxonomies/word-category-taxonomy.php:1254
+#: includes/taxonomies/word-category-taxonomy.php:1257
 msgid "Permission denied or invalid nonce."
 msgstr "İzin reddedildi veya geçersiz nonce."
 
@@ -1388,6 +1428,16 @@ msgstr ""
 msgid "Please provide at least one word to import."
 msgstr "Lütfen içe aktarmak için en az bir kelime sağlayın."
 
+#: templates/vocab-lesson-template.php:277
+#: templates/vocab-lesson-template.php:280
+#: includes/taxonomies/wordset-taxonomy.php:198
+msgid "Plurality"
+msgstr ""
+
+#: includes/taxonomies/wordset-taxonomy.php:205
+msgid "Plurality options"
+msgstr ""
+
 #: templates/vocab-lesson-template.php:42
 #: includes/shortcodes/user-study-dashboard.php:61
 msgid "Practice"
@@ -1417,7 +1467,7 @@ msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
 msgid "Queue"
 msgstr "Sıra"
 
-#: templates/vocab-lesson-template.php:249
+#: templates/vocab-lesson-template.php:303
 msgid "Quiz modes"
 msgstr "Sınav modları"
 
@@ -1495,11 +1545,11 @@ msgstr "Kaldırmak"
 msgid "Remove pair: %s"
 msgstr "Çifti kaldır: %s"
 
-#: templates/vocab-lesson-template.php:147
+#: templates/vocab-lesson-template.php:172
 msgid "Replace"
 msgstr "Değiştirin"
 
-#: templates/vocab-lesson-template.php:138
+#: templates/vocab-lesson-template.php:163
 msgid "Replace captions for this lesson"
 msgstr "Bu ders için altyazıları değiştirin"
 
@@ -1514,7 +1564,7 @@ msgstr "Tekrar Dinleme"
 msgid "Restart Quiz"
 msgstr "Yeniden Başla"
 
-#: includes/admin/ipa-keyboard-admin.php:77
+#: includes/admin/ipa-keyboard-admin.php:83
 msgid ""
 "Review IPA symbols per word set, update recordings, and add new keyboard "
 "symbols."
@@ -1546,7 +1596,7 @@ msgstr "Kaydedildi."
 
 #: includes/admin/ipa-keyboard-admin.php:35
 msgid "Saving..."
-msgstr "Tasarruf."
+msgstr "Kaydediliyor..."
 
 #: includes/admin/word-images-fixer.php:100
 msgid ""
@@ -1593,7 +1643,7 @@ msgstr "Bir sınav seçin.."
 msgid "Select a word"
 msgstr "Bir kelime seçin"
 
-#: includes/admin/ipa-keyboard-admin.php:82
+#: includes/admin/ipa-keyboard-admin.php:88
 #: includes/admin/word-option-rules-admin.php:597
 #: includes/admin/word-option-rules-admin.php:990
 msgid "Select a word set"
@@ -1623,13 +1673,17 @@ msgstr "Bir zip dosyası seçin"
 msgid "Select Categories"
 msgstr "Kategorileri Seç"
 
-#: templates/vocab-lesson-template.php:225
+#: templates/vocab-lesson-template.php:256
 msgid "Select gender"
 msgstr "Cinsiyet seçin"
 
-#: templates/vocab-lesson-template.php:208
+#: templates/vocab-lesson-template.php:239
 msgid "Select part of speech"
 msgstr "Konuşma bölümünü seçin"
+
+#: templates/vocab-lesson-template.php:279
+msgid "Select plurality"
+msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:1017
 msgid ""
@@ -1703,7 +1757,7 @@ msgstr "Standart"
 msgid "Standard pace"
 msgstr "Standart hız"
 
-#: templates/vocab-lesson-template.php:123
+#: templates/vocab-lesson-template.php:148
 #: includes/shortcodes/user-study-dashboard.php:66
 msgid "Star all"
 msgstr "Tümünü işaretle"
@@ -1729,11 +1783,11 @@ msgstr "Strong Anchor Tech"
 msgid "Study Settings"
 msgstr "Çalışma Ayarları"
 
-#: templates/vocab-lesson-template.php:288
+#: templates/vocab-lesson-template.php:342
 msgid "Study settings"
 msgstr "Çalışma ayarları"
 
-#: includes/taxonomies/word-category-taxonomy.php:1222
+#: includes/taxonomies/word-category-taxonomy.php:1225
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] "Başarıyla %d kategorisi eklendi."
@@ -1777,7 +1831,7 @@ msgstr ""
 msgid "Symbols added."
 msgstr "Semboller eklendi."
 
-#: includes/admin/ipa-keyboard-admin.php:101
+#: includes/admin/ipa-keyboard-admin.php:107
 msgid ""
 "Symbols used in this word set. Update recordings or add new symbols to the "
 "keyboard."
@@ -1814,6 +1868,10 @@ msgid ""
 "Text can use either translation or title; audio options play the word audio."
 msgstr ""
 "Metin, çeviri veya başlık kullanabilir; ses seçenekleri ses kelimesini çalar."
+
+#: includes/admin/ipa-keyboard-admin.php:51
+msgid "Text:"
+msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:173
 msgid "The category exists and has words"
@@ -1921,6 +1979,10 @@ msgstr "Kategorize edilmemiş varsayılanlar güncellendi."
 msgid "Uncheck All"
 msgstr "Seçimleri Kaldır"
 
+#: includes/admin/ipa-keyboard-admin.php:55
+msgid "Undo"
+msgstr ""
+
 #: includes/admin/word-option-rules-admin.php:938
 msgid "Unknown"
 msgstr "Bilinmiyor"
@@ -1962,7 +2024,7 @@ msgstr ""
 "Yukarıdaki ihracatçı tarafından oluşturulan bir zip kullanın. Kategorileri, "
 "kelime resmi gönderilerini ve bunların resimlerini içe aktarır."
 
-#: includes/admin/ipa-keyboard-admin.php:55
+#: includes/admin/ipa-keyboard-admin.php:61
 msgid "Use multiple letters to map digraphs like ll."
 msgstr "Ll gibi digrafları eşlemek için birden fazla harf kullanın."
 
@@ -2041,15 +2103,15 @@ msgstr "Word Audio"
 msgid "Word B"
 msgstr "Kelime B"
 
-#: templates/vocab-lesson-template.php:204
+#: templates/vocab-lesson-template.php:235
 msgid "Word details"
 msgstr "Kelime detayları"
 
 #: templates/flashcard-widget-template.php:98
 #: templates/flashcard-widget-template.php:99
-#: templates/vocab-lesson-template.php:296
-#: templates/vocab-lesson-template.php:298
-#: templates/vocab-lesson-template.php:299
+#: templates/vocab-lesson-template.php:350
+#: templates/vocab-lesson-template.php:352
+#: templates/vocab-lesson-template.php:353
 #: includes/shortcodes/quiz-pages-shortcodes.php:520
 #: includes/shortcodes/quiz-pages-shortcodes.php:521
 #: includes/shortcodes/user-study-dashboard.php:111
@@ -2068,7 +2130,7 @@ msgstr "Kelime seçeneği kuralları kaydedildi."
 msgid "Word option settings imported."
 msgstr "Kelime seçeneği ayarları içe aktarıldı."
 
-#: templates/vocab-lesson-template.php:117
+#: templates/vocab-lesson-template.php:142
 #: includes/post-types/words-post-type.php:221
 #: includes/user-roles/audio-recorder-role.php:127
 #: includes/user-roles/audio-recorder-role.php:250
@@ -2076,7 +2138,7 @@ msgstr "Kelime seçeneği ayarları içe aktarıldı."
 msgid "Word Set"
 msgstr "Kelime Seti"
 
-#: includes/admin/ipa-keyboard-admin.php:80
+#: includes/admin/ipa-keyboard-admin.php:86
 #: includes/admin/word-option-rules-admin.php:595
 #: includes/shortcodes/user-study-dashboard.php:56
 msgid "Word set"
@@ -2118,7 +2180,7 @@ msgstr "LL Tools verilerini içe aktarma izniniz yok."
 msgid "You do not have permission to update vocab lesson settings."
 msgstr "Kelime dersi ayarlarını güncelleme izniniz yok."
 
-#: includes/admin/ipa-keyboard-admin.php:65
+#: includes/admin/ipa-keyboard-admin.php:71
 #: includes/admin/word-option-rules-admin.php:536
 msgid "You do not have sufficient permissions to access this page."
 msgstr "Bu sayfaya erişmek için yeterli izniniz yok."
@@ -2148,21 +2210,21 @@ msgid "— Select —"
 msgstr "- Seçiniz -"
 
 #: templates/flashcard-widget-template.php:102
-#: templates/vocab-lesson-template.php:302
+#: templates/vocab-lesson-template.php:356
 #: includes/shortcodes/quiz-pages-shortcodes.php:524
 #: includes/shortcodes/user-study-dashboard.php:115
 msgid "★ Starred only"
 msgstr "★ Sadece yıldızlılar"
 
 #: templates/flashcard-widget-template.php:101
-#: templates/vocab-lesson-template.php:301
+#: templates/vocab-lesson-template.php:355
 #: includes/shortcodes/quiz-pages-shortcodes.php:523
 #: includes/shortcodes/user-study-dashboard.php:114
 msgid "★☆★ Starred twice"
 msgstr "★☆★ Yıldızlılar iki kere"
 
 #: templates/flashcard-widget-template.php:100
-#: templates/vocab-lesson-template.php:300
+#: templates/vocab-lesson-template.php:354
 #: includes/shortcodes/quiz-pages-shortcodes.php:522
 #: includes/shortcodes/user-study-dashboard.php:113
 msgid "☆★ All words once"

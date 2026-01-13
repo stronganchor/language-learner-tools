@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-01-12 12:37+0000\n"
+"PO-Revision-Date: 2026-01-12 14:19+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -209,7 +209,7 @@ msgstr ""
 #: templates/vocab-lesson-template.php:217
 #: templates/vocab-lesson-template.php:234
 msgid "Apply"
-msgstr "Başvurmak"
+msgstr "Uygula"
 
 #: templates/vocab-lesson-template.php:233
 msgid "Apply gender to all nouns"
@@ -555,7 +555,7 @@ msgstr ""
 msgid "Default Recording Page"
 msgstr "Varsayılan Kayıt Sayfası"
 
-#: includes/taxonomies/wordset-taxonomy.php:417
+#: includes/taxonomies/wordset-taxonomy.php:575
 msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
@@ -1279,8 +1279,12 @@ msgid "Noun gender"
 msgstr "İsim cinsiyeti"
 
 #: includes/taxonomies/wordset-taxonomy.php:186
-msgid "One option per line (for example: masculine, feminine, neuter)."
-msgstr "Her satır için bir seçenek (örneğin: eril, dişil, nötr)."
+msgid ""
+"One option per line (for example: ♂, ♀, neuter). Use custom text if you "
+"prefer."
+msgstr ""
+"Satır başına bir seçenek (örneğin: ♂, ♀, nötr). İsterseniz özel metin "
+"kullanın."
 
 #: includes/admin/bulk-word-import-admin.php:311
 msgid ""
@@ -1325,15 +1329,15 @@ msgstr "Ebeveyn kelimesi:"
 #: templates/vocab-lesson-template.php:209
 #: includes/taxonomies/part-of-speech-taxonomy.php:7
 msgid "Part of Speech"
-msgstr "Konuşma Parçası"
+msgstr "Sözcük Türü"
 
 #: templates/vocab-lesson-template.php:207
 msgid "Part of speech"
-msgstr "Konuşmanın bir kısmı"
+msgstr "Sözcük türü"
 
 #: includes/taxonomies/part-of-speech-taxonomy.php:6
 msgid "Parts of Speech"
-msgstr "Konuşmanın Bölümleri"
+msgstr "Sözcük Türleri"
 
 #: includes/shortcodes/flashcard-widget.php:163
 msgid "Perfect!"
@@ -1546,7 +1550,7 @@ msgstr "Kaydedildi."
 
 #: includes/admin/ipa-keyboard-admin.php:35
 msgid "Saving..."
-msgstr "Tasarruf."
+msgstr "Kaydediliyor..."
 
 #: includes/admin/word-images-fixer.php:100
 msgid ""
