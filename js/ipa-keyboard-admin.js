@@ -199,6 +199,7 @@
                 autoList.forEach(function (autoEntry) {
                     const symbol = autoEntry && autoEntry.symbol ? autoEntry.symbol : '';
                     const count = autoEntry && typeof autoEntry.count === 'number' ? autoEntry.count : 0;
+                    const samples = autoEntry && Array.isArray(autoEntry.samples) ? autoEntry.samples : [];
                     if (!symbol) {
                         return;
                     }
@@ -207,7 +208,81 @@
                     if (count) {
                         $token.append($('<span>', { class: 'll-ipa-map-token-count', text: '(' + count + ')' }));
                     }
-                    $autoWrap.append($token);
+                    const $tokenWrap = $('<div>', { class: 'll-ipa-map-token-wrap' });
+                    const $tokenRow = $('<div>', { class: 'll-ipa-map-token-row' });
+                    const $blockBtn = $('<button>', {
+                        type: 'button',
+                        class: 'll-ipa-map-block',
+                        text: 'x',
+                        'data-letter': letter,
+                        'data-symbol': symbol,
+                        'aria-label': i18n.mapBlockLabel || 'Block mapping',
+                        title: i18n.mapBlockLabel || 'Block mapping'
+                    });
+                    $tokenRow.append($token, $blockBtn);
+                    $tokenWrap.append($tokenRow);
+
+                    if (samples.length) {
+                        const samplesLabel = i18n.mapSamplesLabel || 'Examples';
+                        const $details = $('<details>', { class: 'll-ipa-map-samples' });
+                        $details.append(
+                            $('<summary>', { text: samplesLabel + ' (' + samples.length + ')' })
+                        );
+                        const $list = $('<div>', { class: 'll-ipa-map-samples-list' });
+                        samples.forEach(function (sample) {
+                            const wordText = sample.word_text || '';
+                            const wordTranslation = sample.word_translation || '';
+                            const editLink = sample.word_edit_link || '';
+                            const recordingText = sample.recording_text || '';
+                            const recordingTranslation = sample.recording_translation || '';
+                            const recordingIpa = sample.recording_ipa || '';
+
+                            const $item = $('<div>', { class: 'll-ipa-map-sample' });
+                            const $title = $('<div>', { class: 'll-ipa-map-sample-title' });
+                            if (editLink) {
+                                $title.append(
+                                    $('<a>', {
+                                        href: editLink,
+                                        text: wordText || '(Untitled)',
+                                        target: '_blank',
+                                        class: 'll-ipa-map-sample-link'
+                                    })
+                                );
+                            } else {
+                                $title.text(wordText || '(Untitled)');
+                            }
+                            if (wordTranslation) {
+                                $title.append(
+                                    $('<span>', { class: 'll-ipa-translation', text: ' (' + wordTranslation + ')' })
+                                );
+                            }
+                            $item.append($title);
+
+                            if (recordingText || recordingTranslation) {
+                                const $textRow = $('<div>', { class: 'll-ipa-map-sample-row' });
+                                $textRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: (i18n.mapSampleTextLabel || 'Text:') }));
+                                $textRow.append($('<span>', { class: 'll-ipa-map-sample-value', text: recordingText || '-' }));
+                                if (recordingTranslation) {
+                                    $textRow.append(
+                                        $('<span>', { class: 'll-ipa-translation', text: ' (' + recordingTranslation + ')' })
+                                    );
+                                }
+                                $item.append($textRow);
+                            }
+                            if (recordingIpa) {
+                                const $ipaRow = $('<div>', { class: 'll-ipa-map-sample-row' });
+                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: (i18n.mapSampleIpaLabel || 'IPA:') }));
+                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-value ll-ipa-map-sample-ipa', text: recordingIpa }));
+                                $item.append($ipaRow);
+                            }
+
+                            $list.append($item);
+                        });
+                        $details.append($list);
+                        $tokenWrap.append($details);
+                    }
+
+                    $autoWrap.append($tokenWrap);
                 });
                 if ($autoWrap.children().length) {
                     $autoCell.append($autoWrap);
@@ -259,6 +334,55 @@
 
         $table.append($tbody);
         $letterMap.append($table);
+
+        const blockedItems = [];
+        list.forEach(function (entry) {
+            const letter = (entry && entry.letter) ? entry.letter : '';
+            const blockedList = entry && Array.isArray(entry.blocked) ? entry.blocked : [];
+            if (!letter || !blockedList.length) {
+                return;
+            }
+            blockedList.forEach(function (blockedEntry) {
+                const symbol = blockedEntry && blockedEntry.symbol ? blockedEntry.symbol : '';
+                if (!symbol) {
+                    return;
+                }
+                blockedItems.push({
+                    letter: letter,
+                    symbol: symbol,
+                    count: blockedEntry && typeof blockedEntry.count === 'number' ? blockedEntry.count : 0
+                });
+            });
+        });
+
+        if (blockedItems.length) {
+            const $blockedWrap = $('<div>', { class: 'll-ipa-map-blocked' });
+            $blockedWrap.append(
+                $('<div>', { class: 'll-ipa-map-blocked-title', text: i18n.mapBlockedTitle || 'Blocked mappings' })
+            );
+            const $blockedList = $('<div>', { class: 'll-ipa-map-blocked-list' });
+            blockedItems.forEach(function (item) {
+                const $row = $('<div>', { class: 'll-ipa-map-blocked-item' });
+                const $label = $('<div>', { class: 'll-ipa-map-blocked-label' });
+                $label.append($('<span>', { class: 'll-ipa-map-blocked-letter', text: item.letter }));
+                $label.append($('<span>', { class: 'll-ipa-map-blocked-arrow', text: '->' }));
+                $label.append($('<span>', { class: 'll-ipa-map-blocked-symbol', text: item.symbol }));
+                if (item.count) {
+                    $label.append($('<span>', { class: 'll-ipa-map-blocked-count', text: '(' + item.count + ')' }));
+                }
+                const $undo = $('<button>', {
+                    type: 'button',
+                    class: 'll-ipa-map-unblock',
+                    text: i18n.mapUnblockLabel || 'Undo',
+                    'data-letter': item.letter,
+                    'data-symbol': item.symbol
+                });
+                $row.append($label, $undo);
+                $blockedList.append($row);
+            });
+            $blockedWrap.append($blockedList);
+            $letterMap.append($blockedWrap);
+        }
     }
 
     function loadWordset(wordsetId) {
@@ -399,6 +523,64 @@
         }).always(function () {
             $btn.prop('disabled', false);
             $clearBtn.prop('disabled', false);
+        });
+    });
+
+    $letterMap.on('click', '.ll-ipa-map-block', function () {
+        const $btn = $(this);
+        const letter = ($btn.attr('data-letter') || '').toString();
+        const symbol = ($btn.attr('data-symbol') || '').toString();
+        if (!letter || !symbol || !currentWordsetId) {
+            return;
+        }
+        $btn.prop('disabled', true);
+        setStatus(i18n.saving || 'Saving...', false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_block_wordset_ipa_letter_mapping',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            letter: letter,
+            symbol: symbol
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+                return;
+            }
+            setStatus(i18n.saved || 'Saved.', false);
+            loadWordset(currentWordsetId);
+        }).fail(function () {
+            setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $letterMap.on('click', '.ll-ipa-map-unblock', function () {
+        const $btn = $(this);
+        const letter = ($btn.attr('data-letter') || '').toString();
+        const symbol = ($btn.attr('data-symbol') || '').toString();
+        if (!letter || !symbol || !currentWordsetId) {
+            return;
+        }
+        $btn.prop('disabled', true);
+        setStatus(i18n.saving || 'Saving...', false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_unblock_wordset_ipa_letter_mapping',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            letter: letter,
+            symbol: symbol
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+                return;
+            }
+            setStatus(i18n.saved || 'Saved.', false);
+            loadWordset(currentWordsetId);
+        }).fail(function () {
+            setStatus(i18n.error || 'Something went wrong. Please try again.', true);
+        }).always(function () {
+            $btn.prop('disabled', false);
         });
     });
 
