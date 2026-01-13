@@ -1955,11 +1955,17 @@ function ll_tools_word_grid_shortcode($atts) {
                             echo '<audio class="ll-word-edit-ipa-audio-player" controls preload="none" src="' . esc_url($recording_audio_url) . '"></audio>';
                             echo '</div>';
                         }
+                        echo '<div class="ll-word-edit-ipa-target" data-ll-ipa-target aria-hidden="true" aria-label="' . esc_attr__('Transcription guide', 'll-tools-text-domain') . '">';
+                        echo '<button type="button" class="ll-word-edit-ipa-shift ll-word-edit-ipa-shift--prev" data-ll-ipa-shift="prev" aria-label="' . esc_attr__('Previous letter', 'll-tools-text-domain') . '" title="' . esc_attr__('Previous letter', 'll-tools-text-domain') . '"><span aria-hidden="true">&lt;</span></button>';
+                        echo '<div class="ll-word-edit-ipa-target-text" data-ll-ipa-target-text aria-live="polite"></div>';
+                        echo '<button type="button" class="ll-word-edit-ipa-shift ll-word-edit-ipa-shift--next" data-ll-ipa-shift="next" aria-label="' . esc_attr__('Next letter', 'll-tools-text-domain') . '" title="' . esc_attr__('Next letter', 'll-tools-text-domain') . '"><span aria-hidden="true">&gt;</span></button>';
+                        echo '</div>';
                         echo '<div class="ll-word-edit-input-wrap ll-word-edit-input-wrap--ipa">';
                         echo '<input type="text" class="ll-word-edit-input ll-word-edit-input--ipa" id="' . esc_attr($recording_ipa_id) . '" data-ll-recording-input="ipa" value="' . esc_attr($recording_ipa) . '" />';
                         echo '</div>';
+                        echo '<div class="ll-word-edit-ipa-suggestions" data-ll-ipa-suggestions aria-hidden="true" aria-label="' . esc_attr__('IPA suggestions', 'll-tools-text-domain') . '"></div>';
                         echo '<button type="button" class="ll-word-edit-ipa-superscript" data-ll-ipa-superscript aria-hidden="true" aria-label="' . esc_attr($edit_labels['ipa_superscript']) . '" title="' . esc_attr($edit_labels['ipa_superscript']) . '"><span aria-hidden="true">x&sup2;</span></button>';
-                        echo '<div class="ll-word-edit-ipa-keyboard" data-ll-ipa-keyboard aria-hidden="true"></div>';
+                        echo '<div class="ll-word-edit-ipa-keyboard" data-ll-ipa-keyboard aria-hidden="true" aria-label="' . esc_attr__('IPA symbols', 'll-tools-text-domain') . '"></div>';
                         echo '</div>';
                         echo '</div>';
                     }
