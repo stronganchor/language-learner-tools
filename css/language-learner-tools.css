@@ -367,6 +367,77 @@ p:has(.ll-word-audio) {
     }
 }
 
+.word-grid.ll-word-grid .ll-word-edit-ipa-target {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 4px;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-target[aria-hidden="true"] {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-target-text {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.3;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-target-letter {
+    font-weight: 700;
+    background: #fde68a;
+    color: #92400e;
+    border-radius: 4px;
+    padding: 0 2px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-shift {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    text-transform: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-shift:hover {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-shift:focus-visible {
+    outline: 3px solid rgba(56, 189, 248, 0.5) !important;
+    outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-shift:disabled {
+    opacity: 0.4;
+    cursor: not-allowed !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-ipa-superscript {
     align-self: flex-start;
     justify-self: flex-start;
@@ -406,6 +477,17 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-edit-ipa-superscript:focus-visible {
     outline: 3px solid rgba(56, 189, 248, 0.5) !important;
     outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-ipa-suggestions[aria-hidden="true"] {
+    display: none;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-keyboard {

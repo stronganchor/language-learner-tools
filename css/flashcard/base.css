@@ -56,7 +56,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 }
 
 /* Repeat button (play + mini visualizer) */
-#ll-tools-repeat-flashcard {
+#ll-tools-repeat-flashcard,
+.ll-tools-prompt .ll-prompt-audio-button {
     background: #ffffff;
     border: 1px solid #e5e7eb;
     outline: none;
@@ -72,23 +73,27 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     transition: box-shadow 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
 }
 
-#ll-tools-repeat-flashcard:hover {
+#ll-tools-repeat-flashcard:hover,
+.ll-tools-prompt .ll-prompt-audio-button:hover {
     box-shadow: 0 5px 16px rgba(0, 0, 0, 0.12);
     transform: translateY(-1px);
 }
 
-#ll-tools-repeat-flashcard:active {
+#ll-tools-repeat-flashcard:active,
+.ll-tools-prompt .ll-prompt-audio-button:active {
     transform: translateY(0);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-#ll-tools-repeat-flashcard .ll-repeat-audio-ui {
+#ll-tools-repeat-flashcard .ll-repeat-audio-ui,
+.ll-tools-prompt .ll-prompt-audio-button .ll-repeat-audio-ui {
     display: inline-flex;
     align-items: center;
     gap: 10px;
 }
 
-#ll-tools-repeat-flashcard .ll-repeat-icon-wrap {
+#ll-tools-repeat-flashcard .ll-repeat-icon-wrap,
+.ll-tools-prompt .ll-prompt-audio-button .ll-repeat-icon-wrap {
     width: 42px;
     height: 42px;
     border-radius: 12px;
@@ -100,12 +105,19 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-#ll-tools-repeat-flashcard .ll-repeat-icon-wrap .ll-audio-play-icon {
+#ll-tools-repeat-flashcard .ll-repeat-icon-wrap .ll-audio-play-icon,
+.ll-tools-prompt .ll-prompt-audio-button .ll-repeat-icon-wrap .ll-audio-play-icon {
     font-size: 18px;
     line-height: 1;
+    color: #2563eb;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+    font-weight: 700;
+    -webkit-text-size-adjust: none;
 }
 
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer,
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer {
     display: inline-flex;
     align-items: flex-end;
     gap: 6px;
@@ -113,7 +125,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     --bar-range: 16px;
 }
 
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar,
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar {
     width: 5px;
     height: calc(var(--base, 12px) + var(--bar-range, 10px) * var(--level, 0));
     border-radius: 3px;
@@ -123,40 +136,58 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     transition: height 0.18s ease, opacity 0.18s ease;
 }
 
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(2) { --base: 14px; }
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(3) { --base: 11px; }
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(4) { --base: 16px; }
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(5) { --base: 13px; }
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(6) { --base: 15px; }
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(2),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar:nth-child(2) { --base: 14px; }
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(3),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar:nth-child(3) { --base: 11px; }
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(4),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar:nth-child(4) { --base: 16px; }
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(5),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar:nth-child(5) { --base: 13px; }
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer .bar:nth-child(6),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer .bar:nth-child(6) { --base: 15px; }
 
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar,
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar,
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar,
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar {
     opacity: 0.95;
     animation: ll-audio-mini-eq 1s ease-in-out infinite;
 }
 
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(2),
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(2) {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(2),
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(2),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(2) {
     animation-delay: 0.08s;
 }
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(3),
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(3) {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(3),
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(3),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(3) {
     animation-delay: 0.15s;
 }
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(4),
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(4) {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(4),
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(4),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(4) {
     animation-delay: 0.22s;
 }
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(5),
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(5) {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(5),
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(5),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(5) {
     animation-delay: 0.28s;
 }
 #ll-tools-repeat-flashcard.ll-repeat-playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(6),
-#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(6) {
+#ll-tools-repeat-flashcard .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(6),
+.ll-tools-prompt .ll-prompt-audio-button.playing .ll-audio-mini-visualizer:not(.ll-audio-mini-visualizer--js) .bar:nth-child(6),
+.ll-tools-prompt .ll-prompt-audio-button .ll-audio-mini-visualizer.active:not(.ll-audio-mini-visualizer--js) .bar:nth-child(6) {
     animation-delay: 0.34s;
 }
 
-#ll-tools-repeat-flashcard.disabled {
+#ll-tools-repeat-flashcard.disabled,
+.ll-tools-prompt .ll-prompt-audio-button.disabled {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
@@ -179,6 +210,13 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     margin: 0 auto 16px;
 }
 
+.ll-tools-prompt .ll-prompt-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
 .ll-tools-prompt .ll-prompt-image-wrap {
     display: inline-flex;
     justify-content: center;
@@ -196,6 +234,27 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     display: block;
     pointer-events: none;
     border-radius: 12px;
+}
+
+.ll-tools-prompt .ll-prompt-text {
+    display: block;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: normal;
+    text-transform: none;
+    text-align: center;
+    word-break: break-word;
+    word-wrap: anywhere;
+    box-shadow: none;
+    direction: auto;
 }
 
 .ll-prompt-image-wrap {

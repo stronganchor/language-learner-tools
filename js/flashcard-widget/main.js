@@ -583,17 +583,31 @@
         function ensureImageInlineRow() {
             const $prompt = $('#ll-tools-prompt');
             if (!$prompt.length) return null;
+            const $stack = $prompt.find('.ll-prompt-stack').first();
             const $imgWrap = $prompt.find('.ll-prompt-image-wrap').first();
-            if (!$imgWrap.length) return null;
+            const $promptContent = $stack.length ? $stack : $imgWrap;
+            if (!$promptContent.length) return null;
 
             let $row = $prompt.find('.ll-prompt-star-row');
             if (!$row.length) {
                 $row = $('<div>', { class: 'll-prompt-star-row' });
-                $imgWrap.detach();
+                $promptContent.detach();
                 $row.append($('<div>', { class: 'll-quiz-star-inline image-inline', style: 'display:none;' }));
-                $row.append($imgWrap);
+                $row.append($promptContent);
                 $row.append($('<div>', { class: 'll-quiz-star-spacer' }));
                 $prompt.empty().append($row);
+            } else if (!$row.find($promptContent).length) {
+                const $existing = $row.find('.ll-prompt-stack, .ll-prompt-image-wrap').first();
+                if ($existing.length) {
+                    $existing.detach();
+                }
+                $promptContent.detach();
+                const $inline = $row.find('.ll-quiz-star-inline.image-inline').first();
+                if ($inline.length) {
+                    $inline.after($promptContent);
+                } else {
+                    $row.append($promptContent);
+                }
             }
 
             let $wrap = $row.find('.ll-quiz-star-inline.image-inline').first();

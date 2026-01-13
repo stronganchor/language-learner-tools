@@ -2005,36 +2005,34 @@
         return letters.length - 1;
     }
 
-    function getIpaSuggestionsForInput($input) {
+    function getIpaShiftOffset($recording) {
+        if (!$recording || !$recording.length) { return 0; }
+        const raw = $recording.attr('data-ll-ipa-shift');
+        const parsed = parseInt(raw, 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function setIpaShiftOffset($recording, offset) {
+        if (!$recording || !$recording.length) { return; }
+        const parsed = parseInt(offset, 10);
+        $recording.attr('data-ll-ipa-shift', Number.isFinite(parsed) ? parsed : 0);
+    }
+
+    function clampIpaShift(baseIndex, offset, totalLetters) {
+        if (!totalLetters || baseIndex < 0) {
+            return { offset: 0, minOffset: 0, maxOffset: 0 };
+        }
+        const minOffset = -baseIndex;
+        const maxOffset = (totalLetters - 1) - baseIndex;
+        let next = Number.isFinite(offset) ? offset : 0;
+        if (next < minOffset) { next = minOffset; }
+        if (next > maxOffset) { next = maxOffset; }
+        return { offset: next, minOffset: minOffset, maxOffset: maxOffset };
+    }
+
+    function getIpaSuggestionsForLetter(letters, letterIndex) {
         if (!ipaLetterMap || !Object.keys(ipaLetterMap).length) { return []; }
-        if (!$input || !$input.length) { return []; }
-        const $recording = $input.closest('.ll-word-edit-recording');
-        if (!$recording.length) { return []; }
-        const textValue = ($recording.find('[data-ll-recording-input="text"]').val() || '').toString();
-        if (!textValue) { return []; }
-        const letters = getTextLetters(textValue);
-        if (!letters.length) { return []; }
-        const input = $input.get(0);
-        if (!input) { return []; }
-        const value = (input.value || '').toString();
-        const tokens = filterIpaTokensForMapping(tokenizeIpa(value));
-        const cursor = (typeof input.selectionStart === 'number') ? input.selectionStart : value.length;
-        const beforeTokens = filterIpaTokensForMapping(tokenizeIpa(value.slice(0, cursor)));
-        const tokensBefore = beforeTokens.length;
-        const prefixTokens = tokens.slice(0, tokensBefore);
-        const cursorAtEnd = cursor >= value.length;
-        const cursorAtBoundary = cursorAtEnd || beforeTokens.join('') === prefixTokens.join('');
-        const matches = alignTextToIpa(letters, tokens);
-        const lastEditType = getLastIpaEditType(input);
-        const advanceAtBoundary = lastEditType !== 'delete';
-        const letterIndex = getLetterIndexForCursor(
-            letters,
-            tokens,
-            tokensBefore,
-            matches,
-            cursorAtBoundary && advanceAtBoundary
-        );
-        if (letterIndex < 0 || letterIndex >= letters.length) { return []; }
+        if (!letters.length || letterIndex < 0 || letterIndex >= letters.length) { return []; }
 
         const suggestions = [];
         const seen = new Set();
@@ -2059,21 +2057,160 @@
         return suggestions;
     }
 
-    function renderIpaKeyboard($keyboard, chars, suggestions) {
+    function getIpaSuggestionState($input) {
+        const state = {
+            suggestions: [],
+            letters: [],
+            letterIndex: -1,
+            baseIndex: -1,
+            offset: 0,
+            minOffset: 0,
+            maxOffset: 0,
+            textValue: ''
+        };
+        if (!$input || !$input.length) { return state; }
+        const $recording = $input.closest('.ll-word-edit-recording');
+        if (!$recording.length) { return state; }
+        const textValue = ($recording.find('[data-ll-recording-input="text"]').val() || '').toString();
+        state.textValue = textValue;
+        const letters = getTextLetters(textValue);
+        state.letters = letters;
+        if (!letters.length) { return state; }
+        const input = $input.get(0);
+        if (!input) { return state; }
+        const value = (input.value || '').toString();
+        const tokens = filterIpaTokensForMapping(tokenizeIpa(value));
+        const cursor = (typeof input.selectionStart === 'number') ? input.selectionStart : value.length;
+        const beforeTokens = filterIpaTokensForMapping(tokenizeIpa(value.slice(0, cursor)));
+        const tokensBefore = beforeTokens.length;
+        const prefixTokens = tokens.slice(0, tokensBefore);
+        const cursorAtEnd = cursor >= value.length;
+        const cursorAtBoundary = cursorAtEnd || beforeTokens.join('') === prefixTokens.join('');
+        const matches = alignTextToIpa(letters, tokens);
+        const lastEditType = getLastIpaEditType(input);
+        const advanceAtBoundary = lastEditType !== 'delete';
+        const baseIndex = getLetterIndexForCursor(
+            letters,
+            tokens,
+            tokensBefore,
+            matches,
+            cursorAtBoundary && advanceAtBoundary
+        );
+        state.baseIndex = baseIndex;
+        if (baseIndex < 0 || baseIndex >= letters.length) { return state; }
+
+        const shift = clampIpaShift(baseIndex, getIpaShiftOffset($recording), letters.length);
+        state.offset = shift.offset;
+        state.minOffset = shift.minOffset;
+        state.maxOffset = shift.maxOffset;
+        if (shift.offset !== getIpaShiftOffset($recording)) {
+            setIpaShiftOffset($recording, shift.offset);
+        }
+        const letterIndex = baseIndex + shift.offset;
+        state.letterIndex = letterIndex;
+        state.suggestions = getIpaSuggestionsForLetter(letters, letterIndex);
+        return state;
+    }
+
+    function getIpaSuggestionsForInput($input) {
+        return getIpaSuggestionState($input).suggestions;
+    }
+
+    function renderIpaTargetText($target, textValue, highlightIndex) {
+        if (!$target || !$target.length) { return; }
+        const el = $target.get(0);
+        if (!el) { return; }
+        while (el.firstChild) {
+            el.removeChild(el.firstChild);
+        }
+        const text = (textValue || '').toString();
+        if (!text) { return; }
+        const fragment = document.createDocumentFragment();
+        let letterIndex = -1;
+        for (const ch of text) {
+            const span = document.createElement('span');
+            span.textContent = ch;
+            if (/\p{L}/u.test(ch)) {
+                letterIndex += 1;
+                if (letterIndex === highlightIndex) {
+                    span.className = 'll-word-edit-ipa-target-letter';
+                }
+            }
+            fragment.appendChild(span);
+        }
+        el.appendChild(fragment);
+    }
+
+    function updateIpaTargetRow($recording, state) {
+        if (!$recording || !$recording.length) { return; }
+        const $target = $recording.find('[data-ll-ipa-target]').first();
+        if (!$target.length) { return; }
+        const $text = $recording.find('[data-ll-ipa-target-text]').first();
+        const $prev = $recording.find('[data-ll-ipa-shift="prev"]').first();
+        const $next = $recording.find('[data-ll-ipa-shift="next"]').first();
+        const letters = state && Array.isArray(state.letters) ? state.letters : [];
+        if (!letters.length || !state || state.baseIndex < 0) {
+            $target.attr('aria-hidden', 'true');
+            if ($text.length) { $text.empty(); }
+            if ($prev.length) { $prev.prop('disabled', true); }
+            if ($next.length) { $next.prop('disabled', true); }
+            return;
+        }
+        $target.attr('aria-hidden', 'false');
+        renderIpaTargetText($text, state.textValue, state.letterIndex);
+        const minOffset = Number.isFinite(state.minOffset) ? state.minOffset : 0;
+        const maxOffset = Number.isFinite(state.maxOffset) ? state.maxOffset : 0;
+        const offset = Number.isFinite(state.offset) ? state.offset : 0;
+        if ($prev.length) { $prev.prop('disabled', offset <= minOffset); }
+        if ($next.length) { $next.prop('disabled', offset >= maxOffset); }
+    }
+
+    function renderIpaSuggestionRow($keyboard, suggestions) {
+        if (!$keyboard || !$keyboard.length) { return 0; }
+        $keyboard.empty();
+
+        if (!Array.isArray(suggestions) || !suggestions.length) {
+            return 0;
+        }
+
+        const merged = [];
+        const seen = new Set();
+        suggestions.forEach(function (ch) {
+            if (!ch || seen.has(ch)) { return; }
+            seen.add(ch);
+            merged.push(ch);
+        });
+
+        if (!merged.length) {
+            return 0;
+        }
+
+        merged.forEach(function (ch) {
+            $('<button>', {
+                type: 'button',
+                class: 'll-word-ipa-key',
+                text: ch,
+                'data-ipa-char': ch,
+                'aria-label': ch
+            }).appendTo($keyboard);
+        });
+
+        return merged.length;
+    }
+
+    function renderIpaKeyboard($keyboard, chars, skipChars) {
         if (!$keyboard || !$keyboard.length) { return 0; }
         $keyboard.empty();
 
         const merged = [];
         const seen = new Set();
+        const skipSet = new Set(Array.isArray(skipChars) ? skipChars : []);
         const pushUnique = function (ch) {
-            if (!ch || seen.has(ch)) { return; }
+            if (!ch || seen.has(ch) || skipSet.has(ch)) { return; }
             seen.add(ch);
             merged.push(ch);
         };
 
-        if (Array.isArray(suggestions)) {
-            suggestions.forEach(pushUnique);
-        }
         ipaCommonChars.forEach(pushUnique);
         if (Array.isArray(chars)) {
             chars.forEach(pushUnique);
@@ -2110,9 +2247,12 @@
         if (!$input || !$input.length) { return; }
         const $recording = $input.closest('.ll-word-edit-recording');
         const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
+        const $suggestions = $recording.find('[data-ll-ipa-suggestions]').first();
         if (!$keyboard.length) { return; }
         const inputEl = $input.get(0);
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-suggestions]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-target]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         const $audio = $recording.find('[data-ll-ipa-audio]').first();
         const shouldAdjustScroll = $audio.length && $audio.attr('aria-hidden') !== 'false';
@@ -2123,14 +2263,22 @@
                 audio.pause();
             }
         });
-        const suggestions = getIpaSuggestionsForInput($input);
-        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars, suggestions);
+        const state = getIpaSuggestionState($input);
+        const suggestionCount = renderIpaSuggestionRow($suggestions, state.suggestions);
+        const keyCount = renderIpaKeyboard($keyboard, ipaSpecialChars, state.suggestions);
+        updateIpaTargetRow($recording, state);
         if (keyCount > 0) {
             $keyboard.attr('aria-hidden', 'false');
+        } else {
+            $keyboard.attr('aria-hidden', 'true');
+        }
+        if ($suggestions.length) {
+            $suggestions.attr('aria-hidden', suggestionCount > 0 ? 'false' : 'true');
+        }
+        if (keyCount > 0 || suggestionCount > 0) {
             $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
             activeIpaInput = $input.get(0);
         } else {
-            $keyboard.attr('aria-hidden', 'true');
             activeIpaInput = null;
         }
         if ($audio.length) {
@@ -2151,6 +2299,8 @@
 
     function hideIpaKeyboards() {
         $('[data-ll-ipa-keyboard]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-suggestions]').attr('aria-hidden', 'true');
+        $('[data-ll-ipa-target]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         hideIpaAudio();
         activeIpaInput = null;
@@ -2162,9 +2312,15 @@
         const $recording = $input.closest('.ll-word-edit-recording');
         if (!$recording.length) { return; }
         const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
+        const $suggestions = $recording.find('[data-ll-ipa-suggestions]').first();
         if (!$keyboard.length || $keyboard.attr('aria-hidden') === 'true') { return; }
-        const suggestions = getIpaSuggestionsForInput($input);
-        renderIpaKeyboard($keyboard, ipaSpecialChars, suggestions);
+        const state = getIpaSuggestionState($input);
+        const suggestionCount = renderIpaSuggestionRow($suggestions, state.suggestions);
+        renderIpaKeyboard($keyboard, ipaSpecialChars, state.suggestions);
+        if ($suggestions.length) {
+            $suggestions.attr('aria-hidden', suggestionCount > 0 ? 'false' : 'true');
+        }
+        updateIpaTargetRow($recording, state);
     }
 
     function insertIpaChar(input, ch) {
@@ -2502,6 +2658,32 @@
             input.focus();
         });
 
+        $grids.on('click', '[data-ll-ipa-shift]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if ($(this).prop('disabled')) { return; }
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            const input = $recording.find('.ll-word-edit-input--ipa').get(0) || activeIpaInput;
+            if (!input) { return; }
+            activeIpaInput = input;
+            const $input = $(input);
+            const state = getIpaSuggestionState($input);
+            if (!state.letters.length || state.baseIndex < 0) { return; }
+            let offset = Number.isFinite(state.offset) ? state.offset : 0;
+            const direction = ($(this).attr('data-ll-ipa-shift') || '').toString();
+            if (direction === 'prev') {
+                offset -= 1;
+            } else if (direction === 'next') {
+                offset += 1;
+            } else {
+                return;
+            }
+            const shift = clampIpaShift(state.baseIndex, offset, state.letters.length);
+            setIpaShiftOffset($recording, shift.offset);
+            refreshIpaKeyboardForInput(input);
+            input.focus();
+        });
+
         $grids.on('click', '.ll-word-ipa-key', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -2512,7 +2694,7 @@
         });
 
         $(document).on('click.llWordGridIpa', function (e) {
-            if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard, .ll-word-edit-ipa-superscript').length) {
+            if ($(e.target).closest('.ll-word-edit-input--ipa, .ll-word-edit-ipa-keyboard, .ll-word-edit-ipa-suggestions, .ll-word-edit-ipa-target, .ll-word-edit-ipa-superscript').length) {
                 return;
             }
             if (activeIpaInput && $(document.activeElement).closest('.ll-word-edit-input--ipa').length) {

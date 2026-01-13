@@ -22,11 +22,7 @@
     }
 
     function getCategoryConfig(name) {
-        const cfg = getRawCategoryConfig(name);
-        if (State && State.isGenderMode && isGenderModeEnabled()) {
-            cfg.option_type = 'text';
-        }
-        return cfg;
+        return getRawCategoryConfig(name);
     }
 
     function stripGenderVariation(value) {
@@ -138,7 +134,12 @@
         if (opt === 'text_title' || opt === 'text_translation') return 'text';
         return opt;
     }
-    function getCurrentDisplayMode() { return getCategoryDisplayMode(State.currentCategoryName); }
+    function getCurrentDisplayMode() {
+        if (State && State.isGenderMode && isGenderModeEnabled()) {
+            return 'text';
+        }
+        return getCategoryDisplayMode(State.currentCategoryName);
+    }
     function getCategoryPromptType(name) {
         const cfg = getCategoryConfig(name);
         return cfg.prompt_type || 'audio';
@@ -299,7 +300,18 @@
 
     function renderPrompt(targetWord, cfg) {
         const promptConfig = cfg || getCategoryConfig(State.currentCategoryName);
+        const categoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
+        const rawConfig = (State && State.isGenderMode && isGenderModeEnabled())
+            ? getRawCategoryConfig(categoryName)
+            : promptConfig;
         const promptType = promptConfig.prompt_type || 'audio';
+        const optionType = rawConfig.option_type || rawConfig.mode || State.DEFAULT_DISPLAY_MODE;
+        const isGender = (State && State.isGenderMode && isGenderModeEnabled());
+        const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
+        const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
+        const showImage = (promptType === 'image') || (isGender && optionType === 'image');
+        const showText = isGender && isTextOption;
+        const showAudio = isGender && requirements.requiresAudio && promptType !== 'audio';
         const $ = root.jQuery;
         if (!$) return;
         let $prompt = $('#ll-tools-prompt');
@@ -307,14 +319,52 @@
             $prompt = $('<div>', { id: 'll-tools-prompt', class: 'll-tools-prompt', style: 'display:none;' });
             $('#ll-tools-flashcard-content').prepend($prompt);
         }
-        if (promptType !== 'image' || !targetWord || !targetWord.image) {
+        if (!targetWord) {
+            $prompt.hide().empty();
+            return;
+        }
+        const labelText = showText ? (targetWord.label || targetWord.title || '') : '';
+        const hasImage = showImage && !!targetWord.image;
+        const hasText = showText && !!labelText;
+        const hasAudio = showAudio && !!targetWord.audio;
+        if (!hasImage && !hasText && !hasAudio) {
             $prompt.hide().empty();
             return;
         }
         $prompt.show().empty();
-        const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
-        $('<img>', { src: targetWord.image, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
-        $prompt.append($wrap);
+        const $stack = $('<div>', { class: 'll-prompt-stack' });
+        if (hasImage) {
+            const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
+            $('<img>', { src: targetWord.image, alt: '', 'aria-hidden': 'true' }).appendTo($wrap);
+            $stack.append($wrap);
+        }
+        if (hasText) {
+            $('<div>', { class: 'll-prompt-text', text: labelText }).appendTo($stack);
+        }
+        if (hasAudio) {
+            const $btn = $('<button>', {
+                type: 'button',
+                class: 'll-prompt-audio-button',
+                'aria-label': 'Play word audio'
+            });
+            const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
+            const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }).appendTo($iconWrap);
+            const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
+            for (let i = 0; i < 6; i++) {
+                $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
+            }
+            $ui.append($iconWrap, $viz);
+            $btn.append($ui);
+            $btn.on('click', function (e) {
+                e.stopPropagation();
+                if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.playOptionAudio === 'function') {
+                    root.LLFlashcards.Cards.playOptionAudio(targetWord, $btn);
+                }
+            });
+            $stack.append($btn);
+        }
+        $prompt.append($stack);
     }
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {
