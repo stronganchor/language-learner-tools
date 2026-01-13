@@ -313,6 +313,71 @@ function ll_tools_word_grid_clean_ipa_letter_map(array $map): array {
     return $cleaned;
 }
 
+function ll_tools_word_grid_clean_ipa_letter_blocklist(array $blocklist): array {
+    $cleaned = [];
+    foreach ($blocklist as $letter => $symbols) {
+        $letter_key = ll_tools_word_grid_lowercase((string) $letter);
+        $letter_key = preg_replace('/[^\p{L}]+/u', '', $letter_key);
+        if ($letter_key === '') {
+            continue;
+        }
+
+        $tokens = [];
+        if (is_array($symbols)) {
+            $tokens = $symbols;
+        } elseif (is_string($symbols) && $symbols !== '') {
+            $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+                ? ll_tools_word_grid_tokenize_ipa($symbols)
+                : preg_split('//u', $symbols, -1, PREG_SPLIT_NO_EMPTY);
+        }
+
+        if (empty($tokens)) {
+            continue;
+        }
+
+        $seen = [];
+        $clean_tokens = [];
+        foreach ($tokens as $token) {
+            $token = ll_tools_word_grid_normalize_ipa_output((string) $token);
+            $token = ll_tools_word_grid_strip_ipa_stress_markers($token);
+            $token = trim($token);
+            if ($token === '' || isset($seen[$token]) || ll_tools_word_grid_is_ipa_stress_marker($token)) {
+                continue;
+            }
+            $seen[$token] = true;
+            $clean_tokens[] = $token;
+        }
+        if (empty($clean_tokens)) {
+            continue;
+        }
+        $cleaned[$letter_key] = $clean_tokens;
+    }
+    return $cleaned;
+}
+
+function ll_tools_word_grid_filter_ipa_letter_map_with_blocklist(array $auto_map, array $blocklist): array {
+    $cleaned = ll_tools_word_grid_clean_ipa_letter_map($auto_map);
+    if (empty($blocklist)) {
+        return $cleaned;
+    }
+    $blocked = ll_tools_word_grid_clean_ipa_letter_blocklist($blocklist);
+    if (empty($blocked)) {
+        return $cleaned;
+    }
+    foreach ($blocked as $letter => $symbols) {
+        if (!isset($cleaned[$letter]) || !is_array($symbols)) {
+            continue;
+        }
+        foreach ($symbols as $symbol) {
+            unset($cleaned[$letter][$symbol]);
+        }
+        if (empty($cleaned[$letter])) {
+            unset($cleaned[$letter]);
+        }
+    }
+    return $cleaned;
+}
+
 function ll_tools_word_grid_format_ipa_display_html(string $ipa): string {
     $ipa = ll_tools_word_grid_normalize_ipa_output($ipa);
     if ($ipa === '') {
@@ -622,6 +687,8 @@ function ll_tools_word_grid_get_ipa_match_map(): array {
         "\u{0280}" => 'r',
         "\u{0281}" => 'r',
         "\u{027D}" => 'r',
+        "\u{029C}" => 'h',
+        "\u{0266}" => 'h',
         "\u{0283}" => 'sh',
         "\u{0292}" => 'zh',
         "\u{03B8}" => 'th',
@@ -711,32 +778,90 @@ function ll_tools_word_grid_normalize_ipa_segment_for_match(string $segment): st
     return $out;
 }
 
-function ll_tools_word_grid_similarity_score(string $text_segment, string $ipa_segment): float {
-    $text_norm = ll_tools_word_grid_normalize_text_segment_for_match($text_segment);
-    $ipa_norm = ll_tools_word_grid_normalize_ipa_segment_for_match($ipa_segment);
-    if ($text_norm === '' || $ipa_norm === '') {
-        return 0.0;
-    }
-    if ($text_norm === $ipa_norm) {
-        return 1.0;
+function ll_tools_word_grid_normalize_ipa_segment_for_match_with_length(string $segment): string {
+    $segment = ll_tools_word_grid_normalize_ipa_output($segment);
+    if ($segment === '') {
+        return '';
     }
 
-    $distance = function_exists('levenshtein') ? levenshtein($text_norm, $ipa_norm) : null;
-    if ($distance === null) {
-        return ($text_norm[0] === $ipa_norm[0]) ? 0.5 : 0.0;
+    $segment = ll_tools_word_grid_lowercase($segment);
+    $segment = preg_replace('/[\s\.]+/u', '', $segment);
+    $segment = preg_replace('/[\x{0300}-\x{036F}]+/u', '', $segment);
+
+    $map = ll_tools_word_grid_get_ipa_match_map();
+    $chars = preg_split('//u', $segment, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return '';
     }
-    $max_len = max(strlen($text_norm), strlen($ipa_norm));
-    if ($max_len === 0) {
+
+    $out = '';
+    $last = '';
+    foreach ($chars as $char) {
+        if ($char === "\u{02D0}" || $char === "\u{02D1}") {
+            if ($last !== '') {
+                $out .= $last;
+            }
+            continue;
+        }
+        if (preg_match('/[a-z]/', $char)) {
+            $out .= $char;
+            $last = $char;
+            continue;
+        }
+        if (isset($map[$char])) {
+            $mapped = $map[$char];
+            $out .= $mapped;
+            $last = $mapped;
+        }
+    }
+
+    return $out;
+}
+
+function ll_tools_word_grid_similarity_score(string $text_segment, string $ipa_segment): float {
+    $text_norm = ll_tools_word_grid_normalize_text_segment_for_match($text_segment);
+    if ($text_norm === '') {
         return 0.0;
     }
-    $score = 1 - ($distance / $max_len);
-    if ($score < 0) {
+    $ipa_norm = ll_tools_word_grid_normalize_ipa_segment_for_match($ipa_segment);
+    $ipa_norm_expanded = ll_tools_word_grid_normalize_ipa_segment_for_match_with_length($ipa_segment);
+    if ($ipa_norm === '' && $ipa_norm_expanded === '') {
         return 0.0;
     }
-    if ($score > 1) {
-        return 1.0;
+
+    $best = 0.0;
+    foreach ([$ipa_norm, $ipa_norm_expanded] as $variant) {
+        if ($variant === '') {
+            continue;
+        }
+        if ($text_norm === $variant) {
+            return 1.0;
+        }
+        $distance = function_exists('levenshtein') ? levenshtein($text_norm, $variant) : null;
+        if ($distance === null) {
+            $score = ($text_norm[0] === $variant[0]) ? 0.5 : 0.0;
+        } else {
+            $max_len = max(strlen($text_norm), strlen($variant));
+            if ($max_len === 0) {
+                $score = 0.0;
+            } else {
+                $score = 1 - ($distance / $max_len);
+            }
+        }
+        if ($score < 0) {
+            $score = 0.0;
+        } elseif ($score > 1) {
+            $score = 1.0;
+        }
+        if ($score > $best) {
+            $best = (float) $score;
+        }
+        if ($best >= 1.0) {
+            break;
+        }
     }
-    return (float) $score;
+
+    return $best;
 }
 
 function ll_tools_word_grid_align_text_to_ipa(array $letters, array $tokens): array {
@@ -755,6 +880,19 @@ function ll_tools_word_grid_align_text_to_ipa(array $letters, array $tokens): ar
     $skip_penalty = 0.25;
     $match_threshold = 0.55;
     $multi_penalty = 0.05;
+
+    $token_norms = [];
+    for ($idx = 0; $idx < $token_count; $idx++) {
+        $token_norms[$idx] = ll_tools_word_grid_normalize_ipa_segment_for_match((string) $tokens[$idx]);
+    }
+    $combo_norms = [];
+    if ($token_count > 1) {
+        for ($idx = 0; $idx < ($token_count - 1); $idx++) {
+            $combo_norms[$idx] = ll_tools_word_grid_normalize_ipa_segment_for_match(
+                (string) $tokens[$idx] . (string) $tokens[$idx + 1]
+            );
+        }
+    }
 
     $dp = array_fill(0, $letter_count + 1, array_fill(0, $token_count + 1, null));
     $dp[0][0] = ['score' => 0, 'prev' => null];
@@ -808,19 +946,26 @@ function ll_tools_word_grid_align_text_to_ipa(array $letters, array $tokens): ar
             }
 
             if ($i < $letter_count && ($j + 1) < $token_count) {
-                $ipa_segment = $tokens[$j] . $tokens[$j + 1];
-                $score = ll_tools_word_grid_similarity_score($letters[$i], $ipa_segment);
-                if ($score >= $match_threshold) {
-                    $update($i + 1, $j + 2, $cell['score'] + $score - $multi_penalty, [
-                        'type' => 'match',
-                        'i' => $i,
-                        'j' => $j,
-                        'text' => $letters[$i],
-                        'ipa' => $ipa_segment,
-                        'text_len' => 1,
-                        'token_len' => 2,
-                        'score' => $score,
-                    ]);
+                $combo_norm = $combo_norms[$j] ?? '';
+                if ($combo_norm !== '') {
+                    $norm_a = $token_norms[$j] ?? '';
+                    $norm_b = $token_norms[$j + 1] ?? '';
+                    if ($combo_norm !== $norm_a && $combo_norm !== $norm_b) {
+                        $ipa_segment = $tokens[$j] . $tokens[$j + 1];
+                        $score = ll_tools_word_grid_similarity_score($letters[$i], $ipa_segment);
+                        if ($score >= $match_threshold) {
+                            $update($i + 1, $j + 2, $cell['score'] + $score - $multi_penalty, [
+                                'type' => 'match',
+                                'i' => $i,
+                                'j' => $j,
+                                'text' => $letters[$i],
+                                'ipa' => $ipa_segment,
+                                'text_len' => 1,
+                                'token_len' => 2,
+                                'score' => $score,
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -1050,6 +1195,24 @@ function ll_tools_word_grid_get_wordset_ipa_letter_manual_map(int $wordset_id): 
     return $cleaned;
 }
 
+function ll_tools_word_grid_get_wordset_ipa_letter_blocklist(int $wordset_id): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $raw = get_term_meta($wordset_id, 'll_wordset_ipa_letter_blocklist', true);
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $cleaned = ll_tools_word_grid_clean_ipa_letter_blocklist($raw);
+    if ($cleaned !== $raw) {
+        update_term_meta($wordset_id, 'll_wordset_ipa_letter_blocklist', $cleaned);
+    }
+
+    return $cleaned;
+}
+
 function ll_tools_word_grid_get_wordset_ipa_letter_maps(int $wordset_id): array {
     return [
         'auto' => ll_tools_word_grid_get_wordset_ipa_letter_map($wordset_id),
@@ -1077,9 +1240,13 @@ function ll_tools_word_grid_update_wordset_ipa_letter_map(int $word_id): void {
     }
 }
 
-function ll_tools_word_grid_prepare_ipa_letter_suggestions(array $auto_map, array $manual_map = [], int $limit = 6): array {
+function ll_tools_word_grid_prepare_ipa_letter_suggestions(array $auto_map, array $manual_map = [], int $limit = 6, array $blocklist = []): array {
     $limit = max(1, $limit);
     $output = [];
+
+    if (!empty($blocklist)) {
+        $auto_map = ll_tools_word_grid_filter_ipa_letter_map_with_blocklist($auto_map, $blocklist);
+    }
 
     foreach ($manual_map as $letter => $symbols) {
         if (!is_array($symbols)) {
@@ -1605,11 +1772,13 @@ function ll_tools_word_grid_shortcode($atts) {
     $ipa_letter_map = [];
     if ($can_edit_words && $wordset_id > 0) {
         $letter_maps = ll_tools_word_grid_get_wordset_ipa_letter_maps($wordset_id);
+        $blocklist = ll_tools_word_grid_get_wordset_ipa_letter_blocklist($wordset_id);
         if (!empty($letter_maps['auto']) || !empty($letter_maps['manual'])) {
             $ipa_letter_map = ll_tools_word_grid_prepare_ipa_letter_suggestions(
                 (array) ($letter_maps['auto'] ?? []),
                 (array) ($letter_maps['manual'] ?? []),
-                6
+                6,
+                (array) $blocklist
             );
         }
     }

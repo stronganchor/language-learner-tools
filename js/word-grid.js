@@ -1259,6 +1259,8 @@
         '\u0280': 'r',
         '\u0281': 'r',
         '\u027d': 'r',
+        '\u029c': 'h',
+        '\u0266': 'h',
         '\u0283': 'sh',
         '\u0292': 'zh',
         '\u03b8': 'th',
@@ -1793,6 +1795,35 @@
         return out;
     }
 
+    function normalizeIpaSegmentWithLength(segment) {
+        if (!segment) { return ''; }
+        let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
+        if (text.normalize) {
+            text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        let out = '';
+        let last = '';
+        for (const ch of text) {
+            if (ch === '\u02d0' || ch === '\u02d1') {
+                if (last) {
+                    out += last;
+                }
+                continue;
+            }
+            if (ch >= 'a' && ch <= 'z') {
+                out += ch;
+                last = ch;
+                continue;
+            }
+            if (ipaMatchMap[ch]) {
+                const mapped = ipaMatchMap[ch];
+                out += mapped;
+                last = mapped;
+            }
+        }
+        return out;
+    }
+
     function levenshteinDistance(a, b) {
         if (a === b) { return 0; }
         const alen = a.length;
@@ -1822,14 +1853,26 @@
 
     function similarityScore(textSegment, ipaSegment) {
         const textNorm = normalizeTextSegment(textSegment);
+        if (!textNorm) { return 0; }
         const ipaNorm = normalizeIpaSegment(ipaSegment);
-        if (!textNorm || !ipaNorm) { return 0; }
-        if (textNorm === ipaNorm) { return 1; }
-        const distance = levenshteinDistance(textNorm, ipaNorm);
-        const maxLen = Math.max(textNorm.length, ipaNorm.length);
-        if (!maxLen) { return 0; }
-        const score = 1 - (distance / maxLen);
-        return Math.max(0, Math.min(1, score));
+        const ipaExpanded = normalizeIpaSegmentWithLength(ipaSegment);
+        if (!ipaNorm && !ipaExpanded) { return 0; }
+
+        const scoreFor = function (norm) {
+            if (!norm) { return 0; }
+            if (textNorm === norm) { return 1; }
+            const distance = levenshteinDistance(textNorm, norm);
+            const maxLen = Math.max(textNorm.length, norm.length);
+            if (!maxLen) { return 0; }
+            const score = 1 - (distance / maxLen);
+            return Math.max(0, Math.min(1, score));
+        };
+
+        let best = scoreFor(ipaNorm);
+        if (ipaExpanded && ipaExpanded !== ipaNorm) {
+            best = Math.max(best, scoreFor(ipaExpanded));
+        }
+        return best;
     }
 
     function alignTextToIpa(letters, tokens) {
@@ -1839,6 +1882,11 @@
         const multiPenalty = 0.05;
         const n = letters.length;
         const m = tokens.length;
+        const tokenNorms = tokens.map(function (token) { return normalizeIpaSegment(token); });
+        const comboNorms = [];
+        for (let idx = 0; idx < (m - 1); idx += 1) {
+            comboNorms[idx] = normalizeIpaSegment(tokens[idx] + tokens[idx + 1]);
+        }
         const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(null));
         dp[0][0] = { score: 0, prev: null };
 
@@ -1877,19 +1925,26 @@
                     }
                 }
                 if (i < n && (j + 1) < m) {
-                    const ipaSegment = tokens[j] + tokens[j + 1];
-                    const score = similarityScore(letters[i], ipaSegment);
-                    if (score >= matchThreshold) {
-                        update(i + 1, j + 2, cell.score + score - multiPenalty, {
-                            type: 'match',
-                            i: i,
-                            j: j,
-                            text: letters[i],
-                            ipa: ipaSegment,
-                            textLen: 1,
-                            tokenLen: 2,
-                            score: score
-                        });
+                    const comboNorm = comboNorms[j] || '';
+                    if (comboNorm) {
+                        const normA = tokenNorms[j] || '';
+                        const normB = tokenNorms[j + 1] || '';
+                        if (comboNorm !== normA && comboNorm !== normB) {
+                            const ipaSegment = tokens[j] + tokens[j + 1];
+                            const score = similarityScore(letters[i], ipaSegment);
+                            if (score >= matchThreshold) {
+                                update(i + 1, j + 2, cell.score + score - multiPenalty, {
+                                    type: 'match',
+                                    i: i,
+                                    j: j,
+                                    text: letters[i],
+                                    ipa: ipaSegment,
+                                    textLen: 1,
+                                    tokenLen: 2,
+                                    score: score
+                                });
+                            }
+                        }
                     }
                 }
                 if ((i + 1) < n && j < m) {
@@ -2066,6 +2121,7 @@
             offset: 0,
             minOffset: 0,
             maxOffset: 0,
+            highlightLength: 1,
             textValue: ''
         };
         if (!$input || !$input.length) { return state; }
@@ -2109,6 +2165,10 @@
         const letterIndex = baseIndex + shift.offset;
         state.letterIndex = letterIndex;
         state.suggestions = getIpaSuggestionsForLetter(letters, letterIndex);
+        const digraph = letters[letterIndex] + (letters[letterIndex + 1] || '');
+        if (digraph && ipaLetterMap[digraph]) {
+            state.highlightLength = 2;
+        }
         return state;
     }
 
@@ -2116,7 +2176,7 @@
         return getIpaSuggestionState($input).suggestions;
     }
 
-    function renderIpaTargetText($target, textValue, highlightIndex) {
+    function renderIpaTargetText($target, textValue, highlightIndex, highlightLength) {
         if (!$target || !$target.length) { return; }
         const el = $target.get(0);
         if (!el) { return; }
@@ -2125,6 +2185,9 @@
         }
         const text = (textValue || '').toString();
         if (!text) { return; }
+        const spanLength = Math.max(1, parseInt(highlightLength || 1, 10));
+        const highlightStart = typeof highlightIndex === 'number' ? highlightIndex : -1;
+        const highlightEnd = highlightStart + spanLength - 1;
         const fragment = document.createDocumentFragment();
         let letterIndex = -1;
         for (const ch of text) {
@@ -2132,7 +2195,7 @@
             span.textContent = ch;
             if (/\p{L}/u.test(ch)) {
                 letterIndex += 1;
-                if (letterIndex === highlightIndex) {
+                if (letterIndex >= highlightStart && letterIndex <= highlightEnd) {
                     span.className = 'll-word-edit-ipa-target-letter';
                 }
             }
@@ -2157,7 +2220,7 @@
             return;
         }
         $target.attr('aria-hidden', 'false');
-        renderIpaTargetText($text, state.textValue, state.letterIndex);
+        renderIpaTargetText($text, state.textValue, state.letterIndex, state.highlightLength);
         const minOffset = Number.isFinite(state.minOffset) ? state.minOffset : 0;
         const maxOffset = Number.isFinite(state.maxOffset) ? state.maxOffset : 0;
         const offset = Number.isFinite(state.offset) ? state.offset : 0;
