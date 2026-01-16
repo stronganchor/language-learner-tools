@@ -107,6 +107,7 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
         $cat['name']  = (string) $cat['name'];
         $cat['slug']  = (string) $cat['slug'];
         $cat['word_count'] = isset($cat['word_count']) ? (int) $cat['word_count'] : 0;
+        $cat['gender_supported'] = !empty($cat['gender_supported']);
         return $cat;
     }, $categories);
 }
@@ -196,9 +197,27 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
 
     $words_by_category = ll_tools_user_study_words($selected_category_ids, $wordset_id);
 
+    $gender_enabled = false;
+    $gender_options = [];
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
+        $gender_enabled = ll_tools_wordset_has_grammatical_gender($wordset_id);
+    }
+    if ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options')) {
+        $gender_options = ll_tools_wordset_get_gender_options($wordset_id);
+    }
+    $gender_options = array_values(array_filter(array_map('strval', (array) $gender_options), function ($val) {
+        return $val !== '';
+    }));
+    $gender_min_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+
     return [
         'wordsets'          => $wordsets,
         'categories'        => $categories,
+        'gender'            => [
+            'enabled'   => (bool) $gender_enabled,
+            'options'   => $gender_options,
+            'min_count' => $gender_min_count,
+        ],
         'state'             => [
             'wordset_id'       => $wordset_id,
             'category_ids'     => $selected_category_ids,

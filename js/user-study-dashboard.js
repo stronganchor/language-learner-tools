@@ -15,6 +15,7 @@
     let categories = payload.categories || [];
     let wordsByCategory = payload.words_by_category || {};
     let savingTimer = null;
+    let genderConfig = normalizeGenderConfig(payload.gender || {});
 
     const $wordsetSelect = $root.find('[data-ll-study-wordset]');
     const $categoriesWrap = $root.find('[data-ll-study-categories]');
@@ -24,6 +25,7 @@
     const $starCount = $root.find('[data-ll-star-count]');
     const $starModeToggle = $root.find('[data-ll-star-mode]');
     const $transitionToggle = $root.find('[data-ll-transition-speed]');
+    const $genderStart = $root.find('[data-ll-study-gender]');
 
     let currentAudio = null;
     let currentAudioButton = null;
@@ -253,6 +255,31 @@
         return (val === 'normal' || val === 'only' || val === 'weighted') ? val : 'normal';
     }
 
+    function normalizeGenderConfig(raw) {
+        const cfg = (raw && typeof raw === 'object') ? raw : {};
+        const optionsRaw = Array.isArray(cfg.options) ? cfg.options : [];
+        const options = [];
+        const seen = {};
+        optionsRaw.forEach(function (opt) {
+            if (opt === null || opt === undefined) { return; }
+            const val = String(opt).trim();
+            if (!val) { return; }
+            const key = val.toLowerCase();
+            if (seen[key]) { return; }
+            seen[key] = true;
+            options.push(val);
+        });
+        return {
+            enabled: !!cfg.enabled,
+            options: options,
+            min_count: parseInt(cfg.min_count, 10) || 0
+        };
+    }
+
+    function setGenderConfig(raw) {
+        genderConfig = normalizeGenderConfig(raw);
+    }
+
     function toIntList(arr) {
         return (arr || []).map(function (v) { return parseInt(v, 10) || 0; }).filter(function (v) { return v > 0; });
     }
@@ -290,6 +317,45 @@
         }
         const allStarred = ids.every(function (id) { return isWordStarred(id); });
         return { allStarred: allStarred, hasWords: true };
+    }
+
+    function getGenderOptions() {
+        return Array.isArray(genderConfig.options) ? genderConfig.options : [];
+    }
+
+    function isGenderEnabledForWordset() {
+        return !!genderConfig.enabled && getGenderOptions().length >= 2;
+    }
+
+    function isGenderSupportedForSelection() {
+        if (!isGenderEnabledForWordset()) { return false; }
+        const selectedIds = toIntList(state.category_ids);
+        if (!selectedIds.length) { return false; }
+        const selectedCats = categories.filter(function (cat) {
+            return selectedIds.indexOf(parseInt(cat.id, 10)) !== -1;
+        });
+        if (!selectedCats.length) { return false; }
+        return selectedCats.every(function (cat) {
+            return !!(cat && cat.gender_supported);
+        });
+    }
+
+    function updateGenderButtonVisibility() {
+        if (!$genderStart.length) { return; }
+        const allowed = isGenderSupportedForSelection();
+        $genderStart.toggleClass('ll-study-btn--hidden', !allowed);
+        $genderStart.attr('aria-hidden', allowed ? 'false' : 'true');
+    }
+
+    function applyGenderConfigToFlashcardsData(flashData) {
+        const target = flashData || (window.llToolsFlashcardsData || {});
+        const options = getGenderOptions();
+        target.genderEnabled = !!genderConfig.enabled;
+        target.genderOptions = options.slice();
+        target.genderWordsetId = parseInt(state.wordset_id, 10) || 0;
+        const fallbackMin = parseInt(target.genderMinCount, 10) || 0;
+        const minCount = parseInt(genderConfig.min_count, 10) || fallbackMin || 2;
+        target.genderMinCount = minCount;
     }
 
     function ensureWordsForCategory(catId) {
@@ -355,6 +421,7 @@
 
         if (!categories.length) {
             $catEmpty.show();
+            updateGenderButtonVisibility();
             return;
         }
         $catEmpty.hide();
@@ -372,6 +439,7 @@
 
             $categoriesWrap.append(row);
         });
+        updateGenderButtonVisibility();
     }
 
     function renderWords() {
@@ -534,6 +602,7 @@
             const data = res.data;
             wordsets = data.wordsets || wordsets;
             categories = data.categories || [];
+            setGenderConfig(data.gender || {});
             state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'normal', fast_transitions: false }, data.state || {});
             state.star_mode = normalizeStarMode(state.star_mode);
             wordsByCategory = data.words_by_category || {};
@@ -561,6 +630,11 @@
             return state.category_ids.indexOf(c.id) !== -1;
         });
         const catNames = selectedCats.map(function (c) { return c.name; });
+        const genderAllowed = isGenderSupportedForSelection();
+        let quizMode = mode || 'practice';
+        if (quizMode === 'gender' && !genderAllowed) {
+            quizMode = 'practice';
+        }
 
         // Sync global flashcard data
         const flashData = window.llToolsFlashcardsData || {};
@@ -581,7 +655,8 @@
         flashData.wordset = findWordsetSlug(state.wordset_id);
         flashData.wordsetIds = state.wordset_id ? [state.wordset_id] : [];
         flashData.wordsetFallback = false;
-        flashData.quiz_mode = mode || 'practice';
+        applyGenderConfigToFlashcardsData(flashData);
+        flashData.quiz_mode = quizMode;
         flashData.starMode = starMode;
         flashData.fastTransitions = !!state.fast_transitions;
         flashData.fast_transitions = !!state.fast_transitions;
@@ -595,7 +670,7 @@
         $popup.find('#ll-tools-flashcard-quiz-popup').show();
 
         if (typeof window.initFlashcardWidget === 'function') {
-            window.initFlashcardWidget(catNames, mode || 'practice');
+            window.initFlashcardWidget(catNames, quizMode);
         }
     }
 
@@ -617,6 +692,7 @@
             ids.push(parseInt($(this).val(), 10));
         });
         state.category_ids = ids;
+        updateGenderButtonVisibility();
         saveStateDebounced();
         refreshWordsFromServer();
     });
@@ -795,5 +871,6 @@
     renderWords();
     renderStarModeToggle();
     renderTransitionToggle();
+    updateGenderButtonVisibility();
     setStudyPrefsGlobal();
 })(jQuery);
