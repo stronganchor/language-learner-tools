@@ -58,6 +58,10 @@
   transition: all 0.15s ease;
 }
 
+.ll-study-btn--hidden {
+  display: none !important;
+}
+
 .ll-study-btn.primary {
   background: #2563eb;
   color: #fff;

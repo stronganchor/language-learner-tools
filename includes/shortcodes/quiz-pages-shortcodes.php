@@ -170,6 +170,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
+    $gender_config_cache = [];
 
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
 
@@ -247,6 +248,40 @@ function ll_get_all_quiz_pages_data($opts = []) {
             }
         }
 
+        $gender_enabled = false;
+        $gender_options = [];
+        $gender_supported = false;
+        if ($wordset_id_for_item > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
+            if (!isset($gender_config_cache[$wordset_id_for_item])) {
+                $enabled = ll_tools_wordset_has_grammatical_gender($wordset_id_for_item);
+                $options = ($enabled && function_exists('ll_tools_wordset_get_gender_options'))
+                    ? ll_tools_wordset_get_gender_options($wordset_id_for_item)
+                    : [];
+                $options = array_values(array_filter(array_map('strval', (array) $options), function ($val) {
+                    return $val !== '';
+                }));
+                $support_map = [];
+                if ($enabled && function_exists('ll_flashcards_build_categories')) {
+                    [$ws_categories] = ll_flashcards_build_categories('', $use_translations, [$wordset_id_for_item]);
+                    foreach ($ws_categories as $cat_meta) {
+                        $cid = isset($cat_meta['id']) ? (int) $cat_meta['id'] : 0;
+                        if ($cid > 0) {
+                            $support_map[$cid] = !empty($cat_meta['gender_supported']);
+                        }
+                    }
+                }
+                $gender_config_cache[$wordset_id_for_item] = [
+                    'enabled' => $enabled,
+                    'options' => $options,
+                    'support_map' => $support_map,
+                ];
+            }
+            $cached = $gender_config_cache[$wordset_id_for_item];
+            $gender_enabled = !empty($cached['enabled']);
+            $gender_options = $cached['options'];
+            $gender_supported = !empty($cached['support_map'][$term_id]);
+        }
+
         $items[] = [
             'post_id'      => $post_id,
             'permalink'    => get_permalink($post_id),
@@ -261,6 +296,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'option_type'  => $option_type,
             'prompt_type'  => $prompt_type,
             'learning_supported' => $config['learning_supported'] ?? true,
+            'gender_enabled' => $gender_enabled,
+            'gender_options' => $gender_options,
+            'gender_supported' => $gender_supported,
         ];
     }
 
@@ -370,12 +408,28 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
       window.__LL_QPG_DELEGATED_BOUND = true;
       function openFromAnchor(a){
             var cat = a.getAttribute('data-category') || '';
-            var wordset = a.getAttribute('data-wordset-id') || a.getAttribute('data-wordset') || '';
+            var wordsetId = a.getAttribute('data-wordset-id') || '';
+            var wordsetSlug = a.getAttribute('data-wordset') || '';
             var mode = a.getAttribute('data-mode') || 'practice';
             var displayModeHint = a.getAttribute('data-display-mode') || '';
             var promptTypeHint = a.getAttribute('data-prompt-type') || '';
             var optionTypeHint = a.getAttribute('data-option-type') || '';
+            var genderEnabledAttr = a.getAttribute('data-gender-enabled');
+            var genderSupportedAttr = a.getAttribute('data-gender-supported');
+            var genderOptionsAttr = a.getAttribute('data-gender-options') || '';
             if (!cat) return;
+
+            var genderEnabled = (genderEnabledAttr === '1' || genderEnabledAttr === 'true');
+            var genderSupported = (genderSupportedAttr === '1' || genderSupportedAttr === 'true');
+            var genderOptions = [];
+            if (genderOptionsAttr) {
+                try {
+                    var parsed = JSON.parse(genderOptionsAttr);
+                    if (Array.isArray(parsed)) {
+                        genderOptions = parsed;
+                    }
+                } catch (_) {}
+            }
 
             try {
                 if (window.llToolsFlashcardsData) {
@@ -394,18 +448,32 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                             translation: cat,
                             mode: displayModeHint || 'image',
                             option_type: optionTypeHint || displayModeHint || 'image',
-                            prompt_type: promptTypeHint || 'audio'
+                            prompt_type: promptTypeHint || 'audio',
+                            gender_supported: genderSupported
                         });
                     } else {
                         if (displayModeHint) { found.mode = displayModeHint; }
                         if (optionTypeHint) { found.option_type = optionTypeHint; }
                         if (promptTypeHint) { found.prompt_type = promptTypeHint; }
+                        found.gender_supported = genderSupported;
                     }
                 }
             } catch (e) {}
 
             if (typeof window.llOpenFlashcardForCategory === 'function') {
-                window.llOpenFlashcardForCategory(cat, wordset, mode);
+                var opts = {
+                    mode: mode,
+                    genderEnabled: genderEnabled,
+                    genderSupported: genderSupported,
+                    genderOptions: genderOptions,
+                    triggerEl: a
+                };
+                if (wordsetId) {
+                    opts.wordsetId = wordsetId;
+                } else if (wordsetSlug) {
+                    opts.wordset = wordsetSlug;
+                }
+                window.llOpenFlashcardForCategory(cat, opts);
             } else {
                 console.error('llOpenFlashcardForCategory not found');
             }
@@ -652,6 +720,57 @@ function ll_qpg_print_flashcard_shell_once() {
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
             }
 
+            var genderEnabled = (opts && typeof opts.genderEnabled !== 'undefined') ? !!opts.genderEnabled : null;
+            var genderSupported = (opts && typeof opts.genderSupported !== 'undefined') ? !!opts.genderSupported : null;
+            var genderOptions = (opts && Array.isArray(opts.genderOptions)) ? opts.genderOptions : null;
+            if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                if (genderEnabled === null) {
+                    var geAttr = opts.triggerEl.getAttribute('data-gender-enabled');
+                    if (geAttr !== null) {
+                        genderEnabled = (geAttr === '1' || geAttr === 'true');
+                    }
+                }
+                if (genderSupported === null) {
+                    var gsAttr = opts.triggerEl.getAttribute('data-gender-supported');
+                    if (gsAttr !== null) {
+                        genderSupported = (gsAttr === '1' || gsAttr === 'true');
+                    }
+                }
+                if (genderOptions === null) {
+                    var goAttr = opts.triggerEl.getAttribute('data-gender-options') || '';
+                    if (goAttr) {
+                        try {
+                            var parsedOpts = JSON.parse(goAttr);
+                            if (Array.isArray(parsedOpts)) {
+                                genderOptions = parsedOpts;
+                            }
+                        } catch (_) {}
+                    }
+                }
+            }
+            if (genderEnabled === false && !Array.isArray(genderOptions)) {
+                genderOptions = [];
+            }
+
+            if (window.llToolsFlashcardsData) {
+                if (genderEnabled !== null) {
+                    window.llToolsFlashcardsData.genderEnabled = genderEnabled;
+                    window.llToolsFlashcardsData.genderWordsetId = parsedWordsetIds.length ? parsedWordsetIds[0] : 0;
+                }
+                if (Array.isArray(genderOptions)) {
+                    window.llToolsFlashcardsData.genderOptions = genderOptions;
+                }
+                if (genderSupported !== null && window.llToolsFlashcardsData.categories) {
+                    for (var i = 0; i < window.llToolsFlashcardsData.categories.length; i++) {
+                        var cat = window.llToolsFlashcardsData.categories[i];
+                        if (cat && cat.name === catName) {
+                            cat.gender_supported = genderSupported;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (wordsetChanged && window.FlashcardLoader) {
                 if (typeof window.FlashcardLoader.resetCacheForNewWordset === 'function') {
                     window.FlashcardLoader.resetCacheForNewWordset();
@@ -761,6 +880,9 @@ function ll_quiz_pages_grid_shortcode($atts) {
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             $prompt_attr = (!empty($it['prompt_type'])) ? ' data-prompt-type="' . esc_attr($it['prompt_type']) . '"' : '';
             $option_attr = (!empty($it['option_type'])) ? ' data-option-type="' . esc_attr($it['option_type']) . '"' : '';
+            $gender_enabled_attr = ' data-gender-enabled="' . (!empty($it['gender_enabled']) ? '1' : '0') . '"';
+            $gender_supported_attr = ' data-gender-supported="' . (!empty($it['gender_supported']) ? '1' : '0') . '"';
+            $gender_options_attr = ' data-gender-options="' . esc_attr(wp_json_encode($it['gender_options'] ?? [])) . '"';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
             . ' aria-label="Start ' . esc_attr($title) . '"'
@@ -772,6 +894,9 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . $mode_attr
             . $prompt_attr
             . $option_attr
+            . $gender_enabled_attr
+            . $gender_supported_attr
+            . $gender_options_attr
             . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';

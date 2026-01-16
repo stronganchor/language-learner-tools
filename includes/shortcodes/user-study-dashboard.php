@@ -60,6 +60,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'saveSuccess'      => __('Saved.', 'll-tools-text-domain'),
         'practice'         => __('Practice', 'll-tools-text-domain'),
         'learning'         => __('Learn', 'll-tools-text-domain'),
+        'gender'           => __('Gender', 'll-tools-text-domain'),
         'listening'        => __('Listen', 'll-tools-text-domain'),
         'noCategories'     => __('No categories available for this word set yet.', 'll-tools-text-domain'),
         'noWords'          => __('Select a category to see its words.', 'll-tools-text-domain'),
@@ -98,6 +99,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
             <div class="ll-study-actions">
                 <button type="button" class="ll-study-btn primary" data-ll-study-start data-mode="practice"><?php echo esc_html($i18n['practice']); ?></button>
                 <button type="button" class="ll-study-btn" data-ll-study-start data-mode="learning"><?php echo esc_html($i18n['learning']); ?></button>
+                <button type="button" class="ll-study-btn ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true"><?php echo esc_html($i18n['gender']); ?></button>
                 <button type="button" class="ll-study-btn" data-ll-study-start data-mode="listening"><?php echo esc_html($i18n['listening']); ?></button>
             </div>
         </div>

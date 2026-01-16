@@ -1240,6 +1240,15 @@
                     $icon.removeAttr('data-emoji');
                 }
             }
+            const shouldHide = (mode === 'gender' && !genderAllowed);
+            $btn.toggleClass('hidden', shouldHide);
+            if (shouldHide) {
+                $btn.attr('aria-hidden', 'true');
+                $btn.removeClass('active disabled');
+                $btn.removeAttr('disabled').removeAttr('aria-checked').removeAttr('aria-disabled');
+                return;
+            }
+            $btn.removeAttr('aria-hidden');
             // Active vs inactive
             const isActive = (mode === current);
             const isDisabled = (mode === 'learning' && !learningAllowed)
