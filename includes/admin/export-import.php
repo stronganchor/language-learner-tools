@@ -27,6 +27,16 @@ add_action('admin_menu', 'll_tools_register_export_import_page');
 
 add_action('admin_post_ll_tools_export_bundle', 'll_tools_handle_export_bundle');
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
+add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_export_import_assets');
+
+function ll_tools_enqueue_export_import_assets($hook) {
+    if ($hook !== 'tools_page_ll-export-import') {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp('/css/export-import-admin.css', 'll-tools-export-import-admin', [], false);
+}
 
 /**
  * Render the Export/Import page.
@@ -64,11 +74,11 @@ function ll_tools_render_export_import_page() {
         echo '</p></div>';
     }
 
-    if (!class_exists('ZipArchive')) {
+    $zip_available = class_exists('ZipArchive');
+    if (!$zip_available) {
         echo '<div class="notice notice-error"><p>';
         esc_html_e('ZipArchive is not available on this server. Please enable it to use the export/import tool.', 'll-tools-text-domain');
         echo '</p></div>';
-        return;
     }
 
     $export_action = admin_url('admin-post.php');
@@ -77,8 +87,38 @@ function ll_tools_render_export_import_page() {
     $import_dir_ready = ll_tools_ensure_import_dir($import_dir);
     $import_files = $import_dir_ready ? ll_tools_list_import_zips($import_dir) : [];
     $import_dir_display = wp_normalize_path($import_dir);
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+    ]);
+    if (is_wp_error($wordsets)) {
+        $wordsets = [];
+    }
+    $recording_types = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+    ]);
+    if (is_wp_error($recording_types)) {
+        $recording_types = [];
+    }
+    $selected_wordset_id = isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0;
+    if ($selected_wordset_id <= 0 && function_exists('ll_get_default_wordset_term_id')) {
+        $selected_wordset_id = (int) ll_get_default_wordset_term_id();
+    }
+    if ($selected_wordset_id <= 0 && !empty($wordsets)) {
+        $selected_wordset_id = (int) $wordsets[0]->term_id;
+    }
+    $selected_wordset = $selected_wordset_id ? get_term($selected_wordset_id, 'wordset') : null;
+    $default_dialect = ($selected_wordset && !is_wp_error($selected_wordset)) ? (string) $selected_wordset->name : '';
+    $default_source = (string) get_bloginfo('name');
+    $default_gloss_languages = ll_tools_export_get_default_gloss_languages();
+    $has_wordsets = !empty($wordsets);
     ?>
-    <div class="wrap">
+    <div class="wrap ll-tools-export-import">
         <h1><?php esc_html_e('LL Tools Export/Import', 'll-tools-text-domain'); ?></h1>
 
         <p><?php esc_html_e('Export word categories and word image posts (with their images) to a single zip. Import the zip on another site to recreate them.', 'll-tools-text-domain'); ?></p>
@@ -106,6 +146,83 @@ function ll_tools_render_export_import_page() {
             <p class="description"><?php esc_html_e('Selecting a category exports that category and its children, plus all word images assigned to them. Choose “All categories” for a full export.', 'll-tools-text-domain'); ?></p>
 
             <p><button type="submit" class="button button-primary"><?php esc_html_e('Download export (.zip)', 'll-tools-text-domain'); ?></button></p>
+        </form>
+
+        <h2><?php esc_html_e('Export Word Text (CSV)', 'll-tools-text-domain'); ?></h2>
+        <form method="post" action="<?php echo esc_url($export_action); ?>">
+            <?php wp_nonce_field('ll_tools_export_wordset_csv'); ?>
+            <input type="hidden" name="action" value="ll_tools_export_wordset_csv">
+
+            <div class="ll-tools-export-csv">
+                <p class="description"><?php esc_html_e('Lexeme uses the selected text source. Choose the fields that match your target language.', 'll-tools-text-domain'); ?></p>
+
+                <div class="ll-tools-export-field">
+                    <label class="ll-tools-export-label" for="ll_export_wordset"><?php esc_html_e('Word set', 'll-tools-text-domain'); ?></label>
+                    <select id="ll_export_wordset" name="ll_wordset_id" class="ll-tools-input"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
+                        <?php if (!$has_wordsets) : ?>
+                            <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
+                        <?php else : ?>
+                            <?php foreach ($wordsets as $wordset) : ?>
+                                <option value="<?php echo (int) $wordset->term_id; ?>" <?php selected($selected_wordset_id, (int) $wordset->term_id); ?>>
+                                    <?php echo esc_html($wordset->name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                    <p class="description"><?php esc_html_e('Exports words assigned to the selected word set.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <span class="ll-tools-export-label"><?php esc_html_e('Word text sources', 'll-tools-text-domain'); ?></span>
+                    <div class="ll-tools-checkboxes">
+                        <label><input type="checkbox" name="ll_word_text_sources[]" value="title" checked> <?php esc_html_e('Title', 'll-tools-text-domain'); ?></label>
+                        <label><input type="checkbox" name="ll_word_text_sources[]" value="translation"> <?php esc_html_e('Translation', 'll-tools-text-domain'); ?></label>
+                    </div>
+                    <p class="description"><?php esc_html_e('Each selected source adds rows. Gloss columns use the paired translation when available.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <span class="ll-tools-export-label"><?php esc_html_e('Recording types', 'll-tools-text-domain'); ?></span>
+                    <?php if (empty($recording_types)) : ?>
+                        <p class="description"><?php esc_html_e('No recording types found.', 'll-tools-text-domain'); ?></p>
+                    <?php else : ?>
+                        <div class="ll-tools-recording-grid">
+                            <?php foreach ($recording_types as $recording_type) : ?>
+                                <div class="ll-tools-recording-type">
+                                    <div class="ll-tools-recording-title"><?php echo esc_html($recording_type->name); ?></div>
+                                    <div class="ll-tools-recording-options">
+                                        <label><input type="checkbox" name="ll_recording_sources[<?php echo esc_attr($recording_type->slug); ?>][]" value="text"> <?php esc_html_e('Text', 'll-tools-text-domain'); ?></label>
+                                        <label><input type="checkbox" name="ll_recording_sources[<?php echo esc_attr($recording_type->slug); ?>][]" value="translation"> <?php esc_html_e('Translation', 'll-tools-text-domain'); ?></label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="description"><?php esc_html_e('Select which recording types to export, and whether to include their text, translation, or both.', 'll-tools-text-domain'); ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <label class="ll-tools-export-label" for="ll_gloss_languages"><?php esc_html_e('Gloss languages', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll_gloss_languages" name="ll_gloss_languages" class="ll-tools-input" value="<?php echo esc_attr($default_gloss_languages); ?>">
+                    <p class="description"><?php esc_html_e('Comma-separated language codes for Gloss columns (for example: en, tr).', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <label class="ll-tools-export-label" for="ll_export_dialect"><?php esc_html_e('Dialect', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll_export_dialect" name="ll_export_dialect" class="ll-tools-input" value="<?php echo esc_attr($default_dialect); ?>">
+                    <p class="description"><?php esc_html_e('Defaults to the word set name.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <label class="ll-tools-export-label" for="ll_export_source"><?php esc_html_e('Source', 'll-tools-text-domain'); ?></label>
+                    <input type="text" id="ll_export_source" name="ll_export_source" class="ll-tools-input" value="<?php echo esc_attr($default_source); ?>">
+                    <p class="description"><?php esc_html_e('Defaults to the site name.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
+                    <button type="submit" class="ll-tools-action-button"<?php echo $has_wordsets ? '' : ' disabled'; ?>><?php esc_html_e('Download CSV', 'll-tools-text-domain'); ?></button>
+                </div>
+            </div>
         </form>
 
         <hr>
@@ -193,6 +310,136 @@ function ll_tools_handle_export_bundle() {
     header('Content-Length: ' . filesize($zip_path));
     readfile($zip_path);
     @unlink($zip_path);
+    exit;
+}
+
+/**
+ * Handle the CSV export action for word text.
+ */
+function ll_tools_handle_export_wordset_csv() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(__('You do not have permission to export LL Tools data.', 'll-tools-text-domain'));
+    }
+    check_admin_referer('ll_tools_export_wordset_csv');
+
+    $wordset_id = isset($_POST['ll_wordset_id']) ? (int) $_POST['ll_wordset_id'] : 0;
+    if ($wordset_id <= 0) {
+        wp_die(__('Missing word set selection for export.', 'll-tools-text-domain'));
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    if (!$wordset || is_wp_error($wordset)) {
+        wp_die(__('Invalid word set selection for export.', 'll-tools-text-domain'));
+    }
+
+    @set_time_limit(0);
+
+    $word_sources = isset($_POST['ll_word_text_sources']) && is_array($_POST['ll_word_text_sources'])
+        ? array_map('sanitize_text_field', wp_unslash($_POST['ll_word_text_sources']))
+        : [];
+    $include_title = in_array('title', $word_sources, true);
+    $include_translation = in_array('translation', $word_sources, true);
+
+    $recording_sources = ll_tools_export_parse_recording_sources($_POST['ll_recording_sources'] ?? []);
+    $include_recordings = !empty($recording_sources);
+
+    if (!$include_title && !$include_translation && !$include_recordings) {
+        wp_die(__('Select at least one text source to export.', 'll-tools-text-domain'));
+    }
+
+    $gloss_languages = ll_tools_export_parse_gloss_languages(wp_unslash($_POST['ll_gloss_languages'] ?? ''));
+    if (empty($gloss_languages)) {
+        $gloss_languages = ll_tools_export_get_default_gloss_language_codes();
+    }
+    if (empty($gloss_languages)) {
+        $gloss_languages = ['en'];
+    }
+
+    $dialect = sanitize_text_field(wp_unslash($_POST['ll_export_dialect'] ?? ''));
+    if ($dialect === '') {
+        $dialect = (string) $wordset->name;
+    }
+
+    $source = sanitize_text_field(wp_unslash($_POST['ll_export_source'] ?? ''));
+    if ($source === '') {
+        $source = (string) get_bloginfo('name');
+    }
+
+    $word_ids = ll_tools_export_get_wordset_word_ids($wordset_id);
+    if (empty($word_ids)) {
+        wp_die(__('No words found for the selected word set.', 'll-tools-text-domain'));
+    }
+
+    $audio_by_word = ll_tools_export_collect_audio_entries($word_ids);
+    $gloss_headers = array_map(function ($code) {
+        return 'Gloss_' . $code;
+    }, $gloss_languages);
+    $header = array_merge(['Lexeme', 'PhoneticForm'], $gloss_headers, ['Dialect', 'Source', 'Notes']);
+
+    $filename = 'll-tools-wordset-text-' . sanitize_title($wordset->slug) . '-' . gmdate('Ymd-His') . '.csv';
+    nocache_headers();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    $output = fopen('php://output', 'w');
+    if (!$output) {
+        wp_die(__('Could not start CSV export.', 'll-tools-text-domain'));
+    }
+
+    fputcsv($output, $header);
+    $gloss_count = count($gloss_headers);
+
+    foreach ($word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $title = (string) get_the_title($word_id);
+        $translation = ll_tools_export_get_word_translation($word_id);
+        $word_ipa = ll_tools_export_pick_word_ipa($audio_by_word[$word_id] ?? []);
+
+        if ($include_title) {
+            $lexeme = trim($title);
+            if ($lexeme !== '') {
+                $row = ll_tools_export_build_csv_row($lexeme, $word_ipa, $translation, $gloss_count, $dialect, $source);
+                fputcsv($output, $row);
+            }
+        }
+
+        if ($include_translation) {
+            $lexeme = trim($translation);
+            if ($lexeme !== '') {
+                $row = ll_tools_export_build_csv_row($lexeme, $word_ipa, $title, $gloss_count, $dialect, $source);
+                fputcsv($output, $row);
+            }
+        }
+
+        if ($include_recordings && !empty($audio_by_word[$word_id])) {
+            foreach ($audio_by_word[$word_id] as $recording) {
+                $recording_type = (string) ($recording['recording_type'] ?? '');
+                if ($recording_type === '' || empty($recording_sources[$recording_type])) {
+                    continue;
+                }
+
+                $recording_text = trim((string) ($recording['recording_text'] ?? ''));
+                $recording_translation = trim((string) ($recording['recording_translation'] ?? ''));
+                $recording_ipa = trim((string) ($recording['recording_ipa'] ?? ''));
+
+                if (in_array('text', $recording_sources[$recording_type], true) && $recording_text !== '') {
+                    $row = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source);
+                    fputcsv($output, $row);
+                }
+
+                if (in_array('translation', $recording_sources[$recording_type], true) && $recording_translation !== '') {
+                    $row = ll_tools_export_build_csv_row($recording_translation, $recording_ipa, $recording_text, $gloss_count, $dialect, $source);
+                    fputcsv($output, $row);
+                }
+            }
+        }
+    }
+
+    fclose($output);
     exit;
 }
 
@@ -513,6 +760,205 @@ function ll_tools_get_export_terms($root_category_id = 0) {
     }
 
     return array_values($deduped);
+}
+
+function ll_tools_export_get_default_gloss_languages(): string {
+    $codes = ll_tools_export_get_default_gloss_language_codes();
+    return !empty($codes) ? implode(', ', $codes) : '';
+}
+
+function ll_tools_export_get_default_gloss_language_codes(): array {
+    $raw = (string) get_option('ll_translation_language', '');
+    if ($raw === '') {
+        return ['en'];
+    }
+
+    $code = '';
+    if (function_exists('ll_tools_resolve_language_code_from_label')) {
+        $code = (string) ll_tools_resolve_language_code_from_label($raw, 'lower');
+    }
+    if ($code === '') {
+        $code = strtolower(preg_replace('/[^a-z0-9-]/i', '', $raw));
+    }
+
+    return $code !== '' ? [$code] : [];
+}
+
+function ll_tools_export_parse_gloss_languages($raw): array {
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    $parts = preg_split('/[\\s,]+/', $raw);
+    $codes = [];
+    foreach ((array) $parts as $part) {
+        $part = trim((string) $part);
+        if ($part === '') {
+            continue;
+        }
+
+        $code = '';
+        if (function_exists('ll_tools_resolve_language_code_from_label')) {
+            $code = (string) ll_tools_resolve_language_code_from_label($part, 'lower');
+        }
+        if ($code === '') {
+            $code = strtolower(preg_replace('/[^a-z0-9-]/i', '', $part));
+        }
+
+        if ($code !== '') {
+            $codes[] = $code;
+        }
+    }
+
+    return array_values(array_unique($codes));
+}
+
+function ll_tools_export_parse_recording_sources($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $sources = [];
+    foreach ($raw as $slug => $values) {
+        $slug = sanitize_title($slug);
+        if ($slug === '') {
+            continue;
+        }
+        $values = is_array($values) ? $values : [$values];
+        $clean = [];
+        foreach ($values as $value) {
+            $value = sanitize_text_field(wp_unslash($value));
+            if ($value === 'text' || $value === 'translation') {
+                $clean[] = $value;
+            }
+        }
+        $clean = array_values(array_unique($clean));
+        if (!empty($clean)) {
+            $sources[$slug] = $clean;
+        }
+    }
+
+    return $sources;
+}
+
+function ll_tools_export_get_wordset_word_ids(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $word_ids = get_posts([
+        'post_type'      => 'words',
+        'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'tax_query'      => [
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ],
+    ]);
+
+    return array_values(array_unique(array_map('intval', $word_ids)));
+}
+
+function ll_tools_export_collect_audio_entries(array $word_ids): array {
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) {
+        return $id > 0;
+    }));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => -1,
+        'orderby'        => 'date',
+        'order'          => 'DESC',
+        'post_parent__in'=> $word_ids,
+    ]);
+
+    $by_word = [];
+    foreach ($audio_posts as $audio_post) {
+        $word_id = (int) $audio_post->post_parent;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+        if (is_wp_error($recording_types) || empty($recording_types)) {
+            continue;
+        }
+
+        $entry = [
+            'recording_text'        => (string) get_post_meta($audio_post->ID, 'recording_text', true),
+            'recording_translation' => (string) get_post_meta($audio_post->ID, 'recording_translation', true),
+            'recording_ipa'         => (string) get_post_meta($audio_post->ID, 'recording_ipa', true),
+        ];
+
+        foreach ($recording_types as $recording_type) {
+            $recording_type = sanitize_title($recording_type);
+            if ($recording_type === '') {
+                continue;
+            }
+            $by_word[$word_id][] = $entry + ['recording_type' => $recording_type];
+        }
+    }
+
+    return $by_word;
+}
+
+function ll_tools_export_pick_word_ipa(array $recordings): string {
+    if (empty($recordings)) {
+        return '';
+    }
+
+    $priority = ['isolation', 'question', 'introduction', 'sentence', 'in sentence'];
+    foreach ($priority as $type) {
+        foreach ($recordings as $recording) {
+            if (($recording['recording_type'] ?? '') !== $type) {
+                continue;
+            }
+            $ipa = trim((string) ($recording['recording_ipa'] ?? ''));
+            if ($ipa !== '') {
+                return $ipa;
+            }
+        }
+    }
+
+    foreach ($recordings as $recording) {
+        $ipa = trim((string) ($recording['recording_ipa'] ?? ''));
+        if ($ipa !== '') {
+            return $ipa;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_export_get_word_translation(int $word_id): string {
+    $translation = (string) get_post_meta($word_id, 'word_translation', true);
+    if ($translation === '') {
+        $translation = (string) get_post_meta($word_id, 'word_english_meaning', true);
+    }
+    return trim($translation);
+}
+
+function ll_tools_export_build_csv_row(string $lexeme, string $phonetic, string $gloss, int $gloss_count, string $dialect, string $source): array {
+    $row = [$lexeme, $phonetic];
+    for ($i = 0; $i < $gloss_count; $i++) {
+        $row[] = $gloss;
+    }
+    $row[] = $dialect;
+    $row[] = $source;
+    $row[] = '';
+    return $row;
 }
 
 /**
