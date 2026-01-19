@@ -26,6 +26,22 @@
     const $starModeToggle = $root.find('[data-ll-star-mode]');
     const $transitionToggle = $root.find('[data-ll-transition-speed]');
     const $genderStart = $root.find('[data-ll-study-gender]');
+    const $checkStart = $root.find('[data-ll-study-check-start]');
+    const $checkPanel = $root.find('[data-ll-study-check]');
+    const $checkPrompt = $root.find('[data-ll-study-check-prompt]');
+    const $checkCategory = $root.find('[data-ll-study-check-category]');
+    const $checkProgress = $root.find('[data-ll-study-check-progress]');
+    const $checkCard = $root.find('[data-ll-study-check-card]');
+    const $checkFlip = $root.find('[data-ll-study-check-flip]');
+    const $checkAnswer = $root.find('[data-ll-study-check-answer]');
+    const $checkActions = $root.find('[data-ll-study-check-actions]');
+    const $checkKnow = $root.find('[data-ll-study-check-know]');
+    const $checkUnknown = $root.find('[data-ll-study-check-unknown]');
+    const $checkComplete = $root.find('[data-ll-study-check-complete]');
+    const $checkSummary = $root.find('[data-ll-study-check-summary]');
+    const $checkApply = $root.find('[data-ll-study-check-apply]');
+    const $checkRestart = $root.find('[data-ll-study-check-restart]');
+    const $checkExit = $root.find('[data-ll-study-check-exit]');
 
     let currentAudio = null;
     let currentAudioButton = null;
@@ -51,6 +67,7 @@
     let vizButton = null;
     let vizAudio = null;
     let vizSource = null;
+    let checkSession = null;
 
     function formatRecordingLabel(typeLabel) {
         const template = i18n.playAudioType || '';
@@ -61,6 +78,16 @@
             return template + ' ' + typeLabel;
         }
         return 'Play ' + typeLabel + ' recording';
+    }
+
+    function canUseVisualizerForUrl(url) {
+        if (!url) { return false; }
+        try {
+            const target = new URL(url, window.location.href);
+            return target.origin === window.location.origin;
+        } catch (_) {
+            return false;
+        }
     }
 
     function selectRecordingUrl(word, type) {
@@ -378,6 +405,402 @@
         }, function () {
             return [];
         });
+    }
+
+    function getCategoryById(catId) {
+        const cid = parseInt(catId, 10);
+        if (!cid) { return null; }
+        return categories.find(function (cat) {
+            return parseInt(cat.id, 10) === cid;
+        }) || null;
+    }
+
+    function getCategoryLabel(cat) {
+        if (!cat) { return ''; }
+        return cat.translation || cat.name || '';
+    }
+
+    function getCategoryOptionType(cat) {
+        if (!cat) { return 'image'; }
+        return cat.option_type || cat.mode || 'image';
+    }
+
+    function getCategoryPromptType(cat) {
+        if (!cat) { return 'audio'; }
+        return cat.prompt_type || 'audio';
+    }
+
+    function isTextOptionType(optionType) {
+        return (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
+    }
+
+    function isAudioOptionType(optionType) {
+        return (optionType === 'audio' || optionType === 'text_audio');
+    }
+
+    function getCheckWordLabel(word) {
+        if (!word) { return ''; }
+        return word.label || word.title || '';
+    }
+
+    function getWordAudioUrl(word) {
+        if (!word) { return ''; }
+        if (word.audio) { return word.audio; }
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        if (!audioFiles.length) { return ''; }
+        const preferred = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        if (preferred) {
+            const match = audioFiles.find(function (file) {
+                return file && file.url && parseInt(file.speaker_user_id, 10) === preferred;
+            });
+            if (match) { return match.url; }
+        }
+        const fallback = audioFiles.find(function (file) { return file && file.url; });
+        return fallback ? fallback.url : '';
+    }
+
+    function formatCheckSummary(count) {
+        const template = i18n.checkSummary || '';
+        if (template.indexOf('%1$d') !== -1) {
+            return template.replace('%1$d', count);
+        }
+        if (template.indexOf('%d') !== -1) {
+            return template.replace('%d', count);
+        }
+        if (template.indexOf('%s') !== -1) {
+            return template.replace('%s', count);
+        }
+        if (template) {
+            return template + ' ' + count;
+        }
+        return 'You marked ' + count + ' as "I don\'t know".';
+    }
+
+    function ensureWordsForCategories(catIds) {
+        const ids = toIntList(catIds);
+        const requests = ids.map(function (id) { return ensureWordsForCategory(id); });
+        if (!requests.length) {
+            return $.Deferred().resolve().promise();
+        }
+        return $.when.apply($, requests).then(function () {
+            return true;
+        });
+    }
+
+    function shuffleItems(items) {
+        const list = items.slice();
+        for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const temp = list[i];
+            list[i] = list[j];
+            list[j] = temp;
+        }
+        return list;
+    }
+
+    function buildCheckQueue(categoryIds) {
+        const ids = toIntList(categoryIds);
+        const items = [];
+        const seen = {};
+        ids.forEach(function (cid) {
+            const cat = getCategoryById(cid);
+            const optionType = getCategoryOptionType(cat);
+            const promptType = getCategoryPromptType(cat);
+            const catLabel = getCategoryLabel(cat);
+            const words = getCategoryWords(cid) || [];
+            words.forEach(function (word) {
+                const wordId = parseInt(word.id, 10) || 0;
+                if (!wordId || seen[wordId]) { return; }
+                seen[wordId] = true;
+                items.push({
+                    word: word,
+                    wordId: wordId,
+                    categoryId: cid,
+                    categoryLabel: catLabel,
+                    optionType: optionType,
+                    promptType: promptType
+                });
+            });
+        });
+        return shuffleItems(items);
+    }
+
+    function buildCheckAudioButton(audioUrl) {
+        const label = i18n.playAudio || 'Play audio';
+        const $btn = $('<button>', {
+            type: 'button',
+            class: 'll-study-recording-btn ll-study-recording-btn--prompt',
+            'data-audio-url': audioUrl,
+            'data-recording-type': 'prompt',
+            'aria-label': label,
+            title: label
+        });
+        $('<span>', {
+            class: 'll-study-recording-icon',
+            'aria-hidden': 'true',
+            'data-emoji': '\u25B6'
+        }).appendTo($btn);
+        const viz = $('<span>', {
+            class: 'll-study-recording-visualizer',
+            'aria-hidden': 'true'
+        });
+        for (let i = 0; i < 6; i++) {
+            $('<span>', { class: 'bar' }).appendTo(viz);
+        }
+        $btn.append(viz);
+        return $btn;
+    }
+
+    function renderCheckDisplay($container, displayType, word) {
+        if (!$container || !$container.length) { return false; }
+        $container.empty();
+
+        const mode = String(displayType || '');
+        const showImage = mode === 'image';
+        const showText = isTextOptionType(mode);
+        const showAudio = isAudioOptionType(mode);
+        const text = getCheckWordLabel(word);
+        const audioUrl = showAudio ? getWordAudioUrl(word) : '';
+
+        const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
+        let hasContent = false;
+
+        if (showImage && word && word.image) {
+            const $imgWrap = $('<div>', { class: 'll-study-check-image' });
+            $('<img>', {
+                src: word.image,
+                alt: text || word.title || '',
+                loading: 'lazy'
+            }).appendTo($imgWrap);
+            $inner.append($imgWrap);
+            hasContent = true;
+        }
+
+        if (showText && text) {
+            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+            hasContent = true;
+        }
+
+        if (showAudio && audioUrl) {
+            $inner.append(buildCheckAudioButton(audioUrl));
+            hasContent = true;
+        }
+
+        if (!$inner.children().length) {
+            if (text) {
+                $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+                hasContent = true;
+            } else {
+                $('<div>', { class: 'll-study-check-empty', text: i18n.checkEmpty || 'No words available for this check.' }).appendTo($inner);
+            }
+        }
+
+        $container.append($inner);
+        return hasContent;
+    }
+
+    function renderCheckPrompt(item) {
+        const word = (item && item.word) ? item.word : null;
+        const optionType = item ? String(item.optionType || '') : '';
+        renderCheckDisplay($checkPrompt, optionType, word);
+    }
+
+    function renderCheckAnswer(item) {
+        const word = (item && item.word) ? item.word : null;
+        const promptType = item ? String(item.promptType || '') : '';
+        return renderCheckDisplay($checkAnswer, promptType, word);
+    }
+
+    function setCheckFlipped(isFlipped) {
+        if (!$checkCard.length) { return; }
+        $checkCard.toggleClass('is-flipped', !!isFlipped);
+    }
+
+    function openCheckPanel() {
+        if (!$checkPanel.length) { return; }
+        $checkPanel.addClass('is-active').attr('aria-hidden', 'false');
+        $checkSummary.text('');
+        $checkPrompt.show().empty();
+        $checkActions.show();
+        if ($checkCard.length) {
+            $checkCard.show();
+        }
+        if ($checkAnswer.length) {
+            $checkAnswer.show().empty();
+        }
+        setCheckFlipped(false);
+        $checkComplete.hide();
+    }
+
+    function closeCheckPanel() {
+        if (!$checkPanel.length) { return; }
+        $checkPanel.removeClass('is-active').attr('aria-hidden', 'true');
+        $checkCategory.text('');
+        $checkProgress.text('');
+        $checkPrompt.empty().show();
+        $checkActions.show();
+        if ($checkCard.length) {
+            $checkCard.show();
+        }
+        if ($checkAnswer.length) {
+            $checkAnswer.show().empty();
+        }
+        setCheckFlipped(false);
+        $checkComplete.hide();
+        checkSession = null;
+        stopCurrentAudio();
+    }
+
+    function showCheckItem() {
+        if (!checkSession || !Array.isArray(checkSession.items) || !checkSession.items.length) {
+            return;
+        }
+        if (checkSession.index >= checkSession.items.length) {
+            showCheckComplete();
+            return;
+        }
+
+        const item = checkSession.items[checkSession.index];
+        const total = checkSession.items.length;
+        const progressText = (checkSession.index + 1) + ' / ' + total;
+        $checkProgress.text(progressText);
+
+        const catLabel = item.categoryLabel || '';
+        if (catLabel) {
+            $checkCategory.text(catLabel).show();
+        } else {
+            $checkCategory.text('').hide();
+        }
+
+        $checkPrompt.show();
+        $checkActions.show();
+        if ($checkCard.length) {
+            $checkCard.show();
+        }
+        $checkComplete.hide();
+        renderCheckPrompt(item);
+        const hasAnswer = renderCheckAnswer(item);
+        if ($checkFlip.length) {
+            $checkFlip.toggle(!!hasAnswer);
+        }
+        setCheckFlipped(false);
+    }
+
+    function showCheckComplete() {
+        if (!checkSession) { return; }
+        const total = checkSession.items.length || 0;
+        const unknownCount = (checkSession.unknownIds || []).length;
+        $checkSummary.text(formatCheckSummary(unknownCount));
+        if (total) {
+            $checkProgress.text(total + ' / ' + total);
+        }
+        $checkCategory.text('').hide();
+        $checkPrompt.hide().empty();
+        $checkActions.hide();
+        if ($checkCard.length) {
+            $checkCard.hide();
+        }
+        if ($checkAnswer.length) {
+            $checkAnswer.hide().empty();
+        }
+        setCheckFlipped(false);
+        $checkComplete.show();
+    }
+
+    function recordCheckResult(known) {
+        if (!checkSession || !checkSession.items || !checkSession.items.length) { return; }
+        const item = checkSession.items[checkSession.index];
+        if (!item || !item.wordId) { return; }
+        if (!known) {
+            checkSession.unknownLookup = checkSession.unknownLookup || {};
+            if (!checkSession.unknownLookup[item.wordId]) {
+                checkSession.unknownLookup[item.wordId] = true;
+                checkSession.unknownIds.push(item.wordId);
+            }
+        }
+        checkSession.index += 1;
+        stopCurrentAudio();
+        showCheckItem();
+    }
+
+    function getWordIdsForCategories(catIds) {
+        const ids = [];
+        const seen = {};
+        toIntList(catIds).forEach(function (cid) {
+            const words = getCategoryWords(cid) || [];
+            words.forEach(function (word) {
+                const wordId = parseInt(word.id, 10) || 0;
+                if (!wordId || seen[wordId]) { return; }
+                seen[wordId] = true;
+                ids.push(wordId);
+            });
+        });
+        return ids;
+    }
+
+    function startCheckFlow(categoryIds) {
+        const ids = toIntList(categoryIds || state.category_ids);
+        if (!ids.length) {
+            ensureCategoriesSelected();
+            return;
+        }
+        if ($checkStart.length) {
+            $checkStart.prop('disabled', true).addClass('loading');
+        }
+
+        ensureWordsForCategories(ids).always(function () {
+            const items = buildCheckQueue(ids);
+            if (!items.length) {
+                alert(i18n.checkEmpty || 'No words available for this check.');
+                closeCheckPanel();
+                return;
+            }
+            checkSession = {
+                items: items,
+                index: 0,
+                unknownIds: [],
+                unknownLookup: {},
+                categoryIds: ids
+            };
+            openCheckPanel();
+            showCheckItem();
+        }).always(function () {
+            if ($checkStart.length) {
+                $checkStart.prop('disabled', false).removeClass('loading');
+            }
+        });
+    }
+
+    function applyCheckStars() {
+        if (!checkSession) { return; }
+        const categoryIds = toIntList(checkSession.categoryIds || state.category_ids);
+        if (!categoryIds.length) {
+            closeCheckPanel();
+            return;
+        }
+        const selectedWordIds = getWordIdsForCategories(categoryIds);
+        if (!selectedWordIds.length) {
+            closeCheckPanel();
+            return;
+        }
+        const selectedLookup = {};
+        selectedWordIds.forEach(function (id) { selectedLookup[id] = true; });
+
+        const keep = (state.starred_word_ids || []).filter(function (id) {
+            return !selectedLookup[id];
+        });
+        const unknownIds = toIntList(checkSession.unknownIds || []);
+        const next = keep.slice();
+        unknownIds.forEach(function (id) {
+            if (!selectedLookup[id]) { return; }
+            if (next.indexOf(id) === -1) { next.push(id); }
+        });
+        setStarredWordIds(next);
+        setStudyPrefsGlobal();
+        saveStateDebounced();
+        renderWords();
+        renderCategories();
+        closeCheckPanel();
     }
 
     function setStudyPrefsGlobal() {
@@ -732,6 +1155,53 @@
         startFlashcards(mode);
     });
 
+    if ($checkStart.length) {
+        $checkStart.on('click', function () {
+            startCheckFlow();
+        });
+    }
+
+    if ($checkFlip.length) {
+        $checkFlip.on('click', function () {
+            if (!$checkCard.length) { return; }
+            const flipped = $checkCard.hasClass('is-flipped');
+            setCheckFlipped(!flipped);
+        });
+    }
+
+    if ($checkKnow.length) {
+        $checkKnow.on('click', function () {
+            recordCheckResult(true);
+        });
+    }
+
+    if ($checkUnknown.length) {
+        $checkUnknown.on('click', function () {
+            recordCheckResult(false);
+        });
+    }
+
+    if ($checkApply.length) {
+        $checkApply.on('click', function () {
+            applyCheckStars();
+        });
+    }
+
+    if ($checkRestart.length) {
+        $checkRestart.on('click', function () {
+            const ids = checkSession && Array.isArray(checkSession.categoryIds)
+                ? checkSession.categoryIds
+                : state.category_ids;
+            startCheckFlow(ids);
+        });
+    }
+
+    if ($checkExit.length) {
+        $checkExit.on('click', function () {
+            closeCheckPanel();
+        });
+    }
+
     // Star mode toggle
     $starModeToggle.on('click', '.ll-study-btn', function () {
         const mode = $(this).data('mode') || 'normal';
@@ -796,20 +1266,23 @@
         currentAudioButton = null;
     }
 
-    $wordsWrap.on('click', '.ll-study-recording-btn', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const $btn = $(this);
+    function handleRecordingButtonClick($btn, buttonEl) {
         const url = $btn.attr('data-audio-url') || '';
         if (!url) { return; }
+        const useVisualizer = canUseVisualizerForUrl(url);
 
-        if (currentAudio && currentAudioButton === this) {
+        if (currentAudio && currentAudioButton === buttonEl) {
             if (!currentAudio.paused) {
                 currentAudio.pause();
                 $btn.removeClass('is-playing');
+                stopVisualizer();
                 return;
             }
-            startVisualizer(currentAudio, this);
+            if (useVisualizer) {
+                startVisualizer(currentAudio, buttonEl);
+            } else {
+                stopVisualizer();
+            }
             currentAudio.play().catch(function () {
                 stopVisualizer();
             });
@@ -818,7 +1291,7 @@
 
         stopCurrentAudio();
         currentAudio = new Audio(url);
-        currentAudioButton = this;
+        currentAudioButton = buttonEl;
         currentAudio.addEventListener('play', function () {
             if (currentAudio !== this) { return; }
             $btn.addClass('is-playing');
@@ -840,12 +1313,28 @@
             $btn.removeClass('is-playing');
             stopVisualizer();
         });
-        startVisualizer(currentAudio, this);
+        if (useVisualizer) {
+            startVisualizer(currentAudio, buttonEl);
+        } else {
+            stopVisualizer();
+        }
         if (currentAudio.play) {
             currentAudio.play().catch(function () {
                 stopVisualizer();
             });
         }
+    }
+
+    $checkPanel.on('click', '.ll-study-recording-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRecordingButtonClick($(this), this);
+    });
+
+    $wordsWrap.on('click', '.ll-study-recording-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRecordingButtonClick($(this), this);
     });
 
     // Keep dashboard state in sync with in-quiz star changes

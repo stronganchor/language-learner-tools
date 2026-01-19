@@ -76,6 +76,17 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'transitionHint'   => __('Keep the default smooth pacing or speed up after correct answers.', 'll-tools-text-domain'),
         'transitionSlow'   => __('Standard', 'll-tools-text-domain'),
         'transitionFast'   => __('Faster', 'll-tools-text-domain'),
+        'checkLabel'       => __("Know / Don't know", 'll-tools-text-domain'),
+        'checkTitle'       => __('Quick check', 'll-tools-text-domain'),
+        'checkKnow'        => __('I know it', 'll-tools-text-domain'),
+        'checkDontKnow'    => __("I don't know it", 'll-tools-text-domain'),
+        'checkSummary'     => __("You marked %d as \"I don't know\".", 'll-tools-text-domain'),
+        'checkApply'       => __('Update stars', 'll-tools-text-domain'),
+        'checkApplyHint'   => __("Replace stars for the selected categories with the words you marked as \"I don't know\".", 'll-tools-text-domain'),
+        'checkRestart'     => __('Review again', 'll-tools-text-domain'),
+        'checkExit'        => __('Close', 'll-tools-text-domain'),
+        'checkEmpty'       => __('No words available for this check.', 'll-tools-text-domain'),
+        'checkFlipLabel'   => __('Show answer', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
@@ -101,6 +112,7 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <button type="button" class="ll-study-btn" data-ll-study-start data-mode="learning"><?php echo esc_html($i18n['learning']); ?></button>
                 <button type="button" class="ll-study-btn ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true"><?php echo esc_html($i18n['gender']); ?></button>
                 <button type="button" class="ll-study-btn" data-ll-study-start data-mode="listening"><?php echo esc_html($i18n['listening']); ?></button>
+                <button type="button" class="ll-study-btn" data-ll-study-check-start><?php echo esc_html($i18n['checkLabel']); ?></button>
             </div>
         </div>
 
@@ -152,6 +164,62 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
 
         <div class="ll-study-flashcard">
             <?php echo $flashcard_markup; ?>
+        </div>
+
+        <div class="ll-study-check" data-ll-study-check aria-hidden="true">
+            <div class="ll-study-check-card" role="dialog" aria-modal="true" aria-labelledby="ll-study-check-title">
+                <div class="ll-study-check-header">
+                    <div>
+                        <span id="ll-study-check-title" class="ll-study-check-title"><?php echo esc_html($i18n['checkTitle']); ?></span>
+                        <span class="ll-study-check-category" data-ll-study-check-category></span>
+                    </div>
+                    <div class="ll-study-check-meta">
+                        <span class="ll-study-check-progress" data-ll-study-check-progress></span>
+                    </div>
+                    <button type="button" class="ll-study-check-close" data-ll-study-check-exit aria-label="<?php echo esc_attr($i18n['checkExit']); ?>">&times;</button>
+                </div>
+
+                <div class="ll-study-check-flip-card" data-ll-study-check-card>
+                    <div class="ll-study-check-card-inner" data-ll-study-check-card-inner>
+                        <div class="ll-study-check-prompt ll-study-check-face ll-study-check-face--front" data-ll-study-check-prompt></div>
+                        <div class="ll-study-check-prompt ll-study-check-face ll-study-check-face--back" data-ll-study-check-answer></div>
+                    </div>
+                    <button type="button" class="ll-study-check-flip" data-ll-study-check-flip aria-label="<?php echo esc_attr($i18n['checkFlipLabel']); ?>">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M20 7h-9a6 6 0 1 0 0 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M20 7l-3-3M20 7l-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="ll-study-check-actions" data-ll-study-check-actions>
+                    <button type="button" class="ll-study-btn ll-study-check-btn ll-study-check-btn--know" data-ll-study-check-know>
+                        <span class="ll-study-check-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                        <span class="ll-study-check-btn-text"><?php echo esc_html($i18n['checkKnow']); ?></span>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-study-check-btn ll-study-check-btn--unknown" data-ll-study-check-unknown>
+                        <span class="ll-study-check-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none">
+                                <path d="M6 6l12 12M18 6l-12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                        <span class="ll-study-check-btn-text"><?php echo esc_html($i18n['checkDontKnow']); ?></span>
+                    </button>
+                </div>
+
+                <div class="ll-study-check-complete" data-ll-study-check-complete style="display:none;">
+                    <p class="ll-study-check-summary" data-ll-study-check-summary></p>
+                    <p class="ll-study-check-hint"><?php echo esc_html($i18n['checkApplyHint']); ?></p>
+                    <div class="ll-study-check-complete-actions">
+                        <button type="button" class="ll-study-btn primary" data-ll-study-check-apply><?php echo esc_html($i18n['checkApply']); ?></button>
+                        <button type="button" class="ll-study-btn ghost" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <?php
