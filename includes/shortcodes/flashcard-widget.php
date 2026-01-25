@@ -339,9 +339,12 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         $user_study_state = ll_tools_get_user_study_state();
     }
 
+    $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
     $localized_data = [
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
+        'isEmbed'               => $is_embed,
+        'debug'                 => (bool) apply_filters('ll_tools_flashcards_debug', false),
         'plugin_dir'            => LL_TOOLS_BASE_URL,
         'ajaxurl'               => admin_url('admin-ajax.php'),
         'ajaxNonce'             => is_user_logged_in() ? wp_create_nonce('ll_get_words_by_category') : '',

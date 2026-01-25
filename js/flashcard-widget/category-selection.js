@@ -52,6 +52,55 @@
         };
     }
 
+    var embedAutoStarted = false;
+
+    function notifyEmbedReady() {
+        try {
+            var targetOrigin = window.location.origin;
+            if (document.referrer) {
+                try {
+                    targetOrigin = new URL(document.referrer).origin;
+                } catch (_) { /* ignore */ }
+            }
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'll-embed-ready' }, targetOrigin);
+            }
+        } catch (e) {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'll-embed-ready' }, '*');
+                }
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    function showEmbedAutoplayOverlay() {
+        if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.showAutoplayBlockedOverlay === 'function') {
+            window.LLFlashcards.Dom.showAutoplayBlockedOverlay();
+        }
+    }
+
+    function autoStartEmbedQuiz() {
+        var data = window.llToolsFlashcardsData || {};
+        if (!data.isEmbed || embedAutoStarted || !Array.isArray(data.categories)) return;
+
+        embedAutoStarted = true;
+        $('body').addClass('ll-tools-flashcard-open');
+        $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
+        $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
+
+        var categories = data.categories.map(function (category) {
+            return category.name;
+        }).filter(Boolean);
+        if (!categories.length) return;
+
+        showEmbedAutoplayOverlay();
+        startWidget(categories, data.quiz_mode);
+        notifyEmbedReady();
+    }
+
+    $(autoStartEmbedQuiz);
+
     /**
      * Displays the category selection popup with checkboxes for each category.
      */

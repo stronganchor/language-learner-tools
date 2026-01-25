@@ -1,6 +1,25 @@
 (function (root, $) {
     'use strict';
 
+    function shouldLog() {
+        return !!(root.llToolsFlashcardsData && root.llToolsFlashcardsData.debug);
+    }
+
+    function log() {
+        if (!shouldLog() || !window.console || typeof window.console.log !== 'function') return;
+        window.console.log.apply(window.console, arguments);
+    }
+
+    function warn() {
+        if (!shouldLog() || !window.console || typeof window.console.warn !== 'function') return;
+        window.console.warn.apply(window.console, arguments);
+    }
+
+    function error() {
+        if (!shouldLog() || !window.console || typeof window.console.error !== 'function') return;
+        window.console.error.apply(window.console, arguments);
+    }
+
     /**
      * State Module - Unified state management
      *
@@ -121,26 +140,26 @@
             this._initTransitions();
 
             if (!this.STATES[newState.toUpperCase()]) {
-                console.error('State: Invalid state', newState);
+                error('State: Invalid state', newState);
                 return false;
             }
 
             if (!this.canTransitionTo(newState)) {
-                console.warn('State: Invalid transition from', this.currentFlowState, 'to', newState);
+                warn('State: Invalid transition from', this.currentFlowState, 'to', newState);
                 return false;
             }
 
             const oldState = this.currentFlowState;
             this.currentFlowState = newState;
 
-            console.log('State:', oldState, '→', newState, reason ? `(${reason})` : '');
+            log('State:', oldState, '→', newState, reason ? `(${reason})` : '');
 
             // Notify listeners
             this._stateListeners.forEach(listener => {
                 try {
                     listener(newState, oldState, reason);
                 } catch (e) {
-                    console.error('State: Listener error', e);
+                    error('State: Listener error', e);
                 }
             });
 
@@ -153,13 +172,13 @@
         forceTransitionTo(newState, reason) {
             const oldState = this.currentFlowState;
             this.currentFlowState = newState;
-            console.warn('State: FORCED transition', oldState, '→', newState, reason ? `(${reason})` : '');
+            warn('State: FORCED transition', oldState, '→', newState, reason ? `(${reason})` : '');
 
             this._stateListeners.forEach(listener => {
                 try {
                     listener(newState, oldState, reason);
                 } catch (e) {
-                    console.error('State: Listener error', e);
+                    error('State: Listener error', e);
                 }
             });
         },

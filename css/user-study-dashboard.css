@@ -585,7 +585,7 @@
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
-  padding: 16px;
+  padding: 22px 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -639,13 +639,16 @@
 .ll-study-check-flip-card {
   position: relative;
   perspective: 1200px;
-  min-height: clamp(220px, 38vh, 320px);
+  min-height: clamp(220px, 34vh, 320px);
+  width: min(100%, 320px);
+  align-self: center;
+  margin: 0 auto;
 }
 
 .ll-study-check-card-inner {
   position: relative;
   width: 100%;
-  height: clamp(220px, 38vh, 320px);
+  height: clamp(220px, 34vh, 320px);
   transform-style: preserve-3d;
   transition: transform 0.5s ease;
 }
@@ -672,17 +675,25 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  font-family: inherit !important;
+  text-transform: none !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  box-sizing: border-box !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
   cursor: pointer;
-  box-shadow: none;
-  text-shadow: none;
-  -webkit-appearance: none;
-  appearance: none;
   transition: all 0.15s ease;
 }
 
@@ -692,9 +703,15 @@
   color: #0ea5e9;
 }
 
+.ll-study-check-flip:focus-visible {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 2px;
+}
+
 .ll-study-check-flip svg {
   width: 18px;
   height: 18px;
+  display: block;
 }
 .ll-study-check-actions {
   display: flex;
