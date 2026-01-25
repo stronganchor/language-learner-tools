@@ -16,6 +16,25 @@
         // Cleanup tracking
         var pendingCleanup = null;
 
+        function shouldLog() {
+            return !!(window.llToolsFlashcardsData && window.llToolsFlashcardsData.debug);
+        }
+
+        function log() {
+            if (!shouldLog() || !window.console || typeof window.console.log !== 'function') return;
+            window.console.log.apply(window.console, arguments);
+        }
+
+        function warn() {
+            if (!shouldLog() || !window.console || typeof window.console.warn !== 'function') return;
+            window.console.warn.apply(window.console, arguments);
+        }
+
+        function error() {
+            if (!shouldLog() || !window.console || typeof window.console.error !== 'function') return;
+            window.console.error.apply(window.console, arguments);
+        }
+
         /**
          * Normalize a media URL to the current page origin/protocol when possible.
          * Prevents CORS errors when assets are the same host but a different scheme.
@@ -76,10 +95,10 @@
             var previousSession = currentSession;
             currentSession++;
 
-            console.log('Audio: Starting session ' + currentSession + ' (was ' + previousSession + ')');
+            log('Audio: Starting session ' + currentSession + ' (was ' + previousSession + ')');
 
             return cleanupSession(previousSession).then(function () {
-                console.log('Audio: Session ' + currentSession + ' ready');
+                log('Audio: Session ' + currentSession + ' ready');
             });
         }
 
@@ -90,7 +109,7 @@
             options = options || {};
 
             if (!url) {
-                console.warn('Audio: Cannot create audio without URL');
+                warn('Audio: Cannot create audio without URL');
                 return null;
             }
 
@@ -103,7 +122,7 @@
 
             // Auto-cleanup on error
             audio.addEventListener('error', function onError() {
-                console.error('Audio: Error for', url);
+                error('Audio: Error for', url);
                 cleanupSingleAudio(audio);
             }, { once: true });
 
@@ -124,13 +143,13 @@
          */
         function playAudio(audio) {
             if (!audio) {
-                console.warn('Audio: Cannot play null audio');
+                warn('Audio: Cannot play null audio');
                 return Promise.reject(new Error('No audio element'));
             }
 
             // Check session validity
             if (!isCurrentSession(audio)) {
-                console.log('Audio: Ignoring play from old session');
+                log('Audio: Ignoring play from old session');
                 return Promise.resolve();
             }
 
@@ -157,11 +176,11 @@
                             window.LLFlashcards.Dom.showAutoplayBlockedOverlay();
                         }
                     }
-                    console.error('Audio: Play failed', e);
+                    error('Audio: Play failed', e);
                     throw e;
                 });
             } catch (e) {
-                console.error('Audio: Play error', e);
+                error('Audio: Play error', e);
                 return Promise.reject(e);
             }
         }
@@ -185,7 +204,7 @@
                     audio.onerror = null;
                     resolve();
                 } catch (e) {
-                    console.error('Audio: Stop error', e);
+                    error('Audio: Stop error', e);
                     resolve(); // Don't reject
                 }
             });
@@ -333,7 +352,7 @@
                     activeAudioElements.delete(audio);
                     resolve();
                 } catch (e) {
-                    console.error('Audio: Cleanup error', e);
+                    error('Audio: Cleanup error', e);
                     resolve();
                 }
             });
@@ -350,7 +369,7 @@
                 });
             }
 
-            console.log('Audio: Cleaning up session ' + sessionId);
+            log('Audio: Cleaning up session ' + sessionId);
 
             var promises = [];
             var toRemove = [];
@@ -380,7 +399,7 @@
                         .remove();
                     resolve();
                 } catch (e) {
-                    console.error('Audio: DOM cleanup error', e);
+                    error('Audio: DOM cleanup error', e);
                     resolve();
                 }
             }));
@@ -396,7 +415,7 @@
                 }
 
                 pendingCleanup = null;
-                console.log('Audio: Cleanup complete for session ' + sessionId);
+                log('Audio: Cleanup complete for session ' + sessionId);
             });
 
             return pendingCleanup;
@@ -418,7 +437,7 @@
 
             // If no audio exists for this word, mark as satisfied so UI isn't blocked
             if (!targetWord || !targetWord.audio) {
-                console.warn('Audio: No audio for word');
+                warn('Audio: No audio for word');
                 currentTargetAudio = null;
                 // Treat as "played" so feedback and interactions aren't gated
                 targetAudioHasPlayed = true;
@@ -450,7 +469,7 @@
 
             // If the file fails to load/play, don't block interactions
             currentTargetAudio.onerror = function (e) {
-                try { console.error('Error playing target audio file:', currentTargetAudio && currentTargetAudio.src, e); } catch (_) { }
+                try { error('Error playing target audio file:', currentTargetAudio && currentTargetAudio.src, e); } catch (_) { }
                 // Unblock any feedback that waits for target audio
                 targetAudioHasPlayed = true;
             };

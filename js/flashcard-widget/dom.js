@@ -232,7 +232,6 @@
                         <circle cx="40" cy="40" r="35" stroke="white" stroke-width="3" fill="rgba(255,255,255,0.1)"/>
                         <path d="M30 20 L30 60 L60 40 Z" fill="white"/>
                     </svg>
-                    <span>Click to Start</span>
                 `
             });
 
