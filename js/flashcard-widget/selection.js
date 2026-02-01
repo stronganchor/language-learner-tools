@@ -216,6 +216,12 @@
         });
     }
 
+    function shouldCompleteCategoryBeforeSwitch() {
+        if (!State) return false;
+        if (State.isLearningMode || State.isListeningMode) return false;
+        return true;
+    }
+
     function getAvailableUnusedWords(name, starredLookup, starMode) {
         const list = getActiveWordsByCategory()[name] || [];
         if (!Array.isArray(list) || !list.length) return [];
@@ -378,6 +384,7 @@
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
         const starredLookup = getStarredLookup();
         const starMode = getStarMode();
+        const stayInCategory = shouldCompleteCategoryBeforeSwitch();
 
         // First, try to find a word from the repetition queue that's ready to reappear
         // and ISN'T the same as the last word shown
@@ -452,7 +459,7 @@
                 // only category, fall through to the queue fallback below to avoid
                 // stalling on tiny word sets.
                 const multipleCategories = Array.isArray(State.categoryNames) && State.categoryNames.length > 1;
-                if (multipleCategories) {
+                if (multipleCategories && !stayInCategory) {
                     return null;
                 }
             }
@@ -535,6 +542,7 @@
 
     function selectTargetWordAndCategory() {
         let target = null;
+        const stayInCategory = shouldCompleteCategoryBeforeSwitch();
         if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) {
             return null;
         }
@@ -559,7 +567,7 @@
             const starMode = getStarMode();
             const hasUnusedInCurrent = getAvailableUnusedWords(State.currentCategoryName, starredLookup, starMode).length > 0;
             const multipleCategories = Array.isArray(State.categoryNames) && State.categoryNames.length > 1;
-            if (hasReadyFromQueue || !multipleCategories || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
+            if (hasReadyFromQueue || !multipleCategories || stayInCategory || State.currentCategoryRoundCount <= State.ROUNDS_PER_CATEGORY) {
                 target = selectTargetWord(State.currentCategory, State.currentCategoryName);
             } else if (hasPendingQueue || hasUnusedInCurrent) {
                 // Move this category to the end to let others run, but keep it in rotation for queued wrong answers or unused words.
