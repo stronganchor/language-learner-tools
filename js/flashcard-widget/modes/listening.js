@@ -331,23 +331,10 @@
         return getWordsetCacheKey() + '::' + String(name || '');
     }
 
-    function rebuildWordsLinear() {
-        const all = [];
-        if (State.categoryNames && State.wordsByCategory) {
-            for (const name of State.categoryNames) {
-                const list = State.wordsByCategory[name] || [];
-                for (const w of list) {
-                    if (!w) continue;
-                    try { if (w && !w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
-                    all.push(w);
-                }
-            }
-        }
-
-        const starredLookup = getStarredLookup();
-        const starMode = getStarMode();
+    function buildWeightedSequence(words, starredLookup, starMode) {
         const copies = [];
-        all.forEach(function (w) {
+        (Array.isArray(words) ? words : []).forEach(function (w) {
+            if (!w) return;
             const isStarred = !!starredLookup[w.id];
             if (starMode === 'only' && !isStarred) return;
             const weight = (starMode === 'weighted' && isStarred) ? 2 : 1;
@@ -364,10 +351,30 @@
             const nonRepeat = remaining.filter(item => item.id !== lastId);
             const pickFrom = nonRepeat.length ? nonRepeat : remaining;
             const chosen = pickFrom[Math.floor(Math.random() * pickFrom.length)];
-            // remove a single instance of chosen
             const idx = remaining.indexOf(chosen);
             if (idx > -1) remaining.splice(idx, 1);
             seq.push(chosen);
+        }
+
+        return seq;
+    }
+
+    function rebuildWordsLinear() {
+        const seq = [];
+        if (State.categoryNames && State.wordsByCategory) {
+            const starredLookup = getStarredLookup();
+            const starMode = getStarMode();
+            for (const name of State.categoryNames) {
+                const list = State.wordsByCategory[name] || [];
+                for (const w of list) {
+                    if (!w) continue;
+                    try { if (w && !w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                }
+                const categorySeq = buildWeightedSequence(list, starredLookup, starMode);
+                if (categorySeq.length) {
+                    categorySeq.forEach(function (word) { seq.push(word); });
+                }
+            }
         }
 
         State.wordsLinear = seq;
@@ -1157,10 +1164,7 @@
                             const $jq = getJQuery();
                             const doRestart = function () {
                                 try {
-                                    const Util = (root.LLFlashcards && root.LLFlashcards.Util) || {};
-                                    if (Util && typeof Util.randomlySort === 'function') {
-                                        State.wordsLinear = Util.randomlySort(State.wordsLinear || []);
-                                    }
+                                    rebuildWordsLinear();
                                 } catch (_) {}
                                 resetListeningHistory();
                                 State.listenIndex = 0;

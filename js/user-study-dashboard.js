@@ -499,7 +499,7 @@
     }
 
     function buildCheckQueue(categoryIds) {
-        const ids = toIntList(categoryIds);
+        const ids = shuffleItems(toIntList(categoryIds));
         const items = [];
         const seen = {};
         ids.forEach(function (cid) {
@@ -507,7 +507,7 @@
             const optionType = getCategoryOptionType(cat);
             const promptType = getCategoryPromptType(cat);
             const catLabel = getCategoryLabel(cat);
-            const words = getCategoryWords(cid) || [];
+            const words = shuffleItems(getCategoryWords(cid) || []);
             words.forEach(function (word) {
                 const wordId = parseInt(word.id, 10) || 0;
                 if (!wordId || seen[wordId]) { return; }
@@ -522,7 +522,7 @@
                 });
             });
         });
-        return shuffleItems(items);
+        return items;
     }
 
     function buildCheckAudioButton(audioUrl) {
