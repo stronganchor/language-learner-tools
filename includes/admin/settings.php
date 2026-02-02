@@ -138,6 +138,34 @@ function ll_tools_bump_word_category_cache() {
     return count( $terms );
 }
 
+function ll_tools_flush_quiz_word_caches() {
+    global $wpdb;
+
+    $patterns = array(
+        '_transient_ll_wc_words_%',
+        '_transient_timeout_ll_wc_words_%',
+    );
+
+    $deleted = 0;
+    foreach ( $patterns as $pattern ) {
+        $sql = $wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+            $pattern
+        );
+        $result = $wpdb->query( $sql );
+        if ( is_numeric( $result ) ) {
+            $deleted += (int) $result;
+        }
+    }
+
+    $bumped = ll_tools_bump_word_category_cache();
+
+    return array(
+        'deleted' => $deleted,
+        'bumped'  => $bumped,
+    );
+}
+
 function ll_render_settings_page() {
     if ( ! current_user_can( 'view_ll_tools' ) ) {
         return;
@@ -145,6 +173,8 @@ function ll_render_settings_page() {
 
     $purge_notice = '';
     $purge_result = null;
+    $cache_notice = '';
+    $cache_result = null;
 
     if ( isset( $_POST['ll_tools_purge_legacy_audio'] ) ) {
         if ( ! isset( $_POST['ll_tools_purge_legacy_audio_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_purge_legacy_audio_nonce'], 'll_tools_purge_legacy_audio' ) ) {
@@ -156,6 +186,15 @@ function ll_render_settings_page() {
             if ( $bumped > 0 ) {
                 $purge_notice .= '<div class="notice notice-success"><p>Cache bumped for ' . esc_html( (string) $bumped ) . ' word categories.</p></div>';
             }
+        }
+    }
+
+    if ( isset( $_POST['ll_tools_flush_quiz_cache'] ) ) {
+        if ( ! isset( $_POST['ll_tools_flush_quiz_cache_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_flush_quiz_cache_nonce'], 'll_tools_flush_quiz_cache' ) ) {
+            $cache_notice = '<div class="notice notice-error"><p>Cache flush failed security check. Please try again.</p></div>';
+        } else {
+            $cache_result = ll_tools_flush_quiz_word_caches();
+            $cache_notice = '<div class="notice notice-success"><p>Flushed quiz caches and bumped category cache versions.</p></div>';
         }
     }
 
@@ -181,6 +220,7 @@ function ll_render_settings_page() {
     <div class="wrap">
         <h2>Language Learning Tools Settings</h2>
         <?php echo $purge_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php echo $cache_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <form action="options.php" method="post">
             <?php settings_fields('language-learning-tools-options'); ?>
             <?php do_settings_sections('language-learning-tools-settings'); ?>
@@ -293,6 +333,27 @@ function ll_render_settings_page() {
             </table>
 
             <?php submit_button(); ?>
+        </form>
+
+        <hr />
+
+        <h2>Flush quiz caches</h2>
+        <p>
+            Clears cached quiz word payload transients and increments cache versions for all
+            <code>word-category</code> terms.
+        </p>
+
+        <form method="post">
+            <?php wp_nonce_field( 'll_tools_flush_quiz_cache', 'll_tools_flush_quiz_cache_nonce' ); ?>
+            <p class="submit">
+                <button type="submit" name="ll_tools_flush_quiz_cache" class="button button-secondary">
+                    Flush Quiz Caches
+                </button>
+            </p>
+            <?php if ( is_array( $cache_result ) ) : ?>
+                <p><strong>Transient rows deleted:</strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
+                   <strong>Categories bumped:</strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?></p>
+            <?php endif; ?>
         </form>
 
         <hr />
