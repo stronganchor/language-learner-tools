@@ -159,10 +159,15 @@ function ll_tools_flush_quiz_word_caches() {
     }
 
     $bumped = ll_tools_bump_word_category_cache();
+    $object_cache_flushed = false;
+    if ( function_exists( 'wp_cache_flush' ) ) {
+        $object_cache_flushed = (bool) wp_cache_flush();
+    }
 
     return array(
-        'deleted' => $deleted,
-        'bumped'  => $bumped,
+        'deleted'              => $deleted,
+        'bumped'               => $bumped,
+        'object_cache_flushed' => $object_cache_flushed,
     );
 }
 
@@ -352,7 +357,8 @@ function ll_render_settings_page() {
             </p>
             <?php if ( is_array( $cache_result ) ) : ?>
                 <p><strong>Transient rows deleted:</strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
-                   <strong>Categories bumped:</strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?></p>
+                   <strong>Categories bumped:</strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?> |
+                   <strong>Object cache flushed:</strong> <?php echo ! empty( $cache_result['object_cache_flushed'] ) ? 'yes' : 'no'; ?></p>
             <?php endif; ?>
         </form>
 
