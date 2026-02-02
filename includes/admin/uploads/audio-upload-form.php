@@ -360,7 +360,7 @@ function ll_format_title( $original_name ) {
 }
 
 /**
- * Updates (legacy) audio and, critically, CREATES a word_audio child in the new paradigm.
+ * Creates a word_audio child for the existing word.
  *
  * @param int    $post_id        Parent words post ID.
  * @param string $relative_path  Relative path to the uploaded audio file.
@@ -396,8 +396,7 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
 
     $audio_post_id = wp_insert_post($audio_post_args);
     if (is_wp_error($audio_post_id)) {
-        // Keep old behavior as a last resort: write legacy meta so upload isn’t lost
-        update_post_meta($post_id, 'word_audio_file', $relative_path);
+        error_log('Audio upload: failed to create word_audio post for word ' . $post_id);
         return;
     }
 
@@ -413,10 +412,6 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
     }
 
-    // Optional back-compat: only mirror to legacy meta for isolation recordings
-    if ($recording_type === 'isolation') {
-        update_post_meta($post_id, 'word_audio_file', $relative_path);
-    }
 }
 
 /**
@@ -492,8 +487,6 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             wp_set_object_terms($audio_post_id, 'isolation', 'recording_type');
         }
 
-        // Also update legacy field for backward compatibility
-        update_post_meta($post_id, 'word_audio_file', $relative_path);
         // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
         $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
 

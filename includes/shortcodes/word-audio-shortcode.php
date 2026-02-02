@@ -118,12 +118,8 @@ function ll_word_audio_extract_context($atts, $content) {
 
     // Retrieve the audio file for this word (prefer processed word_audio posts).
     $audio_file = '';
-    if (!empty($word_post)) {
-        if (function_exists('ll_get_word_audio_url')) {
-            $audio_file = ll_get_word_audio_url($word_post->ID);
-        } else {
-            $audio_file = get_post_meta($word_post->ID, 'word_audio_file', true);
-        }
+    if (!empty($word_post) && function_exists('ll_get_word_audio_url')) {
+        $audio_file = ll_get_word_audio_url($word_post->ID);
     }
 
     return array(

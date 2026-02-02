@@ -2392,9 +2392,23 @@ function ll_image_has_audio_for_wordset($image_post_id, $wordset_term_ids = []) 
 
     // Check if any have audio
     foreach ($words as $word_id) {
-        $audio = get_post_meta($word_id, 'word_audio_file', true);
-        if (!empty($audio)) {
-            return true;
+        if (function_exists('ll_tools_word_has_audio')) {
+            if (ll_tools_word_has_audio($word_id, ['publish', 'draft', 'pending', 'private'])) {
+                return true;
+            }
+        } else {
+            $audio_posts = get_posts([
+                'post_type'      => 'word_audio',
+                'post_parent'    => $word_id,
+                'post_status'    => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'suppress_filters' => true,
+            ]);
+            if (!empty($audio_posts)) {
+                return true;
+            }
         }
     }
 
@@ -2428,9 +2442,23 @@ function ll_image_has_processed_audio($image_post_id) {
 
     // Check if any of these words have audio (processed or not)
     foreach ($words as $word_id) {
-        $audio = get_post_meta($word_id, 'word_audio_file', true);
-        if (!empty($audio)) {
-            return true;
+        if (function_exists('ll_tools_word_has_audio')) {
+            if (ll_tools_word_has_audio($word_id, ['publish', 'draft', 'pending', 'private'])) {
+                return true;
+            }
+        } else {
+            $audio_posts = get_posts([
+                'post_type'      => 'word_audio',
+                'post_parent'    => $word_id,
+                'post_status'    => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'suppress_filters' => true,
+            ]);
+            if (!empty($audio_posts)) {
+                return true;
+            }
         }
     }
 
@@ -2464,9 +2492,23 @@ function ll_image_has_word_with_audio($image_post_id) {
 
     // Check if any of these words have audio
     foreach ($words as $word_id) {
-        $audio = get_post_meta($word_id, 'word_audio_file', true);
-        if (!empty($audio)) {
-            return true;
+        if (function_exists('ll_tools_word_has_audio')) {
+            if (ll_tools_word_has_audio($word_id, ['publish', 'draft', 'pending', 'private'])) {
+                return true;
+            }
+        } else {
+            $audio_posts = get_posts([
+                'post_type'      => 'word_audio',
+                'post_parent'    => $word_id,
+                'post_status'    => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => 1,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'suppress_filters' => true,
+            ]);
+            if (!empty($audio_posts)) {
+                return true;
+            }
         }
     }
 
@@ -2799,10 +2841,6 @@ function ll_handle_recording_upload() {
 
     if (!empty($recording_type)) {
         wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
-    }
-
-    if (!get_post_meta($word_id, 'word_audio_file', true)) {
-        update_post_meta($word_id, 'word_audio_file', $relative_path);
     }
 
     if ($auto_publish) {

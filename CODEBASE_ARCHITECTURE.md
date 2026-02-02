@@ -303,6 +303,11 @@ Core settings live in `includes/admin/settings.php`:
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
+- Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
+- Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
+- Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.
+- Learning mode options are built from all introduced categories, so conflict filtering must be evaluated against all currently chosen options (not just the target).
+- If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
 
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.

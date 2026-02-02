@@ -272,6 +272,67 @@
         return normalizeTextForComparison(val);
     }
 
+    function normalizeWordId(value) {
+        const id = parseInt(value, 10);
+        return id > 0 ? id : 0;
+    }
+
+    function extractMaskedImageAttachmentId(rawUrl) {
+        if (!rawUrl || typeof rawUrl !== 'string') return 0;
+        const url = rawUrl.trim();
+        if (!url) return 0;
+
+        const directMatch = url.match(/[?&]lltools-img=(\d+)/);
+        if (directMatch && directMatch[1]) {
+            return normalizeWordId(directMatch[1]);
+        }
+
+        if (typeof URL === 'function') {
+            try {
+                const baseHref = (root.location && root.location.href) ? root.location.href : 'http://localhost/';
+                const parsed = new URL(url, baseHref);
+                return normalizeWordId(parsed.searchParams.get('lltools-img'));
+            } catch (_) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    function getWordImageIdentity(word) {
+        if (!word || typeof word !== 'object' || !word.image) return '';
+        const raw = String(word.image).trim();
+        if (!raw) return '';
+
+        const attachmentId = extractMaskedImageAttachmentId(raw);
+        if (attachmentId > 0) {
+            return 'attachment:' + String(attachmentId);
+        }
+
+        return 'url:' + raw.split('#')[0];
+    }
+
+    function wordHasBlockedId(word, otherId) {
+        if (!word || !otherId || !Array.isArray(word.option_blocked_ids)) return false;
+        return word.option_blocked_ids.some(function (id) {
+            return normalizeWordId(id) === otherId;
+        });
+    }
+
+    function wordsConflictForOptions(leftWord, rightWord) {
+        const leftId = normalizeWordId(leftWord && leftWord.id);
+        const rightId = normalizeWordId(rightWord && rightWord.id);
+        if (!leftId || !rightId || leftId === rightId) return false;
+
+        if (wordHasBlockedId(leftWord, rightId) || wordHasBlockedId(rightWord, leftId)) {
+            return true;
+        }
+
+        const leftImage = getWordImageIdentity(leftWord);
+        const rightImage = getWordImageIdentity(rightWord);
+        return !!leftImage && leftImage === rightImage;
+    }
+
     function isLearningSupportedForCategories(categoryNames) {
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
@@ -724,7 +785,6 @@
             availableWords.push(...catWords);
         }
 
-        const targetId = targetWord ? parseInt(targetWord.id, 10) : 0;
         const targetGroups = new Set();
         if (targetWord && Array.isArray(targetWord.option_groups)) {
             targetWord.option_groups.forEach(function (grp) {
@@ -733,14 +793,6 @@
                     targetGroups.add(val);
                 }
             });
-        }
-        let blockedSet = null;
-        if (targetWord && Array.isArray(targetWord.option_blocked_ids) && targetWord.option_blocked_ids.length) {
-            blockedSet = new Set(targetWord.option_blocked_ids.map(function (id) {
-                return parseInt(id, 10);
-            }).filter(function (id) {
-                return id > 0;
-            }));
         }
 
         // Shuffle available words
@@ -801,12 +853,12 @@
             const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
             const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
             const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
-            const candidateId = parseInt(candidate.id, 10);
-            const isBlockedByTarget = blockedSet && candidateId > 0 && blockedSet.has(candidateId);
-            const isBlockedByCandidate = candidateId > 0 && targetId > 0 && Array.isArray(candidate.option_blocked_ids)
-                && candidate.option_blocked_ids.some(function (id) { return parseInt(id, 10) === targetId; });
+            // Enforce pair safety across all cards already chosen for this round.
+            const hasOptionConflict = chosen.some(function (existingWord) {
+                return wordsConflictForOptions(existingWord, candidate);
+            });
 
-            if (!isDup && !isSim && !sameText && !isBlockedByTarget && !isBlockedByCandidate) {
+            if (!isDup && !isSim && !sameText && !hasOptionConflict) {
                 chosen.push(candidate);
                 if (isTextOptionMode) {
                     seenOptionTexts.add(normalizedText);
@@ -893,7 +945,7 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
         getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
-        selectTargetWordAndCategory, fillQuizOptions,
+        selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };
 

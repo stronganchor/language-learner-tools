@@ -185,42 +185,16 @@ add_action('wp_ajax_ll_aim_get_next', function() {
 
     if (!$term_id) wp_send_json_success(['item' => null]);
 
-    // Build tax_query: always category; add wordset filter when available
-    $tax_query = [[
-        'taxonomy' => 'word-category',
-        'field'    => 'term_id',
-        'terms'    => [$term_id],
-    ]];
-
-    if ($wordset_id > 0) {
-        $tax_query[] = [
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ];
-    }
-
-    $q = new WP_Query([
-        'post_type'      => 'words',
-        'post_status'    => 'publish', // Only published words
-        'posts_per_page' => 10,
-        'post__not_in'   => $exclude,
-        'tax_query'      => $tax_query,
-        'meta_query'     => [[ 'key' => 'word_audio_file', 'compare' => 'EXISTS' ]],
-        'orderby'        => 'ID',
-        'order'          => 'ASC',
-        'no_found_rows'  => true,
-        'fields'         => 'ids',
-    ]);
+    $word_ids = ll_aim_get_word_ids_with_audio($term_id, $wordset_id, $exclude, 10, false);
 
     $item = null;
-    if ($q->have_posts()) {
-        foreach ($q->posts as $pid) {
+    if (!empty($word_ids)) {
+        foreach ($word_ids as $pid) {
+            $pid = (int) $pid;
             $has_thumb = has_post_thumbnail($pid);
             if (!$rematch && $has_thumb) { continue; }
 
-            $audio_rel = get_post_meta($pid, 'word_audio_file', true);
-            $audio_url = $audio_rel ? ((0 === strpos($audio_rel, 'http')) ? $audio_rel : site_url($audio_rel)) : '';
+            $audio_url = function_exists('ll_get_word_audio_url') ? ll_get_word_audio_url($pid) : '';
 
             $item = [
                 'id'            => $pid,
@@ -283,6 +257,86 @@ function ll_aim_term_has_posttype($term_id, $post_type) {
 }
 
 /**
+ * Helper: fetch word IDs with published audio children for a category/wordset.
+ *
+ * @param int   $term_id
+ * @param int   $wordset_id
+ * @param array $exclude
+ * @param int   $limit
+ * @param bool  $require_no_thumb
+ * @return array
+ */
+function ll_aim_get_word_ids_with_audio($term_id, $wordset_id = 0, $exclude = [], $limit = 10, $require_no_thumb = false) {
+    global $wpdb;
+
+    $term_id = (int) $term_id;
+    if ($term_id <= 0) {
+        return [];
+    }
+
+    $wordset_id = (int) $wordset_id;
+    $limit = max(1, min(100, (int) $limit));
+    $exclude = array_values(array_filter(array_map('intval', (array) $exclude), function ($id) {
+        return $id > 0;
+    }));
+
+    $joins = "
+        INNER JOIN {$wpdb->posts} wa
+            ON wa.post_parent = p.ID
+           AND wa.post_type = 'word_audio'
+           AND wa.post_status = 'publish'
+        INNER JOIN {$wpdb->term_relationships} tr_cat
+            ON tr_cat.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_cat
+            ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+           AND tt_cat.taxonomy = 'word-category'
+           AND tt_cat.term_id = %d
+    ";
+
+    $params = [ $term_id ];
+
+    if ($wordset_id > 0) {
+        $joins .= "
+        INNER JOIN {$wpdb->term_relationships} tr_ws
+            ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws
+            ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+           AND tt_ws.taxonomy = 'wordset'
+           AND tt_ws.term_id = %d
+        ";
+        $params[] = $wordset_id;
+    }
+
+    $where = "p.post_type = 'words' AND p.post_status = 'publish'";
+
+    if (!empty($exclude)) {
+        $placeholders = implode(',', array_fill(0, count($exclude), '%d'));
+        $where .= " AND p.ID NOT IN ({$placeholders})";
+        $params = array_merge($params, $exclude);
+    }
+
+    if ($require_no_thumb) {
+        $where .= " AND NOT EXISTS (
+            SELECT 1 FROM {$wpdb->postmeta} pm
+            WHERE pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
+        )";
+    }
+
+    $sql = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where}
+        ORDER BY p.ID ASC
+        LIMIT %d
+    ";
+
+    $params[] = $limit;
+
+    return $wpdb->get_col($wpdb->prepare($sql, $params));
+}
+
+/**
  * Helper: Check if a category has unmatched work (words with audio but no thumbnail).
  */
 function ll_aim_category_has_unmatched_work($term_id) {
@@ -292,25 +346,8 @@ function ll_aim_category_has_unmatched_work($term_id) {
     }
 
     // 2) Must have at least one words post with audio but no thumbnail
-    $q = new WP_Query([
-        'post_type'      => 'words',
-        'posts_per_page' => 1,
-        'tax_query'      => [[
-            'taxonomy' => 'word-category',
-            'field'    => 'term_id',
-            'terms'    => [$term_id],
-        ]],
-        'meta_query'     => [
-            ['key' => 'word_audio_file', 'compare' => 'EXISTS'],
-            ['key' => '_thumbnail_id', 'compare' => 'NOT EXISTS'],
-        ],
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ]);
-    $has_work = $q->have_posts();
-    wp_reset_postdata();
-
-    return $has_work;
+    $word_ids = ll_aim_get_word_ids_with_audio($term_id, 0, [], 1, true);
+    return !empty($word_ids);
 }
 
 function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
@@ -322,8 +359,9 @@ function ll_aim_maybe_queue_autolaunch_on_words_save($post_id, $post, $update) {
     $status = get_post_status($post_id);
     if (in_array($status, ['trash','auto-draft','inherit'], true)) return;
 
-    $audio = get_post_meta($post_id, 'word_audio_file', true);
-    if (!$audio) return;
+    if (!function_exists('ll_tools_word_has_audio') || !ll_tools_word_has_audio($post_id, ['publish'])) {
+        return;
+    }
 
     $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (empty($terms)) return;
