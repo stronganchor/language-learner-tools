@@ -344,6 +344,11 @@ function ll_save_word_audio_meta($post_id) {
     if (isset($_POST['speaker_name'])) {
         update_post_meta($post_id, 'speaker_name', sanitize_text_field($_POST['speaker_name']));
     }
+
+    $parent_id = (int) wp_get_post_parent_id($post_id);
+    if ($parent_id > 0) {
+        delete_post_meta($parent_id, 'word_audio_file');
+    }
 }
 
 /**

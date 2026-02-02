@@ -200,6 +200,121 @@
         return null;
     }
 
+    function findWordObjectById(wordId) {
+        const normalizedId = parseInt(wordId, 10);
+        if (!normalizedId) return null;
+
+        for (let name of (State.categoryNames || [])) {
+            const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
+            const word = words.find(function (item) {
+                return parseInt(item && item.id, 10) === normalizedId;
+            });
+            if (word) {
+                return word;
+            }
+        }
+        return null;
+    }
+
+    function buildWeightedOrder(ids, avoidId) {
+        const pool = Array.isArray(ids) ? ids.slice() : [];
+        const order = [];
+        let avoid = avoidId;
+
+        while (pool.length) {
+            const picked = pickWeightedId(pool, avoid);
+            if (picked === null) break;
+            order.push(picked);
+            const idx = pool.indexOf(picked);
+            if (idx > -1) {
+                pool.splice(idx, 1);
+            } else {
+                break;
+            }
+            avoid = null;
+        }
+
+        return order;
+    }
+
+    function wordsConflictForOptions(leftWord, rightWord) {
+        if (!leftWord || !rightWord) return false;
+        if (Selection && typeof Selection.wordsConflictForOptions === 'function') {
+            return Selection.wordsConflictForOptions(leftWord, rightWord);
+        }
+        return false;
+    }
+
+    function selectBootstrapIntroIds(notYetIntroduced, takeCount) {
+        const take = parseInt(takeCount, 10);
+        if (!Array.isArray(notYetIntroduced) || !notYetIntroduced.length || !take) {
+            return [];
+        }
+
+        const orderedIds = buildWeightedOrder(notYetIntroduced);
+        if (!orderedIds.length) return [];
+
+        const lockedWords = (State.introducedWordIDs || [])
+            .map(id => findWordObjectById(id))
+            .filter(Boolean);
+
+        if (take >= 2 && lockedWords.length === 0) {
+            for (let i = 0; i < orderedIds.length; i++) {
+                const firstId = orderedIds[i];
+                const firstWord = findWordObjectById(firstId);
+                if (!firstWord) continue;
+
+                for (let j = i + 1; j < orderedIds.length; j++) {
+                    const secondId = orderedIds[j];
+                    const secondWord = findWordObjectById(secondId);
+                    if (!secondWord) continue;
+                    if (wordsConflictForOptions(firstWord, secondWord)) continue;
+                    return [firstId, secondId];
+                }
+            }
+        }
+
+        const selected = [];
+        const selectedWords = [];
+        for (const candidateId of orderedIds) {
+            if (selected.length >= take) break;
+            const candidateWord = findWordObjectById(candidateId);
+            if (!candidateWord) continue;
+
+            const conflictsLocked = lockedWords.some(existing => wordsConflictForOptions(existing, candidateWord));
+            const conflictsSelected = selectedWords.some(existing => wordsConflictForOptions(existing, candidateWord));
+            if (conflictsLocked || conflictsSelected) continue;
+
+            selected.push(candidateId);
+            selectedWords.push(candidateWord);
+        }
+
+        if (selected.length) return selected;
+        // Keep learning flow moving even when every remaining intro word conflicts.
+        return [orderedIds[0]];
+    }
+
+    function pickNextIntroId(notYetIntroduced, avoidId) {
+        if (!Array.isArray(notYetIntroduced) || !notYetIntroduced.length) return null;
+        const orderedIds = buildWeightedOrder(notYetIntroduced, avoidId);
+        if (!orderedIds.length) return null;
+
+        const introducedWords = (State.introducedWordIDs || [])
+            .map(id => findWordObjectById(id))
+            .filter(Boolean);
+
+        for (const candidateId of orderedIds) {
+            const candidateWord = findWordObjectById(candidateId);
+            if (!candidateWord) continue;
+            const conflictsIntroduced = introducedWords.some(existing => wordsConflictForOptions(existing, candidateWord));
+            if (!conflictsIntroduced) {
+                return candidateId;
+            }
+        }
+
+        return orderedIds[0];
+    }
+
     // ---- initialization (called from Selection.initializeLearningMode) ----
     function initialize() {
         ensureDefaults();
@@ -315,18 +430,10 @@
             return null; // main.js will show results
         }
 
-        // Bootstrap: introduce TWO words initially
+        // Bootstrap: introduce up to TWO words initially, preferring a non-conflicting pair.
         if (State.introducedWordIDs.length < 2 && notYetIntroduced.length > 0) {
             const take = Math.min(2 - State.introducedWordIDs.length, notYetIntroduced.length);
-            const pool = notYetIntroduced.slice();
-            const ids = [];
-            while (ids.length < take && pool.length) {
-                const pick = pickWeightedId(pool);
-                if (pick === null) break;
-                ids.push(pick);
-                const idx = pool.indexOf(pick);
-                if (idx > -1) pool.splice(idx, 1);
-            }
+            const ids = selectBootstrapIntroIds(notYetIntroduced, take);
             if (!ids.length) {
                 State.isIntroducingWord = false;
                 return null;
@@ -344,7 +451,7 @@
         const mayIntroduce = !hasReadyWrongs && !hasPendingWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce && canIntroduceMore;
 
         if (mayIntroduce) {
-            const nextId = pickWeightedId(notYetIntroduced, State.lastWordShownId);
+            const nextId = pickNextIntroId(notYetIntroduced, State.lastWordShownId);
             const word = wordObjectById(nextId);
             if (word) {
                 State.isIntroducingWord = true;

@@ -88,7 +88,77 @@ function ll_sanitize_update_branch($value) {
     return ($value === 'dev') ? 'dev' : 'main';
 }
 
+function ll_tools_purge_legacy_word_audio_meta() {
+    global $wpdb;
+
+    $meta_key = 'word_audio_file';
+
+    $count_sql = "
+        SELECT COUNT(*)
+        FROM {$wpdb->postmeta} pm
+        INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+        WHERE pm.meta_key = %s
+          AND p.post_type = 'words'
+    ";
+
+    $count = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $meta_key ) );
+
+    $delete_sql = "
+        DELETE pm FROM {$wpdb->postmeta} pm
+        INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+        WHERE pm.meta_key = %s
+          AND p.post_type = 'words'
+    ";
+
+    $deleted = $wpdb->query( $wpdb->prepare( $delete_sql, $meta_key ) );
+
+    return array(
+        'count'   => $count,
+        'deleted' => is_numeric( $deleted ) ? (int) $deleted : 0,
+    );
+}
+
+function ll_tools_bump_word_category_cache() {
+    if ( ! function_exists( 'll_tools_bump_category_cache_version' ) ) {
+        return 0;
+    }
+
+    $terms = get_terms( array(
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+    ) );
+
+    if ( is_wp_error( $terms ) || empty( $terms ) ) {
+        return 0;
+    }
+
+    ll_tools_bump_category_cache_version( $terms );
+
+    return count( $terms );
+}
+
 function ll_render_settings_page() {
+    if ( ! current_user_can( 'view_ll_tools' ) ) {
+        return;
+    }
+
+    $purge_notice = '';
+    $purge_result = null;
+
+    if ( isset( $_POST['ll_tools_purge_legacy_audio'] ) ) {
+        if ( ! isset( $_POST['ll_tools_purge_legacy_audio_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_purge_legacy_audio_nonce'], 'll_tools_purge_legacy_audio' ) ) {
+            $purge_notice = '<div class="notice notice-error"><p>Purge failed security check. Please try again.</p></div>';
+        } else {
+            $purge_result = ll_tools_purge_legacy_word_audio_meta();
+            $bumped = ll_tools_bump_word_category_cache();
+            $purge_notice = '<div class="notice notice-success"><p>Purged ' . esc_html( (string) $purge_result['deleted'] ) . ' legacy meta rows.</p></div>';
+            if ( $bumped > 0 ) {
+                $purge_notice .= '<div class="notice notice-success"><p>Cache bumped for ' . esc_html( (string) $bumped ) . ' word categories.</p></div>';
+            }
+        }
+    }
+
     $target_language = get_option('ll_target_language', '');
     $translation_language = get_option('ll_translation_language', '');
     $enable_translation = get_option('ll_enable_category_translation', 0);
@@ -110,6 +180,7 @@ function ll_render_settings_page() {
     ?>
     <div class="wrap">
         <h2>Language Learning Tools Settings</h2>
+        <?php echo $purge_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <form action="options.php" method="post">
             <?php settings_fields('language-learning-tools-options'); ?>
             <?php do_settings_sections('language-learning-tools-settings'); ?>
@@ -222,6 +293,27 @@ function ll_render_settings_page() {
             </table>
 
             <?php submit_button(); ?>
+        </form>
+
+        <hr />
+
+        <h2>Purge legacy word audio meta</h2>
+        <p>
+            Removes <code>word_audio_file</code> meta from <code>words</code> posts now that audio is stored in
+            <code>word_audio</code> children. This is irreversible. Make a backup first.
+        </p>
+
+        <form method="post">
+            <?php wp_nonce_field( 'll_tools_purge_legacy_audio', 'll_tools_purge_legacy_audio_nonce' ); ?>
+            <p class="submit">
+                <button type="submit" name="ll_tools_purge_legacy_audio" class="button button-secondary">
+                    Purge Legacy Meta
+                </button>
+            </p>
+            <?php if ( is_array( $purge_result ) ) : ?>
+                <p><strong>Legacy rows found:</strong> <?php echo esc_html( (string) $purge_result['count'] ); ?> |
+                   <strong>Deleted:</strong> <?php echo esc_html( (string) $purge_result['deleted'] ); ?></p>
+            <?php endif; ?>
         </form>
     </div>
 

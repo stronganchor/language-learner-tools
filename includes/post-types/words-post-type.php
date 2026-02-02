@@ -121,7 +121,7 @@ function ll_tools_display_vocab_content($content) {
         global $post;
 
         // Retrieve custom field values for this word.
-        $word_audio_file               = get_post_meta($post->ID, 'word_audio_file', true);
+        $word_audio_url                = function_exists('ll_get_word_audio_url') ? ll_get_word_audio_url($post->ID) : '';
         $word_english_meaning          = get_post_meta($post->ID, 'word_english_meaning', true);
         $word_example_sentence         = get_post_meta($post->ID, 'word_example_sentence', true);
         $word_example_translation      = get_post_meta($post->ID, 'word_example_sentence_translation', true);
@@ -184,8 +184,8 @@ function ll_tools_display_vocab_content($content) {
         }
 
         // Include an audio player if an audio file URL is provided.
-        if ($word_audio_file) {
-            $custom_content .= '<audio controls src="' . esc_url($word_audio_file) . '"></audio>';
+        if ($word_audio_url) {
+            $custom_content .= '<audio controls src="' . esc_url($word_audio_url) . '"></audio>';
         }
 
         $custom_content .= "</div>";
@@ -219,7 +219,7 @@ function ll_modify_words_columns($columns) {
     $columns['word_categories'] = __('Categories', 'll-tools-text-domain');
     $columns['featured_image'] = __('Featured Image', 'll-tools-text-domain');
     $columns['wordset'] = __('Word Set', 'll-tools-text-domain');
-    $columns['audio_file'] = __('Audio File', 'll-tools-text-domain');
+    $columns['audio_file'] = __('Audio Recordings', 'll-tools-text-domain');
     $columns['date'] = __('Date', 'll-tools-text-domain');
     return $columns;
 }
@@ -246,8 +246,49 @@ function ll_render_words_columns($column, $post_id) {
             break;
 
         case 'audio_file':
-            $audio_file = get_post_meta($post_id, 'word_audio_file', true);
-            echo $audio_file ? basename($audio_file) : '—';
+            $audio_posts = get_posts([
+                'post_type'      => 'word_audio',
+                'post_parent'    => $post_id,
+                'post_status'    => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => -1,
+                'orderby'        => 'date',
+                'order'          => 'DESC',
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'suppress_filters' => true,
+            ]);
+
+            if (empty($audio_posts)) {
+                echo '—';
+                break;
+            }
+
+            echo '<div class="ll-tools-word-audio-list">';
+            foreach ($audio_posts as $audio_post_id) {
+                $audio_post_id = (int) $audio_post_id;
+                $edit_link = get_edit_post_link($audio_post_id);
+                $types = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'names']);
+                $type_label = (!is_wp_error($types) && !empty($types)) ? implode(', ', $types) : __('Recording', 'll-tools-text-domain');
+                $status = get_post_status($audio_post_id);
+                $status_suffix = ($status && $status !== 'publish') ? ' (' . $status . ')' : '';
+                $link_label = trim($type_label) !== '' ? $type_label : __('Recording', 'll-tools-text-domain');
+                $link_label .= ' #' . $audio_post_id . $status_suffix;
+
+                echo '<div class="ll-tools-word-audio-item" style="margin:0 0 6px 0;">';
+                if ($edit_link) {
+                    echo '<a href="' . esc_url($edit_link) . '">' . esc_html($link_label) . '</a>';
+                } else {
+                    echo esc_html($link_label);
+                }
+
+                $audio_path = get_post_meta($audio_post_id, 'audio_file_path', true);
+                if ($audio_path) {
+                    $audio_url = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                    echo '<br><audio controls preload="none" style="height:30px;max-width:220px;width:100%;" src="' . esc_url($audio_url) . '"></audio>';
+                }
+                echo '</div>';
+            }
+            echo '</div>';
             break;
 
         case 'translation':
@@ -284,7 +325,6 @@ function ll_render_words_columns($column, $post_id) {
 function ll_make_words_columns_sortable($columns) {
     $columns['word_categories'] = 'word_categories';
     $columns['featured_image'] = 'featured_image';
-    $columns['audio_file'] = 'audio_file';
     $columns['translation'] = 'translation';
     $columns['wordset'] = 'wordset';
     return $columns;
@@ -469,12 +509,6 @@ function ll_apply_words_filters($query) {
         ));
     }
 
-    // Sort by audio file
-    if (!empty($_GET['orderby']) && $_GET['orderby'] === 'audio_file') {
-        $query->set('meta_key', 'word_audio_file');
-        $query->set('orderby', 'meta_value');
-    }
-
     // Sort by translation (new key)
     if (!empty($_GET['orderby']) && $_GET['orderby'] === 'translation') {
         $query->set('meta_key', 'word_translation');
@@ -518,25 +552,7 @@ function ll_words_handle_bulk_reprocess_action($redirect_to, $doaction, $post_id
                 $processed++;
             }
         } else {
-            // Fallback: check if the word has legacy audio
-            $audio_file = get_post_meta($word_post_id, 'word_audio_file', true);
-            if ($audio_file) {
-                // Create a word_audio post for the legacy audio
-                $audio_post_id = wp_insert_post([
-                    'post_title' => get_the_title($word_post_id),
-                    'post_type' => 'word_audio',
-                    'post_status' => 'draft',
-                    'post_parent' => $word_post_id,
-                ]);
-
-                if (!is_wp_error($audio_post_id)) {
-                    update_post_meta($audio_post_id, 'audio_file_path', $audio_file);
-                    update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-                    $processed++;
-                }
-            } else {
-                $skipped++;
-            }
+            $skipped++;
         }
     }
 
@@ -596,8 +612,8 @@ function ll_words_bulk_reprocess_admin_notice() {
             '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
             sprintf(
                 _n(
-                    '%d word skipped (no audio file).',
-                    '%d words skipped (no audio files).',
+                    '%d word skipped (no audio recordings).',
+                    '%d words skipped (no audio recordings).',
                     $skipped,
                     'll-tools-text-domain'
                 ),

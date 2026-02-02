@@ -1101,6 +1101,34 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
  * Get audio URL for a word - prioritizes by recording type
  * Priority: question > introduction > isolation > in sentence > any other
  */
+function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    if (is_string($statuses)) {
+        $post_status = $statuses;
+    } else {
+        $post_status = array_values(array_filter(array_map('sanitize_key', (array) $statuses)));
+        if (empty($post_status)) {
+            $post_status = ['publish'];
+        }
+    }
+
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_parent'    => $word_id,
+        'post_status'    => $post_status,
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'suppress_filters' => true,
+    ]);
+
+    return !empty($audio_posts);
+}
+
 function ll_get_word_audio_url($word_id) {
     // Get all word_audio child posts
     $audio_posts = get_posts([
@@ -1120,12 +1148,6 @@ function ll_get_word_audio_url($word_id) {
                 return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
             }
         }
-    }
-
-    // Fallback to legacy meta
-    $legacy_audio = get_post_meta($word_id, 'word_audio_file', true);
-    if ($legacy_audio) {
-        return (0 === strpos($legacy_audio, 'http')) ? $legacy_audio : site_url($legacy_audio);
     }
 
     return '';
