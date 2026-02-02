@@ -41,6 +41,20 @@
     let vizAudio = null;
     let vizSource = null;
 
+    function canUseVisualizerForUrl(url) {
+        if (!url) { return false; }
+        const value = String(url);
+        if (value.indexOf('blob:') === 0 || value.indexOf('data:') === 0) {
+            return true;
+        }
+        try {
+            const target = new URL(value, window.location.href);
+            return target.origin === window.location.origin;
+        } catch (_) {
+            return false;
+        }
+    }
+
     function ensureVisualizerContext() {
         if (vizContext) { return vizContext; }
         const Ctor = window.AudioContext || window.webkitAudioContext;
@@ -166,6 +180,8 @@
     function startVisualizer(audio, button) {
         if (!audio || !button) { return; }
         stopVisualizer();
+        const src = audio.currentSrc || audio.src || '';
+        if (!canUseVisualizerForUrl(src)) { return; }
         const ctx = ensureVisualizerContext();
         if (!ctx) { return; }
         const resumePromise = (ctx.state === 'suspended') ? ctx.resume() : Promise.resolve();
