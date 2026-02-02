@@ -383,15 +383,52 @@
     }
 
     function onStarChange(wordId, isStarredFlag, starMode) {
+        if (starMode === 'only') {
+            const starredLookup = getStarredLookup();
+
+            if (!isStarredFlag && Array.isArray(State.wordsLinear) && State.wordsLinear.length) {
+                State.wordsLinear = State.wordsLinear.filter(function (w) {
+                    const id = parseInt(w && w.id, 10);
+                    return id && starredLookup[id];
+                });
+                State.totalWordCount = (State.wordsLinear || []).length || 0;
+            } else {
+                rebuildWordsLinear();
+            }
+
+            if (Array.isArray(State.listeningHistory) && State.listeningHistory.length) {
+                const pointer = Math.max(0, State.listenIndex || 0);
+                let removedBefore = 0;
+                const nextHistory = [];
+                State.listeningHistory.forEach(function (w, idx) {
+                    const id = parseInt(w && w.id, 10);
+                    if (id && starredLookup[id]) {
+                        nextHistory.push(w);
+                    } else if (idx < pointer) {
+                        removedBefore += 1;
+                    }
+                });
+                if (nextHistory.length !== State.listeningHistory.length) {
+                    State.listeningHistory = nextHistory;
+                    if (removedBefore > 0) {
+                        State.listenIndex = Math.max(0, pointer - removedBefore);
+                    }
+                }
+            }
+
+            updateControlsState();
+            if (!isStarredFlag && State.listeningCurrentTarget && String(State.listeningCurrentTarget.id) === String(wordId)) {
+                return true;
+            }
+            return false;
+        }
+
         rebuildWordsLinear();
         const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
         if (State.listenIndex > total) {
             State.listenIndex = total;
         }
         updateControlsState();
-        if (starMode === 'only' && !isStarredFlag && State.listeningCurrentTarget && State.listeningCurrentTarget.id === wordId) {
-            return true;
-        }
         return false;
     }
 
