@@ -127,5 +127,6 @@ function ll_tools_maybe_serve_masked_image() {
     status_header(404);
     exit;
 }
-add_action('init', 'll_tools_maybe_serve_masked_image', 0);
+// Serve masked images on template_redirect so other plugins have a chance
+// to register URL filters/mappings during init first (e.g., remote media mappers).
 add_action('template_redirect', 'll_tools_maybe_serve_masked_image', 0);

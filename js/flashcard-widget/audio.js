@@ -113,7 +113,11 @@
                 return null;
             }
 
-            var audio = new Audio(url);
+            var resolvedUrl = normalizeUrlToPageOrigin(url);
+            var audio = document.createElement('audio');
+            // Required for analyser/visualizer usage on cross-origin audio (B2, CDN, etc.).
+            audio.crossOrigin = 'anonymous';
+            audio.src = resolvedUrl;
             audio.__sessionId = currentSession;
             audio.__options = options;
 
@@ -122,7 +126,7 @@
 
             // Auto-cleanup on error
             audio.addEventListener('error', function onError() {
-                error('Audio: Error for', url);
+                error('Audio: Error for', resolvedUrl);
                 cleanupSingleAudio(audio);
             }, { once: true });
 

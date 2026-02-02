@@ -90,7 +90,9 @@
             }
 
             return new Promise((resolve) => {
-                let audio = new Audio(audioURL);
+                let audio = document.createElement('audio');
+                audio.crossOrigin = 'anonymous';
+                audio.src = audioURL;
                 audio.preload = 'auto';      // hint to preload
                 audio.load();                // force the load() call
 
