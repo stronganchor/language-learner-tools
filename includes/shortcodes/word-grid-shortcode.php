@@ -1476,6 +1476,173 @@ function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups
     return $ordered_posts;
 }
 
+function ll_tools_word_grid_normalize_name_key(string $value): string {
+    $value = wp_strip_all_tags($value);
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    $collapsed = preg_replace('/\s+/u', ' ', $value);
+    if (is_string($collapsed) && $collapsed !== '') {
+        $value = $collapsed;
+    }
+
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($value, 'UTF-8');
+    }
+
+    return strtolower($value);
+}
+
+function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$display_values_cache = []): array {
+    if (empty($posts)) {
+        return $posts;
+    }
+
+    $post_map = [];
+    $index_map = [];
+    $name_map = [];
+    $image_map = [];
+    $links = [];
+
+    foreach ($posts as $index => $post) {
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if ($post_id <= 0) {
+            continue;
+        }
+
+        $post_map[$post_id] = $post;
+        $index_map[$post_id] = (int) $index;
+        if (!isset($links[$post_id])) {
+            $links[$post_id] = [];
+        }
+
+        if (!isset($display_values_cache[$post_id]) || !is_array($display_values_cache[$post_id])) {
+            $display_values_cache[$post_id] = ll_tools_word_grid_resolve_display_text($post_id);
+        }
+        $display_values = $display_values_cache[$post_id];
+        $name_key = ll_tools_word_grid_normalize_name_key((string) ($display_values['word_text'] ?? ''));
+        if ($name_key !== '') {
+            if (!isset($name_map[$name_key])) {
+                $name_map[$name_key] = [];
+            }
+            $name_map[$name_key][$post_id] = true;
+        }
+
+        $thumb_id = (int) get_post_thumbnail_id($post_id);
+        if ($thumb_id > 0) {
+            if (!isset($image_map[$thumb_id])) {
+                $image_map[$thumb_id] = [];
+            }
+            $image_map[$thumb_id][$post_id] = true;
+        }
+    }
+
+    if (count($post_map) < 2) {
+        return $posts;
+    }
+
+    $link_ids = static function (array $members) use (&$links): void {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $members), function ($id) {
+            return $id > 0;
+        })));
+        if (count($ids) < 2) {
+            return;
+        }
+
+        $anchor = (int) $ids[0];
+        if (!isset($links[$anchor])) {
+            return;
+        }
+
+        $total = count($ids);
+        for ($i = 1; $i < $total; $i++) {
+            $member_id = (int) $ids[$i];
+            if ($member_id <= 0 || !isset($links[$member_id])) {
+                continue;
+            }
+            $links[$anchor][$member_id] = true;
+            $links[$member_id][$anchor] = true;
+        }
+    };
+
+    foreach ($name_map as $members) {
+        $link_ids(array_keys($members));
+    }
+    foreach ($image_map as $members) {
+        $link_ids(array_keys($members));
+    }
+
+    $visited = [];
+    $clusters = [];
+    foreach (array_keys($post_map) as $post_id) {
+        if (isset($visited[$post_id])) {
+            continue;
+        }
+
+        $stack = [$post_id];
+        $visited[$post_id] = true;
+        $members = [];
+
+        while (!empty($stack)) {
+            $current = array_pop($stack);
+            $members[] = $current;
+
+            $neighbors = isset($links[$current]) ? array_keys($links[$current]) : [];
+            foreach ($neighbors as $neighbor_id) {
+                $neighbor_id = (int) $neighbor_id;
+                if ($neighbor_id <= 0 || isset($visited[$neighbor_id])) {
+                    continue;
+                }
+                $visited[$neighbor_id] = true;
+                $stack[] = $neighbor_id;
+            }
+        }
+
+        usort($members, function ($left, $right) use ($index_map) {
+            return ($index_map[$left] ?? PHP_INT_MAX) <=> ($index_map[$right] ?? PHP_INT_MAX);
+        });
+
+        $clusters[] = [
+            'first_index' => $index_map[$members[0]] ?? PHP_INT_MAX,
+            'members' => $members,
+        ];
+    }
+
+    if (empty($clusters)) {
+        return $posts;
+    }
+
+    usort($clusters, function ($left, $right) {
+        return ($left['first_index'] ?? PHP_INT_MAX) <=> ($right['first_index'] ?? PHP_INT_MAX);
+    });
+
+    $ordered = [];
+    $used = [];
+    foreach ($clusters as $cluster) {
+        $members = isset($cluster['members']) && is_array($cluster['members']) ? $cluster['members'] : [];
+        foreach ($members as $member_id) {
+            $member_id = (int) $member_id;
+            if ($member_id <= 0 || isset($used[$member_id]) || !isset($post_map[$member_id])) {
+                continue;
+            }
+            $ordered[] = $post_map[$member_id];
+            $used[$member_id] = true;
+        }
+    }
+
+    foreach ($posts as $post) {
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if ($post_id > 0 && isset($used[$post_id])) {
+            continue;
+        }
+        $ordered[] = $post;
+    }
+
+    return $ordered;
+}
+
 function ll_tools_user_can_edit_vocab_words(): bool {
     if (!is_user_logged_in() || !current_user_can('view_ll_tools')) {
         return false;
@@ -1656,6 +1823,11 @@ function ll_tools_word_grid_shortcode($atts) {
     if (!empty($word_ids)) {
         update_meta_cache('post', $word_ids);
     }
+    $display_values_cache = [];
+    $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
+    $query->post_count = count($query->posts);
+    $query->current_post = -1;
+    $word_ids = wp_list_pluck($query->posts, 'ID');
     $part_of_speech_by_word = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids, true);
     $main_recording_types = function_exists('ll_tools_get_main_recording_types')
@@ -1854,7 +2026,7 @@ function ll_tools_word_grid_shortcode($atts) {
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
-            $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+            $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
             $pos_entry = $part_of_speech_by_word[$word_id] ?? [];
