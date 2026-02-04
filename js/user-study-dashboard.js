@@ -438,6 +438,24 @@
         return (optionType === 'audio' || optionType === 'text_audio');
     }
 
+    function getWordPrimaryText(word) {
+        if (!word) { return ''; }
+        const title = (typeof word.title === 'string') ? word.title.trim() : '';
+        if (title) { return title; }
+        return (word.label || '').toString();
+    }
+
+    function getWordTranslationText(word) {
+        if (!word) { return ''; }
+        const translation = (typeof word.translation === 'string') ? word.translation.trim() : '';
+        if (!translation) { return ''; }
+        const primary = getWordPrimaryText(word).trim().toLowerCase();
+        if (primary && translation.toLowerCase() === primary) {
+            return '';
+        }
+        return translation;
+    }
+
     function getCheckWordLabel(word) {
         if (!word) { return ''; }
         return word.label || word.title || '';
@@ -906,6 +924,8 @@
                 words.forEach(function (w) {
                     const isStarred = !!starredLookup[w.id];
                     if (isStarred) { totalStarredInView++; }
+                    const wordTitle = getWordPrimaryText(w);
+                    const wordTranslation = getWordTranslationText(w);
                     const row = $('<div>', {
                         class: 'll-word-row' + (w.image ? '' : ' ll-word-row--no-image'),
                         'data-word-id': w.id
@@ -921,13 +941,16 @@
                         const thumb = $('<div>', { class: 'll-word-thumb' });
                         $('<img>', {
                             src: w.image,
-                            alt: w.label || w.title || '',
+                            alt: wordTitle || wordTranslation || '',
                             loading: 'lazy'
                         }).appendTo(thumb);
                         row.append(thumb);
                     }
 
-                    $('<span>', { class: 'll-word-text', text: w.label || w.title }).appendTo(row);
+                    const textWrap = $('<div>', { class: 'll-word-text-wrap' });
+                    $('<span>', { class: 'll-word-text', text: wordTitle }).appendTo(textWrap);
+                    $('<span>', { class: 'll-word-translation', text: wordTranslation }).appendTo(textWrap);
+                    row.append(textWrap);
 
                     const recordingsWrap = $('<div>', {
                         class: 'll-word-recordings',

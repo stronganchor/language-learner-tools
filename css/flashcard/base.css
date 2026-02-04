@@ -414,6 +414,57 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     margin-top: 10px;
 }
 
+#quiz-results-categories {
+    display: none;
+    margin-top: 12px;
+    text-align: center;
+}
+
+#quiz-results-categories .ll-results-category-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 4px 6px;
+    min-height: 28px;
+    max-width: 170px;
+    padding: 4px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    background: #f9fafb;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
+
+#quiz-results-categories .ll-results-category-pill-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#quiz-results-categories .ll-results-category-pill--more {
+    min-width: 48px;
+    max-width: none;
+    border-color: #111827;
+    background: #111827;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+    #quiz-results-categories .ll-results-category-pill {
+        max-width: 140px;
+        min-height: 26px;
+        padding: 3px 9px;
+        font-size: 12px;
+    }
+}
+
 /* Loading Animation Styles */
 .ll-tools-loading-animation {
     display: none;
