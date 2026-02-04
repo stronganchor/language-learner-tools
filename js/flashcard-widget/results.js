@@ -1,6 +1,7 @@
 (function (root, $) {
     'use strict';
     const { State, Dom, Effects } = root.LLFlashcards;
+    const DEFAULT_RESULTS_CATEGORY_PREVIEW_LIMIT = 3;
 
     const CHECKMARK_SVG = `
         <svg class="ll-learning-checkmark" width="80" height="80" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
@@ -21,6 +22,19 @@
 
     function removeCompletionCheckmark() {
         $('.ll-learning-checkmark').remove();
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (char) {
+            switch (char) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case '\'': return '&#39;';
+                default: return char;
+            }
+        });
     }
 
     function getCategoryNamesForDisplay() {
@@ -92,7 +106,7 @@
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
-        $('#quiz-results-categories').hide().text('');
+        $('#quiz-results-categories').hide().empty();
     }
 
     function showResults() {
@@ -101,15 +115,35 @@
         const learningAllowed = isLearningSupportedForResults();
         const genderAllowed = isGenderSupportedForResults();
         const categoriesForDisplay = getCategoryNamesForDisplay();
-        const categoriesLabel = msgs.categoriesLabel || 'Categories';
+        const previewLimitRaw = Number(root.llToolsFlashcardsData && root.llToolsFlashcardsData.resultsCategoryPreviewLimit);
+        const previewLimit = Number.isFinite(previewLimitRaw) && previewLimitRaw > 0
+            ? Math.floor(previewLimitRaw)
+            : DEFAULT_RESULTS_CATEGORY_PREVIEW_LIMIT;
         const renderCategories = function (shouldShow) {
             const $el = $('#quiz-results-categories');
             if (!$el.length) return;
             if (!shouldShow || !categoriesForDisplay.length) {
-                $el.hide().text('');
+                $el.hide().empty();
                 return;
             }
-            $el.text(categoriesLabel + ': ' + categoriesForDisplay.join(', ')).show();
+
+            const visible = categoriesForDisplay.slice(0, previewLimit);
+            const hidden = categoriesForDisplay.slice(previewLimit);
+            const pillsHtml = visible.map(function (name) {
+                const safeName = escapeHtml(name);
+                return '<span class="ll-results-category-pill" title="' + safeName + '">' +
+                    '<span class="ll-results-category-pill-text">' + safeName + '</span>' +
+                    '</span>';
+            });
+
+            if (hidden.length) {
+                const hiddenNamesTitle = escapeHtml(hidden.join(', '));
+                pillsHtml.push(
+                    '<span class="ll-results-category-pill ll-results-category-pill--more" title="' + hiddenNamesTitle + '">+' + hidden.length + '</span>'
+                );
+            }
+
+            $el.attr('aria-label', categoriesForDisplay.join(', ')).html(pillsHtml.join('')).show();
         };
 
         $('#ll-tools-flashcard').hide();

@@ -308,6 +308,7 @@ Core settings live in `includes/admin/settings.php`:
 - Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.
 - Learning mode options are built from all introduced categories, so conflict filtering must be evaluated against all currently chosen options (not just the target).
 - If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
+- All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
 
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.

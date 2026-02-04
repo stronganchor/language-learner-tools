@@ -371,6 +371,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'genderWordsetId'      => $gender_wordset_id,
         'genderOptions'        => $gender_options,
         'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
+        'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);

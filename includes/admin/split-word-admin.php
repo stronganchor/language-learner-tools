@@ -11,14 +11,22 @@ if (!defined('WPINC')) { die; }
 
 add_action('admin_menu', 'll_tools_register_split_word_admin_page');
 function ll_tools_register_split_word_admin_page() {
+    $parent_slug = 'edit.php?post_type=words';
+
     add_submenu_page(
-        null,
+        $parent_slug,
         __('Split Word Audio', 'll-tools-text-domain'),
         __('Split Word Audio', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-tools-split-word',
         'll_tools_render_split_word_admin_page'
     );
+}
+
+// Keep the page routable via admin.php?page=ll-tools-split-word without showing a submenu item.
+add_action('admin_menu', 'll_tools_hide_split_word_submenu', 999);
+function ll_tools_hide_split_word_submenu() {
+    remove_submenu_page('edit.php?post_type=words', 'll-tools-split-word');
 }
 
 add_filter('post_row_actions', 'll_tools_add_split_word_row_action', 10, 2);
