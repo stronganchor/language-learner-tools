@@ -152,9 +152,19 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
         ]);
         $words_raw = ll_get_words_by_category($term->name, $option_type, $wordset_ids, $merged_config);
         $result[$cid] = array_map(function ($w) use ($term) {
+            $word_id = (int) ($w['id'] ?? 0);
+            $title = isset($w['title']) ? (string) $w['title'] : '';
+            $translation = '';
+            if ($word_id > 0) {
+                $translation = trim((string) get_post_meta($word_id, 'word_translation', true));
+                if ($translation === '') {
+                    $translation = trim((string) get_post_meta($word_id, 'word_english_meaning', true));
+                }
+            }
             return [
-                'id'             => (int) ($w['id'] ?? 0),
-                'title'          => isset($w['title']) ? (string) $w['title'] : '',
+                'id'             => $word_id,
+                'title'          => $title,
+                'translation'    => html_entity_decode((string) $translation, ENT_QUOTES, 'UTF-8'),
                 'label'          => isset($w['label']) ? (string) $w['label'] : '',
                 'image'          => isset($w['image']) ? (string) $w['image'] : '',
                 'audio'          => isset($w['audio']) ? (string) $w['audio'] : '',
