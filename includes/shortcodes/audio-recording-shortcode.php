@@ -2682,6 +2682,322 @@ function ll_skip_recording_type_handler() {
 }
 
 /**
+ * Register recording notification settings on the main LL Tools settings page.
+ */
+function ll_tools_register_recording_notification_settings() {
+    register_setting('language-learning-tools-options', 'll_tools_recording_notification_email', [
+        'type' => 'string',
+        'sanitize_callback' => 'll_tools_sanitize_recording_notification_email',
+        'default' => '',
+    ]);
+
+    register_setting('language-learning-tools-options', 'll_tools_recording_notification_delay_minutes', [
+        'type' => 'integer',
+        'sanitize_callback' => 'll_tools_sanitize_recording_notification_delay_minutes',
+        'default' => 20,
+    ]);
+}
+add_action('admin_init', 'll_tools_register_recording_notification_settings');
+
+/**
+ * Sanitize recording notification email value.
+ */
+function ll_tools_sanitize_recording_notification_email($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $email = sanitize_email($value);
+    if (!is_email($email)) {
+        add_settings_error(
+            'll_tools_recording_notification_email',
+            'll_tools_recording_notification_email_invalid',
+            __('Please enter a valid notification email address.', 'll-tools-text-domain')
+        );
+        return '';
+    }
+
+    return $email;
+}
+
+/**
+ * Sanitize recording notification inactivity delay.
+ */
+function ll_tools_sanitize_recording_notification_delay_minutes($value) {
+    $minutes = absint($value);
+    if ($minutes < 1) {
+        $minutes = 20;
+    }
+    if ($minutes > 1440) {
+        $minutes = 1440;
+    }
+    return $minutes;
+}
+
+/**
+ * Get notification inactivity delay in minutes.
+ */
+function ll_tools_get_recording_notification_delay_minutes() {
+    $minutes = (int) get_option('ll_tools_recording_notification_delay_minutes', 20);
+    if ($minutes < 1) {
+        return 20;
+    }
+    if ($minutes > 1440) {
+        return 1440;
+    }
+    return $minutes;
+}
+
+/**
+ * Resolve recipient email (custom LL Tools setting, then fallback to site admin email).
+ */
+function ll_tools_get_recording_notification_recipient() {
+    $configured = trim((string) get_option('ll_tools_recording_notification_email', ''));
+    if ($configured !== '' && is_email($configured)) {
+        return $configured;
+    }
+
+    $admin_email = trim((string) get_option('admin_email'));
+    if (is_email($admin_email)) {
+        return $admin_email;
+    }
+
+    return '';
+}
+
+/**
+ * Render LL Tools settings rows for recording notifications.
+ */
+function ll_tools_render_recording_notification_settings_rows() {
+    $configured_email = (string) get_option('ll_tools_recording_notification_email', '');
+    $admin_email = (string) get_option('admin_email', '');
+    $delay_minutes = ll_tools_get_recording_notification_delay_minutes();
+    ?>
+    <tr valign="top">
+        <th scope="row"><?php esc_html_e('Recording Notification Email', 'll-tools-text-domain'); ?></th>
+        <td>
+            <input
+                type="email"
+                name="ll_tools_recording_notification_email"
+                id="ll_tools_recording_notification_email"
+                value="<?php echo esc_attr($configured_email); ?>"
+                class="regular-text"
+            />
+            <p class="description">
+                <?php
+                if ($admin_email !== '' && is_email($admin_email)) {
+                    printf(
+                        /* translators: %s: admin email address */
+                        esc_html__('Leave blank to use the site admin email (%s).', 'll-tools-text-domain'),
+                        esc_html($admin_email)
+                    );
+                } else {
+                    esc_html_e('Leave blank to use the site admin email.', 'll-tools-text-domain');
+                }
+                ?>
+            </p>
+        </td>
+    </tr>
+    <tr valign="top">
+        <th scope="row"><?php esc_html_e('Recording Notification Delay (minutes)', 'll-tools-text-domain'); ?></th>
+        <td>
+            <input
+                type="number"
+                name="ll_tools_recording_notification_delay_minutes"
+                id="ll_tools_recording_notification_delay_minutes"
+                value="<?php echo esc_attr((string) $delay_minutes); ?>"
+                min="1"
+                max="1440"
+                step="1"
+            />
+            <p class="description">
+                <?php esc_html_e('After the most recent upload, wait this many minutes before sending a summary email.', 'll-tools-text-domain'); ?>
+            </p>
+        </td>
+    </tr>
+    <?php
+}
+add_action('ll_tools_settings_after_translations', 'll_tools_render_recording_notification_settings_rows', 30);
+
+/**
+ * Save a successful recording upload into the pending-notification batch.
+ */
+function ll_tools_queue_recording_upload_notification($audio_post_id, $user_id) {
+    $audio_post_id = (int) $audio_post_id;
+    $user_id = (int) $user_id;
+    if ($audio_post_id <= 0 || $user_id <= 0) {
+        return;
+    }
+
+    $now_unix = time();
+    $now_local = current_time('mysql');
+
+    $state = get_option('ll_tools_recording_notification_state', []);
+    if (!is_array($state)) {
+        $state = [];
+    }
+
+    $state['total_count'] = isset($state['total_count']) ? max(0, (int) $state['total_count']) : 0;
+    $state['total_count']++;
+
+    if (empty($state['batch_started_at'])) {
+        $state['batch_started_at'] = $now_local;
+    }
+    if (empty($state['batch_started_unix'])) {
+        $state['batch_started_unix'] = $now_unix;
+    }
+
+    $state['last_upload_at'] = $now_local;
+    $state['last_upload_unix'] = $now_unix;
+
+    $users = isset($state['users']) && is_array($state['users']) ? $state['users'] : [];
+    $user_key = (string) $user_id;
+    if (!isset($users[$user_key]) || !is_array($users[$user_key])) {
+        $display_name = '';
+        $user = get_userdata($user_id);
+        if ($user && !empty($user->display_name)) {
+            $display_name = sanitize_text_field((string) $user->display_name);
+        }
+        if ($display_name === '') {
+            $display_name = sprintf(
+                /* translators: %d: user ID */
+                __('User #%d', 'll-tools-text-domain'),
+                $user_id
+            );
+        }
+        $users[$user_key] = [
+            'display_name' => $display_name,
+            'count' => 0,
+        ];
+    }
+    $users[$user_key]['count'] = max(0, (int) ($users[$user_key]['count'] ?? 0)) + 1;
+    $state['users'] = $users;
+
+    update_option('ll_tools_recording_notification_state', $state, false);
+    ll_tools_schedule_recording_notification_event();
+}
+
+/**
+ * Schedule (or reschedule) the summary notification email.
+ */
+function ll_tools_schedule_recording_notification_event() {
+    wp_clear_scheduled_hook('ll_tools_send_recording_notification_event');
+
+    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    wp_schedule_single_event(time() + $delay_seconds, 'll_tools_send_recording_notification_event');
+}
+
+/**
+ * Cron callback for sending recording summary notification email.
+ */
+function ll_tools_send_recording_notification_email() {
+    $state = get_option('ll_tools_recording_notification_state', []);
+    if (!is_array($state)) {
+        return;
+    }
+
+    $total_count = isset($state['total_count']) ? max(0, (int) $state['total_count']) : 0;
+    if ($total_count < 1) {
+        delete_option('ll_tools_recording_notification_state');
+        return;
+    }
+
+    $last_upload_unix = isset($state['last_upload_unix']) ? (int) $state['last_upload_unix'] : 0;
+    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    if ($last_upload_unix > 0 && (time() - $last_upload_unix) < $delay_seconds) {
+        ll_tools_schedule_recording_notification_event();
+        return;
+    }
+
+    $recipient = ll_tools_get_recording_notification_recipient();
+    if ($recipient === '') {
+        return;
+    }
+
+    $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+    $subject = sprintf(
+        /* translators: 1: site name, 2: number of recordings */
+        _n(
+            '[%1$s] %2$d new recording is ready for processing',
+            '[%1$s] %2$d new recordings are ready for processing',
+            $total_count,
+            'll-tools-text-domain'
+        ),
+        $site_name,
+        $total_count
+    );
+
+    $users = isset($state['users']) && is_array($state['users']) ? $state['users'] : [];
+    uasort($users, function ($a, $b) {
+        return ((int) ($b['count'] ?? 0)) <=> ((int) ($a['count'] ?? 0));
+    });
+
+    $lines = [];
+    $lines[] = sprintf(
+        /* translators: %d: number of new recordings */
+        _n(
+            '%d new audio recording was uploaded through the recording interface.',
+            '%d new audio recordings were uploaded through the recording interface.',
+            $total_count,
+            'll-tools-text-domain'
+        ),
+        $total_count
+    );
+    $lines[] = '';
+
+    if (!empty($users)) {
+        $lines[] = __('Recorders:', 'll-tools-text-domain');
+        foreach ($users as $entry) {
+            $display_name = isset($entry['display_name']) ? sanitize_text_field((string) $entry['display_name']) : __('Unknown user', 'll-tools-text-domain');
+            $user_count = max(0, (int) ($entry['count'] ?? 0));
+            $lines[] = sprintf(
+                /* translators: 1: display name, 2: recording count */
+                _n(
+                    '- %1$s (%2$d recording)',
+                    '- %1$s (%2$d recordings)',
+                    $user_count,
+                    'll-tools-text-domain'
+                ),
+                $display_name,
+                $user_count
+            );
+        }
+        $lines[] = '';
+    }
+
+    if (!empty($state['batch_started_at'])) {
+        $lines[] = sprintf(
+            /* translators: %s: date/time */
+            __('Batch started: %s', 'll-tools-text-domain'),
+            (string) $state['batch_started_at']
+        );
+    }
+    if (!empty($state['last_upload_at'])) {
+        $lines[] = sprintf(
+            /* translators: %s: date/time */
+            __('Most recent upload: %s', 'll-tools-text-domain'),
+            (string) $state['last_upload_at']
+        );
+    }
+    $lines[] = '';
+    $lines[] = __('Review and process recordings:', 'll-tools-text-domain');
+    $lines[] = admin_url('tools.php?page=ll-audio-processor');
+
+    $headers = ['Content-Type: text/plain; charset=UTF-8'];
+    $sent = wp_mail($recipient, $subject, implode("\n", $lines), $headers);
+
+    if ($sent) {
+        delete_option('ll_tools_recording_notification_state');
+        return;
+    }
+
+    // Keep state and try again after another quiet window if sending fails.
+    ll_tools_schedule_recording_notification_event();
+}
+add_action('ll_tools_send_recording_notification_event', 'll_tools_send_recording_notification_email');
+
+/**
  * AJAX handler: Upload recording and create word_audio post
  */
 add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
@@ -2692,6 +3008,9 @@ function ll_handle_recording_upload() {
 
     if (!is_user_logged_in()) {
         wp_send_json_error('You must be logged in to upload recordings');
+    }
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error('You do not have permission to upload recordings');
     }
     if (!current_user_can('upload_files')) {
         wp_send_json_error('You do not have permission to upload recordings');
@@ -2913,6 +3232,17 @@ function ll_handle_recording_upload() {
         foreach (array_unique(array_filter($candidates, function ($v) { return is_string($v) && $v !== ''; })) as $cand) {
             ll_remove_missing_audio_instance($cand);
         }
+    }
+
+    $should_notify = apply_filters(
+        'll_tools_should_queue_recording_notification',
+        !$auto_publish,
+        (int) $audio_post_id,
+        (int) $word_id,
+        (int) $current_user_id
+    );
+    if ($should_notify) {
+        ll_tools_queue_recording_upload_notification((int) $audio_post_id, (int) $current_user_id);
     }
 
     wp_send_json_success([

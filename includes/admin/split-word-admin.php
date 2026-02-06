@@ -23,10 +23,19 @@ function ll_tools_register_split_word_admin_page() {
     );
 }
 
-// Keep the page routable via admin.php?page=ll-tools-split-word without showing a submenu item.
+// Keep the page routable via edit.php?post_type=words&page=ll-tools-split-word without showing a submenu item.
 add_action('admin_menu', 'll_tools_hide_split_word_submenu', 999);
 function ll_tools_hide_split_word_submenu() {
     remove_submenu_page('edit.php?post_type=words', 'll-tools-split-word');
+}
+
+/**
+ * Base admin URL for split-word page routing.
+ *
+ * @return string
+ */
+function ll_tools_get_split_word_base_url() {
+    return admin_url('edit.php?post_type=words');
 }
 
 add_filter('post_row_actions', 'll_tools_add_split_word_row_action', 10, 2);
@@ -44,7 +53,7 @@ function ll_tools_add_split_word_row_action($actions, $post) {
             'page'    => 'll-tools-split-word',
             'word_id' => (int) $post->ID,
         ],
-        admin_url('admin.php')
+        ll_tools_get_split_word_base_url()
     );
 
     $actions['ll_tools_split_word'] = '<a href="' . esc_url($url) . '">' . esc_html__('Split Audio', 'll-tools-text-domain') . '</a>';
@@ -83,7 +92,7 @@ function ll_tools_get_split_word_page_url($word_id, $args = []) {
             'page'    => 'll-tools-split-word',
             'word_id' => (int) $word_id,
         ],
-        admin_url('admin.php')
+        ll_tools_get_split_word_base_url()
     );
 
     if (!empty($args)) {

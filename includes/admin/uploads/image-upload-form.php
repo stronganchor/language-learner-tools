@@ -13,8 +13,22 @@ function ll_image_upload_user_can_access_admin_tool() {
 
 function ll_image_upload_enqueue_form_assets() {
     ll_enqueue_asset_by_timestamp('/js/image-upload-form-admin.js', 'll-image-upload-form-admin', ['jquery'], true);
+
+    $warning_threshold_bytes = (int) apply_filters('ll_image_upload_large_file_warning_bytes', 500 * 1024);
+    if ($warning_threshold_bytes < 1) {
+        $warning_threshold_bytes = 500 * 1024;
+    }
+
+    $warning_threshold_label = size_format($warning_threshold_bytes, 1);
+
     wp_localize_script('ll-image-upload-form-admin', 'llImageUploadFormData', [
-        'autoCreateCategoryIds' => ll_image_upload_get_autocreate_category_ids(),
+        'autoCreateCategoryIds'   => ll_image_upload_get_autocreate_category_ids(),
+        'largeImageWarningBytes'  => $warning_threshold_bytes,
+        'largeImageWarningMessage' => sprintf(
+            __('Some selected images are larger than %s. They may fail to upload or load slowly in quizzes.', 'll-tools-text-domain'),
+            $warning_threshold_label
+        ),
+        'largeImageWarningFilesLabel' => __('Large files:', 'll-tools-text-domain'),
     ]);
 }
 
@@ -130,7 +144,19 @@ function ll_image_upload_form_shortcode() {
         <?php wp_nonce_field('ll_process_image_files', 'll_image_upload_nonce'); ?>
 
         <!-- only allow image files -->
-        <input type="file" name="ll_image_files[]" accept="image/*" multiple /><br>
+        <input type="file" name="ll_image_files[]" accept="image/*" multiple data-ll-image-file-input /><br>
+
+        <div
+            class="ll-tools-image-upload-warning"
+            data-ll-image-size-warning
+            role="status"
+            aria-live="polite"
+            hidden
+            style="display:none; margin-top:8px; max-width:760px; border:1px solid #d63638; background:#fff5f5; color:#8a1f11; border-radius:4px; padding:10px 12px; font-size:13px; line-height:1.4;"
+        >
+            <strong class="ll-tools-image-upload-warning__message" data-ll-image-size-warning-message></strong>
+            <div class="ll-tools-image-upload-warning__files" data-ll-image-size-warning-files style="margin-top:4px;"></div>
+        </div>
 
         <div style="margin-top:10px;" data-ll-category-existing-wrap>
             <label><?php esc_html_e('Select Categories', 'll-tools-text-domain'); ?>:</label><br>
