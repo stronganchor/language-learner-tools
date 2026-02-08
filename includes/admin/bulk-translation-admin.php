@@ -50,7 +50,9 @@ function ll_render_bulk_translations_page() {
 
     $total_pages = $total > 0 ? ceil($total / $per_page) : 1;
 
-    $deepl_key   = get_option('ll_deepl_api_key');
+    $can_manage_settings = current_user_can('manage_options');
+    $deepl_key   = $can_manage_settings ? get_option('ll_deepl_api_key') : '';
+    $deepl_key_set = ((string) get_option('ll_deepl_api_key', '') !== '');
     $src_lang    = get_option('ll_target_language', 'auto');       // DeepL source (auto allowed)
     $tgt_lang    = get_option('ll_translation_language', 'EN');    // DeepL target
 
@@ -61,33 +63,53 @@ function ll_render_bulk_translations_page() {
         <h1>LL Tools — Bulk Translations</h1>
 
         <!-- Settings strip -->
-        <form method="post" action="options.php" class="ll-top-settings">
-            <?php settings_fields('ll-deepl-api-key-group'); ?>
-            <table class="form-table" style="margin-top:0">
+        <?php if ($can_manage_settings) : ?>
+            <form method="post" action="options.php" class="ll-top-settings">
+                <?php settings_fields('ll-deepl-api-key-group'); ?>
+                <table class="form-table" style="margin-top:0">
+                    <tr>
+                        <th scope="row">DeepL API Key</th>
+                        <td><input type="password" name="ll_deepl_api_key" value="<?php echo esc_attr($deepl_key); ?>" size="60" autocomplete="off" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Source language (DeepL <code>source_lang</code>)</th>
+                        <td><input type="text" name="ll_target_language" value="<?php echo esc_attr($src_lang); ?>" placeholder="auto" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Target language (DeepL <code>target_lang</code>)</th>
+                        <td><input type="text" name="ll_translation_language" value="<?php echo esc_attr($tgt_lang); ?>" placeholder="EN" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Word title language (affects dictionary)</th>
+                        <td>
+                            <select name="ll_word_title_language_role">
+                                <option value="target" <?php selected($title_lang_role, 'target'); ?>>Target (language being learned)</option>
+                                <option value="translation" <?php selected($title_lang_role, 'translation'); ?>>Translation (helper/known language)</option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button('Save translation settings'); ?>
+            </form>
+        <?php else : ?>
+            <div class="notice notice-info inline">
+                <p><?php esc_html_e('Translation settings and API keys can only be updated by administrators.', 'll-tools-text-domain'); ?></p>
+            </div>
+            <table class="form-table ll-top-settings" style="margin-top:0">
                 <tr>
-                    <th scope="row">DeepL API Key</th>
-                    <td><input type="text" name="ll_deepl_api_key" value="<?php echo esc_attr($deepl_key); ?>" size="60" /></td>
+                    <th scope="row"><?php esc_html_e('DeepL API Key', 'll-tools-text-domain'); ?></th>
+                    <td><?php echo $deepl_key_set ? esc_html__('Configured', 'll-tools-text-domain') : esc_html__('Not configured', 'll-tools-text-domain'); ?></td>
                 </tr>
                 <tr>
-                    <th scope="row">Source language (DeepL <code>source_lang</code>)</th>
-                    <td><input type="text" name="ll_target_language" value="<?php echo esc_attr($src_lang); ?>" placeholder="auto" /></td>
+                    <th scope="row"><?php esc_html_e('Source language', 'll-tools-text-domain'); ?></th>
+                    <td><code><?php echo esc_html($src_lang); ?></code></td>
                 </tr>
                 <tr>
-                    <th scope="row">Target language (DeepL <code>target_lang</code>)</th>
-                    <td><input type="text" name="ll_translation_language" value="<?php echo esc_attr($tgt_lang); ?>" placeholder="EN" /></td>
-                </tr>
-                <tr>
-                    <th scope="row">Word title language (affects dictionary)</th>
-                    <td>
-                        <select name="ll_word_title_language_role">
-                            <option value="target" <?php selected($title_lang_role, 'target'); ?>>Target (language being learned)</option>
-                            <option value="translation" <?php selected($title_lang_role, 'translation'); ?>>Translation (helper/known language)</option>
-                        </select>
-                    </td>
+                    <th scope="row"><?php esc_html_e('Target language', 'll-tools-text-domain'); ?></th>
+                    <td><code><?php echo esc_html($tgt_lang); ?></code></td>
                 </tr>
             </table>
-            <?php submit_button('Save translation settings'); ?>
-        </form>
+        <?php endif; ?>
 
         <!-- Migration button -->
         <form id="ll-migrate-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0 20px">

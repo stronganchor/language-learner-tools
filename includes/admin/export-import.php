@@ -14,11 +14,19 @@ if (!defined('ABSPATH')) {
 /**
  * Register the admin page under Tools.
  */
+function ll_tools_get_export_import_capability() {
+    return (string) apply_filters('ll_tools_export_import_capability', 'manage_options');
+}
+
+function ll_tools_current_user_can_export_import() {
+    return current_user_can(ll_tools_get_export_import_capability());
+}
+
 function ll_tools_register_export_import_page() {
     add_management_page(
         'LL Export/Import',
         'LL Export/Import',
-        'view_ll_tools',
+        ll_tools_get_export_import_capability(),
         'll-export-import',
         'll_tools_render_export_import_page'
     );
@@ -42,7 +50,7 @@ function ll_tools_enqueue_export_import_assets($hook) {
  * Render the Export/Import page.
  */
 function ll_tools_render_export_import_page() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_export_import()) {
         return;
     }
 
@@ -269,7 +277,7 @@ function ll_tools_render_export_import_page() {
  * Handle the export action: build data and stream a zip file.
  */
 function ll_tools_handle_export_bundle() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_export_import()) {
         wp_die(__('You do not have permission to export LL Tools data.', 'll-tools-text-domain'));
     }
     check_admin_referer('ll_tools_export_bundle');
@@ -317,7 +325,7 @@ function ll_tools_handle_export_bundle() {
  * Handle the CSV export action for word text.
  */
 function ll_tools_handle_export_wordset_csv() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_export_import()) {
         wp_die(__('You do not have permission to export LL Tools data.', 'll-tools-text-domain'));
     }
     check_admin_referer('ll_tools_export_wordset_csv');
@@ -447,7 +455,7 @@ function ll_tools_handle_export_wordset_csv() {
  * Handle the import action: upload zip, unpack, and rebuild objects.
  */
 function ll_tools_handle_import_bundle() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_export_import()) {
         wp_die(__('You do not have permission to import LL Tools data.', 'll-tools-text-domain'));
     }
     check_admin_referer('ll_tools_import_bundle');
@@ -994,9 +1002,19 @@ function ll_tools_process_import_zip($zip_path) {
 
     $upload_dir = wp_upload_dir();
     $extract_dir = trailingslashit($upload_dir['basedir']) . 'll-tools-import-' . wp_generate_password(8, false, false);
-    wp_mkdir_p($extract_dir);
-    $zip->extractTo($extract_dir);
+    if (!wp_mkdir_p($extract_dir)) {
+        $zip->close();
+        $result['message'] = __('Import failed: could not create temporary extraction directory.', 'll-tools-text-domain');
+        return $result;
+    }
+
+    $extract_result = ll_tools_extract_zip_safely($zip, $extract_dir);
     $zip->close();
+    if (is_wp_error($extract_result)) {
+        $result['message'] = $extract_result->get_error_message();
+        ll_tools_rrmdir($extract_dir);
+        return $result;
+    }
 
     $data_path = trailingslashit($extract_dir) . 'data.json';
     if (!file_exists($data_path)) {
@@ -1165,20 +1183,18 @@ function ll_tools_import_from_payload(array $payload, $extract_dir) {
         // Import featured image.
         if (!empty($item['featured_image']['file'])) {
             $rel = ltrim((string) $item['featured_image']['file'], '/');
-            if (strpos($rel, '..') !== false) {
+            $absolute = ll_tools_resolve_import_path($extract_dir, $rel);
+            if ($absolute === '') {
                 $result['errors'][] = sprintf(__('Skipped thumbnail for "%s" because the file path was invalid.', 'll-tools-text-domain'), $slug);
+            } elseif (!file_exists($absolute)) {
+                $result['errors'][] = sprintf(__('Image file for "%s" is missing from the zip.', 'll-tools-text-domain'), $slug);
             } else {
-                $absolute = trailingslashit($extract_dir) . $rel;
-                if (file_exists($absolute)) {
-                    $attachment_id = ll_tools_import_attachment_from_file($absolute, $item['featured_image'], $post_id);
-                    if (is_wp_error($attachment_id)) {
-                        $result['errors'][] = sprintf(__('Failed to import image for "%1$s": %2$s', 'll-tools-text-domain'), $slug, $attachment_id->get_error_message());
-                    } else {
-                        set_post_thumbnail($post_id, $attachment_id);
-                        $result['stats']['attachments_imported']++;
-                    }
+                $attachment_id = ll_tools_import_attachment_from_file($absolute, $item['featured_image'], $post_id);
+                if (is_wp_error($attachment_id)) {
+                    $result['errors'][] = sprintf(__('Failed to import image for "%1$s": %2$s', 'll-tools-text-domain'), $slug, $attachment_id->get_error_message());
                 } else {
-                    $result['errors'][] = sprintf(__('Image file for "%s" is missing from the zip.', 'll-tools-text-domain'), $slug);
+                    set_post_thumbnail($post_id, $attachment_id);
+                    $result['stats']['attachments_imported']++;
                 }
             }
         }
@@ -1201,12 +1217,27 @@ function ll_tools_import_from_payload(array $payload, $extract_dir) {
  * @return int|WP_Error
  */
 function ll_tools_import_attachment_from_file($file_path, array $info, $parent_post_id = 0) {
+    $mime_type = ll_tools_validate_import_image_file($file_path);
+    if (is_wp_error($mime_type)) {
+        return $mime_type;
+    }
+
     $upload_dir = wp_upload_dir();
     if (!wp_mkdir_p($upload_dir['path'])) {
         return new WP_Error('ll_tools_upload_path', __('Could not create uploads directory.', 'll-tools-text-domain'));
     }
 
-    $filename = wp_unique_filename($upload_dir['path'], basename($file_path));
+    $file_info = wp_check_filetype_and_ext($file_path, basename($file_path));
+    $source_name = '';
+    if (!empty($file_info['proper_filename'])) {
+        $source_name = (string) $file_info['proper_filename'];
+    } elseif (basename($file_path) !== '') {
+        $source_name = basename($file_path);
+    } else {
+        $source_name = 'imported-image';
+    }
+
+    $filename = wp_unique_filename($upload_dir['path'], $source_name);
     $target = trailingslashit($upload_dir['path']) . $filename;
 
     if (!@copy($file_path, $target)) {
@@ -1216,7 +1247,7 @@ function ll_tools_import_attachment_from_file($file_path, array $info, $parent_p
     $filetype = wp_check_filetype($filename, null);
     $attachment = [
         'guid'           => trailingslashit($upload_dir['url']) . $filename,
-        'post_mime_type' => !empty($filetype['type']) ? $filetype['type'] : (!empty($info['mime_type']) ? $info['mime_type'] : 'image/jpeg'),
+        'post_mime_type' => !empty($filetype['type']) ? $filetype['type'] : $mime_type,
         'post_title'     => !empty($info['title']) ? $info['title'] : preg_replace('/\.[^.]+$/', '', basename($filename)),
         'post_content'   => '',
         'post_status'    => 'inherit',
@@ -1272,4 +1303,164 @@ function ll_tools_rrmdir($dir) {
         }
     }
     @rmdir($dir);
+}
+
+/**
+ * Defend against zip-slip by extracting files manually with strict path checks.
+ *
+ * @param ZipArchive $zip
+ * @param string     $extract_dir
+ * @return true|WP_Error
+ */
+function ll_tools_extract_zip_safely(ZipArchive $zip, $extract_dir) {
+    $entry_count = (int) $zip->numFiles;
+    $max_entries = (int) apply_filters('ll_tools_import_max_zip_entries', 5000);
+    if ($entry_count < 1) {
+        return new WP_Error('ll_tools_import_empty_zip', __('Import failed: zip file is empty.', 'll-tools-text-domain'));
+    }
+    if ($entry_count > $max_entries) {
+        return new WP_Error('ll_tools_import_too_many_entries', __('Import failed: zip contains too many files.', 'll-tools-text-domain'));
+    }
+
+    $max_uncompressed = (int) apply_filters('ll_tools_import_max_uncompressed_bytes', 512 * MB_IN_BYTES);
+    $total_uncompressed = 0;
+
+    for ($i = 0; $i < $entry_count; $i++) {
+        $stat = $zip->statIndex($i);
+        if (!is_array($stat) || !isset($stat['name'])) {
+            return new WP_Error('ll_tools_import_bad_zip_entry', __('Import failed: zip metadata is invalid.', 'll-tools-text-domain'));
+        }
+
+        $entry_name = (string) $stat['name'];
+        $is_dir = (substr($entry_name, -1) === '/' || substr($entry_name, -1) === '\\');
+        $normalized = ll_tools_normalize_import_relative_path($entry_name);
+
+        if ($normalized === '') {
+            return new WP_Error('ll_tools_import_bad_zip_path', __('Import failed: zip contains an invalid file path.', 'll-tools-text-domain'));
+        }
+
+        $target = ll_tools_resolve_import_path($extract_dir, $normalized);
+        if ($target === '') {
+            return new WP_Error('ll_tools_import_bad_zip_path', __('Import failed: zip contains an unsafe file path.', 'll-tools-text-domain'));
+        }
+
+        if ($is_dir) {
+            if (!wp_mkdir_p($target)) {
+                return new WP_Error('ll_tools_import_extract_dir', __('Import failed: could not create extraction folders.', 'll-tools-text-domain'));
+            }
+            continue;
+        }
+
+        $entry_size = isset($stat['size']) ? (int) $stat['size'] : 0;
+        if ($entry_size < 0) {
+            return new WP_Error('ll_tools_import_bad_zip_size', __('Import failed: zip entry size is invalid.', 'll-tools-text-domain'));
+        }
+        $total_uncompressed += $entry_size;
+        if ($total_uncompressed > $max_uncompressed) {
+            return new WP_Error('ll_tools_import_zip_too_large', __('Import failed: uncompressed zip size is too large.', 'll-tools-text-domain'));
+        }
+
+        $target_dir = dirname($target);
+        if (!wp_mkdir_p($target_dir)) {
+            return new WP_Error('ll_tools_import_extract_dir', __('Import failed: could not create extraction folders.', 'll-tools-text-domain'));
+        }
+
+        $in = $zip->getStream($entry_name);
+        if ($in === false) {
+            return new WP_Error('ll_tools_import_extract_stream', __('Import failed: could not read a file from the zip.', 'll-tools-text-domain'));
+        }
+
+        $out = fopen($target, 'wb');
+        if ($out === false) {
+            fclose($in);
+            return new WP_Error('ll_tools_import_extract_write', __('Import failed: could not write extracted files.', 'll-tools-text-domain'));
+        }
+
+        stream_copy_to_stream($in, $out);
+        fclose($in);
+        fclose($out);
+    }
+
+    return true;
+}
+
+/**
+ * Normalize a zip/import relative path and reject traversal/absolute paths.
+ *
+ * @param string $path
+ * @return string Empty string when invalid.
+ */
+function ll_tools_normalize_import_relative_path($path) {
+    $path = str_replace('\\', '/', trim((string) $path));
+    if ($path === '' || strpos($path, "\0") !== false) {
+        return '';
+    }
+    if ($path[0] === '/' || preg_match('/^[A-Za-z]:\//', $path)) {
+        return '';
+    }
+
+    $segments = explode('/', $path);
+    $normalized = [];
+    foreach ($segments as $segment) {
+        $segment = trim($segment);
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            return '';
+        }
+        $normalized[] = $segment;
+    }
+
+    if (empty($normalized)) {
+        return '';
+    }
+
+    return implode('/', $normalized);
+}
+
+/**
+ * Resolve a validated relative import path against extraction directory.
+ *
+ * @param string $extract_dir
+ * @param string $relative_path
+ * @return string Empty string when invalid.
+ */
+function ll_tools_resolve_import_path($extract_dir, $relative_path) {
+    $normalized = ll_tools_normalize_import_relative_path($relative_path);
+    if ($normalized === '') {
+        return '';
+    }
+
+    $base = trailingslashit(wp_normalize_path($extract_dir));
+    $target = wp_normalize_path($base . $normalized);
+    if (strpos($target, $base) !== 0) {
+        return '';
+    }
+
+    return $target;
+}
+
+/**
+ * Verify an imported attachment file is a real image before media import.
+ *
+ * @param string $file_path
+ * @return string|WP_Error Detected mime type or WP_Error.
+ */
+function ll_tools_validate_import_image_file($file_path) {
+    if (!is_file($file_path) || !is_readable($file_path)) {
+        return new WP_Error('ll_tools_invalid_image', __('Imported image file is missing or unreadable.', 'll-tools-text-domain'));
+    }
+
+    $mime_type = wp_get_image_mime($file_path);
+    if (!is_string($mime_type) || strpos($mime_type, 'image/') !== 0) {
+        return new WP_Error('ll_tools_invalid_image', __('Imported file is not a valid image.', 'll-tools-text-domain'));
+    }
+
+    $allowed_mimes = get_allowed_mime_types();
+    if (!in_array($mime_type, $allowed_mimes, true)) {
+        return new WP_Error('ll_tools_invalid_image', __('Imported image type is not allowed on this site.', 'll-tools-text-domain'));
+    }
+
+    return $mime_type;
 }

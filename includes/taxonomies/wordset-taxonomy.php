@@ -239,6 +239,11 @@ add_action('admin_enqueue_scripts', 'll_enqueue_wordsets_script');
 
 // AJAX handler for language suggestions
 function ll_suggest_languages() {
+    if (!current_user_can('edit_wordsets')) {
+        wp_send_json_error(['message' => __('Forbidden', 'll-tools-text-domain')], 403);
+    }
+    check_ajax_referer('create_wordset_nonce', 'nonce');
+
     $search = isset($_REQUEST['q']) ? sanitize_text_field($_REQUEST['q']) : '';
     $languages = get_terms([
         'taxonomy' => 'language',

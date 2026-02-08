@@ -23,6 +23,9 @@
     let currentWord = null;
 
     function getAjaxBase() {
+        if (window.llAimData && typeof window.llAimData.ajaxurl === 'string' && window.llAimData.ajaxurl.length) {
+            try { return new URL(window.llAimData.ajaxurl, window.location.origin).toString(); } catch (e) { }
+        }
         if (typeof ajaxurl === 'string' && ajaxurl.length) {
             try { return new URL(ajaxurl, window.location.origin).toString(); } catch (e) { }
         }
@@ -40,6 +43,9 @@
         u.searchParams.set('action', 'll_aim_get_images');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('hide_used', $hideUsed.is(':checked') ? '1' : '0');
+        if (window.llAimData && window.llAimData.nonce) {
+            u.searchParams.set('nonce', window.llAimData.nonce);
+        }
         const res = await fetch(u.toString(), { credentials: 'same-origin' });
         const json = await res.json();
         cachedImages = (json && json.data && json.data.images) ? json.data.images : [];
@@ -51,6 +57,9 @@
         u.searchParams.set('action', 'll_aim_get_next');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('rematch', $rematch.is(':checked') ? '1' : '0');
+        if (window.llAimData && window.llAimData.nonce) {
+            u.searchParams.set('nonce', window.llAimData.nonce);
+        }
         if (wordsetId > 0) u.searchParams.set('wordset_id', String(wordsetId));
         excludeIds.forEach(id => u.searchParams.append('exclude[]', id));
 
@@ -157,6 +166,9 @@
         body.set('action', 'll_aim_assign');
         body.set('word_id', currentWord.id);
         body.set('image_id', imageId);
+        if (window.llAimData && window.llAimData.nonce) {
+            body.set('nonce', window.llAimData.nonce);
+        }
 
         try {
             const res = await fetch(getAjaxBase(), {

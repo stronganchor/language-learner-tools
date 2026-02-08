@@ -7,12 +7,22 @@
  * performing translation using the DeepL API, and handling API errors.
  */
 
- // Add an admin page under Tools for entering the API key (https://www.deepl.com/pro-api)
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+if (!function_exists('ll_tools_api_settings_capability')) {
+    function ll_tools_api_settings_capability() {
+        return (string) apply_filters('ll_tools_api_settings_capability', 'manage_options');
+    }
+}
+
+// Add an admin page under Tools for entering the API key (https://www.deepl.com/pro-api)
 function ll_add_deepl_api_key_page() {
     add_management_page(
-        'DeepL API Key',
-        'DeepL API Key',
-        'view_ll_tools',
+        __('DeepL API Key', 'll-tools-text-domain'),
+        __('DeepL API Key', 'll-tools-text-domain'),
+        ll_tools_api_settings_capability(),
         'deepl-api-key',
         'll_deepl_api_key_page_content'
     );
@@ -23,9 +33,13 @@ add_action('admin_menu', 'll_add_deepl_api_key_page');
  * Renders the DeepL API Key admin page content.
  */
 function ll_deepl_api_key_page_content() {
+    if (!current_user_can(ll_tools_api_settings_capability())) {
+        wp_die(__('You do not have permission to view this page.', 'll-tools-text-domain'));
+    }
+
     ?>
     <div class="wrap">
-        <h1>Enter Your DeepL API Key</h1>
+        <h1><?php esc_html_e('Enter Your DeepL API Key', 'll-tools-text-domain'); ?></h1>
         <form method="post" action="options.php">
             <?php
             settings_fields('ll-deepl-api-key-group');
@@ -33,8 +47,10 @@ function ll_deepl_api_key_page_content() {
             ?>
             <table class="form-table">
                 <tr valign="top">
-                <th scope="row">DeepL API Key</th>
-                <td><input type="text" name="ll_deepl_api_key" value="<?php echo esc_attr(get_option('ll_deepl_api_key')); ?>" /></td>
+                <th scope="row"><?php esc_html_e('DeepL API Key', 'll-tools-text-domain'); ?></th>
+                <td>
+                    <input type="password" name="ll_deepl_api_key" value="<?php echo esc_attr(get_option('ll_deepl_api_key')); ?>" autocomplete="off" />
+                </td>
                 </tr>
             </table>
             <?php submit_button(); ?>
@@ -47,7 +63,11 @@ function ll_deepl_api_key_page_content() {
  * Registers the DeepL API key setting.
  */
 function ll_register_deepl_api_key_setting() {
-    register_setting('ll-deepl-api-key-group', 'll_deepl_api_key');
+    register_setting('ll-deepl-api-key-group', 'll_deepl_api_key', [
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '',
+    ]);
 }
 add_action('admin_init', 'll_register_deepl_api_key_setting');
 
