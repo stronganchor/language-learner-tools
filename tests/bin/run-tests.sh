@@ -36,6 +36,12 @@ for key in "${preserve_env[@]}"; do
     fi
 done
 
+for key in "${preserve_env[@]}"; do
+    if [[ -n "${!key+x}" ]]; then
+        export "$key"
+    fi
+done
+
 if [[ -z "${WP_TESTS_DIR:-}" ]]; then
     export WP_TESTS_DIR="/tmp/wordpress-tests-lib"
 fi

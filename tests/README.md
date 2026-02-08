@@ -11,6 +11,9 @@ This directory contains the plugin test framework:
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
 - `bin/run-tests.sh`: installs test deps (if needed) and runs PHPUnit.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
+- `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
+- `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
+- `e2e/*`: Playwright configuration + browser test specs.
 
 ## 1) Prerequisites
 
@@ -119,6 +122,32 @@ When you run `eval "$(tests/bin/setup-local-env.sh)"` first, exported vars take 
 - `ll_tools_user_can_record()` permission behavior.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
+- `[flashcard_widget]` primary render path with localized initial words/categories.
+- Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
+- Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
+
+## 6) Browser E2E tests (Playwright)
+
+From plugin root:
+
+```bash
+tests/bin/run-e2e.sh
+```
+
+This runs `tests/e2e/specs/quiz-mode-transitions.spec.js`, which:
+
+- Opens the primary quiz learn page (`/learn/` by default).
+- Starts a quiz from the first visible quiz card.
+- Verifies mode transitions across listening, practice, and (when available) learning.
+
+Optional env vars (set directly or in `tests/.env`):
+
+```bash
+LL_E2E_BASE_URL=http://127.0.0.1:10036
+LL_E2E_LEARN_PATH=/learn/
+```
+
+Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Local's nginx config for this site.
 
 ## Notes
 
