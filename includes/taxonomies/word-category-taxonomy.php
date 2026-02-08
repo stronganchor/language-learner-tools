@@ -820,6 +820,113 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
     return 'image';
 }
 
+/**
+ * Resolve a stored audio path/URL to a browser-safe URL for the current site origin.
+ *
+ * Handles legacy absolute URLs that still point to old local hosts/ports (e.g. Local WP),
+ * while leaving truly external URLs untouched.
+ */
+function ll_tools_resolve_audio_file_url($audio_path): string {
+    $audio_path = trim((string) $audio_path);
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if (strpos($audio_path, '//') === 0) {
+        $audio_path = (is_ssl() ? 'https:' : 'http:') . $audio_path;
+    }
+
+    static $resolved_cache = [];
+    if (isset($resolved_cache[$audio_path])) {
+        return $resolved_cache[$audio_path];
+    }
+
+    // Relative path stored in meta (canonical plugin format).
+    if (!preg_match('#^https?://#i', $audio_path)) {
+        $resolved_cache[$audio_path] = site_url($audio_path);
+        return $resolved_cache[$audio_path];
+    }
+
+    $parsed = wp_parse_url($audio_path);
+    $path   = is_array($parsed) && !empty($parsed['path']) ? '/' . ltrim((string) $parsed['path'], '/') : '';
+    if ($path === '') {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    $home = wp_parse_url(home_url('/'));
+    if (!is_array($home) || empty($home['host'])) {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    $url_host = strtolower((string) ($parsed['host'] ?? ''));
+    $home_host = strtolower((string) $home['host']);
+    $url_scheme = strtolower((string) ($parsed['scheme'] ?? 'http'));
+    $home_scheme = strtolower((string) ($home['scheme'] ?? 'http'));
+    $url_port = isset($parsed['port']) ? (int) $parsed['port'] : (($url_scheme === 'https') ? 443 : 80);
+    $home_port = isset($home['port']) ? (int) $home['port'] : (($home_scheme === 'https') ? 443 : 80);
+
+    if ($url_host !== '' && $url_host === $home_host && $url_port === $home_port && $url_scheme === $home_scheme) {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    // If the path maps to a local file, force current-site origin to avoid cross-origin media requests.
+    $local_path = ABSPATH . ltrim($path, '/');
+    if (file_exists($local_path) && is_readable($local_path)) {
+        $resolved_cache[$audio_path] = home_url($path);
+        return $resolved_cache[$audio_path];
+    }
+
+    // Fallback: if the URL path is under uploads, prefer current uploads origin.
+    $uploads = wp_get_upload_dir();
+    if (empty($uploads['error']) && !empty($uploads['baseurl'])) {
+        $uploads_base_path = (string) wp_parse_url($uploads['baseurl'], PHP_URL_PATH);
+        if ($uploads_base_path !== '' && strpos($path, $uploads_base_path) === 0) {
+            $relative = ltrim(substr($path, strlen($uploads_base_path)), '/');
+            $resolved_cache[$audio_path] = trailingslashit($uploads['baseurl']) . $relative;
+            return $resolved_cache[$audio_path];
+        }
+    }
+
+    $resolved_cache[$audio_path] = $audio_path;
+    return $resolved_cache[$audio_path];
+}
+
+/**
+ * Normalize audio URLs in cached word payload rows.
+ *
+ * @param array $rows Array of quiz word rows.
+ * @return array
+ */
+function ll_tools_normalize_words_audio_urls(array $rows): array {
+    foreach ($rows as $idx => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        if (!empty($row['audio'])) {
+            $rows[$idx]['audio'] = ll_tools_resolve_audio_file_url($row['audio']);
+        }
+
+        if (!empty($row['audio_files']) && is_array($row['audio_files'])) {
+            foreach ($row['audio_files'] as $aidx => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $url = isset($entry['url']) ? (string) $entry['url'] : '';
+                if ($url === '') {
+                    continue;
+                }
+                $rows[$idx]['audio_files'][$aidx]['url'] = ll_tools_resolve_audio_file_url($url);
+            }
+        }
+    }
+
+    return $rows;
+}
+
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $term = get_term_by('name', $categoryName, 'word-category');
     $config = $quiz_config;
@@ -852,6 +959,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'include_plurality'    => true,
     ];
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
+    $cache_ttl = 6 * HOUR_IN_SECONDS;
 
     static $request_cache = [];
     if (isset($request_cache[$cache_key])) {
@@ -863,8 +971,14 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $cached = get_transient($cache_key);
     }
     if ($cached !== false) {
-        $request_cache[$cache_key] = $cached;
-        return $cached;
+        $cached_rows = is_array($cached) ? $cached : [];
+        $normalized_cached_rows = ll_tools_normalize_words_audio_urls($cached_rows);
+        if ($normalized_cached_rows !== $cached_rows) {
+            wp_cache_set($cache_key, $normalized_cached_rows, 'll_tools_words', $cache_ttl);
+            set_transient($cache_key, $normalized_cached_rows, $cache_ttl);
+        }
+        $request_cache[$cache_key] = $normalized_cached_rows;
+        return $normalized_cached_rows;
     }
 
     $args = [
@@ -936,7 +1050,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         foreach ($audio_posts as $audio_post) {
             $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
             if ($audio_path) {
-                $audio_url       = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                $audio_url       = ll_tools_resolve_audio_file_url($audio_path);
                 $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
@@ -953,7 +1067,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
             if ($audio_path) {
-                $primary_audio = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                $primary_audio = ll_tools_resolve_audio_file_url($audio_path);
             }
         }
 
@@ -1089,7 +1203,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
     }
 
-    $cache_ttl = 6 * HOUR_IN_SECONDS;
+    $words = ll_tools_normalize_words_audio_urls($words);
     $request_cache[$cache_key] = $words;
     wp_cache_set($cache_key, $words, 'll_tools_words', $cache_ttl);
     set_transient($cache_key, $words, $cache_ttl);
@@ -1145,7 +1259,7 @@ function ll_get_word_audio_url($word_id) {
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
             if ($audio_path) {
-                return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                return ll_tools_resolve_audio_file_url($audio_path);
             }
         }
     }
