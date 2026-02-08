@@ -33,6 +33,8 @@ append_wslenv_var() {
     esac
 }
 
+# `npx` is usually a Windows process in this workspace. Mirror env vars through
+# WSLENV so Playwright receives base URL/path config.
 append_wslenv_var "LL_E2E_BASE_URL"
 append_wslenv_var "LL_E2E_LEARN_PATH"
 

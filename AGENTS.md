@@ -1,6 +1,7 @@
 See `CODEBASE_ARCHITECTURE.md` for the canonical map of entry points, flows, and invariants for this plugin.
 
 Codebase-specific guidelines:
+- For testing workflows and conventions (PHPUnit + Playwright), see `tests/AI_TESTING_PLAYBOOK.md` and `tests/README.md`.
 - When adding buttons or using emojis, ensure the styling remains consistent across WordPress themes and devices by applying explicit classes and theme-resistant CSS (avoid relying on theme defaults).
 - For user-facing pages, prefer icons and language-agnostic visual cues; keep text minimal and only when needed. Admin pages can be more verbose.
 - Make all admin and user-facing text translation-ready so tools like Loco Translate can detect it (use WordPress i18n functions with `ll-tools-text-domain`; localize JS strings instead of hardcoding UI copy in scripts).

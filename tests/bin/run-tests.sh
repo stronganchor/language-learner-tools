@@ -62,6 +62,8 @@ append_wslenv_var() {
 }
 
 if [[ "$php_family" == "Windows" ]]; then
+    # When php-local resolves to Windows php.exe, path vars must be mirrored via WSLENV
+    # so child Windows processes see WP_TESTS_DIR/WP_CORE_DIR correctly.
     append_wslenv_var "WP_TESTS_DIR/p"
     if [[ -n "${WP_CORE_DIR:-}" ]]; then
         append_wslenv_var "WP_CORE_DIR/p"

@@ -1,5 +1,7 @@
 # Language Learner Tools Test Framework
 
+For AI-oriented operational guidance (how to run, add, and modify tests safely), see `tests/AI_TESTING_PLAYBOOK.md`.
+
 This directory contains the plugin test framework:
 
 - `composer.json`: isolated PHPUnit dependency config (separate from plugin `vendor/`).
@@ -134,11 +136,16 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
-This runs `tests/e2e/specs/quiz-mode-transitions.spec.js`, which:
+Current primary-flow E2E specs:
 
-- Opens the primary quiz learn page (`/learn/` by default).
-- Starts a quiz from the first visible quiz card.
-- Verifies mode transitions across listening, practice, and (when available) learning.
+- `tests/e2e/specs/quiz-mode-transitions.spec.js`
+  - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
+- `tests/e2e/specs/quiz-popup-open-close.spec.js`
+  - Verifies quiz popup open/close behavior and page-state cleanup.
+- `tests/e2e/specs/quiz-launch-config.spec.js`
+  - Verifies selected card category/mode/wordset are forwarded into widget state.
+- `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
+  - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
 
 Optional env vars (set directly or in `tests/.env`):
 
