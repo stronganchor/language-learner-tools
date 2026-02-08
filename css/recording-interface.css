@@ -246,6 +246,32 @@
     margin: 0.2rem 0;
 }
 
+.ll-new-word-types .ll-recording-type-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0.25rem 0;
+    font-weight: 500;
+}
+
+.ll-new-word-types .ll-recording-type-option input[type="checkbox"] {
+    margin: 0;
+}
+
+.ll-new-word-types .ll-recording-type-option-icon {
+    width: 1.2em;
+    min-width: 1.2em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+    line-height: 1;
+}
+
+.ll-new-word-types .ll-recording-type-option-label {
+    line-height: 1.2;
+}
+
 .ll-new-word-actions {
     display: flex;
     gap: 0.75rem;
@@ -305,6 +331,7 @@
 
 .ll-new-word-recording-type-label {
     line-height: 1.1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 
 .ll-new-word-playback-controls {
@@ -408,6 +435,7 @@
     border: 2px solid #ddd;
     border-radius: 6px;
     font-size: 0.95rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
     transition: border-color 0.2s;
     text-align: center;
 }

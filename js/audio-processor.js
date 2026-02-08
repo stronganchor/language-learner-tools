@@ -19,7 +19,8 @@
             enableNoise: true,
             enableLoudness: true
         },
-        recordingTypes: []
+        recordingTypes: [],
+        recordingTypeIcons: {}
     };
 
     const TARGET_LUFS = -18.0;
@@ -32,6 +33,9 @@
         }
         state.recordings = window.llAudioProcessor.recordings;
         state.recordingTypes = Array.isArray(window.llAudioProcessor.recordingTypes) ? window.llAudioProcessor.recordingTypes : [];
+        state.recordingTypeIcons = (window.llAudioProcessor.recordingTypeIcons && typeof window.llAudioProcessor.recordingTypeIcons === 'object')
+            ? window.llAudioProcessor.recordingTypeIcons
+            : {};
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         initTabs();
         wireEventListeners();
@@ -1221,6 +1225,25 @@
         return div.innerHTML;
     }
 
+    function getRecordingTypeIcon(slug) {
+        if (slug && state.recordingTypeIcons[slug]) {
+            return state.recordingTypeIcons[slug];
+        }
+        return state.recordingTypeIcons.default || '';
+    }
+
+    function getRecordingTypeDisplay(type) {
+        if (!type || typeof type !== 'object') {
+            return '';
+        }
+        if (type.label) {
+            return String(type.label);
+        }
+        const icon = type.icon || getRecordingTypeIcon(type.slug);
+        const label = type.name || type.slug || '';
+        return icon ? `${icon} ${label}` : String(label);
+    }
+
     function renderRecordingTypeSelect(selectedType, postId) {
         const options = [];
 
@@ -1230,12 +1253,18 @@
             options.push('<option value="">Select type</option>');
             state.recordingTypes.forEach(type => {
                 const isSelected = type.slug === selectedType;
-                options.push(`<option value="${escapeHtml(type.slug)}" ${isSelected ? 'selected' : ''}>${escapeHtml(type.name)}</option>`);
+                const display = getRecordingTypeDisplay(type);
+                options.push(`<option value="${escapeHtml(type.slug)}" ${isSelected ? 'selected' : ''}>${escapeHtml(display)}</option>`);
             });
 
             const slugExists = state.recordingTypes.some(type => type.slug === selectedType);
             if (selectedType && !slugExists) {
-                options.push(`<option value="${escapeHtml(selectedType)}" selected>${escapeHtml(selectedType)}</option>`);
+                const fallbackType = {
+                    slug: selectedType,
+                    name: selectedType,
+                    icon: getRecordingTypeIcon(selectedType)
+                };
+                options.push(`<option value="${escapeHtml(selectedType)}" selected>${escapeHtml(getRecordingTypeDisplay(fallbackType))}</option>`);
             }
         }
 

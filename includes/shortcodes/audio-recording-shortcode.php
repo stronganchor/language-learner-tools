@@ -63,6 +63,172 @@ function ll_get_recording_type_name($slug, $term_name = '') {
     return isset($translated_defaults[$slug]) ? $translated_defaults[$slug] : ucfirst($slug);
 }
 
+/**
+ * Returns an ordered list of recording type slugs for prompting.
+ *
+ * @return string[]
+ */
+function ll_get_recording_type_prompt_order(): array {
+    $default_order = ['isolation', 'introduction', 'question', 'sentence'];
+    $order = apply_filters('ll_tools_recording_type_prompt_order', $default_order);
+    if (!is_array($order)) {
+        return $default_order;
+    }
+    $sanitized = [];
+    foreach ($order as $slug) {
+        $normalized = sanitize_title((string) $slug);
+        if ($normalized !== '') {
+            $sanitized[] = $normalized;
+        }
+    }
+    $sanitized = array_values(array_unique($sanitized));
+    return !empty($sanitized) ? $sanitized : $default_order;
+}
+
+/**
+ * Returns recording-type icon map keyed by slug.
+ *
+ * @return array<string, string>
+ */
+function ll_get_recording_type_icons_map(): array {
+    $defaults = [
+        'isolation'    => '🔍',
+        'introduction' => '💬',
+        'question'     => '❓',
+        'sentence'     => '📝',
+        'default'      => '🎙️',
+    ];
+    $maybe_map = apply_filters('ll_tools_recording_type_icons_map', $defaults);
+    if (!is_array($maybe_map)) {
+        return $defaults;
+    }
+
+    $icons = [];
+    foreach ($maybe_map as $slug => $icon) {
+        $slug_key = sanitize_title((string) $slug);
+        if ($slug_key === '') {
+            if ((string) $slug !== 'default') {
+                continue;
+            }
+            $slug_key = 'default';
+        }
+        $icons[$slug_key] = sanitize_text_field((string) $icon);
+    }
+
+    foreach ($defaults as $slug => $icon) {
+        if (!isset($icons[$slug]) || $icons[$slug] === '') {
+            $icons[$slug] = $icon;
+        }
+    }
+    return $icons;
+}
+
+/**
+ * Return the icon associated with a recording type slug.
+ */
+function ll_get_recording_type_icon($slug): string {
+    $icons = ll_get_recording_type_icons_map();
+    $key = sanitize_title((string) $slug);
+    if ($key !== '' && !empty($icons[$key])) {
+        return (string) $icons[$key];
+    }
+    return (string) ($icons['default'] ?? '');
+}
+
+/**
+ * Compare two recording type slugs by canonical prompt order.
+ */
+function ll_compare_recording_type_slugs($left, $right): int {
+    $left_slug = sanitize_title((string) $left);
+    $right_slug = sanitize_title((string) $right);
+    $priority = array_flip(ll_get_recording_type_prompt_order());
+
+    $left_in_priority = array_key_exists($left_slug, $priority);
+    $right_in_priority = array_key_exists($right_slug, $priority);
+
+    if ($left_in_priority && $right_in_priority) {
+        return (int) $priority[$left_slug] <=> (int) $priority[$right_slug];
+    }
+    if ($left_in_priority) {
+        return -1;
+    }
+    if ($right_in_priority) {
+        return 1;
+    }
+    return strnatcasecmp($left_slug, $right_slug);
+}
+
+/**
+ * Sort + normalize a list of recording type slugs into canonical order.
+ *
+ * @param array $slugs
+ * @return string[]
+ */
+function ll_sort_recording_type_slugs(array $slugs): array {
+    $normalized = [];
+    foreach ($slugs as $slug) {
+        $clean = sanitize_title((string) $slug);
+        if ($clean !== '') {
+            $normalized[] = $clean;
+        }
+    }
+    $normalized = array_values(array_unique($normalized));
+    if (count($normalized) < 2) {
+        return $normalized;
+    }
+    usort($normalized, 'll_compare_recording_type_slugs');
+    return $normalized;
+}
+
+/**
+ * Build standardized recording-type payload entries for recorder UI.
+ *
+ * @param array $recording_type_slugs
+ * @return array<int, array<string, mixed>>
+ */
+function ll_build_recording_type_payload(array $recording_type_slugs): array {
+    $sorted_slugs = ll_sort_recording_type_slugs($recording_type_slugs);
+    if (empty($sorted_slugs)) {
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy'   => 'recording_type',
+        'hide_empty' => false,
+        'slug'       => $sorted_slugs,
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $terms_by_slug = [];
+    foreach ($terms as $term) {
+        if (!empty($term->slug)) {
+            $terms_by_slug[$term->slug] = $term;
+        }
+    }
+
+    $payload = [];
+    foreach ($sorted_slugs as $slug) {
+        if (!isset($terms_by_slug[$slug])) {
+            continue;
+        }
+        $term = $terms_by_slug[$slug];
+        $name = ll_get_recording_type_name($term->slug, $term->name);
+        $icon = ll_get_recording_type_icon($term->slug);
+        $label = trim($icon . ' ' . $name);
+        $payload[] = [
+            'slug'    => $term->slug,
+            'name'    => $name,
+            'term_id' => (int) $term->term_id,
+            'icon'    => $icon,
+            'label'   => $label,
+        ];
+    }
+
+    return $payload;
+}
+
 function ll_audio_recording_interface_shortcode($atts) {
     // Require user to be logged in
     if (!is_user_logged_in()) {
@@ -156,20 +322,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             $recording_types = array_merge($recording_types, $img['existing_types']);
         }
     }
-    $recording_types = array_unique($recording_types);
-    $dropdown_types = [];
-    if (!empty($recording_types)) {
-        foreach ($recording_types as $slug) {
-            $term = get_term_by('slug', $slug, 'recording_type');
-            if ($term && !is_wp_error($term)) {
-                $dropdown_types[] = [
-                    'slug' => $term->slug,
-                    'name' => ll_get_recording_type_name($term->slug, $term->name),
-                    'term_id' => $term->term_id,
-                ];
-            }
-        }
-    }
+    $dropdown_types = ll_build_recording_type_payload($recording_types);
 
     // Get current user info for display
     $current_user = wp_get_current_user();
@@ -182,6 +335,10 @@ function ll_audio_recording_interface_shortcode($atts) {
         ]);
         if (is_wp_error($all_recording_types)) {
             $all_recording_types = [];
+        } else {
+            usort($all_recording_types, static function ($left, $right) {
+                return ll_compare_recording_type_slugs($left->slug, $right->slug);
+            });
         }
     }
 
@@ -195,6 +352,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'wordset_ids'     => $wordset_term_ids,
         'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
         'recording_types' => $dropdown_types,
+        'recording_type_order' => ll_get_recording_type_prompt_order(),
+        'recording_type_icons' => ll_get_recording_type_icons_map(),
         'allow_new_words' => $allow_new_words,
         'assembly_enabled' => ((string) get_option('ll_assemblyai_api_key', '') !== ''),
         'deepl_enabled'    => ((string) get_option('ll_deepl_api_key', '') !== ''),
@@ -347,9 +506,19 @@ function ll_audio_recording_interface_shortcode($atts) {
                         <div class="ll-new-word-types">
                             <?php if (!empty($all_recording_types)): ?>
                                 <?php foreach ($all_recording_types as $type): ?>
-                                    <label>
-                                        <input type="checkbox" value="<?php echo esc_attr($type->slug); ?>" <?php checked($type->slug, 'isolation'); ?> />
-                                        <?php echo esc_html(ll_get_recording_type_name($type->slug, $type->name)); ?>
+                                    <?php
+                                    $type_name = ll_get_recording_type_name($type->slug, $type->name);
+                                    $type_icon = ll_get_recording_type_icon($type->slug);
+                                    ?>
+                                    <label class="ll-recording-type-option" data-recording-type="<?php echo esc_attr($type->slug); ?>">
+                                        <input
+                                            type="checkbox"
+                                            value="<?php echo esc_attr($type->slug); ?>"
+                                            data-type-name="<?php echo esc_attr($type_name); ?>"
+                                            <?php checked($type->slug, 'isolation'); ?>
+                                        />
+                                        <span class="ll-recording-type-option-icon" aria-hidden="true"><?php echo esc_html($type_icon); ?></span>
+                                        <span class="ll-recording-type-option-label"><?php echo esc_html($type_name); ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -426,16 +595,24 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <!-- Recording type moved here for better visibility and more space -->
                 <div class="ll-recording-type-selector">
                     <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
+                    <?php
+                    $initial_recording_type = '';
+                    if (!empty($images_needing_audio[0]['missing_types']) && is_array($images_needing_audio[0]['missing_types'])) {
+                        $initial_recording_type = (string) $images_needing_audio[0]['missing_types'][0];
+                    } elseif (!empty($dropdown_types[0]['slug'])) {
+                        $initial_recording_type = (string) $dropdown_types[0]['slug'];
+                    }
+                    ?>
                     <select id="ll-recording-type">
                         <?php
                         if (!empty($dropdown_types) && !is_wp_error($dropdown_types)) {
                             foreach ($dropdown_types as $type) {
-                                $selected = ($type['slug'] === 'isolation' || (empty($images_needing_audio[0]['missing_types']) ? false : $type['slug'] === $images_needing_audio[0]['missing_types'][0])) ? 'selected' : '';
+                                $selected = ($type['slug'] === $initial_recording_type) ? 'selected' : '';
                                 printf(
                                     '<option value="%s" %s>%s</option>',
                                     esc_attr($type['slug']),
                                     $selected,
-                                    esc_html($type['name'])
+                                    esc_html($type['label'] ?? $type['name'])
                                 );
                             }
                         }
@@ -510,6 +687,7 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
     } elseif (!empty($exclude_types)) {
         $base_filtered = array_diff($base_filtered, $exclude_types);
     }
+    $base_filtered = ll_sort_recording_type_slugs(array_values($base_filtered));
 
     if (empty($base_filtered)) {
         return [];
@@ -563,7 +741,8 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
                 }
             }
         }
-        $filtered_types = array_values(array_intersect($desired, $base_filtered));
+        $desired = ll_sort_recording_type_slugs($desired);
+        $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired, $base_filtered)));
         if (empty($filtered_types)) { continue; }
 
         // Apply single-speaker gating only if requesting the full main set; otherwise, use global missing logic
@@ -611,7 +790,8 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
     $text_words = get_posts($word_args);
     foreach ($text_words as $word_id) {
         $desired = ll_tools_get_desired_recording_types_for_word($word_id);
-        $filtered_types = array_values(array_intersect($desired, $base_filtered));
+        $desired = ll_sort_recording_type_slugs($desired);
+        $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired, $base_filtered)));
         if (empty($filtered_types)) { continue; }
 
         $main_types = ll_tools_get_main_recording_types();
@@ -860,18 +1040,7 @@ function ll_get_images_for_recording_handler() {
             $recording_types = array_merge($recording_types, $img['existing_types']);
         }
     }
-    $recording_types = array_unique($recording_types);
-    $dropdown_types = [];
-    foreach ($recording_types as $slug) {
-        $term = get_term_by('slug', $slug, 'recording_type');
-        if ($term) {
-            $dropdown_types[] = [
-                'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug, $term->name),
-                'term_id' => $term->term_id,
-            ];
-        }
-    }
+    $dropdown_types = ll_build_recording_type_payload($recording_types);
 
     wp_send_json_success([
         'images' => $images,
@@ -936,23 +1105,14 @@ function ll_get_recording_types_for_category_handler() {
     } elseif (!empty($exclude_types)) {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
-    $filtered_types = array_values(array_intersect($desired_types, $filtered_types));
+    $filtered_types = ll_sort_recording_type_slugs($filtered_types);
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $filtered_types)));
 
     if (empty($filtered_types)) {
         wp_send_json_error('No recording types are available for this category');
     }
 
-    $dropdown_types = [];
-    foreach ($filtered_types as $slug) {
-        $term = get_term_by('slug', $slug, 'recording_type');
-        if ($term && !is_wp_error($term)) {
-            $dropdown_types[] = [
-                'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug, $term->name),
-                'term_id' => $term->term_id,
-            ];
-        }
-    }
+    $dropdown_types = ll_build_recording_type_payload($filtered_types);
 
     wp_send_json_success([
         'recording_types' => $dropdown_types,
@@ -1075,7 +1235,7 @@ function ll_prepare_new_word_recording_handler() {
     } elseif (!empty($exclude_types)) {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
-    $filtered_types = array_values(array_intersect($desired_types, $filtered_types));
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $filtered_types)));
 
     if (empty($filtered_types)) {
         wp_send_json_error('No recording types are available for this category');
@@ -1135,17 +1295,7 @@ function ll_prepare_new_word_recording_handler() {
 
     $display_text = $post_title;
 
-    $dropdown_types = [];
-    foreach ($filtered_types as $slug) {
-        $term = get_term_by('slug', $slug, 'recording_type');
-        if ($term && !is_wp_error($term)) {
-            $dropdown_types[] = [
-                'slug' => $term->slug,
-                'name' => ll_get_recording_type_name($term->slug, $term->name),
-                'term_id' => $term->term_id,
-            ];
-        }
-    }
+    $dropdown_types = ll_build_recording_type_payload($filtered_types);
 
     $item = [
         'id'               => 0,
@@ -1159,7 +1309,7 @@ function ll_prepare_new_word_recording_handler() {
             ? ($translation_text !== '' ? $translation_text : '')
             : ($target_text !== '' ? $target_text : ''),
         'use_word_display' => true,
-        'missing_types'    => array_values($filtered_types),
+        'missing_types'    => ll_sort_recording_type_slugs($filtered_types),
         'existing_types'   => [],
         'is_text_only'     => true,
     ];
@@ -1647,6 +1797,7 @@ function ll_verify_recording_handler() {
     $filtered_types = $all_types;
     if (!empty($inc))  $filtered_types = array_values(array_intersect($filtered_types, $inc));
     elseif (!empty($exc)) $filtered_types = array_values(array_diff($filtered_types, $exc));
+    $filtered_types = ll_sort_recording_type_slugs($filtered_types);
 
     // Look for a recent child "word_audio" with this type
     $args = [
@@ -1670,7 +1821,8 @@ function ll_verify_recording_handler() {
     // Recompute remaining types, respecting desired types and only applying single-speaker logic
     // when the full main set is requested.
     $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $filtered_types = array_values(array_intersect($filtered_types, $desired_word));
+    $desired_word = ll_sort_recording_type_slugs($desired_word);
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
 
     $main_types = ll_tools_get_main_recording_types();
     $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
@@ -1699,7 +1851,7 @@ function ll_verify_recording_handler() {
     wp_send_json_success([
         'found_audio_post_id' => $found,
         'word_id'             => $word_id,
-        'remaining_types'     => array_values($remaining_missing),
+        'remaining_types'     => ll_sort_recording_type_slugs($remaining_missing),
     ]);
 }
 
@@ -1791,6 +1943,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     } elseif (!empty($exclude_types)) {
         $filtered_types = array_diff($filtered_types, $exclude_types);
     }
+    $filtered_types = ll_sort_recording_type_slugs(array_values($filtered_types));
 
     if (empty($filtered_types)) {
         return [];
@@ -1884,7 +2037,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                 $desired = ll_tools_get_uncategorized_desired_recording_types();
             }
         }
-        $types_for_item = array_values(array_intersect($desired, $filtered_types));
+        $desired = ll_sort_recording_type_slugs($desired);
+        $types_for_item = ll_sort_recording_type_slugs(array_values(array_intersect($desired, $filtered_types)));
 
         // Decide whether to enforce single-speaker gating and per-user missing logic
         $main_types = ll_tools_get_main_recording_types();
@@ -1909,6 +2063,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             $missing_types = $types_for_item;
             $existing_types = [];
         }
+        $missing_types = ll_sort_recording_type_slugs($missing_types);
+        $existing_types = ll_sort_recording_type_slugs($existing_types);
 
         if (!empty($missing_types)) {
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
@@ -2075,7 +2231,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         if (empty($desired) && !$category_disabled) {
             $desired = ll_tools_get_desired_recording_types_for_word($word_id);
         }
-        $types_for_word = array_values(array_intersect($desired, $filtered_types));
+        $desired = ll_sort_recording_type_slugs($desired);
+        $types_for_word = ll_sort_recording_type_slugs(array_values(array_intersect($desired, $filtered_types)));
         if (empty($types_for_word)) { continue; }
 
         $main_types = ll_tools_get_main_recording_types();
@@ -2090,6 +2247,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_word);
         }
         $existing_types = ll_get_existing_recording_types_for_word($word_id);
+        $missing_types = ll_sort_recording_type_slugs($missing_types);
+        $existing_types = ll_sort_recording_type_slugs($existing_types);
 
         if (!empty($missing_types)) {
             if (isset($active_category_term) && $active_category_term) {
@@ -2148,7 +2307,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $missing_audio_instances = is_array($missing_audio_instances) ? $missing_audio_instances : [];
         if (!empty($missing_audio_instances)) {
             $uncat_desired = ll_tools_get_uncategorized_desired_recording_types();
-            $types_for_missing = array_values(array_intersect($uncat_desired, $filtered_types));
+            $uncat_desired = ll_sort_recording_type_slugs($uncat_desired);
+            $types_for_missing = ll_sort_recording_type_slugs(array_values(array_intersect($uncat_desired, $filtered_types)));
 
             if (!empty($types_for_missing)) {
                 if (!isset($items_by_category['uncategorized'])) {
@@ -2188,6 +2348,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                             $existing_types = ll_get_existing_recording_types_for_word($word_id);
                         }
                     }
+                    $missing_types = ll_sort_recording_type_slugs($missing_types);
+                    $existing_types = ll_sort_recording_type_slugs($existing_types);
 
                     if (empty($missing_types)) {
                         continue;
@@ -2301,7 +2463,7 @@ function ll_get_existing_recording_types_for_word(int $word_id): array {
             }
         }
     }
-    return array_values(array_unique($existing));
+    return ll_sort_recording_type_slugs(array_values(array_unique($existing)));
 }
 
 /**
@@ -2316,7 +2478,7 @@ function ll_get_existing_recording_types_for_word(int $word_id): array {
 function ll_get_missing_recording_types_for_word(int $word_id, array $filtered_types, bool $ignore_skipped = false): array {
     $existing = ll_get_existing_recording_types_for_word($word_id);
     $missing = array_values(array_diff($filtered_types, $existing));
-    return $missing;
+    return ll_sort_recording_type_slugs($missing);
 }
 
 /**
@@ -2341,7 +2503,7 @@ function ll_get_existing_recording_types_for_word_by_user(int $word_id, int $use
             foreach ($terms as $slug) { $existing[] = $slug; }
         }
     }
-    return array_values(array_unique($existing));
+    return ll_sort_recording_type_slugs(array_values(array_unique($existing)));
 }
 
 /**
@@ -2351,7 +2513,7 @@ function ll_get_existing_recording_types_for_word_by_user(int $word_id, int $use
 function ll_get_user_missing_recording_types_for_word(int $word_id, array $filtered_types, int $user_id, bool $ignore_skipped = false): array {
     $user_existing = ll_get_existing_recording_types_for_word_by_user($word_id, $user_id);
     $missing = array_values(array_diff($filtered_types, $user_existing));
-    return $missing;
+    return ll_sort_recording_type_slugs($missing);
 }
 
 /**
@@ -2629,6 +2791,7 @@ function ll_skip_recording_type_handler() {
     } elseif (!empty($exclude_types)) {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
+    $filtered_types = ll_sort_recording_type_slugs($filtered_types);
 
     if ($image_id) {
         $image_post = get_post($image_id);
@@ -2657,7 +2820,8 @@ function ll_skip_recording_type_handler() {
 
     // Remaining types, applying single-speaker logic only when collecting the full main set
     $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $filtered_types = array_values(array_intersect($filtered_types, $desired_word));
+    $desired_word = ll_sort_recording_type_slugs($desired_word);
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
 
     $main_types = ll_tools_get_main_recording_types();
     $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
@@ -2675,9 +2839,10 @@ function ll_skip_recording_type_handler() {
     if ($recording_type) {
         $remaining_missing = array_values(array_diff($remaining_missing, [$recording_type]));
     }
+    $remaining_missing = ll_sort_recording_type_slugs($remaining_missing);
 
     wp_send_json_success([
-        'remaining_types' => array_values($remaining_missing),
+        'remaining_types' => $remaining_missing,
     ]);
 }
 
@@ -3067,6 +3232,7 @@ function ll_handle_recording_upload() {
     } elseif (!empty($exclude_types)) {
         $filtered_types = array_values(array_diff($filtered_types, $exclude_types));
     }
+    $filtered_types = ll_sort_recording_type_slugs($filtered_types);
 
     if ($image_id) {
         $image_post = get_post($image_id);
@@ -3175,7 +3341,8 @@ function ll_handle_recording_upload() {
     // Recompute remaining types using the same rules as the UI: honor desired types
     // and only apply single-speaker gating when the full main set is being collected.
     $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $filtered_types = array_values(array_intersect($filtered_types, $desired_word));
+    $desired_word = ll_sort_recording_type_slugs($desired_word);
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
 
     $main_types = ll_tools_get_main_recording_types();
     $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
@@ -3249,7 +3416,7 @@ function ll_handle_recording_upload() {
         'audio_post_id'   => (int) $audio_post_id,
         'word_id'         => (int) $word_id,
         'recording_type'  => $recording_type,
-        'remaining_types' => array_values($remaining_missing),
+        'remaining_types' => ll_sort_recording_type_slugs($remaining_missing),
     ]);
 }
 

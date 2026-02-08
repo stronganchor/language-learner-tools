@@ -17,6 +17,55 @@ function ll_register_audio_processor_page() {
 }
 add_action('admin_menu', 'll_register_audio_processor_page');
 
+function ll_audio_processor_get_recording_type_icons_map() {
+    if (function_exists('ll_get_recording_type_icons_map')) {
+        $map = ll_get_recording_type_icons_map();
+        if (is_array($map) && !empty($map)) {
+            return $map;
+        }
+    }
+
+    return [
+        'isolation'    => '🔍',
+        'introduction' => '💬',
+        'question'     => '❓',
+        'sentence'     => '📝',
+        'default'      => '🎙️',
+    ];
+}
+
+function ll_audio_processor_get_recording_type_icon($slug) {
+    if (function_exists('ll_get_recording_type_icon')) {
+        return (string) ll_get_recording_type_icon($slug);
+    }
+    $map = ll_audio_processor_get_recording_type_icons_map();
+    $key = sanitize_title((string) $slug);
+    if ($key !== '' && !empty($map[$key])) {
+        return (string) $map[$key];
+    }
+    return (string) ($map['default'] ?? '');
+}
+
+function ll_audio_processor_get_recording_type_name($slug, $term_name = '') {
+    if (function_exists('ll_get_recording_type_name')) {
+        return (string) ll_get_recording_type_name($slug, $term_name);
+    }
+    if ((string) $term_name !== '') {
+        return (string) $term_name;
+    }
+    $normalized = trim((string) $slug);
+    if ($normalized === '') {
+        return '';
+    }
+    return ucwords(str_replace(['-', '_'], ' ', $normalized));
+}
+
+function ll_audio_processor_get_recording_type_label($slug, $term_name = '') {
+    $name = ll_audio_processor_get_recording_type_name($slug, $term_name);
+    $icon = ll_audio_processor_get_recording_type_icon($slug);
+    return trim($icon . ' ' . $name);
+}
+
 function ll_enqueue_audio_processor_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-processor') return;
 
@@ -27,10 +76,20 @@ function ll_enqueue_audio_processor_assets($hook) {
 
     $recording_type_choices = [];
     if (!is_wp_error($recording_type_terms)) {
+        usort($recording_type_terms, static function ($left, $right) {
+            if (function_exists('ll_compare_recording_type_slugs')) {
+                return ll_compare_recording_type_slugs($left->slug, $right->slug);
+            }
+            return strnatcasecmp((string) $left->slug, (string) $right->slug);
+        });
+
         foreach ($recording_type_terms as $term) {
+            $name = ll_audio_processor_get_recording_type_name($term->slug, $term->name);
             $recording_type_choices[] = [
                 'slug' => $term->slug,
-                'name' => $term->name,
+                'name' => $name,
+                'icon' => ll_audio_processor_get_recording_type_icon($term->slug),
+                'label' => ll_audio_processor_get_recording_type_label($term->slug, $term->name),
             ];
         }
     }
@@ -47,6 +106,7 @@ function ll_enqueue_audio_processor_assets($hook) {
         'nonce' => wp_create_nonce('ll_audio_processor'),
         'recordings' => $recordings,
         'recordingTypes' => $recording_type_choices,
+        'recordingTypeIcons' => ll_audio_processor_get_recording_type_icons_map(),
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
@@ -131,8 +191,23 @@ function ll_get_unprocessed_recordings() {
 
                 // Get recording type names
                 $recording_type_terms = wp_get_post_terms($audio_post_id, 'recording_type');
-                $recording_type_names = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'name') : [];
-                $recording_type_slugs = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) ? wp_list_pluck($recording_type_terms, 'slug') : [];
+                $recording_type_names = [];
+                $recording_type_slugs = [];
+                $recording_type_items = [];
+                if (!is_wp_error($recording_type_terms) && !empty($recording_type_terms)) {
+                    foreach ($recording_type_terms as $term) {
+                        $slug = (string) $term->slug;
+                        $name = ll_audio_processor_get_recording_type_name($slug, $term->name);
+                        $recording_type_slugs[] = $slug;
+                        $recording_type_names[] = $name;
+                        $recording_type_items[] = [
+                            'slug' => $slug,
+                            'name' => $name,
+                            'icon' => ll_audio_processor_get_recording_type_icon($slug),
+                            'label' => ll_audio_processor_get_recording_type_label($slug, $term->name),
+                        ];
+                    }
+                }
                 $recording_type_slug = !empty($recording_type_slugs) ? $recording_type_slugs[0] : '';
 
                 // Get image thumbnail
@@ -146,6 +221,7 @@ function ll_get_unprocessed_recordings() {
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
                     'wordsets' => $wordset_names,
                     'recordingTypes' => $recording_type_names,
+                    'recordingTypeItems' => $recording_type_items,
                     'recordingType' => $recording_type_slug,
                     'imageUrl' => $image_url ?: '',
                     'parentWordId' => (int) $parent_word_id,
@@ -199,9 +275,31 @@ function ll_get_unprocessed_recordings() {
 }
 
 function ll_render_audio_processor_recording_item($recording, $duplicate_reason = '') {
-    $recording_type_label = !empty($recording['recordingTypes'])
-        ? implode(', ', $recording['recordingTypes'])
-        : __('Unassigned', 'll-tools-text-domain');
+    $recording_type_items = [];
+    if (!empty($recording['recordingTypeItems']) && is_array($recording['recordingTypeItems'])) {
+        foreach ($recording['recordingTypeItems'] as $item) {
+            $slug = sanitize_title((string) ($item['slug'] ?? ''));
+            if ($slug === '') {
+                continue;
+            }
+            $name = ll_audio_processor_get_recording_type_name($slug, (string) ($item['name'] ?? ''));
+            $recording_type_items[] = [
+                'slug' => $slug,
+                'name' => $name,
+                'icon' => ll_audio_processor_get_recording_type_icon($slug),
+            ];
+        }
+    } elseif (!empty($recording['recordingType'])) {
+        $slug = sanitize_title((string) $recording['recordingType']);
+        if ($slug !== '') {
+            $fallback_name = !empty($recording['recordingTypes'][0]) ? (string) $recording['recordingTypes'][0] : '';
+            $recording_type_items[] = [
+                'slug' => $slug,
+                'name' => ll_audio_processor_get_recording_type_name($slug, $fallback_name),
+                'icon' => ll_audio_processor_get_recording_type_icon($slug),
+            ];
+        }
+    }
 
     $duplicate_label = '';
     if ($duplicate_reason === 'published') {
@@ -223,7 +321,23 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
                     <?php endif; ?>
                     <span class="ll-recording-type">
                         <span class="ll-recording-meta-label"><?php echo esc_html__('Type', 'll-tools-text-domain'); ?>:</span>
-                        <span class="ll-recording-meta-value"><?php echo esc_html($recording_type_label); ?></span>
+                        <span class="ll-recording-meta-value">
+                            <?php if (!empty($recording_type_items)): ?>
+                                <?php foreach ($recording_type_items as $index => $type): ?>
+                                    <span class="ll-recording-type-entry" data-recording-type="<?php echo esc_attr($type['slug']); ?>">
+                                        <span class="ll-recording-type-icon" aria-hidden="true"><?php echo esc_html($type['icon']); ?></span>
+                                        <span class="ll-recording-type-text"><?php echo esc_html($type['name']); ?></span>
+                                    </span>
+                                    <?php if ($index < (count($recording_type_items) - 1)): ?>
+                                        <span class="ll-recording-type-separator" aria-hidden="true">, </span>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <span class="ll-recording-type-entry">
+                                    <span class="ll-recording-type-text"><?php echo esc_html__('Unassigned', 'll-tools-text-domain'); ?></span>
+                                </span>
+                            <?php endif; ?>
+                        </span>
                     </span>
                     <?php if ($duplicate_label): ?>
                         <span class="ll-recording-duplicate"><?php echo esc_html($duplicate_label); ?></span>
