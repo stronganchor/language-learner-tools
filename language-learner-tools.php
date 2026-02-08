@@ -190,7 +190,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
     }
 
     $url = admin_url('options-general.php?page=' . LL_TOOLS_SETTINGS_SLUG);
-    $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools') . '</a>';
+    $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools-text-domain') . '</a>';
 
     array_unshift($links, $settings_link);
     return $links;

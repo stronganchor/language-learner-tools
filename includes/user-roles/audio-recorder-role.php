@@ -21,7 +21,7 @@ function ll_tools_register_or_refresh_audio_recorder_role() {
     if (!$role) {
         add_role(
             'audio_recorder',
-            __('Audio Recorder', 'll-tools'),
+            __('Audio Recorder', 'll-tools-text-domain'),
             array(
                 'read'         => true,
                 'upload_files' => true,
@@ -59,10 +59,13 @@ add_action('init', 'll_tools_register_or_refresh_audio_recorder_role', 1);
 
 /**
  * Helper: who can record?
- * You’re gating on `upload_files`, so centralize the check.
+ * Recording access requires media upload capability plus LL Tools access
+ * (or stricter manage_options access).
  */
 function ll_tools_user_can_record() {
-    return is_user_logged_in() && current_user_can('upload_files');
+    return is_user_logged_in()
+        && current_user_can('upload_files')
+        && (current_user_can('view_ll_tools') || current_user_can('manage_options'));
 }
 
 /**

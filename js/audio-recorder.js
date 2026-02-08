@@ -45,6 +45,14 @@
     const recordingTypeIcons = (window.ll_recorder_data && typeof window.ll_recorder_data.recording_type_icons === 'object' && window.ll_recorder_data.recording_type_icons !== null)
         ? window.ll_recorder_data.recording_type_icons
         : {};
+    const transcribePollAttemptsRaw = parseInt(window.ll_recorder_data?.transcribe_poll_attempts, 10);
+    const transcribePollIntervalRaw = parseInt(window.ll_recorder_data?.transcribe_poll_interval_ms, 10);
+    const transcribePollAttempts = Number.isFinite(transcribePollAttemptsRaw) && transcribePollAttemptsRaw > 0
+        ? transcribePollAttemptsRaw
+        : 20;
+    const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
+        ? transcribePollIntervalRaw
+        : 1200;
     const processingDefaults = {
         enableTrim: true,
         enableNoise: true,
@@ -820,6 +828,97 @@
         return '.webm';
     }
 
+    function createAbortError() {
+        const err = new Error('Request aborted');
+        err.name = 'AbortError';
+        return err;
+    }
+
+    function waitForDuration(ms, signal) {
+        if (!ms || ms <= 0) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const onAbort = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (signal) {
+                    signal.removeEventListener('abort', onAbort);
+                }
+                reject(createAbortError());
+            };
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                if (signal) {
+                    signal.removeEventListener('abort', onAbort);
+                }
+                resolve();
+            }, ms);
+
+            if (signal) {
+                if (signal.aborted) {
+                    onAbort();
+                    return;
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
+        });
+    }
+
+    async function pollNewWordTranscription(transcriptId, wordsetIds, wordsetLegacy, signal) {
+        if (!transcriptId) {
+            throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+        }
+
+        for (let attempt = 0; attempt < transcribePollAttempts; attempt++) {
+            if (signal?.aborted || newWordAutoCancelled) {
+                throw createAbortError();
+            }
+
+            if (attempt > 0) {
+                await waitForDuration(transcribePollIntervalMs, signal);
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'll_transcribe_recording_status');
+            formData.append('nonce', nonce);
+            formData.append('transcript_id', transcriptId);
+            formData.append('wordset_ids', JSON.stringify(wordsetIds));
+            formData.append('wordset', wordsetLegacy);
+
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+                signal
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                const message = data.data?.message || data.data || data.message || 'Transcription failed';
+                throw new Error(message);
+            }
+
+            const payload = data.data || {};
+            if (!payload.pending) {
+                return payload;
+            }
+        }
+
+        throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+    }
+
     async function maybeTranslateTargetText(text) {
         const el = window.llRecorder;
         if (!hasDeepl || !text) return;
@@ -940,12 +1039,22 @@
                 throw new Error(message);
             }
 
+            let resultData = data.data || {};
+            if (resultData.pending) {
+                resultData = await pollNewWordTranscription(
+                    resultData.transcript_id || '',
+                    wordsetIds,
+                    wordsetLegacy,
+                    transcribeController.signal
+                );
+            }
+
             if (newWordAutoCancelled || transcribeController.signal.aborted) {
                 return;
             }
 
-            const transcript = (data.data?.transcript || '').trim();
-            const translation = (data.data?.translation || '').trim();
+            const transcript = (resultData.transcript || '').trim();
+            const translation = (resultData.translation || '').trim();
 
             if (transcript && el.newWordTextTarget) {
                 if ((el.newWordTextTarget.value || '').trim() === '' || el.newWordTextTarget.dataset.llManual !== '1') {

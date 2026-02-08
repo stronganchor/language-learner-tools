@@ -8,6 +8,14 @@
     const editI18n = cfg.editI18n || {};
     const bulkI18n = cfg.bulkI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
+    const transcribePollAttemptsRaw = parseInt(cfg.transcribePollAttempts, 10);
+    const transcribePollIntervalRaw = parseInt(cfg.transcribePollIntervalMs, 10);
+    const transcribePollAttempts = Number.isFinite(transcribePollAttemptsRaw) && transcribePollAttemptsRaw > 0
+        ? transcribePollAttemptsRaw
+        : 20;
+    const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
+        ? transcribePollIntervalRaw
+        : 1200;
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
     const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
     const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
@@ -2959,6 +2967,7 @@
                     active: false,
                     cancelled: false,
                     request: null,
+                    pollTimer: null,
                     queue: [],
                     total: 0,
                     completed: 0,
@@ -2981,6 +2990,10 @@
             const state = getTranscribeState($wrap);
             state.active = false;
             state.cancelled = false;
+            if (state.pollTimer) {
+                window.clearTimeout(state.pollTimer);
+                state.pollTimer = null;
+            }
             state.request = null;
             state.queue = [];
             state.total = 0;
@@ -3038,6 +3051,10 @@
             state.cancelled = false;
             state.hadError = false;
             state.force = force;
+            if (state.pollTimer) {
+                window.clearTimeout(state.pollTimer);
+                state.pollTimer = null;
+            }
             state.queue = [];
             state.total = 0;
             state.completed = 0;
@@ -3096,36 +3113,66 @@
                         false
                     );
 
-                    state.request = $.post(ajaxUrl, {
-                        action: 'll_tools_transcribe_recording_by_id',
-                        nonce: editNonce,
-                        lesson_id: lessonId,
-                        recording_id: recordingId,
-                        force: state.force ? 1 : 0
-                    }).done(function (res) {
-                        if (state.cancelled) {
-                            return;
+                    const requestTranscription = function (transcriptId, attempt) {
+                        const payload = {
+                            action: 'll_tools_transcribe_recording_by_id',
+                            nonce: editNonce,
+                            lesson_id: lessonId,
+                            recording_id: recordingId,
+                            force: state.force ? 1 : 0
+                        };
+                        if (transcriptId) {
+                            payload.transcript_id = transcriptId;
                         }
-                        if (res && res.success === true) {
-                            const rec = res.data && res.data.recording ? res.data.recording : null;
+
+                        state.request = $.post(ajaxUrl, payload).done(function (res) {
+                            if (state.cancelled) {
+                                finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                                return;
+                            }
+                            if (!res || res.success !== true) {
+                                state.hadError = true;
+                                processNext();
+                                return;
+                            }
+
+                            const data = res.data || {};
+                            if (data.pending) {
+                                const nextTranscriptId = typeof data.transcript_id === 'string' ? data.transcript_id : '';
+                                if (!nextTranscriptId || (attempt + 1) >= transcribePollAttempts) {
+                                    state.hadError = true;
+                                    processNext();
+                                    return;
+                                }
+                                state.pollTimer = window.setTimeout(function () {
+                                    state.pollTimer = null;
+                                    requestTranscription(nextTranscriptId, attempt + 1);
+                                }, transcribePollIntervalMs);
+                                return;
+                            }
+
+                            const rec = data.recording ? data.recording : null;
                             if (rec) {
                                 applyRecordingUpdate(rec);
                             }
-                            const word = res.data && res.data.word ? res.data.word : null;
+                            const word = data.word ? data.word : null;
                             if (word) {
                                 applyWordUpdate(word);
                             }
-                        } else {
+                            processNext();
+                        }).fail(function () {
+                            if (state.cancelled) {
+                                finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                                return;
+                            }
                             state.hadError = true;
-                        }
-                    }).fail(function () {
-                        if (!state.cancelled) {
-                            state.hadError = true;
-                        }
-                    }).always(function () {
-                        state.request = null;
-                        processNext();
-                    });
+                            processNext();
+                        }).always(function () {
+                            state.request = null;
+                        });
+                    };
+
+                    requestTranscription('', 0);
                 };
 
                 processNext();

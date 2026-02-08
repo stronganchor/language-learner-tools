@@ -7,12 +7,12 @@
  */
 function ll_tools_register_word_category_taxonomy() {
     $labels = [
-        "name" => esc_html__("Word Categories", "astra"),
-        "singular_name" => esc_html__("Word Category", "astra"),
+        "name" => esc_html__("Word Categories", "ll-tools-text-domain"),
+        "singular_name" => esc_html__("Word Category", "ll-tools-text-domain"),
     ];
 
     $args = [
-        "label" => esc_html__("Word Categories", "astra"),
+        "label" => esc_html__("Word Categories", "ll-tools-text-domain"),
         "labels" => $labels,
         "public" => true,
         "publicly_queryable" => true,
@@ -1494,13 +1494,7 @@ function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $scrip
         return;
     }
 
-    wp_enqueue_script(
-        $script_handle,
-        plugins_url($script_path, LL_TOOLS_MAIN_FILE),
-        ['jquery', 'inline-edit-post'],
-        filemtime(LL_TOOLS_BASE_PATH . $script_path),
-        true
-    );
+    ll_enqueue_asset_by_timestamp($script_path, $script_handle, ['jquery', 'inline-edit-post'], true);
 
     wp_localize_script($script_handle, 'llBulkEditData', [
         'ajaxurl' => admin_url('admin-ajax.php'),

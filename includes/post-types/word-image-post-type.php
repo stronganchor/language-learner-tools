@@ -3,12 +3,12 @@
 // Register the "word_images" custom post type
 function ll_tools_register_word_images_post_type() {
     $labels = [
-        "name" => esc_html__("Word Images", "astra"),
-        "singular_name" => esc_html__("Word Image", "astra"),
+        "name" => esc_html__("Word Images", "ll-tools-text-domain"),
+        "singular_name" => esc_html__("Word Image", "ll-tools-text-domain"),
     ];
 
     $args = [
-        "label" => esc_html__("Word Images", "astra"),
+        "label" => esc_html__("Word Images", "ll-tools-text-domain"),
         "labels" => $labels,
         "description" => "",
         "public" => true,

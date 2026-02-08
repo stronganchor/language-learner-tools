@@ -200,19 +200,30 @@ function ll_tools_assemblyai_get_transcript($transcript_id) {
 }
 
 /**
- * Upload and transcribe an audio file with AssemblyAI.
+ * Upload an audio file and create a transcript request in AssemblyAI.
+ *
+ * @param string $file_path
+ * @param string $language_code
+ * @return string|WP_Error Transcript ID
+ */
+function ll_tools_assemblyai_start_transcription($file_path, $language_code = '') {
+    $upload_url = ll_tools_assemblyai_upload_audio($file_path);
+    if (is_wp_error($upload_url)) {
+        return $upload_url;
+    }
+
+    return ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+}
+
+/**
+ * Upload and transcribe an audio file with AssemblyAI (blocking helper).
  *
  * @param string $file_path
  * @param string $language_code
  * @return array|WP_Error
  */
 function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '') {
-    $upload_url = ll_tools_assemblyai_upload_audio($file_path);
-    if (is_wp_error($upload_url)) {
-        return $upload_url;
-    }
-
-    $transcript_id = ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code);
     if (is_wp_error($transcript_id)) {
         return $transcript_id;
     }

@@ -363,6 +363,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'include_types'    => $atts['include_recording_types'],
         'exclude_types'    => $atts['exclude_recording_types'],
         'auto_process_recordings' => $auto_process_recordings,
+        'transcribe_poll_attempts' => (int) apply_filters('ll_tools_recorder_transcribe_poll_attempts', 20),
+        'transcribe_poll_interval_ms' => (int) apply_filters('ll_tools_recorder_transcribe_poll_interval_ms', 1200),
         'current_user_id'  => get_current_user_id(),
         'i18n' => [
             'uploading' => __('Uploading...', 'll-tools-text-domain'),
@@ -396,6 +398,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             'transcribing'        => __('Transcribing...', 'll-tools-text-domain'),
             'translating'         => __('Translating...', 'll-tools-text-domain'),
             'transcription_failed'=> __('Transcription failed:', 'll-tools-text-domain'),
+            'transcription_timeout'=> __('Transcription is still processing. Please try again in a moment.', 'll-tools-text-domain'),
             'transcription_unavailable' => __('Speech-to-text is not available. Please enter the word manually.', 'll-tools-text-domain'),
             'translation_failed'  => __('Translation failed:', 'll-tools-text-domain'),
             'translation_ready'   => __('Translation ready.', 'll-tools-text-domain'),
@@ -927,45 +930,8 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
         return '<p>' . implode('</p><p>', $messages) . '</p>';
     }
 
-    // At this point we have images with featured images and categories
-    // Check recording types
-    $is_uncategorized_request = ($category_slug === 'uncategorized');
-    $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
-    $active_category_term = null;
-    if (!empty($category_slug) && !$is_uncategorized_request) {
-        $active_category_term = get_term_by('slug', $category_slug, 'word-category');
-        if ($active_category_term && is_wp_error($active_category_term)) {
-            $active_category_term = null;
-        }
-    }
-    $active_category_term = null;
-    if (!empty($category_slug) && !$is_uncategorized_request) {
-        $term = get_term_by('slug', $category_slug, 'word-category');
-        if ($term && !is_wp_error($term)) {
-            $active_category_term = $term;
-        }
-    }
-    $active_category_term = null;
-    if (!empty($category_slug) && !$is_uncategorized_request) {
-        $term = get_term_by('slug', $category_slug, 'word-category');
-        if ($term && !is_wp_error($term)) {
-            $active_category_term = $term;
-        }
-    }
-    $active_category_term = null;
-    if (!empty($category_slug) && !$is_uncategorized_request) {
-        $term = get_term_by('slug', $category_slug, 'word-category');
-        if ($term && !is_wp_error($term)) {
-            $active_category_term = $term;
-        }
-    }
-    $active_category_term = null;
-    if (!empty($category_slug) && !$is_uncategorized_request) {
-        $term = get_term_by('slug', $category_slug, 'word-category');
-        if ($term && !is_wp_error($term)) {
-            $active_category_term = $term;
-        }
-    }
+    // At this point we have images with featured images and categories.
+    // Check recording types.
 
     $all_types = get_terms([
         'taxonomy' => 'recording_type',
@@ -1006,13 +972,15 @@ function ll_diagnose_no_categories($wordset_term_ids, $include_types_csv, $exclu
  * AJAX handler to get new images for a selected category
  */
 add_action('wp_ajax_ll_get_images_for_recording', 'll_get_images_for_recording_handler');
-add_action('wp_ajax_nopriv_ll_get_images_for_recording', 'll_get_images_for_recording_handler');
 
 function ll_get_images_for_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
         wp_send_json_error('You must be logged in');
+    }
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to record audio', 403);
     }
 
     if (!isset($_POST['category']) || !isset($_POST['wordset_ids'])) {
@@ -1021,7 +989,7 @@ function ll_get_images_for_recording_handler() {
 
     $category = sanitize_text_field($_POST['category']);
     $wordset_ids = json_decode(stripslashes($_POST['wordset_ids']), true);
-    $wordset_term_ids = array_map('intval', $wordset_ids);
+    $wordset_term_ids = is_array($wordset_ids) ? array_map('intval', $wordset_ids) : [];
     $include_types = isset($_POST['include_types']) ? sanitize_text_field($_POST['include_types']) : '';
     $exclude_types = isset($_POST['exclude_types']) ? sanitize_text_field($_POST['exclude_types']) : '';
 
@@ -1058,7 +1026,7 @@ function ll_get_recording_types_for_category_handler() {
         wp_send_json_error('You must be logged in');
     }
 
-    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+    if (!ll_tools_user_can_record()) {
         wp_send_json_error('You do not have permission to record audio');
     }
 
@@ -1534,7 +1502,7 @@ function ll_update_new_word_text_handler() {
         wp_send_json_error('You must be logged in');
     }
 
-    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+    if (!ll_tools_user_can_record()) {
         wp_send_json_error('Forbidden', 403);
     }
 
@@ -1591,23 +1559,12 @@ function ll_update_new_word_text_handler() {
     ]);
 }
 
-// AJAX: transcribe a recording with AssemblyAI, optionally translate via DeepL
-add_action('wp_ajax_ll_transcribe_recording', 'll_transcribe_recording_handler');
-function ll_transcribe_recording_handler() {
-    check_ajax_referer('ll_upload_recording', 'nonce');
-
-    if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
-    }
-
-    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
-        wp_send_json_error('Forbidden', 403);
-    }
-
-    if (empty($_FILES['audio'])) {
-        wp_send_json_error('Missing audio file');
-    }
-
+/**
+ * Resolve wordset term IDs from recorder AJAX requests.
+ *
+ * @return int[]
+ */
+function ll_tools_get_recording_wordset_ids_from_request() {
     $posted_ids = [];
     if (isset($_POST['wordset_ids'])) {
         $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
@@ -1615,35 +1572,56 @@ function ll_transcribe_recording_handler() {
             $posted_ids = array_map('intval', $decoded);
         }
     }
+
     $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
     if (empty($posted_ids)) {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
     }
 
-    $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
+    return array_values(array_filter(array_map('intval', (array) $posted_ids), static function ($id) {
+        return $id > 0;
+    }));
+}
 
-    if (!function_exists('ll_tools_assemblyai_transcribe_audio_file')) {
-        wp_send_json_error('AssemblyAI integration not available');
-    }
-
-    $result = ll_tools_assemblyai_transcribe_audio_file($_FILES['audio']['tmp_name'], $language_code);
-    if (is_wp_error($result)) {
-        $code = $result->get_error_code();
-        $message = $result->get_error_message();
+/**
+ * Convert a WP_Error to the recorder AJAX error format.
+ *
+ * @param WP_Error $error
+ * @return void
+ */
+function ll_tools_send_recording_error($error) {
+    if (is_wp_error($error)) {
         wp_send_json_error([
-            'code' => $code,
-            'message' => $message,
+            'code' => (string) $error->get_error_code(),
+            'message' => (string) $error->get_error_message(),
         ]);
     }
 
-    $transcript = trim((string) ($result['text'] ?? ''));
+    wp_send_json_error([
+        'code' => 'unknown_error',
+        'message' => 'Unknown recorder error.',
+    ]);
+}
+
+/**
+ * Build recorder response payload from AssemblyAI text and optional DeepL translation.
+ *
+ * @param string $raw_transcript
+ * @param array  $posted_ids
+ * @param string $language_code
+ * @return array|WP_Error
+ */
+function ll_tools_prepare_transcription_response_data($raw_transcript, $posted_ids, $language_code = '') {
+    $transcript = trim((string) $raw_transcript);
     if ($transcript !== '' && function_exists('ll_tools_normalize_transcript_case')) {
         $transcript = ll_tools_normalize_transcript_case($transcript, $posted_ids);
     }
+
     $transcript = sanitize_text_field($transcript);
     if ($transcript === '') {
-        wp_send_json_error('No transcript text returned');
+        return new WP_Error('empty_transcript', 'No transcript text returned');
     }
+
     $trimmed = trim($transcript);
     $word_count = $trimmed === '' ? 0 : count(preg_split('/\s+/', $trimmed));
     if ($word_count > 0 && $word_count <= 3) {
@@ -1664,12 +1642,133 @@ function ll_transcribe_recording_handler() {
         }
     }
 
-    wp_send_json_success([
+    return [
         'transcript'      => $transcript,
         'translation'     => $translation,
         'source_language' => $source_lang,
         'target_language' => $target_lang,
         'language_code'   => $language_code,
+    ];
+}
+
+// AJAX: start transcription with AssemblyAI, optionally translate via DeepL
+add_action('wp_ajax_ll_transcribe_recording', 'll_transcribe_recording_handler');
+function ll_transcribe_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    if (empty($_FILES['audio'])) {
+        wp_send_json_error('Missing audio file');
+    }
+
+    $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
+    $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
+
+    if (!function_exists('ll_tools_assemblyai_start_transcription') || !function_exists('ll_tools_assemblyai_get_transcript')) {
+        wp_send_json_error('AssemblyAI integration not available');
+    }
+
+    $transcript_id = ll_tools_assemblyai_start_transcription($_FILES['audio']['tmp_name'], $language_code);
+    if (is_wp_error($transcript_id)) {
+        ll_tools_send_recording_error($transcript_id);
+    }
+
+    $status = ll_tools_assemblyai_get_transcript($transcript_id);
+    if (is_wp_error($status)) {
+        ll_tools_send_recording_error($status);
+    }
+
+    $state = isset($status['status']) ? (string) $status['status'] : '';
+    if ($state === 'completed') {
+        $payload = ll_tools_prepare_transcription_response_data($status['text'] ?? '', $posted_ids, $language_code);
+        if (is_wp_error($payload)) {
+            ll_tools_send_recording_error($payload);
+        }
+
+        $payload['pending'] = false;
+        $payload['transcript_id'] = (string) $transcript_id;
+        $payload['status'] = 'completed';
+        wp_send_json_success($payload);
+    }
+
+    if ($state === 'error') {
+        $message = isset($status['error']) ? (string) $status['error'] : 'AssemblyAI transcription failed.';
+        wp_send_json_error([
+            'code' => 'transcript_error',
+            'message' => $message,
+        ]);
+    }
+
+    wp_send_json_success([
+        'pending'         => true,
+        'transcript_id'   => (string) $transcript_id,
+        'status'          => ($state !== '' ? $state : 'processing'),
+        'language_code'   => $language_code,
+    ]);
+}
+
+// AJAX: poll AssemblyAI transcript status for recorder flow
+add_action('wp_ajax_ll_transcribe_recording_status', 'll_transcribe_recording_status_handler');
+function ll_transcribe_recording_status_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $transcript_id = sanitize_text_field($_POST['transcript_id'] ?? '');
+    if ($transcript_id === '') {
+        wp_send_json_error('Missing transcript ID');
+    }
+
+    if (!function_exists('ll_tools_assemblyai_get_transcript')) {
+        wp_send_json_error('AssemblyAI integration not available');
+    }
+
+    $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
+    $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
+    $status = ll_tools_assemblyai_get_transcript($transcript_id);
+    if (is_wp_error($status)) {
+        ll_tools_send_recording_error($status);
+    }
+
+    $state = isset($status['status']) ? (string) $status['status'] : '';
+    if ($state === 'completed') {
+        $payload = ll_tools_prepare_transcription_response_data($status['text'] ?? '', $posted_ids, $language_code);
+        if (is_wp_error($payload)) {
+            ll_tools_send_recording_error($payload);
+        }
+
+        $payload['pending'] = false;
+        $payload['transcript_id'] = $transcript_id;
+        $payload['status'] = 'completed';
+        wp_send_json_success($payload);
+    }
+
+    if ($state === 'error') {
+        $message = isset($status['error']) ? (string) $status['error'] : 'AssemblyAI transcription failed.';
+        wp_send_json_error([
+            'code' => 'transcript_error',
+            'message' => $message,
+        ]);
+    }
+
+    wp_send_json_success([
+        'pending'       => true,
+        'transcript_id' => $transcript_id,
+        'status'        => ($state !== '' ? $state : 'processing'),
+        'language_code' => $language_code,
     ]);
 }
 
@@ -1682,7 +1781,7 @@ function ll_translate_recording_text_handler() {
         wp_send_json_error('You must be logged in');
     }
 
-    if (!current_user_can('view_ll_tools') || !ll_tools_user_can_record()) {
+    if (!ll_tools_user_can_record()) {
         wp_send_json_error('Forbidden', 403);
     }
 
@@ -1699,17 +1798,7 @@ function ll_translate_recording_text_handler() {
         ]);
     }
 
-    $posted_ids = [];
-    if (isset($_POST['wordset_ids'])) {
-        $decoded = json_decode(stripslashes((string) $_POST['wordset_ids']), true);
-        if (is_array($decoded)) {
-            $posted_ids = array_map('intval', $decoded);
-        }
-    }
-    $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
-    if (empty($posted_ids)) {
-        $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
-    }
+    $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
 
     [$source_lang, $target_lang] = ll_tools_get_deepl_language_codes($posted_ids);
     if ($target_lang === '') {
@@ -1730,13 +1819,15 @@ function ll_translate_recording_text_handler() {
 
 // AJAX: verify a recording exists after a possibly misleading 500
 add_action('wp_ajax_ll_verify_recording', 'll_verify_recording_handler');
-add_action('wp_ajax_nopriv_ll_verify_recording', 'll_verify_recording_handler');
 
 function ll_verify_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
         wp_send_json_error('You must be logged in to verify recordings');
+    }
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to verify recordings', 403);
     }
 
     $image_id       = intval($_POST['image_id'] ?? 0);
@@ -2682,75 +2773,41 @@ function ll_image_has_word_with_audio($image_post_id) {
  */
 function ll_enqueue_recording_assets($auto_process_recordings = false) {
     // Enqueue flashcard styles first so recording interface can use them
-    wp_enqueue_style(
-        'll-flashcard-style',
-        plugins_url('css/flashcard/base.css', LL_TOOLS_MAIN_FILE),
-        [],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/base.css')
-    );
-
-    wp_enqueue_style(
-        'll-flashcard-mode-practice',
-        plugins_url('css/flashcard/mode-practice.css', LL_TOOLS_MAIN_FILE),
-        ['ll-flashcard-style'],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-practice.css')
-    );
-
-    wp_enqueue_style(
-        'll-flashcard-mode-learning',
-        plugins_url('css/flashcard/mode-learning.css', LL_TOOLS_MAIN_FILE),
-        ['ll-flashcard-style'],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-learning.css')
-    );
-
-    wp_enqueue_style(
-        'll-flashcard-mode-listening',
-        plugins_url('css/flashcard/mode-listening.css', LL_TOOLS_MAIN_FILE),
-        ['ll-flashcard-style'],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/flashcard/mode-listening.css')
-    );
-
-    wp_enqueue_style(
+    ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/css/flashcard/mode-practice.css', 'll-flashcard-mode-practice', ['ll-flashcard-style']);
+    ll_enqueue_asset_by_timestamp('/css/flashcard/mode-learning.css', 'll-flashcard-mode-learning', ['ll-flashcard-style']);
+    ll_enqueue_asset_by_timestamp('/css/flashcard/mode-listening.css', 'll-flashcard-mode-listening', ['ll-flashcard-style']);
+    ll_enqueue_asset_by_timestamp(
+        '/css/recording-interface.css',
         'll-recording-interface',
-        plugins_url('css/recording-interface.css', LL_TOOLS_MAIN_FILE),
         [
             'll-flashcard-style',
             'll-flashcard-mode-practice',
             'll-flashcard-mode-learning',
             'll-flashcard-mode-listening'
-        ],
-        filemtime(LL_TOOLS_BASE_PATH . 'css/recording-interface.css')
+        ]
     );
 
     if ($auto_process_recordings) {
-        wp_enqueue_style(
-            'll-audio-processor-css',
-            plugins_url('css/audio-processor.css', LL_TOOLS_MAIN_FILE),
-            ['ll-recording-interface'],
-            filemtime(LL_TOOLS_BASE_PATH . 'css/audio-processor.css')
-        );
+        ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css', ['ll-recording-interface']);
     }
 
-    wp_enqueue_script(
-        'll-audio-recorder',
-        plugins_url('js/audio-recorder.js', LL_TOOLS_MAIN_FILE),
-        [],
-        filemtime(LL_TOOLS_BASE_PATH . 'js/audio-recorder.js'),
-        true
-    );
+    ll_enqueue_asset_by_timestamp('/js/audio-recorder.js', 'll-audio-recorder', [], true);
 }
 
 /**
  * AJAX handler: Skip recording a type for a word
  */
 add_action('wp_ajax_ll_skip_recording_type', 'll_skip_recording_type_handler');
-add_action('wp_ajax_nopriv_ll_skip_recording_type', 'll_skip_recording_type_handler');
 
 function ll_skip_recording_type_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
         wp_send_json_error('You must be logged in to skip recordings');
+    }
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to skip recordings', 403);
     }
 
     $image_id       = intval($_POST['image_id'] ?? 0);
@@ -3166,7 +3223,6 @@ add_action('ll_tools_send_recording_notification_event', 'll_tools_send_recordin
  * AJAX handler: Upload recording and create word_audio post
  */
 add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
-add_action('wp_ajax_nopriv_ll_upload_recording', 'll_handle_recording_upload');
 
 function ll_handle_recording_upload() {
     check_ajax_referer('ll_upload_recording', 'nonce');

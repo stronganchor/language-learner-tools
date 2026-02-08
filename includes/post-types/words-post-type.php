@@ -15,12 +15,12 @@
 function ll_tools_register_words_post_type() {
 
     $labels = [
-        "name" => esc_html__( "Words", "astra" ),
-        "singular_name" => esc_html__( "Word", "astra" ),
+        "name" => esc_html__( "Words", "ll-tools-text-domain" ),
+        "singular_name" => esc_html__( "Word", "ll-tools-text-domain" ),
     ];
 
     $args = [
-        "label" => esc_html__( "Words", "astra" ),
+        "label" => esc_html__( "Words", "ll-tools-text-domain" ),
         "labels" => $labels,
         "description" => "",
         "public" => true,

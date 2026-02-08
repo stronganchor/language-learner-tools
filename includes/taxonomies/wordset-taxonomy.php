@@ -77,11 +77,11 @@ add_action('init', 'll_add_admin_caps_for_wordsets', 11);
 
 // Edit the columns on the word set taxonomy admin page
 function modify_wordset_columns($columns) {
-    $columns['ll_language'] = __('Language', 'textdomain');
+    $columns['ll_language'] = __('Language', 'll-tools-text-domain');
     
     // Don't remove columns if user is an administrator
     if (current_user_can('manage_options')) {
-        $columns['manager_user_id'] = __('Manager', 'textdomain');
+        $columns['manager_user_id'] = __('Manager', 'll-tools-text-domain');
         return $columns;
     }
 
@@ -213,13 +213,7 @@ add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
 
 // Enqueue the script for the wordset taxonomy
 function ll_enqueue_wordsets_script() {
-    // Assuming this function is in a file located in /pages/ directory of your plugin
-    // Go up one level to the plugin root, then into the /js/ directory
-    $js_path = LL_TOOLS_BASE_PATH . 'js/manage-wordsets.js';
-    $version = filemtime($js_path); // File modification time as version
-    $userId = get_current_user_id();
-
-    wp_enqueue_script('manage-wordsets-script', LL_TOOLS_BASE_URL . 'js/manage-wordsets.js', array('jquery', 'jquery-ui-autocomplete'), $version, true);
+    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete'), true);
 
     $languages = get_terms([
         'taxonomy' => 'language',
