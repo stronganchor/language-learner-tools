@@ -167,11 +167,19 @@ function ll_tools_display_vocab_content($content) {
 
         // Display the featured image if one is set.
         if (has_post_thumbnail($post->ID)) {
-            $custom_content .= get_the_post_thumbnail(
-                $post->ID,
-                'full',
-                array('class' => 'vocab-featured-image')
-            );
+            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
+                $custom_content .= ll_tools_get_post_thumbnail_html_with_repair(
+                    $post->ID,
+                    'full',
+                    array('class' => 'vocab-featured-image')
+                );
+            } else {
+                $custom_content .= get_the_post_thumbnail(
+                    $post->ID,
+                    'full',
+                    array('class' => 'vocab-featured-image')
+                );
+            }
         }
 
         // Show the English meaning as a heading.
@@ -241,7 +249,11 @@ function ll_render_words_columns($column, $post_id) {
             break;
 
         case 'featured_image':
-            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
+                $thumbnail = ll_tools_get_post_thumbnail_html_with_repair($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            } else {
+                $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            }
             echo $thumbnail ? $thumbnail : '—';
             break;
 

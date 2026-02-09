@@ -377,6 +377,18 @@ function ll_handle_image_file_uploads() {
             ], $upload_path);
 
             if ($attachment_id && !is_wp_error($attachment_id)) {
+                if (function_exists('ll_tools_maybe_regenerate_attachment_metadata')) {
+                    ll_tools_maybe_regenerate_attachment_metadata((int) $attachment_id);
+                } else {
+                    if (!function_exists('wp_generate_attachment_metadata')) {
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+                    }
+                    $metadata = wp_generate_attachment_metadata((int) $attachment_id, $upload_path);
+                    if (is_array($metadata) && !empty($metadata)) {
+                        wp_update_attachment_metadata((int) $attachment_id, $metadata);
+                    }
+                }
+
                 $post_id = wp_insert_post([
                     'post_title' => $original_title,
                     'post_content' => '',

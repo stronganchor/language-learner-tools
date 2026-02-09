@@ -37,6 +37,305 @@ function ll_tools_register_word_images_post_type() {
 }
 add_action('init', 'll_tools_register_word_images_post_type');
 
+/**
+ * Attachment metadata helpers.
+ */
+function ll_tools_attachment_metadata_needs_refresh($metadata) {
+    if (!is_array($metadata)) {
+        return true;
+    }
+
+    $width = isset($metadata['width']) ? (int) $metadata['width'] : 0;
+    $height = isset($metadata['height']) ? (int) $metadata['height'] : 0;
+
+    return ($width <= 1 || $height <= 1);
+}
+
+function ll_tools_maybe_regenerate_attachment_metadata($attachment_id) {
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0 || !wp_attachment_is_image($attachment_id)) {
+        return false;
+    }
+
+    $metadata = wp_get_attachment_metadata($attachment_id);
+    if (!ll_tools_attachment_metadata_needs_refresh($metadata)) {
+        return false;
+    }
+
+    $file_path = get_attached_file($attachment_id, true);
+    if (!$file_path || !file_exists($file_path) || !is_readable($file_path)) {
+        return false;
+    }
+
+    if (!function_exists('wp_generate_attachment_metadata')) {
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
+    $generated = wp_generate_attachment_metadata($attachment_id, $file_path);
+    if (empty($generated) || !is_array($generated)) {
+        return false;
+    }
+
+    $generated_width = isset($generated['width']) ? (int) $generated['width'] : 0;
+    $generated_height = isset($generated['height']) ? (int) $generated['height'] : 0;
+    if ($generated_width <= 0 || $generated_height <= 0) {
+        return false;
+    }
+
+    wp_update_attachment_metadata($attachment_id, $generated);
+    clean_post_cache($attachment_id);
+    return true;
+}
+
+function ll_tools_repair_post_thumbnail_attachment($post_id) {
+    $thumb_id = (int) get_post_thumbnail_id((int) $post_id);
+    if ($thumb_id <= 0) {
+        return false;
+    }
+    return ll_tools_maybe_regenerate_attachment_metadata($thumb_id);
+}
+
+function ll_tools_get_post_thumbnail_html_with_repair($post_id, $size = 'post-thumbnail', $attr = []) {
+    ll_tools_repair_post_thumbnail_attachment((int) $post_id);
+    return get_the_post_thumbnail((int) $post_id, $size, $attr);
+}
+
+/**
+ * Ensure the Featured Image metabox preview doesn't render with stale/bad dimensions.
+ */
+function ll_tools_fix_featured_image_box_preview($content, $post_id, $thumbnail_id) {
+    $post = get_post((int) $post_id);
+    if (!$post || !in_array($post->post_type, ['words', 'word_images'], true)) {
+        return $content;
+    }
+    if ((int) $thumbnail_id <= 0) {
+        return $content;
+    }
+    if (!ll_tools_maybe_regenerate_attachment_metadata((int) $thumbnail_id)) {
+        return $content;
+    }
+    if (!function_exists('_wp_post_thumbnail_html')) {
+        return $content;
+    }
+
+    static $is_refreshing = false;
+    if ($is_refreshing) {
+        return $content;
+    }
+
+    $is_refreshing = true;
+    $refreshed = _wp_post_thumbnail_html((int) $thumbnail_id, (int) $post_id);
+    $is_refreshing = false;
+
+    return is_string($refreshed) && $refreshed !== '' ? $refreshed : $content;
+}
+add_filter('admin_post_thumbnail_html', 'll_tools_fix_featured_image_box_preview', 10, 3);
+
+/**
+ * Keep word thumbnails in sync when a word_images featured image is replaced.
+ */
+function ll_tools_word_image_thumbnail_change_track_update($check, $object_id, $meta_key, $meta_value, $prev_value) {
+    if ($meta_key !== '_thumbnail_id') {
+        return $check;
+    }
+
+    $post = get_post((int) $object_id);
+    if (!$post || $post->post_type !== 'word_images') {
+        return $check;
+    }
+
+    $old_attachment_id = (int) get_post_meta((int) $object_id, '_thumbnail_id', true);
+    $new_attachment_id = (int) $meta_value;
+    if ($old_attachment_id === $new_attachment_id) {
+        return $check;
+    }
+
+    if (!isset($GLOBALS['ll_tools_word_image_thumb_changes']) || !is_array($GLOBALS['ll_tools_word_image_thumb_changes'])) {
+        $GLOBALS['ll_tools_word_image_thumb_changes'] = [];
+    }
+
+    $GLOBALS['ll_tools_word_image_thumb_changes'][(int) $object_id] = [
+        'old' => $old_attachment_id,
+        'new' => $new_attachment_id,
+    ];
+
+    return $check;
+}
+add_filter('update_post_metadata', 'll_tools_word_image_thumbnail_change_track_update', 10, 5);
+
+function ll_tools_get_connected_word_ids_for_word_image_sync($word_image_id, $old_attachment_id = 0) {
+    $word_image_id = (int) $word_image_id;
+    $old_attachment_id = (int) $old_attachment_id;
+    if ($word_image_id <= 0) {
+        return [];
+    }
+
+    $connected = get_posts([
+        'post_type'         => 'words',
+        'post_status'       => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'    => -1,
+        'fields'            => 'ids',
+        'no_found_rows'     => true,
+        'suppress_filters'  => true,
+        'meta_query'        => [
+            [
+                'key'   => '_ll_autopicked_image_id',
+                'value' => $word_image_id,
+            ],
+        ],
+    ]);
+
+    $ids = array_map('intval', (array) $connected);
+
+    if ($old_attachment_id > 0) {
+        $thumbnail_query = [
+            'post_type'         => 'words',
+            'post_status'       => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page'    => -1,
+            'fields'            => 'ids',
+            'no_found_rows'     => true,
+            'suppress_filters'  => true,
+            'meta_query'        => [
+                [
+                    'key'   => '_thumbnail_id',
+                    'value' => $old_attachment_id,
+                ],
+            ],
+        ];
+
+        $image_category_ids = wp_get_post_terms($word_image_id, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($image_category_ids) && !empty($image_category_ids)) {
+            $thumbnail_query['tax_query'] = [
+                [
+                    'taxonomy' => 'word-category',
+                    'field'    => 'term_id',
+                    'terms'    => array_map('intval', $image_category_ids),
+                ],
+            ];
+        }
+
+        $by_thumbnail = get_posts($thumbnail_query);
+
+        foreach ((array) $by_thumbnail as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+
+            $linked_image_id = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+            if ($linked_image_id > 0 && $linked_image_id !== $word_image_id) {
+                continue;
+            }
+
+            $ids[] = $word_id;
+        }
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($id) {
+        return $id > 0;
+    })));
+
+    return $ids;
+}
+
+function ll_tools_sync_words_for_word_image_thumbnail_change($word_image_id, $old_attachment_id, $new_attachment_id) {
+    $word_image_id = (int) $word_image_id;
+    $old_attachment_id = (int) $old_attachment_id;
+    $new_attachment_id = (int) $new_attachment_id;
+
+    if ($word_image_id <= 0 || $old_attachment_id === $new_attachment_id) {
+        return 0;
+    }
+
+    $word_ids = ll_tools_get_connected_word_ids_for_word_image_sync($word_image_id, $old_attachment_id);
+    if (empty($word_ids)) {
+        return 0;
+    }
+
+    $updated = 0;
+    foreach ($word_ids as $word_id) {
+        if ($new_attachment_id > 0) {
+            set_post_thumbnail((int) $word_id, $new_attachment_id);
+        } else {
+            delete_post_thumbnail((int) $word_id);
+        }
+
+        update_post_meta((int) $word_id, '_ll_autopicked_image_id', $word_image_id);
+        $updated++;
+    }
+
+    return $updated;
+}
+
+function ll_tools_word_image_thumbnail_change_on_added($meta_id, $object_id, $meta_key, $meta_value) {
+    if ($meta_key !== '_thumbnail_id') {
+        return;
+    }
+
+    $post = get_post((int) $object_id);
+    if (!$post || $post->post_type !== 'word_images') {
+        return;
+    }
+
+    $new_attachment_id = (int) $meta_value;
+    ll_tools_sync_words_for_word_image_thumbnail_change((int) $object_id, 0, $new_attachment_id);
+}
+add_action('added_post_meta', 'll_tools_word_image_thumbnail_change_on_added', 10, 4);
+
+function ll_tools_word_image_thumbnail_change_on_updated($meta_id, $object_id, $meta_key, $meta_value) {
+    if ($meta_key !== '_thumbnail_id') {
+        return;
+    }
+
+    $post = get_post((int) $object_id);
+    if (!$post || $post->post_type !== 'word_images') {
+        return;
+    }
+
+    $old_attachment_id = 0;
+    if (isset($GLOBALS['ll_tools_word_image_thumb_changes'][(int) $object_id]['old'])) {
+        $old_attachment_id = (int) $GLOBALS['ll_tools_word_image_thumb_changes'][(int) $object_id]['old'];
+    }
+    unset($GLOBALS['ll_tools_word_image_thumb_changes'][(int) $object_id]);
+
+    $new_attachment_id = (int) $meta_value;
+    ll_tools_sync_words_for_word_image_thumbnail_change((int) $object_id, $old_attachment_id, $new_attachment_id);
+}
+add_action('updated_post_meta', 'll_tools_word_image_thumbnail_change_on_updated', 10, 4);
+
+function ll_tools_word_image_thumbnail_change_on_deleted($meta_ids, $object_id, $meta_key, $meta_value) {
+    if ($meta_key !== '_thumbnail_id') {
+        return;
+    }
+
+    $post = get_post((int) $object_id);
+    if (!$post || $post->post_type !== 'word_images') {
+        return;
+    }
+
+    ll_tools_sync_words_for_word_image_thumbnail_change((int) $object_id, (int) $meta_value, 0);
+}
+add_action('deleted_post_meta', 'll_tools_word_image_thumbnail_change_on_deleted', 10, 4);
+
+/**
+ * Repair attached thumbnail metadata when words or word_images posts are saved.
+ */
+function ll_tools_repair_featured_image_metadata_on_save($post_id, $post) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
+        return;
+    }
+    if (!$post || !in_array($post->post_type, ['words', 'word_images'], true)) {
+        return;
+    }
+
+    ll_tools_repair_post_thumbnail_attachment((int) $post_id);
+}
+add_action('save_post_words', 'll_tools_repair_featured_image_metadata_on_save', 20, 2);
+add_action('save_post_word_images', 'll_tools_repair_featured_image_metadata_on_save', 20, 2);
+
 
 /**
  * 1) ADD A META BOX FOR WORD IMAGE METADATA
@@ -73,6 +372,7 @@ function ll_word_image_metadata_cb($post) {
     echo esc_textarea($copyright_info);
     echo '</textarea>';
     echo '<p class="howto">Edit or add any copyright or source info for this image.</p>';
+    echo '<p class="howto">' . esc_html__('Replacing this featured image also updates connected word posts automatically.', 'll-tools-text-domain') . '</p>';
 }
 
 /**
@@ -305,7 +605,7 @@ function ll_render_word_images_columns($column, $post_id) {
             break;
 
         case 'attached_image':
-            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            $thumbnail = ll_tools_get_post_thumbnail_html_with_repair($post_id, 'full', array('style' => 'width:50px;height:auto;'));
             if ($thumbnail) {
                 echo $thumbnail;
             } else {
