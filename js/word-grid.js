@@ -1002,14 +1002,14 @@
     }
 
     function cacheOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
     }
 
     function restoreOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             const original = $input.data('original');
             if (typeof original === 'string') {
@@ -1042,6 +1042,14 @@
         const $el = $item.find(selector).first();
         if (!$el.length) { return; }
         $el.text(value || '');
+    }
+
+    function setWordNote($item, value) {
+        const $note = $item.find('[data-ll-word-note]').first();
+        if (!$note.length) { return; }
+        const clean = (value || '').toString().trim();
+        $note.text(clean);
+        $note.toggleClass('ll-word-note--empty', !clean);
     }
 
     function updateWordMetaRow($item) {
@@ -1104,7 +1112,7 @@
     }
 
     function updateOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
@@ -2808,6 +2816,7 @@
 
             const wordText = ($item.find('[data-ll-word-input="word"]').val() || '').toString();
             const wordTranslation = ($item.find('[data-ll-word-input="translation"]').val() || '').toString();
+            const wordNote = ($item.find('[data-ll-word-input="note"]').val() || '').toString();
             const partOfSpeech = ($item.find('[data-ll-word-input="part_of_speech"]').val() || '').toString();
             const gender = ($item.find('[data-ll-word-input="gender"]').val() || '').toString();
             const plurality = ($item.find('[data-ll-word-input="plurality"]').val() || '').toString();
@@ -2838,6 +2847,7 @@
                 word_id: wordId,
                 word_text: wordText,
                 word_translation: wordTranslation,
+                word_note: wordNote,
                 part_of_speech: partOfSpeech,
                 grammatical_gender: gender,
                 grammatical_plurality: plurality,
@@ -2856,6 +2866,10 @@
                 if (typeof data.word_translation === 'string') {
                     $item.find('[data-ll-word-translation]').text(data.word_translation);
                     $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
+                }
+                if (typeof data.word_note === 'string') {
+                    $item.find('[data-ll-word-input="note"]').val(data.word_note);
+                    setWordNote($item, data.word_note);
                 }
                 if (Array.isArray(data.recordings)) {
                     data.recordings.forEach(function (rec) {

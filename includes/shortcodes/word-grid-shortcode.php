@@ -1856,6 +1856,7 @@ function ll_tools_word_grid_shortcode($atts) {
         'edit_word'   => __('Edit word', 'll-tools-text-domain'),
         'word'        => ll_tools_word_grid_label_with_code(__('Word', 'll-tools-text-domain'), $target_lang_code),
         'translation' => ll_tools_word_grid_label_with_code(__('Translation', 'll-tools-text-domain'), $translation_lang_code),
+        'note'        => __('Note', 'll-tools-text-domain'),
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'ipa'         => ll_tools_word_grid_label_with_code(__('IPA', 'll-tools-text-domain'), $target_lang_code),
@@ -2031,6 +2032,7 @@ function ll_tools_word_grid_shortcode($atts) {
             $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
+            $word_note = trim((string) get_post_meta($word_id, 'll_word_usage_note', true));
             $pos_entry = $part_of_speech_by_word[$word_id] ?? [];
             $pos_slug = isset($pos_entry['slug']) ? (string) $pos_entry['slug'] : '';
             $pos_label = isset($pos_entry['label']) ? (string) $pos_entry['label'] : '';
@@ -2155,16 +2157,24 @@ function ll_tools_word_grid_shortcode($atts) {
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--gender" data-ll-word-gender>' . esc_html($gender_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
             echo '</div>';
+            $note_class = 'll-word-note';
+            if ($word_note === '') {
+                $note_class .= ' ll-word-note--empty';
+            }
+            echo '<div class="' . esc_attr($note_class) . '" data-ll-word-note>' . esc_html($word_note) . '</div>';
 
             if ($can_edit_words) {
                 $word_input_id = 'll-word-edit-word-' . $word_id;
                 $translation_input_id = 'll-word-edit-translation-' . $word_id;
+                $note_input_id = 'll-word-edit-note-' . $word_id;
                 echo '<div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">';
                 echo '<div class="ll-word-edit-fields">';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($word_input_id) . '">' . esc_html($edit_labels['word']) . '</label>';
                 echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($word_input_id) . '" data-ll-word-input="word" value="' . esc_attr($word_text) . '" />';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($translation_input_id) . '">' . esc_html($edit_labels['translation']) . '</label>';
                 echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($translation_input_id) . '" data-ll-word-input="translation" value="' . esc_attr($translation_text) . '" />';
+                echo '<label class="ll-word-edit-label" for="' . esc_attr($note_input_id) . '">' . esc_html($edit_labels['note']) . '</label>';
+                echo '<textarea class="ll-word-edit-input ll-word-edit-textarea" id="' . esc_attr($note_input_id) . '" data-ll-word-input="note" rows="3">' . esc_textarea($word_note) . '</textarea>';
                 echo '</div>';
                 echo '<div class="ll-word-edit-fields ll-word-edit-fields--meta">';
                 $pos_input_id = 'll-word-edit-pos-' . $word_id;
@@ -2780,6 +2790,19 @@ function ll_tools_word_grid_update_word_handler() {
         }
     }
 
+    $word_note = trim((string) get_post_meta($word_id, 'll_word_usage_note', true));
+    if (array_key_exists('word_note', $_POST)) {
+        $word_note_raw = isset($_POST['word_note']) ? wp_unslash($_POST['word_note']) : '';
+        $sanitized_note = sanitize_textarea_field((string) $word_note_raw);
+        $sanitized_note = trim($sanitized_note);
+        if ($sanitized_note !== '') {
+            update_post_meta($word_id, 'll_word_usage_note', $sanitized_note);
+        } else {
+            delete_post_meta($word_id, 'll_word_usage_note');
+        }
+        $word_note = $sanitized_note;
+    }
+
     $pos_updated = array_key_exists('part_of_speech', $_POST);
     $pos_slug = '';
     $pos_label = '';
@@ -2947,6 +2970,7 @@ function ll_tools_word_grid_update_word_handler() {
         'word_id' => $word_id,
         'word_text' => $display_values['word_text'],
         'word_translation' => $display_values['translation_text'],
+        'word_note' => $word_note,
         'recordings' => $recordings_out,
         'part_of_speech' => [
             'slug' => $pos_slug,
