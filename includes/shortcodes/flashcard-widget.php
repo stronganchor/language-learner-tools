@@ -184,12 +184,23 @@ function ll_flashcards_get_messages(): array {
 
 /** Return UI metadata (icon + labels) for each quiz mode */
 function ll_flashcards_get_mode_ui_config(): array {
-    $gender_svg = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
-        . '<circle cx="7.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
-        . '<circle cx="16.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
-        . '<path d="M7.5 12.5v6.5M5 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
-        . '<path d="M18.5 7.5l4-4M20.5 3.5h2M22.5 3.5v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />'
-        . '</svg>';
+    $gender_svg = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
+    <g stroke="#FF4FA3">
+      <circle cx="184" cy="284" r="92"/>
+      <path d="M184 376 L184 470"/>
+      <path d="M140 430 L228 430"/>
+    </g>
+    <g stroke="#1E73FF">
+      <circle cx="328" cy="292" r="92"/>
+      <path d="M402 218 L480 148"/>
+      <path d="M480 148 L480 196"/>
+      <path d="M480 148 L432 148"/>
+    </g>
+  </g>
+</svg>
+SVG;
     $self_check_svg_path = LL_TOOLS_BASE_PATH . 'media/self-check-symbol.svg';
     $self_check_svg = '';
     if (file_exists($self_check_svg_path)) {
