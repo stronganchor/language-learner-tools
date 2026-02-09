@@ -84,6 +84,166 @@
     align-items: center;
 }
 
+.ll-hidden-words-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.ll-recording-interface .ll-hidden-words-toggle-btn {
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    border: 1px solid #ccd0d4 !important;
+    border-radius: 999px !important;
+    padding: 0.4rem 0.7rem !important;
+    gap: 0.45rem;
+    min-height: 36px;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+}
+
+.ll-recording-interface .ll-hidden-words-toggle-btn:hover:not(:disabled) {
+    background: #f6f7f7 !important;
+    border-color: #8c8f94 !important;
+}
+
+.ll-hidden-words-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.ll-hidden-words-toggle-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: none !important;
+}
+
+.ll-hidden-words-count {
+    min-width: 1.3rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 999px;
+    background: #2271b1;
+    color: #fff;
+    font-size: 0.76rem;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.ll-hidden-words-panel {
+    margin: -0.75rem 0 1.25rem;
+    padding: 0.9rem;
+    border: 1px solid #dcdcde;
+    border-radius: 10px;
+    background: #ffffff;
+}
+
+.ll-hidden-words-panel[hidden] {
+    display: none !important;
+}
+
+.ll-hidden-words-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.ll-hidden-words-title {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #1d2327;
+}
+
+.ll-recording-interface .ll-hidden-words-close {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    border: 1px solid #ccd0d4 !important;
+    background: #f6f7f7 !important;
+    color: #1d2327 !important;
+}
+
+.ll-recording-interface .ll-hidden-words-close:hover:not(:disabled) {
+    background: #ececec !important;
+}
+
+.ll-recording-interface .ll-hidden-words-close svg {
+    width: 14px !important;
+    height: 14px !important;
+    fill: currentColor !important;
+}
+
+.ll-hidden-words-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.ll-hidden-word-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid #e2e4e7;
+    border-radius: 8px;
+    padding: 0.55rem 0.6rem;
+    background: #fbfbfc;
+}
+
+.ll-hidden-word-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.ll-hidden-word-title {
+    color: #1d2327;
+    font-weight: 600;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.ll-hidden-word-category {
+    color: #646970;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.ll-recording-interface .ll-hidden-word-unhide {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    background: #2271b1 !important;
+    color: #ffffff !important;
+}
+
+.ll-recording-interface .ll-hidden-word-unhide:hover:not(:disabled) {
+    background: #135e96 !important;
+}
+
+.ll-recording-interface .ll-hidden-word-unhide svg {
+    width: 18px !important;
+    height: 18px !important;
+    fill: currentColor !important;
+}
+
+.ll-hidden-words-empty {
+    margin: 0;
+    color: #646970;
+    font-size: 0.85rem;
+}
+
 .ll-new-word-panel {
     background: #fff;
     border-radius: 12px;
@@ -458,6 +618,7 @@
     gap: 1rem;
     align-items: center;
     justify-content: center;
+    flex-wrap: wrap;
 }
 
 .ll-recording-interface .ll-btn {
@@ -545,6 +706,25 @@
 
 .ll-recording-interface .ll-btn-skip:hover:not(:disabled) {
     background: #7f8c8d !important;
+}
+
+.ll-recording-interface .ll-btn-hide {
+    background: #3c4b5c !important;
+    color: #ffffff !important;
+    padding: 0.75rem !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+    border-radius: 8px !important;
+}
+
+.ll-recording-interface .ll-btn-hide svg {
+    width: 20px !important;
+    height: 20px !important;
+    fill: none !important;
+}
+
+.ll-recording-interface .ll-btn-hide:hover:not(:disabled) {
+    background: #2d3a49 !important;
 }
 
 .ll-recording-interface .ll-btn-primary {
@@ -850,6 +1030,10 @@
     .ll-recording-interface .ll-btn-secondary {
         padding: 0.625rem 1.25rem !important;
     }
+
+    .ll-hidden-word-item {
+        padding: 0.5rem 0.55rem;
+    }
 }
 
 /* Very small mobile - full vertical stack */
@@ -879,6 +1063,15 @@
     .ll-recorder-info {
         margin-left: 0;
         text-align: center;
+    }
+
+    .ll-hidden-words-toggle {
+        width: 100%;
+    }
+
+    .ll-recording-interface .ll-hidden-words-toggle-btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .ll-recording-main {

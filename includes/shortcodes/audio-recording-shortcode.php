@@ -229,6 +229,367 @@ function ll_build_recording_type_payload(array $recording_type_slugs): array {
     return $payload;
 }
 
+/**
+ * User meta key for recorder-hidden words.
+ */
+function ll_tools_recording_hidden_words_meta_key(): string {
+    return 'll_recording_hidden_words';
+}
+
+/**
+ * Normalize a title into a deterministic key fragment for hide/unhide matching.
+ */
+function ll_tools_normalize_recording_hide_title($title): string {
+    $clean = html_entity_decode((string) $title, ENT_QUOTES, 'UTF-8');
+    $clean = sanitize_text_field($clean);
+    $clean = trim(preg_replace('/\s+/', ' ', $clean));
+    if ($clean === '') {
+        return '';
+    }
+
+    $slug = sanitize_title($clean);
+    if ($slug === '') {
+        $slug = 't' . substr(md5($clean), 0, 12);
+    }
+    return $slug;
+}
+
+/**
+ * Build the canonical hide key for a recording item.
+ */
+function ll_tools_build_recording_hide_key(int $word_id = 0, int $image_id = 0, string $title = ''): string {
+    if ($word_id > 0) {
+        return 'word:' . $word_id;
+    }
+    if ($image_id > 0) {
+        return 'image:' . $image_id;
+    }
+    $normalized_title = ll_tools_normalize_recording_hide_title($title);
+    if ($normalized_title !== '') {
+        return 'title:' . $normalized_title;
+    }
+    return '';
+}
+
+/**
+ * Sanitize a hide key and verify its prefix.
+ */
+function ll_tools_sanitize_recording_hide_key($hide_key): string {
+    $hide_key = strtolower(trim((string) $hide_key));
+    $hide_key = preg_replace('/[^a-z0-9:_-]/', '', $hide_key);
+    if ($hide_key === '') {
+        return '';
+    }
+    if (strpos($hide_key, 'word:') === 0 || strpos($hide_key, 'image:') === 0 || strpos($hide_key, 'title:') === 0) {
+        return $hide_key;
+    }
+    return '';
+}
+
+/**
+ * Normalize one hidden-word entry into a sanitized shape.
+ *
+ * @return array<string, mixed>|null
+ */
+function ll_tools_normalize_hidden_recording_entry($entry, $fallback_key = '') {
+    if (is_string($entry)) {
+        $entry = ['key' => $entry];
+    }
+    if (!is_array($entry)) {
+        return null;
+    }
+
+    $word_id = absint($entry['word_id'] ?? 0);
+    $image_id = absint($entry['image_id'] ?? 0);
+    $title = sanitize_text_field((string) ($entry['title'] ?? ''));
+    $category_name = sanitize_text_field((string) ($entry['category_name'] ?? ''));
+    $category_slug = sanitize_title((string) ($entry['category_slug'] ?? ''));
+    $hidden_at = sanitize_text_field((string) ($entry['hidden_at'] ?? ''));
+
+    $hide_key = ll_tools_sanitize_recording_hide_key($entry['key'] ?? '');
+    if ($hide_key === '' && $fallback_key !== '') {
+        $hide_key = ll_tools_sanitize_recording_hide_key($fallback_key);
+    }
+    if ($hide_key === '') {
+        $hide_key = ll_tools_build_recording_hide_key($word_id, $image_id, $title);
+    }
+    if ($hide_key === '') {
+        return null;
+    }
+
+    if ($title === '' && strpos($hide_key, 'title:') === 0) {
+        $title = str_replace('-', ' ', substr($hide_key, 6));
+    }
+
+    return [
+        'key'           => $hide_key,
+        'word_id'       => $word_id,
+        'image_id'      => $image_id,
+        'title'         => $title,
+        'category_name' => $category_name,
+        'category_slug' => $category_slug,
+        'hidden_at'     => $hidden_at,
+    ];
+}
+
+/**
+ * Get the hidden-word map for the current (or specified) user.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function ll_tools_get_hidden_recording_words(int $user_id = 0): array {
+    $user_id = $user_id > 0 ? $user_id : get_current_user_id();
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $raw = get_user_meta($user_id, ll_tools_recording_hidden_words_meta_key(), true);
+    if (!is_array($raw) || empty($raw)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($raw as $maybe_key => $entry) {
+        $fallback_key = is_string($maybe_key) ? $maybe_key : '';
+        $normalized_entry = ll_tools_normalize_hidden_recording_entry($entry, $fallback_key);
+        if (!$normalized_entry) {
+            continue;
+        }
+        $normalized[(string) $normalized_entry['key']] = $normalized_entry;
+    }
+
+    if (empty($normalized)) {
+        return [];
+    }
+
+    uasort($normalized, static function ($left, $right): int {
+        $left_time = strtotime((string) ($left['hidden_at'] ?? '')) ?: 0;
+        $right_time = strtotime((string) ($right['hidden_at'] ?? '')) ?: 0;
+        if ($left_time !== $right_time) {
+            return $right_time <=> $left_time;
+        }
+        $left_title = (string) ($left['title'] ?? '');
+        $right_title = (string) ($right['title'] ?? '');
+        return strnatcasecmp($left_title, $right_title);
+    });
+
+    return $normalized;
+}
+
+/**
+ * Persist hidden-word entries for a user.
+ */
+function ll_tools_save_hidden_recording_words(int $user_id, array $entries): bool {
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $normalized = [];
+    foreach ($entries as $maybe_key => $entry) {
+        $fallback_key = is_string($maybe_key) ? $maybe_key : '';
+        $normalized_entry = ll_tools_normalize_hidden_recording_entry($entry, $fallback_key);
+        if (!$normalized_entry) {
+            continue;
+        }
+        $normalized[(string) $normalized_entry['key']] = $normalized_entry;
+    }
+
+    if (empty($normalized)) {
+        delete_user_meta($user_id, ll_tools_recording_hidden_words_meta_key());
+        return true;
+    }
+
+    if (count($normalized) > 500) {
+        uasort($normalized, static function ($left, $right): int {
+            $left_time = strtotime((string) ($left['hidden_at'] ?? '')) ?: 0;
+            $right_time = strtotime((string) ($right['hidden_at'] ?? '')) ?: 0;
+            return $right_time <=> $left_time;
+        });
+        $normalized = array_slice($normalized, 0, 500, true);
+    }
+
+    return (bool) update_user_meta($user_id, ll_tools_recording_hidden_words_meta_key(), $normalized);
+}
+
+/**
+ * Return hidden-word entries as an indexed list suitable for JSON transport.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_get_hidden_recording_words_list(int $user_id = 0): array {
+    return array_values(ll_tools_get_hidden_recording_words($user_id));
+}
+
+/**
+ * Build a key lookup for hidden words.
+ *
+ * @return array<string, bool>
+ */
+function ll_tools_get_hidden_recording_word_lookup(int $user_id = 0): array {
+    $lookup = [];
+    $hidden_words = ll_tools_get_hidden_recording_words($user_id);
+    foreach ($hidden_words as $entry) {
+        $primary = ll_tools_sanitize_recording_hide_key((string) ($entry['key'] ?? ''));
+        if ($primary !== '') {
+            $lookup[$primary] = true;
+        }
+
+        $fallback = ll_tools_build_recording_hide_key(
+            absint($entry['word_id'] ?? 0),
+            absint($entry['image_id'] ?? 0),
+            (string) ($entry['title'] ?? '')
+        );
+        if ($fallback !== '') {
+            $lookup[$fallback] = true;
+        }
+    }
+    return $lookup;
+}
+
+/**
+ * Get all possible hide keys for an item payload.
+ *
+ * @param array<string, mixed> $item
+ * @return string[]
+ */
+function ll_tools_get_recording_item_hide_keys(array $item): array {
+    $keys = [];
+
+    $explicit = ll_tools_sanitize_recording_hide_key($item['hide_key'] ?? '');
+    if ($explicit !== '') {
+        $keys[] = $explicit;
+    }
+
+    $word_id = absint($item['word_id'] ?? 0);
+    $image_id = absint($item['id'] ?? ($item['image_id'] ?? 0));
+    if ($word_id > 0) {
+        $keys[] = 'word:' . $word_id;
+    }
+    if ($image_id > 0) {
+        $keys[] = 'image:' . $image_id;
+    }
+
+    $title_candidates = [];
+    if (!empty($item['word_title'])) {
+        $title_candidates[] = (string) $item['word_title'];
+    }
+    if (!empty($item['title'])) {
+        $title_candidates[] = (string) $item['title'];
+    }
+    foreach ($title_candidates as $candidate) {
+        $title_key = ll_tools_build_recording_hide_key(0, 0, $candidate);
+        if ($title_key !== '') {
+            $keys[] = $title_key;
+        }
+    }
+
+    return array_values(array_unique(array_filter($keys)));
+}
+
+/**
+ * Remove hidden items from recorder payloads for the current user.
+ *
+ * @param array<int, array<string, mixed>> $items
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_filter_hidden_recording_items(array $items, int $user_id = 0): array {
+    if (empty($items)) {
+        return $items;
+    }
+
+    $lookup = ll_tools_get_hidden_recording_word_lookup($user_id);
+    $has_hidden = !empty($lookup);
+    $filtered = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $hide_keys = ll_tools_get_recording_item_hide_keys($item);
+        if (empty($item['hide_key']) && !empty($hide_keys)) {
+            $item['hide_key'] = $hide_keys[0];
+        }
+        if (!$has_hidden) {
+            $filtered[] = $item;
+            continue;
+        }
+
+        $is_hidden = false;
+        foreach ($hide_keys as $hide_key) {
+            if (isset($lookup[$hide_key])) {
+                $is_hidden = true;
+                break;
+            }
+        }
+        if ($is_hidden) {
+            continue;
+        }
+        $filtered[] = $item;
+    }
+
+    return $filtered;
+}
+
+/**
+ * Add (or replace) one hidden-word entry for a user.
+ *
+ * @param array<string, mixed> $entry
+ * @return array<string, array<string, mixed>>
+ */
+function ll_tools_add_hidden_recording_word(int $user_id, array $entry): array {
+    $existing = ll_tools_get_hidden_recording_words($user_id);
+    $normalized = ll_tools_normalize_hidden_recording_entry($entry);
+    if (!$normalized) {
+        return $existing;
+    }
+    if (empty($normalized['hidden_at'])) {
+        $normalized['hidden_at'] = current_time('mysql');
+    }
+    $existing[(string) $normalized['key']] = $normalized;
+    ll_tools_save_hidden_recording_words($user_id, $existing);
+    return ll_tools_get_hidden_recording_words($user_id);
+}
+
+/**
+ * Remove one hidden-word entry using key and optional fallback identity fields.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function ll_tools_remove_hidden_recording_word(int $user_id, string $hide_key, int $word_id = 0, int $image_id = 0, string $title = ''): array {
+    $existing = ll_tools_get_hidden_recording_words($user_id);
+    if (empty($existing)) {
+        return [];
+    }
+
+    $remove_keys = [];
+    $primary = ll_tools_sanitize_recording_hide_key($hide_key);
+    if ($primary !== '') {
+        $remove_keys[] = $primary;
+    }
+    if ($word_id > 0) {
+        $remove_keys[] = 'word:' . $word_id;
+    }
+    if ($image_id > 0) {
+        $remove_keys[] = 'image:' . $image_id;
+    }
+    $title_key = ll_tools_build_recording_hide_key(0, 0, $title);
+    if ($title_key !== '') {
+        $remove_keys[] = $title_key;
+    }
+    $remove_keys = array_values(array_unique(array_filter($remove_keys)));
+
+    if (empty($remove_keys)) {
+        return $existing;
+    }
+
+    foreach ($remove_keys as $candidate) {
+        unset($existing[$candidate]);
+    }
+
+    ll_tools_save_hidden_recording_words($user_id, $existing);
+    return ll_tools_get_hidden_recording_words($user_id);
+}
+
 function ll_audio_recording_interface_shortcode($atts) {
     // Require user to be logged in
     if (!is_user_logged_in()) {
@@ -245,6 +606,8 @@ function ll_audio_recording_interface_shortcode($atts) {
     // Get user-specific configuration from meta (if exists)
     $current_user_id = get_current_user_id();
     $user_config = get_user_meta($current_user_id, 'll_recording_config', true);
+    $hidden_recording_words = ll_tools_get_hidden_recording_words_list($current_user_id);
+    $has_hidden_recording_words = !empty($hidden_recording_words);
 
     // Merge user config with shortcode attributes (shortcode takes precedence if specified)
     $defaults = [];
@@ -273,7 +636,7 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // If no categories available, provide helpful diagnostics
     if (empty($available_categories)) {
-        if (!$allow_new_words) {
+        if (!$allow_new_words && !$has_hidden_recording_words) {
             $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
             return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
         }
@@ -304,7 +667,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         }
     }
 
-    if (empty($images_needing_audio) && !$allow_new_words) {
+    if (empty($images_needing_audio) && !$allow_new_words && !$has_hidden_recording_words) {
         return '<div class="ll-recording-interface"><p>' .
                __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
                '</p></div>';
@@ -366,6 +729,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'transcribe_poll_attempts' => (int) apply_filters('ll_tools_recorder_transcribe_poll_attempts', 20),
         'transcribe_poll_interval_ms' => (int) apply_filters('ll_tools_recorder_transcribe_poll_interval_ms', 1200),
         'current_user_id'  => get_current_user_id(),
+        'hidden_words'    => $hidden_recording_words,
+        'hidden_count'    => count($hidden_recording_words),
         'i18n' => [
             'uploading' => __('Uploading...', 'll-tools-text-domain'),
             'success' => __('Success! Recording will be processed later.', 'll-tools-text-domain'),
@@ -402,6 +767,15 @@ function ll_audio_recording_interface_shortcode($atts) {
             'transcription_unavailable' => __('Speech-to-text is not available. Please enter the word manually.', 'll-tools-text-domain'),
             'translation_failed'  => __('Translation failed:', 'll-tools-text-domain'),
             'translation_ready'   => __('Translation ready.', 'll-tools-text-domain'),
+            'hiding'             => __('Hiding...', 'll-tools-text-domain'),
+            'hide_failed'        => __('Hide failed:', 'll-tools-text-domain'),
+            'hidden_success'     => __('Word hidden. Moving to the next item.', 'll-tools-text-domain'),
+            'hide_while_recording' => __('Stop recording before hiding this word.', 'll-tools-text-domain'),
+            'hidden_words'       => __('Hidden words', 'll-tools-text-domain'),
+            'hidden_empty'       => __('No hidden words yet.', 'll-tools-text-domain'),
+            'unhide'             => __('Unhide', 'll-tools-text-domain'),
+            'unhide_failed'      => __('Unhide failed:', 'll-tools-text-domain'),
+            'unhide_success'     => __('Word unhidden.', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -454,9 +828,43 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
             <?php endif; ?>
 
+            <div class="ll-hidden-words-toggle">
+                <button
+                    type="button"
+                    class="ll-btn ll-hidden-words-toggle-btn"
+                    id="ll-hidden-words-toggle"
+                    aria-expanded="false"
+                    aria-controls="ll-hidden-words-panel"
+                    title="<?php esc_attr_e('Hidden words', 'll-tools-text-domain'); ?>"
+                >
+                    <span class="ll-hidden-words-toggle-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" width="18" height="18" fill="none" focusable="false" aria-hidden="true">
+                            <path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                            <circle cx="32" cy="32" r="7" fill="currentColor" />
+                            <path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" />
+                        </svg>
+                    </span>
+                    <span class="ll-hidden-words-toggle-label"><?php esc_html_e('Hidden', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-hidden-words-count" id="ll-hidden-words-count"><?php echo esc_html((string) count($hidden_recording_words)); ?></span>
+                </button>
+            </div>
+
             <div class="ll-recorder-info">
                 <?php echo esc_html($current_user->display_name); ?>
             </div>
+        </div>
+
+        <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" hidden>
+            <div class="ll-hidden-words-panel-head">
+                <h3 class="ll-hidden-words-title"><?php esc_html_e('Hidden words', 'll-tools-text-domain'); ?></h3>
+                <button type="button" class="ll-btn ll-hidden-words-close" id="ll-hidden-words-close" title="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">
+                    <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                        <path d="M6.7 5.3a1 1 0 0 0-1.4 1.4L10.6 12l-5.3 5.3a1 1 0 0 0 1.4 1.4l5.3-5.3 5.3 5.3a1 1 0 0 0 1.4-1.4L13.4 12l5.3-5.3a1 1 0 0 0-1.4-1.4L12 10.6Z" fill="currentColor" />
+                    </svg>
+                </button>
+            </div>
+            <ul id="ll-hidden-words-list" class="ll-hidden-words-list"></ul>
+            <p id="ll-hidden-words-empty" class="ll-hidden-words-empty"><?php esc_html_e('No hidden words yet.', 'll-tools-text-domain'); ?></p>
         </div>
 
         <?php if ($allow_new_words): ?>
@@ -631,6 +1039,14 @@ function ll_audio_recording_interface_shortcode($atts) {
                             title="<?php esc_attr_e('Skip', 'll-tools-text-domain'); ?>">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
                             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                        </svg>
+                    </button>
+
+                    <button id="ll-hide-btn" class="ll-btn ll-btn-hide" title="<?php esc_attr_e('Hide this word', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Hide this word', 'll-tools-text-domain'); ?>">
+                        <svg viewBox="0 0 64 64" width="20" height="20" fill="none" focusable="false" aria-hidden="true">
+                            <path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                            <circle cx="32" cy="32" r="7" fill="currentColor" />
+                            <path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" />
                         </svg>
                     </button>
                 </div>
@@ -996,7 +1412,10 @@ function ll_get_images_for_recording_handler() {
     $images = ll_get_images_needing_audio($category, $wordset_term_ids, $include_types, $exclude_types);
 
     if (empty($images)) {
-        wp_send_json_error('No images need audio in this category');
+        wp_send_json_success([
+            'images' => [],
+            'recording_types' => [],
+        ]);
     }
 
     $recording_types = [];
@@ -1013,6 +1432,90 @@ function ll_get_images_for_recording_handler() {
     wp_send_json_success([
         'images' => $images,
         'recording_types' => $dropdown_types,
+    ]);
+}
+
+// AJAX: hide a recorder word/image for the current user
+add_action('wp_ajax_ll_hide_recording_word', 'll_hide_recording_word_handler');
+function ll_hide_recording_word_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to record audio', 403);
+    }
+
+    $user_id = get_current_user_id();
+    $word_id = absint($_POST['word_id'] ?? 0);
+    $image_id = absint($_POST['image_id'] ?? 0);
+    $title = sanitize_text_field((string) ($_POST['title'] ?? ($_POST['word_title'] ?? '')));
+    $category_name = sanitize_text_field((string) ($_POST['category_name'] ?? ''));
+    $category_slug = sanitize_title((string) ($_POST['category_slug'] ?? ''));
+
+    $hide_key = ll_tools_sanitize_recording_hide_key($_POST['hide_key'] ?? '');
+    if ($hide_key === '') {
+        $hide_key = ll_tools_build_recording_hide_key($word_id, $image_id, $title);
+    }
+    if ($hide_key === '') {
+        wp_send_json_error('Missing hide key');
+    }
+
+    $hidden_words = ll_tools_add_hidden_recording_word($user_id, [
+        'key'           => $hide_key,
+        'word_id'       => $word_id,
+        'image_id'      => $image_id,
+        'title'         => $title,
+        'category_name' => $category_name,
+        'category_slug' => $category_slug,
+        'hidden_at'     => current_time('mysql'),
+    ]);
+
+    $entry = $hidden_words[$hide_key] ?? ll_tools_normalize_hidden_recording_entry([
+        'key'           => $hide_key,
+        'word_id'       => $word_id,
+        'image_id'      => $image_id,
+        'title'         => $title,
+        'category_name' => $category_name,
+        'category_slug' => $category_slug,
+        'hidden_at'     => current_time('mysql'),
+    ]);
+
+    wp_send_json_success([
+        'entry'        => $entry,
+        'hidden_words' => array_values($hidden_words),
+        'hidden_count' => count($hidden_words),
+    ]);
+}
+
+// AJAX: unhide a recorder word/image for the current user
+add_action('wp_ajax_ll_unhide_recording_word', 'll_unhide_recording_word_handler');
+function ll_unhide_recording_word_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in');
+    }
+    if (!ll_tools_user_can_record()) {
+        wp_send_json_error('You do not have permission to record audio', 403);
+    }
+
+    $user_id = get_current_user_id();
+    $hide_key = ll_tools_sanitize_recording_hide_key($_POST['hide_key'] ?? '');
+    $word_id = absint($_POST['word_id'] ?? 0);
+    $image_id = absint($_POST['image_id'] ?? 0);
+    $title = sanitize_text_field((string) ($_POST['title'] ?? ''));
+
+    if ($hide_key === '' && $word_id < 1 && $image_id < 1 && $title === '') {
+        wp_send_json_error('Missing hide key');
+    }
+
+    $hidden_words = ll_tools_remove_hidden_recording_word($user_id, $hide_key, $word_id, $image_id, $title);
+
+    wp_send_json_success([
+        'hidden_words' => array_values($hidden_words),
+        'hidden_count' => count($hidden_words),
     ]);
 }
 
@@ -1988,6 +2491,7 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  * @param array  $wordset_term_ids
  * @param string $include_types_csv Comma-separated slugs to include
  * @param string $exclude_types_csv Comma-separated slugs to exclude
+ * @param bool   $include_hidden Whether to include words hidden by the current recorder.
  * @return array [
  *   [
  *     'id'            => int,
@@ -2001,11 +2505,12 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  *     'category_slug' => string,        // category slug or "uncategorized" placeholder
  *     'missing_types' => string[],       // recording_type slugs still needed (filtered)
  *     'existing_types'=> string[],       // recording_type slugs already present (not filtered, all)
+ *     'hide_key'      => string,         // stable key used for per-user hide/unhide
  *   ],
  *   ...
  * ]
  */
-function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '') {
+function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false) {
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
         if ($default_id) {
@@ -2484,6 +2989,19 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         foreach ($items_by_category[$slug]['items'] as $item) {
             $result[] = $item;
         }
+    }
+
+    foreach ($result as &$item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $hide_keys = ll_tools_get_recording_item_hide_keys($item);
+        $item['hide_key'] = !empty($hide_keys) ? (string) $hide_keys[0] : '';
+    }
+    unset($item);
+
+    if (!$include_hidden) {
+        $result = ll_tools_filter_hidden_recording_items($result, get_current_user_id());
     }
 
     return $result;
