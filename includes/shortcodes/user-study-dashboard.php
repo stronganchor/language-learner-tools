@@ -63,15 +63,15 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
     };
     $placement_icon_svg = <<<'SVG'
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <path fill="#22c55e" d="M6.2 6.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0L6.2 7.4c-.2-.2-.2-.6 0-.8z"/>
-  <path fill="#22c55e" d="M6.2 11.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0l-1.1-1.1c-.2-.2-.2-.6 0-.8z"/>
-  <g fill="#ef4444">
-    <rect x="5.8" y="16.35" width="4.4" height="1.3" rx="0.65" transform="rotate(45 8 17)"/>
-    <rect x="5.8" y="16.35" width="4.4" height="1.3" rx="0.65" transform="rotate(-45 8 17)"/>
+  <g transform="translate(8 9.4) scale(1.55) translate(-8 -9)">
+    <path fill="#22c55e" d="M6.2 7.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0L6.2 8.4c-.2-.2-.2-.6 0-.8z"/>
   </g>
-  <rect x="11" y="6" width="7" height="2" rx="1" fill="currentColor"/>
-  <rect x="11" y="11" width="7" height="2" rx="1" fill="currentColor"/>
-  <rect x="11" y="16" width="7" height="2" rx="1" fill="currentColor"/>
+  <g transform="translate(8 15) scale(1.35) translate(-8 -15)" fill="#ef4444">
+    <rect x="5.4" y="14.35" width="5.2" height="1.3" rx="0.65" transform="rotate(45 8 15)"/>
+    <rect x="5.4" y="14.35" width="5.2" height="1.3" rx="0.65" transform="rotate(-45 8 15)"/>
+  </g>
+  <rect x="12" y="7.8" width="8.5" height="2.4" rx="1.2" fill="currentColor"/>
+  <rect x="12" y="13.8" width="8.5" height="2.4" rx="1.2" fill="currentColor"/>
 </svg>
 SVG;
     $render_placement_icon = function () use ($placement_icon_svg): void {
