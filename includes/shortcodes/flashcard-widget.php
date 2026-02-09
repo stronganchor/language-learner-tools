@@ -296,6 +296,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'progress-tracker.js', 'll-flc-progress-tracker', ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio-visualizer.js', 'll-flc-audio-visualizer', ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
@@ -304,11 +305,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state', 'll-flc-dom', 'll-flc-effects'], true);
 
     // New mode-specific modules (loaded after selection.js)
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/self-check.js', 'll-flc-mode-self-check', ['ll-flc-selection', 'll-tools-self-check-shared-script'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/self-check.js', 'll-flc-mode-self-check', ['ll-flc-selection', 'll-tools-self-check-shared-script', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection', 'll-flc-progress-tracker'], true);
 
     // Main orchestrator depends on the mode modules as well
     ll_enqueue_asset_by_timestamp(
@@ -320,6 +321,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
             'll-tools-flashcard-audio',
             'll-tools-flashcard-loader',
             'll-tools-flashcard-options',
+            'll-flc-progress-tracker',
             'll-flc-mode-learning',
             'll-flc-mode-practice',
             'll-flc-mode-self-check',
@@ -336,8 +338,6 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         ['jquery', 'll-flc-main'],
         true
     );
-
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-flc-main'], true);
 
     // Stop parallel audio playback when the grid is present
     wp_add_inline_script('jquery', <<<JS
@@ -405,6 +405,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'star_mode'            => $user_study_state['star_mode'] ?? 'normal',
         'fastTransitions'      => !empty($user_study_state['fast_transitions']),
         'fast_transitions'     => !empty($user_study_state['fast_transitions']),
+        'sessionWordIds'       => [],
+        'session_word_ids'     => [],
         'userStudyState'       => $user_study_state,
         'userStudyNonce'       => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
         'genderEnabled'        => $gender_enabled,

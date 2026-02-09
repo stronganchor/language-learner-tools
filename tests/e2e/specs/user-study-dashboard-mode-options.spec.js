@@ -12,12 +12,15 @@ function buildStudyPanelMarkup() {
   return `
     <div class="ll-user-study-dashboard" data-ll-study-root>
       <div class="ll-study-actions">
+        <button type="button" class="ll-study-btn primary" data-ll-study-start-next disabled>Start Next</button>
         <button type="button" class="ll-study-btn primary" data-ll-study-start data-mode="practice">Practice</button>
         <button type="button" class="ll-study-btn" data-ll-study-start data-mode="learning">Learn</button>
         <button type="button" class="ll-study-btn ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true">Gender</button>
         <button type="button" class="ll-study-btn" data-ll-study-start data-mode="listening">Listen</button>
         <button type="button" class="ll-study-btn" data-ll-study-check-start>Check</button>
+        <button type="button" class="ll-study-btn" data-ll-study-placement-start>Placement</button>
       </div>
+      <div data-ll-study-next-text></div>
 
       <select data-ll-study-wordset></select>
       <div data-ll-study-categories></div>
@@ -153,6 +156,7 @@ async function mountStudyPanel(page, payload) {
     window.llToolsStudyData = data;
     window.alert = function () {};
     window.__llSaveRequests = [];
+    window.__llGoalSaveRequests = [];
 
     const $ = window.jQuery;
     $.post = function (_url, request) {
@@ -173,6 +177,21 @@ async function mountStudyPanel(page, payload) {
       if (action === 'll_user_study_save') {
         window.__llSaveRequests.push(request || {});
         deferred.resolve({ success: true, data: { state: request || {} } });
+        return deferred.promise();
+      }
+      if (action === 'll_user_study_save_goals') {
+        window.__llGoalSaveRequests.push(request || {});
+        let parsedGoals = {};
+        try {
+          parsedGoals = typeof request.goals === 'string' ? JSON.parse(request.goals || '{}') : (request.goals || {});
+        } catch (_e) {
+          parsedGoals = {};
+        }
+        deferred.resolve({ success: true, data: { goals: parsedGoals } });
+        return deferred.promise();
+      }
+      if (action === 'll_user_study_recommendation') {
+        deferred.resolve({ success: true, data: { next_activity: null } });
         return deferred.promise();
       }
 
@@ -259,4 +278,165 @@ test('self-check apply only updates stars inside the checked category scope', as
   expect(saveRequest).not.toBeNull();
   const starred = Array.isArray(saveRequest.starred_word_ids) ? saveRequest.starred_word_ids.map((id) => Number(id)).sort((a, b) => a - b) : [];
   expect(starred).toEqual([101, 202]);
+});
+
+test('placement flow marks category known and persists goals', async ({ page }) => {
+  const payload = buildPayload({
+    state: {
+      wordset_id: 19,
+      category_ids: [11],
+      starred_word_ids: [],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    words_by_category: {
+      11: [
+        { id: 111, title: 'Word 1', translation: 'Word 1', label: 'Word 1', image: '', audio: '', audio_files: [] },
+        { id: 112, title: 'Word 2', translation: 'Word 2', label: 'Word 2', image: '', audio: '', audio_files: [] },
+        { id: 113, title: 'Word 3', translation: 'Word 3', label: 'Word 3', image: '', audio: '', audio_files: [] }
+      ],
+      22: [
+        { id: 221, title: 'Word 4', translation: 'Word 4', label: 'Word 4', image: '', audio: '', audio_files: [] }
+      ]
+    }
+  });
+
+  await mountStudyPanel(page, payload);
+  await page.locator('[data-ll-study-placement-start]').click();
+
+  await page.locator('[data-ll-study-check-know]').click();
+  await page.locator('[data-ll-study-check-know]').click();
+  await page.locator('[data-ll-study-check-know]').click();
+
+  await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
+  await page.locator('[data-ll-study-check-apply]').click();
+  await page.waitForTimeout(400);
+
+  const goalSaveRequest = await page.evaluate(() => {
+    const list = Array.isArray(window.__llGoalSaveRequests) ? window.__llGoalSaveRequests : [];
+    return list.length ? list[list.length - 1] : null;
+  });
+  expect(goalSaveRequest).not.toBeNull();
+  expect(goalSaveRequest.action).toBe('ll_user_study_save_goals');
+
+  const savedGoals = goalSaveRequest && goalSaveRequest.goals ? JSON.parse(goalSaveRequest.goals) : {};
+  const knownCategoryIds = Array.isArray(savedGoals.placement_known_category_ids)
+    ? savedGoals.placement_known_category_ids.map((id) => Number(id)).sort((a, b) => a - b)
+    : [];
+  expect(knownCategoryIds).toEqual([11]);
+});
+
+test('start next chunk temporarily overrides starred-only to keep session words available', async ({ page }) => {
+  const payload = buildPayload({
+    state: {
+      wordset_id: 19,
+      category_ids: [11, 22],
+      starred_word_ids: [101],
+      star_mode: 'only',
+      fast_transitions: false
+    },
+    next_activity: {
+      type: 'review_chunk',
+      reason_code: 'review_chunk_balanced',
+      mode: 'practice',
+      category_ids: [11, 22],
+      session_word_ids: [202],
+      details: { chunk_size: 1 }
+    }
+  });
+
+  await mountStudyPanel(page, payload);
+
+  await page.evaluate(() => {
+    window.__llInitCalls = [];
+    window.initFlashcardWidget = function (catNames, mode) {
+      const data = window.llToolsFlashcardsData || {};
+      window.__llInitCalls.push({
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        mode,
+        sessionStarModeOverride: data.sessionStarModeOverride || data.session_star_mode_override || null,
+        firstCategoryDataIds: Array.isArray(data.firstCategoryData) ? data.firstCategoryData.map((w) => Number(w && w.id)) : [],
+        sessionWordIds: Array.isArray(data.sessionWordIds) ? data.sessionWordIds.map((id) => Number(id)) : []
+      });
+      return Promise.resolve();
+    };
+  });
+
+  await page.locator('[data-ll-study-start-next]').click();
+  await page.waitForTimeout(100);
+
+  const call = await page.evaluate(() => {
+    const list = Array.isArray(window.__llInitCalls) ? window.__llInitCalls : [];
+    return list.length ? list[list.length - 1] : null;
+  });
+
+  expect(call).not.toBeNull();
+  expect(call.mode).toBe('practice');
+  expect(call.sessionStarModeOverride).toBe('normal');
+  expect(call.sessionWordIds).toEqual([202]);
+  expect(call.firstCategoryDataIds).toEqual([202]);
+});
+
+test('flashcard close event restores dashboard scroll lock when check panel closed while popup is active', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload());
+
+  await page.locator('[data-ll-study-categories] input[type="checkbox"][value="22"]').uncheck();
+  await page.locator('[data-ll-study-check-start]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => ({
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow
+    }));
+  }).toEqual({
+    bodyOverflow: 'hidden',
+    htmlOverflow: 'hidden'
+  });
+
+  await page.evaluate(() => {
+    let popup = document.getElementById('ll-tools-flashcard-popup');
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'll-tools-flashcard-popup';
+      document.body.appendChild(popup);
+    }
+    popup.style.display = 'block';
+    document.body.classList.add('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-opened');
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => ({
+      panelActive: document.querySelector('[data-ll-study-check]').classList.contains('is-active'),
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow
+    }));
+  }).toEqual({
+    panelActive: false,
+    bodyOverflow: 'hidden',
+    htmlOverflow: 'hidden'
+  });
+
+  await page.evaluate(() => {
+    const popup = document.getElementById('ll-tools-flashcard-popup');
+    if (popup) {
+      popup.style.display = 'none';
+    }
+    document.body.classList.remove('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => ({
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow,
+      bodyClass: document.body.classList.contains('ll-study-check-open'),
+      htmlClass: document.documentElement.classList.contains('ll-study-check-open')
+    }));
+  }).toEqual({
+    bodyOverflow: '',
+    htmlOverflow: '',
+    bodyClass: false,
+    htmlClass: false
+  });
 });

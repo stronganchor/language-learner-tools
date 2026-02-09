@@ -13,6 +13,28 @@
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
 
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function resolveWordsetIdForProgress() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = data.userStudyState || {};
+        const fromState = parseInt(userState.wordset_id, 10) || 0;
+        if (fromState > 0) {
+            return fromState;
+        }
+        if (Array.isArray(data.wordsetIds) && data.wordsetIds.length) {
+            const first = parseInt(data.wordsetIds[0], 10) || 0;
+            if (first > 0) {
+                return first;
+            }
+        }
+        return 0;
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -944,6 +966,24 @@
                 }
             } catch (_) { /* no-op */ }
         })();
+
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.setContext === 'function') {
+                tracker.setContext({
+                    mode: 'listening',
+                    wordsetId: resolveWordsetIdForProgress()
+                });
+            }
+            if (tracker && typeof tracker.trackCategoryStudy === 'function') {
+                tracker.trackCategoryStudy({
+                    mode: 'listening',
+                    categoryName: State.currentCategoryName || '',
+                    wordsetId: resolveWordsetIdForProgress(),
+                    payload: { units: 1 }
+                });
+            }
+        } catch (_) { /* no-op */ }
 
         try { WakeLock.update(); } catch (_) { }
 

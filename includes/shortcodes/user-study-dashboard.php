@@ -61,6 +61,22 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
         echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
     };
+    $placement_icon_svg = <<<'SVG'
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path fill="#22c55e" d="M6.2 6.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0L6.2 7.4c-.2-.2-.2-.6 0-.8z"/>
+  <path fill="#22c55e" d="M6.2 11.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0l-1.1-1.1c-.2-.2-.2-.6 0-.8z"/>
+  <g fill="#ef4444">
+    <rect x="5.8" y="16.35" width="4.4" height="1.3" rx="0.65" transform="rotate(45 8 17)"/>
+    <rect x="5.8" y="16.35" width="4.4" height="1.3" rx="0.65" transform="rotate(-45 8 17)"/>
+  </g>
+  <rect x="11" y="6" width="7" height="2" rx="1" fill="currentColor"/>
+  <rect x="11" y="11" width="7" height="2" rx="1" fill="currentColor"/>
+  <rect x="11" y="16" width="7" height="2" rx="1" fill="currentColor"/>
+</svg>
+SVG;
+    $render_placement_icon = function () use ($placement_icon_svg): void {
+        echo '<span class="ll-vocab-lesson-mode-icon ll-vocab-lesson-mode-icon--placement" aria-hidden="true">' . $placement_icon_svg . '</span>';
+    };
 
     ll_tools_user_study_enqueue_assets();
 
@@ -68,6 +84,16 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'wordsetLabel'     => __('Word set', 'll-tools-text-domain'),
         'categoriesLabel'  => __('Categories', 'll-tools-text-domain'),
         'wordsLabel'       => __('Words', 'll-tools-text-domain'),
+        'nextLabel'        => __('Next', 'll-tools-text-domain'),
+        'nextStart'        => __('Start next', 'll-tools-text-domain'),
+        'nextNone'         => __('No recommendation yet. Pick categories or do one round first.', 'll-tools-text-domain'),
+        'nextReady'        => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
+        'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
+        'modePractice'     => __('Practice', 'll-tools-text-domain'),
+        'modeLearning'     => __('Learn', 'll-tools-text-domain'),
+        'modeListening'    => __('Listen', 'll-tools-text-domain'),
+        'modeGender'       => __('Gender', 'll-tools-text-domain'),
+        'modeSelfCheck'    => __('Self check', 'll-tools-text-domain'),
         'starLabel'        => __('Starred', 'll-tools-text-domain'),
         'saveSuccess'      => __('Saved.', 'll-tools-text-domain'),
         'practice'         => __('Practice', 'll-tools-text-domain'),
@@ -99,6 +125,22 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'checkExit'        => __('Close', 'll-tools-text-domain'),
         'checkEmpty'       => __('No words available for this check.', 'll-tools-text-domain'),
         'checkFlipLabel'   => __('Show answer', 'll-tools-text-domain'),
+        'placementLabel'   => __('Placement test', 'll-tools-text-domain'),
+        'placementStart'   => __('Placement test', 'll-tools-text-domain'),
+        'placementApply'   => __('Save placement', 'll-tools-text-domain'),
+        'placementRestart' => __('Retake placement', 'll-tools-text-domain'),
+        'placementSummary' => __('Placement: %1$d/%2$d categories marked as known.', 'll-tools-text-domain'),
+        'placementSummaryNone' => __('Placement complete. No categories were marked as known yet.', 'll-tools-text-domain'),
+        'goalsLabel'       => __('Learning goals', 'll-tools-text-domain'),
+        'enabledModesLabel' => __('Enabled modes', 'll-tools-text-domain'),
+        'dailyNewLabel'    => __('New words / day', 'll-tools-text-domain'),
+        'dailyNewHint'     => __('Set 0 to focus only on review.', 'll-tools-text-domain'),
+        'categorySkip'     => __('Skip', 'll-tools-text-domain'),
+        'categoryUnskip'   => __('Use', 'll-tools-text-domain'),
+        'categoryKnown'    => __('Known', 'll-tools-text-domain'),
+        'categoryUnknown'  => __('Unknown', 'll-tools-text-domain'),
+        'markKnownSelected' => __('Mark selected as known', 'll-tools-text-domain'),
+        'clearKnownSelected' => __('Clear known on selected', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
@@ -120,6 +162,10 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <p class="ll-study-subhead"><?php echo esc_html__('Choose a word set, pick categories, and star the words you want to see more often.', 'll-tools-text-domain'); ?></p>
             </div>
             <div class="ll-study-actions">
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start-next disabled>
+                    <?php $render_mode_icon('practice', '▶'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['nextStart']); ?></span>
+                </button>
                 <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start data-mode="practice">
                     <?php $render_mode_icon('practice', '❓'); ?>
                     <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['practice']); ?></span>
@@ -140,7 +186,15 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                     <?php $render_mode_icon('self-check', '✔✖'); ?>
                     <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['checkLabel']); ?></span>
                 </button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-placement-start>
+                    <?php $render_placement_icon(); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['placementStart']); ?></span>
+                </button>
             </div>
+        </div>
+        <div class="ll-study-next-card">
+            <span class="ll-card-title-sub"><?php echo esc_html($i18n['nextLabel']); ?></span>
+            <p class="ll-study-hint" data-ll-study-next-text><?php echo esc_html($i18n['nextNone']); ?></p>
         </div>
 
         <div class="ll-study-grid ll-study-grid--top">
@@ -164,6 +218,24 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                         <button type="button" class="ll-study-btn tiny" data-speed="fast"><?php echo esc_html($i18n['transitionFast']); ?></button>
                     </div>
                     <p class="ll-study-hint"><?php echo esc_html($i18n['transitionHint']); ?></p>
+                </div>
+                <div class="ll-study-goals">
+                    <span class="ll-card-title-sub"><?php echo esc_html($i18n['goalsLabel']); ?></span>
+                    <span class="ll-study-goal-label"><?php echo esc_html($i18n['enabledModesLabel']); ?></span>
+                    <div class="ll-star-toggle-group" data-ll-goals-modes>
+                        <button type="button" class="ll-study-btn tiny" data-goal-mode="learning"><?php echo esc_html($i18n['modeLearning']); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-goal-mode="listening"><?php echo esc_html($i18n['modeListening']); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-goal-mode="practice"><?php echo esc_html($i18n['modePractice']); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-goal-mode="gender"><?php echo esc_html($i18n['modeGender']); ?></button>
+                        <button type="button" class="ll-study-btn tiny" data-goal-mode="self-check"><?php echo esc_html($i18n['modeSelfCheck']); ?></button>
+                    </div>
+                    <label for="ll-study-daily-new" class="ll-study-goal-input-label"><?php echo esc_html($i18n['dailyNewLabel']); ?></label>
+                    <input id="ll-study-daily-new" class="ll-study-goal-input" data-ll-goal-daily-new type="number" min="0" max="12" step="1" value="2" />
+                    <p class="ll-study-hint"><?php echo esc_html($i18n['dailyNewHint']); ?></p>
+                    <div class="ll-study-goal-actions">
+                        <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-mark-known><?php echo esc_html($i18n['markKnownSelected']); ?></button>
+                        <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-clear-known><?php echo esc_html($i18n['clearKnownSelected']); ?></button>
+                    </div>
                 </div>
             </div>
 

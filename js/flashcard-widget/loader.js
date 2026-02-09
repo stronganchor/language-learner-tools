@@ -21,6 +21,22 @@
                 : [];
             return ids.map(function (v) { return parseInt(v, 10); }).filter(function (v) { return v > 0 && isFinite(v); });
         }
+        function getSessionWordLookup() {
+            const data = window.llToolsFlashcardsData || {};
+            const raw = Array.isArray(data.sessionWordIds)
+                ? data.sessionWordIds
+                : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+            const lookup = {};
+            let count = 0;
+            raw.forEach(function (value) {
+                const id = parseInt(value, 10);
+                if (id > 0 && isFinite(id) && !lookup[id]) {
+                    lookup[id] = true;
+                    count++;
+                }
+            });
+            return count > 0 ? lookup : null;
+        }
 
         function getCategoryConfig(name) {
             const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
@@ -47,7 +63,17 @@
             const fallback = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordsetFallback !== 'undefined')
                 ? !!window.llToolsFlashcardsData.wordsetFallback
                 : true;
-            return String(ws || '') + '|' + (fallback ? '1' : '0');
+            const sessionRaw = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.sessionWordIds))
+                ? window.llToolsFlashcardsData.sessionWordIds
+                : ((window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.session_word_ids))
+                    ? window.llToolsFlashcardsData.session_word_ids
+                    : []);
+            const sessionKey = sessionRaw
+                .map(function (id) { return parseInt(id, 10) || 0; })
+                .filter(function (id) { return id > 0; })
+                .sort(function (a, b) { return a - b; })
+                .join(',');
+            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
         }
 
         function resetCacheForNewWordset() {
@@ -206,6 +232,7 @@
 
             const allowedWordsetIds = getAllowedWordsetIds();
             const hasWordsetFilter = allowedWordsetIds.length > 0;
+            const sessionWordLookup = getSessionWordLookup();
 
             const cfg = getCategoryConfig(categoryName);
             const needsAudio = categoryRequiresAudio(cfg);
@@ -223,6 +250,12 @@
                 return w;
             }).filter(function (w) {
                 if (needsAudio && !w.audio) return false;
+                if (sessionWordLookup) {
+                    const wordId = parseInt(w && w.id, 10);
+                    if (!wordId || !sessionWordLookup[wordId]) {
+                        return false;
+                    }
+                }
                 if (hasWordsetFilter) {
                     const ids = Array.isArray(w.wordset_ids) ? w.wordset_ids : [];
                     const match = ids.some(function (id) { return allowedWordsetIds.indexOf(parseInt(id, 10)) !== -1; });

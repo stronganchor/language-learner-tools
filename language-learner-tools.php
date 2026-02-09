@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 5.0.4
+Version: 5.0.5
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -127,6 +127,10 @@ register_activation_hook(__FILE__, function () {
     set_transient('ll_tools_create_recording_page', 1, 10 * MINUTE_IN_SECONDS);
     // Safeguard to skip quiz page sync until seeding completes
     set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
+
+    if (function_exists('ll_tools_install_user_progress_schema')) {
+        ll_tools_install_user_progress_schema();
+    }
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).

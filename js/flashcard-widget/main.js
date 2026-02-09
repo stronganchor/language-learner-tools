@@ -33,6 +33,14 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
+    function parseOptionalStarMode(mode) {
+        const val = (mode || '').toString();
+        if (val === 'only' || val === 'normal' || val === 'weighted') {
+            return val;
+        }
+        return null;
+    }
+
     function setStarModeOverride(mode) {
         const normalized = mode ? normalizeStarMode(mode) : null;
         State.starModeOverride = normalized;
@@ -42,14 +50,31 @@
         return normalized;
     }
 
+    function getSessionStarModeOverride() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = (typeof data.sessionStarModeOverride !== 'undefined')
+            ? data.sessionStarModeOverride
+            : data.session_star_mode_override;
+        return parseOptionalStarMode(raw);
+    }
+
     function getCurrentWordsetKey() {
-        const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
-            ? root.llToolsFlashcardsData.wordset
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined')
+            ? data.wordset
             : '';
-        const fallback = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordsetFallback !== 'undefined')
-            ? !!root.llToolsFlashcardsData.wordsetFallback
+        const fallback = (typeof data.wordsetFallback !== 'undefined')
+            ? !!data.wordsetFallback
             : true;
-        return String(ws || '') + '|' + (fallback ? '1' : '0');
+        const sessionRaw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        const sessionKey = sessionRaw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; })
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+        return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
     }
 
     function resetWordsetScopedCachesIfNeeded() {
@@ -953,6 +978,125 @@
         return 'practice';
     }
 
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function categoryNamesToIds(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames : [];
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const byName = {};
+        categories.forEach(function (cat) {
+            if (!cat || !cat.name) { return; }
+            byName[String(cat.name)] = parseInt(cat.id, 10) || 0;
+        });
+        const seen = {};
+        const out = [];
+        names.forEach(function (name) {
+            const id = parseInt(byName[String(name)] || 0, 10) || 0;
+            if (!id || seen[id]) { return; }
+            seen[id] = true;
+            out.push(id);
+        });
+        return out;
+    }
+
+    function resolveWordsetIdForProgress() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = data.userStudyState || {};
+        const fromState = parseInt(userState.wordset_id, 10) || 0;
+        if (fromState > 0) {
+            return fromState;
+        }
+        if (Array.isArray(data.wordsetIds) && data.wordsetIds.length) {
+            const first = parseInt(data.wordsetIds[0], 10) || 0;
+            if (first > 0) {
+                return first;
+            }
+        }
+        return 0;
+    }
+
+    function resolveCategoryIdByName(categoryName) {
+        const target = String(categoryName || '').trim();
+        if (!target) {
+            return 0;
+        }
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const lowered = target.toLowerCase();
+        const found = categories.find(function (cat) {
+            if (!cat) { return false; }
+            const name = String(cat.name || '').toLowerCase();
+            const slug = String(cat.slug || '').toLowerCase();
+            return (name && name === lowered) || (slug && slug === lowered);
+        });
+        return found ? (parseInt(found.id, 10) || 0) : 0;
+    }
+
+    function resolveCategoryForWordProgress(targetWord, fallbackCategoryName) {
+        const word = targetWord || {};
+        const categoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
+            ? (Selection.getTargetCategoryName(word) || fallbackCategoryName || State.currentCategoryName || '')
+            : (fallbackCategoryName || State.currentCategoryName || '');
+        return {
+            category_id: resolveCategoryIdByName(categoryName),
+            category_name: categoryName
+        };
+    }
+
+    function updateProgressTrackerContext(modeOverride, categoryNamesOverride) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.setContext !== 'function') {
+            return;
+        }
+        const names = Array.isArray(categoryNamesOverride) && categoryNamesOverride.length
+            ? categoryNamesOverride
+            : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
+        tracker.setContext({
+            mode: modeOverride || getCurrentModeKey(),
+            wordsetId: resolveWordsetIdForProgress(),
+            categoryIds: categoryNamesToIds(names)
+        });
+    }
+
+    function trackWordExposureForProgress(targetWord, fallbackCategoryName) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.trackWordExposure !== 'function' || !targetWord || !targetWord.id) {
+            return;
+        }
+        const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        tracker.trackWordExposure({
+            mode: getCurrentModeKey(),
+            wordId: targetWord.id,
+            categoryId: cat.category_id,
+            categoryName: cat.category_name,
+            wordsetId: resolveWordsetIdForProgress()
+        });
+    }
+
+    function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
+            return;
+        }
+        const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        tracker.trackWordOutcome({
+            mode: getCurrentModeKey(),
+            wordId: targetWord.id,
+            categoryId: cat.category_id,
+            categoryName: cat.category_name,
+            wordsetId: resolveWordsetIdForProgress(),
+            isCorrect: !!isCorrect,
+            hadWrongBefore: !!hadWrongBefore
+        });
+    }
+
     function triggerSelfCheckFlowFromFlashcard() {
         const dashboardApi = root.LLToolsStudyDashboard;
         if (!dashboardApi || typeof dashboardApi.startSelfCheck !== 'function') {
@@ -1372,6 +1516,19 @@
             newMode = 'practice';
         }
 
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                root.FlashcardAudio.suspendPlayback();
+            }
+        } catch (_) { /* no-op */ }
+
         const $btn = $('#ll-tools-mode-switcher');
         if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
 
@@ -1403,8 +1560,9 @@
             State.isListeningMode = (targetMode === 'listening');
             State.isGenderMode = (targetMode === 'gender');
             // Self-check should always review all words once, independent of star prefs.
-            setStarModeOverride(targetMode === 'self-check' ? 'normal' : null);
+            setStarModeOverride(targetMode === 'self-check' ? 'normal' : getSessionStarModeOverride());
             restoreCategorySelection();
+            updateProgressTrackerContext(targetMode);
 
             const activeModule = getActiveModeModule();
             if (activeModule && typeof activeModule.initialize === 'function') {
@@ -1463,6 +1621,8 @@
         const recordResultForWord = function () {
             recordWordResult(targetWord.id, State.hadWrongAnswerThisTurn);
         };
+
+        trackWordOutcomeForProgress(targetWord, true, State.hadWrongAnswerThisTurn, State.currentCategoryName);
 
         callModeHook('onCorrectAnswer', {
             targetWord,
@@ -1564,6 +1724,7 @@
         const wrongId = parseInt(targetWord.id, 10) || targetWord.id;
         if (!State.quizResults.incorrect.includes(wrongId)) State.quizResults.incorrect.push(wrongId);
         State.wrongIndexes.push(index);
+        trackWordOutcomeForProgress(targetWord, false, false, State.currentCategoryName);
 
         if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
             $('.flashcard-container').not(function () {
@@ -1628,6 +1789,8 @@
             console.warn('Cannot start quiz round in state:', State.getState());
             return;
         }
+
+        updateProgressTrackerContext();
 
         State.clearActiveTimeouts();
         clearPrompt();
@@ -1738,6 +1901,8 @@
             State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
             try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
         }
+        updateProgressTrackerContext(getCurrentModeKey());
+        trackWordExposureForProgress(target, categoryNameForRound);
 
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(categoryNameForRound)
@@ -1883,7 +2048,8 @@
                     State.isSelfCheckMode = true;
                 }
                 // Self-check should always review all words once, independent of star prefs.
-                setStarModeOverride(State.isSelfCheckMode ? 'normal' : null);
+                setStarModeOverride(State.isSelfCheckMode ? 'normal' : getSessionStarModeOverride());
+                updateProgressTrackerContext(requestedMode);
 
                 const activeModule = getActiveModeModule();
                 if (activeModule && typeof activeModule.initialize === 'function') {
@@ -1904,10 +2070,17 @@
                 State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
+                updateProgressTrackerContext(requestedMode, State.categoryNames);
                 root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
                 Dom.updateCategoryNameDisplay(State.firstCategoryName);
 
                 $('body').addClass('ll-tools-flashcard-open');
+                try {
+                    $(document).trigger('lltools:flashcard-opened', [{
+                        mode: requestedMode,
+                        categories: cleanedCategories.slice()
+                    }]);
+                } catch (_) { /* no-op */ }
                 $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
                 $('#ll-tools-flashcard-header').show();
 
@@ -2023,6 +2196,19 @@
             return closingCleanupPromise;
         }
 
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                root.FlashcardAudio.suspendPlayback();
+            }
+        } catch (_) { /* no-op */ }
+
         // Immediately restore scrolling (belt-and-suspenders)
         restorePageScroll();
 
@@ -2099,6 +2285,11 @@
                     return root.FlashcardAudio.startNewSession();
                 }
             })
+            .then(function () {
+                if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                    return root.FlashcardAudio.suspendPlayback();
+                }
+            })
             .catch(function (err) {
                 console.error('Failed to start audio cleanup session:', err);
             })
@@ -2133,6 +2324,9 @@
             });
 
         closingCleanupPromise = cleanupPromise.finally(function () {
+            try {
+                $(document).trigger('lltools:flashcard-closed');
+            } catch (_) { /* no-op */ }
             closingCleanupPromise = null;
         });
 
@@ -2140,6 +2334,13 @@
     }
 
     function restartQuiz() {
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
         newSession();
         $('#ll-tools-learning-progress').hide().empty();
         // Remove any listening-mode specific UI

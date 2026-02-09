@@ -15,8 +15,14 @@
     let wordsets = payload.wordsets || [];
     let categories = payload.categories || [];
     let wordsByCategory = payload.words_by_category || {};
+    let goals = normalizeStudyGoals(payload.goals || {});
+    let categoryProgress = normalizeCategoryProgress(payload.category_progress || {});
+    let nextActivity = normalizeNextActivity(payload.next_activity || null);
     let savingTimer = null;
+    let goalsTimer = null;
     let genderConfig = normalizeGenderConfig(payload.gender || {});
+    state.category_ids = uniqueIntList(state.category_ids || []);
+    state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
 
     const $wordsetSelect = $root.find('[data-ll-study-wordset]');
     const $categoriesWrap = $root.find('[data-ll-study-categories]');
@@ -28,6 +34,7 @@
     const $transitionToggle = $root.find('[data-ll-transition-speed]');
     const $genderStart = $root.find('[data-ll-study-gender]');
     const $checkStart = $root.find('[data-ll-study-check-start]');
+    const $placementStart = $root.find('[data-ll-study-placement-start]');
     const $checkPanel = $root.find('[data-ll-study-check]');
     const $checkPrompt = $root.find('[data-ll-study-check-prompt]');
     const $checkCategory = $root.find('[data-ll-study-check-category]');
@@ -43,6 +50,12 @@
     const $checkApply = $root.find('[data-ll-study-check-apply]');
     const $checkRestart = $root.find('[data-ll-study-check-restart]');
     const $checkExit = $root.find('[data-ll-study-check-exit]');
+    const $nextText = $root.find('[data-ll-study-next-text]');
+    const $startNext = $root.find('[data-ll-study-start-next]');
+    const $goalsModes = $root.find('[data-ll-goals-modes]');
+    const $goalDailyNew = $root.find('[data-ll-goal-daily-new]');
+    const $goalMarkKnown = $root.find('[data-ll-goal-mark-known]');
+    const $goalClearKnown = $root.find('[data-ll-goal-clear-known]');
 
     let currentAudio = null;
     let currentAudioButton = null;
@@ -70,12 +83,38 @@
     let vizSource = null;
     let checkSession = null;
     let checkScrollLock = null;
+    let checkScrollTouched = false;
+    const PLACEMENT_WORDS_PER_CATEGORY = 4;
+    const PLACEMENT_MIN_WORDS_TO_JUDGE = 3;
+    const PLACEMENT_KNOWN_THRESHOLD = 0.75;
+
+    function hasVisibleFlashcardPopup() {
+        try {
+            return $('#ll-tools-flashcard-popup:visible, #ll-tools-flashcard-quiz-popup:visible').length > 0;
+        } catch (_) {
+            const popup = document.getElementById('ll-tools-flashcard-popup');
+            const quizPopup = document.getElementById('ll-tools-flashcard-quiz-popup');
+            const isVisible = function (el) {
+                return !!(el && (el.offsetParent !== null || el.style.display !== 'none'));
+            };
+            return isVisible(popup) || isVisible(quizPopup);
+        }
+    }
+
+    function isFlashcardOverlayActive() {
+        const body = document.body;
+        if (!body) { return false; }
+        const hasOverlayClass = body.classList.contains('ll-tools-flashcard-open') || body.classList.contains('ll-qpg-popup-active');
+        if (!hasOverlayClass) { return false; }
+        return hasVisibleFlashcardPopup();
+    }
 
     function lockCheckViewportScroll() {
         const docEl = document.documentElement;
         const body = document.body;
         if (!docEl || !body) { return; }
         if (checkScrollLock && checkScrollLock.active) { return; }
+        checkScrollTouched = true;
         checkScrollLock = {
             active: true,
             htmlOverflow: docEl.style.overflow || '',
@@ -87,20 +126,45 @@
         body.classList.add('ll-study-check-open');
     }
 
-    function unlockCheckViewportScroll() {
+    function unlockCheckViewportScroll(forceRestore) {
         const docEl = document.documentElement;
         const body = document.body;
         if (!docEl || !body || !checkScrollLock || !checkScrollLock.active) { return; }
         docEl.classList.remove('ll-study-check-open');
         body.classList.remove('ll-study-check-open');
 
-        // Respect other overlays that intentionally lock scrolling.
-        if (!body.classList.contains('ll-tools-flashcard-open') && !body.classList.contains('ll-qpg-popup-active')) {
-            docEl.style.overflow = checkScrollLock.htmlOverflow;
-            body.style.overflow = checkScrollLock.bodyOverflow;
+        // Keep the saved state if another overlay is actively open; restore on close.
+        if (!forceRestore && isFlashcardOverlayActive()) {
+            return;
         }
 
+        docEl.style.overflow = checkScrollLock.htmlOverflow;
+        body.style.overflow = checkScrollLock.bodyOverflow;
         checkScrollLock = null;
+    }
+
+    function restoreDashboardScrollIfNeeded() {
+        const docEl = document.documentElement;
+        const body = document.body;
+        if (!docEl || !body) { return; }
+        if (isFlashcardOverlayActive()) { return; }
+        if ($checkPanel.length && $checkPanel.hasClass('is-active')) { return; }
+
+        if (checkScrollLock && checkScrollLock.active) {
+            unlockCheckViewportScroll(true);
+            return;
+        }
+
+        docEl.classList.remove('ll-study-check-open');
+        body.classList.remove('ll-study-check-open');
+
+        if (!checkScrollTouched) { return; }
+        if (docEl.style.overflow === 'hidden') {
+            docEl.style.overflow = '';
+        }
+        if (body.style.overflow === 'hidden') {
+            body.style.overflow = '';
+        }
     }
 
     function formatRecordingLabel(typeLabel) {
@@ -316,6 +380,79 @@
         return (val === 'normal' || val === 'only' || val === 'weighted') ? val : 'normal';
     }
 
+    function normalizeProgressMode(mode) {
+        const val = String(mode || '').trim().toLowerCase();
+        if (val === 'self_check') { return 'self-check'; }
+        return ['learning', 'practice', 'listening', 'gender', 'self-check'].indexOf(val) !== -1 ? val : '';
+    }
+
+    function uniqueIntList(values) {
+        const seen = {};
+        return toIntList(values).filter(function (id) {
+            if (seen[id]) { return false; }
+            seen[id] = true;
+            return true;
+        });
+    }
+
+    function normalizeStudyGoals(raw) {
+        const src = (raw && typeof raw === 'object') ? raw : {};
+        const modesRaw = Array.isArray(src.enabled_modes) ? src.enabled_modes : ['learning', 'practice', 'listening', 'gender', 'self-check'];
+        const modeSeen = {};
+        let enabledModes = modesRaw.map(normalizeProgressMode).filter(function (mode) {
+            if (!mode || modeSeen[mode]) { return false; }
+            modeSeen[mode] = true;
+            return true;
+        });
+        if (!enabledModes.length) {
+            enabledModes = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+        }
+        return {
+            enabled_modes: enabledModes,
+            ignored_category_ids: uniqueIntList(src.ignored_category_ids || []),
+            preferred_wordset_ids: uniqueIntList(src.preferred_wordset_ids || []),
+            placement_known_category_ids: uniqueIntList(src.placement_known_category_ids || []),
+            daily_new_word_target: Math.max(0, Math.min(12, parseInt(src.daily_new_word_target, 10) || 0))
+        };
+    }
+
+    function normalizeCategoryProgress(raw) {
+        const src = (raw && typeof raw === 'object') ? raw : {};
+        const out = {};
+        Object.keys(src).forEach(function (key) {
+            const id = parseInt(key, 10) || 0;
+            if (!id) { return; }
+            const entry = src[key];
+            if (!entry || typeof entry !== 'object') { return; }
+            out[id] = {
+                category_id: id,
+                exposure_total: Math.max(0, parseInt(entry.exposure_total, 10) || 0),
+                exposure_by_mode: (entry.exposure_by_mode && typeof entry.exposure_by_mode === 'object') ? entry.exposure_by_mode : {},
+                last_mode: normalizeProgressMode(entry.last_mode) || 'practice',
+                last_seen_at: String(entry.last_seen_at || '')
+            };
+        });
+        return out;
+    }
+
+    function normalizeNextActivity(raw) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        const mode = normalizeProgressMode(raw.mode);
+        if (!mode) {
+            return null;
+        }
+        return {
+            type: String(raw.type || ''),
+            reason_code: String(raw.reason_code || ''),
+            mode: mode,
+            category_ids: uniqueIntList(raw.category_ids || []),
+            session_word_ids: uniqueIntList(raw.session_word_ids || []),
+            details: (raw.details && typeof raw.details === 'object') ? raw.details : {}
+        };
+    }
+
     function normalizeGenderConfig(raw) {
         const cfg = (raw && typeof raw === 'object') ? raw : {};
         const optionsRaw = Array.isArray(cfg.options) ? cfg.options : [];
@@ -380,6 +517,196 @@
         return { allStarred: allStarred, hasWords: true };
     }
 
+    function getProgressTracker() {
+        return (window.LLFlashcards && window.LLFlashcards.ProgressTracker)
+            ? window.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function syncProgressTrackerContext(modeOverride, categoryIdsOverride) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.setContext !== 'function') { return; }
+        tracker.setContext({
+            mode: modeOverride || 'practice',
+            wordsetId: parseInt(state.wordset_id, 10) || 0,
+            categoryIds: uniqueIntList(categoryIdsOverride || state.category_ids || [])
+        });
+    }
+
+    function isCategoryIgnored(catId) {
+        const cid = parseInt(catId, 10) || 0;
+        if (!cid) { return false; }
+        return goals.ignored_category_ids.indexOf(cid) !== -1;
+    }
+
+    function isCategoryKnown(catId) {
+        const cid = parseInt(catId, 10) || 0;
+        if (!cid) { return false; }
+        return goals.placement_known_category_ids.indexOf(cid) !== -1;
+    }
+
+    function ensureSelectedCategoriesRespectGoals() {
+        state.category_ids = uniqueIntList(state.category_ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+    }
+
+    function getCategoryLabelById(catId) {
+        const cid = parseInt(catId, 10) || 0;
+        if (!cid) { return ''; }
+        const found = categories.find(function (cat) {
+            return parseInt(cat.id, 10) === cid;
+        });
+        if (!found) { return ''; }
+        return found.translation || found.name || '';
+    }
+
+    function modeLabel(mode) {
+        const key = normalizeProgressMode(mode);
+        if (key === 'learning') { return i18n.modeLearning || 'Learn'; }
+        if (key === 'practice') { return i18n.modePractice || 'Practice'; }
+        if (key === 'listening') { return i18n.modeListening || 'Listen'; }
+        if (key === 'gender') { return i18n.modeGender || 'Gender'; }
+        if (key === 'self-check') { return i18n.modeSelfCheck || 'Self check'; }
+        return key || (i18n.modePractice || 'Practice');
+    }
+
+    function formatTemplate(template, values) {
+        const text = String(template || '');
+        if (!text) { return ''; }
+        const replacements = Array.isArray(values) ? values : [];
+        let output = text;
+        replacements.forEach(function (val, idx) {
+            const oneBased = idx + 1;
+            const safe = String(val === null || val === undefined ? '' : val);
+            output = output.replace(new RegExp('%' + oneBased + '\\$s', 'g'), safe);
+            output = output.replace(new RegExp('%' + oneBased + '\\$d', 'g'), safe);
+        });
+        if (replacements.length) {
+            output = output.replace(/%s/g, String(replacements[0]));
+            output = output.replace(/%d/g, String(replacements[0]));
+        }
+        return output;
+    }
+
+    function renderGoalsControls() {
+        if ($goalsModes.length) {
+            const enabledLookup = {};
+            (goals.enabled_modes || []).forEach(function (mode) {
+                enabledLookup[mode] = true;
+            });
+            $goalsModes.find('[data-goal-mode]').each(function () {
+                const mode = normalizeProgressMode($(this).attr('data-goal-mode'));
+                const active = !!enabledLookup[mode];
+                $(this).toggleClass('active', active).attr('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+        if ($goalDailyNew.length) {
+            $goalDailyNew.val(String(Math.max(0, Math.min(12, parseInt(goals.daily_new_word_target, 10) || 0))));
+        }
+        renderModeButtonsForGoals();
+    }
+
+    function isModeEnabled(mode) {
+        const key = normalizeProgressMode(mode);
+        if (!key) { return false; }
+        return (goals.enabled_modes || []).indexOf(key) !== -1;
+    }
+
+    function renderModeButtonsForGoals() {
+        $root.find('[data-ll-study-start]').each(function () {
+            const mode = normalizeProgressMode($(this).attr('data-mode'));
+            const enabled = isModeEnabled(mode);
+            $(this).prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
+        });
+        if ($checkStart.length) {
+            const enabled = isModeEnabled('self-check');
+            $checkStart.prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
+        }
+        if ($placementStart.length) {
+            const enabled = isModeEnabled('self-check');
+            $placementStart.prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
+        }
+    }
+
+    function renderNextActivity() {
+        if (!$nextText.length) { return; }
+        const next = normalizeNextActivity(nextActivity);
+        if (!next || !next.mode || !isModeEnabled(next.mode)) {
+            $nextText.text(i18n.nextNone || 'No recommendation yet. Pick categories or do one round first.');
+            if ($startNext.length) {
+                $startNext.prop('disabled', true).addClass('disabled');
+            }
+            return;
+        }
+
+        const labels = uniqueIntList(next.category_ids).map(getCategoryLabelById).filter(Boolean);
+        const categoryText = labels.length ? labels.join(', ') : (i18n.categoriesLabel || 'Categories');
+        const wordCount = uniqueIntList(next.session_word_ids).length;
+        const modeText = modeLabel(next.mode);
+        const message = (wordCount > 0)
+            ? formatTemplate(i18n.nextReady || 'Recommended: %1$s in %2$s (%3$d words).', [modeText, categoryText, wordCount])
+            : formatTemplate(i18n.nextReadyNoCount || 'Recommended: %1$s in %2$s.', [modeText, categoryText]);
+        $nextText.text(message);
+        if ($startNext.length) {
+            $startNext.prop('disabled', false).removeClass('disabled');
+        }
+    }
+
+    function applyNextActivity(next) {
+        nextActivity = normalizeNextActivity(next);
+        renderNextActivity();
+    }
+
+    function saveGoalsDebounced() {
+        clearTimeout(goalsTimer);
+        goalsTimer = setTimeout(function () {
+            saveGoalsNow();
+        }, 300);
+    }
+
+    function saveGoalsNow() {
+        goals = normalizeStudyGoals(goals);
+        ensureSelectedCategoriesRespectGoals();
+        renderGoalsControls();
+        renderCategories();
+        renderWords();
+
+        return $.post(ajaxUrl, {
+            action: 'll_user_study_save_goals',
+            nonce: nonce,
+            wordset_id: state.wordset_id,
+            category_ids: state.category_ids,
+            goals: JSON.stringify(goals)
+        }).done(function (res) {
+            if (res && res.success && res.data) {
+                if (res.data.goals) {
+                    goals = normalizeStudyGoals(res.data.goals);
+                    ensureSelectedCategoriesRespectGoals();
+                    renderGoalsControls();
+                    renderCategories();
+                    renderWords();
+                }
+                if (Object.prototype.hasOwnProperty.call(res.data, 'next_activity')) {
+                    applyNextActivity(res.data.next_activity);
+                }
+            }
+        });
+    }
+
+    function refreshRecommendation() {
+        return $.post(ajaxUrl, {
+            action: 'll_user_study_recommendation',
+            nonce: nonce,
+            wordset_id: state.wordset_id,
+            category_ids: state.category_ids
+        }).done(function (res) {
+            if (res && res.success && res.data && Object.prototype.hasOwnProperty.call(res.data, 'next_activity')) {
+                applyNextActivity(res.data.next_activity);
+            }
+        });
+    }
+
     function getGenderOptions() {
         return Array.isArray(genderConfig.options) ? genderConfig.options : [];
     }
@@ -388,9 +715,9 @@
         return !!genderConfig.enabled && getGenderOptions().length >= 2;
     }
 
-    function isGenderSupportedForSelection() {
+    function isGenderSupportedForSelection(categoryIds) {
         if (!isGenderEnabledForWordset()) { return false; }
-        const selectedIds = toIntList(state.category_ids);
+        const selectedIds = toIntList(Array.isArray(categoryIds) ? categoryIds : state.category_ids);
         if (!selectedIds.length) { return false; }
         const selectedCats = categories.filter(function (cat) {
             return selectedIds.indexOf(parseInt(cat.id, 10)) !== -1;
@@ -403,7 +730,8 @@
 
     function updateGenderButtonVisibility() {
         if (!$genderStart.length) { return; }
-        const allowed = isGenderSupportedForSelection();
+        const goalsAllowGender = (goals.enabled_modes || []).indexOf('gender') !== -1;
+        const allowed = goalsAllowGender && isGenderSupportedForSelection();
         $genderStart.toggleClass('ll-study-btn--hidden', !allowed);
         $genderStart.attr('aria-hidden', allowed ? 'false' : 'true');
     }
@@ -577,6 +905,80 @@
         return items;
     }
 
+    function normalizeCheckMode(mode) {
+        const key = String(mode || '').toLowerCase();
+        return key === 'placement' ? 'placement' : 'self-check';
+    }
+
+    function isPlacementSession() {
+        return !!(checkSession && checkSession.mode === 'placement');
+    }
+
+    function getTrackerModeForSession() {
+        return 'self-check';
+    }
+
+    function buildPlacementQueue(categoryIds) {
+        const ids = shuffleItems(toIntList(categoryIds));
+        const items = [];
+        const seen = {};
+        ids.forEach(function (cid) {
+            const cat = getCategoryById(cid);
+            const optionType = getCategoryOptionType(cat);
+            const promptType = getCategoryPromptType(cat);
+            const catLabel = getCategoryLabel(cat);
+            const words = shuffleItems(getCategoryWords(cid) || []).slice(0, PLACEMENT_WORDS_PER_CATEGORY);
+            words.forEach(function (word) {
+                const wordId = parseInt(word && word.id, 10) || 0;
+                if (!wordId || seen[wordId]) { return; }
+                seen[wordId] = true;
+                items.push({
+                    word: word,
+                    wordId: wordId,
+                    categoryId: cid,
+                    categoryLabel: catLabel,
+                    optionType: optionType,
+                    promptType: promptType
+                });
+            });
+        });
+        return items;
+    }
+
+    function updateCheckActionLabels(mode) {
+        const normalized = normalizeCheckMode(mode);
+        if ($checkApply.length) {
+            $checkApply.text(normalized === 'placement'
+                ? (i18n.placementApply || 'Save placement')
+                : (i18n.checkApply || 'Set stars'));
+        }
+        if ($checkRestart.length) {
+            $checkRestart.text(normalized === 'placement'
+                ? (i18n.placementRestart || 'Retake placement')
+                : (i18n.checkRestart || 'Review again'));
+        }
+    }
+
+    function getPlacementResultsFromSession(session) {
+        const src = session || {};
+        const stats = (src.categoryStats && typeof src.categoryStats === 'object') ? src.categoryStats : {};
+        const categoryIds = Object.keys(stats).map(function (key) { return parseInt(key, 10) || 0; }).filter(Boolean);
+        const knownCategoryIds = [];
+        categoryIds.forEach(function (cid) {
+            const row = stats[cid] || {};
+            const known = Math.max(0, parseInt(row.known, 10) || 0);
+            const total = Math.max(0, parseInt(row.total, 10) || 0);
+            if (total < PLACEMENT_MIN_WORDS_TO_JUDGE) { return; }
+            if ((known / total) >= PLACEMENT_KNOWN_THRESHOLD) {
+                knownCategoryIds.push(cid);
+            }
+        });
+        return {
+            testedCategoryIds: uniqueIntList(categoryIds),
+            knownCategoryIds: uniqueIntList(knownCategoryIds)
+        };
+    }
+
     function buildCheckAudioButton(audioUrl) {
         const label = i18n.playAudio || 'Play audio';
         if (selfCheckShared && typeof selfCheckShared.buildAudioButton === 'function') {
@@ -701,6 +1103,7 @@
         if (!$checkPanel.length) { return; }
         $checkPanel.removeClass('is-active').attr('aria-hidden', 'true');
         unlockCheckViewportScroll();
+        updateCheckActionLabels('self-check');
         $checkCategory.text('');
         $checkProgress.text('');
         $checkPrompt.empty().show();
@@ -744,6 +1147,22 @@
             $checkCard.show();
         }
         $checkComplete.hide();
+
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.trackWordExposure === 'function' && item.wordId) {
+                const placement = isPlacementSession();
+                tracker.trackWordExposure({
+                    mode: getTrackerModeForSession(),
+                    wordId: item.wordId,
+                    categoryId: item.categoryId,
+                    categoryName: item.categoryLabel || '',
+                    wordsetId: state.wordset_id,
+                    payload: placement ? { placement: true } : {}
+                });
+            }
+        } catch (_) { /* no-op */ }
+
         renderCheckPrompt(item);
         const hasAnswer = renderCheckAnswer(item);
         if ($checkFlip.length) {
@@ -756,7 +1175,21 @@
         if (!checkSession) { return; }
         const total = checkSession.items.length || 0;
         const unknownCount = (checkSession.unknownIds || []).length;
-        $checkSummary.text(formatCheckSummary(unknownCount));
+        if (isPlacementSession()) {
+            const placement = getPlacementResultsFromSession(checkSession);
+            const knownCount = placement.knownCategoryIds.length;
+            const testedCount = placement.testedCategoryIds.length;
+            if (knownCount > 0) {
+                $checkSummary.text(formatTemplate(
+                    i18n.placementSummary || 'Placement: %1$d/%2$d categories marked as known.',
+                    [knownCount, testedCount]
+                ));
+            } else {
+                $checkSummary.text(i18n.placementSummaryNone || 'Placement complete. No categories were marked as known yet.');
+            }
+        } else {
+            $checkSummary.text(formatCheckSummary(unknownCount));
+        }
         if (total) {
             $checkProgress.text(total + ' / ' + total);
         }
@@ -777,6 +1210,39 @@
         if (!checkSession || !checkSession.items || !checkSession.items.length) { return; }
         const item = checkSession.items[checkSession.index];
         if (!item || !item.wordId) { return; }
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.trackWordOutcome === 'function') {
+                const placement = isPlacementSession();
+                tracker.trackWordOutcome({
+                    mode: getTrackerModeForSession(),
+                    wordId: item.wordId,
+                    categoryId: item.categoryId,
+                    categoryName: item.categoryLabel || '',
+                    wordsetId: state.wordset_id,
+                    isCorrect: !!known,
+                    hadWrongBefore: !known,
+                    payload: placement ? { placement: true } : {}
+                });
+            }
+        } catch (_) { /* no-op */ }
+        if (isPlacementSession()) {
+            checkSession.categoryStats = (checkSession.categoryStats && typeof checkSession.categoryStats === 'object')
+                ? checkSession.categoryStats
+                : {};
+            const categoryId = parseInt(item.categoryId, 10) || 0;
+            if (categoryId) {
+                if (!checkSession.categoryStats[categoryId]) {
+                    checkSession.categoryStats[categoryId] = { known: 0, unknown: 0, total: 0 };
+                }
+                checkSession.categoryStats[categoryId].total += 1;
+                if (known) {
+                    checkSession.categoryStats[categoryId].known += 1;
+                } else {
+                    checkSession.categoryStats[categoryId].unknown += 1;
+                }
+            }
+        }
         if (!known) {
             checkSession.unknownLookup = checkSession.unknownLookup || {};
             if (!checkSession.unknownLookup[item.wordId]) {
@@ -804,34 +1270,52 @@
         return ids;
     }
 
-    function startCheckFlow(categoryIds) {
-        const ids = toIntList(categoryIds || state.category_ids);
+    function startCheckFlow(categoryIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const sessionMode = normalizeCheckMode(opts.mode || 'self-check');
+        const ids = toIntList(categoryIds || state.category_ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
         if (!ids.length) {
             ensureCategoriesSelected();
             return;
         }
-        if ($checkStart.length) {
+        syncProgressTrackerContext(getTrackerModeForSession(), ids);
+        updateCheckActionLabels(sessionMode);
+        if (sessionMode === 'placement') {
+            if ($placementStart.length) {
+                $placementStart.prop('disabled', true).addClass('loading');
+            }
+        } else if ($checkStart.length) {
             $checkStart.prop('disabled', true).addClass('loading');
         }
 
         ensureWordsForCategories(ids).always(function () {
-            const items = buildCheckQueue(ids);
+            const items = (sessionMode === 'placement')
+                ? buildPlacementQueue(ids)
+                : buildCheckQueue(ids);
             if (!items.length) {
                 alert(i18n.checkEmpty || 'No words available for this check.');
                 closeCheckPanel();
                 return;
             }
             checkSession = {
+                mode: sessionMode,
                 items: items,
                 index: 0,
                 unknownIds: [],
                 unknownLookup: {},
-                categoryIds: ids
+                categoryIds: ids,
+                categoryStats: {}
             };
             openCheckPanel();
             showCheckItem();
         }).always(function () {
-            if ($checkStart.length) {
+            if (sessionMode === 'placement') {
+                if ($placementStart.length) {
+                    $placementStart.prop('disabled', false).removeClass('loading');
+                }
+            } else if ($checkStart.length) {
                 $checkStart.prop('disabled', false).removeClass('loading');
             }
         });
@@ -876,6 +1360,45 @@
         closeCheckPanel();
     }
 
+    function applyPlacementResults() {
+        if (!checkSession || !isPlacementSession()) {
+            closeCheckPanel();
+            return;
+        }
+        const placement = getPlacementResultsFromSession(checkSession);
+        const testedLookup = {};
+        placement.testedCategoryIds.forEach(function (id) {
+            testedLookup[id] = true;
+        });
+        const keepExisting = uniqueIntList(goals.placement_known_category_ids || []).filter(function (id) {
+            return !testedLookup[id];
+        });
+        goals.placement_known_category_ids = uniqueIntList(keepExisting.concat(placement.knownCategoryIds));
+        renderCategories();
+        renderGoalsControls();
+        renderNextActivity();
+        saveGoalsNow().always(function () {
+            refreshRecommendation();
+            closeCheckPanel();
+        });
+    }
+
+    function startPlacementFlow(categoryIds) {
+        const explicit = toIntList(categoryIds || []);
+        let ids = explicit.length ? explicit : toIntList(state.category_ids || []);
+        if (!ids.length) {
+            ids = toIntList(categories.map(function (cat) { return parseInt(cat.id, 10) || 0; }));
+        }
+        ids = uniqueIntList(ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!ids.length) {
+            ensureCategoriesSelected();
+            return;
+        }
+        startCheckFlow(ids, { mode: 'placement' });
+    }
+
     function setStudyPrefsGlobal() {
         state.star_mode = normalizeStarMode(state.star_mode);
         window.llToolsStudyPrefs = {
@@ -912,6 +1435,7 @@
 
     function renderCategories() {
         $categoriesWrap.empty();
+        ensureSelectedCategoriesRespectGoals();
         const selectedLookup = {};
         state.category_ids.forEach(function (id) { selectedLookup[id] = true; });
 
@@ -923,15 +1447,44 @@
         $catEmpty.hide();
 
         categories.forEach(function (cat) {
-            const checked = !!selectedLookup[cat.id];
+            const catId = parseInt(cat.id, 10) || 0;
+            if (!catId) { return; }
+            const ignored = isCategoryIgnored(catId);
+            const known = isCategoryKnown(catId);
+            const checked = !ignored && !!selectedLookup[catId];
             const label = cat.translation || cat.name;
             const countLabel = typeof cat.word_count !== 'undefined' ? ' (' + cat.word_count + ')' : '';
-            const row = $('<div>', { class: 'll-cat-row', 'data-cat-id': cat.id });
+            const progress = categoryProgress[catId] || null;
+            const exposures = progress ? (parseInt(progress.exposure_total, 10) || 0) : 0;
+            const row = $('<div>', {
+                class: 'll-cat-row' + (ignored ? ' is-skipped' : '') + (known ? ' is-known' : ''),
+                'data-cat-id': catId
+            });
 
             const labelWrap = $('<label>', { class: 'll-cat-label' });
-            $('<input>', { type: 'checkbox', value: cat.id, checked: checked }).appendTo(labelWrap);
+            $('<input>', { type: 'checkbox', value: catId, checked: checked, disabled: ignored }).appendTo(labelWrap);
             $('<span>', { class: 'll-cat-name', text: label + countLabel }).appendTo(labelWrap);
+            if (exposures > 0) {
+                $('<span>', { class: 'll-cat-progress-pill', text: '×' + exposures }).appendTo(labelWrap);
+            }
             row.append(labelWrap);
+
+            const actions = $('<div>', { class: 'll-cat-actions' });
+            $('<button>', {
+                type: 'button',
+                class: 'll-study-btn tiny ghost ll-cat-action ll-cat-action--skip' + (ignored ? ' active' : ''),
+                'data-cat-id': catId,
+                'data-cat-action': 'skip',
+                text: ignored ? (i18n.categoryUnskip || 'Use') : (i18n.categorySkip || 'Skip')
+            }).appendTo(actions);
+            $('<button>', {
+                type: 'button',
+                class: 'll-study-btn tiny ghost ll-cat-action ll-cat-action--known' + (known ? ' active' : ''),
+                'data-cat-id': catId,
+                'data-cat-action': 'known',
+                text: known ? (i18n.categoryUnknown || 'Unknown') : (i18n.categoryKnown || 'Known')
+            }).appendTo(actions);
+            row.append(actions);
 
             $categoriesWrap.append(row);
         });
@@ -940,6 +1493,7 @@
 
     function renderWords() {
         $wordsWrap.empty();
+        ensureSelectedCategoriesRespectGoals();
         const selected = toIntList(state.category_ids);
         if (!selected.length) {
             $wordsEmpty.show();
@@ -1069,6 +1623,19 @@
                 starred_word_ids: state.starred_word_ids,
                 star_mode: normalizeStarMode(state.star_mode),
                 fast_transitions: state.fast_transitions ? 1 : 0
+            }).done(function (res) {
+                if (res && res.success && res.data) {
+                    if (res.data.state) {
+                        state = Object.assign({}, state, res.data.state);
+                        state.category_ids = uniqueIntList(state.category_ids || []);
+                        state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+                        state.star_mode = normalizeStarMode(state.star_mode);
+                    }
+                    if (Object.prototype.hasOwnProperty.call(res.data, 'next_activity')) {
+                        applyNextActivity(res.data.next_activity);
+                    }
+                    syncProgressTrackerContext();
+                }
             });
         }, 300);
     }
@@ -1078,6 +1645,7 @@
         if (!ids.length) {
             wordsByCategory = {};
             renderWords();
+            refreshRecommendation();
             return;
         }
         $.post(ajaxUrl, {
@@ -1090,6 +1658,7 @@
                 wordsByCategory = res.data.words_by_category;
                 renderWords();
             }
+            refreshRecommendation();
         });
     }
 
@@ -1106,73 +1675,147 @@
             setGenderConfig(data.gender || {});
             state = Object.assign({ wordset_id: wordsetId, category_ids: [], starred_word_ids: [], star_mode: 'normal', fast_transitions: false }, data.state || {});
             state.star_mode = normalizeStarMode(state.star_mode);
+            state.category_ids = uniqueIntList(state.category_ids || []);
+            state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+            goals = normalizeStudyGoals(data.goals || goals);
+            categoryProgress = normalizeCategoryProgress(data.category_progress || categoryProgress);
+            applyNextActivity(data.next_activity || null);
             wordsByCategory = data.words_by_category || {};
+            ensureSelectedCategoriesRespectGoals();
             renderWordsets();
+            renderGoalsControls();
             renderCategories();
             renderWords();
             setStudyPrefsGlobal();
             renderStarModeToggle();
             renderTransitionToggle();
+            syncProgressTrackerContext();
         });
     }
 
-    function ensureCategoriesSelected() {
-        if (state.category_ids && state.category_ids.length) {
+    function ensureCategoriesSelected(categoryIds) {
+        const ids = uniqueIntList(Array.isArray(categoryIds) ? categoryIds : state.category_ids);
+        if (ids.length) {
             return true;
         }
         alert(i18n.noCategories || 'Pick at least one category.');
         return false;
     }
 
-    function startFlashcards(mode) {
-        if (!ensureCategoriesSelected()) { return; }
+    function startFlashcards(mode, launchOptions) {
+        const options = (launchOptions && typeof launchOptions === 'object') ? launchOptions : {};
+        const requestedCategoryIds = uniqueIntList(options.category_ids || options.categoryIds || state.category_ids || []).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!ensureCategoriesSelected(requestedCategoryIds)) { return; }
+        if ($checkPanel.length && $checkPanel.hasClass('is-active')) {
+            closeCheckPanel();
+        }
+
         const starMode = normalizeStarMode(state.star_mode);
         const selectedCats = categories.filter(function (c) {
-            return state.category_ids.indexOf(c.id) !== -1;
+            return requestedCategoryIds.indexOf(parseInt(c.id, 10) || 0) !== -1;
         });
-        const catNames = selectedCats.map(function (c) { return c.name; });
-        const genderAllowed = isGenderSupportedForSelection();
+        if (!selectedCats.length) {
+            alert(i18n.noCategories || 'Pick at least one category.');
+            return;
+        }
+        const genderAllowed = isGenderSupportedForSelection(requestedCategoryIds);
         let quizMode = mode || 'practice';
         if (quizMode === 'gender' && !genderAllowed) {
             quizMode = 'practice';
         }
+        const sessionWordIds = uniqueIntList(options.session_word_ids || options.sessionWordIds || []);
+        const sessionStarModeOverride = (sessionWordIds.length > 0 && starMode === 'only') ? 'normal' : null;
+        const effectiveStarMode = sessionStarModeOverride || starMode;
 
-        // Sync global flashcard data
-        const flashData = window.llToolsFlashcardsData || {};
-        flashData.categories = selectedCats;
-        flashData.categoriesPreselected = true;
-        flashData.firstCategoryName = catNames[0] || '';
-        const firstCat = selectedCats.length ? selectedCats[0] : null;
-        const initialWordsRaw = (flashData.firstCategoryName && firstCat && wordsByCategory[firstCat.id])
-            ? wordsByCategory[firstCat.id]
-            : [];
-        if (starMode === 'only') {
-            const starredLookup = {};
-            state.starred_word_ids.forEach(function (id) { starredLookup[id] = true; });
-            flashData.firstCategoryData = initialWordsRaw.filter(function (w) { return starredLookup[w.id]; });
-        } else {
-            flashData.firstCategoryData = initialWordsRaw;
-        }
-        flashData.wordset = findWordsetSlug(state.wordset_id);
-        flashData.wordsetIds = state.wordset_id ? [state.wordset_id] : [];
-        flashData.wordsetFallback = false;
-        applyGenderConfigToFlashcardsData(flashData);
-        flashData.quiz_mode = quizMode;
-        flashData.starMode = starMode;
-        flashData.fastTransitions = !!state.fast_transitions;
-        flashData.fast_transitions = !!state.fast_transitions;
-        window.llToolsFlashcardsData = flashData;
+        ensureWordsForCategories(requestedCategoryIds).always(function () {
+            const allowedLookup = {};
+            sessionWordIds.forEach(function (id) { allowedLookup[id] = true; });
+            const filteredCountForCategory = function (cat) {
+                const cid = parseInt(cat && cat.id, 10) || 0;
+                if (!cid) { return 0; }
+                let rows = Array.isArray(wordsByCategory[cid]) ? wordsByCategory[cid] : [];
+                if (sessionWordIds.length) {
+                    rows = rows.filter(function (word) {
+                        const wordId = parseInt(word && word.id, 10) || 0;
+                        return !!allowedLookup[wordId];
+                    });
+                }
+                return rows.length;
+            };
+            const orderedCats = selectedCats.slice();
+            if (sessionWordIds.length) {
+                orderedCats.sort(function (a, b) {
+                    return filteredCountForCategory(b) - filteredCountForCategory(a);
+                });
+            }
+            const catNames = orderedCats.map(function (cat) { return cat.name; });
 
-        setStudyPrefsGlobal();
+            const flashData = window.llToolsFlashcardsData || {};
+            flashData.categories = orderedCats;
+            flashData.categoriesPreselected = true;
+            flashData.firstCategoryName = catNames[0] || '';
+            const firstCat = orderedCats.length ? orderedCats[0] : null;
+            let initialWordsRaw = (flashData.firstCategoryName && firstCat && wordsByCategory[firstCat.id])
+                ? wordsByCategory[firstCat.id]
+                : [];
 
-        $('body').addClass('ll-tools-flashcard-open');
-        const $popup = $root.find('#ll-tools-flashcard-popup');
-        $popup.show();
-        $popup.find('#ll-tools-flashcard-quiz-popup').show();
+            if (sessionWordIds.length) {
+                initialWordsRaw = initialWordsRaw.filter(function (word) {
+                    const wordId = parseInt(word && word.id, 10) || 0;
+                    return !!allowedLookup[wordId];
+                });
+            }
 
-        if (typeof window.initFlashcardWidget === 'function') {
-            window.initFlashcardWidget(catNames, quizMode);
-        }
+            if (effectiveStarMode === 'only') {
+                const starredLookup = {};
+                state.starred_word_ids.forEach(function (id) { starredLookup[id] = true; });
+                flashData.firstCategoryData = initialWordsRaw.filter(function (w) { return starredLookup[w.id]; });
+            } else {
+                flashData.firstCategoryData = initialWordsRaw;
+            }
+
+            flashData.wordset = findWordsetSlug(state.wordset_id);
+            flashData.wordsetIds = state.wordset_id ? [state.wordset_id] : [];
+            flashData.wordsetFallback = false;
+            flashData.quiz_mode = quizMode;
+            flashData.starMode = starMode;
+            flashData.star_mode = starMode;
+            flashData.sessionStarModeOverride = sessionStarModeOverride;
+            flashData.session_star_mode_override = sessionStarModeOverride;
+            flashData.fastTransitions = !!state.fast_transitions;
+            flashData.fast_transitions = !!state.fast_transitions;
+            flashData.sessionWordIds = sessionWordIds.slice();
+            flashData.session_word_ids = sessionWordIds.slice();
+            flashData.userStudyState = flashData.userStudyState || {};
+            flashData.userStudyState.wordset_id = parseInt(state.wordset_id, 10) || 0;
+            flashData.userStudyState.category_ids = requestedCategoryIds.slice();
+            applyGenderConfigToFlashcardsData(flashData);
+            window.llToolsFlashcardsData = flashData;
+
+            setStudyPrefsGlobal();
+            syncProgressTrackerContext(quizMode, requestedCategoryIds);
+
+            $('body').addClass('ll-tools-flashcard-open');
+            const $popup = $('#ll-tools-flashcard-popup');
+            const $quizPopup = $('#ll-tools-flashcard-quiz-popup');
+            $popup.show();
+            $quizPopup.show();
+
+            if (typeof window.initFlashcardWidget === 'function') {
+                const initResult = window.initFlashcardWidget(catNames, quizMode);
+                if (initResult && typeof initResult.catch === 'function') {
+                    initResult.catch(function () {
+                        $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
+                        $('html').css('overflow', '');
+                        $quizPopup.hide();
+                        $popup.hide();
+                        restoreDashboardScrollIfNeeded();
+                    });
+                }
+            }
+        });
     }
 
     $wordsetSelect.on('change', function () {
@@ -1181,28 +1824,41 @@
         state.category_ids = [];
         state.starred_word_ids = [];
         state.star_mode = normalizeStarMode(state.star_mode);
+        if (newId > 0 && goals.preferred_wordset_ids.indexOf(newId) === -1) {
+            goals.preferred_wordset_ids.push(newId);
+            goals.preferred_wordset_ids = uniqueIntList(goals.preferred_wordset_ids);
+            saveGoalsDebounced();
+        }
         setStudyPrefsGlobal();
         reloadForWordset(newId);
         saveStateDebounced();
         renderStarModeToggle();
+        renderNextActivity();
+        syncProgressTrackerContext();
     });
 
     $categoriesWrap.on('change', 'input[type="checkbox"]', function () {
         const ids = [];
         $categoriesWrap.find('input[type="checkbox"]:checked').each(function () {
-            ids.push(parseInt($(this).val(), 10));
+            const id = parseInt($(this).val(), 10) || 0;
+            if (!id || isCategoryIgnored(id)) { return; }
+            ids.push(id);
         });
-        state.category_ids = ids;
+        state.category_ids = uniqueIntList(ids);
         updateGenderButtonVisibility();
         saveStateDebounced();
         refreshWordsFromServer();
+        syncProgressTrackerContext();
     });
 
     $root.find('[data-ll-check-all]').on('click', function () {
-        state.category_ids = categories.map(function (c) { return c.id; });
+        state.category_ids = uniqueIntList(categories.map(function (c) { return parseInt(c.id, 10) || 0; })).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
         renderCategories();
         saveStateDebounced();
         refreshWordsFromServer();
+        syncProgressTrackerContext();
     });
 
     $root.find('[data-ll-uncheck-all]').on('click', function () {
@@ -1210,7 +1866,109 @@
         renderCategories();
         renderWords();
         saveStateDebounced();
+        refreshRecommendation();
+        syncProgressTrackerContext();
     });
+
+    $categoriesWrap.on('click', '[data-cat-action]', function (e) {
+        e.preventDefault();
+        const $btn = $(this);
+        const catId = parseInt($btn.attr('data-cat-id'), 10) || 0;
+        const action = String($btn.attr('data-cat-action') || '');
+        if (!catId || !action) { return; }
+
+        if (action === 'skip') {
+            const ignored = isCategoryIgnored(catId);
+            if (ignored) {
+                goals.ignored_category_ids = goals.ignored_category_ids.filter(function (id) { return id !== catId; });
+            } else {
+                goals.ignored_category_ids.push(catId);
+            }
+            goals.ignored_category_ids = uniqueIntList(goals.ignored_category_ids);
+            ensureSelectedCategoriesRespectGoals();
+            renderCategories();
+            renderWords();
+            saveGoalsDebounced();
+            saveStateDebounced();
+            refreshWordsFromServer();
+            syncProgressTrackerContext();
+            return;
+        }
+
+        if (action === 'known') {
+            const known = isCategoryKnown(catId);
+            if (known) {
+                goals.placement_known_category_ids = goals.placement_known_category_ids.filter(function (id) { return id !== catId; });
+            } else {
+                goals.placement_known_category_ids.push(catId);
+            }
+            goals.placement_known_category_ids = uniqueIntList(goals.placement_known_category_ids);
+            renderCategories();
+            saveGoalsDebounced();
+            refreshRecommendation();
+        }
+    });
+
+    if ($goalsModes.length) {
+        $goalsModes.on('click', '[data-goal-mode]', function (e) {
+            e.preventDefault();
+            const mode = normalizeProgressMode($(this).attr('data-goal-mode'));
+            if (!mode) { return; }
+            const enabled = goals.enabled_modes.slice();
+            const idx = enabled.indexOf(mode);
+            if (idx !== -1) {
+                if (enabled.length <= 1) { return; }
+                enabled.splice(idx, 1);
+            } else {
+                enabled.push(mode);
+            }
+            const order = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+            goals.enabled_modes = enabled.filter(function (m, i, arr) {
+                return m && arr.indexOf(m) === i;
+            }).sort(function (a, b) {
+                return order.indexOf(a) - order.indexOf(b);
+            });
+            renderGoalsControls();
+            updateGenderButtonVisibility();
+            saveGoalsDebounced();
+            refreshRecommendation();
+        });
+    }
+
+    if ($goalDailyNew.length) {
+        $goalDailyNew.on('change blur', function () {
+            const value = Math.max(0, Math.min(12, parseInt($(this).val(), 10) || 0));
+            goals.daily_new_word_target = value;
+            $(this).val(String(value));
+            saveGoalsDebounced();
+            refreshRecommendation();
+        });
+    }
+
+    if ($goalMarkKnown.length) {
+        $goalMarkKnown.on('click', function () {
+            const selected = uniqueIntList(state.category_ids || []);
+            if (!selected.length) { return; }
+            goals.placement_known_category_ids = uniqueIntList((goals.placement_known_category_ids || []).concat(selected));
+            renderCategories();
+            saveGoalsDebounced();
+            refreshRecommendation();
+        });
+    }
+
+    if ($goalClearKnown.length) {
+        $goalClearKnown.on('click', function () {
+            const selectedLookup = {};
+            uniqueIntList(state.category_ids || []).forEach(function (id) { selectedLookup[id] = true; });
+            if (!Object.keys(selectedLookup).length) { return; }
+            goals.placement_known_category_ids = uniqueIntList((goals.placement_known_category_ids || []).filter(function (id) {
+                return !selectedLookup[id];
+            }));
+            renderCategories();
+            saveGoalsDebounced();
+            refreshRecommendation();
+        });
+    }
 
     $wordsWrap.on('click', '.ll-word-star', function () {
         const $btn = $(this);
@@ -1230,12 +1988,48 @@
 
     $root.find('[data-ll-study-start]').on('click', function () {
         const mode = $(this).data('mode') || 'practice';
-        startFlashcards(mode);
+        startFlashcards(mode, {
+            categoryIds: state.category_ids,
+            sessionWordIds: []
+        });
     });
+
+    if ($startNext.length) {
+        $startNext.on('click', function () {
+            const next = normalizeNextActivity(nextActivity);
+            if (!next || !next.mode) {
+                refreshRecommendation();
+                return;
+            }
+            if (!isModeEnabled(next.mode)) {
+                refreshRecommendation();
+                return;
+            }
+            const categoryIds = uniqueIntList(next.category_ids.length ? next.category_ids : state.category_ids).filter(function (id) {
+                return !isCategoryIgnored(id);
+            });
+            if (next.mode === 'self-check') {
+                syncProgressTrackerContext('self-check', categoryIds);
+                startCheckFlow(categoryIds, { mode: 'self-check' });
+                return;
+            }
+            startFlashcards(next.mode, {
+                categoryIds: categoryIds,
+                sessionWordIds: next.session_word_ids || []
+            });
+        });
+    }
 
     if ($checkStart.length) {
         $checkStart.on('click', function () {
-            startCheckFlow();
+            if (!isModeEnabled('self-check')) { return; }
+            startCheckFlow(undefined, { mode: 'self-check' });
+        });
+    }
+
+    if ($placementStart.length) {
+        $placementStart.on('click', function () {
+            startPlacementFlow();
         });
     }
 
@@ -1261,6 +2055,10 @@
 
     if ($checkApply.length) {
         $checkApply.on('click', function () {
+            if (isPlacementSession()) {
+                applyPlacementResults();
+                return;
+            }
             applyCheckStars();
         });
     }
@@ -1270,7 +2068,8 @@
             const ids = checkSession && Array.isArray(checkSession.categoryIds)
                 ? checkSession.categoryIds
                 : state.category_ids;
-            startCheckFlow(ids);
+            const mode = checkSession && checkSession.mode ? checkSession.mode : 'self-check';
+            startCheckFlow(ids, { mode: mode });
         });
     }
 
@@ -1432,17 +2231,46 @@
         renderCategories();
     });
 
+    $(document).on('lltools:progress-updated', function (_evt, detail) {
+        const info = detail || {};
+        if (Object.prototype.hasOwnProperty.call(info, 'next_activity')) {
+            applyNextActivity(info.next_activity);
+        } else {
+            refreshRecommendation();
+        }
+    });
+
+    $(document).on('lltools:flashcard-opened', function () {
+        if ($checkPanel.length && $checkPanel.hasClass('is-active')) {
+            closeCheckPanel();
+        }
+        stopCurrentAudio();
+    });
+
+    $(document).on('lltools:flashcard-closed', function () {
+        stopCurrentAudio();
+        restoreDashboardScrollIfNeeded();
+    });
+
     // Initial render
+    ensureSelectedCategoriesRespectGoals();
     renderWordsets();
+    renderGoalsControls();
     renderCategories();
     renderWords();
     renderStarModeToggle();
     renderTransitionToggle();
+    updateCheckActionLabels('self-check');
+    renderNextActivity();
     updateGenderButtonVisibility();
     setStudyPrefsGlobal();
+    syncProgressTrackerContext();
 
     window.LLToolsStudyDashboard = window.LLToolsStudyDashboard || {};
     window.LLToolsStudyDashboard.startSelfCheck = function (categoryIds) {
-        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
+        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined, { mode: 'self-check' });
+    };
+    window.LLToolsStudyDashboard.startPlacementTest = function (categoryIds) {
+        startPlacementFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
     };
 })(jQuery);

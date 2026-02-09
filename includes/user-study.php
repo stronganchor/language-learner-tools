@@ -185,6 +185,15 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
 function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id = 0, $requested_categories = []) {
     $uid = $user_id ?: get_current_user_id();
     $state = ll_tools_get_user_study_state($uid);
+    $goals = function_exists('ll_tools_get_user_study_goals')
+        ? ll_tools_get_user_study_goals($uid)
+        : [
+            'enabled_modes' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
+            'ignored_category_ids' => [],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [],
+            'daily_new_word_target' => 2,
+        ];
     $wordset_id = $requested_wordset_id ? (int) $requested_wordset_id : (int) $state['wordset_id'];
     if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
         $wordset_id = (int) ll_tools_get_active_wordset_id();
@@ -196,16 +205,29 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
     foreach ($categories as $cat) {
         $category_lookup[(int) $cat['id']] = true;
     }
+    $ignored_category_lookup = [];
+    foreach ((array) ($goals['ignored_category_ids'] ?? []) as $ignored_id) {
+        $ignored_category_lookup[(int) $ignored_id] = true;
+    }
 
     $selected_category_ids = $requested_categories ? (array) $requested_categories : $state['category_ids'];
-    $selected_category_ids = array_values(array_filter(array_map('intval', $selected_category_ids), function ($id) use ($category_lookup) {
-        return $id > 0 && isset($category_lookup[$id]);
+    $selected_category_ids = array_values(array_filter(array_map('intval', $selected_category_ids), function ($id) use ($category_lookup, $ignored_category_lookup) {
+        return $id > 0 && isset($category_lookup[$id]) && empty($ignored_category_lookup[$id]);
     }));
     if (empty($selected_category_ids) && !empty($categories)) {
-        $selected_category_ids = array_slice(array_column($categories, 'id'), 0, 3);
+        $selected_category_ids = array_values(array_filter(array_map('intval', array_column($categories, 'id')), function ($id) use ($ignored_category_lookup) {
+            return $id > 0 && empty($ignored_category_lookup[$id]);
+        }));
+        $selected_category_ids = array_slice($selected_category_ids, 0, 3);
     }
 
     $words_by_category = ll_tools_user_study_words($selected_category_ids, $wordset_id);
+    $category_progress = function_exists('ll_tools_get_user_category_progress')
+        ? ll_tools_get_user_category_progress($uid)
+        : [];
+    $next_activity = function_exists('ll_tools_build_next_activity_recommendation')
+        ? ll_tools_build_next_activity_recommendation($uid, $wordset_id, $selected_category_ids, $categories)
+        : null;
 
     $gender_enabled = false;
     $gender_options = [];
@@ -235,6 +257,9 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
             'star_mode'        => ll_tools_normalize_star_mode($state['star_mode'] ?? 'normal'),
             'fast_transitions' => !empty($state['fast_transitions']),
         ],
+        'goals'             => $goals,
+        'category_progress' => $category_progress,
+        'next_activity'     => $next_activity,
         'words_by_category' => $words_by_category,
     ];
 }
@@ -245,6 +270,9 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
 function ll_tools_user_study_bootstrap_ajax() {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
+    }
+    if (function_exists('ll_tools_user_study_can_access') && !ll_tools_user_study_can_access()) {
+        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
     }
     check_ajax_referer('ll_user_study', 'nonce');
 
@@ -262,6 +290,9 @@ function ll_tools_user_study_fetch_words_ajax() {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
     }
+    if (function_exists('ll_tools_user_study_can_access') && !ll_tools_user_study_can_access()) {
+        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+    }
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
@@ -278,6 +309,9 @@ function ll_tools_user_study_save_ajax() {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
     }
+    if (function_exists('ll_tools_user_study_can_access') && !ll_tools_user_study_can_access()) {
+        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+    }
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id   = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
@@ -285,6 +319,17 @@ function ll_tools_user_study_save_ajax() {
     $starred_ids  = isset($_POST['starred_word_ids']) ? (array) $_POST['starred_word_ids'] : [];
     $star_mode    = ll_tools_normalize_star_mode(isset($_POST['star_mode']) ? sanitize_text_field($_POST['star_mode']) : 'normal');
     $fast_transitions = filter_var($_POST['fast_transitions'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+    if (function_exists('ll_tools_get_user_study_goals')) {
+        $goals = ll_tools_get_user_study_goals(get_current_user_id());
+        $ignored_lookup = [];
+        foreach ((array) ($goals['ignored_category_ids'] ?? []) as $ignored_id) {
+            $ignored_lookup[(int) $ignored_id] = true;
+        }
+        $category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), function ($id) use ($ignored_lookup) {
+            return $id > 0 && empty($ignored_lookup[$id]);
+        }));
+    }
 
     $payload = ll_tools_save_user_study_state([
         'wordset_id'       => $wordset_id,
@@ -294,6 +339,14 @@ function ll_tools_user_study_save_ajax() {
         'fast_transitions' => $fast_transitions,
     ]);
 
-    wp_send_json_success(['state' => $payload]);
+    $categories = ll_tools_user_study_categories_for_wordset($wordset_id);
+    $next_activity = function_exists('ll_tools_build_next_activity_recommendation')
+        ? ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories)
+        : null;
+
+    wp_send_json_success([
+        'state' => $payload,
+        'next_activity' => $next_activity,
+    ]);
 }
 add_action('wp_ajax_ll_user_study_save', 'll_tools_user_study_save_ajax');

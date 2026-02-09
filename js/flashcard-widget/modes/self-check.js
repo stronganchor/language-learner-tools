@@ -14,6 +14,28 @@
     let currentPromptAudio = null;
     let currentPromptAudioButton = null;
 
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function resolveWordsetIdForProgress() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = data.userStudyState || {};
+        const fromState = parseInt(userState.wordset_id, 10) || 0;
+        if (fromState > 0) {
+            return fromState;
+        }
+        if (Array.isArray(data.wordsetIds) && data.wordsetIds.length) {
+            const first = parseInt(data.wordsetIds[0], 10) || 0;
+            if (first > 0) {
+                return first;
+            }
+        }
+        return 0;
+    }
+
     function ensureQuizResultsShape() {
         State.quizResults = State.quizResults || { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
         State.quizResults.wordAttempts = State.quizResults.wordAttempts || {};
@@ -510,6 +532,20 @@
             answered = true;
             stopPromptAudio();
 
+            try {
+                const tracker = getProgressTracker();
+                if (tracker && typeof tracker.trackWordOutcome === 'function') {
+                tracker.trackWordOutcome({
+                    mode: 'self-check',
+                    wordId: targetWord.id,
+                    categoryName: State.currentCategoryName || '',
+                    wordsetId: resolveWordsetIdForProgress(),
+                    isCorrect: !!knowsWord,
+                    hadWrongBefore: !knowsWord
+                });
+                }
+            } catch (_) { /* no-op */ }
+
             recordSelfCheckResult(targetWord.id, !!knowsWord);
             State.isFirstRound = false;
             State.hadWrongAnswerThisTurn = !knowsWord;
@@ -673,6 +709,24 @@
 
         State.currentOptionType = optionType;
         State.currentPromptType = promptType;
+
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.setContext === 'function') {
+                tracker.setContext({
+                    mode: 'self-check',
+                    wordsetId: resolveWordsetIdForProgress()
+                });
+            }
+            if (tracker && typeof tracker.trackWordExposure === 'function') {
+                tracker.trackWordExposure({
+                    mode: 'self-check',
+                    wordId: targetWord.id,
+                    categoryName: categoryNameForRound || State.currentCategoryName || '',
+                    wordsetId: resolveWordsetIdForProgress()
+                });
+            }
+        } catch (_) { /* no-op */ }
 
         if (ctx.FlashcardAudio) {
             try {
