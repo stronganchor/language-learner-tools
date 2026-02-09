@@ -79,6 +79,7 @@
         isLearningMode: false,
         isListeningMode: false,
         isGenderMode: false,
+        isSelfCheckMode: false,
         introducedWordIDs: [],
         wordIntroductionProgress: {},
         wordCorrectCounts: {},
@@ -295,6 +296,7 @@
             this.isLearningMode = false;
             this.isListeningMode = false;
             this.isGenderMode = false;
+            this.isSelfCheckMode = false;
             this.wordsLinear = [];
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;

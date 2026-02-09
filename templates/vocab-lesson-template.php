@@ -41,6 +41,7 @@ if (have_posts()) {
     $mode_labels = [
         'practice'  => __('Practice', 'll-tools-text-domain'),
         'learning'  => __('Learn', 'll-tools-text-domain'),
+        'self-check' => __('Self check', 'll-tools-text-domain'),
         'gender'    => __('Gender', 'll-tools-text-domain'),
         'listening' => __('Listen', 'll-tools-text-domain'),
     ];
@@ -303,11 +304,12 @@ if (have_posts()) {
                     <div class="ll-vocab-lesson-modes" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                         <?php
                         $lesson_modes = $gender_quiz_available
-                            ? ['practice', 'learning', 'gender', 'listening']
-                            : ['practice', 'learning', 'listening'];
+                            ? ['practice', 'learning', 'self-check', 'gender', 'listening']
+                            : ['practice', 'learning', 'self-check', 'listening'];
                         $fallback_icons = [
                             'practice' => '❓',
                             'learning' => '🎓',
+                            'self-check' => '✔✖',
                             'gender' => '⚥',
                             'listening' => '🎧',
                         ];

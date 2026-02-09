@@ -6,6 +6,7 @@
     const ajaxUrl = cfg.ajaxUrl || '';
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
+    const selfCheckShared = window.LLToolsSelfCheckShared || null;
 
     const $root = $('[data-ll-study-root]');
     if (!$root.length) { return; }
@@ -68,6 +69,39 @@
     let vizAudio = null;
     let vizSource = null;
     let checkSession = null;
+    let checkScrollLock = null;
+
+    function lockCheckViewportScroll() {
+        const docEl = document.documentElement;
+        const body = document.body;
+        if (!docEl || !body) { return; }
+        if (checkScrollLock && checkScrollLock.active) { return; }
+        checkScrollLock = {
+            active: true,
+            htmlOverflow: docEl.style.overflow || '',
+            bodyOverflow: body.style.overflow || ''
+        };
+        docEl.style.overflow = 'hidden';
+        body.style.overflow = 'hidden';
+        docEl.classList.add('ll-study-check-open');
+        body.classList.add('ll-study-check-open');
+    }
+
+    function unlockCheckViewportScroll() {
+        const docEl = document.documentElement;
+        const body = document.body;
+        if (!docEl || !body || !checkScrollLock || !checkScrollLock.active) { return; }
+        docEl.classList.remove('ll-study-check-open');
+        body.classList.remove('ll-study-check-open');
+
+        // Respect other overlays that intentionally lock scrolling.
+        if (!body.classList.contains('ll-tools-flashcard-open') && !body.classList.contains('ll-qpg-popup-active')) {
+            docEl.style.overflow = checkScrollLock.htmlOverflow;
+            body.style.overflow = checkScrollLock.bodyOverflow;
+        }
+
+        checkScrollLock = null;
+    }
 
     function formatRecordingLabel(typeLabel) {
         const template = i18n.playAudioType || '';
@@ -545,6 +579,12 @@
 
     function buildCheckAudioButton(audioUrl) {
         const label = i18n.playAudio || 'Play audio';
+        if (selfCheckShared && typeof selfCheckShared.buildAudioButton === 'function') {
+            return selfCheckShared.buildAudioButton({
+                audioUrl: audioUrl,
+                label: label
+            });
+        }
         const $btn = $('<button>', {
             type: 'button',
             class: 'll-study-recording-btn ll-study-recording-btn--prompt',
@@ -571,9 +611,15 @@
 
     function renderCheckDisplay($container, displayType, word) {
         if (!$container || !$container.length) { return false; }
+        const mode = String(displayType || '');
+        if (selfCheckShared && typeof selfCheckShared.renderPromptDisplay === 'function') {
+            return !!selfCheckShared.renderPromptDisplay($container, mode, word, {
+                emptyLabel: i18n.checkEmpty || 'No words available for this check.',
+                playAudioLabel: i18n.playAudio || 'Play audio'
+            });
+        }
         $container.empty();
 
-        const mode = String(displayType || '');
         const showImage = mode === 'image';
         const showText = isTextOptionType(mode);
         const showAudio = isAudioOptionType(mode);
@@ -637,6 +683,7 @@
     function openCheckPanel() {
         if (!$checkPanel.length) { return; }
         $checkPanel.addClass('is-active').attr('aria-hidden', 'false');
+        lockCheckViewportScroll();
         $checkSummary.text('');
         $checkPrompt.show().empty();
         $checkActions.show();
@@ -653,6 +700,7 @@
     function closeCheckPanel() {
         if (!$checkPanel.length) { return; }
         $checkPanel.removeClass('is-active').attr('aria-hidden', 'true');
+        unlockCheckViewportScroll();
         $checkCategory.text('');
         $checkProgress.text('');
         $checkPrompt.empty().show();
@@ -791,7 +839,14 @@
 
     function applyCheckStars() {
         if (!checkSession) { return; }
-        const categoryIds = toIntList(checkSession.categoryIds || state.category_ids);
+        const selectedCategoryLookup = {};
+        toIntList(state.category_ids).forEach(function (id) {
+            selectedCategoryLookup[id] = true;
+        });
+
+        const categoryIds = toIntList(checkSession.categoryIds || []).filter(function (id) {
+            return !!selectedCategoryLookup[id];
+        });
         if (!categoryIds.length) {
             closeCheckPanel();
             return;
@@ -1385,4 +1440,9 @@
     renderTransitionToggle();
     updateGenderButtonVisibility();
     setStudyPrefsGlobal();
+
+    window.LLToolsStudyDashboard = window.LLToolsStudyDashboard || {};
+    window.LLToolsStudyDashboard.startSelfCheck = function (categoryIds) {
+        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
+    };
 })(jQuery);

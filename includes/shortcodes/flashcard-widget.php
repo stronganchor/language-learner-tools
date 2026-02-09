@@ -165,6 +165,12 @@ function ll_flashcards_get_messages(): array {
         'keepPracticingTitle'     => __('Keep practicing!', 'll-tools-text-domain'),
         'keepPracticingMessage'   => __("You're on the right track...", 'll-tools-text-domain'),
         'categoriesLabel'         => __('Categories', 'll-tools-text-domain'),
+        'selfCheckTitle'          => __('Self check', 'll-tools-text-domain'),
+        'selfCheckFlip'           => __('Show answer', 'll-tools-text-domain'),
+        'selfCheckHideAnswer'     => __('Hide answer', 'll-tools-text-domain'),
+        'selfCheckKnow'           => __('I know it', 'll-tools-text-domain'),
+        'selfCheckDontKnow'       => __("I don't know it", 'll-tools-text-domain'),
+        'selfCheckPlayAudio'      => __('Play audio', 'll-tools-text-domain'),
 
         // Error messages
         'loadingError'            => __('Loading Error', 'll-tools-text-domain'),
@@ -184,6 +190,18 @@ function ll_flashcards_get_mode_ui_config(): array {
         . '<path d="M7.5 12.5v6.5M5 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
         . '<path d="M18.5 7.5l4-4M20.5 3.5h2M22.5 3.5v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />'
         . '</svg>';
+    $self_check_svg_path = LL_TOOLS_BASE_PATH . 'media/self-check-symbol.svg';
+    $self_check_svg = '';
+    if (file_exists($self_check_svg_path)) {
+        $self_check_svg = trim((string) file_get_contents($self_check_svg_path));
+    }
+    if ($self_check_svg === '') {
+        $self_check_svg = '<svg viewBox="0 0 96 96" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M12 50L31 68L58 22" stroke="#2BAE4A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#E63946" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '</svg>';
+    }
 
     return [
         'practice' => [
@@ -197,6 +215,13 @@ function ll_flashcards_get_mode_ui_config(): array {
             'className'         => 'learning-mode',
             'switchLabel'       => __('Switch to Learning Mode', 'll-tools-text-domain'),
             'resultsButtonText' => __('Learning Mode', 'll-tools-text-domain'),
+        ],
+        'self-check' => [
+            'icon'              => '',
+            'svg'               => $self_check_svg,
+            'className'         => 'self-check-mode',
+            'switchLabel'       => __('Open Self Check', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Self Check', 'll-tools-text-domain'),
         ],
         'listening' => [
             'icon'              => '🎧',
@@ -227,6 +252,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         : ($wordset === '');
 
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/css/self-check-shared.css', 'll-tools-self-check-shared', ['ll-tools-flashcard-style']);
     ll_enqueue_asset_by_timestamp(
         '/css/flashcard/mode-practice.css',
         'll-tools-flashcard-mode-practice',
@@ -256,6 +282,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
 
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
@@ -268,6 +295,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     // New mode-specific modules (loaded after selection.js)
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/self-check.js', 'll-flc-mode-self-check', ['ll-flc-selection', 'll-tools-self-check-shared-script'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection'], true);
 
@@ -283,6 +311,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
             'll-tools-flashcard-options',
             'll-flc-mode-learning',
             'll-flc-mode-practice',
+            'll-flc-mode-self-check',
             'll-flc-mode-listening',
             'll-flc-mode-gender'
         ],

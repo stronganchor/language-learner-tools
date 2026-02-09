@@ -139,15 +139,36 @@
         if (!audio.paused && !audio.ended) onPlay(); else onStop();
     }
 
+    function setSelfCheckLayout(active) {
+        const enabled = !!active;
+        $('#ll-tools-flashcard-quiz-popup').toggleClass('ll-self-check-active', enabled);
+        $('#ll-tools-flashcard-content').toggleClass('ll-self-check-active', enabled);
+        $('#ll-tools-flashcard-header').toggleClass('ll-self-check-active', enabled);
+
+        if (enabled) {
+            $('#ll-tools-flashcard, #ll-tools-flashcard-content').removeClass('audio-line-layout audio-line-mode');
+        }
+
+        if (enabled) {
+            $('#ll-tools-learning-progress').hide().empty();
+            $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+            $('#ll-tools-repeat-flashcard').hide();
+        }
+    }
+
     const Dom = {
         setRepeatButton: setRepeatButtonInternal,
         disableRepeatButton: disableRepeatButton,
         enableRepeatButton: enableRepeatButton,
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
-            $('#ll-tools-category-stack, #ll-tools-category-display').show();
             $('#ll-tools-learning-progress').hide();
-            Dom.setRepeatButton('play');
+            const selfCheckActive = !!(State && State.isSelfCheckMode);
+            if (!selfCheckActive) {
+                $('#ll-tools-category-stack, #ll-tools-category-display').show();
+                Dom.setRepeatButton('play');
+            }
+            setSelfCheckLayout(selfCheckActive);
         },
         updateCategoryNameDisplay(name) {
             if (!name) return;
@@ -294,7 +315,8 @@
         getPlayIconHTML() { return createPlayIcon(); },
         getStopIconHTML() { return createStopIcon(); },
         bindRepeatButtonAudio,
-        clearRepeatButtonBinding
+        clearRepeatButtonBinding,
+        setSelfCheckLayout
     };
 
     // legacy alias some code expects:

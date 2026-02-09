@@ -1,0 +1,488 @@
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-round {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 20px;
+  width: min(100%, 940px) !important;
+  margin: 0 auto;
+  height: auto !important;
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  justify-content: flex-start !important;
+  padding-top: 14px !important;
+  padding-bottom: 84px !important;
+  box-sizing: border-box;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active.ll-self-check-needs-scroll #ll-tools-flashcard-content {
+  overflow-y: auto !important;
+  padding-bottom: 56px;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard {
+  display: flex !important;
+  max-width: 100%;
+  width: 100%;
+  align-items: stretch;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard-header {
+  display: block !important;
+  padding: 0;
+  min-height: 0;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-category-stack,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-learning-progress,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-repeat-flashcard {
+  display: none !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-card--flashcard {
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px !important;
+  padding: 0 6px 24px !important;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+#ll-tools-flashcard .ll-study-check-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 56px;
+}
+
+#ll-tools-flashcard .ll-study-check-title {
+  font-weight: 700;
+  font-size: 18px;
+  display: block;
+}
+
+#ll-tools-flashcard .ll-study-check-category {
+  display: inline-flex;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0ea5e9;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+#ll-tools-flashcard .ll-study-check-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#ll-tools-flashcard .ll-study-check-progress {
+  font-weight: 600;
+  color: #475569;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip-card {
+  position: relative;
+  perspective: 1200px;
+  min-height: 352px !important;
+  height: 352px !important;
+  width: 100%;
+  max-width: 360px !important;
+  align-self: center;
+  margin: 0 auto;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-card-inner {
+  position: relative;
+  width: 100%;
+  min-height: 352px !important;
+  height: 352px !important;
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip-card.is-flipped .ll-study-check-card-inner {
+  transform: rotateY(180deg);
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-face--back {
+  transform: rotateY(180deg);
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-prompt {
+  min-height: 352px !important;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 32px 24px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-prompt-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-image {
+  display: inline-flex;
+  justify-content: center;
+  width: 84% !important;
+  max-width: 290px !important;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  background: #f8f8f8;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-image img {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border: 0;
+  object-fit: contain;
+}
+
+.ll-study-check-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.ll-study-check-empty {
+  color: #64748b;
+  font-style: italic;
+}
+
+.ll-study-check-prompt .ll-study-recording-btn {
+  height: 32px !important;
+  min-height: 32px !important;
+  min-width: 92px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  text-transform: none !important;
+  box-sizing: border-box !important;
+}
+
+.ll-study-check-prompt .ll-study-recording-btn:hover {
+  background: #e0f2fe !important;
+  border-color: #38bdf8 !important;
+  color: #0ea5e9 !important;
+}
+
+.ll-study-check-prompt .ll-study-recording-btn:focus-visible {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 2px;
+}
+
+.ll-study-check-prompt .ll-study-recording-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+  -webkit-text-size-adjust: none !important;
+  line-height: 1 !important;
+}
+
+.ll-study-check-prompt .ll-study-recording-icon::before {
+  content: attr(data-emoji);
+  display: block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ll-study-check-prompt .ll-study-recording-visualizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-height: 18px;
+}
+
+.ll-study-check-prompt .ll-study-recording-visualizer .bar {
+  display: block;
+  flex: 0 0 4px;
+  width: 4px;
+  min-width: 4px;
+  max-width: 4px;
+  height: calc(var(--base, 8px) + 12px * var(--level, 0));
+  border-radius: 2px;
+  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
+  opacity: 0.55;
+  transform-origin: center bottom;
+  transition: height 0.12s ease-out, opacity 0.2s ease-out;
+  box-sizing: border-box;
+}
+
+.ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(2) { --base: 12px; }
+.ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(3) { --base: 10px; }
+.ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(4) { --base: 14px; }
+.ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(5) { --base: 9px; }
+.ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(6) { --base: 15px; }
+
+.ll-study-check-prompt .ll-study-recording-btn.is-playing {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+}
+
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
+  opacity: 0.95;
+  animation: ll-audio-mini-eq 1s ease-in-out infinite;
+}
+
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(2) { animation-delay: 0.08s; }
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(3) { animation-delay: 0.15s; }
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(4) { animation-delay: 0.22s; }
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(5) { animation-delay: 0.29s; }
+.ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar:nth-child(6) { animation-delay: 0.36s; }
+
+.ll-study-check-audio-btn {
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  background-image: none;
+  color: #0f172a;
+  font-weight: 600;
+  padding: 9px 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  text-transform: none;
+  text-decoration: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ll-study-check-audio-btn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0ea5e9;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  font-family: inherit !important;
+  text-transform: none !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  box-sizing: border-box !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0ea5e9;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip:focus-visible {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 2px;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  overflow: visible;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg path,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon svg,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon svg path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  justify-content: center;
+  gap: 10px !important;
+  width: auto;
+  margin-top: 0 !important;
+  position: static !important;
+  flex: 0 0 auto;
+  min-height: 46px !important;
+  height: auto !important;
+  z-index: 6;
+  align-self: center;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-width: 160px !important;
+  min-height: 46px !important;
+  height: 46px !important;
+  width: auto !important;
+  max-width: 260px;
+  flex: 0 0 auto !important;
+  padding: 10px 14px !important;
+  font-size: 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  text-decoration: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  position: relative;
+  z-index: 5;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn-text {
+  color: inherit;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--know {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--know:hover {
+  background: #15803d;
+  border-color: #15803d;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--unknown {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--unknown:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  overflow: visible;
+}
+
+@media (max-height: 840px) {
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-round {
+    gap: 14px;
+  }
+
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip-card,
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-card-inner,
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-prompt {
+    min-height: 320px !important;
+    height: 320px !important;
+  }
+
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-prompt {
+    padding: 26px 20px !important;
+  }
+}
+
+@media (max-height: 760px) {
+  #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard-content {
+    overflow-y: auto !important;
+  }
+}
+
+@keyframes ll-audio-mini-eq {
+  0% { transform: scaleY(0.7); }
+  35% { transform: scaleY(1.35); }
+  65% { transform: scaleY(0.9); }
+  100% { transform: scaleY(1); }
+}
+
+@media (max-width: 640px) {
+  .ll-study-check-text {
+    font-size: 20px;
+  }
+}

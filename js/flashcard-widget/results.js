@@ -102,7 +102,7 @@
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
-        $('#restart-practice-mode, #restart-learning-mode, #restart-gender-mode').show();
+        $('#restart-practice-mode, #restart-learning-mode, #restart-self-check-mode, #restart-gender-mode').show();
         $('#restart-listening-mode').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
@@ -183,7 +183,7 @@
             $('#quiz-results').show();
             $('#restart-quiz').hide();
             $('#quiz-mode-buttons').show();
-            $('#restart-practice-mode, #restart-learning-mode').show();
+            $('#restart-practice-mode, #restart-learning-mode, #restart-self-check-mode').show();
             if (genderAllowed) {
                 $('#restart-gender-mode').show();
             } else {
@@ -219,6 +219,7 @@
             $('#quiz-mode-buttons').show();
             $('#restart-practice-mode').hide();
             $('#restart-learning-mode').hide();
+            $('#restart-self-check-mode').hide();
             $('#restart-gender-mode').hide();
             $('#restart-listening-mode').show();
             Dom.hideLoading();
@@ -266,6 +267,7 @@
             } else {
                 $('#restart-learning-mode').hide();
             }
+            $('#restart-self-check-mode').show();
             if (genderAllowed) {
                 $('#restart-gender-mode').show();
             } else {
@@ -301,6 +303,7 @@
         } else {
             $('#restart-learning-mode').hide();
         }
+        $('#restart-self-check-mode').show();
         if (genderAllowed) {
             $('#restart-gender-mode').show();
         } else {

@@ -16,6 +16,18 @@
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
 
+    // Keep the quiz popup at the top document level so theme/container transforms
+    // cannot clip or scale it when opened from lesson/dashboard contexts.
+    function ensureFlashcardPopupPortal() {
+        const doc = root.document;
+        if (!doc || !doc.body) { return; }
+        const popupRoot = doc.getElementById('ll-tools-flashcard-popup');
+        if (!popupRoot || popupRoot.parentNode === doc.body) { return; }
+        try {
+            doc.body.appendChild(popupRoot);
+        } catch (_) { /* no-op */ }
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -928,6 +940,37 @@
         return isGenderSupportedForSelection(State.categoryNames);
     }
 
+    function isSelfCheckMode(mode) {
+        const normalized = String(mode || '').trim().toLowerCase();
+        return normalized === 'self-check' || normalized === 'self_check';
+    }
+
+    function getCurrentModeKey() {
+        if (State.isGenderMode) { return 'gender'; }
+        if (State.isListeningMode) { return 'listening'; }
+        if (State.isLearningMode) { return 'learning'; }
+        if (State.isSelfCheckMode) { return 'self-check'; }
+        return 'practice';
+    }
+
+    function triggerSelfCheckFlowFromFlashcard() {
+        const dashboardApi = root.LLToolsStudyDashboard;
+        if (!dashboardApi || typeof dashboardApi.startSelfCheck !== 'function') {
+            return false;
+        }
+
+        Promise.resolve(closeFlashcard())
+            .catch(function () { return undefined; })
+            .finally(function () {
+                try {
+                    dashboardApi.startSelfCheck();
+                } catch (err) {
+                    console.warn('LL Tools: failed to open self-check flow', err);
+                }
+            });
+        return true;
+    }
+
 
 
     const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
@@ -941,6 +984,11 @@
                 label: 'Switch to Learning Mode',
                 icon: '🎓',
                 className: 'learning-mode'
+            },
+            'self-check': {
+                label: 'Open Self Check',
+                icon: '',
+                className: 'self-check-mode'
             },
             listening: {
                 label: 'Switch to Listening Mode',
@@ -960,6 +1008,7 @@
         if (State.isGenderMode && Modes.Gender) return Modes.Gender;
         if (State.isListeningMode && Modes.Listening) return Modes.Listening;
         if (State.isLearningMode && Modes.Learning) return Modes.Learning;
+        if (State.isSelfCheckMode && Modes.SelfCheck) return Modes.SelfCheck;
         return Modes.Practice || null;
     }
 
@@ -1210,8 +1259,7 @@
     }
 
     function refreshModeMenuOptions() {
-        const current = State.isGenderMode ? 'gender'
-            : (State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice'));
+        const current = getCurrentModeKey();
         const $wrap = $('#ll-tools-mode-switcher-wrap');
         const $menu = $('#ll-tools-mode-menu');
         if (!$wrap.length || !$menu.length) return;
@@ -1222,7 +1270,7 @@
         $wrap.css('display', 'block');
 
         // Update icons/labels and active state
-        ['learning', 'practice', 'gender', 'listening'].forEach(function (mode) {
+        ['learning', 'practice', 'self-check', 'gender', 'listening'].forEach(function (mode) {
             const cfg = MODE_SWITCH_CONFIG[mode] || {};
             const $btn = $menu.find('.ll-tools-mode-option.' + mode);
             if (!$btn.length) return;
@@ -1312,6 +1360,13 @@
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
+        if (isSelfCheckMode(newMode)) {
+            if (triggerSelfCheckFlowFromFlashcard()) {
+                setMenuOpen(false);
+                return;
+            }
+            newMode = 'self-check';
+        }
         if (newMode === 'gender' && !isGenderSupportedForCurrentSelection()) {
             console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
@@ -1343,9 +1398,12 @@
             // IMPORTANT: allow operations again before we start the next round
             State.abortAllOperations = false;
 
+            State.isSelfCheckMode = (targetMode === 'self-check');
             State.isLearningMode = (targetMode === 'learning');
             State.isListeningMode = (targetMode === 'listening');
             State.isGenderMode = (targetMode === 'gender');
+            // Self-check should always review all words once, independent of star prefs.
+            setStarModeOverride(targetMode === 'self-check' ? 'normal' : null);
             restoreCategorySelection();
 
             const activeModule = getActiveModeModule();
@@ -1549,7 +1607,7 @@
                 runQuizRound();
             };
 
-            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], bootstrapFirstRound);
+            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], bootstrapFirstRound, { earlyCallback: true });
 
             for (let i = 1; i < firstThree.length; i++) {
                 root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
@@ -1760,6 +1818,7 @@
         }
 
         const proceed = () => {
+            ensureFlashcardPopupPortal();
             resetWordsetScopedCachesIfNeeded();
             newSession();
 
@@ -1798,6 +1857,9 @@
                     ? selectedCategories.filter(Boolean)
                     : (selectedCategories ? [selectedCategories] : []);
                 let requestedMode = mode;
+                if (isSelfCheckMode(requestedMode)) {
+                    requestedMode = 'self-check';
+                }
                 if (requestedMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
@@ -1810,13 +1872,18 @@
                 State.isLearningMode = false;
                 State.isListeningMode = false;
                 State.isGenderMode = false;
+                State.isSelfCheckMode = false;
                 if (requestedMode === 'learning') {
                     State.isLearningMode = true;
                 } else if (requestedMode === 'listening') {
                     State.isListeningMode = true;
                 } else if (requestedMode === 'gender') {
                     State.isGenderMode = true;
+                } else if (requestedMode === 'self-check') {
+                    State.isSelfCheckMode = true;
                 }
+                // Self-check should always review all words once, independent of star prefs.
+                setStarModeOverride(State.isSelfCheckMode ? 'normal' : null);
 
                 const activeModule = getActiveModeModule();
                 if (activeModule && typeof activeModule.initialize === 'function') {
@@ -1865,6 +1932,7 @@
                 updateModeSwitcherPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
+                $('#restart-self-check-mode').off('click').on('click', () => switchMode('self-check'));
                 $('#restart-gender-mode').off('click').on('click', () => switchMode('gender'));
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);
@@ -2079,10 +2147,12 @@
         const wasLearning = State.isLearningMode;
         const wasListening = State.isListeningMode;
         const wasGender = State.isGenderMode;
+        const wasSelfCheck = State.isSelfCheckMode;
         State.reset();
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
         State.isGenderMode = wasGender;
+        State.isSelfCheckMode = wasSelfCheck;
         restoreCategorySelection();
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {

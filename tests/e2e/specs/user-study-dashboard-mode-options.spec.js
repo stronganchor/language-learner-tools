@@ -35,6 +35,30 @@ function buildStudyPanelMarkup() {
         <button type="button" class="ll-study-btn" data-speed="slow">Slow</button>
         <button type="button" class="ll-study-btn" data-speed="fast">Fast</button>
       </div>
+
+      <div data-ll-study-check aria-hidden="true">
+        <div class="ll-study-check-shell">
+          <button type="button" data-ll-study-check-exit>Close</button>
+          <div data-ll-study-check-category></div>
+          <div data-ll-study-check-progress></div>
+          <div data-ll-study-check-card>
+            <div data-ll-study-check-card-inner>
+              <div data-ll-study-check-prompt></div>
+              <div data-ll-study-check-answer></div>
+            </div>
+          </div>
+          <button type="button" data-ll-study-check-flip>Flip</button>
+          <div data-ll-study-check-actions>
+            <button type="button" data-ll-study-check-know>Know</button>
+            <button type="button" data-ll-study-check-unknown>Unknown</button>
+          </div>
+          <div data-ll-study-check-complete style="display:none;">
+            <p data-ll-study-check-summary></p>
+            <button type="button" data-ll-study-check-apply>Set stars</button>
+            <button type="button" data-ll-study-check-restart>Restart</button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -128,6 +152,7 @@ async function mountStudyPanel(page, payload) {
   await page.evaluate((data) => {
     window.llToolsStudyData = data;
     window.alert = function () {};
+    window.__llSaveRequests = [];
 
     const $ = window.jQuery;
     $.post = function (_url, request) {
@@ -146,6 +171,7 @@ async function mountStudyPanel(page, payload) {
         return deferred.promise();
       }
       if (action === 'll_user_study_save') {
+        window.__llSaveRequests.push(request || {});
         deferred.resolve({ success: true, data: { state: request || {} } });
         return deferred.promise();
       }
@@ -178,4 +204,59 @@ test('study panel mode options keep base modes and show gender when any selected
   await expect.poll(async () => {
     return await genderButton.evaluate((el) => el.classList.contains('ll-study-btn--hidden'));
   }).toBe(true);
+});
+
+test('self-check apply only updates stars inside the checked category scope', async ({ page }) => {
+  const payload = buildPayload({
+    state: {
+      wordset_id: 19,
+      category_ids: [11, 22],
+      starred_word_ids: [202],
+      star_mode: 'normal',
+      fast_transitions: false
+    }
+  });
+
+  await mountStudyPanel(page, payload);
+
+  await page.locator('[data-ll-study-categories] input[type="checkbox"][value="22"]').uncheck();
+  await page.locator('[data-ll-study-check-start]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => ({
+      bodyClass: document.body.classList.contains('ll-study-check-open'),
+      htmlClass: document.documentElement.classList.contains('ll-study-check-open'),
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow
+    }));
+  }).toEqual({
+    bodyClass: true,
+    htmlClass: true,
+    bodyOverflow: 'hidden',
+    htmlOverflow: 'hidden'
+  });
+
+  await page.locator('[data-ll-study-check-unknown]').click();
+  await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
+  await page.locator('[data-ll-study-check-apply]').click();
+  await page.waitForTimeout(500);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => ({
+      bodyClass: document.body.classList.contains('ll-study-check-open'),
+      htmlClass: document.documentElement.classList.contains('ll-study-check-open')
+    }));
+  }).toEqual({
+    bodyClass: false,
+    htmlClass: false
+  });
+
+  const saveRequest = await page.evaluate(() => {
+    const list = Array.isArray(window.__llSaveRequests) ? window.__llSaveRequests : [];
+    return list.length ? list[list.length - 1] : null;
+  });
+
+  expect(saveRequest).not.toBeNull();
+  const starred = Array.isArray(saveRequest.starred_word_ids) ? saveRequest.starred_word_ids.map((id) => Number(id)).sort((a, b) => a - b) : [];
+  expect(starred).toEqual([101, 202]);
 });

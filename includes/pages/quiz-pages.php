@@ -121,8 +121,8 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
         }
     }
 
-    // Check for mode parameter in URL (support practice, learning, listening)
-    if (isset($_GET['mode']) && in_array($_GET['mode'], ['practice', 'learning', 'listening'], true)) {
+    // Check for mode parameter in URL (support practice, learning, self-check, listening)
+    if (isset($_GET['mode']) && in_array($_GET['mode'], ['practice', 'learning', 'self-check', 'listening'], true)) {
         $src = add_query_arg('mode', sanitize_text_field($_GET['mode']), $src);
     }
 

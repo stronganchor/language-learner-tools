@@ -91,23 +91,47 @@
 
             return new Promise((resolve) => {
                 let audio = document.createElement('audio');
-                audio.crossOrigin = 'anonymous';
-                audio.src = audioURL;
-                audio.preload = 'auto';      // hint to preload
-                audio.load();                // force the load() call
-
-                const onLoad = () => {
+                let settled = false;
+                let timeoutId = null;
+                const settle = () => {
+                    if (settled) { return; }
+                    settled = true;
                     loadedResources[audioURL] = true;
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    try { audio.oncanplaythrough = null; } catch (_) { /* no-op */ }
+                    try { audio.onerror = null; } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadstart', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadeddata', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('stalled', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('abort', settle); } catch (_) { /* no-op */ }
                     cleanupAudio(audio);
                     audio = null;
                     resolve();
                 };
 
-                // main “loaded” events
-                audio.oncanplaythrough = onLoad;
-                audio.onerror = onLoad;
-                // iOS fallback — loadstart always fires once loading begins
-                audio.addEventListener('loadstart', onLoad, { once: true });
+                audio.crossOrigin = 'anonymous';
+                audio.preload = 'auto';
+
+                // Register listeners before setting src/load to avoid missing early events.
+                audio.oncanplaythrough = settle;
+                audio.onerror = settle;
+                audio.addEventListener('loadstart', settle, { once: true });
+                audio.addEventListener('loadeddata', settle, { once: true });
+                audio.addEventListener('stalled', settle, { once: true });
+                audio.addEventListener('abort', settle, { once: true });
+
+                // Safety net so one bad media request can never stall quiz boot.
+                timeoutId = setTimeout(settle, 4000);
+
+                try {
+                    audio.src = audioURL;
+                    audio.load();
+                } catch (_) {
+                    settle();
+                }
             });
         }
 
@@ -139,18 +163,30 @@
             }
             return new Promise((resolve) => {
                 let img = new Image();
-
-                img.onload = () => {
+                let settled = false;
+                let timeoutId = null;
+                const settle = () => {
+                    if (settled) { return; }
+                    settled = true;
                     loadedResources[imageURL] = true;
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    img.onload = null;
+                    img.onerror = null;
                     resolve();
                 };
 
-                img.onerror = () => {
-                    loadedResources[imageURL] = true;
-                    resolve();
-                };
+                img.onload = settle;
+                img.onerror = settle;
+                timeoutId = setTimeout(settle, 4000);
 
-                img.src = imageURL;
+                try {
+                    img.src = imageURL;
+                } catch (_) {
+                    settle();
+                }
             });
         }
 
@@ -390,10 +426,13 @@
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
-            return Promise.all([
+            const preloader = Promise.all([
                 (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
                 (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
             ]);
+            // Never let a single media preload failure block rendering of the round.
+            // Other callers invoke this without `.catch()`.
+            return preloader.catch(function () { return []; });
         }
 
         function resolvePlayableAudio(word) {

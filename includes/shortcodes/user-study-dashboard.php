@@ -7,8 +7,10 @@ if (!defined('WPINC')) { die; }
  * Usage: [ll_user_study_dashboard]
  */
 function ll_tools_user_study_enqueue_assets() {
+    ll_enqueue_asset_by_timestamp('/css/self-check-shared.css', 'll-tools-self-check-shared');
     ll_enqueue_asset_by_timestamp('/css/user-study-dashboard.css', 'll-tools-study-dashboard');
-    ll_enqueue_asset_by_timestamp('/js/user-study-dashboard.js', 'll-tools-study-dashboard', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/user-study-dashboard.js', 'll-tools-study-dashboard', ['jquery', 'll-tools-self-check-shared-script'], true);
 }
 
 function ll_tools_user_study_maybe_enqueue_assets() {
@@ -49,6 +51,16 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
 
     $payload = ll_tools_build_user_study_payload(get_current_user_id());
     $nonce   = wp_create_nonce('ll_user_study');
+    $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
+    $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
+        $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
+        if (!empty($cfg['svg'])) {
+            echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true">' . $cfg['svg'] . '</span>';
+            return;
+        }
+        $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
+        echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
+    };
 
     ll_tools_user_study_enqueue_assets();
 
@@ -76,12 +88,12 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         'transitionHint'   => __('Keep the default smooth pacing or speed up after correct answers.', 'll-tools-text-domain'),
         'transitionSlow'   => __('Standard', 'll-tools-text-domain'),
         'transitionFast'   => __('Faster', 'll-tools-text-domain'),
-        'checkLabel'       => __("Know / Don't know", 'll-tools-text-domain'),
-        'checkTitle'       => __('Quick check', 'll-tools-text-domain'),
+        'checkLabel'       => __('Self check', 'll-tools-text-domain'),
+        'checkTitle'       => __('Self check', 'll-tools-text-domain'),
         'checkKnow'        => __('I know it', 'll-tools-text-domain'),
         'checkDontKnow'    => __("I don't know it", 'll-tools-text-domain'),
         'checkSummary'     => __("You marked %d as \"I don't know\".", 'll-tools-text-domain'),
-        'checkApply'       => __('Update stars', 'll-tools-text-domain'),
+        'checkApply'       => __('Set stars', 'll-tools-text-domain'),
         'checkApplyHint'   => __("Replace stars for the selected categories with the words you marked as \"I don't know\".", 'll-tools-text-domain'),
         'checkRestart'     => __('Review again', 'll-tools-text-domain'),
         'checkExit'        => __('Close', 'll-tools-text-domain'),
@@ -108,11 +120,26 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
                 <p class="ll-study-subhead"><?php echo esc_html__('Choose a word set, pick categories, and star the words you want to see more often.', 'll-tools-text-domain'); ?></p>
             </div>
             <div class="ll-study-actions">
-                <button type="button" class="ll-study-btn primary" data-ll-study-start data-mode="practice"><?php echo esc_html($i18n['practice']); ?></button>
-                <button type="button" class="ll-study-btn" data-ll-study-start data-mode="learning"><?php echo esc_html($i18n['learning']); ?></button>
-                <button type="button" class="ll-study-btn ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true"><?php echo esc_html($i18n['gender']); ?></button>
-                <button type="button" class="ll-study-btn" data-ll-study-start data-mode="listening"><?php echo esc_html($i18n['listening']); ?></button>
-                <button type="button" class="ll-study-btn" data-ll-study-check-start><?php echo esc_html($i18n['checkLabel']); ?></button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start data-mode="practice">
+                    <?php $render_mode_icon('practice', '❓'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['practice']); ?></span>
+                </button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start data-mode="learning">
+                    <?php $render_mode_icon('learning', '🎓'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['learning']); ?></span>
+                </button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true">
+                    <?php $render_mode_icon('gender', '⚥'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['gender']); ?></span>
+                </button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start data-mode="listening">
+                    <?php $render_mode_icon('listening', '🎧'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['listening']); ?></span>
+                </button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-check-start>
+                    <?php $render_mode_icon('self-check', '✔✖'); ?>
+                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['checkLabel']); ?></span>
+                </button>
             </div>
         </div>
 

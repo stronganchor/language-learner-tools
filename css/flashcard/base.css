@@ -373,6 +373,21 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     flex-direction: column;
 }
 
+/* Keep quiz-page and vocab-lesson popup geometry consistent with shortcode embeds. */
+body.ll-qpg-popup-active #ll-tools-flashcard-container,
+body.ll-qpg-popup-active #ll-tools-flashcard-popup,
+body.ll-qpg-popup-active #ll-tools-flashcard-quiz-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 1000000;
+}
+
+body.ll-qpg-popup-active #ll-tools-flashcard-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+}
+
 /* Close Button Styles */
 #ll-tools-close-category-selection,
 #ll-tools-close-flashcard {
