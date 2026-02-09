@@ -146,6 +146,8 @@ Current primary-flow E2E specs:
   - Verifies selected card category/mode/wordset are forwarded into widget state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
+- `tests/e2e/specs/user-study-dashboard-mode-options.spec.js`
+  - Verifies study panel mode buttons include base quiz modes and conditionally reveal Gender mode when selected categories support it.
 
 Optional env vars (set directly or in `tests/.env`):
 

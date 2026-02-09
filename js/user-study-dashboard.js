@@ -362,7 +362,7 @@
             return selectedIds.indexOf(parseInt(cat.id, 10)) !== -1;
         });
         if (!selectedCats.length) { return false; }
-        return selectedCats.every(function (cat) {
+        return selectedCats.some(function (cat) {
             return !!(cat && cat.gender_supported);
         });
     }

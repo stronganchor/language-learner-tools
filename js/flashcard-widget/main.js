@@ -915,7 +915,7 @@
             if (!Selection || typeof Selection.getCategoryConfig !== 'function') return false;
             const names = Array.isArray(categoryNames) ? categoryNames : [];
             if (!names.length) return false;
-            return names.every(function (name) {
+            return names.some(function (name) {
                 const cfg = Selection.getCategoryConfig(name);
                 return cfg.gender_supported === true;
             });

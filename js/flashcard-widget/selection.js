@@ -352,7 +352,7 @@
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return false;
             const minCount = parseInt((root.llToolsFlashcardsData && root.llToolsFlashcardsData.genderMinCount) || '', 10) || 2;
-            return names.every(function (name) {
+            return names.some(function (name) {
                 const cfg = getCategoryConfig(name);
                 if (typeof cfg.gender_supported === 'boolean') {
                     return cfg.gender_supported;
