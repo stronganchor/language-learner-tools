@@ -225,6 +225,29 @@ test('study panel mode options keep base modes and show gender when any selected
   }).toBe(true);
 });
 
+test('study panel keeps gender mode hidden when wordset gender is disabled', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload({
+    gender: {
+      enabled: false,
+      options: ['masculine', 'feminine'],
+      min_count: 2
+    }
+  }));
+
+  const genderButton = page.locator('[data-ll-study-gender]');
+  await expect(genderButton).toHaveCount(1);
+  await expect(genderButton).toHaveAttribute('aria-hidden', 'true');
+  await expect.poll(async () => {
+    return await genderButton.evaluate((el) => el.classList.contains('ll-study-btn--hidden'));
+  }).toBe(true);
+
+  await page.locator('[data-ll-study-categories] input[type="checkbox"][value="11"]').uncheck();
+  await expect(genderButton).toHaveAttribute('aria-hidden', 'true');
+  await expect.poll(async () => {
+    return await genderButton.evaluate((el) => el.classList.contains('ll-study-btn--hidden'));
+  }).toBe(true);
+});
+
 test('self-check apply only updates stars inside the checked category scope', async ({ page }) => {
   const payload = buildPayload({
     state: {
