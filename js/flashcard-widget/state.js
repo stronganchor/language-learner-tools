@@ -100,6 +100,9 @@
         wordsAnsweredSinceLastIntro: new Set(),
         lastWordShownId: null,
         learningModeRepetitionQueue: [],
+        learningWordSets: [],
+        learningWordSetIndex: 0,
+        learningWordSetSignature: '',
 
         // Timeout management
         activeTimeouts: [],
@@ -316,6 +319,9 @@
             this.wordsAnsweredSinceLastIntro = new Set();
             this.lastWordShownId = null;
             this.learningModeRepetitionQueue = [];
+            this.learningWordSets = [];
+            this.learningWordSetIndex = 0;
+            this.learningWordSetSignature = '';
 
             // Clear abort flag after delay
             setTimeout(() => {

@@ -22,6 +22,8 @@
         ? root.llToolsFlashcardsData.introSilenceMs : 800;
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
+    const LEARNING_SET_SPLIT_THRESHOLD = 15;
+    const LEARNING_SET_MAX_SIZE = 12;
 
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
@@ -84,6 +86,9 @@
         if (typeof State.MIN_CORRECT_COUNT !== 'number') State.MIN_CORRECT_COUNT = 3;
         if (!Array.isArray(State.introducedWordIDs)) State.introducedWordIDs = [];
         if (!State.wordIntroductionProgress) State.wordIntroductionProgress = {};
+        if (!Array.isArray(State.learningWordSets)) State.learningWordSets = [];
+        if (typeof State.learningWordSetIndex !== 'number') State.learningWordSetIndex = 0;
+        if (typeof State.learningWordSetSignature !== 'string') State.learningWordSetSignature = '';
 
         // Back-compat: if wrongAnswerQueue is an array of IDs, convert to objects with randomized dueTurn
         if (State.wrongAnswerQueue.length && typeof State.wrongAnswerQueue[0] !== 'object') {
@@ -151,17 +156,21 @@
     }
 
     function scheduleWrong(id, baseTurn) {
-        const obj = findWrongObj(id);
+        const normalizedId = parseInt(id, 10) || id;
+        const obj = findWrongObj(normalizedId);
         const due = (typeof baseTurn === 'number' ? baseTurn : State.turnIndex) + randomDelay();
         if (obj) {
             obj.dueTurn = due; // reschedule
         } else {
-            State.wrongAnswerQueue.push({ id, dueTurn: due });
+            State.wrongAnswerQueue.push({ id: normalizedId, dueTurn: due });
         }
     }
 
     function removeFromWrongQueue(id) {
-        State.wrongAnswerQueue = State.wrongAnswerQueue.filter(x => x.id !== id);
+        const normalizedId = parseInt(id, 10) || id;
+        State.wrongAnswerQueue = State.wrongAnswerQueue.filter(function (x) {
+            return x && x.id !== normalizedId;
+        });
     }
 
     function readyWrongs() {
@@ -214,6 +223,94 @@
             }
         }
         return null;
+    }
+
+    function normalizeWordIdList(input) {
+        const seen = new Set();
+        const out = [];
+        (Array.isArray(input) ? input : []).forEach(function (value) {
+            const id = parseInt(value, 10);
+            if (!id || seen.has(id)) return;
+            seen.add(id);
+            out.push(id);
+        });
+        return out;
+    }
+
+    function collectAllLearningWordIds() {
+        const seen = new Set();
+        const allIds = [];
+        for (const name of (State.categoryNames || [])) {
+            const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
+            for (const w of list) {
+                const id = parseInt(w && w.id, 10);
+                if (!id || seen.has(id)) continue;
+                seen.add(id);
+                allIds.push(id);
+            }
+        }
+        return allIds;
+    }
+
+    function buildWordIdSignature(ids) {
+        return normalizeWordIdList(ids)
+            .slice()
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+    }
+
+    function buildLearningWordSets(allIds) {
+        const ids = normalizeWordIdList(allIds);
+        if (!ids.length) return [];
+        if (ids.length <= LEARNING_SET_SPLIT_THRESHOLD) {
+            return [ids];
+        }
+
+        const setCount = Math.ceil(ids.length / LEARNING_SET_MAX_SIZE);
+        const baseSize = Math.floor(ids.length / setCount);
+        const remainder = ids.length % setCount;
+        const sets = [];
+        let offset = 0;
+
+        for (let i = 0; i < setCount; i++) {
+            const size = baseSize + (i < remainder ? 1 : 0);
+            sets.push(ids.slice(offset, offset + size));
+            offset += size;
+        }
+
+        return sets.filter(function (set) { return Array.isArray(set) && set.length > 0; });
+    }
+
+    function getLearningWordSets() {
+        return Array.isArray(State.learningWordSets) ? State.learningWordSets : [];
+    }
+
+    function getLearningWordSetIndex() {
+        const sets = getLearningWordSets();
+        if (!sets.length) return 0;
+        const raw = parseInt(State.learningWordSetIndex, 10);
+        if (!Number.isFinite(raw)) return 0;
+        return Math.max(0, Math.min(raw, sets.length - 1));
+    }
+
+    function getCurrentLearningWordSetIds() {
+        const sets = getLearningWordSets();
+        if (!sets.length) return [];
+        return normalizeWordIdList(sets[getLearningWordSetIndex()]);
+    }
+
+    function resetCurrentLearningSetProgress() {
+        State.introducedWordIDs = [];
+        State.wordIntroductionProgress = {};
+        State.wordCorrectCounts = {};
+        State.wrongAnswerQueue = [];
+        State.wordsAnsweredSinceLastIntro = new Set();
+        State.lastWordShownId = null;
+        State.turnIndex = 0;
+        State.learningCorrectStreak = 0;
+        State.learningChoiceCount = State.MIN_CHOICE_COUNT || 2;
+        State.currentChoiceCount = State.learningChoiceCount;
+        State.isIntroducingWord = false;
     }
 
     function buildWeightedOrder(ids, avoidId) {
@@ -318,41 +415,81 @@
     // ---- initialization (called from Selection.initializeLearningMode) ----
     function initialize() {
         ensureDefaults();
+        const starMode = getStarMode();
+        const starredLookup = getStarredLookup();
+        const allIds = collectAllLearningWordIds();
+        const filteredAllIds = (starMode === 'only')
+            ? allIds.filter(function (id) { return !!starredLookup[id]; })
+            : allIds;
+        const nextSignature = buildWordIdSignature(filteredAllIds);
+        const needsRebuild =
+            !getLearningWordSets().length ||
+            State.learningWordSetSignature !== nextSignature;
 
-        // Build wordsToIntroduce deterministically (single pass) if empty
-        if (!Array.isArray(State.wordsToIntroduce) || !State.wordsToIntroduce.length) {
-            const seen = new Set();
-            const allIds = [];
-            for (const name of (State.categoryNames || [])) {
-                const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
-                for (const w of list) {
-                    const id = parseInt(w.id, 10);
-                    if (!id || seen.has(id)) continue;
-                    seen.add(id);
-                    allIds.push(id);
-                }
-            }
-            const starredLookup = getStarredLookup();
-            const starMode = getStarMode();
-            const filtered = (starMode === 'only') ? allIds.filter(id => starredLookup[id]) : allIds;
-            State.wordsToIntroduce = filtered;
-            State.totalWordCount = filtered.length;
+        if (needsRebuild) {
+            State.learningWordSets = buildLearningWordSets(filteredAllIds);
+            State.learningWordSetIndex = 0;
+            State.learningWordSetSignature = nextSignature;
+            resetCurrentLearningSetProgress();
         }
 
-        // When in starred-only mode, purge any unstarred items from introduced/wrong queues
-        if (getStarMode() === 'only') {
+        State.wordsToIntroduce = getCurrentLearningWordSetIds();
+        State.totalWordCount = State.wordsToIntroduce.length;
+
+        // When in starred-only mode, purge any unstarred items from in-progress tracking.
+        if (starMode === 'only') {
             const lookup = getStarredLookup();
-            State.introducedWordIDs = State.introducedWordIDs.filter(id => lookup[id]);
-            State.wrongAnswerQueue = (State.wrongAnswerQueue || []).filter(item => lookup[item.id]);
-            State.wordsToIntroduce = (State.wordsToIntroduce || []).filter(id => lookup[id]);
+            State.introducedWordIDs = State.introducedWordIDs.filter(function (id) { return !!lookup[id]; });
+            State.wrongAnswerQueue = (State.wrongAnswerQueue || []).filter(function (item) {
+                return item && lookup[item.id];
+            });
+            State.wordsToIntroduce = (State.wordsToIntroduce || []).filter(function (id) { return !!lookup[id]; });
             State.totalWordCount = State.wordsToIntroduce.length;
-        } else {
-            State.totalWordCount = State.wordsToIntroduce.length || State.totalWordCount;
         }
 
         State.isLearningMode = true;
         State.isListeningMode = false;
         return true;
+    }
+
+    function getSetProgress() {
+        ensureDefaults();
+        const sets = getLearningWordSets();
+        if (!sets.length) {
+            return { current: 0, total: 0, hasNext: false };
+        }
+        const idx = getLearningWordSetIndex();
+        return {
+            current: idx + 1,
+            total: sets.length,
+            hasNext: idx < (sets.length - 1)
+        };
+    }
+
+    function hasNextSet() {
+        return !!getSetProgress().hasNext;
+    }
+
+    function startNextSet() {
+        ensureDefaults();
+        const sets = getLearningWordSets();
+        if (!sets.length) return false;
+
+        let nextIndex = getLearningWordSetIndex() + 1;
+        while (nextIndex < sets.length) {
+            const nextIds = normalizeWordIdList(sets[nextIndex]);
+            if (nextIds.length) {
+                State.learningWordSetIndex = nextIndex;
+                resetCurrentLearningSetProgress();
+                State.wordsToIntroduce = nextIds;
+                State.totalWordCount = nextIds.length;
+                syncProgressUI();
+                return true;
+            }
+            nextIndex++;
+        }
+
+        return false;
     }
 
     // ---- choice count API (used by main.js) ----
@@ -364,14 +501,15 @@
     // ---- answer bookkeeping (used by main.js on click) ----
     function recordAnswerResult(wordId, isCorrect, hadWrongThisTurn = false) {
         ensureDefaults();
+        const normalizedWordId = parseInt(wordId, 10) || wordId;
 
         if (isCorrect) {
             // Only count toward mastery on first try
             if (!hadWrongThisTurn) {
-                State.wordCorrectCounts[wordId] = (State.wordCorrectCounts[wordId] || 0) + 1;
-                removeFromWrongQueue(wordId);
+                State.wordCorrectCounts[normalizedWordId] = (State.wordCorrectCounts[normalizedWordId] || 0) + 1;
+                removeFromWrongQueue(normalizedWordId);
             }
-            State.wordsAnsweredSinceLastIntro.add(wordId);
+            State.wordsAnsweredSinceLastIntro.add(normalizedWordId);
 
             // streak up => maybe increase choices
             State.learningCorrectStreak += 1;
@@ -385,7 +523,7 @@
             State.learningChoiceCount = applyConstraints(Math.min(target, State.MAX_CHOICE_COUNT));
         } else {
             // Wrong: schedule with randomized reappear turn (1–3 turns later)
-            scheduleWrong(wordId, State.turnIndex);
+            scheduleWrong(normalizedWordId, State.turnIndex);
             State.learningCorrectStreak = 0;
             State.learningChoiceCount = applyConstraints(Math.max(State.MIN_CHOICE_COUNT, State.learningChoiceCount - 1));
         }
@@ -702,8 +840,14 @@
                         return;
                     }
 
-                    State.wordIntroductionProgress[currentWord.id] =
-                        (State.wordIntroductionProgress[currentWord.id] || 0) + 1;
+                    const normalizedCurrentId = parseInt(currentWord && currentWord.id, 10) || (currentWord && currentWord.id);
+                    if (!normalizedCurrentId) {
+                        managedAudio.cleanup();
+                        return;
+                    }
+
+                    State.wordIntroductionProgress[normalizedCurrentId] =
+                        (State.wordIntroductionProgress[normalizedCurrentId] || 0) + 1;
 
                     syncProgressUI();
 
@@ -718,8 +862,8 @@
                         }, INTRO_GAP_MS);
                         State.addTimeout(nextTimeoutId);
                     } else {
-                        if (!State.introducedWordIDs.includes(currentWord.id)) {
-                            State.introducedWordIDs.push(currentWord.id);
+                        if (!State.introducedWordIDs.includes(normalizedCurrentId)) {
+                            State.introducedWordIDs.push(normalizedCurrentId);
                         }
                         const nextTimeoutId = scheduleTimeout(context, function () {
                             if (!State.abortAllOperations) {
@@ -738,7 +882,14 @@
     }
 
     function onFirstRoundStart() {
-        initialize();
+        ensureDefaults();
+        const hasProgress =
+            (Array.isArray(State.introducedWordIDs) && State.introducedWordIDs.length > 0) ||
+            (State.wordCorrectCounts && Object.keys(State.wordCorrectCounts).length > 0) ||
+            (Array.isArray(State.wrongAnswerQueue) && State.wrongAnswerQueue.length > 0);
+        if (!hasProgress) {
+            initialize();
+        }
         syncProgressUI();
         return true;
     }
@@ -812,6 +963,9 @@
         getChoiceCount,
         recordAnswerResult,
         selectTargetWord,
+        getSetProgress,
+        hasNextSet,
+        startNextSet,
         onCorrectAnswer,
         onWrongAnswer,
         onFirstRoundStart,

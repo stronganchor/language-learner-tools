@@ -743,9 +743,25 @@
             State.wordsToIntroduce = Array.isArray(State.wordsToIntroduce) ? State.wordsToIntroduce : [];
             State.introducedWordIDs = Array.isArray(State.introducedWordIDs) ? State.introducedWordIDs : [];
             State.wrongAnswerQueue = Array.isArray(State.wrongAnswerQueue) ? State.wrongAnswerQueue : [];
+            State.learningWordSets = Array.isArray(State.learningWordSets) ? State.learningWordSets : [];
+            State.learningWordSetIndex = parseInt(State.learningWordSetIndex, 10) || 0;
             State.wordCorrectCounts = State.wordCorrectCounts || {};
             State.wordIntroductionProgress = State.wordIntroductionProgress || {};
             if (starMode !== 'only') return;
+
+            const recalcLearningWordSetSignature = function () {
+                const seen = {};
+                const allIds = [];
+                (State.learningWordSets || []).forEach(function (set) {
+                    (Array.isArray(set) ? set : []).forEach(function (id) {
+                        const num = parseInt(id, 10);
+                        if (!num || seen[num]) return;
+                        seen[num] = true;
+                        allIds.push(num);
+                    });
+                });
+                State.learningWordSetSignature = allIds.sort(function (a, b) { return a - b; }).join(',');
+            };
 
             if (!isStarredFlag) {
                 State.wordsToIntroduce = State.wordsToIntroduce.filter(id => id !== wordId);
@@ -756,9 +772,34 @@
                 if (State.wordsAnsweredSinceLastIntro && typeof State.wordsAnsweredSinceLastIntro.delete === 'function') {
                     State.wordsAnsweredSinceLastIntro.delete(wordId);
                 }
+                if (State.learningWordSets.length) {
+                    State.learningWordSets = State.learningWordSets.map(function (set) {
+                        return (Array.isArray(set) ? set : []).filter(function (id) { return id !== wordId; });
+                    }).filter(function (set) { return set.length > 0; });
+                    if (!State.learningWordSets.length) {
+                        State.learningWordSetIndex = 0;
+                        State.wordsToIntroduce = [];
+                    } else {
+                        State.learningWordSetIndex = Math.max(0, Math.min(State.learningWordSetIndex, State.learningWordSets.length - 1));
+                        State.wordsToIntroduce = State.learningWordSets[State.learningWordSetIndex].slice();
+                    }
+                    recalcLearningWordSetSignature();
+                }
             } else {
                 if (!State.wordsToIntroduce.includes(wordId) && !State.introducedWordIDs.includes(wordId)) {
                     State.wordsToIntroduce.push(wordId);
+                }
+                if (State.learningWordSets.length) {
+                    const alreadyPresent = State.learningWordSets.some(function (set) {
+                        return Array.isArray(set) && set.indexOf(wordId) !== -1;
+                    });
+                    if (!alreadyPresent) {
+                        const idx = Math.max(0, Math.min(State.learningWordSetIndex, State.learningWordSets.length - 1));
+                        State.learningWordSets[idx] = Array.isArray(State.learningWordSets[idx]) ? State.learningWordSets[idx] : [];
+                        State.learningWordSets[idx].push(wordId);
+                        State.wordsToIntroduce = State.learningWordSets[idx].slice();
+                        recalcLearningWordSetSignature();
+                    }
                 }
             }
             const total = new Set([...(State.wordsToIntroduce || []), ...(State.introducedWordIDs || [])]).size;
@@ -928,20 +969,25 @@
     function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
     function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
 
-    function isLearningSupportedForCurrentSelection() {
+    function isLearningSupportedForCategories(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
-                return Selection.isLearningSupportedForCategories(State.categoryNames);
+                return Selection.isLearningSupportedForCategories(names);
             }
             if (!Selection || typeof Selection.getCategoryConfig !== 'function') return true;
-            if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) return true;
-            return State.categoryNames.every(function (name) {
+            if (!names.length) return true;
+            return names.every(function (name) {
                 const cfg = Selection.getCategoryConfig(name);
                 return cfg.learning_supported !== false;
             });
         } catch (e) {
             return true;
         }
+    }
+
+    function isLearningSupportedForCurrentSelection() {
+        return isLearningSupportedForCategories(State.categoryNames);
     }
 
     function isGenderSupportedForSelection(categoryNames) {
@@ -2025,7 +2071,7 @@
                 if (isSelfCheckMode(requestedMode)) {
                     requestedMode = 'self-check';
                 }
-                if (requestedMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
+                if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
@@ -2051,12 +2097,10 @@
                 setStarModeOverride(State.isSelfCheckMode ? 'normal' : getSessionStarModeOverride());
                 updateProgressTrackerContext(requestedMode);
 
-                const activeModule = getActiveModeModule();
-                if (activeModule && typeof activeModule.initialize === 'function') {
-                    try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
+                if (State.widgetActive) {
+                    State.clearActiveTimeouts();
+                    $('#ll-tools-flashcard').empty();
                 }
-
-                if (State.widgetActive) return;
                 State.widgetActive = true;
 
                 if (root.LLFlashcards?.Results?.hideResults) {
@@ -2104,7 +2148,11 @@
                 $('#ll-tools-mode-switcher-wrap').show();
                 updateModeSwitcherPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
-                $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
+                $('#restart-learning-mode').off('click').on('click', () => {
+                    if (!continueLearningSetIfAvailable()) {
+                        switchMode('learning');
+                    }
+                });
                 $('#restart-self-check-mode').off('click').on('click', () => switchMode('self-check'));
                 $('#restart-gender-mode').off('click').on('click', () => switchMode('gender'));
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
@@ -2365,6 +2413,44 @@
         updateModeSwitcherPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
+    }
+
+    function continueLearningSetIfAvailable() {
+        if (!State.isLearningMode) return false;
+        const learning = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Learning;
+        if (!learning || typeof learning.hasNextSet !== 'function' || typeof learning.startNextSet !== 'function') {
+            return false;
+        }
+        if (!learning.hasNextSet()) return false;
+        if (!learning.startNextSet()) return false;
+
+        State.clearActiveTimeouts();
+        clearPrompt();
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.pauseAllAudio === 'function') {
+                root.FlashcardAudio.pauseAllAudio();
+            }
+        } catch (_) { /* no-op */ }
+
+        State.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+        State.wrongIndexes = [];
+        State.hadWrongAnswerThisTurn = false;
+        State.userClickedCorrectAnswer = false;
+        State.isFirstRound = false;
+
+        if (root.LLFlashcards?.Results?.hideResults) {
+            root.LLFlashcards.Results.hideResults();
+        }
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+        updateModeSwitcherPanel();
+
+        const ready = State.transitionTo(STATES.QUIZ_READY, 'Continue learning set');
+        if (!ready) {
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Continue learning set');
+        }
+        startQuizRound();
+        return true;
     }
 
     if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.categoriesPreselected) {

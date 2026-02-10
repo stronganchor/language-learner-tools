@@ -98,6 +98,58 @@
         return false;
     }
 
+    function formatTemplate(message, values) {
+        let out = String(message || '');
+        (Array.isArray(values) ? values : []).forEach(function (value, idx) {
+            const token = '%' + String(idx + 1) + '$d';
+            out = out.split(token).join(String(value));
+        });
+        return out;
+    }
+
+    function getDefaultLearningButtonLabel() {
+        const modeUi = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
+        const learningUi = modeUi.learning || {};
+        return learningUi.resultsButtonText || 'Learning Mode';
+    }
+
+    function getLearningResultsLabelElement() {
+        const $btn = $('#restart-learning-mode');
+        if (!$btn.length) return $();
+
+        let $label = $btn.find('.ll-learning-results-label');
+        if ($label.length) return $label;
+
+        // Backward compatibility for markup without a label span.
+        const fallbackText = $btn.clone().children().remove().end().text().trim();
+        $btn.contents().filter(function () { return this.nodeType === 3; }).remove();
+        $label = $('<span>', { class: 'll-learning-results-label' })
+            .text(fallbackText || getDefaultLearningButtonLabel())
+            .appendTo($btn);
+
+        return $label;
+    }
+
+    function resetLearningResultsButtonLabel() {
+        const $label = getLearningResultsLabelElement();
+        if (!$label.length) return;
+        const savedDefault = ($label.attr('data-default-label') || '').trim();
+        const fallback = savedDefault || $label.text().trim() || getDefaultLearningButtonLabel();
+        $label.attr('data-default-label', fallback);
+        $label.text(fallback);
+    }
+
+    function setLearningResultsButtonLabel(labelText) {
+        const $label = getLearningResultsLabelElement();
+        if (!$label.length) return;
+        if (!$label.attr('data-default-label')) {
+            const current = $label.text().trim() || getDefaultLearningButtonLabel();
+            $label.attr('data-default-label', current);
+        }
+        const next = String(labelText || '').trim();
+        $label.text(next || ($label.attr('data-default-label') || getDefaultLearningButtonLabel()));
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
@@ -107,6 +159,7 @@
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
+        resetLearningResultsButtonLabel();
     }
 
     function showResults() {
@@ -150,6 +203,7 @@
         // Hide listening mode controls if present
         $('#ll-tools-listening-controls').hide();
         removeCompletionCheckmark();
+        resetLearningResultsButtonLabel();
 
         if (root.FlashcardAudio) {
             try {
@@ -178,7 +232,22 @@
 
             insertCompletionCheckmark();
 
-            $('#quiz-results-message').hide();
+            const learning = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Learning;
+            const progress = (learning && typeof learning.getSetProgress === 'function')
+                ? learning.getSetProgress()
+                : { current: 1, total: 1, hasNext: false };
+            const hasNextSet = !!(progress && progress.hasNext);
+            if (hasNextSet) {
+                const nextSetNumber = (progress.current || 0) + 1;
+                const totalSets = progress.total || nextSetNumber;
+                const promptTemplate = msgs.learningContinuePrompt || 'Great work. Continue with set %1$d of %2$d?';
+                const prompt = formatTemplate(promptTemplate, [nextSetNumber, totalSets]);
+                $('#quiz-results-message').text(prompt).show();
+                setLearningResultsButtonLabel(msgs.learningContinueButton || 'Continue Learning');
+            } else {
+                $('#quiz-results-message').hide();
+                resetLearningResultsButtonLabel();
+            }
             $('#correct-count').parent().hide();
             $('#quiz-results').show();
             $('#restart-quiz').hide();

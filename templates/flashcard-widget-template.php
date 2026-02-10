@@ -159,7 +159,7 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           </button>
           <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
             <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
-            <?php echo esc_html($learning_label); ?>
+            <span class="ll-learning-results-label"><?php echo esc_html($learning_label); ?></span>
           </button>
           <button id="restart-self-check-mode" class="quiz-button quiz-mode-button">
             <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
