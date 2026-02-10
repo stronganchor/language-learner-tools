@@ -614,19 +614,10 @@
     }
 
     function renderModeButtonsForGoals() {
+        // Goal mode toggles only shape recommendations, not direct launch controls.
         $root.find('[data-ll-study-start]').each(function () {
-            const mode = normalizeProgressMode($(this).attr('data-mode'));
-            const enabled = isModeEnabled(mode);
-            $(this).prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
+            $(this).prop('disabled', false).attr('aria-disabled', 'false');
         });
-        if ($checkStart.length) {
-            const enabled = isModeEnabled('self-check');
-            $checkStart.prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
-        }
-        if ($placementStart.length) {
-            const enabled = isModeEnabled('self-check');
-            $placementStart.prop('disabled', !enabled).attr('aria-disabled', enabled ? 'false' : 'true');
-        }
     }
 
     function renderNextActivity() {
@@ -730,8 +721,7 @@
 
     function updateGenderButtonVisibility() {
         if (!$genderStart.length) { return; }
-        const goalsAllowGender = (goals.enabled_modes || []).indexOf('gender') !== -1;
-        const allowed = goalsAllowGender && isGenderSupportedForSelection();
+        const allowed = isGenderSupportedForSelection();
         $genderStart.toggleClass('ll-study-btn--hidden', !allowed);
         $genderStart.attr('aria-hidden', allowed ? 'false' : 'true');
     }
@@ -2022,7 +2012,6 @@
 
     if ($checkStart.length) {
         $checkStart.on('click', function () {
-            if (!isModeEnabled('self-check')) { return; }
             startCheckFlow(undefined, { mode: 'self-check' });
         });
     }

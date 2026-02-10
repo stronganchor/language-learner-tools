@@ -357,7 +357,9 @@
         const copies = [];
         (Array.isArray(words) ? words : []).forEach(function (w) {
             if (!w) return;
-            const isStarred = !!starredLookup[w.id];
+            const wordId = parseInt(w.id, 10);
+            if (!wordId) return;
+            const isStarred = !!starredLookup[wordId];
             if (starMode === 'only' && !isStarred) return;
             const weight = (starMode === 'weighted' && isStarred) ? 2 : 1;
             for (let i = 0; i < weight; i++) {
@@ -386,15 +388,29 @@
         if (State.categoryNames && State.wordsByCategory) {
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
+            const uniqueWordsById = {};
+            const uniqueWordIds = [];
             for (const name of State.categoryNames) {
                 const list = State.wordsByCategory[name] || [];
                 for (const w of list) {
                     if (!w) continue;
-                    try { if (w && !w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                    const wordId = parseInt(w.id, 10);
+                    if (!wordId) continue;
+                    try { if (!w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                    if (!uniqueWordsById[wordId]) {
+                        uniqueWordsById[wordId] = w;
+                        uniqueWordIds.push(wordId);
+                    }
                 }
-                const categorySeq = buildWeightedSequence(list, starredLookup, starMode);
-                if (categorySeq.length) {
-                    categorySeq.forEach(function (word) { seq.push(word); });
+            }
+
+            if (uniqueWordIds.length) {
+                const uniqueWords = uniqueWordIds.map(function (id) {
+                    return uniqueWordsById[id];
+                }).filter(Boolean);
+                const weightedSeq = buildWeightedSequence(uniqueWords, starredLookup, starMode);
+                if (weightedSeq.length) {
+                    weightedSeq.forEach(function (word) { seq.push(word); });
                 }
             }
         }

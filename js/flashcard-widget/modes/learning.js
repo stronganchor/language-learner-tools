@@ -447,8 +447,8 @@
         }
 
         // May we introduce a NEW word this turn?
-        const canIntroduceMore = (State.introducedWordIDs.length < 12);
-        const mayIntroduce = !hasReadyWrongs && !hasPendingWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce && canIntroduceMore;
+        // Do not hard-cap introductions by a fixed number, or larger sets can get stuck forever.
+        const mayIntroduce = !hasReadyWrongs && !hasPendingWrongs && everyoneAnsweredThisCycle && !nothingLeftToIntroduce;
 
         if (mayIntroduce) {
             const nextId = pickNextIntroId(notYetIntroduced, State.lastWordShownId);
