@@ -61,6 +61,15 @@ function ll_tools_user_study_dashboard_shortcode($atts) {
         $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
         echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
     };
+    $start_next_icon_svg = <<<'SVG'
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">
+  <rect x="4" y="10" width="11" height="4"/>
+  <path d="M13 6l7 6-7 6z"/>
+</svg>
+SVG;
+    $render_start_next_icon = function () use ($start_next_icon_svg): void {
+        echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true">' . $start_next_icon_svg . '</span>';
+    };
     $placement_icon_svg = <<<'SVG'
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <g transform="translate(8 9.4) scale(1.55) translate(-8 -9)">
@@ -163,7 +172,7 @@ SVG;
             </div>
             <div class="ll-study-actions">
                 <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start-next disabled>
-                    <?php $render_mode_icon('practice', '▶'); ?>
+                    <?php $render_start_next_icon(); ?>
                     <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['nextStart']); ?></span>
                 </button>
                 <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start data-mode="practice">
