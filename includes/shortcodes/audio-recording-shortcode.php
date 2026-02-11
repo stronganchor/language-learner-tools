@@ -1178,7 +1178,13 @@ function ll_get_categories_for_wordset($wordset_term_ids, $include_types_csv, $e
             $missing = $filtered_types;
         }
         if (!empty($missing)) {
-            $cats = wp_get_post_terms($img_id, 'word-category');
+            // Prefer the word's categories when available. This allows duplicated word categories
+            // to appear even if the shared word_images post wasn't manually recategorized yet.
+            if ($word_id) {
+                $cats = wp_get_post_terms($word_id, 'word-category');
+            } else {
+                $cats = wp_get_post_terms($img_id, 'word-category');
+            }
             if (!empty($cats) && !is_wp_error($cats)) {
                 foreach ($cats as $cat) {
                     $categories[$cat->slug] = $cat->name;
@@ -2546,6 +2552,13 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
     $items_by_category = [];
     $missing_audio_instances = get_option('ll_missing_audio_instances', []);
+    $active_category_term = null;
+    if (!empty($category_slug) && !$is_uncategorized_request) {
+        $maybe_active = get_term_by('slug', (string) $category_slug, 'word-category');
+        if ($maybe_active && !is_wp_error($maybe_active)) {
+            $active_category_term = $maybe_active;
+        }
+    }
 
     $image_args = [
         'post_type'      => 'word_images',
@@ -2565,6 +2578,78 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
 
     $image_posts = get_posts($image_args);
+
+    // Category-specific fallback:
+    // Include image posts referenced by words in this category even when those image posts
+    // were not categorized yet (common after category-duplication workflows).
+    if (!empty($category_slug) && !$is_uncategorized_request) {
+        $word_image_word_query = [
+            'post_type'      => 'words',
+            'post_status'    => ['publish', 'draft', 'pending', 'private', 'future'],
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'     => '_thumbnail_id',
+                    'compare' => 'EXISTS',
+                ],
+                [
+                    'key'     => '_thumbnail_id',
+                    'value'   => '',
+                    'compare' => '!=',
+                ],
+            ],
+            'tax_query'      => [
+                [
+                    'taxonomy' => 'word-category',
+                    'field'    => 'slug',
+                    'terms'    => [$category_slug],
+                ],
+            ],
+        ];
+        if (!empty($wordset_term_ids)) {
+            $word_image_word_query['tax_query'][] = [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => array_map('intval', $wordset_term_ids),
+            ];
+            $word_image_word_query['tax_query']['relation'] = 'AND';
+        }
+
+        $word_ids_for_category = get_posts($word_image_word_query);
+        if (!empty($word_ids_for_category)) {
+            $thumb_ids = [];
+            foreach ($word_ids_for_category as $wid) {
+                $thumb_id = (int) get_post_thumbnail_id((int) $wid);
+                if ($thumb_id > 0) {
+                    $thumb_ids[$thumb_id] = true;
+                }
+            }
+            $thumb_ids = array_keys($thumb_ids);
+
+            if (!empty($thumb_ids)) {
+                $fallback_image_posts = get_posts([
+                    'post_type'      => 'word_images',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => -1,
+                    'fields'         => 'ids',
+                    'no_found_rows'  => true,
+                    'meta_query'     => [[
+                        'key'     => '_thumbnail_id',
+                        'value'   => array_map('intval', $thumb_ids),
+                        'compare' => 'IN',
+                    ]],
+                ]);
+                if (!empty($fallback_image_posts)) {
+                    $image_posts = array_values(array_unique(array_merge(
+                        array_map('intval', (array) $image_posts),
+                        array_map('intval', (array) $fallback_image_posts)
+                    )));
+                }
+            }
+        }
+    }
 
     foreach ($image_posts as $img_id) {
         $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
