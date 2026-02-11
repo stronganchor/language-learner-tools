@@ -18,6 +18,7 @@ read_first:
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
   - includes/post-types/words-post-type.php
+  - includes/post-types/dictionary-entry-post-type.php
   - includes/post-types/word-audio-post-type.php
   - includes/admin/settings.php
   - includes/admin/audio-processor-admin.php
@@ -28,7 +29,7 @@ read_first:
 
 # Overview (30-second tour)
 - WordPress plugin for vocabulary-driven language learning.
-- Custom post types for words, word images, and word audio recordings.
+- Custom post types for words, dictionary entries, word images, and word audio recordings.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
 - Flashcard quizzes with three modes (practice, learning, listening) and per-category prompt/option config.
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
@@ -78,6 +79,7 @@ includes/
     recording-page.php        # Recording page creation + login redirect
   post-types/
     words-post-type.php
+    dictionary-entry-post-type.php
     word-image-post-type.php
     word-audio-post-type.php
   taxonomies/
@@ -163,8 +165,11 @@ Note: `includes/admin/migrate-word-audio.php` exists as a legacy migration tool 
 - `words` (public, REST)
   - Key meta: `word_translation`, legacy `word_english_meaning`, legacy `word_audio_file`.
   - Other meta: `word_example_sentence`, `word_example_sentence_translation`, `similar_word_id`.
+  - Optional link meta: `ll_dictionary_entry_id` (links to umbrella dictionary entry).
   - Publish guard: requires at least one published `word_audio` when category config needs audio.
     - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
+- `ll_dictionary_entry` (admin-facing umbrella entries)
+  - Groups related `words` posts (e.g., different learnable forms) without changing `words` as the quiz/recording unit.
 - `word_images` (public, REST)
   - Featured image is the media asset.
   - Meta: `copyright_info`, plus translation fields used by grids.

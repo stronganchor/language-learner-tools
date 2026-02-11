@@ -158,6 +158,22 @@ p:has(.ll-word-audio) {
     text-transform: none;
 }
 
+.word-grid.ll-word-grid .ll-word-meta-tag--verb-tense {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--verb-mood {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
 .word-grid.ll-word-grid .ll-word-note {
     display: inline-block;
     margin-top: 8px;
@@ -308,6 +324,19 @@ p:has(.ll-word-audio) {
 }
 .word-grid.ll-word-grid .ll-word-edit-plurality--hidden {
     display: none;
+}
+.word-grid.ll-word-grid .ll-word-edit-verb-tense--hidden {
+    display: none;
+}
+.word-grid.ll-word-grid .ll-word-edit-verb-mood--hidden {
+    display: none;
+}
+
+.ll-word-dictionary-entry-autocomplete {
+    max-height: 260px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 100000 !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-input:focus {

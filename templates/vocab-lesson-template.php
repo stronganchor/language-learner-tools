@@ -222,6 +222,18 @@ if (have_posts()) {
                             $plurality_options = $plurality_enabled && function_exists('ll_tools_wordset_get_plurality_options')
                                 ? ll_tools_wordset_get_plurality_options($wordset_id)
                                 : [];
+                            $verb_tense_enabled = function_exists('ll_tools_wordset_has_verb_tense')
+                                ? ll_tools_wordset_has_verb_tense($wordset_id)
+                                : false;
+                            $verb_tense_options = $verb_tense_enabled && function_exists('ll_tools_wordset_get_verb_tense_options')
+                                ? ll_tools_wordset_get_verb_tense_options($wordset_id)
+                                : [];
+                            $verb_mood_enabled = function_exists('ll_tools_wordset_has_verb_mood')
+                                ? ll_tools_wordset_has_verb_mood($wordset_id)
+                                : false;
+                            $verb_mood_options = $verb_mood_enabled && function_exists('ll_tools_wordset_get_verb_mood_options')
+                                ? ll_tools_wordset_get_verb_mood_options($wordset_id)
+                                : [];
                             ?>
                             <div class="ll-vocab-lesson-bulk ll-tools-settings-control" data-ll-word-grid-bulk>
                                 <button type="button" class="ll-vocab-lesson-bulk-button ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Bulk edit', 'll-tools-text-domain'); ?>">
@@ -286,6 +298,42 @@ if (have_posts()) {
                                                     <?php endforeach; ?>
                                                 </select>
                                                 <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-plurality-apply aria-label="<?php echo esc_attr__('Apply plurality to all nouns', 'll-tools-text-domain'); ?>">
+                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if ($verb_tense_enabled) : ?>
+                                        <div class="ll-vocab-lesson-bulk-section">
+                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb tense', 'll-tools-text-domain'); ?>">
+                                                <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-tense aria-label="<?php echo esc_attr__('Select verb tense', 'll-tools-text-domain'); ?>">
+                                                    <option value=""><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></option>
+                                                    <?php foreach ($verb_tense_options as $option) : ?>
+                                                        <?php if (!empty($option)) : ?>
+                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-verb-tense-apply aria-label="<?php echo esc_attr__('Apply tense to all verbs', 'll-tools-text-domain'); ?>">
+                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if ($verb_mood_enabled) : ?>
+                                        <div class="ll-vocab-lesson-bulk-section">
+                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb mood', 'll-tools-text-domain'); ?>">
+                                                <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-mood aria-label="<?php echo esc_attr__('Select verb mood', 'll-tools-text-domain'); ?>">
+                                                    <option value=""><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></option>
+                                                    <?php foreach ($verb_mood_options as $option) : ?>
+                                                        <?php if (!empty($option)) : ?>
+                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                                                        <?php endif; ?>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-verb-mood-apply aria-label="<?php echo esc_attr__('Apply mood to all verbs', 'll-tools-text-domain'); ?>">
                                                     <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
                                                 </button>
                                             </div>

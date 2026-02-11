@@ -963,11 +963,137 @@
         posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
         genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',
         pluralitySuccess: bulkI18n.pluralitySuccess || 'Updated %d nouns.',
+        verbTenseSuccess: bulkI18n.verbTenseSuccess || 'Updated %d verbs.',
+        verbMoodSuccess: bulkI18n.verbMoodSuccess || 'Updated %d verbs.',
         posMissing: bulkI18n.posMissing || 'Choose a part of speech.',
         genderMissing: bulkI18n.genderMissing || 'Choose a gender.',
         pluralityMissing: bulkI18n.pluralityMissing || 'Choose a plurality option.',
+        verbTenseMissing: bulkI18n.verbTenseMissing || 'Choose a verb tense option.',
+        verbMoodMissing: bulkI18n.verbMoodMissing || 'Choose a verb mood option.',
         error: bulkI18n.error || 'Unable to update words.'
     };
+    const dictionaryEntryCache = {};
+
+    function syncDictionaryEntrySelectionState($item) {
+        const $lookup = $item.find('[data-ll-word-input="dictionary_entry_lookup"]').first();
+        if (!$lookup.length) { return; }
+        const id = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
+        const label = ($lookup.val() || '').toString();
+        $lookup.data('llEntrySelectedId', id);
+        $lookup.data('llEntrySelectedLabel', label);
+    }
+
+    function applyDictionaryEntryData($item, data) {
+        const payload = data || {};
+        const id = parseInt(payload.id, 10) || 0;
+        const title = (payload.title || '').toString();
+        const $idInput = $item.find('[data-ll-word-input="dictionary_entry_id"]').first();
+        const $lookup = $item.find('[data-ll-word-input="dictionary_entry_lookup"]').first();
+
+        if ($idInput.length) {
+            $idInput.val(id ? String(id) : '');
+        }
+        if ($lookup.length) {
+            $lookup.val(title);
+            $lookup.data('llEntrySelectedId', id);
+            $lookup.data('llEntrySelectedLabel', title);
+        }
+    }
+
+    function fetchDictionaryEntries(term, wordsetId, wordId, done) {
+        const query = (term || '').toString().trim();
+        const normalizedWordset = parseInt(wordsetId, 10) || 0;
+        const normalizedWordId = parseInt(wordId, 10) || 0;
+        const key = normalizedWordset + '|' + query.toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(dictionaryEntryCache, key)) {
+            done((dictionaryEntryCache[key] || []).slice());
+            return;
+        }
+        $.post(ajaxUrl, {
+            action: 'll_tools_search_dictionary_entries',
+            nonce: editNonce,
+            q: query,
+            wordset_id: normalizedWordset,
+            word_id: normalizedWordId,
+            limit: 20
+        }).done(function (response) {
+            const entries = (response && response.success === true && response.data && Array.isArray(response.data.entries))
+                ? response.data.entries
+                : [];
+            dictionaryEntryCache[key] = entries;
+            done(entries.slice());
+        }).fail(function () {
+            done([]);
+        });
+    }
+
+    function initDictionaryEntryAutocomplete($input) {
+        if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
+        if ($input.data('llEntryAutocompleteReady')) { return; }
+        $input.data('llEntryAutocompleteReady', true);
+        const $item = $input.closest('.word-item');
+        const $idInput = $item.find('[data-ll-word-input="dictionary_entry_id"]').first();
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const wordId = parseInt($item.data('word-id'), 10) || 0;
+        const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+        syncDictionaryEntrySelectionState($item);
+
+        $input.autocomplete({
+            minLength: 0,
+            delay: 150,
+            classes: {
+                'ui-autocomplete': 'll-word-dictionary-entry-autocomplete'
+            },
+            source: function (request, response) {
+                fetchDictionaryEntries(request.term, wordsetId, wordId, function (entries) {
+                    response((entries || []).map(function (entry) {
+                        const label = (entry && entry.label) ? entry.label.toString() : '';
+                        const id = parseInt(entry && entry.id, 10) || 0;
+                        return {
+                            label: label,
+                            value: label,
+                            id: id
+                        };
+                    }));
+                });
+            },
+            focus: function (event, ui) {
+                event.preventDefault();
+                $input.val((ui.item && ui.item.label) ? ui.item.label : '');
+            },
+            select: function (event, ui) {
+                event.preventDefault();
+                const selectedId = parseInt(ui.item && ui.item.id, 10) || 0;
+                const selectedLabel = (ui.item && ui.item.label) ? ui.item.label.toString() : '';
+                $input.val(selectedLabel);
+                if ($idInput.length) {
+                    $idInput.val(selectedId ? String(selectedId) : '');
+                }
+                $input.data('llEntrySelectedId', selectedId);
+                $input.data('llEntrySelectedLabel', selectedLabel);
+            },
+            change: function (_event, ui) {
+                if (ui && ui.item) { return; }
+                const typed = ($input.val() || '').toString();
+                if (typed.trim() === '') {
+                    if ($idInput.length) {
+                        $idInput.val('');
+                    }
+                    $input.data('llEntrySelectedId', 0);
+                    $input.data('llEntrySelectedLabel', '');
+                }
+            }
+        });
+
+        const instance = $input.autocomplete('instance');
+        if (instance) {
+            instance._renderItem = function (ul, item) {
+                return $('<li>')
+                    .append($('<div>').text((item.label || '') + ' #' + (item.id || 0)))
+                    .appendTo(ul);
+            };
+        }
+    }
 
     function setEditPanelOpen($item, shouldOpen) {
         const $panel = $item.find('[data-ll-word-edit-panel]').first();
@@ -1006,6 +1132,7 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        syncDictionaryEntrySelectionState($item);
     }
 
     function restoreOriginalInputs($item) {
@@ -1017,6 +1144,7 @@
             }
         });
         setMetaFieldState($item);
+        syncDictionaryEntrySelectionState($item);
     }
 
     function setEditStatus($item, message, isError) {
@@ -1058,12 +1186,15 @@
         const posText = ($row.find('[data-ll-word-pos]').text() || '').trim();
         const genderText = ($row.find('[data-ll-word-gender]').text() || '').trim();
         const pluralityText = ($row.find('[data-ll-word-plurality]').text() || '').trim();
-        $row.toggleClass('ll-word-meta-row--empty', !(posText || genderText || pluralityText));
+        const verbTenseText = ($row.find('[data-ll-word-verb-tense]').text() || '').trim();
+        const verbMoodText = ($row.find('[data-ll-word-verb-mood]').text() || '').trim();
+        $row.toggleClass('ll-word-meta-row--empty', !(posText || genderText || pluralityText || verbTenseText || verbMoodText));
     }
 
     function setMetaFieldState($item, posSlug) {
         const resolved = (posSlug || ($item.find('[data-ll-word-input="part_of_speech"]').val() || '')).toString();
         const isNoun = resolved === 'noun';
+        const isVerb = resolved === 'verb';
         const $genderField = $item.find('[data-ll-word-gender-field]').first();
         if ($genderField.length) {
             $genderField.toggleClass('ll-word-edit-gender--hidden', !isNoun);
@@ -1082,9 +1213,27 @@
                 $select.prop('disabled', !isNoun);
             }
         }
+        const $verbTenseField = $item.find('[data-ll-word-verb-tense-field]').first();
+        if ($verbTenseField.length) {
+            $verbTenseField.toggleClass('ll-word-edit-verb-tense--hidden', !isVerb);
+            $verbTenseField.attr('aria-hidden', isVerb ? 'false' : 'true');
+            const $select = $verbTenseField.find('select[data-ll-word-input="verb_tense"]').first();
+            if ($select.length) {
+                $select.prop('disabled', !isVerb);
+            }
+        }
+        const $verbMoodField = $item.find('[data-ll-word-verb-mood-field]').first();
+        if ($verbMoodField.length) {
+            $verbMoodField.toggleClass('ll-word-edit-verb-mood--hidden', !isVerb);
+            $verbMoodField.attr('aria-hidden', isVerb ? 'false' : 'true');
+            const $select = $verbMoodField.find('select[data-ll-word-input="verb_mood"]').first();
+            if ($select.length) {
+                $select.prop('disabled', !isVerb);
+            }
+        }
     }
 
-    function applyPosMetaUpdate($item, posData, genderData, pluralityData) {
+    function applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData) {
         if (posData && Object.prototype.hasOwnProperty.call(posData, 'slug')) {
             $item.find('[data-ll-word-input="part_of_speech"]').val(posData.slug || '');
         }
@@ -1103,6 +1252,18 @@
         if (pluralityData && Object.prototype.hasOwnProperty.call(pluralityData, 'label')) {
             setWordMetaText($item, '[data-ll-word-plurality]', pluralityData.label || '');
         }
+        if (verbTenseData && Object.prototype.hasOwnProperty.call(verbTenseData, 'value')) {
+            $item.find('[data-ll-word-input="verb_tense"]').val(verbTenseData.value || '');
+        }
+        if (verbTenseData && Object.prototype.hasOwnProperty.call(verbTenseData, 'label')) {
+            setWordMetaText($item, '[data-ll-word-verb-tense]', verbTenseData.label || '');
+        }
+        if (verbMoodData && Object.prototype.hasOwnProperty.call(verbMoodData, 'value')) {
+            $item.find('[data-ll-word-input="verb_mood"]').val(verbMoodData.value || '');
+        }
+        if (verbMoodData && Object.prototype.hasOwnProperty.call(verbMoodData, 'label')) {
+            setWordMetaText($item, '[data-ll-word-verb-mood]', verbMoodData.label || '');
+        }
         updateWordMetaRow($item);
         if (posData && Object.prototype.hasOwnProperty.call(posData, 'slug')) {
             setMetaFieldState($item, posData.slug || '');
@@ -1116,6 +1277,7 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        syncDictionaryEntrySelectionState($item);
     }
 
     function collectRecordingInputs($item) {
@@ -2489,6 +2651,9 @@
         $grids.find('.word-item').each(function () {
             cacheOriginalInputs($(this));
         });
+        $grids.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
+            initDictionaryEntryAutocomplete($(this));
+        });
 
         function getBulkContext($wrap) {
             const $scope = $wrap.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page');
@@ -2501,7 +2666,7 @@
         }
 
         function setBulkBusy($wrap, isBusy) {
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply]')
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply]')
                 .prop('disabled', isBusy);
             $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
         }
@@ -2540,6 +2705,8 @@
                     const posData = data.part_of_speech || {};
                     const clearGender = data.gender_cleared === true;
                     const clearPlurality = data.plurality_cleared === true;
+                    const clearVerbTense = data.verb_tense_cleared === true;
+                    const clearVerbMood = data.verb_mood_cleared === true;
                     ids.forEach(function (id) {
                         const wordId = parseInt(id, 10) || 0;
                         if (!wordId) { return; }
@@ -2547,7 +2714,9 @@
                         if (!$item.length) { return; }
                         const genderData = clearGender ? { value: '', label: '' } : null;
                         const pluralityData = clearPlurality ? { value: '', label: '' } : null;
-                        applyPosMetaUpdate($item, posData, genderData, pluralityData);
+                        const verbTenseData = clearVerbTense ? { value: '', label: '' } : null;
+                        const verbMoodData = clearVerbMood ? { value: '', label: '' } : null;
+                        applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData);
                         updateOriginalInputs($item);
                     });
                     updateGridLayouts();
@@ -2654,6 +2823,102 @@
                     setBulkBusy($wrap, false);
                 });
             });
+
+            $bulkEditors.on('click', '[data-ll-bulk-verb-tense-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+                const verbTenseValue = ($wrap.find('[data-ll-bulk-verb-tense]').val() || '').toString();
+                if (!verbTenseValue) {
+                    setBulkStatus($wrap, bulkMessages.verbTenseMissing, true);
+                    return;
+                }
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                    return;
+                }
+                setBulkBusy($wrap, true);
+                setBulkStatus($wrap, bulkMessages.saving, false);
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: 'verb_tense',
+                    verb_tense: verbTenseValue,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        setBulkStatus($wrap, bulkMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbTenseData = data.verb_tense || {};
+                    ids.forEach(function (id) {
+                        const wordId = parseInt(id, 10) || 0;
+                        if (!wordId) { return; }
+                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                        if (!$item.length) { return; }
+                        applyPosMetaUpdate($item, null, null, null, verbTenseData, null);
+                        updateOriginalInputs($item);
+                    });
+                    updateGridLayouts();
+                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbTenseSuccess, ids.length), false);
+                }).fail(function () {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                }).always(function () {
+                    setBulkBusy($wrap, false);
+                });
+            });
+
+            $bulkEditors.on('click', '[data-ll-bulk-verb-mood-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
+                const verbMoodValue = ($wrap.find('[data-ll-bulk-verb-mood]').val() || '').toString();
+                if (!verbMoodValue) {
+                    setBulkStatus($wrap, bulkMessages.verbMoodMissing, true);
+                    return;
+                }
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                    return;
+                }
+                setBulkBusy($wrap, true);
+                setBulkStatus($wrap, bulkMessages.saving, false);
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_bulk_update',
+                    nonce: editNonce,
+                    mode: 'verb_mood',
+                    verb_mood: verbMoodValue,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        setBulkStatus($wrap, bulkMessages.error, true);
+                        return;
+                    }
+                    const data = response.data || {};
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbMoodData = data.verb_mood || {};
+                    ids.forEach(function (id) {
+                        const wordId = parseInt(id, 10) || 0;
+                        if (!wordId) { return; }
+                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                        if (!$item.length) { return; }
+                        applyPosMetaUpdate($item, null, null, null, null, verbMoodData);
+                        updateOriginalInputs($item);
+                    });
+                    updateGridLayouts();
+                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbMoodSuccess, ids.length), false);
+                }).fail(function () {
+                    setBulkStatus($wrap, bulkMessages.error, true);
+                }).always(function () {
+                    setBulkBusy($wrap, false);
+                });
+            });
         }
 
         $grids.on('click', '[data-ll-word-edit-toggle]', function (e) {
@@ -2683,6 +2948,30 @@
             const $item = $(this).closest('.word-item');
             const posSlug = ($(this).val() || '').toString();
             setMetaFieldState($item, posSlug);
+        });
+
+        $grids.on('focus', '[data-ll-word-input="dictionary_entry_lookup"]', function () {
+            const $input = $(this);
+            initDictionaryEntryAutocomplete($input);
+            if (typeof $input.autocomplete === 'function') {
+                $input.autocomplete('search', ($input.val() || '').toString());
+            }
+        });
+
+        $grids.on('input', '[data-ll-word-input="dictionary_entry_lookup"]', function () {
+            const $input = $(this);
+            const $item = $input.closest('.word-item');
+            const typed = ($input.val() || '').toString();
+            const selectedLabel = ($input.data('llEntrySelectedLabel') || '').toString();
+            if (typed.trim() === '') {
+                $item.find('[data-ll-word-input="dictionary_entry_id"]').val('');
+                $input.data('llEntrySelectedId', 0);
+                $input.data('llEntrySelectedLabel', '');
+                return;
+            }
+            if (selectedLabel && typed !== selectedLabel) {
+                $item.find('[data-ll-word-input="dictionary_entry_id"]').val('');
+            }
         });
 
         $grids.on('focus', '.ll-word-edit-input--ipa', function () {
@@ -2820,6 +3109,10 @@
             const partOfSpeech = ($item.find('[data-ll-word-input="part_of_speech"]').val() || '').toString();
             const gender = ($item.find('[data-ll-word-input="gender"]').val() || '').toString();
             const plurality = ($item.find('[data-ll-word-input="plurality"]').val() || '').toString();
+            const verbTense = ($item.find('[data-ll-word-input="verb_tense"]').val() || '').toString();
+            const verbMood = ($item.find('[data-ll-word-input="verb_mood"]').val() || '').toString();
+            const dictionaryEntryId = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
+            const dictionaryEntryTitle = ($item.find('[data-ll-word-input="dictionary_entry_lookup"]').val() || '').toString();
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
             const recordings = [];
@@ -2851,6 +3144,10 @@
                 part_of_speech: partOfSpeech,
                 grammatical_gender: gender,
                 grammatical_plurality: plurality,
+                verb_tense: verbTense,
+                verb_mood: verbMood,
+                dictionary_entry_id: dictionaryEntryId,
+                dictionary_entry_title: dictionaryEntryTitle,
                 wordset_id: wordsetId,
                 recordings: recordings
             }).done(function (response) {
@@ -2871,6 +3168,9 @@
                     $item.find('[data-ll-word-input="note"]').val(data.word_note);
                     setWordNote($item, data.word_note);
                 }
+                if (data.dictionary_entry) {
+                    applyDictionaryEntryData($item, data.dictionary_entry);
+                }
                 if (Array.isArray(data.recordings)) {
                     data.recordings.forEach(function (rec) {
                         const recId = parseInt(rec.id, 10) || 0;
@@ -2889,8 +3189,8 @@
                     });
                     applyRecordingCaptions($item, data.recordings);
                 }
-                if (data.part_of_speech || data.grammatical_gender || data.grammatical_plurality) {
-                    applyPosMetaUpdate($item, data.part_of_speech || {}, data.grammatical_gender || {}, data.grammatical_plurality || {});
+                if (data.part_of_speech || data.grammatical_gender || data.grammatical_plurality || data.verb_tense || data.verb_mood) {
+                    applyPosMetaUpdate($item, data.part_of_speech || {}, data.grammatical_gender || {}, data.grammatical_plurality || {}, data.verb_tense || {}, data.verb_mood || {});
                 }
                 updateGridLayouts();
                 updateOriginalInputs($item);
@@ -2967,8 +3267,11 @@
                 $item.find('[data-ll-word-translation]').text(word.word_translation);
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
             }
-            if (word.part_of_speech || word.grammatical_gender || word.grammatical_plurality) {
-                applyPosMetaUpdate($item, word.part_of_speech || {}, word.grammatical_gender || {}, word.grammatical_plurality || {});
+            if (word.dictionary_entry) {
+                applyDictionaryEntryData($item, word.dictionary_entry);
+            }
+            if (word.part_of_speech || word.grammatical_gender || word.grammatical_plurality || word.verb_tense || word.verb_mood) {
+                applyPosMetaUpdate($item, word.part_of_speech || {}, word.grammatical_gender || {}, word.grammatical_plurality || {}, word.verb_tense || {}, word.verb_mood || {});
             }
             updateGridLayouts();
             updateOriginalInputs($item);

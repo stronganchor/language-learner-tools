@@ -1711,7 +1711,15 @@ function ll_tools_word_grid_shortcode($atts) {
     if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_plurality')) {
         $wordset_has_plurality = ll_tools_wordset_has_plurality($wordset_id);
     }
-    ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery'], true);
+    $wordset_has_verb_tense = false;
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_tense')) {
+        $wordset_has_verb_tense = ll_tools_wordset_has_verb_tense($wordset_id);
+    }
+    $wordset_has_verb_mood = false;
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_mood')) {
+        $wordset_has_verb_mood = ll_tools_wordset_has_verb_mood($wordset_id);
+    }
+    ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery', 'jquery-ui-autocomplete'], true);
 
     $can_edit_words = ll_tools_user_can_edit_vocab_words()
         && is_singular('ll_vocab_lesson');
@@ -1745,6 +1753,14 @@ function ll_tools_word_grid_shortcode($atts) {
     $plurality_options = [];
     if ($wordset_has_plurality && function_exists('ll_tools_wordset_get_plurality_options')) {
         $plurality_options = ll_tools_wordset_get_plurality_options($wordset_id);
+    }
+    $verb_tense_options = [];
+    if ($wordset_has_verb_tense && function_exists('ll_tools_wordset_get_verb_tense_options')) {
+        $verb_tense_options = ll_tools_wordset_get_verb_tense_options($wordset_id);
+    }
+    $verb_mood_options = [];
+    if ($wordset_has_verb_mood && function_exists('ll_tools_wordset_get_verb_mood_options')) {
+        $verb_mood_options = ll_tools_wordset_get_verb_mood_options($wordset_id);
     }
 
     // Start output buffering
@@ -1982,9 +1998,13 @@ function ll_tools_word_grid_shortcode($atts) {
             'posSuccess' => __('Updated %d words.', 'll-tools-text-domain'),
             'genderSuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
             'pluralitySuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
+            'verbTenseSuccess' => __('Updated %d verbs.', 'll-tools-text-domain'),
+            'verbMoodSuccess' => __('Updated %d verbs.', 'll-tools-text-domain'),
             'posMissing' => __('Choose a part of speech.', 'll-tools-text-domain'),
             'genderMissing' => __('Choose a gender.', 'll-tools-text-domain'),
             'pluralityMissing' => __('Choose a plurality option.', 'll-tools-text-domain'),
+            'verbTenseMissing' => __('Choose a verb tense option.', 'll-tools-text-domain'),
+            'verbMoodMissing' => __('Choose a verb mood option.', 'll-tools-text-domain'),
             'error' => __('Unable to update words.', 'll-tools-text-domain'),
         ],
         'transcribeI18n' => [
@@ -2025,6 +2045,12 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($wordset_has_plurality) {
             $grid_attrs .= ' data-ll-plurality-enabled="1"';
         }
+        if ($wordset_has_verb_tense) {
+            $grid_attrs .= ' data-ll-verb-tense-enabled="1"';
+        }
+        if ($wordset_has_verb_mood) {
+            $grid_attrs .= ' data-ll-verb-mood-enabled="1"';
+        }
         echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" ' . $grid_attrs . '>'; // Grid container
         while ($query->have_posts()) {
             $query->the_post();
@@ -2033,10 +2059,17 @@ function ll_tools_word_grid_shortcode($atts) {
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
             $word_note = trim((string) get_post_meta($word_id, 'll_word_usage_note', true));
+            $dictionary_entry_id = function_exists('ll_tools_get_word_dictionary_entry_id')
+                ? (int) ll_tools_get_word_dictionary_entry_id($word_id)
+                : 0;
+            $dictionary_entry_title = $dictionary_entry_id > 0
+                ? trim((string) get_the_title($dictionary_entry_id))
+                : '';
             $pos_entry = $part_of_speech_by_word[$word_id] ?? [];
             $pos_slug = isset($pos_entry['slug']) ? (string) $pos_entry['slug'] : '';
             $pos_label = isset($pos_entry['label']) ? (string) $pos_entry['label'] : '';
             $is_noun = ($pos_slug === 'noun');
+            $is_verb = ($pos_slug === 'verb');
             $gender_value = '';
             $gender_label = '';
             if ($wordset_has_gender && $wordset_id > 0 && $is_noun) {
@@ -2055,6 +2088,26 @@ function ll_tools_word_grid_shortcode($atts) {
                     $plurality_label = ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value);
                 } else {
                     $plurality_label = $plurality_value;
+                }
+            }
+            $verb_tense_value = '';
+            $verb_tense_label = '';
+            if ($wordset_has_verb_tense && $wordset_id > 0 && $is_verb) {
+                $verb_tense_value = trim((string) get_post_meta($word_id, 'll_verb_tense', true));
+                if ($verb_tense_value !== '' && function_exists('ll_tools_wordset_get_verb_tense_label')) {
+                    $verb_tense_label = ll_tools_wordset_get_verb_tense_label($wordset_id, $verb_tense_value);
+                } else {
+                    $verb_tense_label = $verb_tense_value;
+                }
+            }
+            $verb_mood_value = '';
+            $verb_mood_label = '';
+            if ($wordset_has_verb_mood && $wordset_id > 0 && $is_verb) {
+                $verb_mood_value = trim((string) get_post_meta($word_id, 'll_verb_mood', true));
+                if ($verb_mood_value !== '' && function_exists('ll_tools_wordset_get_verb_mood_label')) {
+                    $verb_mood_label = ll_tools_wordset_get_verb_mood_label($wordset_id, $verb_mood_value);
+                } else {
+                    $verb_mood_label = $verb_mood_value;
                 }
             }
 
@@ -2149,13 +2202,15 @@ function ll_tools_word_grid_shortcode($atts) {
             echo '</h3>';
             echo '</div>';
             $meta_row_class = 'll-word-meta-row';
-            if ($pos_label === '' && $gender_label === '' && $plurality_label === '') {
+            if ($pos_label === '' && $gender_label === '' && $plurality_label === '' && $verb_tense_label === '' && $verb_mood_label === '') {
                 $meta_row_class .= ' ll-word-meta-row--empty';
             }
             echo '<div class="' . esc_attr($meta_row_class) . '" data-ll-word-meta>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--pos" data-ll-word-pos>' . esc_html($pos_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--gender" data-ll-word-gender>' . esc_html($gender_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
+            echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-tense" data-ll-word-verb-tense>' . esc_html($verb_tense_label) . '</span>';
+            echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-mood" data-ll-word-verb-mood>' . esc_html($verb_mood_label) . '</span>';
             echo '</div>';
             $note_class = 'll-word-note';
             if ($word_note === '') {
@@ -2177,6 +2232,12 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '<textarea class="ll-word-edit-input ll-word-edit-textarea" id="' . esc_attr($note_input_id) . '" data-ll-word-input="note" rows="3">' . esc_textarea($word_note) . '</textarea>';
                 echo '</div>';
                 echo '<div class="ll-word-edit-fields ll-word-edit-fields--meta">';
+                $dictionary_entry_input_id = 'll-word-edit-dictionary-entry-' . $word_id;
+                echo '<div class="ll-word-edit-field ll-word-edit-dictionary-entry">';
+                echo '<label class="ll-word-edit-label" for="' . esc_attr($dictionary_entry_input_id) . '">' . esc_html__('Dictionary entry', 'll-tools-text-domain') . '</label>';
+                echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($dictionary_entry_input_id) . '" data-ll-word-input="dictionary_entry_lookup" value="' . esc_attr($dictionary_entry_title) . '" placeholder="' . esc_attr__('Type to select or create dictionary entry', 'll-tools-text-domain') . '" autocomplete="off" />';
+                echo '<input type="hidden" data-ll-word-input="dictionary_entry_id" value="' . esc_attr($dictionary_entry_id > 0 ? (string) $dictionary_entry_id : '') . '" />';
+                echo '</div>';
                 $pos_input_id = 'll-word-edit-pos-' . $word_id;
                 echo '<div class="ll-word-edit-field">';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($pos_input_id) . '">' . esc_html__('Part of speech', 'll-tools-text-domain') . '</label>';
@@ -2248,6 +2309,60 @@ function ll_tools_word_grid_shortcode($atts) {
                     }
                     if ($plurality_value !== '' && !$plurality_found) {
                         echo '<option value="' . esc_attr($plurality_value) . '" selected>' . esc_html($plurality_value) . '</option>';
+                    }
+                    echo '</select>';
+                    echo '</div>';
+                }
+                if ($wordset_has_verb_tense) {
+                    $verb_tense_input_id = 'll-word-edit-verb-tense-' . $word_id;
+                    $verb_tense_field_class = 'll-word-edit-field ll-word-edit-verb-tense';
+                    if (!$is_verb) {
+                        $verb_tense_field_class .= ' ll-word-edit-verb-tense--hidden';
+                    }
+                    echo '<div class="' . esc_attr($verb_tense_field_class) . '" data-ll-word-verb-tense-field aria-hidden="' . ($is_verb ? 'false' : 'true') . '">';
+                    echo '<label class="ll-word-edit-label" for="' . esc_attr($verb_tense_input_id) . '">' . esc_html__('Verb tense', 'll-tools-text-domain') . '</label>';
+                    echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($verb_tense_input_id) . '" data-ll-word-input="verb_tense"' . ($is_verb ? '' : ' disabled') . '>';
+                    echo '<option value="">' . esc_html__('None', 'll-tools-text-domain') . '</option>';
+                    $verb_tense_found = false;
+                    foreach ($verb_tense_options as $option) {
+                        $option_value = (string) $option;
+                        if ($option_value === '') {
+                            continue;
+                        }
+                        if ($option_value === $verb_tense_value) {
+                            $verb_tense_found = true;
+                        }
+                        echo '<option value="' . esc_attr($option_value) . '"' . selected($option_value, $verb_tense_value, false) . '>' . esc_html($option_value) . '</option>';
+                    }
+                    if ($verb_tense_value !== '' && !$verb_tense_found) {
+                        echo '<option value="' . esc_attr($verb_tense_value) . '" selected>' . esc_html($verb_tense_value) . '</option>';
+                    }
+                    echo '</select>';
+                    echo '</div>';
+                }
+                if ($wordset_has_verb_mood) {
+                    $verb_mood_input_id = 'll-word-edit-verb-mood-' . $word_id;
+                    $verb_mood_field_class = 'll-word-edit-field ll-word-edit-verb-mood';
+                    if (!$is_verb) {
+                        $verb_mood_field_class .= ' ll-word-edit-verb-mood--hidden';
+                    }
+                    echo '<div class="' . esc_attr($verb_mood_field_class) . '" data-ll-word-verb-mood-field aria-hidden="' . ($is_verb ? 'false' : 'true') . '">';
+                    echo '<label class="ll-word-edit-label" for="' . esc_attr($verb_mood_input_id) . '">' . esc_html__('Verb mood', 'll-tools-text-domain') . '</label>';
+                    echo '<select class="ll-word-edit-input ll-word-edit-select" id="' . esc_attr($verb_mood_input_id) . '" data-ll-word-input="verb_mood"' . ($is_verb ? '' : ' disabled') . '>';
+                    echo '<option value="">' . esc_html__('None', 'll-tools-text-domain') . '</option>';
+                    $verb_mood_found = false;
+                    foreach ($verb_mood_options as $option) {
+                        $option_value = (string) $option;
+                        if ($option_value === '') {
+                            continue;
+                        }
+                        if ($option_value === $verb_mood_value) {
+                            $verb_mood_found = true;
+                        }
+                        echo '<option value="' . esc_attr($option_value) . '"' . selected($option_value, $verb_mood_value, false) . '>' . esc_html($option_value) . '</option>';
+                    }
+                    if ($verb_mood_value !== '' && !$verb_mood_found) {
+                        echo '<option value="' . esc_attr($verb_mood_value) . '" selected>' . esc_html($verb_mood_value) . '</option>';
                     }
                     echo '</select>';
                     echo '</div>';
@@ -2803,6 +2918,39 @@ function ll_tools_word_grid_update_word_handler() {
         $word_note = $sanitized_note;
     }
 
+    $dictionary_entry_id = function_exists('ll_tools_get_word_dictionary_entry_id')
+        ? (int) ll_tools_get_word_dictionary_entry_id($word_id)
+        : 0;
+    $dictionary_entry_title = $dictionary_entry_id > 0
+        ? trim((string) get_the_title($dictionary_entry_id))
+        : '';
+    $dictionary_entry_submitted = array_key_exists('dictionary_entry_id', $_POST)
+        || array_key_exists('dictionary_entry_title', $_POST);
+    if ($dictionary_entry_submitted && function_exists('ll_tools_assign_dictionary_entry_to_word')) {
+        $submitted_dictionary_entry_id = isset($_POST['dictionary_entry_id'])
+            ? absint($_POST['dictionary_entry_id'])
+            : 0;
+        $submitted_dictionary_entry_title = isset($_POST['dictionary_entry_title'])
+            ? sanitize_text_field(wp_unslash((string) $_POST['dictionary_entry_title']))
+            : '';
+
+        $dictionary_result = ll_tools_assign_dictionary_entry_to_word(
+            $word_id,
+            $submitted_dictionary_entry_id,
+            $submitted_dictionary_entry_title
+        );
+        if (!is_wp_error($dictionary_result)) {
+            $dictionary_entry_id = isset($dictionary_result['entry_id']) ? (int) $dictionary_result['entry_id'] : 0;
+            $dictionary_entry_title = isset($dictionary_result['entry_title']) ? trim((string) $dictionary_result['entry_title']) : '';
+        }
+    }
+    if (!$dictionary_entry_submitted && function_exists('ll_tools_get_word_dictionary_entry_id')) {
+        $dictionary_entry_id = (int) ll_tools_get_word_dictionary_entry_id($word_id);
+        $dictionary_entry_title = $dictionary_entry_id > 0
+            ? trim((string) get_the_title($dictionary_entry_id))
+            : '';
+    }
+
     $pos_updated = array_key_exists('part_of_speech', $_POST);
     $pos_slug = '';
     $pos_label = '';
@@ -2844,7 +2992,14 @@ function ll_tools_word_grid_update_word_handler() {
     $plurality_enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_plurality'))
         ? ll_tools_wordset_has_plurality($wordset_id)
         : false;
+    $verb_tense_enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_tense'))
+        ? ll_tools_wordset_has_verb_tense($wordset_id)
+        : false;
+    $verb_mood_enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_mood'))
+        ? ll_tools_wordset_has_verb_mood($wordset_id)
+        : false;
     $is_noun = ($pos_slug === 'noun');
+    $is_verb = ($pos_slug === 'verb');
     $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
     $gender_label = '';
     $gender_submitted = array_key_exists('grammatical_gender', $_POST);
@@ -2915,6 +3070,77 @@ function ll_tools_word_grid_update_word_handler() {
     } else {
         $plurality_label = $plurality_value;
     }
+    $verb_tense_value = trim((string) get_post_meta($word_id, 'll_verb_tense', true));
+    $verb_tense_label = '';
+    $verb_tense_submitted = array_key_exists('verb_tense', $_POST);
+    if ($verb_tense_submitted || $pos_updated) {
+        $submitted_verb_tense = sanitize_text_field($_POST['verb_tense'] ?? '');
+        $submitted_verb_tense = trim($submitted_verb_tense);
+        if (!$verb_tense_enabled || !$is_verb) {
+            if ($verb_tense_value !== '') {
+                delete_post_meta($word_id, 'll_verb_tense');
+            }
+            $verb_tense_value = '';
+        } else {
+            $verb_tense_allowed = function_exists('ll_tools_wordset_get_verb_tense_options')
+                ? ll_tools_wordset_get_verb_tense_options($wordset_id)
+                : [];
+            if ($submitted_verb_tense === '') {
+                delete_post_meta($word_id, 'll_verb_tense');
+                $verb_tense_value = '';
+            } elseif (in_array($submitted_verb_tense, $verb_tense_allowed, true) || $submitted_verb_tense === $verb_tense_value) {
+                update_post_meta($word_id, 'll_verb_tense', $submitted_verb_tense);
+                $verb_tense_value = $submitted_verb_tense;
+            } else {
+                delete_post_meta($word_id, 'll_verb_tense');
+                $verb_tense_value = '';
+            }
+        }
+    }
+    if (!$verb_tense_enabled || !$is_verb) {
+        $verb_tense_value = '';
+        $verb_tense_label = '';
+    } elseif ($verb_tense_value !== '' && function_exists('ll_tools_wordset_get_verb_tense_label')) {
+        $verb_tense_label = ll_tools_wordset_get_verb_tense_label($wordset_id, $verb_tense_value);
+    } else {
+        $verb_tense_label = $verb_tense_value;
+    }
+
+    $verb_mood_value = trim((string) get_post_meta($word_id, 'll_verb_mood', true));
+    $verb_mood_label = '';
+    $verb_mood_submitted = array_key_exists('verb_mood', $_POST);
+    if ($verb_mood_submitted || $pos_updated) {
+        $submitted_verb_mood = sanitize_text_field($_POST['verb_mood'] ?? '');
+        $submitted_verb_mood = trim($submitted_verb_mood);
+        if (!$verb_mood_enabled || !$is_verb) {
+            if ($verb_mood_value !== '') {
+                delete_post_meta($word_id, 'll_verb_mood');
+            }
+            $verb_mood_value = '';
+        } else {
+            $verb_mood_allowed = function_exists('ll_tools_wordset_get_verb_mood_options')
+                ? ll_tools_wordset_get_verb_mood_options($wordset_id)
+                : [];
+            if ($submitted_verb_mood === '') {
+                delete_post_meta($word_id, 'll_verb_mood');
+                $verb_mood_value = '';
+            } elseif (in_array($submitted_verb_mood, $verb_mood_allowed, true) || $submitted_verb_mood === $verb_mood_value) {
+                update_post_meta($word_id, 'll_verb_mood', $submitted_verb_mood);
+                $verb_mood_value = $submitted_verb_mood;
+            } else {
+                delete_post_meta($word_id, 'll_verb_mood');
+                $verb_mood_value = '';
+            }
+        }
+    }
+    if (!$verb_mood_enabled || !$is_verb) {
+        $verb_mood_value = '';
+        $verb_mood_label = '';
+    } elseif ($verb_mood_value !== '' && function_exists('ll_tools_wordset_get_verb_mood_label')) {
+        $verb_mood_label = ll_tools_wordset_get_verb_mood_label($wordset_id, $verb_mood_value);
+    } else {
+        $verb_mood_label = $verb_mood_value;
+    }
 
     $recordings_payload = ll_tools_word_grid_parse_recordings_payload($_POST['recordings'] ?? '');
     $recordings_out = [];
@@ -2971,6 +3197,10 @@ function ll_tools_word_grid_update_word_handler() {
         'word_text' => $display_values['word_text'],
         'word_translation' => $display_values['translation_text'],
         'word_note' => $word_note,
+        'dictionary_entry' => [
+            'id' => $dictionary_entry_id,
+            'title' => $dictionary_entry_title,
+        ],
         'recordings' => $recordings_out,
         'part_of_speech' => [
             'slug' => $pos_slug,
@@ -2984,6 +3214,49 @@ function ll_tools_word_grid_update_word_handler() {
             'value' => $plurality_value,
             'label' => $plurality_label,
         ],
+        'verb_tense' => [
+            'value' => $verb_tense_value,
+            'label' => $verb_tense_label,
+        ],
+        'verb_mood' => [
+            'value' => $verb_mood_value,
+            'label' => $verb_mood_label,
+        ],
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_search_dictionary_entries', 'll_tools_search_dictionary_entries_handler');
+function ll_tools_search_dictionary_entries_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $query = sanitize_text_field($_POST['q'] ?? '');
+    $limit = (int) ($_POST['limit'] ?? 20);
+    if ($limit <= 0) {
+        $limit = 20;
+    }
+    $limit = min(50, $limit);
+
+    $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
+    $word_id = isset($_POST['word_id']) ? (int) $_POST['word_id'] : 0;
+    if ($word_id > 0 && get_post_type($word_id) === 'words') {
+        $resolved_wordset_id = function_exists('ll_tools_word_grid_get_wordset_id_for_word')
+            ? (int) ll_tools_word_grid_get_wordset_id_for_word($word_id)
+            : 0;
+        if ($resolved_wordset_id > 0) {
+            $wordset_id = $resolved_wordset_id;
+        }
+    }
+
+    $entries = function_exists('ll_tools_search_dictionary_entries')
+        ? ll_tools_search_dictionary_entries($query, $limit, $wordset_id)
+        : [];
+
+    wp_send_json_success([
+        'entries' => array_values((array) $entries),
     ]);
 }
 
@@ -3002,7 +3275,7 @@ function ll_tools_word_grid_bulk_update_handler() {
     }
 
     $mode = sanitize_text_field($_POST['mode'] ?? '');
-    if (!in_array($mode, ['pos', 'gender', 'plurality'], true)) {
+    if (!in_array($mode, ['pos', 'gender', 'plurality', 'verb_tense', 'verb_mood'], true)) {
         wp_send_json_error('Invalid mode', 400);
     }
 
@@ -3027,6 +3300,8 @@ function ll_tools_word_grid_bulk_update_handler() {
 
         $clear_gender = ($term->slug !== 'noun');
         $clear_plurality = ($term->slug !== 'noun');
+        $clear_verb_tense = ($term->slug !== 'verb');
+        $clear_verb_mood = ($term->slug !== 'verb');
         foreach ($word_ids as $word_id) {
             $word_id = (int) $word_id;
             if ($word_id <= 0) {
@@ -3038,6 +3313,12 @@ function ll_tools_word_grid_bulk_update_handler() {
             }
             if ($clear_plurality) {
                 delete_post_meta($word_id, 'll_grammatical_plurality');
+            }
+            if ($clear_verb_tense) {
+                delete_post_meta($word_id, 'll_verb_tense');
+            }
+            if ($clear_verb_mood) {
+                delete_post_meta($word_id, 'll_verb_mood');
             }
         }
 
@@ -3052,6 +3333,8 @@ function ll_tools_word_grid_bulk_update_handler() {
             ],
             'gender_cleared' => $clear_gender,
             'plurality_cleared' => $clear_plurality,
+            'verb_tense_cleared' => $clear_verb_tense,
+            'verb_mood_cleared' => $clear_verb_mood,
         ]);
     }
 
@@ -3155,6 +3438,110 @@ function ll_tools_word_grid_bulk_update_handler() {
             'grammatical_plurality' => [
                 'value' => $plurality_value,
                 'label' => $plurality_label,
+            ],
+        ]);
+    }
+
+    if ($mode === 'verb_tense') {
+        if (!function_exists('ll_tools_wordset_has_verb_tense') || !ll_tools_wordset_has_verb_tense($wordset_id)) {
+            wp_send_json_error('Verb tense not enabled', 400);
+        }
+
+        $verb_tense_value = sanitize_text_field($_POST['verb_tense'] ?? '');
+        $verb_tense_value = trim($verb_tense_value);
+        if ($verb_tense_value === '') {
+            wp_send_json_error('Missing verb tense', 400);
+        }
+
+        $verb_tense_allowed = function_exists('ll_tools_wordset_get_verb_tense_options')
+            ? ll_tools_wordset_get_verb_tense_options($wordset_id)
+            : [];
+        if (!in_array($verb_tense_value, $verb_tense_allowed, true)) {
+            wp_send_json_error('Invalid verb tense', 400);
+        }
+
+        $pos_map = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+        $updated = [];
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $pos_slug = isset($pos_map[$word_id]['slug']) ? (string) $pos_map[$word_id]['slug'] : '';
+            if ($pos_slug !== 'verb') {
+                continue;
+            }
+            update_post_meta($word_id, 'll_verb_tense', $verb_tense_value);
+            $updated[] = $word_id;
+        }
+
+        $verb_tense_label = function_exists('ll_tools_wordset_get_verb_tense_label')
+            ? ll_tools_wordset_get_verb_tense_label($wordset_id, $verb_tense_value)
+            : $verb_tense_value;
+
+        if (!empty($updated)) {
+            ll_tools_word_grid_bump_category_cache_for_words($updated, $category_id);
+        }
+
+        wp_send_json_success([
+            'word_ids' => $updated,
+            'count' => count($updated),
+            'skipped' => max(0, count($word_ids) - count($updated)),
+            'verb_tense' => [
+                'value' => $verb_tense_value,
+                'label' => $verb_tense_label,
+            ],
+        ]);
+    }
+
+    if ($mode === 'verb_mood') {
+        if (!function_exists('ll_tools_wordset_has_verb_mood') || !ll_tools_wordset_has_verb_mood($wordset_id)) {
+            wp_send_json_error('Verb mood not enabled', 400);
+        }
+
+        $verb_mood_value = sanitize_text_field($_POST['verb_mood'] ?? '');
+        $verb_mood_value = trim($verb_mood_value);
+        if ($verb_mood_value === '') {
+            wp_send_json_error('Missing verb mood', 400);
+        }
+
+        $verb_mood_allowed = function_exists('ll_tools_wordset_get_verb_mood_options')
+            ? ll_tools_wordset_get_verb_mood_options($wordset_id)
+            : [];
+        if (!in_array($verb_mood_value, $verb_mood_allowed, true)) {
+            wp_send_json_error('Invalid verb mood', 400);
+        }
+
+        $pos_map = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+        $updated = [];
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $pos_slug = isset($pos_map[$word_id]['slug']) ? (string) $pos_map[$word_id]['slug'] : '';
+            if ($pos_slug !== 'verb') {
+                continue;
+            }
+            update_post_meta($word_id, 'll_verb_mood', $verb_mood_value);
+            $updated[] = $word_id;
+        }
+
+        $verb_mood_label = function_exists('ll_tools_wordset_get_verb_mood_label')
+            ? ll_tools_wordset_get_verb_mood_label($wordset_id, $verb_mood_value)
+            : $verb_mood_value;
+
+        if (!empty($updated)) {
+            ll_tools_word_grid_bump_category_cache_for_words($updated, $category_id);
+        }
+
+        wp_send_json_success([
+            'word_ids' => $updated,
+            'count' => count($updated),
+            'skipped' => max(0, count($word_ids) - count($updated)),
+            'verb_mood' => [
+                'value' => $verb_mood_value,
+                'label' => $verb_mood_label,
             ],
         ]);
     }

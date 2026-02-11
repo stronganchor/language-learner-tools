@@ -12,6 +12,7 @@ require_once __DIR__ . '/lib/image-hash.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
+require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
