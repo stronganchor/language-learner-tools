@@ -113,6 +113,12 @@
         return learningUi.resultsButtonText || 'Learning Mode';
     }
 
+    function getDefaultGenderButtonLabel() {
+        const modeUi = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
+        const genderUi = modeUi.gender || {};
+        return genderUi.resultsButtonText || 'Gender Mode';
+    }
+
     function getLearningResultsLabelElement() {
         const $btn = $('#restart-learning-mode');
         if (!$btn.length) return $();
@@ -150,16 +156,53 @@
         $label.text(next || ($label.attr('data-default-label') || getDefaultLearningButtonLabel()));
     }
 
+    function getGenderResultsLabelElement() {
+        const $btn = $('#restart-gender-mode');
+        if (!$btn.length) return $();
+
+        let $label = $btn.find('.ll-gender-results-label');
+        if ($label.length) return $label;
+
+        const fallbackText = $btn.clone().children().remove().end().text().trim();
+        $btn.contents().filter(function () { return this.nodeType === 3; }).remove();
+        $label = $('<span>', { class: 'll-gender-results-label' })
+            .text(fallbackText || getDefaultGenderButtonLabel())
+            .appendTo($btn);
+        return $label;
+    }
+
+    function resetGenderResultsButtonLabel() {
+        const $label = getGenderResultsLabelElement();
+        if (!$label.length) return;
+        const savedDefault = ($label.attr('data-default-label') || '').trim();
+        const fallback = savedDefault || $label.text().trim() || getDefaultGenderButtonLabel();
+        $label.attr('data-default-label', fallback);
+        $label.text(fallback);
+    }
+
+    function setGenderResultsButtonLabel(labelText) {
+        const $label = getGenderResultsLabelElement();
+        if (!$label.length) return;
+        if (!$label.attr('data-default-label')) {
+            $label.attr('data-default-label', $label.text().trim() || getDefaultGenderButtonLabel());
+        }
+        const next = String(labelText || '').trim();
+        $label.text(next || ($label.attr('data-default-label') || getDefaultGenderButtonLabel()));
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
         $('#restart-practice-mode, #restart-learning-mode, #restart-self-check-mode, #restart-gender-mode').show();
         $('#restart-listening-mode').hide();
+        $('#ll-gender-results-actions').hide();
+        $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
         resetLearningResultsButtonLabel();
+        resetGenderResultsButtonLabel();
     }
 
     function showResults() {
@@ -204,6 +247,9 @@
         $('#ll-tools-listening-controls').hide();
         removeCompletionCheckmark();
         resetLearningResultsButtonLabel();
+        resetGenderResultsButtonLabel();
+        $('#ll-gender-results-actions').hide();
+        $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
 
         if (root.FlashcardAudio) {
             try {
@@ -291,6 +337,61 @@
             $('#restart-self-check-mode').hide();
             $('#restart-gender-mode').hide();
             $('#restart-listening-mode').show();
+            Dom.hideLoading();
+            $('#ll-tools-repeat-flashcard').hide();
+            $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+            $('#ll-tools-learning-progress').hide();
+            renderCategories(true);
+            return;
+        }
+
+        if (State.isGenderMode) {
+            const genderMode = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+            const actions = (genderMode && typeof genderMode.getResultsActions === 'function')
+                ? genderMode.getResultsActions()
+                : null;
+            const title = (actions && actions.title) ? actions.title : (msgs.genderResultsTitle || 'Gender Round Complete');
+            const message = (actions && actions.message) ? actions.message : (msgs.genderResultsMessage || '');
+            const primaryLabel = (actions && actions.primary && actions.primary.label)
+                ? actions.primary.label
+                : (msgs.genderNextActivity || 'Next Gender Activity');
+            const secondaryLabel = (actions && actions.secondary && actions.secondary.label)
+                ? actions.secondary.label
+                : (msgs.genderNextChunk || 'Next Chunk');
+            const hasSecondary = !!(actions && actions.secondary);
+
+            $('#quiz-results-title').text(title);
+            if (message) {
+                $('#quiz-results-message').text(message).show();
+            } else {
+                $('#quiz-results-message').hide();
+            }
+            $('#correct-count').parent().hide();
+            $('#quiz-results').show();
+            $('#restart-quiz').hide();
+            $('#quiz-mode-buttons').show();
+            $('#restart-practice-mode').show();
+            if (learningAllowed) {
+                $('#restart-learning-mode').show();
+            } else {
+                $('#restart-learning-mode').hide();
+            }
+            $('#restart-self-check-mode').show();
+            $('#restart-gender-mode').show();
+            $('#restart-listening-mode').hide();
+            setGenderResultsButtonLabel(primaryLabel);
+
+            const $genderActions = $('#ll-gender-results-actions');
+            if ($genderActions.length) {
+                $('#ll-gender-next-activity').text(primaryLabel).show();
+                if (hasSecondary) {
+                    $('#ll-gender-next-chunk').text(secondaryLabel).show();
+                } else {
+                    $('#ll-gender-next-chunk').hide();
+                }
+                $genderActions.show();
+            }
+
             Dom.hideLoading();
             $('#ll-tools-repeat-flashcard').hide();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();

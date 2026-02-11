@@ -711,6 +711,8 @@
         const genderOptions = getGenderOptions();
         const genderLabel = normalizeGenderValue(targetWord.grammatical_gender, genderOptions) || targetWord.__gender_label || '';
         if (!genderLabel || genderOptions.length < 2) return false;
+        const msgs = root.llToolsFlashcardsMessages || {};
+        const dontKnowLabel = String(msgs.genderDontKnow || "I don't know");
 
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = 'text';
@@ -722,10 +724,11 @@
         $container.removeClass('audio-line-layout');
         $content.removeClass('audio-line-mode');
 
-        genderOptions.forEach(function (label, idx) {
+        let optionIndex = 0;
+        genderOptions.forEach(function (label) {
             const normalized = normalizeGenderValue(label, genderOptions);
             const isCorrect = normalized && normalized === genderLabel;
-            const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + idx);
+            const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + optionIndex);
             const optionWord = {
                 id: optionId,
                 title: label,
@@ -733,8 +736,24 @@
             };
             const $card = root.LLFlashcards.Cards.appendWordToContainer(optionWord, 'text', promptType, true);
             $card.addClass('ll-gender-option');
-            root.LLFlashcards.Cards.addClickEventToCard($card, idx, targetWord, 'text', promptType);
+            $card.attr('data-ll-gender-choice', normalized || '')
+                .attr('data-ll-gender-correct', isCorrect ? '1' : '0')
+                .attr('data-ll-gender-unknown', '0');
+            root.LLFlashcards.Cards.addClickEventToCard($card, optionIndex, targetWord, 'text', promptType);
+            optionIndex += 1;
         });
+
+        const unknownWord = {
+            id: String(targetWord.id) + '-gender-unknown',
+            title: dontKnowLabel,
+            label: dontKnowLabel
+        };
+        const $unknownCard = root.LLFlashcards.Cards.appendWordToContainer(unknownWord, 'text', promptType, true);
+        $unknownCard.addClass('ll-gender-option ll-gender-option--unknown')
+            .attr('data-ll-gender-choice', '')
+            .attr('data-ll-gender-correct', '0')
+            .attr('data-ll-gender-unknown', '1');
+        root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 
         $(document).trigger('ll-tools-options-ready');
         return true;

@@ -1126,7 +1126,7 @@
         });
     }
 
-    function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName) {
+    function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
         const tracker = getProgressTracker();
         if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
             return;
@@ -1139,7 +1139,8 @@
             categoryName: cat.category_name,
             wordsetId: resolveWordsetIdForProgress(),
             isCorrect: !!isCorrect,
-            hadWrongBefore: !!hadWrongBefore
+            hadWrongBefore: !!hadWrongBefore,
+            payload: (payload && typeof payload === 'object') ? payload : {}
         });
     }
 
@@ -1639,6 +1640,80 @@
         });
     }
 
+    function onGenderAnswer(targetWord, $selectedCard, selectionMeta) {
+        if (!State.canProcessAnswer()) {
+            console.warn('Cannot process gender answer in state:', State.getState());
+            return;
+        }
+        if (State.userClickedCorrectAnswer) return;
+        ensureQuizResultsShape();
+
+        const modeModule = getActiveModeModule();
+        if (!State.isGenderMode || !modeModule || typeof modeModule.handleAnswer !== 'function') {
+            const isCorrectFallback = !!(selectionMeta && selectionMeta.isCorrect);
+            if (isCorrectFallback) {
+                onCorrectAnswer(targetWord, $selectedCard);
+            } else {
+                onWrongAnswer(targetWord, selectionMeta && selectionMeta.optionIndex, $selectedCard);
+            }
+            return;
+        }
+
+        State.transitionTo(STATES.PROCESSING_ANSWER, 'Gender answer');
+        State.userClickedCorrectAnswer = true;
+
+        const fallbackCategoryName = State.currentCategoryName;
+        const selection = (selectionMeta && typeof selectionMeta === 'object') ? selectionMeta : {};
+
+        Promise.resolve(modeModule.handleAnswer({
+            targetWord: targetWord,
+            $card: $selectedCard,
+            isCorrect: !!selection.isCorrect,
+            isDontKnow: !!selection.isDontKnow,
+            selectedValue: selection.selectedValue || '',
+            selectedLabel: selection.selectedLabel || '',
+            optionIndex: selection.optionIndex
+        })).then(function (outcome) {
+            if (!outcome || outcome.ignored) {
+                State.userClickedCorrectAnswer = false;
+                State.transitionTo(STATES.SHOWING_QUESTION, 'Gender answer ignored');
+                return;
+            }
+
+            const isCorrect = !!outcome.isCorrect;
+            const hadWrongThisTurn = (typeof outcome.hadWrongThisTurn === 'boolean')
+                ? outcome.hadWrongThisTurn
+                : !isCorrect;
+
+            trackWordOutcomeForProgress(
+                targetWord,
+                isCorrect,
+                hadWrongThisTurn,
+                fallbackCategoryName,
+                (outcome.progressPayload && typeof outcome.progressPayload === 'object') ? outcome.progressPayload : {}
+            );
+
+            recordWordResult(targetWord.id, hadWrongThisTurn);
+            State.isFirstRound = false;
+            State.hadWrongAnswerThisTurn = false;
+            State.userClickedCorrectAnswer = false;
+
+            if (outcome.completed) {
+                State.transitionTo(STATES.SHOWING_RESULTS, 'Gender session complete');
+                Results.showResults();
+                return;
+            }
+
+            State.transitionTo(STATES.QUIZ_READY, 'Gender next question');
+            startQuizRound();
+        }).catch(function (err) {
+            console.error('Gender answer handling failed:', err);
+            State.userClickedCorrectAnswer = false;
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Gender answer error recovery');
+            startQuizRound();
+        });
+    }
+
     function onCorrectAnswer(targetWord, $correctCard) {
         if (!State.canProcessAnswer()) {
             console.warn('Cannot process answer in state:', State.getState());
@@ -1789,8 +1864,8 @@
                 }
             }
 
-            const firstThree = State.categoryNames.slice(0, 3).filter(Boolean);
-            if (!firstThree.length) {
+            const initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            if (!initialCategories.length) {
                 console.error('Flashcards: No categories available to start quiz round');
                 showLoadingError();
                 return;
@@ -1814,10 +1889,38 @@
                 runQuizRound();
             };
 
-            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], bootstrapFirstRound, { earlyCallback: true });
+            if (State.isGenderMode) {
+                // Gender planning needs words from every selected category before first round.
+                const allCategories = State.categoryNames.slice().filter(Boolean);
+                if (!allCategories.length) {
+                    bootstrapFirstRound();
+                    return;
+                }
+                let pending = allCategories.length;
+                let bootstrapped = false;
+                const bootstrapOnce = function () {
+                    if (bootstrapped) return;
+                    bootstrapped = true;
+                    bootstrapFirstRound();
+                };
+                const fallbackTimer = setGuardedTimeout(bootstrapOnce, 7000);
+                const onCategoryReady = function () {
+                    pending -= 1;
+                    if (pending <= 0) {
+                        clearTimeout(fallbackTimer);
+                        bootstrapOnce();
+                    }
+                };
+                allCategories.forEach(function (categoryName) {
+                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, { earlyCallback: false });
+                });
+                return;
+            }
 
-            for (let i = 1; i < firstThree.length; i++) {
-                root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
+            root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, { earlyCallback: true });
+
+            for (let i = 1; i < initialCategories.length; i++) {
+                root.FlashcardLoader.loadResourcesForCategory(initialCategories[i]);
             }
         } else {
             if (!State.is(STATES.QUIZ_READY)) {
@@ -1991,7 +2094,20 @@
             }
             Dom.hideLoading();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
-            scheduleAutoplayAfterOptionsReady();
+            const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
+                ? !!modeModule.afterQuestionShown({
+                    targetWord: target,
+                    categoryName: categoryNameForRound,
+                    promptType: promptType,
+                    optionType: displayMode,
+                    setGuardedTimeout: setGuardedTimeout,
+                    startQuizRound: startQuizRound,
+                    runQuizRound: runQuizRound
+                })
+                : false;
+            if (!handledAfterRender) {
+                scheduleAutoplayAfterOptionsReady();
+            }
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
             State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
@@ -2154,7 +2270,33 @@
                     }
                 });
                 $('#restart-self-check-mode').off('click').on('click', () => switchMode('self-check'));
-                $('#restart-gender-mode').off('click').on('click', () => switchMode('gender'));
+                $('#restart-gender-mode').off('click').on('click', () => {
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (State.isGenderMode && gender && typeof gender.queueResultsAction === 'function') {
+                            gender.queueResultsAction('primary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender');
+                });
+                $('#ll-gender-next-activity').off('click').on('click', () => {
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (gender && typeof gender.queueResultsAction === 'function') {
+                            gender.queueResultsAction('primary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender');
+                });
+                $('#ll-gender-next-chunk').off('click').on('click', () => {
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (gender && typeof gender.queueResultsAction === 'function') {
+                            gender.queueResultsAction('secondary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender');
+                });
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
@@ -2474,6 +2616,16 @@
         },
         canUseStarOnlyForCurrentSelection: canUseStarOnlyForCurrentSelection
     };
-    root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
+    root.LLFlashcards.Main = {
+        initFlashcardWidget,
+        startQuizRound,
+        runQuizRound,
+        onCorrectAnswer,
+        onWrongAnswer,
+        onGenderAnswer,
+        closeFlashcard,
+        restartQuiz,
+        switchMode
+    };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);

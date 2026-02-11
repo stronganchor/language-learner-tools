@@ -1,4 +1,106 @@
-/* Gender mode: light emphasis for text options */
+/* Gender mode options */
+.ll-gender-option {
+    border: 2px solid #d7dce3 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+}
+
 .ll-gender-option .quiz-text {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.ll-gender-option--unknown {
+    border-style: dashed !important;
+    border-color: #9ca3af !important;
+    background: #f9fafb !important;
+}
+
+.ll-gender-option-locked {
+    pointer-events: none !important;
+    opacity: 0.74;
+}
+
+.ll-gender-selected-wrong {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.ll-gender-correct-reveal {
+    border-color: #16a34a !important;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+}
+
+/* Level-1 introduction visuals */
+.ll-gender-intro-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid #dbeafe !important;
+    background: #f8fbff !important;
+}
+
+.ll-gender-intro-card--active {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18) !important;
+}
+
+.ll-gender-intro-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    background: rgba(17, 24, 39, 0.92);
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+    z-index: 6;
+}
+
+.ll-gender-intro-category {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #1f2937;
+    font-size: 11px;
     font-weight: 600;
+    line-height: 1.2;
+    padding: 3px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 5;
+}
+
+/* Reuse listening countdown animation for level-2 timing cue */
+.ll-gender-level2-countdown {
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    z-index: 7;
+}
+
+/* Gender-specific results actions */
+#ll-gender-results-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#ll-gender-next-activity,
+#ll-gender-next-chunk {
+    min-width: 190px;
 }

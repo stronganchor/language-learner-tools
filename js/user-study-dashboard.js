@@ -1782,6 +1782,21 @@
             flashData.userStudyState.wordset_id = parseInt(state.wordset_id, 10) || 0;
             flashData.userStudyState.category_ids = requestedCategoryIds.slice();
             applyGenderConfigToFlashcardsData(flashData);
+            if (quizMode === 'gender') {
+                flashData.genderLaunchSource = 'dashboard';
+                if (sessionWordIds.length) {
+                    flashData.genderSessionPlan = {
+                        word_ids: sessionWordIds.slice(),
+                        launch_source: 'dashboard',
+                        reason_code: 'dashboard_chunk'
+                    };
+                } else {
+                    delete flashData.genderSessionPlan;
+                }
+            } else {
+                delete flashData.genderSessionPlan;
+                delete flashData.genderLaunchSource;
+            }
             window.llToolsFlashcardsData = flashData;
 
             setStudyPrefsGlobal();

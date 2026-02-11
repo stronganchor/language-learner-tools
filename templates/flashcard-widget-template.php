@@ -167,11 +167,19 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           </button>
           <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
-            <?php echo esc_html($gender_results_label); ?>
+            <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
           </button>
           <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
             <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
             <?php echo esc_html($listening_label); ?>
+          </button>
+        </div>
+        <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
+          <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Next Chunk', 'll-tools-text-domain'); ?>
           </button>
         </div>
         <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
