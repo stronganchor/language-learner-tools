@@ -637,7 +637,11 @@ add_action('admin_notices', function() {
     if (!current_user_can('manage_options')) return;
 
     $screen = get_current_screen();
-    if (!$screen || $screen->id !== 'tools_page_ll-tools') return;
+    $expected_screen_id = 'tools_page_ll-tools';
+    if (function_exists('ll_tools_get_admin_menu_slug') && function_exists('ll_tools_get_tools_hub_page_slug')) {
+        $expected_screen_id = ll_tools_get_admin_menu_slug() . '_page_' . ll_tools_get_tools_hub_page_slug();
+    }
+    if (!$screen || $screen->id !== $expected_screen_id) return;
 
     $cleanup_nonce = isset($_POST['ll_cleanup_nonce']) ? sanitize_text_field(wp_unslash($_POST['ll_cleanup_nonce'])) : '';
     if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($cleanup_nonce, 'll_cleanup_quiz_pages')) {

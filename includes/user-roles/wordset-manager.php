@@ -33,7 +33,10 @@ function customize_admin_menu_for_wordset_manager() {
         global $menu;
         global $submenu;
 
-        $allowed_menus = ['profile.php', 'edit.php?post_type=words', 'edit.php?post_type=word_images'];
+        $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
+            ? ll_tools_get_admin_menu_slug()
+            : 'language-learning-tools-settings';
+        $allowed_menus = ['profile.php', $dashboard_slug];
 
         foreach ($menu as $menu_key => $menu_item) {
             if (!in_array($menu_item[2], $allowed_menus)) {

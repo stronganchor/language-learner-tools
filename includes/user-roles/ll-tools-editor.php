@@ -72,15 +72,15 @@ function ll_trim_admin_menu_for_ll_tools_roles() {
     }
 
     global $menu;
+    $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
+        ? ll_tools_get_admin_menu_slug()
+        : 'language-learning-tools-settings';
 
     // Keep only the relevant top-level items
     $allowed = [
         'profile.php',
-        'edit.php?post_type=words',
-        'edit.php?post_type=word_images',
-        'edit-tags.php?taxonomy=wordset&post_type=words',
+        $dashboard_slug,
         'upload.php',
-        'tools.php', // for LL Tools subpages (they will require view_ll_tools)
     ];
 
     foreach ($menu as $key => $item) {

@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 5.1.2
+Version: 5.1.3
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,6 +19,7 @@ define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
+define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 
 function ll_tools_normalize_update_branch($branch) {
     return ($branch === 'dev') ? 'dev' : 'main';
@@ -183,8 +184,6 @@ function ll_embed_template_include($template) {
 }
 add_filter('template_include', 'll_embed_template_include');
 
-const LL_TOOLS_SETTINGS_SLUG = 'language-learning-tools-settings';
-
 /**
  * Add a "Settings" link on the Plugins screen row for this plugin.
  */
@@ -193,7 +192,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
         return $links;
     }
 
-    $url = admin_url('options-general.php?page=' . LL_TOOLS_SETTINGS_SLUG);
+    $url = admin_url('admin.php?page=' . LL_TOOLS_SETTINGS_SLUG);
     $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools-text-domain') . '</a>';
 
     array_unshift($links, $settings_link);

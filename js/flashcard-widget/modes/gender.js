@@ -1558,6 +1558,33 @@
         if (!FlashcardAudio) return;
         if (!isCorrect && isDontKnow) return;
 
+        if (isCorrect && typeof FlashcardAudio.playFeedback === 'function') {
+            try {
+                // Gender level-2 can answer before target-audio bookkeeping flips;
+                // force the gate open so the standard correct ding always fires.
+                if (typeof FlashcardAudio.setTargetAudioHasPlayed === 'function') {
+                    FlashcardAudio.setTargetAudioHasPlayed(true);
+                }
+                if (waitForFinish) {
+                    await new Promise(function (resolve) {
+                        let settled = false;
+                        const finish = function () {
+                            if (settled) return;
+                            settled = true;
+                            resolve();
+                        };
+                        try { FlashcardAudio.playFeedback(true, null, finish); } catch (_) { finish(); return; }
+                        setTimeout(finish, 1200);
+                    });
+                } else {
+                    FlashcardAudio.playFeedback(true, null, null);
+                }
+                return;
+            } catch (_) {
+                // Fall through to URL-based fallback below.
+            }
+        }
+
         const url = isCorrect
             ? (typeof FlashcardAudio.getCorrectAudioURL === 'function' ? FlashcardAudio.getCorrectAudioURL() : '')
             : (typeof FlashcardAudio.getWrongAudioURL === 'function' ? FlashcardAudio.getWrongAudioURL() : '');
