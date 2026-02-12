@@ -46,6 +46,7 @@ function ll_tools_enqueue_export_import_assets($hook) {
     }
 
     ll_enqueue_asset_by_timestamp('/css/export-import-admin.css', 'll-tools-export-import-admin', [], false);
+    ll_enqueue_asset_by_timestamp('/js/export-import-admin.js', 'll-tools-export-import-admin-js', [], true);
 }
 
 function ll_tools_export_get_soft_limit_bytes(): int {
@@ -444,7 +445,7 @@ function ll_tools_render_export_import_page() {
                                 <input type="radio" id="ll_import_confirm_wordset_mode_assign" name="ll_import_wordset_mode" value="assign_existing" <?php checked($preview_default_mode, 'assign_existing'); ?>>
                                 <?php esc_html_e('Assign all imported words to one existing word set', 'll-tools-text-domain'); ?>
                             </label>
-                            <select id="ll_import_confirm_target_wordset" name="ll_import_target_wordset" class="ll-tools-input"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
+                            <select id="ll_import_confirm_target_wordset" name="ll_import_target_wordset" class="ll-tools-input" data-no-wordsets="<?php echo $has_wordsets ? '0' : '1'; ?>"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
                                 <?php if (!$has_wordsets) : ?>
                                     <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
                                 <?php else : ?>
@@ -460,6 +461,11 @@ function ll_tools_render_export_import_page() {
                     <?php endif; ?>
 
                     <?php if ($preview_has_full_bundle && !empty($preview_wordsets)) : ?>
+                        <?php
+                        $preview_show_wordset_name_overrides = ($preview_default_mode !== 'assign_existing');
+                        $preview_wordset_name_disabled_attr = $preview_show_wordset_name_overrides ? '' : ' disabled';
+                        ?>
+                        <div id="ll-tools-import-wordset-name-overrides"<?php echo $preview_show_wordset_name_overrides ? '' : ' hidden'; ?>>
                         <p><strong><?php esc_html_e('Source word set names', 'll-tools-text-domain'); ?></strong></p>
                         <p class="description"><?php esc_html_e('When using "Create or reuse", edit names here before confirming import.', 'll-tools-text-domain'); ?></p>
                         <table class="widefat striped ll-tools-import-preview-table">
@@ -481,12 +487,13 @@ function ll_tools_render_export_import_page() {
                                     <tr>
                                         <td><code><?php echo esc_html($preview_slug); ?></code></td>
                                         <td>
-                                            <input type="text" class="ll-tools-input" name="ll_import_wordset_names[<?php echo esc_attr($preview_slug); ?>]" value="<?php echo esc_attr($preview_name); ?>">
+                                            <input type="text" class="ll-tools-input" name="ll_import_wordset_names[<?php echo esc_attr($preview_slug); ?>]" value="<?php echo esc_attr($preview_name); ?>"<?php echo $preview_wordset_name_disabled_attr; ?>>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
                     <?php endif; ?>
 
                     <p><button type="submit" class="button button-primary"><?php esc_html_e('Confirm Import', 'll-tools-text-domain'); ?></button></p>
@@ -827,7 +834,7 @@ function ll_tools_build_import_preview_data_from_payload(array $payload): array 
 }
 
 /**
- * Normalize term meta structure for strict wordset identity comparison.
+ * Normalize term meta structure for wordset identity comparison.
  *
  * @param array $meta
  * @return array
@@ -853,7 +860,47 @@ function ll_tools_import_normalize_meta_for_compare(array $meta): array {
 }
 
 /**
- * Check whether an exported wordset payload is identical to an existing local wordset.
+ * Normalize user-facing term text for wordset comparison.
+ *
+ * @param string $value
+ * @return string
+ */
+function ll_tools_import_normalize_term_text_for_compare(string $value): string {
+    $value = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags((string) $value)));
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($value, 'UTF-8');
+    }
+
+    return strtolower($value);
+}
+
+/**
+ * Determine whether every normalized source meta key/value exists on destination meta.
+ *
+ * @param array $source_meta
+ * @param array $destination_meta
+ * @return bool
+ */
+function ll_tools_import_meta_is_subset(array $source_meta, array $destination_meta): bool {
+    foreach ($source_meta as $key => $values) {
+        if (!array_key_exists($key, $destination_meta)) {
+            return false;
+        }
+        if ((array) $values !== (array) $destination_meta[$key]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Check whether an exported wordset payload is identical (or functionally equivalent)
+ * to an existing local wordset.
  *
  * @param array $source_wordset
  * @param int $existing_term_id
@@ -870,19 +917,31 @@ function ll_tools_import_wordset_payload_is_identical(array $source_wordset, int
         return false;
     }
 
-    $source_name = isset($source_wordset['name']) ? (string) $source_wordset['name'] : '';
-    $source_description = isset($source_wordset['description']) ? (string) $source_wordset['description'] : '';
-    if ($source_name !== (string) $term->name) {
+    $source_name = ll_tools_import_normalize_term_text_for_compare((string) ($source_wordset['name'] ?? ''));
+    $source_description = ll_tools_import_normalize_term_text_for_compare((string) ($source_wordset['description'] ?? ''));
+    $existing_name = ll_tools_import_normalize_term_text_for_compare((string) $term->name);
+    $existing_description = ll_tools_import_normalize_term_text_for_compare((string) $term->description);
+
+    if ($source_name !== $existing_name) {
         return false;
     }
-    if ($source_description !== (string) $term->description) {
+    if ($source_description !== $existing_description) {
         return false;
     }
 
     $source_meta = isset($source_wordset['meta']) && is_array($source_wordset['meta']) ? $source_wordset['meta'] : [];
+    if (isset($source_meta['manager_user_id'])) {
+        unset($source_meta['manager_user_id']);
+    }
     $existing_meta = ll_tools_prepare_meta_for_export(get_term_meta($existing_term_id), ['manager_user_id']);
+    $normalized_source_meta = ll_tools_import_normalize_meta_for_compare($source_meta);
+    $normalized_existing_meta = ll_tools_import_normalize_meta_for_compare($existing_meta);
 
-    return ll_tools_import_normalize_meta_for_compare($source_meta) === ll_tools_import_normalize_meta_for_compare($existing_meta);
+    if ($normalized_source_meta === $normalized_existing_meta) {
+        return true;
+    }
+
+    return ll_tools_import_meta_is_subset($normalized_source_meta, $normalized_existing_meta);
 }
 
 /**
@@ -1594,6 +1653,7 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
             'meta'            => $word_meta,
             'categories'      => $categories_for_word,
             'wordsets'        => [(string) $full_wordset_term->slug],
+            'linked_word_image_slug' => ll_tools_export_get_linked_word_image_slug((int) $word_post->ID),
             'languages'       => ll_tools_export_collect_post_term_slugs($word_post->ID, 'language'),
             'parts_of_speech' => ll_tools_export_collect_post_term_slugs($word_post->ID, 'part_of_speech'),
             'featured_image'  => $word_featured_image,
@@ -1607,6 +1667,31 @@ function ll_tools_export_collect_full_words_payload(array $category_term_ids, ar
         'wordsets' => $wordsets,
         'words'    => $words,
     ];
+}
+
+/**
+ * Resolve linked word_images slug for a word via _ll_autopicked_image_id.
+ *
+ * @param int $word_id
+ * @return string
+ */
+function ll_tools_export_get_linked_word_image_slug(int $word_id): string {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return '';
+    }
+
+    $word_image_id = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+    if ($word_image_id <= 0) {
+        return '';
+    }
+
+    $word_image = get_post($word_image_id);
+    if (!$word_image || $word_image->post_type !== 'word_images') {
+        return '';
+    }
+
+    return sanitize_title((string) $word_image->post_name);
 }
 
 /**
@@ -2215,6 +2300,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
     }
 
     // Import word images.
+    $word_image_slug_to_id = [];
     foreach ((array) $payload['word_images'] as $item) {
         $slug = isset($item['slug']) ? sanitize_title($item['slug']) : '';
         if ($slug === '') {
@@ -2263,6 +2349,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
 
         ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
         ll_tools_import_apply_featured_image((int) $post_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word_image');
+        $word_image_slug_to_id[$slug] = (int) $post_id;
     }
 
     if ($has_full_content) {
@@ -2278,6 +2365,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
                 [
                     'wordset_mode' => $wordset_mode,
                     'target_wordset_id' => $target_wordset_id,
+                    'word_image_slug_to_id' => $word_image_slug_to_id,
                 ],
                 $result
             );
@@ -2399,6 +2487,36 @@ function ll_tools_import_apply_featured_image(int $post_id, array $featured_imag
 }
 
 /**
+ * Resolve word image linkage for an imported word.
+ *
+ * @param array $word_item
+ * @param array $word_image_slug_to_id
+ * @return array{word_image_id:int, source:string}
+ */
+function ll_tools_import_resolve_word_image_link_for_word(array $word_item, array $word_image_slug_to_id): array {
+    $explicit_slug = sanitize_title((string) ($word_item['linked_word_image_slug'] ?? ''));
+    if ($explicit_slug !== '' && isset($word_image_slug_to_id[$explicit_slug])) {
+        return [
+            'word_image_id' => (int) $word_image_slug_to_id[$explicit_slug],
+            'source' => 'explicit',
+        ];
+    }
+
+    $word_slug = sanitize_title((string) ($word_item['slug'] ?? ''));
+    if ($word_slug !== '' && isset($word_image_slug_to_id[$word_slug])) {
+        return [
+            'word_image_id' => (int) $word_image_slug_to_id[$word_slug],
+            'source' => 'slug_fallback',
+        ];
+    }
+
+    return [
+        'word_image_id' => 0,
+        'source' => '',
+    ];
+}
+
+/**
  * Import full bundle content: wordsets, words, and word_audio posts.
  *
  * @param array $payload
@@ -2414,6 +2532,9 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
         $options,
         $result
     );
+    $word_image_slug_to_id = isset($options['word_image_slug_to_id']) && is_array($options['word_image_slug_to_id'])
+        ? $options['word_image_slug_to_id']
+        : [];
 
     $origin_word_id_to_imported = [];
     foreach ((array) ($payload['words'] ?? []) as $item) {
@@ -2500,6 +2621,27 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
 
         ll_tools_import_replace_post_meta_values($word_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
         ll_tools_import_apply_featured_image($word_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word');
+        $word_image_link = ll_tools_import_resolve_word_image_link_for_word($item, $word_image_slug_to_id);
+        $linked_word_image_id = (int) ($word_image_link['word_image_id'] ?? 0);
+        $linked_word_image_source = (string) ($word_image_link['source'] ?? '');
+        if ($linked_word_image_id > 0) {
+            update_post_meta($word_id, '_ll_autopicked_image_id', $linked_word_image_id);
+            if ($linked_word_image_source === 'explicit') {
+                $linked_thumb_id = (int) get_post_thumbnail_id($linked_word_image_id);
+                if ($linked_thumb_id > 0) {
+                    set_post_thumbnail($word_id, $linked_thumb_id);
+                }
+            }
+        } else {
+            $source_word_image_slug = sanitize_title((string) ($item['linked_word_image_slug'] ?? ''));
+            if ($source_word_image_slug !== '') {
+                $result['errors'][] = sprintf(
+                    __('Could not link word "%1$s" to source word image "%2$s".', 'll-tools-text-domain'),
+                    $slug,
+                    $source_word_image_slug
+                );
+            }
+        }
 
         foreach ((array) ($item['audio_entries'] ?? []) as $audio_item) {
             $audio_slug = isset($audio_item['slug']) ? sanitize_title($audio_item['slug']) : '';

@@ -339,6 +339,78 @@ test('level-one still schedules intro for the first pair even when words were in
   expect(result.uniqueCount).toBe(2);
 });
 
+test('level-one introduces the third word after one successful pass on the first pair', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+        <div id="ll-tools-flashcard"></div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 78,
+    categoryWords: {
+      CatA: [
+        makeNounWord(781, 'CatA', 'masculine'),
+        makeNounWord(782, 'CatA', 'feminine'),
+        makeNounWord(783, 'CatA', 'masculine')
+      ]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [781, 782, 783],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_level1_intro_then_third_word'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const firstIntro = Gender.selectTargetWord();
+    Gender.handlePostSelection(firstIntro, { startQuizRound: function () {} });
+    await wait(4300);
+
+    let answersBeforeThirdIntro = 0;
+    let thirdIntroLength = 0;
+    for (let i = 0; i < 8; i++) {
+      const pick = Gender.selectTargetWord();
+      if (Array.isArray(pick)) {
+        thirdIntroLength = pick.length;
+        break;
+      }
+      answersBeforeThirdIntro += 1;
+      await Gender.handleAnswer({
+        targetWord: pick,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+
+    return {
+      firstIntroLength: Array.isArray(firstIntro) ? firstIntro.length : 0,
+      answersBeforeThirdIntro,
+      thirdIntroLength
+    };
+  });
+
+  expect(result.firstIntroLength).toBe(2);
+  expect(result.answersBeforeThirdIntro).toBe(2);
+  expect(result.thirdIntroLength).toBe(1);
+});
+
 test('level-one intro sequence plays three clips when only one recording is available', async ({ page }) => {
   await openHarnessPage(page);
   await page.setContent(`

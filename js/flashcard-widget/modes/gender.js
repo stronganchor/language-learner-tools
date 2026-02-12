@@ -977,6 +977,15 @@
         return $card;
     }
 
+    function pulseActiveIntroCard($card) {
+        const $ = root.jQuery;
+        if (!$ || !$card || !$card.length) return;
+        $card.removeClass('ll-gender-intro-card--active');
+        // Force reflow so CSS animation restarts on every recording.
+        try { void $card[0].offsetWidth; } catch (_) { /* no-op */ }
+        $card.addClass('ll-gender-intro-card--active');
+    }
+
     async function runIntroductionSequence(words, context) {
         const $ = root.jQuery;
         if (!$ || !Array.isArray(words) || !words.length) {
@@ -1050,6 +1059,7 @@
             }
 
             for (let clipIndex = 0; clipIndex < clipPattern.length; clipIndex++) {
+                pulseActiveIntroCard($active);
                 const clipUrl = clipPattern[clipIndex];
                 await playManagedAudio(clipUrl, token);
                 if (token !== round.sequenceToken) break;
@@ -1163,6 +1173,15 @@
         }
     }
 
+    function markLevelOneReviewPending(wordId) {
+        const id = toInt(wordId);
+        if (!id || !session.activeWordLookup[id]) return;
+        if (!session.levelOneReviewPending || typeof session.levelOneReviewPending !== 'object') {
+            session.levelOneReviewPending = {};
+        }
+        session.levelOneReviewPending[id] = true;
+    }
+
     function getLevelOneReviewPendingWordIds() {
         const pending = (session.levelOneReviewPending && typeof session.levelOneReviewPending === 'object')
             ? session.levelOneReviewPending
@@ -1190,6 +1209,15 @@
         if (!id) return;
         if (session.replayQueue.indexOf(id) !== -1) return;
         session.replayQueue.push(id);
+    }
+
+    function removeReplay(wordId) {
+        const id = toInt(wordId);
+        if (!id || !Array.isArray(session.replayQueue) || !session.replayQueue.length) return;
+        const idx = session.replayQueue.indexOf(id);
+        if (idx >= 0) {
+            session.replayQueue.splice(idx, 1);
+        }
     }
 
     function dequeueReplayAvoidingLast(allowedWordIds) {
@@ -1349,20 +1377,33 @@
 
     function applyAnswerToWordState(wordId, isCorrect) {
         const state = getWordState(wordId);
+        const isLevelOne = session.level === LEVEL_ONE;
+        const stillIntroducingLevelOne = isLevelOne && getNotIntroducedWordIds().length > 0;
         state.answers += 1;
         if (isCorrect) {
             state.correctStreak += 1;
             state.correctTotal += 1;
-            const minCorrectRequired = (session.level === LEVEL_ONE) ? LEVEL_ONE_MIN_CORRECT : 1;
-            if (state.correctStreak >= state.requiredStreak && state.correctTotal >= minCorrectRequired) {
-                state.passed = true;
+            const streakSatisfied = state.correctStreak >= state.requiredStreak;
+            const minCorrectRequired = isLevelOne ? LEVEL_ONE_MIN_CORRECT : 1;
+
+            if (streakSatisfied) {
                 state.requiredStreak = 1;
-            } else {
-                state.passed = false;
-                queueReplay(wordId);
+                if (isLevelOne) {
+                    markLevelOneReviewSatisfied(wordId);
+                    if (stillIntroducingLevelOne) {
+                        removeReplay(wordId);
+                    }
+                }
             }
-            if (session.level === LEVEL_ONE) {
-                markLevelOneReviewSatisfied(wordId);
+
+            state.passed = streakSatisfied && state.correctTotal >= minCorrectRequired;
+
+            const shouldQueueForMastery =
+                !state.passed &&
+                (!isLevelOne || !stillIntroducingLevelOne);
+
+            if (!streakSatisfied || shouldQueueForMastery) {
+                queueReplay(wordId);
             }
         } else {
             state.wrong += 1;
@@ -1370,6 +1411,9 @@
             state.correctStreak = 0;
             state.requiredStreak = 2;
             queueReplay(wordId);
+            if (isLevelOne) {
+                markLevelOneReviewPending(wordId);
+            }
         }
         setWordState(wordId, state);
         return state;
@@ -1839,8 +1883,8 @@
             }
 
             const shouldIntroduceNext =
+                introduced.length > 0 &&
                 notIntroduced.length > 0 &&
-                allIntroducedWordsPassed() &&
                 allLevelOneReviewSatisfied() &&
                 (!Array.isArray(session.replayQueue) || session.replayQueue.length === 0);
 
@@ -1860,7 +1904,9 @@
                 const supportWords = introduced.filter(function (wordId) {
                     return wordId !== pendingId;
                 });
-                targetPool = [pendingId].concat(supportWords);
+                targetPool = (pendingId !== session.lastWordId)
+                    ? [pendingId]
+                    : [pendingId].concat(supportWords);
             } else {
                 targetPool = introduced;
             }
