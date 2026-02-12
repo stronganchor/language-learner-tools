@@ -108,3 +108,24 @@
   align-items: center;
   gap: 8px;
 }
+
+.ll-tools-export-import .ll-tools-import-preview {
+  max-width: 860px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview ul {
+  margin: 8px 0 12px 18px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview-table {
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview-table .ll-tools-input {
+  max-width: 100%;
+}
