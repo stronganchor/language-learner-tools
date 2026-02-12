@@ -400,31 +400,6 @@ function ll_tools_render_export_import_page() {
                 ?>
             </p>
 
-            <p><strong><?php esc_html_e('Full bundle word set handling', 'll-tools-text-domain'); ?></strong></p>
-            <fieldset class="ll-tools-import-wordset-mode">
-                <label for="ll_import_wordset_mode_create">
-                    <input type="radio" id="ll_import_wordset_mode_create" name="ll_import_wordset_mode" value="create_from_export" checked>
-                    <?php esc_html_e('Create or reuse source word set(s) from the export', 'll-tools-text-domain'); ?>
-                </label>
-                <label for="ll_import_wordset_mode_assign">
-                    <input type="radio" id="ll_import_wordset_mode_assign" name="ll_import_wordset_mode" value="assign_existing">
-                    <?php esc_html_e('Assign all imported words to one existing word set', 'll-tools-text-domain'); ?>
-                </label>
-                <select id="ll_import_target_wordset" name="ll_import_target_wordset" class="ll-tools-input"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
-                    <?php if (!$has_wordsets) : ?>
-                        <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
-                    <?php else : ?>
-                        <option value="0"><?php esc_html_e('Select an existing word set', 'll-tools-text-domain'); ?></option>
-                        <?php foreach ($wordsets as $wordset) : ?>
-                            <option value="<?php echo (int) $wordset->term_id; ?>">
-                                <?php echo esc_html($wordset->name); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </select>
-            </fieldset>
-            <p class="description"><?php esc_html_e('This setting is used only when the zip contains full category data with words/audio.', 'll-tools-text-domain'); ?></p>
-
             <p><button type="submit" class="button button-primary"><?php esc_html_e('Preview Import', 'll-tools-text-domain'); ?></button></p>
         </form>
 
@@ -438,9 +413,10 @@ function ll_tools_render_export_import_page() {
                 $preview_default_mode = 'create_from_export';
             }
             $preview_target_wordset = isset($import_preview['options']['target_wordset_id']) ? (int) $import_preview['options']['target_wordset_id'] : 0;
+            $preview_has_full_bundle = ($preview_bundle_type === 'category_full');
             ?>
             <hr>
-            <h3><?php esc_html_e('Import Preview', 'll-tools-text-domain'); ?></h3>
+            <h3 id="ll-tools-import-preview" tabindex="-1"><?php esc_html_e('Import Preview', 'll-tools-text-domain'); ?></h3>
             <div class="ll-tools-import-preview">
                 <p><strong><?php esc_html_e('Bundle type:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html($preview_bundle_type === 'category_full' ? __('Full category bundle', 'll-tools-text-domain') : __('Images bundle', 'll-tools-text-domain')); ?></p>
                 <ul>
@@ -457,31 +433,33 @@ function ll_tools_render_export_import_page() {
                     <input type="hidden" name="action" value="ll_tools_import_bundle">
                     <input type="hidden" name="ll_import_preview_token" value="<?php echo esc_attr($import_preview_token); ?>">
 
-                    <p><strong><?php esc_html_e('Full bundle word set handling', 'll-tools-text-domain'); ?></strong></p>
-                    <fieldset class="ll-tools-import-wordset-mode">
-                        <label for="ll_import_confirm_wordset_mode_create">
-                            <input type="radio" id="ll_import_confirm_wordset_mode_create" name="ll_import_wordset_mode" value="create_from_export" <?php checked($preview_default_mode, 'create_from_export'); ?>>
-                            <?php esc_html_e('Create or reuse source word set(s) from the export', 'll-tools-text-domain'); ?>
-                        </label>
-                        <label for="ll_import_confirm_wordset_mode_assign">
-                            <input type="radio" id="ll_import_confirm_wordset_mode_assign" name="ll_import_wordset_mode" value="assign_existing" <?php checked($preview_default_mode, 'assign_existing'); ?>>
-                            <?php esc_html_e('Assign all imported words to one existing word set', 'll-tools-text-domain'); ?>
-                        </label>
-                        <select id="ll_import_confirm_target_wordset" name="ll_import_target_wordset" class="ll-tools-input"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
-                            <?php if (!$has_wordsets) : ?>
-                                <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
-                            <?php else : ?>
-                                <option value="0"><?php esc_html_e('Select an existing word set', 'll-tools-text-domain'); ?></option>
-                                <?php foreach ($wordsets as $wordset) : ?>
-                                    <option value="<?php echo (int) $wordset->term_id; ?>" <?php selected($preview_target_wordset, (int) $wordset->term_id); ?>>
-                                        <?php echo esc_html($wordset->name); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </select>
-                    </fieldset>
+                    <?php if ($preview_has_full_bundle) : ?>
+                        <p><strong><?php esc_html_e('Full bundle word set handling', 'll-tools-text-domain'); ?></strong></p>
+                        <fieldset class="ll-tools-import-wordset-mode">
+                            <label for="ll_import_confirm_wordset_mode_create">
+                                <input type="radio" id="ll_import_confirm_wordset_mode_create" name="ll_import_wordset_mode" value="create_from_export" <?php checked($preview_default_mode, 'create_from_export'); ?>>
+                                <?php esc_html_e('Create or reuse source word set(s) from the export', 'll-tools-text-domain'); ?>
+                            </label>
+                            <label for="ll_import_confirm_wordset_mode_assign">
+                                <input type="radio" id="ll_import_confirm_wordset_mode_assign" name="ll_import_wordset_mode" value="assign_existing" <?php checked($preview_default_mode, 'assign_existing'); ?>>
+                                <?php esc_html_e('Assign all imported words to one existing word set', 'll-tools-text-domain'); ?>
+                            </label>
+                            <select id="ll_import_confirm_target_wordset" name="ll_import_target_wordset" class="ll-tools-input"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
+                                <?php if (!$has_wordsets) : ?>
+                                    <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
+                                <?php else : ?>
+                                    <option value="0"><?php esc_html_e('Select an existing word set', 'll-tools-text-domain'); ?></option>
+                                    <?php foreach ($wordsets as $wordset) : ?>
+                                        <option value="<?php echo (int) $wordset->term_id; ?>" <?php selected($preview_target_wordset, (int) $wordset->term_id); ?>>
+                                            <?php echo esc_html($wordset->name); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </fieldset>
+                    <?php endif; ?>
 
-                    <?php if (!empty($preview_wordsets)) : ?>
+                    <?php if ($preview_has_full_bundle && !empty($preview_wordsets)) : ?>
                         <p><strong><?php esc_html_e('Source word set names', 'll-tools-text-domain'); ?></strong></p>
                         <p class="description"><?php esc_html_e('When using "Create or reuse", edit names here before confirming import.', 'll-tools-text-domain'); ?></p>
                         <table class="widefat striped ll-tools-import-preview-table">
@@ -849,6 +827,115 @@ function ll_tools_build_import_preview_data_from_payload(array $payload): array 
 }
 
 /**
+ * Normalize term meta structure for strict wordset identity comparison.
+ *
+ * @param array $meta
+ * @return array
+ */
+function ll_tools_import_normalize_meta_for_compare(array $meta): array {
+    $normalized = [];
+    foreach ($meta as $key => $values) {
+        $key = (string) $key;
+        if ($key === '') {
+            continue;
+        }
+
+        $bucket = [];
+        foreach ((array) $values as $value) {
+            $bucket[] = maybe_serialize(maybe_unserialize($value));
+        }
+        sort($bucket, SORT_STRING);
+        $normalized[$key] = $bucket;
+    }
+    ksort($normalized, SORT_STRING);
+
+    return $normalized;
+}
+
+/**
+ * Check whether an exported wordset payload is identical to an existing local wordset.
+ *
+ * @param array $source_wordset
+ * @param int $existing_term_id
+ * @return bool
+ */
+function ll_tools_import_wordset_payload_is_identical(array $source_wordset, int $existing_term_id): bool {
+    $existing_term_id = (int) $existing_term_id;
+    if ($existing_term_id <= 0) {
+        return false;
+    }
+
+    $term = get_term($existing_term_id, 'wordset');
+    if (!$term || is_wp_error($term)) {
+        return false;
+    }
+
+    $source_name = isset($source_wordset['name']) ? (string) $source_wordset['name'] : '';
+    $source_description = isset($source_wordset['description']) ? (string) $source_wordset['description'] : '';
+    if ($source_name !== (string) $term->name) {
+        return false;
+    }
+    if ($source_description !== (string) $term->description) {
+        return false;
+    }
+
+    $source_meta = isset($source_wordset['meta']) && is_array($source_wordset['meta']) ? $source_wordset['meta'] : [];
+    $existing_meta = ll_tools_prepare_meta_for_export(get_term_meta($existing_term_id), ['manager_user_id']);
+
+    return ll_tools_import_normalize_meta_for_compare($source_meta) === ll_tools_import_normalize_meta_for_compare($existing_meta);
+}
+
+/**
+ * Build default import options for preview based on source payload and local data.
+ *
+ * If a single source wordset is identical to an existing local one, default to
+ * assigning imported words to that existing wordset.
+ *
+ * @param array $payload
+ * @return array
+ */
+function ll_tools_build_import_preview_default_options(array $payload): array {
+    $defaults = [
+        'wordset_mode' => 'create_from_export',
+        'target_wordset_id' => 0,
+        'wordset_name_overrides' => [],
+    ];
+
+    $bundle_type = isset($payload['bundle_type']) ? sanitize_key((string) $payload['bundle_type']) : 'images';
+    if ($bundle_type !== 'category_full' && empty($payload['words'])) {
+        return $defaults;
+    }
+
+    $source_wordsets = isset($payload['wordsets']) && is_array($payload['wordsets']) ? array_values($payload['wordsets']) : [];
+    if (count($source_wordsets) !== 1) {
+        return $defaults;
+    }
+
+    $source_wordset = $source_wordsets[0];
+    $source_slug = isset($source_wordset['slug']) ? sanitize_title((string) $source_wordset['slug']) : '';
+    if ($source_slug === '') {
+        return $defaults;
+    }
+
+    $existing = get_term_by('slug', $source_slug, 'wordset');
+    if (!$existing || is_wp_error($existing)) {
+        return $defaults;
+    }
+
+    $existing_term_id = (int) $existing->term_id;
+    if ($existing_term_id <= 0) {
+        return $defaults;
+    }
+
+    if (ll_tools_import_wordset_payload_is_identical($source_wordset, $existing_term_id)) {
+        $defaults['wordset_mode'] = 'assign_existing';
+        $defaults['target_wordset_id'] = $existing_term_id;
+    }
+
+    return $defaults;
+}
+
+/**
  * Read and validate bundle payload from a zip for preview purposes.
  *
  * @param string $zip_path
@@ -941,7 +1028,10 @@ function ll_tools_handle_preview_import_bundle() {
         ]);
     }
 
-    $preview_options = ll_tools_parse_import_options($_POST);
+    $payload_for_defaults = isset($preview_result['payload']) && is_array($preview_result['payload'])
+        ? $preview_result['payload']
+        : [];
+    $preview_options = ll_tools_build_import_preview_default_options($payload_for_defaults);
     $preview_data = is_array($preview_result['preview'] ?? null) ? $preview_result['preview'] : [];
     $preview_data['zip_path'] = $zip_path;
     $preview_data['cleanup_zip'] = !empty($zip_info['cleanup_zip']);
@@ -952,7 +1042,9 @@ function ll_tools_handle_preview_import_bundle() {
     $token = wp_generate_password(20, false, false);
     set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
 
-    wp_safe_redirect(add_query_arg('ll_import_preview', rawurlencode($token), admin_url('tools.php?page=ll-export-import')));
+    $redirect_url = add_query_arg('ll_import_preview', rawurlencode($token), admin_url('tools.php?page=ll-export-import'));
+    $redirect_url .= '#ll-tools-import-preview';
+    wp_safe_redirect($redirect_url);
     exit;
 }
 
@@ -1122,21 +1214,23 @@ function ll_tools_get_existing_import_zip_path($filename, $import_dir) {
  * @return array
  */
 function ll_tools_parse_import_options(array $request): array {
-    $mode = 'create_from_export';
-    if (!empty($request['ll_import_wordset_mode'])) {
+    $options = [];
+
+    if (array_key_exists('ll_import_wordset_mode', $request)) {
+        $mode = 'create_from_export';
         $candidate = sanitize_key(wp_unslash((string) $request['ll_import_wordset_mode']));
         if (in_array($candidate, ['create_from_export', 'assign_existing'], true)) {
             $mode = $candidate;
         }
+        $options['wordset_mode'] = $mode;
     }
 
-    $target_wordset_id = 0;
-    if (!empty($request['ll_import_target_wordset'])) {
-        $target_wordset_id = (int) wp_unslash((string) $request['ll_import_target_wordset']);
+    if (array_key_exists('ll_import_target_wordset', $request)) {
+        $options['target_wordset_id'] = (int) wp_unslash((string) $request['ll_import_target_wordset']);
     }
 
-    $wordset_name_overrides = [];
     if (!empty($request['ll_import_wordset_names']) && is_array($request['ll_import_wordset_names'])) {
+        $wordset_name_overrides = [];
         foreach ($request['ll_import_wordset_names'] as $slug_raw => $name_raw) {
             $slug = sanitize_title(wp_unslash((string) $slug_raw));
             if ($slug === '') {
@@ -1147,13 +1241,10 @@ function ll_tools_parse_import_options(array $request): array {
                 $wordset_name_overrides[$slug] = $name;
             }
         }
+        $options['wordset_name_overrides'] = $wordset_name_overrides;
     }
 
-    return [
-        'wordset_mode'      => $mode,
-        'target_wordset_id' => $target_wordset_id,
-        'wordset_name_overrides' => $wordset_name_overrides,
-    ];
+    return $options;
 }
 
 /**
