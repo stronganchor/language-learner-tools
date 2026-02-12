@@ -191,10 +191,15 @@
             // Ignore clicks on the inline play button for audio options
             if ($(e.target).closest('.ll-audio-play').length) return;
 
-            if (gateOnAudio && root.FlashcardAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) return;
-
             const $clicked = $(this);
             const isGenderMode = !!(root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.isGenderMode);
+            if (gateOnAudio && root.FlashcardAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) {
+                if (!isGenderMode) return;
+                const genderMode = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                const rapidTapGuardActive = !!(genderMode && typeof genderMode.isAnswerTapGuardActive === 'function' && genderMode.isAnswerTapGuardActive());
+                if (rapidTapGuardActive) return;
+            }
+
             const hasGenderAttrs = (
                 typeof $clicked.attr('data-ll-gender-correct') !== 'undefined' ||
                 typeof $clicked.attr('data-ll-gender-choice') !== 'undefined' ||

@@ -35,6 +35,7 @@ function ll_tools_register_export_import_page() {
 add_action('admin_menu', 'll_tools_register_export_import_page');
 
 add_action('admin_post_ll_tools_export_bundle', 'll_tools_handle_export_bundle');
+add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bundle');
 add_action('admin_post_ll_tools_preview_import_bundle', 'll_tools_handle_preview_import_bundle');
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
 add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
@@ -69,6 +70,151 @@ function ll_tools_import_preview_transient_key($token): string {
     $uid = $uid > 0 ? $uid : 0;
     $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
     return 'll_tools_import_preview_' . $uid . '_' . $token;
+}
+
+function ll_tools_export_download_transient_key($token): string {
+    $uid = get_current_user_id();
+    $uid = $uid > 0 ? $uid : 0;
+    $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
+    return 'll_tools_export_download_' . $uid . '_' . $token;
+}
+
+function ll_tools_export_download_ttl_seconds(): int {
+    return max(MINUTE_IN_SECONDS, (int) apply_filters('ll_tools_export_download_ttl_seconds', 2 * HOUR_IN_SECONDS));
+}
+
+function ll_tools_get_export_dir(): string {
+    $upload_dir = wp_upload_dir();
+    return trailingslashit($upload_dir['basedir']) . 'll-tools-exports';
+}
+
+function ll_tools_ensure_export_dir(string $export_dir): bool {
+    if (!function_exists('wp_mkdir_p')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+    }
+    return wp_mkdir_p($export_dir);
+}
+
+function ll_tools_cleanup_stale_export_files(string $export_dir, int $ttl_seconds): void {
+    if (!is_dir($export_dir)) {
+        return;
+    }
+
+    $ttl_seconds = max(MINUTE_IN_SECONDS, $ttl_seconds);
+    $cutoff = time() - $ttl_seconds;
+
+    try {
+        foreach (new DirectoryIterator($export_dir) as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            $name = (string) $file->getFilename();
+            if (strpos($name, 'll-tools-export-') !== 0 || strtolower($file->getExtension()) !== 'zip') {
+                continue;
+            }
+
+            if ($file->getMTime() >= $cutoff) {
+                continue;
+            }
+
+            @unlink($file->getPathname());
+        }
+    } catch (Exception $e) {
+        // Ignore cleanup errors; stale files can be removed on the next request.
+    }
+}
+
+/**
+ * Stream a file download, including byte-range support for resumable downloads.
+ *
+ * @param string $file_path
+ * @param string $filename
+ * @param string $content_type
+ * @return void
+ */
+function ll_tools_stream_download_file(string $file_path, string $filename, string $content_type = 'application/octet-stream'): void {
+    $file_size = @filesize($file_path);
+    if ($file_size === false || $file_size < 0) {
+        wp_die(__('Could not read the export file size.', 'll-tools-text-domain'));
+    }
+    $file_size = (int) $file_size;
+    if ($file_size <= 0) {
+        wp_die(__('The export file is empty.', 'll-tools-text-domain'));
+    }
+
+    $range_header = isset($_SERVER['HTTP_RANGE']) ? (string) $_SERVER['HTTP_RANGE'] : '';
+    $start = 0;
+    $end = $file_size - 1;
+    $is_partial = false;
+
+    if ($range_header !== '' && preg_match('/bytes=(\d*)-(\d*)/i', $range_header, $matches)) {
+        $range_start = $matches[1] !== '' ? (int) $matches[1] : null;
+        $range_end = $matches[2] !== '' ? (int) $matches[2] : null;
+
+        if ($range_start === null && $range_end !== null) {
+            $length = min($range_end, $file_size);
+            $start = max(0, $file_size - $length);
+        } elseif ($range_start !== null && $range_end === null) {
+            $start = $range_start;
+        } elseif ($range_start !== null && $range_end !== null) {
+            $start = $range_start;
+            $end = $range_end;
+        }
+
+        if ($start > $end || $start >= $file_size) {
+            status_header(416);
+            header('Content-Range: bytes */' . $file_size);
+            exit;
+        }
+
+        $end = min($end, $file_size - 1);
+        $is_partial = true;
+    }
+
+    $length = $end - $start + 1;
+    if ($length <= 0) {
+        wp_die(__('Could not stream the export file.', 'll-tools-text-domain'));
+    }
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    nocache_headers();
+    if ($is_partial) {
+        status_header(206);
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . $file_size);
+    } else {
+        status_header(200);
+    }
+    header('Content-Type: ' . $content_type);
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+    header('Accept-Ranges: bytes');
+    header('Content-Length: ' . $length);
+
+    $handle = @fopen($file_path, 'rb');
+    if (!$handle) {
+        wp_die(__('Could not open the export file for download.', 'll-tools-text-domain'));
+    }
+
+    if ($start > 0) {
+        fseek($handle, $start);
+    }
+
+    $chunk_size = 1024 * 1024;
+    $remaining = $length;
+    while ($remaining > 0 && !feof($handle)) {
+        $buffer = fread($handle, min($chunk_size, $remaining));
+        if ($buffer === false || $buffer === '') {
+            break;
+        }
+        echo $buffer;
+        $remaining -= strlen($buffer);
+        flush();
+    }
+
+    fclose($handle);
+    exit;
 }
 
 function ll_tools_build_export_zip_filename($include_full_bundle, $category_id, $full_wordset_id = 0): string {
@@ -574,7 +720,16 @@ function ll_tools_handle_export_bundle() {
         ));
     }
 
-    $zip_path = wp_tempnam('ll-tools-export.zip');
+    $export_dir = ll_tools_get_export_dir();
+    if (!ll_tools_ensure_export_dir($export_dir)) {
+        wp_die(__('Could not create export storage directory.', 'll-tools-text-domain'));
+    }
+
+    $ttl_seconds = ll_tools_export_download_ttl_seconds();
+    ll_tools_cleanup_stale_export_files($export_dir, $ttl_seconds);
+
+    $token = wp_generate_password(20, false, false);
+    $zip_path = trailingslashit($export_dir) . 'll-tools-export-' . $token . '.zip';
     $zip = new ZipArchive();
     if ($zip->open($zip_path, ZipArchive::OVERWRITE) !== true) {
         wp_die(__('Could not create export zip.', 'll-tools-text-domain'));
@@ -592,13 +747,72 @@ function ll_tools_handle_export_bundle() {
     $zip->close();
 
     $filename = ll_tools_build_export_zip_filename($include_full_bundle, $category_id, $full_wordset_id);
-    nocache_headers();
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Content-Length: ' . filesize($zip_path));
-    readfile($zip_path);
-    @unlink($zip_path);
+    $download_manifest = [
+        'zip_path' => $zip_path,
+        'filename' => $filename,
+        'created_by' => get_current_user_id(),
+        'created_at' => time(),
+    ];
+    if (!set_transient(ll_tools_export_download_transient_key($token), $download_manifest, $ttl_seconds)) {
+        @unlink($zip_path);
+        wp_die(__('Could not prepare the export download link. Please try again.', 'll-tools-text-domain'));
+    }
+
+    $download_url = add_query_arg([
+        'action' => 'll_tools_download_bundle',
+        'll_export_token' => $token,
+        '_wpnonce' => wp_create_nonce('ll_tools_download_bundle_' . $token),
+    ], admin_url('admin-post.php'));
+
+    wp_safe_redirect($download_url);
     exit;
+}
+
+/**
+ * Stream a prepared export bundle zip file via GET.
+ */
+function ll_tools_handle_download_bundle() {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to export LL Tools data.', 'll-tools-text-domain'));
+    }
+
+    $token = isset($_GET['ll_export_token']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_export_token'])) : '';
+    $token = preg_replace('/[^a-zA-Z0-9_-]/', '', $token);
+    if ($token === '') {
+        wp_die(__('Export download link is invalid.', 'll-tools-text-domain'));
+    }
+
+    $nonce = isset($_GET['_wpnonce']) ? (string) $_GET['_wpnonce'] : '';
+    if (!wp_verify_nonce($nonce, 'll_tools_download_bundle_' . $token)) {
+        wp_die(__('Export download link is invalid or expired.', 'll-tools-text-domain'));
+    }
+
+    $manifest = get_transient(ll_tools_export_download_transient_key($token));
+    if (!is_array($manifest)) {
+        wp_die(__('Export download has expired. Generate a new export and try again.', 'll-tools-text-domain'));
+    }
+
+    $creator_id = isset($manifest['created_by']) ? (int) $manifest['created_by'] : 0;
+    if ($creator_id > 0 && $creator_id !== get_current_user_id()) {
+        wp_die(__('You do not have permission to download this export file.', 'll-tools-text-domain'));
+    }
+
+    $zip_path = isset($manifest['zip_path']) ? (string) $manifest['zip_path'] : '';
+    if ($zip_path === '' || !is_file($zip_path)) {
+        delete_transient(ll_tools_export_download_transient_key($token));
+        wp_die(__('The export file is no longer available. Generate a new export and try again.', 'll-tools-text-domain'));
+    }
+
+    $filename = isset($manifest['filename']) ? sanitize_file_name((string) $manifest['filename']) : '';
+    if ($filename === '') {
+        $filename = 'll-tools-export-' . gmdate('Ymd-His') . '.zip';
+    }
+
+    $ttl_seconds = ll_tools_export_download_ttl_seconds();
+    $export_dir = ll_tools_get_export_dir();
+    ll_tools_cleanup_stale_export_files($export_dir, $ttl_seconds);
+
+    ll_tools_stream_download_file($zip_path, $filename, 'application/zip');
 }
 
 /**
@@ -947,7 +1161,7 @@ function ll_tools_import_wordset_payload_is_identical(array $source_wordset, int
 /**
  * Build default import options for preview based on source payload and local data.
  *
- * If a single source wordset is identical to an existing local one, default to
+ * If a single source wordset matches an existing local slug, default to
  * assigning imported words to that existing wordset.
  *
  * @param array $payload
@@ -986,7 +1200,10 @@ function ll_tools_build_import_preview_default_options(array $payload): array {
         return $defaults;
     }
 
-    if (ll_tools_import_wordset_payload_is_identical($source_wordset, $existing_term_id)) {
+    $slug_matches = ($source_slug === sanitize_title((string) $existing->slug));
+    $is_identical = ll_tools_import_wordset_payload_is_identical($source_wordset, $existing_term_id);
+
+    if ($slug_matches || $is_identical) {
         $defaults['wordset_mode'] = 'assign_existing';
         $defaults['target_wordset_id'] = $existing_term_id;
     }

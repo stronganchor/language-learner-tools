@@ -349,9 +349,9 @@
         const $cards = $('#ll-tools-flashcard .ll-gender-option').not('.ll-gender-option--unknown');
         if (!$cards.length) return;
 
-        const MIN_SCALE = 0.68;
-        const SCALE_STEP = 0.04;
-        const MAX_PASSES = 12;
+        const MIN_SCALE = 0.56;
+        const SCALE_STEP = 0.03;
+        const MAX_PASSES = 16;
 
         const applyScale = function (scale) {
             const normalized = Math.max(MIN_SCALE, Math.min(1, scale));

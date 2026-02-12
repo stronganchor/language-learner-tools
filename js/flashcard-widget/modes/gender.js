@@ -20,6 +20,10 @@
     const INTRO_REPLAY_GAP_MS = 220;
     const COUNTDOWN_STEP_MS = 900;
     const INTRO_WATCHDOG_MS = 15000;
+    const GENDER_TAP_GUARD_MS = 170;
+    const WORD_REPEAT_DEMOTION_THRESHOLD = 2;
+    const CATEGORY_DEMOTION_RATIO = 0.45;
+    const CATEGORY_DEMOTION_MIN_CHALLENGED = 2;
 
     const LEVEL_ONE = 1;
     const LEVEL_TWO = 2;
@@ -46,6 +50,7 @@
             replayQueue: [],
             introducedWordIds: [],
             levelOneReviewPending: {},
+            categorySessionStats: {},
             introPending: false,
             introComplete: true,
             introWords: [],
@@ -73,6 +78,8 @@
             introEndedAt: 0,
             answerAt: 0,
             answerLocked: false,
+            questionShownAt: 0,
+            answerTapBlockUntil: 0,
             countdownEl: null,
             countdownSlot: null,
             hiddenCountdownAnchor: null
@@ -637,6 +644,7 @@
         session.wordsById = {};
         session.categoryByWordId = {};
         session.wordState = {};
+        session.categorySessionStats = {};
         session.introducedWordIds = [];
 
         activeIds.forEach(function (wordId) {
@@ -692,6 +700,8 @@
         round.introEndedAt = 0;
         round.answerAt = 0;
         round.answerLocked = false;
+        round.questionShownAt = 0;
+        round.answerTapBlockUntil = 0;
 
         if (round.timers && round.timers.length) {
             round.timers.forEach(function (id) { clearTimeout(id); });
@@ -741,6 +751,121 @@
                 }
                 resolve(true);
             }, delay);
+        });
+    }
+
+    function armAnswerTapGuard() {
+        round.questionShownAt = nowTs();
+        round.answerTapBlockUntil = round.questionShownAt + GENDER_TAP_GUARD_MS;
+    }
+
+    function isAnswerTapGuardActive() {
+        const blockUntil = Number(round.answerTapBlockUntil || 0);
+        if (!blockUntil) return false;
+        return nowTs() < blockUntil;
+    }
+
+    function getIntroClipPattern(word) {
+        const isolation = getIsolationAudio(word);
+        const intro = getIntroductionAudio(word);
+        if (intro && isolation && intro !== isolation) {
+            return [intro, isolation, intro];
+        }
+        const fallback = intro || isolation;
+        return fallback ? [fallback, fallback, fallback] : [];
+    }
+
+    function getUniqueAudioUrls(urls) {
+        const out = [];
+        const seen = {};
+        (Array.isArray(urls) ? urls : []).forEach(function (url) {
+            const key = String(url || '').trim();
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            out.push(key);
+        });
+        return out;
+    }
+
+    function preloadAudioUrl(url, timeoutMs) {
+        return new Promise(function (resolve) {
+            const source = String(url || '').trim();
+            if (!source) {
+                resolve(false);
+                return;
+            }
+            let settled = false;
+            let timerId = null;
+            const audio = root.document && typeof root.document.createElement === 'function'
+                ? root.document.createElement('audio')
+                : new Audio();
+
+            const finish = function (ready) {
+                if (settled) return;
+                settled = true;
+                if (timerId) {
+                    clearTimeout(timerId);
+                }
+                try {
+                    audio.onloadeddata = null;
+                    audio.oncanplaythrough = null;
+                    audio.onerror = null;
+                    audio.onstalled = null;
+                    audio.pause();
+                    audio.removeAttribute('src');
+                    audio.load();
+                } catch (_) { /* no-op */ }
+                resolve(!!ready);
+            };
+
+            timerId = setTimeout(function () {
+                finish(false);
+            }, Math.max(350, parseInt(timeoutMs, 10) || 2200));
+
+            try {
+                audio.preload = 'auto';
+                audio.crossOrigin = 'anonymous';
+                audio.onloadeddata = function () { finish(true); };
+                audio.oncanplaythrough = function () { finish(true); };
+                audio.onerror = function () { finish(false); };
+                audio.onstalled = function () { finish(false); };
+                audio.src = source;
+                audio.load();
+            } catch (_) {
+                finish(false);
+            }
+        });
+    }
+
+    function primeIntroAudio(words, token) {
+        if (token !== round.sequenceToken || State.abortAllOperations) {
+            return Promise.resolve(false);
+        }
+        const introWords = (Array.isArray(words) ? words : []).slice(0, 2);
+        if (!introWords.length) return Promise.resolve(true);
+
+        const perWordUrls = introWords
+            .map(function (word) { return getUniqueAudioUrls(getIntroClipPattern(word)); })
+            .filter(function (urls) { return urls.length > 0; });
+        if (!perWordUrls.length) return Promise.resolve(true);
+
+        const firstRequiredUrl = perWordUrls[0][0];
+        const secondaryUrls = [];
+        perWordUrls.forEach(function (urls, wordIndex) {
+            urls.forEach(function (url, urlIndex) {
+                if (wordIndex === 0 && urlIndex === 0) return;
+                secondaryUrls.push(url);
+            });
+        });
+
+        if (secondaryUrls.length) {
+            Promise.all(secondaryUrls.map(function (url) {
+                return preloadAudioUrl(url, 2400);
+            })).catch(function () { return null; });
+        }
+
+        return preloadAudioUrl(firstRequiredUrl, 2600).then(function () {
+            return token === round.sequenceToken && !State.abortAllOperations;
         });
     }
 
@@ -1109,7 +1234,7 @@
 
         $container.removeClass('audio-line-layout').empty();
         $content.removeClass('audio-line-mode');
-        setIntroCategoryLabelHidden(mixedCategoryBatch);
+        setIntroCategoryLabelHidden(true);
         if (showTopCategoryForIntro) {
             const firstCategory = uniqueCategories[0] || '';
             if (firstCategory && Dom && typeof Dom.updateCategoryNameDisplay === 'function') {
@@ -1126,6 +1251,12 @@
                 $container.append($card);
             }
         });
+
+        await primeIntroAudio(words, token);
+        if (token !== round.sequenceToken || State.abortAllOperations) {
+            setIntroCategoryLabelHidden(false);
+            return;
+        }
 
         $('.ll-gender-intro-card').fadeIn(260);
         Dom.hideLoading && Dom.hideLoading();
@@ -1145,18 +1276,7 @@
                 }
             }
 
-            const isoUrl = getIsolationAudio(word);
-            const introUrl = getIntroductionAudio(word);
-            const fallback = introUrl || isoUrl;
-            const clipPattern = [];
-
-            if (introUrl && isoUrl && introUrl !== isoUrl) {
-                // Mirror learning mode feel: intro -> isolation -> intro.
-                clipPattern.push(introUrl, isoUrl, introUrl);
-            } else if (fallback) {
-                // If only one recording type exists, still reinforce with 3 plays.
-                clipPattern.push(fallback, fallback, fallback);
-            }
+            const clipPattern = getIntroClipPattern(word);
 
             for (let clipIndex = 0; clipIndex < clipPattern.length; clipIndex++) {
                 pulseActiveIntroCard($active);
@@ -1519,6 +1639,84 @@
         return state;
     }
 
+    function demoteEntryByOneLevel(entry) {
+        if (!entry || typeof entry !== 'object') return false;
+        const currentLevel = normalizeLevel(entry.level);
+        if (currentLevel <= LEVEL_ONE) {
+            entry.level = LEVEL_ONE;
+            entry.confidence = clamp(Math.min(entry.confidence, -2), -8, 12);
+            entry.quick_correct_streak = 0;
+            return false;
+        }
+        if (currentLevel === LEVEL_THREE) {
+            entry.level = LEVEL_TWO;
+            entry.confidence = clamp(Math.min(entry.confidence, 3), -8, 12);
+            entry.quick_correct_streak = 0;
+            return true;
+        }
+        entry.level = LEVEL_ONE;
+        entry.confidence = clamp(Math.min(entry.confidence, -2), -8, 12);
+        entry.quick_correct_streak = 0;
+        return true;
+    }
+
+    function getCategorySessionStats(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) return null;
+        if (!session.categorySessionStats || typeof session.categorySessionStats !== 'object') {
+            session.categorySessionStats = {};
+        }
+        if (!session.categorySessionStats[name]) {
+            session.categorySessionStats[name] = {
+                seenWordIds: {},
+                challengedWordIds: {},
+                demoted: false
+            };
+        }
+        return session.categorySessionStats[name];
+    }
+
+    function markCategoryChallenge(wordId, categoryName, isCorrect, isDontKnow) {
+        const id = toInt(wordId);
+        if (!id) return;
+        const name = String(categoryName || '').trim() || String(session.categoryByWordId[id] || '').trim();
+        const stats = getCategorySessionStats(name);
+        if (!stats) return;
+        stats.seenWordIds[id] = true;
+        if (!isCorrect || isDontKnow) {
+            stats.challengedWordIds[id] = true;
+        }
+    }
+
+    function maybeDemoteCategoryFromSessionPressure(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) return false;
+        const stats = getCategorySessionStats(name);
+        if (!stats || stats.demoted) return false;
+
+        const categoryWordIds = session.activeWordIds.filter(function (wordId) {
+            return String(session.categoryByWordId[wordId] || '').trim() === name;
+        });
+        if (!categoryWordIds.length) return false;
+
+        const seenCount = Object.keys(stats.seenWordIds).length;
+        const challengedCount = Object.keys(stats.challengedWordIds).length;
+        if (challengedCount < CATEGORY_DEMOTION_MIN_CHALLENGED) return false;
+        if (seenCount < Math.min(categoryWordIds.length, 3)) return false;
+        if ((challengedCount / Math.max(1, categoryWordIds.length)) < CATEGORY_DEMOTION_RATIO) return false;
+
+        stats.demoted = true;
+        let changed = false;
+        categoryWordIds.forEach(function (wordId) {
+            const progress = getWordProgress(wordId);
+            if (demoteEntryByOneLevel(progress)) {
+                setWordProgress(wordId, progress);
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
     function updateWordProgressFromAnswer(word, answerMeta) {
         const id = toInt(word && word.id);
         if (!id) return normalizeWordProgress({});
@@ -1584,6 +1782,11 @@
 
         if (isDontKnow) {
             entry.dont_know_count += 1;
+        }
+
+        const repeatMisses = !isCorrect && (Math.max(0, parseInt(wordState && wordState.wrong, 10) || 0) >= WORD_REPEAT_DEMOTION_THRESHOLD);
+        if (repeatMisses || (isDontKnow && entry.dont_know_count >= WORD_REPEAT_DEMOTION_THRESHOLD)) {
+            demoteEntryByOneLevel(entry);
         }
 
         return setWordProgress(id, entry);
@@ -2099,9 +2302,6 @@
     }
 
     function afterQuestionShown(context) {
-        if (session.level !== LEVEL_TWO) {
-            return false;
-        }
         if (!context || !context.targetWord) {
             return false;
         }
@@ -2110,6 +2310,10 @@
         round.introStartedAt = 0;
         round.introEndedAt = 0;
         round.answerLocked = false;
+        armAnswerTapGuard();
+        if (session.level !== LEVEL_TWO) {
+            return false;
+        }
         runLevelTwoSequence(context.targetWord).catch(function () {
             // Swallow sequence failures so round can continue.
         });
@@ -2133,6 +2337,7 @@
         const isCorrect = !!context.isCorrect;
         const isDontKnow = !!context.isDontKnow;
         const timing = computeAnswerTiming();
+        const categoryName = String(session.categoryByWordId[wordId] || getCategoryNameForWord(targetWord) || '').trim();
 
         highlightAnswerCards(context.$card, isCorrect);
         if (isCorrect) {
@@ -2158,12 +2363,17 @@
         await playAnswerFeedback(isCorrect, isDontKnow, !isCorrect);
 
         const wordState = applyAnswerToWordState(wordId, isCorrect);
-        const updatedProgress = updateWordProgressFromAnswer(targetWord, {
+        markCategoryChallenge(wordId, categoryName, isCorrect, isDontKnow);
+        let updatedProgress = updateWordProgressFromAnswer(targetWord, {
             isCorrect: isCorrect,
             isDontKnow: isDontKnow,
             timing: timing,
             wordState: wordState
         });
+        if (!isCorrect || isDontKnow) {
+            maybeDemoteCategoryFromSessionPressure(categoryName);
+            updatedProgress = getWordProgress(wordId);
+        }
 
         // Stop any pending L2 sequence and always replay intro before advancing.
         resetRoundSequence();
@@ -2207,6 +2417,7 @@
         configureTargetAudio,
         handlePostSelection,
         afterQuestionShown,
+        isAnswerTapGuardActive,
         handleAnswer,
         getResultsActions,
         getResultsCategoryNames,

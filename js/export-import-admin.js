@@ -46,5 +46,44 @@
         syncUi();
     }
 
-    document.addEventListener('DOMContentLoaded', initImportWordsetModeUi);
+    function initAutoPreviewOnZipUpload() {
+        var fileInput = document.getElementById('ll_import_file');
+        if (!fileInput || !fileInput.form) {
+            return;
+        }
+
+        var form = fileInput.form;
+        var actionInput = form.querySelector('input[name="action"]');
+        if (!actionInput || actionInput.value !== 'll_tools_preview_import_bundle') {
+            return;
+        }
+
+        var hasSubmitted = false;
+
+        fileInput.addEventListener('change', function () {
+            var hasFile = !!(fileInput.files && fileInput.files.length);
+            if (!hasFile || hasSubmitted) {
+                return;
+            }
+
+            hasSubmitted = true;
+
+            var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            for (var i = 0; i < submitButtons.length; i++) {
+                submitButtons[i].disabled = true;
+            }
+
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+                return;
+            }
+
+            form.submit();
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initImportWordsetModeUi();
+        initAutoPreviewOnZipUpload();
+    });
 })();

@@ -528,7 +528,7 @@
 
             // If there's no target audio, treat the requirement as satisfied
             var playbackSatisfied = targetAudioHasPlayed || !currentTargetAudio;
-            if (!playbackSatisfied || (isCorrect && !audioToPlay.paused)) {
+            if (!playbackSatisfied) {
                 return Promise.resolve();
             }
 
