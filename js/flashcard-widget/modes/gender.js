@@ -231,6 +231,13 @@
     }
 
     function normalizeGenderValue(value, options) {
+        if (Selection && typeof Selection.normalizeGenderValue === 'function') {
+            try {
+                const normalized = Selection.normalizeGenderValue(value, options);
+                if (normalized) return normalized;
+            } catch (_) { /* no-op */ }
+        }
+
         const base = stripGenderVariation(String(value || '')).trim();
         if (!base) return '';
         const lowered = base.toLowerCase();
@@ -241,14 +248,93 @@
                 return opt;
             }
         }
-        if (lowered === 'masculine' || lowered === 'feminine') {
-            const symbol = lowered === 'masculine' ? '♂' : '♀';
+        if (lowered === 'masculine' || lowered === 'feminine' || lowered === 'male' || lowered === 'female' || lowered === 'm' || lowered === 'f') {
+            const desiredRole = (lowered[0] === 'm') ? 'masculine' : 'feminine';
             for (let i = 0; i < opts.length; i++) {
                 const opt = stripGenderVariation(String(opts[i] || '')).trim();
-                if (opt === symbol) return opt;
+                if (!opt) continue;
+                const key = opt.toLowerCase();
+                const isMasculine = (key === 'masculine' || key === 'masc' || key === 'male' || key === 'm' || key === '♂');
+                const isFeminine = (key === 'feminine' || key === 'fem' || key === 'female' || key === 'f' || key === '♀');
+                if ((desiredRole === 'masculine' && isMasculine) || (desiredRole === 'feminine' && isFeminine)) {
+                    return opt;
+                }
             }
         }
         return '';
+    }
+
+    function formatGenderDisplayLabel(value) {
+        const cleaned = stripGenderVariation(value).trim();
+        if (cleaned === '♂' || cleaned === '♀') {
+            return cleaned + '\uFE0E';
+        }
+        return cleaned || String(value || '');
+    }
+
+    function escapeHtml(raw) {
+        return String(raw === null || raw === undefined ? '' : raw)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function normalizeGenderRole(role) {
+        const cleaned = String(role || '').trim().toLowerCase();
+        if (cleaned === 'masculine' || cleaned === 'feminine') return cleaned;
+        return 'other';
+    }
+
+    function buildFallbackGenderVisual(value) {
+        const normalized = normalizeGenderValue(value, getGenderOptions()) || stripGenderVariation(String(value || '')).trim();
+        const label = formatGenderDisplayLabel(normalized || value || '');
+        const key = stripGenderVariation(normalized || value || '').trim().toLowerCase();
+        let role = 'other';
+        if (key === 'masculine' || key === 'masc' || key === 'male' || key === 'm' || key === '♂') {
+            role = 'masculine';
+        } else if (key === 'feminine' || key === 'fem' || key === 'female' || key === 'f' || key === '♀') {
+            role = 'feminine';
+        }
+
+        const colors = {
+            masculine: '#2563EB',
+            feminine: '#EC4899',
+            other: '#6B7280'
+        };
+        const color = colors[role] || colors.other;
+        let style = '--ll-gender-accent:' + color + ';';
+        style += '--ll-gender-bg:' + (role === 'masculine'
+            ? 'rgba(37,99,235,0.14);'
+            : (role === 'feminine' ? 'rgba(236,72,153,0.14);' : 'rgba(107,114,128,0.14);'));
+        style += '--ll-gender-border:' + (role === 'masculine'
+            ? 'rgba(37,99,235,0.38);'
+            : (role === 'feminine' ? 'rgba(236,72,153,0.38);' : 'rgba(107,114,128,0.38);'));
+
+        return {
+            value: normalized,
+            label: label,
+            role: role,
+            style: style,
+            symbol: {
+                type: 'text',
+                value: label || '?'
+            }
+        };
+    }
+
+    function getGenderVisualForWord(word) {
+        const raw = (word && (word.__gender_label || word.grammatical_gender)) || '';
+        if (Selection && typeof Selection.getGenderVisualForOption === 'function') {
+            try {
+                const visual = Selection.getGenderVisualForOption(raw, -1, getGenderOptions());
+                if (visual && typeof visual === 'object') {
+                    return visual;
+                }
+            } catch (_) { /* no-op */ }
+        }
+        return buildFallbackGenderVisual(raw);
     }
 
     function getCategoryConfig(categoryName) {
@@ -936,9 +1022,9 @@
         const $ = root.jQuery;
         if (!$ || !word) return null;
         const categoryName = getCategoryNameForWord(word);
-        const genderLabel = word.__gender_label || normalizeGenderValue(word.grammatical_gender, getGenderOptions()) || '';
-        const displayGender = String(genderLabel || '').trim();
-        const markerText = displayGender || '?';
+        const visual = getGenderVisualForWord(word);
+        const role = normalizeGenderRole(visual && visual.role);
+        const markerLabel = String((visual && visual.label) || '').trim() || '?';
         const opts = (options && typeof options === 'object') ? options : {};
         const showCategoryOverlay = !!opts.showCategoryOverlay;
 
@@ -947,10 +1033,24 @@
             'data-gender-intro-index': index,
             'data-word-id': toInt(word.id)
         });
+        $card.addClass('ll-gender-intro-card--' + role).attr('data-ll-gender-role', role);
+
         const $badge = $('<span>', {
             class: 'll-gender-intro-badge',
-            text: markerText
+            'data-ll-gender-role': role,
+            'aria-label': markerLabel,
+            title: markerLabel
         });
+        const symbolHtml = (Selection && typeof Selection.buildGenderSymbolMarkup === 'function')
+            ? Selection.buildGenderSymbolMarkup(visual, markerLabel)
+            : ('<span class="ll-gender-symbol" aria-hidden="true">' + escapeHtml(markerLabel) + '</span>');
+        $badge.html(symbolHtml + '<span class="screen-reader-text">' + escapeHtml(markerLabel) + '</span>');
+
+        if (Selection && typeof Selection.applyGenderStyleVariables === 'function') {
+            Selection.applyGenderStyleVariables($card, visual && visual.style ? visual.style : '');
+            Selection.applyGenderStyleVariables($badge, visual && visual.style ? visual.style : '');
+        }
+
         $card.append($badge);
 
         if (word.image) {

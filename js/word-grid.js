@@ -1172,6 +1172,44 @@
         $el.text(value || '');
     }
 
+    function clearGenderMetaRoleClasses($el) {
+        if (!$el || !$el.length) { return; }
+        $el.removeClass('ll-word-meta-tag--gender-masculine ll-word-meta-tag--gender-feminine ll-word-meta-tag--gender-other');
+    }
+
+    function setWordGenderMeta($item, data) {
+        const $el = $item.find('[data-ll-word-gender]').first();
+        if (!$el.length) { return; }
+
+        const label = (data && Object.prototype.hasOwnProperty.call(data, 'label')) ? (data.label || '') : '';
+        const html = (data && Object.prototype.hasOwnProperty.call(data, 'html')) ? (data.html || '') : '';
+        const role = (data && Object.prototype.hasOwnProperty.call(data, 'role')) ? (data.role || '') : '';
+        const style = (data && Object.prototype.hasOwnProperty.call(data, 'style')) ? (data.style || '') : '';
+
+        if (html) {
+            $el.html(html);
+        } else {
+            $el.text(label);
+        }
+
+        clearGenderMetaRoleClasses($el);
+        if (role) {
+            $el.addClass('ll-word-meta-tag--gender-' + role);
+        }
+        $el.attr('data-ll-gender-role', role || '');
+
+        if (style) {
+            $el.attr('style', style);
+        } else {
+            $el.removeAttr('style');
+        }
+        if (label) {
+            $el.attr('aria-label', label).attr('title', label);
+        } else {
+            $el.removeAttr('aria-label').removeAttr('title');
+        }
+    }
+
     function setWordNote($item, value) {
         const $note = $item.find('[data-ll-word-note]').first();
         if (!$note.length) { return; }
@@ -1244,7 +1282,7 @@
             $item.find('[data-ll-word-input="gender"]').val(genderData.value || '');
         }
         if (genderData && Object.prototype.hasOwnProperty.call(genderData, 'label')) {
-            setWordMetaText($item, '[data-ll-word-gender]', genderData.label || '');
+            setWordGenderMeta($item, genderData);
         }
         if (pluralityData && Object.prototype.hasOwnProperty.call(pluralityData, 'value')) {
             $item.find('[data-ll-word-input="plurality"]').val(pluralityData.value || '');

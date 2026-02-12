@@ -140,14 +140,56 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--gender {
-    border-color: #fed7aa;
-    background: #fff7ed;
-    color: #9a3412;
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+    border-color: var(--ll-gender-border);
+    background: var(--ll-gender-bg);
+    color: var(--ll-gender-accent);
     font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif !important;
     font-variant-emoji: text;
     line-height: 1;
     letter-spacing: 0;
     text-transform: none;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender-masculine {
+    --ll-gender-accent: #2563eb;
+    --ll-gender-bg: rgba(37, 99, 235, 0.14);
+    --ll-gender-border: rgba(37, 99, 235, 0.38);
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender-feminine {
+    --ll-gender-accent: #ec4899;
+    --ll-gender-bg: rgba(236, 72, 153, 0.14);
+    --ll-gender-border: rgba(236, 72, 153, 0.38);
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender-other {
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.2em;
+    min-height: 1.2em;
+    line-height: 1;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--svg svg {
+    width: 1.2em;
+    height: 1.2em;
+    display: block;
+}
+
+.word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--svg svg,
+.word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--svg svg * {
+    fill: currentColor !important;
+    stroke: currentColor !important;
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--plurality {

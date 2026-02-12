@@ -455,6 +455,7 @@
 
     function normalizeGenderConfig(raw) {
         const cfg = (raw && typeof raw === 'object') ? raw : {};
+        const visualConfig = (cfg.visual_config && typeof cfg.visual_config === 'object') ? cfg.visual_config : {};
         const optionsRaw = Array.isArray(cfg.options) ? cfg.options : [];
         const options = [];
         const seen = {};
@@ -470,7 +471,8 @@
         return {
             enabled: !!cfg.enabled,
             options: options,
-            min_count: parseInt(cfg.min_count, 10) || 0
+            min_count: parseInt(cfg.min_count, 10) || 0,
+            visual_config: visualConfig
         };
     }
 
@@ -732,6 +734,9 @@
         target.genderEnabled = !!genderConfig.enabled;
         target.genderOptions = options.slice();
         target.genderWordsetId = parseInt(state.wordset_id, 10) || 0;
+        target.genderVisualConfig = (genderConfig.visual_config && typeof genderConfig.visual_config === 'object')
+            ? genderConfig.visual_config
+            : {};
         const fallbackMin = parseInt(target.genderMinCount, 10) || 0;
         const minCount = parseInt(genderConfig.min_count, 10) || fallbackMin || 2;
         target.genderMinCount = minCount;

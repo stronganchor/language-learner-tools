@@ -237,6 +237,9 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
     if ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options')) {
         $gender_options = ll_tools_wordset_get_gender_options($wordset_id);
     }
+    $gender_visual_config = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+        ? ll_tools_wordset_get_gender_visual_config($wordset_id)
+        : [];
     $gender_options = array_values(array_filter(array_map('strval', (array) $gender_options), function ($val) {
         return $val !== '';
     }));
@@ -248,6 +251,7 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
         'gender'            => [
             'enabled'   => (bool) $gender_enabled,
             'options'   => $gender_options,
+            'visual_config' => $gender_visual_config,
             'min_count' => $gender_min_count,
         ],
         'state'             => [

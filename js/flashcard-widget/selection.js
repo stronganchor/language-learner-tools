@@ -1,6 +1,7 @@
 (function (root) {
     'use strict';
     const { Util, State } = root.LLFlashcards;
+    let genderFitResizeBound = false;
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -61,23 +62,341 @@
     }
 
     function normalizeGenderValue(value, options) {
+        const opts = Array.isArray(options) ? options : getGenderOptions();
         const base = stripGenderVariation((value === null || value === undefined) ? '' : String(value)).trim();
         if (!base) return '';
         const lowered = base.toLowerCase();
-        for (let i = 0; i < options.length; i++) {
-            const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+        for (let i = 0; i < opts.length; i++) {
+            const opt = stripGenderVariation((opts[i] === null || opts[i] === undefined) ? '' : String(opts[i])).trim();
             if (!opt) continue;
             if (opt.toLowerCase() === lowered) return opt;
         }
-        if (lowered === 'masculine' || lowered === 'feminine') {
-            const symbol = lowered === 'masculine' ? '♂' : '♀';
-            for (let i = 0; i < options.length; i++) {
-                const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+
+        let desiredRole = '';
+        const aliases = getGenderRoleAliases();
+        const roleNames = Object.keys(aliases);
+        for (let i = 0; i < roleNames.length; i++) {
+            const role = roleNames[i];
+            const variants = aliases[role] || [];
+            for (let j = 0; j < variants.length; j++) {
+                if (normalizeGenderLookupKey(variants[j]) === lowered) {
+                    desiredRole = role;
+                    break;
+                }
+            }
+            if (desiredRole) break;
+        }
+
+        if (desiredRole) {
+            for (let i = 0; i < opts.length; i++) {
+                const opt = stripGenderVariation((opts[i] === null || opts[i] === undefined) ? '' : String(opts[i])).trim();
                 if (!opt) continue;
-                if (opt === symbol) return opt;
+                const inferred = inferGenderRoleFromValue(opt, i);
+                if (inferred === desiredRole) {
+                    return opt;
+                }
             }
         }
+
         return '';
+    }
+
+    function normalizeGenderLookupKey(value) {
+        const cleaned = stripGenderVariation((value === null || value === undefined) ? '' : String(value)).trim();
+        return cleaned ? cleaned.toLowerCase() : '';
+    }
+
+    function escapeHtml(raw) {
+        return String(raw === null || raw === undefined ? '' : raw)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function getGenderRoleAliases() {
+        return {
+            masculine: ['masculine', 'masc', 'male', 'm', '♂'],
+            feminine: ['feminine', 'fem', 'female', 'f', '♀']
+        };
+    }
+
+    function normalizeGenderRole(role) {
+        const cleaned = String(role || '').trim().toLowerCase();
+        if (cleaned === 'masculine' || cleaned === 'feminine') return cleaned;
+        return 'other';
+    }
+
+    function inferGenderRoleFromValue(value, index) {
+        const key = normalizeGenderLookupKey(value);
+        if (key) {
+            const aliases = getGenderRoleAliases();
+            const roleNames = Object.keys(aliases);
+            for (let i = 0; i < roleNames.length; i++) {
+                const role = roleNames[i];
+                const variants = aliases[role] || [];
+                for (let j = 0; j < variants.length; j++) {
+                    if (normalizeGenderLookupKey(variants[j]) === key) {
+                        return role;
+                    }
+                }
+            }
+        }
+        if (index === 0) return 'masculine';
+        if (index === 1) return 'feminine';
+        return 'other';
+    }
+
+    function getGenderVisualConfig() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = data.genderVisualConfig;
+        return (raw && typeof raw === 'object') ? raw : {};
+    }
+
+    function findGenderVisualOption(configOptions, value) {
+        const options = Array.isArray(configOptions) ? configOptions : [];
+        const needle = normalizeGenderLookupKey(value);
+        if (!needle) return null;
+        for (let i = 0; i < options.length; i++) {
+            const entry = options[i];
+            if (!entry || typeof entry !== 'object') continue;
+            const keys = [entry.normalized, entry.value, entry.label];
+            for (let j = 0; j < keys.length; j++) {
+                if (normalizeGenderLookupKey(keys[j]) === needle) {
+                    return entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    function hexToRgb(hex) {
+        let cleaned = String(hex || '').trim().replace(/^#/, '');
+        if (cleaned.length === 3) {
+            cleaned = cleaned[0] + cleaned[0] + cleaned[1] + cleaned[1] + cleaned[2] + cleaned[2];
+        }
+        if (!/^[a-f0-9]{6}$/i.test(cleaned)) {
+            return [107, 114, 128];
+        }
+        return [
+            parseInt(cleaned.slice(0, 2), 16),
+            parseInt(cleaned.slice(2, 4), 16),
+            parseInt(cleaned.slice(4, 6), 16)
+        ];
+    }
+
+    function buildGenderStyleString(color) {
+        const fallback = '#6B7280';
+        const normalized = /^#[a-f0-9]{3,6}$/i.test(String(color || '').trim())
+            ? String(color || '').trim().toUpperCase()
+            : fallback;
+        const rgb = hexToRgb(normalized);
+        const bg = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.14)';
+        const border = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.38)';
+        return '--ll-gender-accent:' + normalized + ';--ll-gender-bg:' + bg + ';--ll-gender-border:' + border + ';';
+    }
+
+    function applyGenderStyleVariables($el, styleText) {
+        if (!$el || !$el.length || !$el[0] || !$el[0].style) return;
+        const node = $el[0];
+        const props = ['--ll-gender-accent', '--ll-gender-bg', '--ll-gender-border'];
+        props.forEach(function (prop) {
+            try { node.style.removeProperty(prop); } catch (_) { /* no-op */ }
+        });
+
+        const raw = String(styleText || '').trim();
+        if (!raw) return;
+        raw.split(';').forEach(function (chunk) {
+            const trimmed = String(chunk || '').trim();
+            if (!trimmed) return;
+            const idx = trimmed.indexOf(':');
+            if (idx < 1) return;
+            const prop = trimmed.slice(0, idx).trim();
+            const value = trimmed.slice(idx + 1).trim();
+            if (!prop || !value || prop.indexOf('--ll-gender-') !== 0) return;
+            try { node.style.setProperty(prop, value); } catch (_) { /* no-op */ }
+        });
+    }
+
+    function getGenderVisualForOption(value, index, options) {
+        const genderOptions = Array.isArray(options) ? options : getGenderOptions();
+        const normalizedValue = normalizeGenderValue(value, genderOptions) || stripGenderVariation(String(value || '')).trim();
+        const displayLabel = formatGenderDisplayLabel(normalizedValue || value || '');
+
+        const visualConfig = getGenderVisualConfig();
+        const configOptions = Array.isArray(visualConfig.options) ? visualConfig.options : [];
+        let optionVisual = findGenderVisualOption(configOptions, normalizedValue) || findGenderVisualOption(configOptions, value);
+        if (!optionVisual && index >= 0 && index < configOptions.length) {
+            optionVisual = configOptions[index];
+        }
+
+        const defaultColors = { masculine: '#2563EB', feminine: '#EC4899', other: '#6B7280' };
+        const colors = Object.assign({}, defaultColors, (visualConfig.colors && typeof visualConfig.colors === 'object') ? visualConfig.colors : {});
+        const role = normalizeGenderRole((optionVisual && optionVisual.role) || inferGenderRoleFromValue(normalizedValue || value, index));
+
+        let color = String((optionVisual && optionVisual.color) || colors[role] || colors.other || defaultColors.other).trim();
+        if (!/^#[a-f0-9]{3,6}$/i.test(color)) {
+            color = colors[role] || colors.other || defaultColors.other;
+        }
+        let style = String((optionVisual && optionVisual.style) || '').trim();
+        if (!style) {
+            style = buildGenderStyleString(color);
+        }
+
+        let symbol = (optionVisual && optionVisual.symbol && typeof optionVisual.symbol === 'object')
+            ? optionVisual.symbol
+            : null;
+        if (!symbol && (role === 'masculine' || role === 'feminine')) {
+            const symbols = (visualConfig.symbols && typeof visualConfig.symbols === 'object') ? visualConfig.symbols : {};
+            if (symbols[role] && typeof symbols[role] === 'object') {
+                symbol = symbols[role];
+            }
+        }
+
+        let symbolType = symbol && symbol.type === 'svg' ? 'svg' : 'text';
+        let symbolValue = String((symbol && symbol.value) || '').trim();
+        if (symbolType === 'svg') {
+            const lower = symbolValue.toLowerCase();
+            if (!(lower.indexOf('<svg') !== -1 && lower.indexOf('</svg>') !== -1)) {
+                symbolType = 'text';
+                symbolValue = displayLabel || '?';
+            }
+        }
+        if (symbolType !== 'svg') {
+            symbolValue = formatGenderDisplayLabel(symbolValue || displayLabel || '?');
+        }
+
+        return {
+            value: normalizedValue,
+            label: displayLabel,
+            role: role,
+            color: color,
+            style: style,
+            symbol: {
+                type: symbolType,
+                value: symbolValue
+            }
+        };
+    }
+
+    function buildGenderSymbolMarkup(visual, fallbackLabel) {
+        const meta = (visual && visual.symbol && typeof visual.symbol === 'object') ? visual.symbol : {};
+        const symbolType = meta.type === 'svg' ? 'svg' : 'text';
+        const symbolValue = String(meta.value || '').trim();
+        if (symbolType === 'svg') {
+            const lowered = symbolValue.toLowerCase();
+            if (lowered.indexOf('<svg') !== -1 && lowered.indexOf('</svg>') !== -1) {
+                return '<span class="ll-gender-symbol ll-gender-symbol--svg" aria-hidden="true">' + symbolValue + '</span>';
+            }
+        }
+        const text = formatGenderDisplayLabel(symbolValue || fallbackLabel || '?');
+        return '<span class="ll-gender-symbol" aria-hidden="true">' + escapeHtml(text) + '</span>';
+    }
+
+    function shouldShowGenderOptionLabel(visual) {
+        const labelKey = normalizeGenderLookupKey(visual && visual.label);
+        if (!labelKey) return false;
+        const symbol = (visual && visual.symbol && typeof visual.symbol === 'object') ? visual.symbol : {};
+        const symbolType = symbol.type === 'svg' ? 'svg' : 'text';
+        if (symbolType === 'svg' && (labelKey === '♂' || labelKey === '♀')) {
+            return false;
+        }
+        if (symbolType === 'text') {
+            const symbolKey = normalizeGenderLookupKey(symbol.value || '');
+            if (symbolKey && symbolKey === labelKey) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function applyGenderVisualToOptionCard($card, visual) {
+        if (!$card || !$card.length) return;
+        const role = normalizeGenderRole(visual && visual.role);
+        $card.removeClass('ll-gender-option--masculine ll-gender-option--feminine ll-gender-option--other');
+        $card.addClass('ll-gender-option--' + role).attr('data-ll-gender-role', role);
+        applyGenderStyleVariables($card, visual && visual.style ? visual.style : '');
+
+        const displayLabel = String((visual && visual.label) || '').trim();
+        const symbolHtml = buildGenderSymbolMarkup(visual, displayLabel);
+        const showTextLabel = shouldShowGenderOptionLabel(visual);
+        const labelHtml = showTextLabel
+            ? '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
+            : '';
+        const srText = '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>';
+
+        const $label = $card.find('.quiz-text').first();
+        if ($label.length) {
+            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + srText + '</span>');
+        }
+    }
+
+    function cardGenderLabelOverflows(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return false;
+        const textEl = cardEl.querySelector('.quiz-text');
+        const innerEl = cardEl.querySelector('.ll-gender-option-inner');
+        if (!textEl || !innerEl) return false;
+        const available = Math.max(0, Math.floor(textEl.clientWidth) - 2);
+        if (!available) return false;
+        const needed = Math.ceil(innerEl.scrollWidth);
+        return needed > available;
+    }
+
+    function fitGenderOptionTextScale() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $cards = $('#ll-tools-flashcard .ll-gender-option').not('.ll-gender-option--unknown');
+        if (!$cards.length) return;
+
+        const MIN_SCALE = 0.68;
+        const SCALE_STEP = 0.04;
+        const MAX_PASSES = 12;
+
+        const applyScale = function (scale) {
+            const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
+            const value = normalized.toFixed(3).replace(/\.?0+$/, '');
+            $cards.each(function () {
+                if (this && this.style) {
+                    this.style.setProperty('--ll-gender-option-scale', value);
+                }
+            });
+            return normalized;
+        };
+
+        let scale = applyScale(1);
+        for (let pass = 0; pass < MAX_PASSES; pass++) {
+            let hasOverflow = false;
+            $cards.each(function () {
+                if (cardGenderLabelOverflows(this)) {
+                    hasOverflow = true;
+                    return false;
+                }
+            });
+            if (!hasOverflow || scale <= MIN_SCALE) break;
+            scale = applyScale(scale - SCALE_STEP);
+        }
+    }
+
+    function scheduleGenderOptionTextScaleFit() {
+        if (typeof root.requestAnimationFrame === 'function') {
+            root.requestAnimationFrame(function () {
+                fitGenderOptionTextScale();
+                root.requestAnimationFrame(fitGenderOptionTextScale);
+            });
+            return;
+        }
+        setTimeout(fitGenderOptionTextScale, 0);
+        setTimeout(fitGenderOptionTextScale, 120);
+    }
+
+    function ensureGenderOptionFitResizeHandler() {
+        if (genderFitResizeBound || !root || typeof root.addEventListener !== 'function') return;
+        root.addEventListener('resize', function () {
+            if (!State || !State.isGenderMode) return;
+            scheduleGenderOptionTextScaleFit();
+        }, { passive: true });
+        genderFitResizeBound = true;
     }
 
     function getGenderAssetRequirements(categoryName) {
@@ -726,19 +1045,23 @@
 
         let optionIndex = 0;
         genderOptions.forEach(function (label) {
-            const normalized = normalizeGenderValue(label, genderOptions);
+            const visual = getGenderVisualForOption(label, optionIndex, genderOptions);
+            const normalized = normalizeGenderValue(label, genderOptions) || visual.value;
             const isCorrect = normalized && normalized === genderLabel;
             const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + optionIndex);
             const optionWord = {
                 id: optionId,
-                title: label,
-                label: formatGenderDisplayLabel(label)
+                title: visual.label || formatGenderDisplayLabel(label),
+                label: visual.label || formatGenderDisplayLabel(label)
             };
             const $card = root.LLFlashcards.Cards.appendWordToContainer(optionWord, 'text', promptType, true);
             $card.addClass('ll-gender-option');
             $card.attr('data-ll-gender-choice', normalized || '')
                 .attr('data-ll-gender-correct', isCorrect ? '1' : '0')
-                .attr('data-ll-gender-unknown', '0');
+                .attr('data-ll-gender-unknown', '0')
+                .attr('aria-label', visual.label || '')
+                .attr('title', visual.label || '');
+            applyGenderVisualToOptionCard($card, visual);
             root.LLFlashcards.Cards.addClickEventToCard($card, optionIndex, targetWord, 'text', promptType);
             optionIndex += 1;
         });
@@ -752,9 +1075,12 @@
         $unknownCard.addClass('ll-gender-option ll-gender-option--unknown')
             .attr('data-ll-gender-choice', '')
             .attr('data-ll-gender-correct', '0')
-            .attr('data-ll-gender-unknown', '1');
+            .attr('data-ll-gender-unknown', '1')
+            .attr('data-ll-gender-role', 'unknown');
         root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 
+        ensureGenderOptionFitResizeHandler();
+        scheduleGenderOptionTextScaleFit();
         $(document).trigger('ll-tools-options-ready');
         return true;
     }
@@ -965,6 +1291,7 @@
     root.LLFlashcards.Selection = {
         getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
+        getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };
 

@@ -2072,12 +2072,26 @@ function ll_tools_word_grid_shortcode($atts) {
             $is_verb = ($pos_slug === 'verb');
             $gender_value = '';
             $gender_label = '';
+            $gender_display = [
+                'value' => '',
+                'label' => '',
+                'role' => 'other',
+                'style' => '',
+                'html' => '',
+            ];
             if ($wordset_has_gender && $wordset_id > 0 && $is_noun) {
                 $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
-                if ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_label')) {
-                    $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
-                } else {
-                    $gender_label = $gender_value;
+                if ($gender_value !== '') {
+                    if (function_exists('ll_tools_wordset_get_gender_display_data')) {
+                        $gender_display = ll_tools_wordset_get_gender_display_data($wordset_id, $gender_value);
+                        $gender_label = (string) ($gender_display['label'] ?? '');
+                    } elseif (function_exists('ll_tools_wordset_get_gender_label')) {
+                        $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
+                        $gender_display['label'] = $gender_label;
+                    } else {
+                        $gender_label = $gender_value;
+                        $gender_display['label'] = $gender_label;
+                    }
                 }
             }
             $plurality_value = '';
@@ -2207,7 +2221,21 @@ function ll_tools_word_grid_shortcode($atts) {
             }
             echo '<div class="' . esc_attr($meta_row_class) . '" data-ll-word-meta>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--pos" data-ll-word-pos>' . esc_html($pos_label) . '</span>';
-            echo '<span class="ll-word-meta-tag ll-word-meta-tag--gender" data-ll-word-gender>' . esc_html($gender_label) . '</span>';
+            $gender_tag_class = 'll-word-meta-tag ll-word-meta-tag--gender';
+            $gender_role = (string) ($gender_display['role'] ?? '');
+            if ($gender_role !== '') {
+                $gender_tag_class .= ' ll-word-meta-tag--gender-' . sanitize_html_class($gender_role);
+            }
+            $gender_style = (string) ($gender_display['style'] ?? '');
+            $gender_style_attr = ($gender_style !== '') ? ' style="' . esc_attr($gender_style) . '"' : '';
+            $gender_aria_label = (string) ($gender_display['label'] ?? $gender_label);
+            echo '<span class="' . esc_attr($gender_tag_class) . '" data-ll-word-gender data-ll-gender-role="' . esc_attr($gender_role) . '"' . $gender_style_attr . ' aria-label="' . esc_attr($gender_aria_label) . '" title="' . esc_attr($gender_aria_label) . '">';
+            if (!empty($gender_display['html'])) {
+                echo $gender_display['html'];
+            } else {
+                echo esc_html($gender_label);
+            }
+            echo '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-tense" data-ll-word-verb-tense>' . esc_html($verb_tense_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-mood" data-ll-word-verb-mood>' . esc_html($verb_mood_label) . '</span>';
@@ -3002,6 +3030,13 @@ function ll_tools_word_grid_update_word_handler() {
     $is_verb = ($pos_slug === 'verb');
     $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
     $gender_label = '';
+    $gender_display = [
+        'value' => '',
+        'label' => '',
+        'role' => 'other',
+        'style' => '',
+        'html' => '',
+    ];
     $gender_submitted = array_key_exists('grammatical_gender', $_POST);
     if ($gender_submitted || $pos_updated) {
         $submitted_gender = sanitize_text_field($_POST['grammatical_gender'] ?? '');
@@ -3030,10 +3065,17 @@ function ll_tools_word_grid_update_word_handler() {
     if (!$gender_enabled || !$is_noun) {
         $gender_value = '';
         $gender_label = '';
-    } elseif ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_label')) {
-        $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
     } else {
-        $gender_label = $gender_value;
+        if ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_display_data')) {
+            $gender_display = ll_tools_wordset_get_gender_display_data($wordset_id, $gender_value);
+            $gender_label = (string) ($gender_display['label'] ?? '');
+        } elseif ($gender_value !== '' && function_exists('ll_tools_wordset_get_gender_label')) {
+            $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
+            $gender_display['label'] = $gender_label;
+        } else {
+            $gender_label = $gender_value;
+            $gender_display['label'] = $gender_label;
+        }
     }
     $plurality_value = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
     $plurality_label = '';
@@ -3209,6 +3251,9 @@ function ll_tools_word_grid_update_word_handler() {
         'grammatical_gender' => [
             'value' => $gender_value,
             'label' => $gender_label,
+            'role' => (string) ($gender_display['role'] ?? ''),
+            'style' => (string) ($gender_display['style'] ?? ''),
+            'html' => (string) ($gender_display['html'] ?? ''),
         ],
         'grammatical_plurality' => [
             'value' => $plurality_value,
@@ -3371,9 +3416,18 @@ function ll_tools_word_grid_bulk_update_handler() {
             $updated[] = $word_id;
         }
 
-        $gender_label = function_exists('ll_tools_wordset_get_gender_label')
-            ? ll_tools_wordset_get_gender_label($wordset_id, $gender_value)
-            : $gender_value;
+        $gender_display = function_exists('ll_tools_wordset_get_gender_display_data')
+            ? ll_tools_wordset_get_gender_display_data($wordset_id, $gender_value)
+            : [
+                'value' => $gender_value,
+                'label' => (function_exists('ll_tools_wordset_get_gender_label')
+                    ? ll_tools_wordset_get_gender_label($wordset_id, $gender_value)
+                    : $gender_value),
+                'role' => '',
+                'style' => '',
+                'html' => '',
+            ];
+        $gender_label = (string) ($gender_display['label'] ?? $gender_value);
 
         if (!empty($updated)) {
             ll_tools_word_grid_bump_category_cache_for_words($updated, $category_id);
@@ -3386,6 +3440,9 @@ function ll_tools_word_grid_bulk_update_handler() {
             'grammatical_gender' => [
                 'value' => $gender_value,
                 'label' => $gender_label,
+                'role' => (string) ($gender_display['role'] ?? ''),
+                'style' => (string) ($gender_display['style'] ?? ''),
+                'html' => (string) ($gender_display['html'] ?? ''),
             ],
         ]);
     }

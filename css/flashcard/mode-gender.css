@@ -1,19 +1,104 @@
 /* Gender mode options */
+.ll-gender-option,
+.ll-gender-intro-card,
+.ll-gender-intro-badge {
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+}
+
+.ll-gender-option--masculine,
+.ll-gender-intro-card--masculine,
+.ll-gender-intro-badge[data-ll-gender-role="masculine"] {
+    --ll-gender-accent: #2563eb;
+    --ll-gender-bg: rgba(37, 99, 235, 0.14);
+    --ll-gender-border: rgba(37, 99, 235, 0.38);
+}
+
+.ll-gender-option--feminine,
+.ll-gender-intro-card--feminine,
+.ll-gender-intro-badge[data-ll-gender-role="feminine"] {
+    --ll-gender-accent: #ec4899;
+    --ll-gender-bg: rgba(236, 72, 153, 0.14);
+    --ll-gender-border: rgba(236, 72, 153, 0.38);
+}
+
+.ll-gender-option--other,
+.ll-gender-intro-card--other,
+.ll-gender-intro-badge[data-ll-gender-role="other"] {
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+}
+
 .ll-gender-option {
-    border: 2px solid #d7dce3 !important;
-    background: #ffffff !important;
-    color: #111827 !important;
+    --ll-gender-option-scale: 1;
+    border: 2px solid var(--ll-gender-border) !important;
+    background: var(--ll-gender-bg) !important;
+    color: var(--ll-gender-accent) !important;
 }
 
 .ll-gender-option .quiz-text {
+    color: inherit !important;
+    width: 100%;
+    box-sizing: border-box;
     font-weight: 700;
     letter-spacing: 0.01em;
+}
+
+.ll-gender-option .ll-gender-option-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(10px * var(--ll-gender-option-scale));
+    max-width: 100%;
+    width: max-content;
+    font-size: calc(0.94em * var(--ll-gender-option-scale));
+    line-height: 1.06;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.ll-gender-option .ll-gender-option-label {
+    color: inherit;
+    font-size: 0.84em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ll-gender-option .ll-gender-symbol,
+.ll-gender-intro-badge .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35em;
+    min-height: 1.35em;
+    font-size: 1.25em;
+    line-height: 1;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+}
+
+.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg {
+    display: block;
+    width: 1.25em;
+    height: 1.25em;
+}
+
+.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-option .ll-gender-symbol--svg svg *,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg * {
+    fill: currentColor !important;
+    stroke: currentColor !important;
 }
 
 .ll-gender-option--unknown {
     border-style: dashed !important;
     border-color: #9ca3af !important;
     background: #f9fafb !important;
+    color: #374151 !important;
 }
 
 .ll-gender-option-locked {
@@ -35,13 +120,13 @@
 .ll-gender-intro-card {
     position: relative;
     overflow: hidden;
-    border: 2px solid #dbeafe !important;
-    background: #f8fbff !important;
+    border: 2px solid var(--ll-gender-border) !important;
+    background: var(--ll-gender-bg) !important;
 }
 
 .ll-gender-intro-card--active {
-    border-color: #2563eb !important;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18) !important;
+    border-color: var(--ll-gender-accent) !important;
+    box-shadow: 0 0 0 4px var(--ll-gender-bg) !important;
     animation: ll-gender-intro-pulse 1s ease-in-out;
     transform-origin: center;
 }
@@ -68,14 +153,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 4px 8px;
-    background: rgba(17, 24, 39, 0.92);
+    gap: 4px;
+    padding: 4px 9px;
+    border: 1px solid var(--ll-gender-border);
+    background: var(--ll-gender-accent);
     color: #ffffff;
     font-size: 17px;
     font-weight: 700;
     line-height: 1;
     font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
     font-variant-emoji: text;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
     z-index: 6;
 }
 
