@@ -84,12 +84,51 @@
 }
 
 /* Reuse listening countdown animation for level-2 timing cue */
-.ll-gender-level2-countdown {
+.ll-gender-level2-countdown-slot {
     position: absolute;
-    left: 50%;
-    top: 8px;
-    transform: translateX(-50%);
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.ll-gender-level2-countdown {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    margin: 0 !important;
     z-index: 7;
+}
+
+.ll-gender-countdown-anchor {
+    position: relative !important;
+}
+
+.ll-gender-countdown-hidden {
+    pointer-events: none !important;
+}
+
+.ll-gender-countdown-hidden .ll-repeat-audio-ui,
+.ll-gender-countdown-hidden .ll-repeat-icon-wrap,
+.ll-gender-countdown-hidden .ll-audio-mini-visualizer,
+.ll-gender-countdown-hidden .ll-audio-play-icon {
+    opacity: 0 !important;
+}
+
+.ll-gender-level2-countdown.ll-gender-level2-countdown--near-audio {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 100%;
+    height: 100%;
+    margin: 0 !important;
+    font-size: 40px !important;
+    line-height: 1 !important;
+    z-index: 8;
+    pointer-events: none;
 }
 
 /* Gender-specific results actions */
@@ -103,4 +142,23 @@
 #ll-gender-next-activity,
 #ll-gender-next-chunk {
     min-width: 190px;
+    padding: 12px 24px !important;
+    border: 2px solid #111827 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer !important;
+}
+
+#ll-gender-next-activity:hover,
+#ll-gender-next-chunk:hover {
+    background: #f8fafc !important;
+    border-color: #0f172a !important;
 }

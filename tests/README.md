@@ -148,6 +148,8 @@ Current primary-flow E2E specs:
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
 - `tests/e2e/specs/user-study-dashboard-mode-options.spec.js`
   - Verifies study panel mode buttons include base quiz modes and conditionally reveal Gender mode when selected categories support it.
+- `tests/e2e/specs/gender-mode-adaptive.spec.js`
+  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, and dashboard chunk planning mixes categories.
 
 Optional env vars (set directly or in `tests/.env`):
 

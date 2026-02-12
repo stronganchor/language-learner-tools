@@ -1541,7 +1541,9 @@
         syncSettingsPanelSelections();
     }
 
-    function switchMode(newMode) {
+    function switchMode(newMode, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const preserveGenderPlan = !!opts.preserveGenderPlan;
         if (!State.canSwitchMode()) {
             console.warn('Cannot switch mode in state:', State.getState());
             return;
@@ -1561,6 +1563,13 @@
         if (newMode === 'gender' && !isGenderSupportedForCurrentSelection()) {
             console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
+        }
+        if (newMode === 'gender' && !preserveGenderPlan) {
+            const flashData = root.llToolsFlashcardsData || {};
+            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+            root.llToolsFlashcardsData = flashData;
         }
 
         try {
@@ -2195,6 +2204,18 @@
                     console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
+                if (requestedMode === 'gender') {
+                    const flashData = root.llToolsFlashcardsData || {};
+                    const launchSource = String(flashData.genderLaunchSource || 'direct');
+                    const hasArmedPlan = !!(flashData.genderSessionPlanArmed || flashData.gender_session_plan_armed);
+                    const keepDashboardPlan = launchSource === 'dashboard' && hasArmedPlan;
+                    if (!keepDashboardPlan) {
+                        try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+                        try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+                        try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+                        root.llToolsFlashcardsData = flashData;
+                    }
+                }
 
                 State.isLearningMode = false;
                 State.isListeningMode = false;
@@ -2271,31 +2292,34 @@
                 });
                 $('#restart-self-check-mode').off('click').on('click', () => switchMode('self-check'));
                 $('#restart-gender-mode').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
                     try {
                         const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
                         if (State.isGenderMode && gender && typeof gender.queueResultsAction === 'function') {
-                            gender.queueResultsAction('primary');
+                            preserveGenderPlan = !!gender.queueResultsAction('primary');
                         }
                     } catch (_) { /* no-op */ }
-                    switchMode('gender');
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
                 });
                 $('#ll-gender-next-activity').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
                     try {
                         const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
                         if (gender && typeof gender.queueResultsAction === 'function') {
-                            gender.queueResultsAction('primary');
+                            preserveGenderPlan = !!gender.queueResultsAction('primary');
                         }
                     } catch (_) { /* no-op */ }
-                    switchMode('gender');
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
                 });
                 $('#ll-gender-next-chunk').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
                     try {
                         const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
                         if (gender && typeof gender.queueResultsAction === 'function') {
-                            gender.queueResultsAction('secondary');
+                            preserveGenderPlan = !!gender.queueResultsAction('secondary');
                         }
                     } catch (_) { /* no-op */ }
-                    switchMode('gender');
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
                 });
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);

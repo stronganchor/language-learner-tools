@@ -1790,11 +1790,17 @@
                         launch_source: 'dashboard',
                         reason_code: 'dashboard_chunk'
                     };
+                    flashData.genderSessionPlanArmed = true;
+                    flashData.gender_session_plan_armed = true;
                 } else {
                     delete flashData.genderSessionPlan;
+                    delete flashData.genderSessionPlanArmed;
+                    delete flashData.gender_session_plan_armed;
                 }
             } else {
                 delete flashData.genderSessionPlan;
+                delete flashData.genderSessionPlanArmed;
+                delete flashData.gender_session_plan_armed;
                 delete flashData.genderLaunchSource;
             }
             window.llToolsFlashcardsData = flashData;

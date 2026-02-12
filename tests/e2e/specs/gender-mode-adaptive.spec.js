@@ -1,0 +1,601 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const genderScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/gender.js');
+const BASE_URL = process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local';
+
+function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
+  const base = {
+    id,
+    title: `word-${id}`,
+    label: `word-${id}`,
+    image: `image-${id}.jpg`,
+    audio: `audio-${id}.mp3`,
+    grammatical_gender: gender,
+    part_of_speech: ['noun'],
+    all_categories: [categoryName]
+  };
+  return Object.assign(base, extras || {});
+}
+
+async function openHarnessPage(page) {
+  const url = `${String(BASE_URL).replace(/\/$/, '')}/`;
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.setContent('<!doctype html><html><head></head><body></body></html>');
+}
+
+function bootstrapGenderHarness(page, options = {}) {
+  const wordsetId = Number(options.wordsetId || 77);
+  const categoryWords = options.categoryWords || {};
+  const launchSource = String(options.launchSource || 'direct');
+  const sessionPlan = options.sessionPlan && typeof options.sessionPlan === 'object'
+    ? options.sessionPlan
+    : null;
+  const preseedStore = options.preseedStore && typeof options.preseedStore === 'object'
+    ? options.preseedStore
+    : null;
+  const trackIntroCalls = !!options.trackIntroCalls;
+  const trackFeedbackOrdering = !!options.trackFeedbackOrdering;
+
+  return page.evaluate(({ wordsetId: wsId, wordsByCategory, source, plan, seedStore, shouldTrackIntroCalls, shouldTrackFeedbackOrdering }) => {
+    window.localStorage.clear();
+    window.__llIntroPlayCount = 0;
+    window.__llEventLog = [];
+
+    if (seedStore) {
+      window.localStorage.setItem(
+        `lltools_gender_progress_v1::wordset:${wsId}`,
+        JSON.stringify(seedStore)
+      );
+    }
+
+    window.llToolsFlashcardsData = {
+      genderOptions: ['masculine', 'feminine'],
+      userStudyState: { wordset_id: wsId },
+      genderLaunchSource: source
+    };
+    if (plan) {
+      window.llToolsFlashcardsData.genderSessionPlan = plan;
+      window.llToolsFlashcardsData.genderSessionPlanArmed = true;
+      window.llToolsFlashcardsData.gender_session_plan_armed = true;
+    }
+
+    window.LLFlashcards = {
+      State: {
+        STATES: {
+          INTRODUCING_WORDS: 'INTRODUCING_WORDS',
+          QUIZ_READY: 'QUIZ_READY',
+          SHOWING_RESULTS: 'SHOWING_RESULTS'
+        },
+        wordsByCategory,
+        categoryNames: Object.keys(wordsByCategory),
+        categoryRoundCount: {},
+        currentCategoryRoundCount: 0,
+        currentCategoryName: '',
+        currentCategory: [],
+        completedCategories: {},
+        wrongIndexes: [],
+        abortAllOperations: false,
+        addTimeout: function () {},
+        transitionTo: function () {}
+      },
+      Selection: {
+        getCategoryConfig: function () {
+          return {
+            prompt_type: 'audio',
+            option_type: 'image'
+          };
+        }
+      },
+      Dom: {},
+      Effects: {
+        startConfetti: function () {}
+      },
+      Results: {
+        showResults: function () {}
+      },
+      Util: {},
+      Modes: {}
+    };
+
+    window.FlashcardAudio = {
+      selectBestAudio: function (word) {
+        return (word && word.audio) || '';
+      },
+      createIntroductionAudio: function () {
+        return {
+          audio: null,
+          playUntilEnd: function () {
+            if (shouldTrackFeedbackOrdering) {
+              window.__llEventLog.push('intro');
+            }
+            if (shouldTrackIntroCalls) {
+              window.__llIntroPlayCount = (Number(window.__llIntroPlayCount) || 0) + 1;
+            }
+            return Promise.resolve();
+          },
+          stop: function () {},
+          cleanup: function () {}
+        };
+      },
+      getCorrectAudioURL: function () {
+        return 'feedback-correct.mp3';
+      },
+      getWrongAudioURL: function () {
+        return 'feedback-wrong.mp3';
+      },
+      createAudio: function (url) {
+        const listeners = { ended: [], error: [] };
+        const audio = {
+          src: String(url || ''),
+          onended: null,
+          onerror: null,
+          addEventListener: function (type, handler) {
+            if (!listeners[type] || typeof handler !== 'function') return;
+            listeners[type].push(handler);
+          },
+          removeEventListener: function (type, handler) {
+            if (!listeners[type]) return;
+            listeners[type] = listeners[type].filter((fn) => fn !== handler);
+          },
+          __emit: function (type) {
+            const callbacks = (listeners[type] || []).slice();
+            callbacks.forEach((fn) => {
+              try { fn.call(audio); } catch (_) {}
+            });
+            if (type === 'ended' && typeof audio.onended === 'function') {
+              try { audio.onended(); } catch (_) {}
+            }
+            if (type === 'error' && typeof audio.onerror === 'function') {
+              try { audio.onerror(); } catch (_) {}
+            }
+          }
+        };
+        return audio;
+      },
+      playAudio: function (audio) {
+        return new Promise((resolve) => {
+          const src = String((audio && audio.src) || '');
+          if (shouldTrackFeedbackOrdering && src.includes('feedback-wrong')) {
+            window.__llEventLog.push('wrong-feedback');
+          }
+          if (shouldTrackFeedbackOrdering && src.includes('feedback-correct')) {
+            window.__llEventLog.push('correct-feedback');
+          }
+          setTimeout(() => {
+            if (audio && typeof audio.__emit === 'function') {
+              audio.__emit('ended');
+            }
+            resolve();
+          }, 8);
+        });
+      },
+      pauseAllAudio: function () {},
+      setTargetAudioHasPlayed: function () {}
+    };
+  }, {
+    wordsetId,
+    wordsByCategory: categoryWords,
+    source: launchSource,
+    plan: sessionPlan,
+    seedStore: preseedStore,
+    shouldTrackIntroCalls: trackIntroCalls,
+    shouldTrackFeedbackOrdering: trackFeedbackOrdering
+  });
+}
+
+test('gender mode treats "I do not know" as wrong and requires two consecutive correct answers after a miss', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 77,
+    categoryWords: {
+      CatA: [makeNounWord(101, 'CatA', 'masculine')]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [101],
+      launch_source: 'dashboard',
+      reason_code: 'test_level3'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const first = Gender.selectTargetWord();
+    const wrong = await Gender.handleAnswer({
+      targetWord: first,
+      isCorrect: false,
+      isDontKnow: true
+    });
+
+    const second = Gender.selectTargetWord();
+    const firstCorrect = await Gender.handleAnswer({
+      targetWord: second,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const third = Gender.selectTargetWord();
+    const secondCorrect = await Gender.handleAnswer({
+      targetWord: third,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const saved = JSON.parse(
+      window.localStorage.getItem('lltools_gender_progress_v1::wordset:77') || '{}'
+    );
+    const entry = (saved.words && saved.words['101']) || {};
+
+    return {
+      wrongCompleted: !!wrong.completed,
+      firstCorrectCompleted: !!firstCorrect.completed,
+      secondCorrectCompleted: !!secondCorrect.completed,
+      wrongMarkedDontKnow: !!(wrong.progressPayload && wrong.progressPayload.gender_dont_know),
+      dontKnowCount: Number(entry.dont_know_count || 0),
+      levelAfterRun: Number(entry.level || 0)
+    };
+  });
+
+  expect(result.wrongCompleted).toBe(false);
+  expect(result.firstCorrectCompleted).toBe(false);
+  expect(result.secondCorrectCompleted).toBe(true);
+  expect(result.wrongMarkedDontKnow).toBe(true);
+  expect(result.dontKnowCount).toBeGreaterThanOrEqual(1);
+  expect(result.levelAfterRun).toBe(3);
+});
+
+test('level-one gender starts with a two-word intro batch instead of introducing the full chunk at once', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 66,
+    categoryWords: {
+      CatA: [
+        makeNounWord(601, 'CatA', 'masculine'),
+        makeNounWord(602, 'CatA', 'feminine'),
+        makeNounWord(603, 'CatA', 'masculine'),
+        makeNounWord(604, 'CatA', 'feminine'),
+        makeNounWord(605, 'CatA', 'masculine')
+      ]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [601, 602, 603, 604, 605],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_level1_intro_batch'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const firstPick = Gender.selectTargetWord();
+    const ids = Array.isArray(firstPick)
+      ? firstPick.map((word) => Number(word && word.id) || 0).filter((id) => id > 0)
+      : [];
+    return {
+      introCount: ids.length,
+      uniqueCount: Array.from(new Set(ids)).length
+    };
+  });
+
+  expect(result.introCount).toBe(2);
+  expect(result.uniqueCount).toBe(2);
+});
+
+test('level-one still schedules intro for the first pair even when words were introduced before', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 68,
+    categoryWords: {
+      CatA: [
+        makeNounWord(681, 'CatA', 'masculine'),
+        makeNounWord(682, 'CatA', 'feminine'),
+        makeNounWord(683, 'CatA', 'masculine')
+      ]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [681, 682, 683],
+      launch_source: 'direct',
+      force_intro: false,
+      reason_code: 'test_level1_intro_even_if_seen'
+    },
+    preseedStore: {
+      words: {
+        '681': { level: 1, intro_seen: true, seen_total: 5 },
+        '682': { level: 1, intro_seen: true, seen_total: 4 },
+        '683': { level: 1, intro_seen: true, seen_total: 3 }
+      },
+      updated_at: Date.now()
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const firstPick = Gender.selectTargetWord();
+    const ids = Array.isArray(firstPick)
+      ? firstPick.map((word) => Number(word && word.id) || 0).filter((id) => id > 0)
+      : [];
+    return {
+      introCount: ids.length,
+      uniqueCount: Array.from(new Set(ids)).length
+    };
+  });
+
+  expect(result.introCount).toBe(2);
+  expect(result.uniqueCount).toBe(2);
+});
+
+test('level-one intro sequence plays three clips when only one recording is available', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+        <div id="ll-tools-flashcard"></div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 69,
+    categoryWords: {
+      CatA: [makeNounWord(691, 'CatA', 'masculine')]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [691],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_single_recording_intro_repeats'
+    },
+    trackIntroCalls: true
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const introStats = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const firstPick = Gender.selectTargetWord();
+    Gender.handlePostSelection(firstPick, {
+      startQuizRound: function () {}
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 2800));
+    return {
+      introCalls: Number(window.__llIntroPlayCount || 0)
+    };
+  });
+
+  expect(introStats.introCalls).toBe(3);
+});
+
+test('wrong-answer feedback plays before intro replay in gender rounds', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 71,
+    categoryWords: {
+      CatA: [makeNounWord(711, 'CatA', 'masculine', {
+        audio_files: [
+          { recording_type: 'isolation', url: 'isolation-711.mp3' },
+          { recording_type: 'introduction', url: 'intro-711.mp3' }
+        ]
+      })]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [711],
+      launch_source: 'direct',
+      reason_code: 'test_wrong_feedback_before_intro'
+    },
+    trackFeedbackOrdering: true
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const word = Gender.selectTargetWord();
+    await Gender.handleAnswer({
+      targetWord: word,
+      isCorrect: false,
+      isDontKnow: false
+    });
+    return {
+      eventLog: Array.isArray(window.__llEventLog) ? window.__llEventLog.slice() : []
+    };
+  });
+
+  const wrongIndex = result.eventLog.indexOf('wrong-feedback');
+  const introIndex = result.eventLog.indexOf('intro');
+  expect(wrongIndex).toBeGreaterThanOrEqual(0);
+  expect(introIndex).toBeGreaterThanOrEqual(0);
+  expect(wrongIndex).toBeLessThan(introIndex);
+});
+
+test('correct answers do not replay intro audio after selection', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 72,
+    categoryWords: {
+      CatA: [makeNounWord(721, 'CatA', 'masculine', {
+        audio_files: [
+          { recording_type: 'isolation', url: 'isolation-721.mp3' },
+          { recording_type: 'introduction', url: 'intro-721.mp3' }
+        ]
+      })]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [721],
+      launch_source: 'direct',
+      reason_code: 'test_no_intro_replay_on_correct'
+    },
+    trackFeedbackOrdering: true
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const word = Gender.selectTargetWord();
+    await Gender.handleAnswer({
+      targetWord: word,
+      isCorrect: true,
+      isDontKnow: false
+    });
+    return {
+      eventLog: Array.isArray(window.__llEventLog) ? window.__llEventLog.slice() : []
+    };
+  });
+
+  expect(result.eventLog.includes('correct-feedback')).toBe(true);
+  expect(result.eventLog.includes('intro')).toBe(false);
+});
+
+test('wrong answers skip intro replay when no explicit introduction recording exists', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 73,
+    categoryWords: {
+      CatA: [makeNounWord(731, 'CatA', 'masculine')]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [731],
+      launch_source: 'direct',
+      reason_code: 'test_no_intro_replay_without_intro_recording'
+    },
+    trackFeedbackOrdering: true
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const word = Gender.selectTargetWord();
+    await Gender.handleAnswer({
+      targetWord: word,
+      isCorrect: false,
+      isDontKnow: true
+    });
+    return {
+      eventLog: Array.isArray(window.__llEventLog) ? window.__llEventLog.slice() : []
+    };
+  });
+
+  expect(result.eventLog.includes('intro')).toBe(false);
+});
+
+test('gender mode never repeats the same word in consecutive rounds when another word is available', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 67,
+    categoryWords: {
+      CatA: [
+        makeNounWord(701, 'CatA', 'masculine'),
+        makeNounWord(702, 'CatA', 'feminine')
+      ]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [701, 702],
+      launch_source: 'dashboard',
+      reason_code: 'test_no_consecutive_repeat'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const first = Gender.selectTargetWord();
+    const firstId = Number(first && first.id) || 0;
+    await Gender.handleAnswer({
+      targetWord: first,
+      isCorrect: false,
+      isDontKnow: false
+    });
+
+    const second = Gender.selectTargetWord();
+    const secondId = Number(second && second.id) || 0;
+
+    return { firstId, secondId };
+  });
+
+  expect(result.firstId).toBeGreaterThan(0);
+  expect(result.secondId).toBeGreaterThan(0);
+  expect(result.secondId).not.toBe(result.firstId);
+});
+
+test('dashboard gender planning mixes categories into a level chunk when one category dominates low-seen words', async ({ page }) => {
+  await openHarnessPage(page);
+
+  const catA = Array.from({ length: 20 }, (_, idx) => makeNounWord(1000 + idx + 1, 'CatA', 'masculine'));
+  const catB = [makeNounWord(2001, 'CatB', 'feminine'), makeNounWord(2002, 'CatB', 'feminine')];
+
+  const words = {};
+  catA.forEach((word) => {
+    words[String(word.id)] = { level: 1, seen_total: 0, intro_seen: false };
+  });
+  catB.forEach((word) => {
+    words[String(word.id)] = { level: 1, seen_total: 10, intro_seen: false };
+  });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 88,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: catA,
+      CatB: catB
+    },
+    preseedStore: {
+      words,
+      updated_at: Date.now()
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const selection = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const firstPick = Gender.selectTargetWord();
+    const introWords = Array.isArray(firstPick) ? firstPick : [];
+    const ids = introWords.map((word) => Number(word && word.id) || 0).filter((id) => id > 0);
+    const categories = introWords.map((word) => String((word && (word.__categoryName || ((word.all_categories || [])[0] || ''))) || ''));
+
+    return {
+      introLength: ids.length,
+      hasCatA: categories.includes('CatA'),
+      hasCatB: categories.includes('CatB')
+    };
+  });
+
+  expect(selection.introLength).toBe(2);
+  expect(selection.hasCatA).toBe(true);
+  expect(selection.hasCatB).toBe(true);
+});

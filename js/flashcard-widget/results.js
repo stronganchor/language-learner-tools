@@ -242,7 +242,9 @@
             $el.attr('aria-label', categoriesForDisplay.join(', ')).html(pillsHtml.join('')).show();
         };
 
-        $('#ll-tools-flashcard').hide();
+        $('#ll-tools-prompt').hide().empty();
+        $('#ll-tools-flashcard').empty().hide();
+        $('#ll-quiz-star-row').hide();
         // Hide listening mode controls if present
         $('#ll-tools-listening-controls').hide();
         removeCompletionCheckmark();
@@ -369,16 +371,8 @@
             $('#correct-count').parent().hide();
             $('#quiz-results').show();
             $('#restart-quiz').hide();
-            $('#quiz-mode-buttons').show();
-            $('#restart-practice-mode').show();
-            if (learningAllowed) {
-                $('#restart-learning-mode').show();
-            } else {
-                $('#restart-learning-mode').hide();
-            }
-            $('#restart-self-check-mode').show();
-            $('#restart-gender-mode').show();
-            $('#restart-listening-mode').hide();
+            $('#quiz-mode-buttons').hide();
+            $('#restart-practice-mode, #restart-learning-mode, #restart-self-check-mode, #restart-gender-mode, #restart-listening-mode').hide();
             setGenderResultsButtonLabel(primaryLabel);
 
             const $genderActions = $('#ll-gender-results-actions');
@@ -390,6 +384,11 @@
                     $('#ll-gender-next-chunk').hide();
                 }
                 $genderActions.show();
+            } else {
+                // Fallback for legacy templates that do not render gender action buttons.
+                $('#quiz-mode-buttons').show();
+                $('#restart-practice-mode, #restart-learning-mode, #restart-self-check-mode, #restart-listening-mode').hide();
+                $('#restart-gender-mode').show();
             }
 
             Dom.hideLoading();
