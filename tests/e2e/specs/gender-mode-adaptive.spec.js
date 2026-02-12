@@ -387,6 +387,184 @@ test('level-one intro sequence plays three clips when only one recording is avai
   expect(introStats.introCalls).toBe(3);
 });
 
+test('level-one requires three correct answers before a word is marked complete', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+        <div id="ll-tools-flashcard"></div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 79,
+    categoryWords: {
+      CatA: [makeNounWord(791, 'CatA', 'masculine')]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [791],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_level1_three_correct_required'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const intro = Gender.selectTargetWord();
+    Gender.handlePostSelection(intro, { startQuizRound: function () {} });
+    await wait(2600);
+
+    const one = Gender.selectTargetWord();
+    const first = await Gender.handleAnswer({
+      targetWord: one,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const two = Gender.selectTargetWord();
+    const second = await Gender.handleAnswer({
+      targetWord: two,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const three = Gender.selectTargetWord();
+    const third = await Gender.handleAnswer({
+      targetWord: three,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    return {
+      firstCompleted: !!first.completed,
+      secondCompleted: !!second.completed,
+      thirdCompleted: !!third.completed
+    };
+  });
+
+  expect(result.firstCompleted).toBe(false);
+  expect(result.secondCompleted).toBe(false);
+  expect(result.thirdCompleted).toBe(true);
+});
+
+test('level-one does not introduce the next word immediately after the first correct answer on a newly introduced word', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+        <div id="ll-tools-flashcard"></div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 80,
+    categoryWords: {
+      CatA: [
+        makeNounWord(801, 'CatA', 'masculine'),
+        makeNounWord(802, 'CatA', 'feminine'),
+        makeNounWord(803, 'CatA', 'masculine'),
+        makeNounWord(804, 'CatA', 'feminine')
+      ]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [801, 802, 803, 804],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_level1_no_early_next_intro'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const firstIntro = Gender.selectTargetWord();
+    Gender.handlePostSelection(firstIntro, { startQuizRound: function () {} });
+    await wait(4300);
+
+    let thirdIntroSelection = null;
+    for (let i = 0; i < 40; i++) {
+      const pick = Gender.selectTargetWord();
+      if (Array.isArray(pick) && pick.length === 1) {
+        thirdIntroSelection = pick;
+        break;
+      }
+      if (!Array.isArray(pick)) {
+        await Gender.handleAnswer({
+          targetWord: pick,
+          isCorrect: true,
+          isDontKnow: false
+        });
+      }
+    }
+
+    if (!thirdIntroSelection) {
+      return {
+        foundThirdIntro: false,
+        introducedTooSoon: false
+      };
+    }
+
+    const thirdWordId = Number(thirdIntroSelection[0] && thirdIntroSelection[0].id) || 0;
+    Gender.handlePostSelection(thirdIntroSelection, { startQuizRound: function () {} });
+    await wait(2600);
+
+    let introducedTooSoon = false;
+    let sawFirstCorrectForThirdWord = false;
+    for (let i = 0; i < 30; i++) {
+      const pick = Gender.selectTargetWord();
+      if (Array.isArray(pick)) {
+        introducedTooSoon = true;
+        break;
+      }
+      await Gender.handleAnswer({
+        targetWord: pick,
+        isCorrect: true,
+        isDontKnow: false
+      });
+      if ((Number(pick && pick.id) || 0) === thirdWordId) {
+        sawFirstCorrectForThirdWord = true;
+        const nextPick = Gender.selectTargetWord();
+        introducedTooSoon = Array.isArray(nextPick);
+        break;
+      }
+    }
+
+    return {
+      foundThirdIntro: true,
+      sawFirstCorrectForThirdWord,
+      introducedTooSoon
+    };
+  });
+
+  expect(result.foundThirdIntro).toBe(true);
+  expect(result.sawFirstCorrectForThirdWord).toBe(true);
+  expect(result.introducedTooSoon).toBe(false);
+});
+
 test('wrong-answer feedback plays before intro replay in gender rounds', async ({ page }) => {
   await openHarnessPage(page);
   await bootstrapGenderHarness(page, {
@@ -598,4 +776,50 @@ test('dashboard gender planning mixes categories into a level chunk when one cat
   expect(selection.introLength).toBe(2);
   expect(selection.hasCatA).toBe(true);
   expect(selection.hasCatB).toBe(true);
+});
+
+test('dashboard gender results always expose both actions and only return chunk categories', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 90,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [makeNounWord(901, 'CatA', 'masculine')],
+      CatB: [makeNounWord(902, 'CatB', 'feminine')],
+      CatC: [makeNounWord(903, 'CatC', 'masculine')]
+    },
+    sessionPlan: {
+      level: 2,
+      word_ids: [901, 902],
+      launch_source: 'dashboard',
+      reason_code: 'test_dashboard_results_actions_and_categories'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    Gender.selectTargetWord();
+    const actions = Gender.getResultsActions();
+    const categories = (typeof Gender.getResultsCategoryNames === 'function')
+      ? Gender.getResultsCategoryNames()
+      : [];
+    return {
+      hasPrimary: !!(actions && actions.primary),
+      hasSecondary: !!(actions && actions.secondary),
+      secondaryWordIds: actions && actions.secondary && actions.secondary.plan
+        ? (actions.secondary.plan.word_ids || []).map((id) => Number(id) || 0).filter((id) => id > 0)
+        : [],
+      categories
+    };
+  });
+
+  expect(result.hasPrimary).toBe(true);
+  expect(result.hasSecondary).toBe(true);
+  expect(result.secondaryWordIds.length).toBeGreaterThan(0);
+  expect(result.categories).toContain('CatA');
+  expect(result.categories).toContain('CatB');
+  expect(result.categories).not.toContain('CatC');
 });

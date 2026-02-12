@@ -149,7 +149,7 @@ Current primary-flow E2E specs:
 - `tests/e2e/specs/user-study-dashboard-mode-options.spec.js`
   - Verifies study panel mode buttons include base quiz modes and conditionally reveal Gender mode when selected categories support it.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
-  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, and dashboard chunk planning mixes categories.
+  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 
 Optional env vars (set directly or in `tests/.env`):
 

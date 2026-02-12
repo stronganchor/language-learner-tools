@@ -1921,7 +1921,7 @@
                     }
                 };
                 allCategories.forEach(function (categoryName) {
-                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, { earlyCallback: false });
+                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, { earlyCallback: true });
                 });
                 return;
             }

@@ -37,8 +37,12 @@
         });
     }
 
-    function getCategoryNamesForDisplay() {
+    function getCategoryNamesForDisplay(preferredNames) {
+        const preferred = Array.isArray(preferredNames) ? preferredNames.filter(function (name) {
+            return String(name || '').trim() !== '';
+        }) : [];
         const lists = [
+            preferred,
             Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : [],
             Array.isArray(State.categoryNames) ? State.categoryNames : [],
             Array.isArray(root.categoryNames) ? root.categoryNames : []
@@ -210,7 +214,7 @@
         const State = root.LLFlashcards.State;
         const learningAllowed = isLearningSupportedForResults();
         const genderAllowed = isGenderSupportedForResults();
-        const categoriesForDisplay = getCategoryNamesForDisplay();
+        let categoriesForDisplay = getCategoryNamesForDisplay();
         const previewLimitRaw = Number(root.llToolsFlashcardsData && root.llToolsFlashcardsData.resultsCategoryPreviewLimit);
         const previewLimit = Number.isFinite(previewLimitRaw) && previewLimitRaw > 0
             ? Math.floor(previewLimitRaw)
@@ -352,6 +356,14 @@
             const actions = (genderMode && typeof genderMode.getResultsActions === 'function')
                 ? genderMode.getResultsActions()
                 : null;
+            if (genderMode && typeof genderMode.getResultsCategoryNames === 'function') {
+                try {
+                    const chunkCategories = genderMode.getResultsCategoryNames();
+                    if (Array.isArray(chunkCategories) && chunkCategories.length) {
+                        categoriesForDisplay = getCategoryNamesForDisplay(chunkCategories);
+                    }
+                } catch (_) { /* no-op */ }
+            }
             const title = (actions && actions.title) ? actions.title : (msgs.genderResultsTitle || 'Gender Round Complete');
             const message = (actions && actions.message) ? actions.message : (msgs.genderResultsMessage || '');
             const primaryLabel = (actions && actions.primary && actions.primary.label)
@@ -359,7 +371,7 @@
                 : (msgs.genderNextActivity || 'Next Gender Activity');
             const secondaryLabel = (actions && actions.secondary && actions.secondary.label)
                 ? actions.secondary.label
-                : (msgs.genderNextChunk || 'Next Chunk');
+                : (msgs.genderNextChunk || 'Next Recommended Set');
             const hasSecondary = !!(actions && actions.secondary);
 
             $('#quiz-results-title').text(title);

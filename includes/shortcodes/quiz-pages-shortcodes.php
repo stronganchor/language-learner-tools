@@ -669,7 +669,7 @@ function ll_qpg_print_flashcard_shell_once() {
                 <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
               </button>
               <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('Next Chunk', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Next Recommended Set', 'll-tools-text-domain'); ?>
               </button>
             </div>
             <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>

@@ -177,7 +177,7 @@ function ll_flashcards_get_messages(): array {
         'genderResultsTitle'      => __('Gender Round Complete', 'll-tools-text-domain'),
         'genderResultsMessage'    => __('Keep training noun gender with the next activity.', 'll-tools-text-domain'),
         'genderNextActivity'      => __('Next Gender Activity', 'll-tools-text-domain'),
-        'genderNextChunk'         => __('Next Chunk', 'll-tools-text-domain'),
+        'genderNextChunk'         => __('Next Recommended Set', 'll-tools-text-domain'),
         'genderNextRepeat'        => __('Repeat This Level', 'll-tools-text-domain'),
         'genderNextLevel2'        => __('Start Level 2', 'll-tools-text-domain'),
         'genderNextLevel3'        => __('Start Level 3', 'll-tools-text-domain'),
