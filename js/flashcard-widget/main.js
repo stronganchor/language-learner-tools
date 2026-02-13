@@ -242,6 +242,17 @@
         return !!val;
     }
 
+    function parseBooleanFlag(raw) {
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'number') return raw > 0;
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
+        }
+        return !!raw;
+    }
+
     function isUserLoggedIn() {
         const data = root.llToolsFlashcardsData || {};
         return !!parseBool(data.isUserLoggedIn);
@@ -1000,7 +1011,10 @@
             if (!names.length) return false;
             return names.some(function (name) {
                 const cfg = Selection.getCategoryConfig(name);
-                return cfg.gender_supported === true;
+                if (!cfg || !Object.prototype.hasOwnProperty.call(cfg, 'gender_supported')) {
+                    return false;
+                }
+                return parseBooleanFlag(cfg.gender_supported);
             });
         } catch (e) {
             return false;

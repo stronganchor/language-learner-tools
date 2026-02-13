@@ -8,6 +8,17 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
+    function parseBooleanFlag(raw) {
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'number') return raw > 0;
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
+        }
+        return !!raw;
+    }
+
     function getRawCategoryConfig(name) {
         const base = {
             prompt_type: 'audio',
@@ -766,8 +777,8 @@
             const minCount = parseInt((root.llToolsFlashcardsData && root.llToolsFlashcardsData.genderMinCount) || '', 10) || 2;
             return names.some(function (name) {
                 const cfg = getCategoryConfig(name);
-                if (typeof cfg.gender_supported === 'boolean') {
-                    return cfg.gender_supported;
+                if (Object.prototype.hasOwnProperty.call(cfg, 'gender_supported')) {
+                    return parseBooleanFlag(cfg.gender_supported);
                 }
                 const list = getGenderWordsByCategory()[name] || [];
                 return list.length >= minCount;

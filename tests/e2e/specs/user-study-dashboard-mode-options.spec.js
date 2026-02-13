@@ -221,6 +221,42 @@ test('study panel mode options keep base modes and show gender when any selected
   }).toBe(true);
 });
 
+test('study panel normalizes gender launch mode before initializing flashcards', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload());
+
+  await page.evaluate(() => {
+    window.__llInitCalls = [];
+    window.initFlashcardWidget = function (catNames, mode) {
+      window.__llInitCalls.push({
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        mode: String(mode || '')
+      });
+      return Promise.resolve();
+    };
+
+    const button = document.querySelector('[data-ll-study-gender]');
+    if (!button) {
+      return;
+    }
+
+    button.setAttribute('data-mode', ' Gender ');
+    if (window.jQuery) {
+      window.jQuery(button).removeData('mode');
+    }
+  });
+
+  await page.locator('[data-ll-study-gender]').click();
+  await page.waitForTimeout(100);
+
+  const launch = await page.evaluate(() => {
+    const calls = Array.isArray(window.__llInitCalls) ? window.__llInitCalls : [];
+    return calls.length ? calls[calls.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('gender');
+});
+
 test('study panel keeps gender mode hidden when wordset gender is disabled', async ({ page }) => {
   await mountStudyPanel(page, buildPayload({
     gender: {
@@ -242,6 +278,153 @@ test('study panel keeps gender mode hidden when wordset gender is disabled', asy
   await expect.poll(async () => {
     return await genderButton.evaluate((el) => el.classList.contains('ll-study-btn--hidden'));
   }).toBe(true);
+});
+
+test('wordset switch keeps gender launch aligned with checked UI categories even if save responses arrive out of order', async ({ page }) => {
+  const payload = buildPayload({
+    wordsets: [
+      { id: 19, name: 'English', slug: 'english' },
+      { id: 20, name: 'Hebrew', slug: 'hebrew' }
+    ],
+    state: {
+      wordset_id: 19,
+      category_ids: [11],
+      starred_word_ids: [],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    categories: [
+      {
+        id: 11,
+        name: 'Category A',
+        slug: 'category-a',
+        translation: 'Category A',
+        option_type: 'image',
+        prompt_type: 'audio',
+        word_count: 1,
+        gender_supported: false
+      }
+    ],
+    words_by_category: {
+      11: [
+        {
+          id: 101,
+          title: 'Word A',
+          translation: 'Word A',
+          label: 'Word A',
+          image: '',
+          audio: '',
+          audio_files: []
+        }
+      ]
+    },
+    gender: {
+      enabled: false,
+      options: [],
+      min_count: 2
+    }
+  });
+
+  await mountStudyPanel(page, payload);
+
+  await page.evaluate(() => {
+    window.__llInitCalls = [];
+    window.initFlashcardWidget = function (catNames, mode) {
+      window.__llInitCalls.push({
+        mode: String(mode || ''),
+        catNames: Array.isArray(catNames) ? catNames.slice() : []
+      });
+      return Promise.resolve();
+    };
+
+    const delayedBootstrapData = {
+      wordsets: [
+        { id: 19, name: 'English', slug: 'english' },
+        { id: 20, name: 'Hebrew', slug: 'hebrew' }
+      ],
+      categories: [
+        {
+          id: 201,
+          name: 'Hebrew Gender',
+          slug: 'hebrew-gender',
+          translation: 'Hebrew Gender',
+          option_type: 'image',
+          prompt_type: 'audio',
+          word_count: 2,
+          gender_supported: true
+        }
+      ],
+      gender: {
+        enabled: true,
+        options: ['masculine', 'feminine'],
+        min_count: 2
+      },
+      state: {
+        wordset_id: 20,
+        category_ids: [201],
+        starred_word_ids: [],
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      words_by_category: {
+        201: [
+          { id: 2011, title: 'Hebrew 1', translation: 'Hebrew 1', label: 'Hebrew 1', image: '', audio: '', audio_files: [] },
+          { id: 2012, title: 'Hebrew 2', translation: 'Hebrew 2', label: 'Hebrew 2', image: '', audio: '', audio_files: [] }
+        ]
+      },
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'gender', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [19, 20],
+        placement_known_category_ids: [],
+        daily_new_word_target: 2
+      },
+      category_progress: {},
+      next_activity: null
+    };
+
+    const $ = window.jQuery;
+    const originalPost = $.post;
+    $.post = function (_url, request) {
+      const deferred = $.Deferred();
+      const action = request && request.action ? String(request.action) : '';
+
+      if (action === 'll_user_study_bootstrap' && String(request.wordset_id || '') === '20') {
+        setTimeout(() => {
+          deferred.resolve({ success: true, data: delayedBootstrapData });
+        }, 20);
+        return deferred.promise();
+      }
+
+      // Simulate a stale save response arriving after bootstrap and carrying empty categories.
+      if (action === 'll_user_study_save') {
+        const staleState = Object.assign({}, request || {}, { category_ids: [] });
+        setTimeout(() => {
+          deferred.resolve({ success: true, data: { state: staleState } });
+        }, 80);
+        return deferred.promise();
+      }
+
+      return originalPost.apply(this, arguments);
+    };
+  });
+
+  await page.selectOption('[data-ll-study-wordset]', '20');
+  await page.waitForTimeout(250);
+
+  const genderButton = page.locator('[data-ll-study-gender]');
+  await expect(genderButton).toHaveAttribute('aria-hidden', 'false');
+  await page.locator('[data-ll-study-start][data-mode="gender"]').click();
+  await page.waitForTimeout(120);
+
+  const launch = await page.evaluate(() => {
+    const calls = Array.isArray(window.__llInitCalls) ? window.__llInitCalls : [];
+    return calls.length ? calls[calls.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('gender');
+  expect(launch.catNames).toContain('Hebrew Gender');
 });
 
 test('self-check apply only updates stars inside the checked category scope', async ({ page }) => {

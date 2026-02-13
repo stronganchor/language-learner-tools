@@ -20,6 +20,7 @@
     let nextActivity = normalizeNextActivity(payload.next_activity || null);
     let savingTimer = null;
     let goalsTimer = null;
+    let wordsetReloadToken = 0;
     let genderConfig = normalizeGenderConfig(payload.gender || {});
     state.category_ids = uniqueIntList(state.category_ids || []);
     state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
@@ -393,6 +394,22 @@
         return ['learning', 'practice', 'listening', 'gender', 'self-check'].indexOf(val) !== -1 ? val : '';
     }
 
+    function normalizeQuizMode(mode) {
+        const val = normalizeProgressMode(mode);
+        return (val === 'learning' || val === 'practice' || val === 'listening' || val === 'gender') ? val : '';
+    }
+
+    function parseBooleanFlag(raw) {
+        if (typeof raw === 'boolean') { return raw; }
+        if (typeof raw === 'number') { return raw > 0; }
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') { return true; }
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') { return false; }
+        }
+        return !!raw;
+    }
+
     function uniqueIntList(values) {
         const seen = {};
         return toIntList(values).filter(function (id) {
@@ -489,6 +506,18 @@
 
     function toIntList(arr) {
         return (arr || []).map(function (v) { return parseInt(v, 10) || 0; }).filter(function (v) { return v > 0; });
+    }
+
+    function getSelectedCategoryIdsFromUI() {
+        const ids = [];
+        if ($categoriesWrap && $categoriesWrap.length) {
+            $categoriesWrap.find('input[type="checkbox"]:checked').each(function () {
+                const id = parseInt($(this).val(), 10) || 0;
+                if (!id || isCategoryIgnored(id)) { return; }
+                ids.push(id);
+            });
+        }
+        return uniqueIntList(ids);
     }
 
     function findWordsetSlug(id) {
@@ -724,7 +753,8 @@
         });
         if (!selectedCats.length) { return false; }
         return selectedCats.some(function (cat) {
-            return !!(cat && cat.gender_supported);
+            if (!cat || !Object.prototype.hasOwnProperty.call(cat, 'gender_supported')) { return false; }
+            return parseBooleanFlag(cat.gender_supported);
         });
     }
 
@@ -1916,11 +1946,13 @@
     }
 
     function reloadForWordset(wordsetId) {
+        const reloadToken = ++wordsetReloadToken;
         $.post(ajaxUrl, {
             action: 'll_user_study_bootstrap',
             nonce: nonce,
             wordset_id: wordsetId
         }).done(function (res) {
+            if (reloadToken !== wordsetReloadToken) { return; }
             if (!res || !res.success || !res.data) { return; }
             const data = res.data;
             wordsets = data.wordsets || wordsets;
@@ -1943,6 +1975,7 @@
             renderStarModeToggle();
             renderTransitionToggle();
             syncProgressTrackerContext();
+            saveStateDebounced();
         });
     }
 
@@ -1974,7 +2007,7 @@
             return;
         }
         const genderAllowed = isGenderSupportedForSelection(requestedCategoryIds);
-        let quizMode = mode || 'practice';
+        let quizMode = normalizeQuizMode(mode) || 'practice';
         if (quizMode === 'gender' && !genderAllowed) {
             quizMode = 'practice';
         }
@@ -2105,7 +2138,6 @@
         }
         setStudyPrefsGlobal();
         reloadForWordset(newId);
-        saveStateDebounced();
         renderStarModeToggle();
         renderNextActivity();
         syncProgressTrackerContext();
@@ -2261,9 +2293,11 @@
     });
 
     $root.find('[data-ll-study-start]').on('click', function () {
-        const mode = $(this).data('mode') || 'practice';
+        const modeRaw = $(this).data('mode') || $(this).attr('data-mode') || 'practice';
+        const mode = normalizeQuizMode(modeRaw) || 'practice';
+        const categoryIds = getSelectedCategoryIdsFromUI();
         startFlashcards(mode, {
-            categoryIds: state.category_ids,
+            categoryIds: categoryIds.length ? categoryIds : state.category_ids,
             sessionWordIds: []
         });
     });
