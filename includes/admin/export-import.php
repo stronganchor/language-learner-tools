@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * LL Tools — Export/Import admin page for category bundles.
+ * LL Tools — Export/Import admin tools for category bundles.
  *
  * Exports a zip (data.json + media) and imports the same bundle to recreate
  * categories and related content. Supports both:
@@ -19,20 +19,74 @@ function ll_tools_get_export_import_capability() {
     return (string) apply_filters('ll_tools_export_import_capability', 'manage_options');
 }
 
+function ll_tools_get_export_page_slug(): string {
+    return 'll-export';
+}
+
+function ll_tools_get_import_page_slug(): string {
+    return 'll-import';
+}
+
+function ll_tools_get_legacy_export_import_page_slug(): string {
+    return 'll-export-import';
+}
+
 function ll_tools_current_user_can_export_import() {
     return current_user_can(ll_tools_get_export_import_capability());
 }
 
 function ll_tools_register_export_import_page() {
-    add_management_page(
-        'LL Export/Import',
-        'LL Export/Import',
-        ll_tools_get_export_import_capability(),
-        'll-export-import',
-        'll_tools_render_export_import_page'
+    $capability = ll_tools_get_export_import_capability();
+
+    $export_hook = add_management_page(
+        __('LL Export', 'll-tools-text-domain'),
+        __('LL Export', 'll-tools-text-domain'),
+        $capability,
+        ll_tools_get_export_page_slug(),
+        'll_tools_render_export_page'
     );
+    if (is_string($export_hook) && $export_hook !== '') {
+        add_action('load-' . $export_hook, 'll_tools_prime_export_admin_title');
+    }
+
+    $import_hook = add_management_page(
+        __('LL Import', 'll-tools-text-domain'),
+        __('LL Import', 'll-tools-text-domain'),
+        $capability,
+        ll_tools_get_import_page_slug(),
+        'll_tools_render_import_page'
+    );
+    if (is_string($import_hook) && $import_hook !== '') {
+        add_action('load-' . $import_hook, 'll_tools_prime_import_admin_title');
+    }
+
+    // Backward-compatible slug for existing bookmarks/links.
+    $legacy_hook = add_management_page(
+        __('LL Export/Import', 'll-tools-text-domain'),
+        __('LL Export/Import', 'll-tools-text-domain'),
+        $capability,
+        ll_tools_get_legacy_export_import_page_slug(),
+        'll_tools_render_legacy_export_import_page'
+    );
+    if (is_string($legacy_hook) && $legacy_hook !== '') {
+        add_action('load-' . $legacy_hook, 'll_tools_handle_legacy_export_import_redirect');
+    }
 }
 add_action('admin_menu', 'll_tools_register_export_import_page');
+
+function ll_tools_prime_export_admin_title(): void {
+    global $title;
+    if (!is_string($title) || $title === '') {
+        $title = __('LL Export', 'll-tools-text-domain');
+    }
+}
+
+function ll_tools_prime_import_admin_title(): void {
+    global $title;
+    if (!is_string($title) || $title === '') {
+        $title = __('LL Import', 'll-tools-text-domain');
+    }
+}
 
 add_action('admin_post_ll_tools_export_bundle', 'll_tools_handle_export_bundle');
 add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bundle');
@@ -42,7 +96,13 @@ add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wor
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_export_import_assets');
 
 function ll_tools_enqueue_export_import_assets($hook) {
-    if ($hook !== 'tools_page_ll-export-import') {
+    $allowed_hooks = [
+        'tools_page_' . ll_tools_get_export_page_slug(),
+        'tools_page_' . ll_tools_get_import_page_slug(),
+        'tools_page_' . ll_tools_get_legacy_export_import_page_slug(),
+    ];
+
+    if (!in_array((string) $hook, $allowed_hooks, true)) {
         return;
     }
 
@@ -251,52 +311,98 @@ function ll_tools_build_export_zip_filename($include_full_bundle, $category_id, 
 }
 
 /**
- * Render the Export/Import page.
+ * Renderers for dedicated Export and Import pages.
  */
-function ll_tools_render_export_import_page() {
+function ll_tools_render_export_page() {
+    ll_tools_render_export_import_page('export');
+}
+
+function ll_tools_render_import_page() {
+    ll_tools_render_export_import_page('import');
+}
+
+function ll_tools_handle_legacy_export_import_redirect() {
     if (!ll_tools_current_user_can_export_import()) {
         return;
     }
 
-    $import_result = get_transient('ll_tools_import_result');
-    if ($import_result !== false) {
-        delete_transient('ll_tools_import_result');
-        $is_success = !empty($import_result['ok']) && empty($import_result['errors']);
-        $notice_class = $is_success ? 'notice-success' : 'notice-error';
-        echo '<div class="notice ' . esc_attr($notice_class) . ' is-dismissible"><p>';
-        echo esc_html($import_result['message']);
-        if (!empty($import_result['stats'])) {
-            $stats = $import_result['stats'];
-            $stat_bits = [];
-            foreach ([
-                'categories_created',
-                'categories_updated',
-                'wordsets_created',
-                'wordsets_updated',
-                'word_images_created',
-                'word_images_updated',
-                'words_created',
-                'words_updated',
-                'word_audio_created',
-                'word_audio_updated',
-                'attachments_imported',
-                'audio_files_imported',
-            ] as $key) {
-                if (!empty($stats[$key])) {
-                    $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
+    $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
+    $target_page = $import_preview_token !== '' ? ll_tools_get_import_page_slug() : ll_tools_get_export_page_slug();
+    $redirect_args = ['page' => $target_page];
+    if ($import_preview_token !== '') {
+        $redirect_args['ll_import_preview'] = $import_preview_token;
+    }
+
+    $redirect_url = add_query_arg($redirect_args, admin_url('tools.php'));
+    if ($import_preview_token !== '') {
+        $redirect_url .= '#ll-tools-import-preview';
+    }
+
+    wp_safe_redirect($redirect_url);
+    exit;
+}
+
+function ll_tools_render_legacy_export_import_page() {
+    ll_tools_render_export_import_page();
+}
+
+/**
+ * Render the Export/Import interface.
+ *
+ * @param string $mode Allowed values: both, export, import.
+ */
+function ll_tools_render_export_import_page(string $mode = 'both') {
+    if (!ll_tools_current_user_can_export_import()) {
+        return;
+    }
+
+    if (!in_array($mode, ['both', 'export', 'import'], true)) {
+        $mode = 'both';
+    }
+    $show_export = ($mode === 'both' || $mode === 'export');
+    $show_import = ($mode === 'both' || $mode === 'import');
+
+    if ($show_import) {
+        $import_result = get_transient('ll_tools_import_result');
+        if ($import_result !== false) {
+            delete_transient('ll_tools_import_result');
+            $is_success = !empty($import_result['ok']) && empty($import_result['errors']);
+            $notice_class = $is_success ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($notice_class) . ' is-dismissible"><p>';
+            echo esc_html($import_result['message']);
+            if (!empty($import_result['stats'])) {
+                $stats = $import_result['stats'];
+                $stat_bits = [];
+                foreach ([
+                    'categories_created',
+                    'categories_updated',
+                    'wordsets_created',
+                    'wordsets_updated',
+                    'word_images_created',
+                    'word_images_updated',
+                    'words_created',
+                    'words_updated',
+                    'word_audio_created',
+                    'word_audio_updated',
+                    'attachments_imported',
+                    'audio_files_imported',
+                ] as $key) {
+                    if (!empty($stats[$key])) {
+                        $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
+                    }
+                }
+                if (!empty($stat_bits)) {
+                    echo '<br>' . esc_html(implode(' | ', $stat_bits));
                 }
             }
-            if (!empty($stat_bits)) {
-                echo '<br>' . esc_html(implode(' | ', $stat_bits));
+            if (!empty($import_result['errors'])) {
+                echo '<br>' . esc_html__('Errors:', 'll-tools-text-domain') . '<br>';
+                foreach ($import_result['errors'] as $err) {
+                    echo esc_html('• ' . $err) . '<br>';
+                }
             }
+            echo '</p></div>';
         }
-        if (!empty($import_result['errors'])) {
-            echo '<br>' . esc_html__('Errors:', 'll-tools-text-domain') . '<br>';
-            foreach ($import_result['errors'] as $err) {
-                echo esc_html('• ' . $err) . '<br>';
-            }
-        }
-        echo '</p></div>';
     }
 
     $zip_available = class_exists('ZipArchive');
@@ -348,23 +454,34 @@ function ll_tools_render_export_import_page() {
     $soft_limit_label = $soft_export_limit_bytes > 0 ? size_format($soft_export_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $hard_limit_label = $hard_export_limit_bytes > 0 ? size_format($hard_export_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $hard_files_label = $hard_export_limit_files > 0 ? (string) $hard_export_limit_files : __('disabled', 'll-tools-text-domain');
-    $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
+    $import_preview_token = '';
     $import_preview = null;
-    if ($import_preview_token !== '') {
-        $preview_key = ll_tools_import_preview_transient_key($import_preview_token);
-        $preview_value = get_transient($preview_key);
-        if (is_array($preview_value)) {
-            $import_preview = $preview_value;
-        } else {
-            echo '<div class="notice notice-warning is-dismissible"><p>';
-            esc_html_e('Import preview expired. Generate a new preview and try again.', 'll-tools-text-domain');
-            echo '</p></div>';
+    if ($show_import) {
+        $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
+        if ($import_preview_token !== '') {
+            $preview_key = ll_tools_import_preview_transient_key($import_preview_token);
+            $preview_value = get_transient($preview_key);
+            if (is_array($preview_value)) {
+                $import_preview = $preview_value;
+            } else {
+                echo '<div class="notice notice-warning is-dismissible"><p>';
+                esc_html_e('Import preview expired. Generate a new preview and try again.', 'll-tools-text-domain');
+                echo '</p></div>';
+            }
         }
+    }
+
+    $page_title = __('LL Tools Export/Import', 'll-tools-text-domain');
+    if ($mode === 'export') {
+        $page_title = __('LL Tools Export', 'll-tools-text-domain');
+    } elseif ($mode === 'import') {
+        $page_title = __('LL Tools Import', 'll-tools-text-domain');
     }
     ?>
     <div class="wrap ll-tools-export-import">
-        <h1><?php esc_html_e('LL Tools Export/Import', 'll-tools-text-domain'); ?></h1>
+        <h1><?php echo esc_html($page_title); ?></h1>
 
+        <?php if ($show_export) : ?>
         <p><?php esc_html_e('Export category bundles as a zip. Image mode includes categories and word images; full mode also includes words, audio, and source word sets.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('Tip: Export one category at a time for large media libraries.', 'll-tools-text-domain'); ?></p>
 
@@ -512,9 +629,15 @@ function ll_tools_render_export_import_page() {
                 </div>
             </div>
         </form>
+        <?php endif; ?>
 
-        <hr>
+        <?php if ($show_import) : ?>
+            <?php if ($show_export) : ?>
+                <hr>
+            <?php endif; ?>
 
+        <p><?php esc_html_e('Import category bundles from a zip generated by LL Tools export.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Preview an import first, then confirm to apply it.', 'll-tools-text-domain'); ?></p>
         <h2><?php esc_html_e('Import', 'll-tools-text-domain'); ?></h2>
         <form method="post" action="<?php echo esc_url($import_action); ?>" enctype="multipart/form-data">
             <?php wp_nonce_field('ll_tools_preview_import_bundle'); ?>
@@ -645,6 +768,7 @@ function ll_tools_render_export_import_page() {
                     <p><button type="submit" class="button button-primary"><?php esc_html_e('Confirm Import', 'll-tools-text-domain'); ?></button></p>
                 </form>
             </div>
+        <?php endif; ?>
         <?php endif; ?>
     </div>
     <?php
@@ -1318,7 +1442,10 @@ function ll_tools_handle_preview_import_bundle() {
     $token = wp_generate_password(20, false, false);
     set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
 
-    $redirect_url = add_query_arg('ll_import_preview', rawurlencode($token), admin_url('tools.php?page=ll-export-import'));
+    $redirect_url = add_query_arg([
+        'page' => ll_tools_get_import_page_slug(),
+        'll_import_preview' => $token,
+    ], admin_url('tools.php'));
     $redirect_url .= '#ll-tools-import-preview';
     wp_safe_redirect($redirect_url);
     exit;
@@ -3279,7 +3406,7 @@ function ll_tools_import_attachment_from_file($file_path, array $info, $parent_p
  */
 function ll_tools_store_import_result_and_redirect(array $result) {
     set_transient('ll_tools_import_result', $result, 5 * MINUTE_IN_SECONDS);
-    wp_safe_redirect(admin_url('tools.php?page=ll-export-import'));
+    wp_safe_redirect(add_query_arg('page', ll_tools_get_import_page_slug(), admin_url('tools.php')));
     exit;
 }
 

@@ -7,6 +7,12 @@ if (!defined('WPINC')) { die; }
 
 if (!function_exists('ll_tools_get_admin_menu_slug')) {
     function ll_tools_get_admin_menu_slug() {
+        return 'll-tools-dashboard-home';
+    }
+}
+
+if (!function_exists('ll_tools_get_admin_settings_page_slug')) {
+    function ll_tools_get_admin_settings_page_slug() {
         if (defined('LL_TOOLS_SETTINGS_SLUG')) {
             return (string) LL_TOOLS_SETTINGS_SLUG;
         }
@@ -22,12 +28,7 @@ if (!function_exists('ll_tools_get_tools_hub_page_slug')) {
 
 if (!function_exists('ll_tools_get_settings_related_page_slugs')) {
     function ll_tools_get_settings_related_page_slugs() {
-        return [
-            'deepl-api-key',
-            'assemblyai-api-key',
-            'language-learner-tools-languages',
-            'll-recording-types',
-        ];
+        return [ll_tools_get_admin_settings_page_slug()];
     }
 }
 
@@ -39,11 +40,16 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'language-learner-tools-missing-audio',
             'll-bulk-word-import',
             'll-bulk-translations',
+            'll-export',
+            'll-import',
             'll-export-import',
             'll-ipa-keyboard',
             'll-word-option-rules',
             'll-fix-word-images',
-            'll-audio-migration',
+            'll-recording-types',
+            'deepl-api-key',
+            'assemblyai-api-key',
+            'language-learner-tools-languages',
         ];
     }
 }
@@ -58,8 +64,95 @@ function ll_tools_render_settings_page_menu_wrapper() {
     echo '<p>' . esc_html__('Settings page is unavailable.', 'll-tools-text-domain') . '</p></div>';
 }
 
+function ll_tools_render_home_hub_page() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(__('You do not have permission to access this page.', 'll-tools-text-domain'));
+    }
+
+    $overview_links = [
+        [
+            'label' => __('Word Sets', 'll-tools-text-domain'),
+            'description' => __('Manage the main set grouping for words and quiz filters.', 'll-tools-text-domain'),
+            'url' => admin_url('edit-tags.php?taxonomy=wordset&post_type=words'),
+            'cap' => 'edit_wordsets',
+            'icon' => 'dashicons-portfolio',
+        ],
+        [
+            'label' => __('Word Categories', 'll-tools-text-domain'),
+            'description' => __('Create and organize categories used to build quizzes and pages.', 'll-tools-text-domain'),
+            'url' => admin_url('edit-tags.php?taxonomy=word-category&post_type=words'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-category',
+        ],
+        [
+            'label' => __('Words', 'll-tools-text-domain'),
+            'description' => __('Add and edit vocabulary entries, meanings, and metadata.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=words'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-welcome-write-blog',
+        ],
+        [
+            'label' => __('Word Images', 'll-tools-text-domain'),
+            'description' => __('Manage image records linked to vocabulary words.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=word_images'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-format-image',
+        ],
+        [
+            'label' => __('Word Audio', 'll-tools-text-domain'),
+            'description' => __('Review and edit published audio posts used across the site.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=word_audio'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-format-audio',
+        ],
+        [
+            'label' => __('Dictionary Entries', 'll-tools-text-domain'),
+            'description' => __('Maintain dictionary-style reference entries and supporting details.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=ll_dictionary_entry'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-book-alt',
+        ],
+    ];
+
+    $admin_links = [
+        [
+            'label' => __('Tools', 'll-tools-text-domain'),
+            'description' => __('Open workflow utilities for import/export, processing, and maintenance.', 'll-tools-text-domain'),
+            'url' => admin_url('admin.php?page=' . ll_tools_get_tools_hub_page_slug()),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-admin-tools',
+        ],
+        [
+            'label' => __('Settings', 'll-tools-text-domain'),
+            'description' => __('Configure global plugin behavior, languages, and operational defaults.', 'll-tools-text-domain'),
+            'url' => admin_url('admin.php?page=' . ll_tools_get_admin_settings_page_slug()),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-admin-generic',
+        ],
+    ];
+
+    echo '<div class="wrap ll-tools-hub">';
+    echo '<h1>' . esc_html__('Language Learning Tools', 'll-tools-text-domain') . '</h1>';
+    echo '<p class="ll-tools-hub-intro">' . esc_html__('Use this dashboard to jump to each main area of the plugin. Tools opens workflow utilities; Settings controls global behavior.', 'll-tools-text-domain') . '</p>';
+
+    echo '<section class="ll-tools-hub-section">';
+    echo '<h2 class="ll-tools-hub-section-title">' . esc_html__('Content', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="ll-tools-hub-section-description">' . esc_html__('Primary content management pages for vocabulary, media, and dictionary data.', 'll-tools-text-domain') . '</p>';
+    ll_tools_render_tools_hub_cards($overview_links);
+    echo '</section>';
+
+    echo '<section class="ll-tools-hub-section">';
+    echo '<h2 class="ll-tools-hub-section-title">' . esc_html__('Administration', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="ll-tools-hub-section-description">' . esc_html__('Utility and configuration pages used less frequently.', 'll-tools-text-domain') . '</p>';
+    ll_tools_render_tools_hub_cards($admin_links);
+    echo '</section>';
+
+    echo '</div>';
+}
+
 function ll_tools_register_dashboard_menu() {
     $menu_slug = ll_tools_get_admin_menu_slug();
+    $settings_slug = ll_tools_get_admin_settings_page_slug();
     global $submenu;
 
     add_menu_page(
@@ -67,24 +160,16 @@ function ll_tools_register_dashboard_menu() {
         __('Language Learning Tools', 'll-tools-text-domain'),
         'view_ll_tools',
         $menu_slug,
-        'll_tools_render_settings_page_menu_wrapper',
+        'll_tools_render_home_hub_page',
         'dashicons-translation',
         58
     );
 
-    // Rename the auto-created first submenu (same slug as top-level) to "Settings"
+    // Rename the auto-created first submenu (same slug as top-level) to "Overview"
     // without registering a second callback for the same screen hook.
     if (isset($submenu[$menu_slug][0][0])) {
-        $submenu[$menu_slug][0][0] = __('Settings', 'll-tools-text-domain');
+        $submenu[$menu_slug][0][0] = __('Overview', 'll-tools-text-domain');
     }
-
-    add_submenu_page(
-        $menu_slug,
-        __('Word Categories', 'll-tools-text-domain'),
-        __('Word Categories', 'll-tools-text-domain'),
-        'view_ll_tools',
-        'edit-tags.php?taxonomy=word-category&post_type=words'
-    );
 
     add_submenu_page(
         $menu_slug,
@@ -92,6 +177,14 @@ function ll_tools_register_dashboard_menu() {
         __('Word Sets', 'll-tools-text-domain'),
         'edit_wordsets',
         'edit-tags.php?taxonomy=wordset&post_type=words'
+    );
+
+    add_submenu_page(
+        $menu_slug,
+        __('Word Categories', 'll-tools-text-domain'),
+        __('Word Categories', 'll-tools-text-domain'),
+        'view_ll_tools',
+        'edit-tags.php?taxonomy=word-category&post_type=words'
     );
 
     add_submenu_page(
@@ -128,22 +221,70 @@ function ll_tools_register_dashboard_menu() {
 
     add_submenu_page(
         $menu_slug,
-        __('Vocab Lessons', 'll-tools-text-domain'),
-        __('Vocab Lessons', 'll-tools-text-domain'),
-        'view_ll_tools',
-        'edit.php?post_type=ll_vocab_lesson'
-    );
-
-    add_submenu_page(
-        $menu_slug,
         __('LL Tools Utilities', 'll-tools-text-domain'),
         __('Tools', 'll-tools-text-domain'),
         'view_ll_tools',
         ll_tools_get_tools_hub_page_slug(),
         'll_tools_render_tools_hub_page'
     );
+
+    add_submenu_page(
+        $menu_slug,
+        __('Language Learning Tools Settings', 'll-tools-text-domain'),
+        __('Settings', 'll-tools-text-domain'),
+        'view_ll_tools',
+        $settings_slug,
+        'll_tools_render_settings_page_menu_wrapper'
+    );
 }
 add_action('admin_menu', 'll_tools_register_dashboard_menu', 9);
+
+function ll_tools_enqueue_dashboard_menu_assets($hook) {
+    $page = isset($_GET['page']) ? sanitize_key((string) wp_unslash($_GET['page'])) : '';
+    if ($page !== ll_tools_get_tools_hub_page_slug() && $page !== ll_tools_get_admin_menu_slug()) {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp('/css/admin-tools-hub.css', 'll-tools-admin-tools-hub', [], false);
+}
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_dashboard_menu_assets');
+
+function ll_tools_render_tools_hub_cards(array $cards) {
+    $visible_cards = 0;
+
+    echo '<div class="ll-tools-hub-grid">';
+    foreach ($cards as $card) {
+        $capability = isset($card['cap']) ? (string) $card['cap'] : 'manage_options';
+        if (!current_user_can($capability)) {
+            continue;
+        }
+
+        $visible_cards++;
+        $label = isset($card['label']) ? (string) $card['label'] : '';
+        $description = isset($card['description']) ? (string) $card['description'] : '';
+        $url = isset($card['url']) ? (string) $card['url'] : admin_url();
+        $icon = isset($card['icon']) ? sanitize_html_class((string) $card['icon']) : 'dashicons-admin-tools';
+        if (strpos($icon, 'dashicons-') !== 0) {
+            $icon = 'dashicons-admin-tools';
+        }
+
+        echo '<a class="ll-tools-hub-card" href="' . esc_url($url) . '">';
+        echo '<span class="ll-tools-hub-card-icon" aria-hidden="true"><span class="dashicons ' . esc_attr($icon) . '"></span></span>';
+        echo '<span class="ll-tools-hub-card-content">';
+        echo '<span class="ll-tools-hub-card-title">' . esc_html($label) . '</span>';
+        if ($description !== '') {
+            echo '<span class="ll-tools-hub-card-description">' . esc_html($description) . '</span>';
+        }
+        echo '</span>';
+        echo '<span class="ll-tools-hub-card-arrow dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>';
+        echo '</a>';
+    }
+    echo '</div>';
+
+    if ($visible_cards === 0) {
+        echo '<p class="ll-tools-hub-empty">' . esc_html__('No tools are available with your current permissions.', 'll-tools-text-domain') . '</p>';
+    }
+}
 
 function ll_tools_render_tools_hub_page() {
     if (!current_user_can('view_ll_tools')) {
@@ -156,127 +297,161 @@ function ll_tools_render_tools_hub_page() {
     $export_import_capability = function_exists('ll_tools_get_export_import_capability')
         ? ll_tools_get_export_import_capability()
         : 'manage_options';
+    $export_page_slug = function_exists('ll_tools_get_export_page_slug')
+        ? ll_tools_get_export_page_slug()
+        : 'll-export';
+    $import_page_slug = function_exists('ll_tools_get_import_page_slug')
+        ? ll_tools_get_import_page_slug()
+        : 'll-import';
 
     $workflow_links = [
         [
             'label' => __('Audio Processor', 'll-tools-text-domain'),
+            'description' => __('Review queued recordings, clean audio, and publish approved files.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-audio-processor'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-format-audio',
         ],
         [
             'label' => __('Audio/Image Matcher', 'll-tools-text-domain'),
+            'description' => __('Match uploaded audio and images to the correct words and categories.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-audio-image-matcher'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-images-alt2',
         ],
         [
             'label' => __('Missing Audio', 'll-tools-text-domain'),
+            'description' => __('Find words without audio and resolve gaps in recording coverage.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=language-learner-tools-missing-audio'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-warning',
         ],
         [
             'label' => __('Bulk Word Import', 'll-tools-text-domain'),
+            'description' => __('Create many draft word posts at once from pasted text.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-bulk-word-import'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-database-import',
         ],
         [
             'label' => __('Bulk Translations', 'll-tools-text-domain'),
+            'description' => __('Generate translations in bulk using your configured translation services.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-bulk-translations'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-translation',
         ],
         [
-            'label' => __('Export / Import', 'll-tools-text-domain'),
-            'url' => admin_url('tools.php?page=ll-export-import'),
+            'label' => __('Export', 'll-tools-text-domain'),
+            'description' => __('Download category bundles and CSV text exports for transfer or backup.', 'll-tools-text-domain'),
+            'url' => admin_url('tools.php?page=' . $export_page_slug),
             'cap' => $export_import_capability,
+            'icon' => 'dashicons-download',
+        ],
+        [
+            'label' => __('Import', 'll-tools-text-domain'),
+            'description' => __('Preview and import zip bundles into local categories, words, and audio.', 'll-tools-text-domain'),
+            'url' => admin_url('tools.php?page=' . $import_page_slug),
+            'cap' => $export_import_capability,
+            'icon' => 'dashicons-upload',
         ],
         [
             'label' => __('IPA Keyboard', 'll-tools-text-domain'),
+            'description' => __('Review IPA symbols by word set and update phonetic text quickly.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-ipa-keyboard'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-editor-spellcheck',
         ],
         [
             'label' => __('Word Option Rules', 'll-tools-text-domain'),
+            'description' => __('Control grouped options and blocked pairs for quiz wrong answers.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-word-option-rules'),
             'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-screenoptions',
         ],
         [
             'label' => __('Fix Word Images', 'll-tools-text-domain'),
+            'description' => __('Repair legacy image links and recreate missing word image posts.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=ll-fix-word-images'),
             'cap' => 'manage_options',
+            'icon' => 'dashicons-hammer',
+        ],
+    ];
+
+    $content_admin_links = [
+        [
+            'label' => __('Vocab Lessons', 'll-tools-text-domain'),
+            'description' => __('Edit lesson post content and ordering used for vocab lesson pages.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=ll_vocab_lesson'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-welcome-learn-more',
         ],
         [
-            'label' => __('Audio Migration', 'll-tools-text-domain'),
-            'url' => admin_url('tools.php?page=ll-audio-migration'),
+            'label' => __('Parts of Speech', 'll-tools-text-domain'),
+            'description' => __('Maintain part-of-speech taxonomy values used on word entries.', 'll-tools-text-domain'),
+            'url' => admin_url('edit-tags.php?taxonomy=part_of_speech&post_type=words'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-editor-paragraph',
+        ],
+        [
+            'label' => __('LL Recording Types', 'll-tools-text-domain'),
+            'description' => __('Define recording type labels used by recording and export workflows.', 'll-tools-text-domain'),
+            'url' => admin_url('tools.php?page=ll-recording-types'),
             'cap' => 'manage_options',
+            'icon' => 'dashicons-tag',
         ],
     ];
 
     $advanced_links = [
         [
             'label' => __('DeepL API Key', 'll-tools-text-domain'),
+            'description' => __('Set and update DeepL credentials for automated translation tasks.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=deepl-api-key'),
             'cap' => $api_capability,
+            'icon' => 'dashicons-admin-network',
         ],
         [
             'label' => __('AssemblyAI API Key', 'll-tools-text-domain'),
+            'description' => __('Set and update AssemblyAI credentials for transcription workflows.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=assemblyai-api-key'),
             'cap' => $api_capability,
-        ],
-        [
-            'label' => __('Word Sets', 'll-tools-text-domain'),
-            'url' => admin_url('edit-tags.php?taxonomy=wordset&post_type=words'),
-            'cap' => 'edit_wordsets',
-        ],
-        [
-            'label' => __('Parts of Speech', 'll-tools-text-domain'),
-            'url' => admin_url('edit-tags.php?taxonomy=part_of_speech&post_type=words'),
-            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-microphone',
         ],
         [
             'label' => __('LL Tools Languages', 'll-tools-text-domain'),
+            'description' => __('Manage language taxonomy options and plugin language metadata.', 'll-tools-text-domain'),
             'url' => admin_url('tools.php?page=language-learner-tools-languages'),
             'cap' => 'manage_options',
-        ],
-        [
-            'label' => __('LL Recording Types', 'll-tools-text-domain'),
-            'url' => admin_url('tools.php?page=ll-recording-types'),
-            'cap' => 'manage_options',
+            'icon' => 'dashicons-translation',
         ],
     ];
 
-    echo '<div class="wrap">';
+    echo '<div class="wrap ll-tools-hub">';
     echo '<h1>' . esc_html__('LL Tools Utilities', 'll-tools-text-domain') . '</h1>';
-    echo '<p class="description">' . esc_html__('Quick access to lower-frequency tools and maintenance workflows.', 'll-tools-text-domain') . '</p>';
+    echo '<p class="ll-tools-hub-intro">' . esc_html__('Choose a tool below to run a workflow. Each card includes a quick summary to help you find the right utility at a glance.', 'll-tools-text-domain') . '</p>';
 
-    echo '<h2>' . esc_html__('Workflows', 'll-tools-text-domain') . '</h2>';
-    echo '<p>';
-    foreach ($workflow_links as $link) {
-        if (!current_user_can((string) $link['cap'])) {
-            continue;
-        }
-        echo '<a class="button button-secondary" style="margin:0 8px 8px 0;" href="'
-            . esc_url((string) $link['url']) . '">'
-            . esc_html((string) $link['label']) . '</a>';
-    }
-    echo '</p>';
+    echo '<section class="ll-tools-hub-section">';
+    echo '<h2 class="ll-tools-hub-section-title">' . esc_html__('Workflows', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="ll-tools-hub-section-description">' . esc_html__('Daily operational tools for processing content, media, and quiz behavior.', 'll-tools-text-domain') . '</p>';
+    ll_tools_render_tools_hub_cards($workflow_links);
+    echo '</section>';
 
-    echo '<h2>' . esc_html__('Advanced', 'll-tools-text-domain') . '</h2>';
-    echo '<p>';
-    foreach ($advanced_links as $link) {
-        if (!current_user_can((string) $link['cap'])) {
-            continue;
-        }
-        echo '<a class="button" style="margin:0 8px 8px 0;" href="'
-            . esc_url((string) $link['url']) . '">'
-            . esc_html((string) $link['label']) . '</a>';
-    }
-    echo '</p>';
+    echo '<section class="ll-tools-hub-section">';
+    echo '<h2 class="ll-tools-hub-section-title">' . esc_html__('Content Admin', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="ll-tools-hub-section-description">' . esc_html__('Lower-frequency admin pages for lesson and taxonomy maintenance.', 'll-tools-text-domain') . '</p>';
+    ll_tools_render_tools_hub_cards($content_admin_links);
+    echo '</section>';
 
-    echo '<p class="description">' . esc_html__('Duplicate Category is intentionally hidden from navigation and available from the Duplicate row action on Word Categories.', 'll-tools-text-domain') . '</p>';
+    echo '<section class="ll-tools-hub-section">';
+    echo '<h2 class="ll-tools-hub-section-title">' . esc_html__('Advanced', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="ll-tools-hub-section-description">' . esc_html__('Configuration and taxonomy pages used for setup and maintenance.', 'll-tools-text-domain') . '</p>';
+    ll_tools_render_tools_hub_cards($advanced_links);
+    echo '</section>';
+
     echo '</div>';
 }
 
 function ll_tools_hide_legacy_admin_menu_entries() {
-    $settings_slug = ll_tools_get_admin_menu_slug();
+    $settings_slug = ll_tools_get_admin_settings_page_slug();
 
     remove_submenu_page('options-general.php', $settings_slug);
 
@@ -334,7 +509,7 @@ function ll_tools_force_dashboard_parent_file($parent_file) {
 
     return $parent_file;
 }
-add_filter('parent_file', 'll_tools_force_dashboard_parent_file');
+add_filter('parent_file', 'll_tools_force_dashboard_parent_file', 100);
 
 function ll_tools_force_dashboard_submenu_file($submenu_file) {
     if (!is_admin()) {
@@ -356,6 +531,9 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
     if (!empty($screen->taxonomy) && $screen->taxonomy === 'wordset') {
         return 'edit-tags.php?taxonomy=wordset&post_type=words';
     }
+    if (!empty($screen->taxonomy) && $screen->taxonomy === 'part_of_speech') {
+        return ll_tools_get_tools_hub_page_slug();
+    }
 
     if (!empty($screen->post_type)) {
         $map = [
@@ -363,7 +541,7 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
             'word_images' => 'edit.php?post_type=word_images',
             'word_audio' => 'edit.php?post_type=word_audio',
             'll_dictionary_entry' => 'edit.php?post_type=ll_dictionary_entry',
-            'll_vocab_lesson' => 'edit.php?post_type=ll_vocab_lesson',
+            'll_vocab_lesson' => ll_tools_get_tools_hub_page_slug(),
         ];
         if (isset($map[$screen->post_type])) {
             return $map[$screen->post_type];
@@ -379,10 +557,14 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
         return ll_tools_get_tools_hub_page_slug();
     }
 
-    if ($page === ll_tools_get_admin_menu_slug() || in_array($page, ll_tools_get_settings_related_page_slugs(), true)) {
+    if ($page === ll_tools_get_admin_settings_page_slug() || in_array($page, ll_tools_get_settings_related_page_slugs(), true)) {
+        return ll_tools_get_admin_settings_page_slug();
+    }
+
+    if ($page === ll_tools_get_admin_menu_slug()) {
         return ll_tools_get_admin_menu_slug();
     }
 
     return $submenu_file;
 }
-add_filter('submenu_file', 'll_tools_force_dashboard_submenu_file');
+add_filter('submenu_file', 'll_tools_force_dashboard_submenu_file', 100);

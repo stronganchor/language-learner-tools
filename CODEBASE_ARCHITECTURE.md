@@ -158,8 +158,6 @@ vendor/
   getid3/                     # audio metadata
   plugin-update-checker/      # GitHub update checker
 ```
-Note: `includes/admin/migrate-word-audio.php` exists as a legacy migration tool but is not loaded by default.
-
 # Core data model (canonical)
 ## Custom post types
 - `words` (public, REST)
@@ -274,7 +272,7 @@ Core settings live in `includes/admin/settings.php`:
 - Recording Types admin: `includes/admin/recording-types-admin.php`.
 - Bulk Translations: `includes/admin/bulk-translation-admin.php` (DeepL + dictionary fallback).
 - Bulk Word Import: `includes/admin/bulk-word-import-admin.php` (Turkish casing support).
-- Export/Import: `includes/admin/export-import.php` (zip of categories + word_images + attachments).
+- Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments).
 - Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
 - Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).

@@ -34,17 +34,13 @@
     const $transitionToggle = $root.find('[data-ll-transition-speed]');
     const $genderStart = $root.find('[data-ll-study-gender]');
     const $checkStart = $root.find('[data-ll-study-check-start]');
-    const $placementStart = $root.find('[data-ll-study-placement-start]');
     const $checkPanel = $root.find('[data-ll-study-check]');
     const $checkPrompt = $root.find('[data-ll-study-check-prompt]');
     const $checkCategory = $root.find('[data-ll-study-check-category]');
     const $checkProgress = $root.find('[data-ll-study-check-progress]');
     const $checkCard = $root.find('[data-ll-study-check-card]');
-    const $checkFlip = $root.find('[data-ll-study-check-flip]');
     const $checkAnswer = $root.find('[data-ll-study-check-answer]');
     const $checkActions = $root.find('[data-ll-study-check-actions]');
-    const $checkKnow = $root.find('[data-ll-study-check-know]');
-    const $checkUnknown = $root.find('[data-ll-study-check-unknown]');
     const $checkComplete = $root.find('[data-ll-study-check-complete]');
     const $checkSummary = $root.find('[data-ll-study-check-summary]');
     const $checkApply = $root.find('[data-ll-study-check-apply]');
@@ -84,9 +80,20 @@
     let checkSession = null;
     let checkScrollLock = null;
     let checkScrollTouched = false;
-    const PLACEMENT_WORDS_PER_CATEGORY = 4;
-    const PLACEMENT_MIN_WORDS_TO_JUDGE = 3;
-    const PLACEMENT_KNOWN_THRESHOLD = 0.75;
+    const CHECK_SPRINKLE_EVERY = 4;
+    const CHECK_AUTO_ADVANCE_DELAY_MS = 700;
+    const CHECK_AUDIO_FAIL_DELAY_MS = 900;
+    const CHECK_AUDIO_TIMEOUT_MS = 10000;
+    const CHECK_ACTIONS_CONFIDENCE = [
+        { value: 'idk', labelKey: 'checkDontKnow', fallback: "I don't know it", className: 'll-study-check-btn--idk' },
+        { value: 'think', labelKey: 'checkThinkKnow', fallback: 'I think I know it', className: 'll-study-check-btn--think' },
+        { value: 'know', labelKey: 'checkKnow', fallback: 'I know it', className: 'll-study-check-btn--know' }
+    ];
+    const CHECK_ACTIONS_RESULT = [
+        { value: 'wrong', labelKey: 'checkGotWrong', fallback: 'I got it wrong', className: 'll-study-check-btn--wrong' },
+        { value: 'close', labelKey: 'checkGotClose', fallback: 'I got close', className: 'll-study-check-btn--close' },
+        { value: 'right', labelKey: 'checkGotRight', fallback: 'I got it right', className: 'll-study-check-btn--right' }
+    ];
 
     function hasVisibleFlashcardPopup() {
         try {
@@ -834,23 +841,6 @@
         return fallback ? fallback.url : '';
     }
 
-    function formatCheckSummary(count) {
-        const template = i18n.checkSummary || '';
-        if (template.indexOf('%1$d') !== -1) {
-            return template.replace('%1$d', count);
-        }
-        if (template.indexOf('%d') !== -1) {
-            return template.replace('%d', count);
-        }
-        if (template.indexOf('%s') !== -1) {
-            return template.replace('%s', count);
-        }
-        if (template) {
-            return template + ' ' + count;
-        }
-        return 'You marked ' + count + ' as "I don\'t know".';
-    }
-
     function ensureWordsForCategories(catIds) {
         const ids = toIntList(catIds);
         const requests = ids.map(function (id) { return ensureWordsForCategory(id); });
@@ -873,105 +863,105 @@
         return list;
     }
 
+    function getWordProgressCoverage(word) {
+        if (!word || typeof word !== 'object') { return 0; }
+        return Math.max(0, parseInt(word.progress_total_coverage, 10) || 0);
+    }
+
+    function getWordProgressStage(word) {
+        if (!word || typeof word !== 'object') { return 0; }
+        return Math.max(0, parseInt(word.progress_stage, 10) || 0);
+    }
+
+    function hasCategoryExposure(categoryId) {
+        const cid = parseInt(categoryId, 10) || 0;
+        if (!cid) { return false; }
+        const progress = categoryProgress[cid];
+        if (!progress || typeof progress !== 'object') { return false; }
+        return (parseInt(progress.exposure_total, 10) || 0) > 0;
+    }
+
     function buildCheckQueue(categoryIds) {
         const ids = shuffleItems(toIntList(categoryIds));
-        const items = [];
         const seen = {};
+        const practiced = [];
+        const mixed = [];
+        const unseen = [];
+        const fallback = [];
+
         ids.forEach(function (cid) {
             const cat = getCategoryById(cid);
             const optionType = getCategoryOptionType(cat);
             const promptType = getCategoryPromptType(cat);
             const catLabel = getCategoryLabel(cat);
+            const categorySeenBefore = hasCategoryExposure(cid);
             const words = shuffleItems(getCategoryWords(cid) || []);
             words.forEach(function (word) {
-                const wordId = parseInt(word.id, 10) || 0;
+                const wordId = parseInt(word && word.id, 10) || 0;
                 if (!wordId || seen[wordId]) { return; }
                 seen[wordId] = true;
-                items.push({
+                const coverage = getWordProgressCoverage(word);
+                const stage = getWordProgressStage(word);
+                const item = {
                     word: word,
                     wordId: wordId,
                     categoryId: cid,
                     categoryLabel: catLabel,
                     optionType: optionType,
-                    promptType: promptType
-                });
+                    promptType: promptType,
+                    coverage: coverage,
+                    stage: stage,
+                    categorySeenBefore: categorySeenBefore
+                };
+                fallback.push(item);
+                if (coverage > 0) {
+                    practiced.push(item);
+                    return;
+                }
+                if (categorySeenBefore) {
+                    mixed.push(item);
+                    return;
+                }
+                unseen.push(item);
             });
         });
-        return items;
-    }
 
-    function normalizeCheckMode(mode) {
-        const key = String(mode || '').toLowerCase();
-        return key === 'placement' ? 'placement' : 'self-check';
-    }
+        const queue = [];
+        let practicedRun = 0;
+        let unseenIndex = 0;
+        const practicedPool = shuffleItems(practiced.concat(mixed));
+        const unseenPool = shuffleItems(unseen);
 
-    function isPlacementSession() {
-        return !!(checkSession && checkSession.mode === 'placement');
+        while (practicedPool.length || unseenIndex < unseenPool.length) {
+            if (practicedPool.length) {
+                queue.push(practicedPool.shift());
+                practicedRun++;
+            }
+            if (unseenIndex < unseenPool.length && (practicedRun >= CHECK_SPRINKLE_EVERY || !practicedPool.length)) {
+                queue.push(unseenPool[unseenIndex]);
+                unseenIndex++;
+                practicedRun = 0;
+            }
+            if (!practicedPool.length && unseenIndex < unseenPool.length && queue.length < 8) {
+                queue.push(unseenPool[unseenIndex]);
+                unseenIndex++;
+            }
+        }
+
+        return queue.length ? queue : fallback;
     }
 
     function getTrackerModeForSession() {
         return 'self-check';
     }
 
-    function buildPlacementQueue(categoryIds) {
-        const ids = shuffleItems(toIntList(categoryIds));
-        const items = [];
-        const seen = {};
-        ids.forEach(function (cid) {
-            const cat = getCategoryById(cid);
-            const optionType = getCategoryOptionType(cat);
-            const promptType = getCategoryPromptType(cat);
-            const catLabel = getCategoryLabel(cat);
-            const words = shuffleItems(getCategoryWords(cid) || []).slice(0, PLACEMENT_WORDS_PER_CATEGORY);
-            words.forEach(function (word) {
-                const wordId = parseInt(word && word.id, 10) || 0;
-                if (!wordId || seen[wordId]) { return; }
-                seen[wordId] = true;
-                items.push({
-                    word: word,
-                    wordId: wordId,
-                    categoryId: cid,
-                    categoryLabel: catLabel,
-                    optionType: optionType,
-                    promptType: promptType
-                });
-            });
-        });
-        return items;
-    }
-
-    function updateCheckActionLabels(mode) {
-        const normalized = normalizeCheckMode(mode);
+    function updateCheckActionLabels() {
         if ($checkApply.length) {
-            $checkApply.text(normalized === 'placement'
-                ? (i18n.placementApply || 'Save placement')
-                : (i18n.checkApply || 'Set stars'));
+            $checkApply.text(i18n.checkApply || 'Apply self check');
         }
         if ($checkRestart.length) {
-            $checkRestart.text(normalized === 'placement'
-                ? (i18n.placementRestart || 'Retake placement')
-                : (i18n.checkRestart || 'Review again'));
+            $checkRestart.text(i18n.checkRestart || 'Review again');
         }
-    }
-
-    function getPlacementResultsFromSession(session) {
-        const src = session || {};
-        const stats = (src.categoryStats && typeof src.categoryStats === 'object') ? src.categoryStats : {};
-        const categoryIds = Object.keys(stats).map(function (key) { return parseInt(key, 10) || 0; }).filter(Boolean);
-        const knownCategoryIds = [];
-        categoryIds.forEach(function (cid) {
-            const row = stats[cid] || {};
-            const known = Math.max(0, parseInt(row.known, 10) || 0);
-            const total = Math.max(0, parseInt(row.total, 10) || 0);
-            if (total < PLACEMENT_MIN_WORDS_TO_JUDGE) { return; }
-            if ((known / total) >= PLACEMENT_KNOWN_THRESHOLD) {
-                knownCategoryIds.push(cid);
-            }
-        });
-        return {
-            testedCategoryIds: uniqueIntList(categoryIds),
-            knownCategoryIds: uniqueIntList(knownCategoryIds)
-        };
     }
 
     function buildCheckAudioButton(audioUrl) {
@@ -1062,14 +1052,289 @@
 
     function renderCheckPrompt(item) {
         const word = (item && item.word) ? item.word : null;
-        const optionType = item ? String(item.optionType || '') : '';
-        renderCheckDisplay($checkPrompt, optionType, word);
+        renderCheckDisplay($checkPrompt, 'image', word);
     }
 
     function renderCheckAnswer(item) {
         const word = (item && item.word) ? item.word : null;
-        const promptType = item ? String(item.promptType || '') : '';
-        return renderCheckDisplay($checkAnswer, promptType, word);
+        const audioUrl = getCheckIsolationAudioUrl(word);
+        const hasAnswer = renderCheckDisplay($checkAnswer, audioUrl ? 'text_audio' : 'text', word);
+        if (audioUrl && $checkAnswer && $checkAnswer.length) {
+            $checkAnswer.find('.ll-study-recording-btn').first().attr('data-audio-url', audioUrl);
+        }
+        return hasAnswer;
+    }
+
+    function getCheckIsolationAudioUrl(word) {
+        const isolation = selectRecordingUrl(word, 'isolation');
+        if (isolation) { return isolation; }
+        return getWordAudioUrl(word);
+    }
+
+    function clearCheckAdvanceTimer() {
+        if (!checkSession) { return; }
+        if (checkSession.advanceTimer) {
+            clearTimeout(checkSession.advanceTimer);
+            checkSession.advanceTimer = null;
+        }
+    }
+
+    function bumpCheckToken() {
+        if (!checkSession) { return 0; }
+        checkSession.token = (parseInt(checkSession.token, 10) || 0) + 1;
+        return checkSession.token;
+    }
+
+    function isCheckTokenCurrent(token) {
+        return !!(checkSession && token && checkSession.token === token);
+    }
+
+    function getCurrentCheckItem() {
+        if (!checkSession || !Array.isArray(checkSession.items)) { return null; }
+        return checkSession.items[checkSession.index] || null;
+    }
+
+    function formatCheckSummaryFromCounts(counts) {
+        const safe = counts || {};
+        const unsure = Math.max(0, parseInt(safe.idk, 10) || 0);
+        const wrong = Math.max(0, parseInt(safe.wrong, 10) || 0);
+        const close = Math.max(0, parseInt(safe.close, 10) || 0);
+        const right = Math.max(0, parseInt(safe.right, 10) || 0);
+        return formatTemplate(
+            i18n.checkSummary || 'Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.',
+            [unsure, wrong, close, right]
+        );
+    }
+
+    function buildCheckActionIcon(choiceValue) {
+        const key = String(choiceValue || '').toLowerCase();
+        const isCross = (key === 'idk' || key === 'wrong');
+        const isCheck = (key === 'know' || key === 'right');
+        const isThink = (key === 'think');
+        const isClose = (key === 'close');
+        if (!isCross && !isCheck && !isThink && !isClose) { return null; }
+
+        const $icon = $('<span>', { class: 'll-study-check-icon', 'aria-hidden': 'true' });
+        if (isCross) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>
+                    <line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>
+                </svg>
+            `));
+            return $icon;
+        }
+
+        if (isThink) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="currentColor">
+                        <circle cx="22" cy="18" r="7.5"></circle>
+                        <circle cx="33" cy="14" r="8.5"></circle>
+                        <circle cx="44" cy="18" r="7.5"></circle>
+                        <circle cx="17" cy="27" r="7"></circle>
+                        <circle cx="49" cy="27" r="7"></circle>
+                        <circle cx="23" cy="35" r="7.5"></circle>
+                        <circle cx="33" cy="36" r="8.5"></circle>
+                        <circle cx="43" cy="34" r="7.5"></circle>
+                        <circle cx="33" cy="26" r="11"></circle>
+                        <circle cx="44.6" cy="51.2" r="4.3"></circle>
+                        <circle cx="54.8" cy="56.6" r="3.4"></circle>
+                    </g>
+                </svg>
+            `));
+            return $icon;
+        }
+
+        if (isClose) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="6"></circle>
+                    <path fill="currentColor" fill-rule="evenodd" d="M32 8 A24 24 0 1 1 31.999 8 Z M32 32 L32 8 A24 24 0 0 0 8 32 Z"></path>
+                </svg>
+            `));
+            return $icon;
+        }
+
+        $icon.append($(`
+            <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="14,34 28,46 50,18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            </svg>
+        `));
+        return $icon;
+    }
+
+    function renderCheckActions(phase) {
+        if (!$checkActions.length) { return; }
+        const normalized = String(phase || '').toLowerCase() === 'result' ? 'result' : 'confidence';
+        const options = normalized === 'result' ? CHECK_ACTIONS_RESULT : CHECK_ACTIONS_CONFIDENCE;
+        $checkActions.empty();
+
+        options.forEach(function (opt) {
+            const label = i18n[opt.labelKey] || opt.fallback || '';
+            const $btn = $('<button>', {
+                type: 'button',
+                class: 'll-study-btn ll-study-check-btn ' + opt.className,
+                'data-ll-check-choice': opt.value
+            });
+            const $icon = buildCheckActionIcon(opt.value);
+            if ($icon && $icon.length) {
+                $btn.append($icon);
+            }
+            $btn.append($('<span>', { class: 'll-study-check-btn-text', text: label }));
+            $btn.appendTo($checkActions);
+        });
+    }
+
+    function setCheckActionsDisabled(disabled) {
+        if (!$checkActions.length) { return; }
+        $checkActions.find('button').prop('disabled', !!disabled).toggleClass('disabled', !!disabled);
+    }
+
+    function playCheckIsolationAudio(item) {
+        const row = item || getCurrentCheckItem();
+        const word = row && row.word ? row.word : null;
+        const url = getCheckIsolationAudioUrl(word);
+        if (!url) {
+            return Promise.resolve(false);
+        }
+        stopCurrentAudio();
+        return new Promise(function (resolve) {
+            const audio = new Audio(url);
+            currentAudio = audio;
+            currentAudioButton = null;
+
+            let done = false;
+            const timeoutId = setTimeout(function () {
+                finish(true);
+            }, CHECK_AUDIO_TIMEOUT_MS);
+            const finish = function (played) {
+                if (done) { return; }
+                done = true;
+                clearTimeout(timeoutId);
+                audio.removeEventListener('ended', onEnded);
+                audio.removeEventListener('error', onError);
+                try {
+                    if (!audio.paused) {
+                        audio.pause();
+                    }
+                } catch (_) { /* no-op */ }
+                if (currentAudio === audio) {
+                    currentAudio = null;
+                    currentAudioButton = null;
+                }
+                resolve(!!played);
+            };
+            const onEnded = function () { finish(true); };
+            const onError = function () { finish(false); };
+            audio.addEventListener('ended', onEnded);
+            audio.addEventListener('error', onError);
+
+            if (audio.play) {
+                audio.play().catch(function () {
+                    finish(false);
+                });
+            } else {
+                finish(false);
+            }
+        });
+    }
+
+    function recordCheckResult(confidence, result) {
+        if (!checkSession || !checkSession.items || !checkSession.items.length) { return; }
+        const item = checkSession.items[checkSession.index];
+        if (!item || !item.wordId) { return; }
+
+        const confidenceKey = String(confidence || '').toLowerCase();
+        const resultKey = String(result || '').toLowerCase();
+        let bucket = 'wrong';
+        let isCorrect = false;
+        let hadWrongBefore = true;
+
+        if (confidenceKey === 'idk') {
+            bucket = 'idk';
+            isCorrect = false;
+            hadWrongBefore = true;
+        } else if (resultKey === 'right') {
+            bucket = 'right';
+            isCorrect = true;
+            hadWrongBefore = false;
+        } else if (resultKey === 'close') {
+            bucket = 'close';
+            isCorrect = true;
+            hadWrongBefore = true;
+        } else {
+            bucket = 'wrong';
+            isCorrect = false;
+            hadWrongBefore = true;
+        }
+
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.trackWordOutcome === 'function') {
+                tracker.trackWordOutcome({
+                    mode: getTrackerModeForSession(),
+                    wordId: item.wordId,
+                    categoryId: item.categoryId,
+                    categoryName: item.categoryLabel || '',
+                    wordsetId: state.wordset_id,
+                    isCorrect: isCorrect,
+                    hadWrongBefore: hadWrongBefore,
+                    payload: {
+                        self_check_confidence: confidenceKey,
+                        self_check_result: resultKey || bucket,
+                        self_check_bucket: bucket,
+                        forced_prompt: 'image'
+                    }
+                });
+            }
+        } catch (_) { /* no-op */ }
+
+        checkSession.categoryStats = (checkSession.categoryStats && typeof checkSession.categoryStats === 'object')
+            ? checkSession.categoryStats
+            : {};
+        checkSession.counts = (checkSession.counts && typeof checkSession.counts === 'object')
+            ? checkSession.counts
+            : { idk: 0, wrong: 0, close: 0, right: 0 };
+
+        const categoryId = parseInt(item.categoryId, 10) || 0;
+        if (categoryId) {
+            if (!checkSession.categoryStats[categoryId]) {
+                checkSession.categoryStats[categoryId] = {
+                    total: 0,
+                    idk: 0,
+                    wrong: 0,
+                    close: 0,
+                    right: 0,
+                    confidence_known: 0
+                };
+            }
+            const stats = checkSession.categoryStats[categoryId];
+            stats.total += 1;
+            if (bucket === 'idk') { stats.idk += 1; }
+            if (bucket === 'wrong') { stats.wrong += 1; }
+            if (bucket === 'close') { stats.close += 1; }
+            if (bucket === 'right') { stats.right += 1; }
+            if (confidenceKey === 'think' || confidenceKey === 'know') {
+                stats.confidence_known += 1;
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(checkSession.counts, bucket)) {
+            checkSession.counts[bucket] += 1;
+        }
+
+        if (bucket === 'idk') {
+            checkSession.unknownLookup = checkSession.unknownLookup || {};
+            if (!checkSession.unknownLookup[item.wordId]) {
+                checkSession.unknownLookup[item.wordId] = true;
+                checkSession.unknownIds.push(item.wordId);
+            }
+        }
+
+        checkSession.index += 1;
+        stopCurrentAudio();
+        showCheckItem();
     }
 
     function setCheckFlipped(isFlipped) {
@@ -1083,12 +1348,10 @@
         lockCheckViewportScroll();
         $checkSummary.text('');
         $checkPrompt.show().empty();
+        $checkAnswer.show().empty();
         $checkActions.show();
         if ($checkCard.length) {
             $checkCard.show();
-        }
-        if ($checkAnswer.length) {
-            $checkAnswer.show().empty();
         }
         setCheckFlipped(false);
         $checkComplete.hide();
@@ -1098,16 +1361,15 @@
         if (!$checkPanel.length) { return; }
         $checkPanel.removeClass('is-active').attr('aria-hidden', 'true');
         unlockCheckViewportScroll();
-        updateCheckActionLabels('self-check');
+        updateCheckActionLabels();
+        clearCheckAdvanceTimer();
         $checkCategory.text('');
         $checkProgress.text('');
         $checkPrompt.empty().show();
+        $checkAnswer.empty().show();
         $checkActions.show();
         if ($checkCard.length) {
             $checkCard.show();
-        }
-        if ($checkAnswer.length) {
-            $checkAnswer.show().empty();
         }
         setCheckFlipped(false);
         $checkComplete.hide();
@@ -1123,6 +1385,8 @@
             showCheckComplete();
             return;
         }
+        clearCheckAdvanceTimer();
+        bumpCheckToken();
 
         const item = checkSession.items[checkSession.index];
         const total = checkSession.items.length;
@@ -1146,45 +1410,33 @@
         try {
             const tracker = getProgressTracker();
             if (tracker && typeof tracker.trackWordExposure === 'function' && item.wordId) {
-                const placement = isPlacementSession();
                 tracker.trackWordExposure({
                     mode: getTrackerModeForSession(),
                     wordId: item.wordId,
                     categoryId: item.categoryId,
                     categoryName: item.categoryLabel || '',
                     wordsetId: state.wordset_id,
-                    payload: placement ? { placement: true } : {}
+                    payload: {
+                        forced_prompt: 'image',
+                        check_phase: 'confidence'
+                    }
                 });
             }
         } catch (_) { /* no-op */ }
 
         renderCheckPrompt(item);
-        const hasAnswer = renderCheckAnswer(item);
-        if ($checkFlip.length) {
-            $checkFlip.toggle(!!hasAnswer);
-        }
+        renderCheckAnswer(item);
         setCheckFlipped(false);
+        checkSession.phase = 'confidence';
+        checkSession.pendingConfidence = '';
+        renderCheckActions('confidence');
+        setCheckActionsDisabled(false);
     }
 
     function showCheckComplete() {
         if (!checkSession) { return; }
         const total = checkSession.items.length || 0;
-        const unknownCount = (checkSession.unknownIds || []).length;
-        if (isPlacementSession()) {
-            const placement = getPlacementResultsFromSession(checkSession);
-            const knownCount = placement.knownCategoryIds.length;
-            const testedCount = placement.testedCategoryIds.length;
-            if (knownCount > 0) {
-                $checkSummary.text(formatTemplate(
-                    i18n.placementSummary || 'Placement: %1$d/%2$d categories marked as known.',
-                    [knownCount, testedCount]
-                ));
-            } else {
-                $checkSummary.text(i18n.placementSummaryNone || 'Placement complete. No categories were marked as known yet.');
-            }
-        } else {
-            $checkSummary.text(formatCheckSummary(unknownCount));
-        }
+        $checkSummary.text(formatCheckSummaryFromCounts(checkSession.counts || {}));
         if (total) {
             $checkProgress.text(total + ' / ' + total);
         }
@@ -1201,53 +1453,79 @@
         $checkComplete.show();
     }
 
-    function recordCheckResult(known) {
-        if (!checkSession || !checkSession.items || !checkSession.items.length) { return; }
-        const item = checkSession.items[checkSession.index];
-        if (!item || !item.wordId) { return; }
-        try {
-            const tracker = getProgressTracker();
-            if (tracker && typeof tracker.trackWordOutcome === 'function') {
-                const placement = isPlacementSession();
-                tracker.trackWordOutcome({
-                    mode: getTrackerModeForSession(),
-                    wordId: item.wordId,
-                    categoryId: item.categoryId,
-                    categoryName: item.categoryLabel || '',
-                    wordsetId: state.wordset_id,
-                    isCorrect: !!known,
-                    hadWrongBefore: !known,
-                    payload: placement ? { placement: true } : {}
-                });
-            }
-        } catch (_) { /* no-op */ }
-        if (isPlacementSession()) {
-            checkSession.categoryStats = (checkSession.categoryStats && typeof checkSession.categoryStats === 'object')
-                ? checkSession.categoryStats
-                : {};
-            const categoryId = parseInt(item.categoryId, 10) || 0;
-            if (categoryId) {
-                if (!checkSession.categoryStats[categoryId]) {
-                    checkSession.categoryStats[categoryId] = { known: 0, unknown: 0, total: 0 };
-                }
-                checkSession.categoryStats[categoryId].total += 1;
-                if (known) {
-                    checkSession.categoryStats[categoryId].known += 1;
-                } else {
-                    checkSession.categoryStats[categoryId].unknown += 1;
-                }
-            }
+    function handleCheckConfidenceChoice(choice) {
+        if (!checkSession || checkSession.phase !== 'confidence') { return; }
+        const confidence = String(choice || '').toLowerCase();
+        if (['idk', 'think', 'know'].indexOf(confidence) === -1) { return; }
+        const item = getCurrentCheckItem();
+        if (!item) { return; }
+        const token = checkSession.token;
+        checkSession.pendingConfidence = confidence;
+        checkSession.phase = 'result';
+        renderCheckActions('result');
+        setCheckActionsDisabled(true);
+        if (confidence === 'idk') {
+            setCheckFlipped(false);
+            playCheckIsolationAudio(item).then(function (played) {
+                if (!isCheckTokenCurrent(token) || !checkSession) { return; }
+                clearCheckAdvanceTimer();
+                checkSession.advanceTimer = setTimeout(function () {
+                    if (!isCheckTokenCurrent(token)) { return; }
+                    recordCheckResult('idk', 'idk');
+                }, played ? CHECK_AUTO_ADVANCE_DELAY_MS : CHECK_AUDIO_FAIL_DELAY_MS);
+            });
+            return;
         }
-        if (!known) {
-            checkSession.unknownLookup = checkSession.unknownLookup || {};
-            if (!checkSession.unknownLookup[item.wordId]) {
-                checkSession.unknownLookup[item.wordId] = true;
-                checkSession.unknownIds.push(item.wordId);
+
+        renderCheckAnswer(item);
+        setCheckFlipped(true);
+        playCheckIsolationAudio(item).then(function (played) {
+            if (!isCheckTokenCurrent(token) || !checkSession) { return; }
+            const enableResultChoices = function () {
+                if (!isCheckTokenCurrent(token) || !checkSession) { return; }
+                setCheckActionsDisabled(false);
+            };
+            if (played) {
+                enableResultChoices();
+                return;
             }
+            setTimeout(enableResultChoices, CHECK_AUDIO_FAIL_DELAY_MS);
+        });
+    }
+
+    function handleCheckResultChoice(choice) {
+        if (!checkSession || checkSession.phase !== 'result') { return; }
+        const result = String(choice || '').toLowerCase();
+        if (['right', 'close', 'wrong'].indexOf(result) === -1) { return; }
+        const confidence = String(checkSession.pendingConfidence || '').toLowerCase();
+        if (!confidence || confidence === 'idk') {
+            recordCheckResult('think', result);
+            return;
         }
-        checkSession.index += 1;
-        stopCurrentAudio();
-        showCheckItem();
+        recordCheckResult(confidence, result);
+    }
+
+    function getKnownCategoryIdsFromSelfCheck(session) {
+        const src = session || {};
+        const stats = (src.categoryStats && typeof src.categoryStats === 'object') ? src.categoryStats : {};
+        const known = [];
+        Object.keys(stats).forEach(function (key) {
+            const cid = parseInt(key, 10) || 0;
+            if (!cid) { return; }
+            const row = stats[cid] || {};
+            const total = Math.max(0, parseInt(row.total, 10) || 0);
+            if (total < 2) { return; }
+            const right = Math.max(0, parseInt(row.right, 10) || 0);
+            const close = Math.max(0, parseInt(row.close, 10) || 0);
+            const wrong = Math.max(0, parseInt(row.wrong, 10) || 0);
+            const idk = Math.max(0, parseInt(row.idk, 10) || 0);
+            const weighted = right + (close * 0.6) - (wrong * 0.8) - (idk * 1.15);
+            const ratio = (right + close) / total;
+            if (weighted >= 0.75 && ratio >= 0.6 && idk === 0) {
+                known.push(cid);
+            }
+        });
+        return uniqueIntList(known);
     }
 
     function getWordIdsForCategories(catIds) {
@@ -1265,9 +1543,7 @@
         return ids;
     }
 
-    function startCheckFlow(categoryIds, options) {
-        const opts = (options && typeof options === 'object') ? options : {};
-        const sessionMode = normalizeCheckMode(opts.mode || 'self-check');
+    function startCheckFlow(categoryIds) {
         const ids = toIntList(categoryIds || state.category_ids).filter(function (id) {
             return !isCategoryIgnored(id);
         });
@@ -1276,41 +1552,36 @@
             return;
         }
         syncProgressTrackerContext(getTrackerModeForSession(), ids);
-        updateCheckActionLabels(sessionMode);
-        if (sessionMode === 'placement') {
-            if ($placementStart.length) {
-                $placementStart.prop('disabled', true).addClass('loading');
-            }
-        } else if ($checkStart.length) {
+        updateCheckActionLabels();
+        if ($checkStart.length) {
             $checkStart.prop('disabled', true).addClass('loading');
         }
 
         ensureWordsForCategories(ids).always(function () {
-            const items = (sessionMode === 'placement')
-                ? buildPlacementQueue(ids)
-                : buildCheckQueue(ids);
+            const items = buildCheckQueue(ids);
             if (!items.length) {
                 alert(i18n.checkEmpty || 'No words available for this check.');
                 closeCheckPanel();
                 return;
             }
             checkSession = {
-                mode: sessionMode,
+                mode: 'self-check',
                 items: items,
                 index: 0,
                 unknownIds: [],
                 unknownLookup: {},
                 categoryIds: ids,
-                categoryStats: {}
+                categoryStats: {},
+                counts: { idk: 0, wrong: 0, close: 0, right: 0 },
+                phase: 'confidence',
+                pendingConfidence: '',
+                token: 0,
+                advanceTimer: null
             };
             openCheckPanel();
             showCheckItem();
         }).always(function () {
-            if (sessionMode === 'placement') {
-                if ($placementStart.length) {
-                    $placementStart.prop('disabled', false).removeClass('loading');
-                }
-            } else if ($checkStart.length) {
+            if ($checkStart.length) {
                 $checkStart.prop('disabled', false).removeClass('loading');
             }
         });
@@ -1350,48 +1621,35 @@
         setStarredWordIds(next);
         setStudyPrefsGlobal();
         saveStateDebounced();
+
+        const testedCategoryIds = uniqueIntList(Object.keys(checkSession.categoryStats || {}).map(function (key) {
+            return parseInt(key, 10) || 0;
+        }).filter(Boolean));
+        if (testedCategoryIds.length) {
+            const testedLookup = {};
+            testedCategoryIds.forEach(function (id) {
+                testedLookup[id] = true;
+            });
+            const knownCategoryIds = getKnownCategoryIdsFromSelfCheck(checkSession);
+            const keepExisting = uniqueIntList(goals.placement_known_category_ids || []).filter(function (id) {
+                return !testedLookup[id];
+            });
+            goals.placement_known_category_ids = uniqueIntList(keepExisting.concat(knownCategoryIds));
+            renderGoalsControls();
+        }
+
         renderWords();
         renderCategories();
-        closeCheckPanel();
-    }
-
-    function applyPlacementResults() {
-        if (!checkSession || !isPlacementSession()) {
-            closeCheckPanel();
-            return;
-        }
-        const placement = getPlacementResultsFromSession(checkSession);
-        const testedLookup = {};
-        placement.testedCategoryIds.forEach(function (id) {
-            testedLookup[id] = true;
-        });
-        const keepExisting = uniqueIntList(goals.placement_known_category_ids || []).filter(function (id) {
-            return !testedLookup[id];
-        });
-        goals.placement_known_category_ids = uniqueIntList(keepExisting.concat(placement.knownCategoryIds));
-        renderCategories();
-        renderGoalsControls();
         renderNextActivity();
-        saveGoalsNow().always(function () {
-            refreshRecommendation();
-            closeCheckPanel();
-        });
-    }
-
-    function startPlacementFlow(categoryIds) {
-        const explicit = toIntList(categoryIds || []);
-        let ids = explicit.length ? explicit : toIntList(state.category_ids || []);
-        if (!ids.length) {
-            ids = toIntList(categories.map(function (cat) { return parseInt(cat.id, 10) || 0; }));
-        }
-        ids = uniqueIntList(ids).filter(function (id) {
-            return !isCategoryIgnored(id);
-        });
-        if (!ids.length) {
-            ensureCategoriesSelected();
+        if (testedCategoryIds.length) {
+            saveGoalsNow().always(function () {
+                refreshRecommendation();
+                closeCheckPanel();
+            });
             return;
         }
-        startCheckFlow(ids, { mode: 'placement' });
+        refreshRecommendation();
+        closeCheckPanel();
     }
 
     function setStudyPrefsGlobal() {
@@ -2026,7 +2284,7 @@
             });
             if (next.mode === 'self-check') {
                 syncProgressTrackerContext('self-check', categoryIds);
-                startCheckFlow(categoryIds, { mode: 'self-check' });
+                startCheckFlow(categoryIds);
                 return;
             }
             startFlashcards(next.mode, {
@@ -2038,42 +2296,24 @@
 
     if ($checkStart.length) {
         $checkStart.on('click', function () {
-            startCheckFlow(undefined, { mode: 'self-check' });
+            startCheckFlow(undefined);
         });
     }
 
-    if ($placementStart.length) {
-        $placementStart.on('click', function () {
-            startPlacementFlow();
-        });
-    }
-
-    if ($checkFlip.length) {
-        $checkFlip.on('click', function () {
-            if (!$checkCard.length) { return; }
-            const flipped = $checkCard.hasClass('is-flipped');
-            setCheckFlipped(!flipped);
-        });
-    }
-
-    if ($checkKnow.length) {
-        $checkKnow.on('click', function () {
-            recordCheckResult(true);
-        });
-    }
-
-    if ($checkUnknown.length) {
-        $checkUnknown.on('click', function () {
-            recordCheckResult(false);
+    if ($checkActions.length) {
+        $checkActions.on('click', '[data-ll-check-choice]', function () {
+            const choice = String($(this).attr('data-ll-check-choice') || '').toLowerCase();
+            if (!choice || !checkSession) { return; }
+            if (checkSession.phase === 'result') {
+                handleCheckResultChoice(choice);
+                return;
+            }
+            handleCheckConfidenceChoice(choice);
         });
     }
 
     if ($checkApply.length) {
         $checkApply.on('click', function () {
-            if (isPlacementSession()) {
-                applyPlacementResults();
-                return;
-            }
             applyCheckStars();
         });
     }
@@ -2083,8 +2323,7 @@
             const ids = checkSession && Array.isArray(checkSession.categoryIds)
                 ? checkSession.categoryIds
                 : state.category_ids;
-            const mode = checkSession && checkSession.mode ? checkSession.mode : 'self-check';
-            startCheckFlow(ids, { mode: mode });
+            startCheckFlow(ids);
         });
     }
 
@@ -2275,7 +2514,7 @@
     renderWords();
     renderStarModeToggle();
     renderTransitionToggle();
-    updateCheckActionLabels('self-check');
+    updateCheckActionLabels();
     renderNextActivity();
     updateGenderButtonVisibility();
     setStudyPrefsGlobal();
@@ -2283,9 +2522,6 @@
 
     window.LLToolsStudyDashboard = window.LLToolsStudyDashboard || {};
     window.LLToolsStudyDashboard.startSelfCheck = function (categoryIds) {
-        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined, { mode: 'self-check' });
-    };
-    window.LLToolsStudyDashboard.startPlacementTest = function (categoryIds) {
-        startPlacementFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
+        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
     };
 })(jQuery);

@@ -7,11 +7,15 @@
  */
 
 function ll_register_settings_page() {
+    $settings_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+        ? ll_tools_get_admin_settings_page_slug()
+        : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+
     add_options_page(
         'Language Learning Tools Settings', // Page title
         'Language Learning Tools', // Menu title
         'view_ll_tools', // Capability required to see the page
-        'language-learning-tools-settings', // Menu slug
+        $settings_slug, // Menu slug
         'll_render_settings_page' // Function to display the settings page
     );
 }
@@ -228,7 +232,12 @@ function ll_render_settings_page() {
         <?php echo $cache_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <form action="options.php" method="post">
             <?php settings_fields('language-learning-tools-options'); ?>
-            <?php do_settings_sections('language-learning-tools-settings'); ?>
+            <?php
+            $settings_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+                ? ll_tools_get_admin_settings_page_slug()
+                : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+            do_settings_sections($settings_slug);
+            ?>
             
             <table class="form-table">
                 <tr valign="top">
@@ -339,38 +348,6 @@ function ll_render_settings_page() {
 
             <?php submit_button(); ?>
         </form>
-
-        <?php
-        $api_capability = function_exists('ll_tools_api_settings_capability')
-            ? ll_tools_api_settings_capability()
-            : 'manage_options';
-        $can_manage_advanced = current_user_can('manage_options');
-        ?>
-
-        <?php if (current_user_can($api_capability) || $can_manage_advanced) : ?>
-            <hr />
-
-            <h2><?php esc_html_e('API and Advanced Lists', 'll-tools-text-domain'); ?></h2>
-            <p><?php esc_html_e('These pages are intentionally hidden from the main menu and linked here for lower-frequency maintenance.', 'll-tools-text-domain'); ?></p>
-            <p>
-                <?php if (current_user_can($api_capability)) : ?>
-                    <a class="button button-secondary" href="<?php echo esc_url(admin_url('tools.php?page=deepl-api-key')); ?>">
-                        <?php esc_html_e('DeepL API Key', 'll-tools-text-domain'); ?>
-                    </a>
-                    <a class="button button-secondary" href="<?php echo esc_url(admin_url('tools.php?page=assemblyai-api-key')); ?>">
-                        <?php esc_html_e('AssemblyAI API Key', 'll-tools-text-domain'); ?>
-                    </a>
-                <?php endif; ?>
-                <?php if ($can_manage_advanced) : ?>
-                    <a class="button" href="<?php echo esc_url(admin_url('tools.php?page=language-learner-tools-languages')); ?>">
-                        <?php esc_html_e('LL Tools Languages', 'll-tools-text-domain'); ?>
-                    </a>
-                    <a class="button" href="<?php echo esc_url(admin_url('tools.php?page=ll-recording-types')); ?>">
-                        <?php esc_html_e('LL Recording Types', 'll-tools-text-domain'); ?>
-                    </a>
-                <?php endif; ?>
-            </p>
-        <?php endif; ?>
 
         <hr />
 

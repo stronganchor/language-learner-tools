@@ -35,7 +35,7 @@ function customize_admin_menu_for_wordset_manager() {
 
         $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
             ? ll_tools_get_admin_menu_slug()
-            : 'language-learning-tools-settings';
+            : 'll-tools-dashboard-home';
         $allowed_menus = ['profile.php', $dashboard_slug];
 
         foreach ($menu as $menu_key => $menu_item) {

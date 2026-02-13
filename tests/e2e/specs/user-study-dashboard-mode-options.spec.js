@@ -18,7 +18,6 @@ function buildStudyPanelMarkup() {
         <button type="button" class="ll-study-btn ll-study-btn--gender ll-study-btn--hidden" data-ll-study-start data-ll-study-gender data-mode="gender" aria-hidden="true">Gender</button>
         <button type="button" class="ll-study-btn" data-ll-study-start data-mode="listening">Listen</button>
         <button type="button" class="ll-study-btn" data-ll-study-check-start>Check</button>
-        <button type="button" class="ll-study-btn" data-ll-study-placement-start>Placement</button>
       </div>
       <div data-ll-study-next-text></div>
 
@@ -51,10 +50,7 @@ function buildStudyPanelMarkup() {
             </div>
           </div>
           <button type="button" data-ll-study-check-flip>Flip</button>
-          <div data-ll-study-check-actions>
-            <button type="button" data-ll-study-check-know>Know</button>
-            <button type="button" data-ll-study-check-unknown>Unknown</button>
-          </div>
+          <div data-ll-study-check-actions></div>
           <div data-ll-study-check-complete style="display:none;">
             <p data-ll-study-check-summary></p>
             <button type="button" data-ll-study-check-apply>Set stars</button>
@@ -278,7 +274,7 @@ test('self-check apply only updates stars inside the checked category scope', as
     htmlOverflow: 'hidden'
   });
 
-  await page.locator('[data-ll-study-check-unknown]').click();
+  await page.locator('[data-ll-check-choice="idk"]').click();
   await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
   await page.locator('[data-ll-study-check-apply]').click();
   await page.waitForTimeout(500);
@@ -303,7 +299,7 @@ test('self-check apply only updates stars inside the checked category scope', as
   expect(starred).toEqual([101, 202]);
 });
 
-test('placement flow marks category known and persists goals', async ({ page }) => {
+test('self-check confident correct answers mark category known and persist goals', async ({ page }) => {
   const payload = buildPayload({
     state: {
       wordset_id: 19,
@@ -315,8 +311,7 @@ test('placement flow marks category known and persists goals', async ({ page }) 
     words_by_category: {
       11: [
         { id: 111, title: 'Word 1', translation: 'Word 1', label: 'Word 1', image: '', audio: '', audio_files: [] },
-        { id: 112, title: 'Word 2', translation: 'Word 2', label: 'Word 2', image: '', audio: '', audio_files: [] },
-        { id: 113, title: 'Word 3', translation: 'Word 3', label: 'Word 3', image: '', audio: '', audio_files: [] }
+        { id: 112, title: 'Word 2', translation: 'Word 2', label: 'Word 2', image: '', audio: '', audio_files: [] }
       ],
       22: [
         { id: 221, title: 'Word 4', translation: 'Word 4', label: 'Word 4', image: '', audio: '', audio_files: [] }
@@ -325,11 +320,12 @@ test('placement flow marks category known and persists goals', async ({ page }) 
   });
 
   await mountStudyPanel(page, payload);
-  await page.locator('[data-ll-study-placement-start]').click();
+  await page.locator('[data-ll-study-check-start]').click();
 
-  await page.locator('[data-ll-study-check-know]').click();
-  await page.locator('[data-ll-study-check-know]').click();
-  await page.locator('[data-ll-study-check-know]').click();
+  await page.locator('[data-ll-check-choice="know"]').click();
+  await page.locator('[data-ll-check-choice="right"]').click();
+  await page.locator('[data-ll-check-choice="think"]').click();
+  await page.locator('[data-ll-check-choice="right"]').click();
 
   await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
   await page.locator('[data-ll-study-check-apply]').click();

@@ -156,18 +156,6 @@ body.ll-study-check-open {
   stroke: currentColor;
 }
 
-.ll-user-study-dashboard .ll-study-actions .ll-vocab-lesson-mode-icon--placement {
-  width: 32px;
-  height: 32px;
-}
-
-.ll-user-study-dashboard .ll-study-actions .ll-vocab-lesson-mode-icon--placement svg {
-  width: 22px;
-  height: 22px;
-  fill: initial;
-  stroke: initial;
-}
-
 .ll-study-grid--top {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -863,6 +851,7 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-flip {
+  display: none !important;
   position: absolute;
   bottom: 12px;
   right: 12px;
@@ -909,7 +898,7 @@ body.ll-study-check-open {
 }
 .ll-study-check .ll-study-check-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
   margin-top: 0;
@@ -953,6 +942,66 @@ body.ll-study-check-open {
 .ll-study-check .ll-study-check-btn--unknown:hover {
   background: #dc2626;
   border-color: #dc2626;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--idk {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--idk:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--think {
+  background: #ca8a04;
+  border-color: #ca8a04;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--think:hover {
+  background: #a16207;
+  border-color: #a16207;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--right {
+  background: #15803d;
+  border-color: #15803d;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--right:hover {
+  background: #166534;
+  border-color: #166534;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--close {
+  background: #ca8a04;
+  border-color: #ca8a04;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--close:hover {
+  background: #a16207;
+  border-color: #a16207;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--wrong {
+  background: #be123c;
+  border-color: #be123c;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-btn--wrong:hover {
+  background: #9f1239;
+  border-color: #9f1239;
   color: #ffffff !important;
 }
 

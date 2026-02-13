@@ -74,7 +74,7 @@ function ll_trim_admin_menu_for_ll_tools_roles() {
     global $menu;
     $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
         ? ll_tools_get_admin_menu_slug()
-        : 'language-learning-tools-settings';
+        : 'll-tools-dashboard-home';
 
     // Keep only the relevant top-level items
     $allowed = [

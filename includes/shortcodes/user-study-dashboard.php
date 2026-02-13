@@ -70,23 +70,6 @@ SVG;
     $render_start_next_icon = function () use ($start_next_icon_svg): void {
         echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true">' . $start_next_icon_svg . '</span>';
     };
-    $placement_icon_svg = <<<'SVG'
-<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <g transform="translate(8 9.4) scale(1.55) translate(-8 -9)">
-    <path fill="#22c55e" d="M6.2 7.6c.2-.2.6-.2.8 0l.7.7 1.6-1.6c.2-.2.6-.2.8 0s.2.6 0 .8l-2 2c-.2.2-.6.2-.8 0L6.2 8.4c-.2-.2-.2-.6 0-.8z"/>
-  </g>
-  <g transform="translate(8 15) scale(1.35) translate(-8 -15)" fill="#ef4444">
-    <rect x="5.4" y="14.35" width="5.2" height="1.3" rx="0.65" transform="rotate(45 8 15)"/>
-    <rect x="5.4" y="14.35" width="5.2" height="1.3" rx="0.65" transform="rotate(-45 8 15)"/>
-  </g>
-  <rect x="12" y="7.8" width="8.5" height="2.4" rx="1.2" fill="currentColor"/>
-  <rect x="12" y="13.8" width="8.5" height="2.4" rx="1.2" fill="currentColor"/>
-</svg>
-SVG;
-    $render_placement_icon = function () use ($placement_icon_svg): void {
-        echo '<span class="ll-vocab-lesson-mode-icon ll-vocab-lesson-mode-icon--placement" aria-hidden="true">' . $placement_icon_svg . '</span>';
-    };
-
     ll_tools_user_study_enqueue_assets();
 
     $i18n = [
@@ -127,19 +110,20 @@ SVG;
         'checkTitle'       => __('Self check', 'll-tools-text-domain'),
         'checkKnow'        => __('I know it', 'll-tools-text-domain'),
         'checkDontKnow'    => __("I don't know it", 'll-tools-text-domain'),
-        'checkSummary'     => __("You marked %d as \"I don't know\".", 'll-tools-text-domain'),
-        'checkApply'       => __('Set stars', 'll-tools-text-domain'),
-        'checkApplyHint'   => __("Replace stars for the selected categories with the words you marked as \"I don't know\".", 'll-tools-text-domain'),
+        'checkThinkKnow'   => __('I think I know it', 'll-tools-text-domain'),
+        'checkSummary'     => __('Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.', 'll-tools-text-domain'),
+        'checkPhasePrompt' => __('What do you think this word is?', 'll-tools-text-domain'),
+        'checkPhaseResult' => __('Listen, then choose your result.', 'll-tools-text-domain'),
+        'checkGotRight'    => __('I got it right', 'll-tools-text-domain'),
+        'checkGotClose'    => __('I got close', 'll-tools-text-domain'),
+        'checkGotWrong'    => __('I got it wrong', 'll-tools-text-domain'),
+        'checkApply'       => __('Apply self check', 'll-tools-text-domain'),
+        'checkApplyHint'   => __('Update stars and category familiarity from this self check.', 'll-tools-text-domain'),
         'checkRestart'     => __('Review again', 'll-tools-text-domain'),
         'checkExit'        => __('Close', 'll-tools-text-domain'),
         'checkEmpty'       => __('No words available for this check.', 'll-tools-text-domain'),
-        'checkFlipLabel'   => __('Show answer', 'll-tools-text-domain'),
-        'placementLabel'   => __('Placement test', 'll-tools-text-domain'),
-        'placementStart'   => __('Placement test', 'll-tools-text-domain'),
-        'placementApply'   => __('Save placement', 'll-tools-text-domain'),
-        'placementRestart' => __('Retake placement', 'll-tools-text-domain'),
-        'placementSummary' => __('Placement: %1$d/%2$d categories marked as known.', 'll-tools-text-domain'),
-        'placementSummaryNone' => __('Placement complete. No categories were marked as known yet.', 'll-tools-text-domain'),
+        'checkAutoAdvance' => __('Playing audio, then moving to the next word...', 'll-tools-text-domain'),
+        'checkNeedResult'  => __('Now choose how close your answer was.', 'll-tools-text-domain'),
         'goalsLabel'       => __('Learning goals', 'll-tools-text-domain'),
         'enabledModesLabel' => __('Enabled modes', 'll-tools-text-domain'),
         'dailyNewLabel'    => __('New words / day', 'll-tools-text-domain'),
@@ -194,10 +178,6 @@ SVG;
                 <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-check-start>
                     <?php $render_mode_icon('self-check', '✔✖'); ?>
                     <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['checkLabel']); ?></span>
-                </button>
-                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-placement-start>
-                    <?php $render_placement_icon(); ?>
-                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($i18n['placementStart']); ?></span>
                 </button>
             </div>
         </div>
@@ -292,32 +272,9 @@ SVG;
                         <div class="ll-study-check-prompt ll-study-check-face ll-study-check-face--front" data-ll-study-check-prompt></div>
                         <div class="ll-study-check-prompt ll-study-check-face ll-study-check-face--back" data-ll-study-check-answer></div>
                     </div>
-                    <button type="button" class="ll-study-check-flip" data-ll-study-check-flip aria-label="<?php echo esc_attr($i18n['checkFlipLabel']); ?>">
-                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M20 7h-9a6 6 0 1 0 0 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M20 7l-3-3M20 7l-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
                 </div>
 
-                <div class="ll-study-check-actions" data-ll-study-check-actions>
-                    <button type="button" class="ll-study-btn ll-study-check-btn ll-study-check-btn--know" data-ll-study-check-know>
-                        <span class="ll-study-check-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </span>
-                        <span class="ll-study-check-btn-text"><?php echo esc_html($i18n['checkKnow']); ?></span>
-                    </button>
-                    <button type="button" class="ll-study-btn ll-study-check-btn ll-study-check-btn--unknown" data-ll-study-check-unknown>
-                        <span class="ll-study-check-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <path d="M6 6l12 12M18 6l-12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </span>
-                        <span class="ll-study-check-btn-text"><?php echo esc_html($i18n['checkDontKnow']); ?></span>
-                    </button>
-                </div>
+                <div class="ll-study-check-actions" data-ll-study-check-actions></div>
 
                 <div class="ll-study-check-complete" data-ll-study-check-complete style="display:none;">
                     <p class="ll-study-check-summary" data-ll-study-check-summary></p>

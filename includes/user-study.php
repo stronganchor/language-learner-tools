@@ -121,6 +121,7 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
         return [];
     }
 
+    $uid = (int) get_current_user_id();
     $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
     $terms = get_terms([
         'taxonomy'   => 'word-category',
@@ -151,10 +152,23 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
             'prompt_type' => $prompt_type,
         ]);
         $words_raw = ll_get_words_by_category($term->name, $option_type, $wordset_ids, $merged_config);
-        $result[$cid] = array_map(function ($w) use ($term) {
+        $word_ids = array_values(array_filter(array_map(function ($w) {
+            return (int) ($w['id'] ?? 0);
+        }, (array) $words_raw), function ($id) {
+            return $id > 0;
+        }));
+        $progress_rows = [];
+        if ($uid > 0 && !empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows')) {
+            $progress_rows = ll_tools_get_user_word_progress_rows($uid, $word_ids);
+        }
+
+        $result[$cid] = array_map(function ($w) use ($term, $progress_rows) {
             $word_id = (int) ($w['id'] ?? 0);
             $title = isset($w['title']) ? (string) $w['title'] : '';
             $translation = '';
+            $progress = ($word_id > 0 && isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id]))
+                ? $progress_rows[$word_id]
+                : [];
             if ($word_id > 0) {
                 $translation = trim((string) get_post_meta($word_id, 'word_translation', true));
                 if ($translation === '') {
@@ -172,6 +186,10 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'preferred_speaker_user_id' => isset($w['preferred_speaker_user_id']) ? (int) $w['preferred_speaker_user_id'] : 0,
                 'all_categories' => isset($w['all_categories']) ? (array) $w['all_categories'] : [$term->name],
                 'wordset_ids'    => isset($w['wordset_ids']) ? (array) $w['wordset_ids'] : [],
+                'progress_total_coverage' => max(0, (int) ($progress['total_coverage'] ?? 0)),
+                'progress_stage' => max(0, (int) ($progress['stage'] ?? 0)),
+                'progress_last_mode' => isset($progress['last_mode']) ? (string) $progress['last_mode'] : '',
+                'progress_last_seen_at' => isset($progress['last_seen_at']) ? (string) $progress['last_seen_at'] : '',
             ];
         }, $words_raw);
     }
