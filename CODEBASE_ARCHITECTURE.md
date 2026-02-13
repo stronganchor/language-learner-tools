@@ -93,6 +93,7 @@ includes/
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
     word-audio-shortcode.php
+    wordset-page-shortcode.php
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
@@ -220,6 +221,7 @@ Core settings live in `includes/admin/settings.php`:
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
+- `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
