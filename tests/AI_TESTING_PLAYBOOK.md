@@ -24,12 +24,14 @@ Run one PHPUnit test:
 
 ```bash
 tests/bin/run-tests.sh tests/Integration/FlashcardWidgetFlowTest.php
+tests/bin/run-tests.sh Integration/FlashcardWidgetFlowTest.php
 ```
 
 Run one Playwright spec:
 
 ```bash
 tests/bin/run-e2e.sh tests/e2e/specs/quiz-mode-transitions.spec.js
+tests/bin/run-e2e.sh specs/quiz-mode-transitions.spec.js
 ```
 
 Headed Playwright debug:
@@ -121,6 +123,14 @@ Playwright shows Local router `404 Site Not Found`:
 Playwright cannot find `.ll-quiz-page-trigger`:
 - Confirm target page has `[quiz_pages_grid popup="yes"...]`.
 - Check `LL_E2E_LEARN_PATH`.
+
+`Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
+- This is usually a PHP shim path-conversion issue in WSL.
+- `tests/bin/php-local.sh` auto-converts args for Windows-runtime PHP.
+- If your environment still fails, run:
+```bash
+PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
+```
 
 ## 8) Minimum Validation Before Finishing
 

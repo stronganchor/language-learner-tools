@@ -67,6 +67,64 @@ final class UserProgressSelfCheckSignalTest extends LL_Tools_TestCase
         $this->assertNotEmpty($after_right['due_at']);
     }
 
+    public function test_self_check_wrong_and_close_buckets_apply_expected_adjustments(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        [$wrong_word_id, $wrong_category_id, $wrong_wordset_id] = $this->createScopedWord();
+        [$close_word_id, $close_category_id, $close_wordset_id] = $this->createScopedWord();
+
+        $wrong_event = [
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_outcome',
+            'mode' => 'self-check',
+            'word_id' => $wrong_word_id,
+            'category_id' => $wrong_category_id,
+            'wordset_id' => $wrong_wordset_id,
+            'is_correct' => false,
+            'had_wrong_before' => true,
+            'payload' => [
+                'self_check_bucket' => 'wrong',
+                'self_check_confidence' => 'know',
+                'self_check_result' => 'wrong',
+            ],
+        ];
+        $stats = ll_tools_process_progress_events_batch($user_id, [$wrong_event]);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+
+        $rows = ll_tools_get_user_word_progress_rows($user_id, [$wrong_word_id]);
+        $this->assertArrayHasKey($wrong_word_id, $rows);
+        $after_wrong = $rows[$wrong_word_id];
+        $this->assertSame(1, (int) ($after_wrong['incorrect'] ?? 0));
+        $this->assertSame(1, (int) ($after_wrong['lapse_count'] ?? 0));
+        $this->assertSame(0, (int) ($after_wrong['stage'] ?? 0));
+        $this->assertNotEmpty($after_wrong['due_at']);
+
+        $close_event = [
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_outcome',
+            'mode' => 'self-check',
+            'word_id' => $close_word_id,
+            'category_id' => $close_category_id,
+            'wordset_id' => $close_wordset_id,
+            'is_correct' => true,
+            'had_wrong_before' => true,
+            'payload' => [
+                'self_check_bucket' => 'close',
+                'self_check_confidence' => 'think',
+                'self_check_result' => 'close',
+            ],
+        ];
+        $stats = ll_tools_process_progress_events_batch($user_id, [$close_event]);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+
+        $rows = ll_tools_get_user_word_progress_rows($user_id, [$close_word_id]);
+        $this->assertArrayHasKey($close_word_id, $rows);
+        $after_close = $rows[$close_word_id];
+        $this->assertSame(1, (int) ($after_close['correct_after_retry'] ?? 0));
+        $this->assertSame(1, (int) ($after_close['stage'] ?? 0));
+        $this->assertNotEmpty($after_close['due_at']);
+    }
+
     /**
      * @return array{0:int,1:int,2:int}
      */

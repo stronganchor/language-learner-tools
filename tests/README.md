@@ -118,6 +118,15 @@ tests/bin/run-tests.sh
 
 When you run `eval "$(tests/bin/setup-local-env.sh)"` first, exported vars take precedence over `.env`.
 
+## 4.3) Run a specific test file
+
+PHPUnit accepts either path style:
+
+```bash
+tests/bin/run-tests.sh tests/Integration/UserProgressSelfCheckSignalTest.php
+tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
+```
+
 ## 5) What these initial tests cover
 
 - Audio recorder role creation and required capabilities.
@@ -160,6 +169,13 @@ LL_E2E_LEARN_PATH=/learn/
 
 Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Local's nginx config for this site.
 
+Run one E2E spec with either path style:
+
+```bash
+tests/bin/run-e2e.sh tests/e2e/specs/user-study-dashboard-mode-options.spec.js
+tests/bin/run-e2e.sh specs/user-study-dashboard-mode-options.spec.js
+```
+
 ## Notes
 
 - Tests run against a WordPress test database, not your production site DB.
@@ -167,3 +183,5 @@ Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Loca
 - `run-tests.sh` supports either Linux PHP or Local Windows `php.exe` through `bin/php-local.sh`.
 - `install-wp-tests.sh` writes `WP_PHP_BINARY` and `$table_prefix` into `wp-tests-config.php` for Local Windows PHP compatibility.
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
+- If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
+  - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`

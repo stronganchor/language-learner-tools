@@ -345,6 +345,124 @@ test('self-check confident correct answers mark category known and persist goals
   expect(knownCategoryIds).toEqual([11]);
 });
 
+test('self-check switches to result choices immediately and keeps them disabled until isolation audio ends', async ({ page }) => {
+  const payload = buildPayload({
+    state: {
+      wordset_id: 19,
+      category_ids: [11],
+      starred_word_ids: [],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    words_by_category: {
+      11: [
+        {
+          id: 101,
+          title: 'Word A',
+          translation: 'Word A',
+          label: 'Word A',
+          image: '',
+          audio: '',
+          audio_files: [
+            { recording_type: 'isolation', url: 'https://example.test/isolation-a.mp3' }
+          ]
+        }
+      ],
+      22: []
+    }
+  });
+
+  await mountStudyPanel(page, payload);
+
+  await page.evaluate(() => {
+    window.__llAudioInstances = [];
+    window.__llEmitAudioEnded = function (index = 0) {
+      const list = Array.isArray(window.__llAudioInstances) ? window.__llAudioInstances : [];
+      const audio = list[index] || null;
+      if (!audio) {
+        return false;
+      }
+      audio.paused = true;
+      const listeners = Array.isArray(audio.__listeners && audio.__listeners.ended) ? audio.__listeners.ended.slice() : [];
+      listeners.forEach((fn) => {
+        try {
+          fn();
+        } catch (_err) {}
+      });
+      return true;
+    };
+
+    window.Audio = function (url) {
+      this.url = url;
+      this.paused = true;
+      this.__listeners = {};
+      this.__playCalls = 0;
+      window.__llAudioInstances.push(this);
+    };
+
+    window.Audio.prototype.addEventListener = function (type, handler) {
+      const key = String(type || '');
+      if (!this.__listeners[key]) {
+        this.__listeners[key] = [];
+      }
+      this.__listeners[key].push(handler);
+    };
+
+    window.Audio.prototype.removeEventListener = function (type, handler) {
+      const key = String(type || '');
+      const list = Array.isArray(this.__listeners[key]) ? this.__listeners[key] : [];
+      this.__listeners[key] = list.filter((fn) => fn !== handler);
+    };
+
+    window.Audio.prototype.play = function () {
+      this.paused = false;
+      this.__playCalls += 1;
+      return Promise.resolve();
+    };
+
+    window.Audio.prototype.pause = function () {
+      this.paused = true;
+    };
+  });
+
+  await page.locator('[data-ll-study-check-start]').click();
+  await page.locator('[data-ll-check-choice="know"]').click();
+
+  await expect(page.locator('[data-ll-check-choice="wrong"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-check-choice="close"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-check-choice="right"]')).toHaveCount(1);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      return Array.from(document.querySelectorAll('[data-ll-study-check-actions] button')).map((btn) => btn.disabled);
+    });
+  }).toEqual([true, true, true]);
+
+  const audioSnapshot = await page.evaluate(() => {
+    const list = Array.isArray(window.__llAudioInstances) ? window.__llAudioInstances : [];
+    const first = list[0] || null;
+    return {
+      count: list.length,
+      playCalls: first ? Number(first.__playCalls || 0) : 0
+    };
+  });
+  expect(audioSnapshot.count).toBeGreaterThanOrEqual(1);
+  expect(audioSnapshot.playCalls).toBe(1);
+
+  await page.evaluate(() => {
+    window.__llEmitAudioEnded(0);
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      return Array.from(document.querySelectorAll('[data-ll-study-check-actions] button')).map((btn) => btn.disabled);
+    });
+  }).toEqual([false, false, false]);
+
+  await page.locator('[data-ll-check-choice="right"]').click();
+  await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
+});
+
 test('start next chunk temporarily overrides starred-only to keep session words available', async ({ page }) => {
   const payload = buildPayload({
     state: {

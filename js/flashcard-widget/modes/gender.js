@@ -50,6 +50,8 @@
             replayQueue: [],
             introducedWordIds: [],
             levelOneReviewPending: {},
+            levelOneSingleIntroWordIds: {},
+            delayNextLevelOneIntro: false,
             categorySessionStats: {},
             introPending: false,
             introComplete: true,
@@ -646,6 +648,8 @@
         session.wordState = {};
         session.categorySessionStats = {};
         session.introducedWordIds = [];
+        session.levelOneSingleIntroWordIds = {};
+        session.delayNextLevelOneIntro = false;
 
         activeIds.forEach(function (wordId) {
             const word = byId[wordId];
@@ -1297,6 +1301,9 @@
             progress.seen_total = Math.max(0, progress.seen_total) + 1;
             setWordProgress(word.id, progress);
             markWordIntroduced(word.id);
+            if (session.level === LEVEL_ONE && words.length === 1) {
+                session.levelOneSingleIntroWordIds[toInt(word.id)] = true;
+            }
         }
 
         session.introComplete = true;
@@ -1609,9 +1616,17 @@
             if (streakSatisfied) {
                 state.requiredStreak = 1;
                 if (isLevelOne) {
+                    const isSingleIntroWord = !!(
+                        session.levelOneSingleIntroWordIds &&
+                        session.levelOneSingleIntroWordIds[wordId]
+                    );
                     markLevelOneReviewSatisfied(wordId);
                     if (stillIntroducingLevelOne) {
                         removeReplay(wordId);
+                        if (isSingleIntroWord && state.correctTotal === 1) {
+                            session.delayNextLevelOneIntro = true;
+                            delete session.levelOneSingleIntroWordIds[wordId];
+                        }
                     }
                 }
             }
@@ -2204,6 +2219,12 @@
         if (session.level === LEVEL_ONE) {
             const introduced = getIntroducedWordIds();
             const notIntroduced = getNotIntroducedWordIds();
+            const latestIntroducedId = introduced.length > 2 ? toInt(introduced[introduced.length - 1]) : 0;
+            const latestIntroducedState = latestIntroducedId ? getWordState(latestIntroducedId) : null;
+            const latestNeedsSecondPass = !!(
+                latestIntroducedState &&
+                (Math.max(0, parseInt(latestIntroducedState.correctTotal, 10) || 0) < 2)
+            );
 
             if (!introduced.length && notIntroduced.length) {
                 // Safety net: if introductions were skipped, bootstrap with two words.
@@ -2216,6 +2237,8 @@
                 introduced.length > 0 &&
                 notIntroduced.length > 0 &&
                 allLevelOneReviewSatisfied() &&
+                !latestNeedsSecondPass &&
+                !session.delayNextLevelOneIntro &&
                 (!Array.isArray(session.replayQueue) || session.replayQueue.length === 0);
 
             if (shouldIntroduceNext && planLevelOneIntroBatch(1)) {
@@ -2255,6 +2278,9 @@
         round.introEndedAt = 0;
 
         const word = session.wordsById[wordId] || null;
+        if (session.level === LEVEL_ONE && session.delayNextLevelOneIntro) {
+            session.delayNextLevelOneIntro = false;
+        }
         if (word) {
             try { word.__categoryName = session.categoryByWordId[wordId] || getCategoryNameForWord(word); } catch (_) { /* no-op */ }
         }

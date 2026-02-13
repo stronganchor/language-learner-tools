@@ -58,4 +58,27 @@ fi
 npx playwright install chromium
 
 echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
-exec npx playwright test "$@"
+
+normalize_playwright_arg() {
+    local arg="$1"
+    if [[ "$arg" == "$E2E_DIR/"* ]]; then
+        printf '%s\n' "${arg#$E2E_DIR/}"
+        return 0
+    fi
+    if [[ "$arg" == tests/e2e/* ]]; then
+        printf '%s\n' "${arg#tests/e2e/}"
+        return 0
+    fi
+    if [[ "$arg" == ./tests/e2e/* ]]; then
+        printf '%s\n' "${arg#./tests/e2e/}"
+        return 0
+    fi
+    printf '%s\n' "$arg"
+}
+
+normalized_args=()
+for arg in "$@"; do
+    normalized_args+=("$(normalize_playwright_arg "$arg")")
+done
+
+exec npx playwright test "${normalized_args[@]}"

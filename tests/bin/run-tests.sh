@@ -49,6 +49,29 @@ fi
 cd "$TESTS_DIR"
 
 php_family="$("$PHP_LOCAL" -r "echo PHP_OS_FAMILY;")"
+
+normalize_phpunit_arg() {
+    local arg="$1"
+    if [[ "$arg" == "$TESTS_DIR/"* ]]; then
+        printf '%s\n' "${arg#$TESTS_DIR/}"
+        return 0
+    fi
+    if [[ "$arg" == tests/* ]]; then
+        printf '%s\n' "${arg#tests/}"
+        return 0
+    fi
+    if [[ "$arg" == ./tests/* ]]; then
+        printf '%s\n' "${arg#./tests/}"
+        return 0
+    fi
+    printf '%s\n' "$arg"
+}
+
+normalized_args=()
+for arg in "$@"; do
+    normalized_args+=("$(normalize_phpunit_arg "$arg")")
+done
+
 append_wslenv_var() {
     local entry="$1"
     if [[ -z "${WSLENV:-}" ]]; then
@@ -91,11 +114,11 @@ if [[ "$needs_install" == "1" ]]; then
 fi
 
 if [[ -f "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" ]]; then
-    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "$@"
+    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
 fi
 
 if [[ -x "$TESTS_DIR/vendor/bin/phpunit" ]]; then
-    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/bin/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "$@"
+    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/bin/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
 fi
 
 echo "PHPUnit was not found after dependency install." >&2
