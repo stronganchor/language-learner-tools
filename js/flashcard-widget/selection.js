@@ -346,8 +346,10 @@
     function fitGenderOptionTextScale() {
         const $ = root.jQuery;
         if (!$) return;
-        const $cards = $('#ll-tools-flashcard .ll-gender-option').not('.ll-gender-option--unknown');
-        if (!$cards.length) return;
+        const $allCards = $('#ll-tools-flashcard .ll-gender-option');
+        if (!$allCards.length) return;
+        const $cards = $allCards.not('.ll-gender-option--unknown');
+        const $measureCards = $cards.length ? $cards : $allCards;
 
         const MIN_SCALE = 0.56;
         const SCALE_STEP = 0.03;
@@ -356,7 +358,7 @@
         const applyScale = function (scale) {
             const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
             const value = normalized.toFixed(3).replace(/\.?0+$/, '');
-            $cards.each(function () {
+            $allCards.each(function () {
                 if (this && this.style) {
                     this.style.setProperty('--ll-gender-option-scale', value);
                 }
@@ -367,7 +369,7 @@
         let scale = applyScale(1);
         for (let pass = 0; pass < MAX_PASSES; pass++) {
             let hasOverflow = false;
-            $cards.each(function () {
+            $measureCards.each(function () {
                 if (cardGenderLabelOverflows(this)) {
                     hasOverflow = true;
                     return false;
@@ -378,16 +380,107 @@
         }
     }
 
+    function syncGenderUnknownTextSize() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $unknownText = $('#ll-tools-flashcard .ll-gender-option--unknown .quiz-text').first();
+        if (!$unknownText.length) return;
+
+        let measuredFontSize = '';
+        const labelEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .ll-gender-option-label').get(0);
+        if (labelEl && typeof root.getComputedStyle === 'function') {
+            measuredFontSize = String(root.getComputedStyle(labelEl).fontSize || '').trim();
+        }
+        if (!measuredFontSize) {
+            const fallbackEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .quiz-text').get(0);
+            if (fallbackEl && typeof root.getComputedStyle === 'function') {
+                measuredFontSize = String(root.getComputedStyle(fallbackEl).fontSize || '').trim();
+            }
+        }
+        if (!measuredFontSize) return;
+        try {
+            $unknownText[0].style.setProperty('font-size', measuredFontSize);
+            $unknownText[0].style.setProperty('line-height', '1.06');
+        } catch (_) { /* no-op */ }
+    }
+
+    function getGenderSafeBottomInset() {
+        const viewportWidth = Math.max(0, parseInt(root.innerWidth, 10) || 0);
+        const viewportHeight = Math.max(0, parseInt(root.innerHeight, 10) || 0);
+        if (viewportWidth > 420 && viewportHeight > 620) return 0;
+        const doc = root.document;
+        if (!doc) return 0;
+        const wrap = doc.getElementById('ll-tools-mode-switcher-wrap');
+        if (!wrap || typeof wrap.getBoundingClientRect !== 'function') return 0;
+        if (typeof root.getComputedStyle === 'function') {
+            const computed = root.getComputedStyle(wrap);
+            if (!computed || computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') {
+                return 0;
+            }
+        }
+        const rect = wrap.getBoundingClientRect();
+        if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
+        return Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+    }
+
+    function fitGenderLayoutToViewport() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $content = $('#ll-tools-flashcard-content.ll-gender-options-mode');
+        const $container = $('#ll-tools-flashcard.ll-gender-options-layout');
+        if (!$content.length || !$container.length) return;
+        const contentEl = $content[0];
+        const containerEl = $container[0];
+        if (!contentEl || !containerEl || !contentEl.style || !containerEl.style) return;
+
+        const safeBottom = getGenderSafeBottomInset();
+        contentEl.style.setProperty('--ll-gender-safe-bottom', safeBottom + 'px');
+
+        const MIN_LAYOUT_SCALE = 0.5;
+        const SCALE_STEP = 0.04;
+        const MAX_PASSES = 16;
+
+        const applyLayoutScale = function (scale) {
+            const normalized = Math.max(MIN_LAYOUT_SCALE, Math.min(1, scale));
+            const value = normalized.toFixed(3).replace(/\.?0+$/, '');
+            contentEl.style.setProperty('--ll-gender-layout-scale', value);
+            containerEl.style.setProperty('--ll-gender-layout-scale', value);
+            return normalized;
+        };
+
+        let layoutScale = applyLayoutScale(1);
+        fitGenderOptionTextScale();
+        syncGenderUnknownTextSize();
+
+        for (let pass = 0; pass < MAX_PASSES; pass++) {
+            const allowedHeight = Math.max(0, contentEl.clientHeight || 0);
+            const usedHeight = Math.max(contentEl.scrollHeight || 0, containerEl.scrollHeight || 0);
+            const widthLimit = Math.max(0, (contentEl.clientWidth || 0) - 1);
+            const horizontalOverflow = (containerEl.scrollWidth || 0) > widthLimit;
+            const verticalOverflow = usedHeight > (allowedHeight + 1);
+
+            if (!horizontalOverflow && !verticalOverflow) break;
+            if (layoutScale <= MIN_LAYOUT_SCALE) break;
+            layoutScale = applyLayoutScale(layoutScale - SCALE_STEP);
+            fitGenderOptionTextScale();
+            syncGenderUnknownTextSize();
+        }
+
+        if (contentEl.classList && typeof contentEl.classList.toggle === 'function') {
+            contentEl.classList.toggle('ll-gender-layout-compact', layoutScale < 0.999);
+        }
+    }
+
     function scheduleGenderOptionTextScaleFit() {
         if (typeof root.requestAnimationFrame === 'function') {
             root.requestAnimationFrame(function () {
-                fitGenderOptionTextScale();
-                root.requestAnimationFrame(fitGenderOptionTextScale);
+                fitGenderLayoutToViewport();
+                root.requestAnimationFrame(fitGenderLayoutToViewport);
             });
             return;
         }
-        setTimeout(fitGenderOptionTextScale, 0);
-        setTimeout(fitGenderOptionTextScale, 120);
+        setTimeout(fitGenderLayoutToViewport, 0);
+        setTimeout(fitGenderLayoutToViewport, 120);
     }
 
     function ensureGenderOptionFitResizeHandler() {
@@ -1040,8 +1133,18 @@
 
         const $container = $('#ll-tools-flashcard');
         const $content = $('#ll-tools-flashcard-content');
-        $container.removeClass('audio-line-layout');
-        $content.removeClass('audio-line-mode');
+        $container.removeClass('audio-line-layout').addClass('ll-gender-options-layout');
+        $content.removeClass('audio-line-mode').addClass('ll-gender-options-mode');
+        if ($container.length && $container[0] && $container[0].style) {
+            try { $container[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
+        }
+        if ($content.length && $content[0] && $content[0].style) {
+            try { $content[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
+            try { $content[0].style.setProperty('--ll-gender-safe-bottom', '0px'); } catch (_) { /* no-op */ }
+        }
+        $('#ll-tools-prompt img').off('load.llGenderFit').on('load.llGenderFit', function () {
+            scheduleGenderOptionTextScaleFit();
+        });
 
         let optionIndex = 0;
         genderOptions.forEach(function (label) {
@@ -1087,6 +1190,18 @@
 
     function fillQuizOptions(targetWord) {
         let chosen = [];
+        const $layoutContainer = jQuery('#ll-tools-flashcard');
+        const $layoutContent = jQuery('#ll-tools-flashcard-content');
+        $layoutContainer.removeClass('ll-gender-options-layout');
+        $layoutContent.removeClass('ll-gender-options-mode ll-gender-layout-compact');
+        if ($layoutContainer.length && $layoutContainer[0] && $layoutContainer[0].style) {
+            try { $layoutContainer[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+        }
+        if ($layoutContent.length && $layoutContent[0] && $layoutContent[0].style) {
+            try { $layoutContent[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+            try { $layoutContent[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
+        }
+
         const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
         if (targetCategoryName && targetCategoryName !== State.currentCategoryName) {
             State.currentCategoryName = targetCategoryName;
