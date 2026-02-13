@@ -255,6 +255,7 @@ Core settings live in `includes/admin/settings.php`:
 
 ## Mode behavior (high level)
 - Practice mode: standard multiple-choice quiz with adaptive option count.
+  - Audio prompt preference: `question` first, then `isolation`, then `introduction` (set in `js/flashcard-widget/modes/practice.js`).
 - Learning mode: guided introduction + mastery tracking.
   - Implementation: `js/flashcard-widget/modes/learning.js` + `selection.js`.
   - State highlights: `introducedWordIDs`, `wordIntroductionProgress`, `wordCorrectCounts`, `wrongAnswerQueue` (with `dueTurn`), `learningChoiceCount`, `learningCorrectStreak`.
@@ -262,6 +263,7 @@ Core settings live in `includes/admin/settings.php`:
   - Progress UI updated via `Dom.updateLearningProgress()`.
 - Listening mode: audio-first playback with simplified UI and visualizer.
   - Implementation: `js/flashcard-widget/modes/listening.js` + `audio-visualizer.js`.
+  - Prompt audio preference is isolation-first when available.
   - Uses study prefs (`llToolsStudyPrefs`) to honor star mode and fast transitions.
 
 # Admin tools and workflows

@@ -1212,8 +1212,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 }
 
 /**
- * Get audio URL for a word - prioritizes by recording type
- * Priority: question > introduction > isolation > in sentence > any other
+ * Check whether a word has at least one child audio post in the given statuses.
  */
 function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
     $word_id = (int) $word_id;
@@ -1243,6 +1242,14 @@ function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
     return !empty($audio_posts);
 }
 
+/**
+ * Get a default audio URL for a word.
+ *
+ * Default priority is isolation-first for non-practice flows:
+ * isolation > introduction > question > in sentence > any other.
+ *
+ * Practice prompt audio ordering is handled in the flashcard JS mode layer.
+ */
 function ll_get_word_audio_url($word_id) {
     // Get all word_audio child posts
     $audio_posts = get_posts([
@@ -1269,7 +1276,11 @@ function ll_get_word_audio_url($word_id) {
 
 /**
  * Select the highest priority audio from an array of word_audio posts
- * Priority: question > introduction > isolation > in sentence > any other
+ *
+ * Default priority is isolation-first for non-practice flows:
+ * isolation > introduction > question > in sentence > any other.
+ *
+ * Practice prompt audio ordering is handled in the flashcard JS mode layer.
  *
  * @param array $audio_posts Array of word_audio post objects
  * @return WP_Post|null The highest priority audio post or null

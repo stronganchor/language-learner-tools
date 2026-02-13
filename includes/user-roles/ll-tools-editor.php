@@ -107,4 +107,5 @@ function ll_manage_word_sets_shortcode() {
     $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
     return '<div class="custom-admin-page"><iframe src="' . esc_url($iframe_url) . '" style="width:100%; height:800px; border:none;"></iframe></div>';
 }
+remove_shortcode('manage_word_sets');
 add_shortcode('manage_word_sets', 'll_manage_word_sets_shortcode');

@@ -29,7 +29,8 @@ add_action('init', 'll_create_wordset_manager_role');
  * @return void
  */
 function customize_admin_menu_for_wordset_manager() {
-    if (current_user_can('wordset_manager')) { 
+    $user = wp_get_current_user();
+    if ($user && in_array('wordset_manager', (array) $user->roles, true)) {
         global $menu;
         global $submenu;
 
@@ -71,4 +72,3 @@ function manage_word_sets_shortcode() {
     $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
     return '<div class="custom-admin-page"><iframe src="' . $iframe_url . '" style="width:100%; height:800px; border:none;"></iframe></div>';
 }
-add_shortcode('manage_word_sets', 'manage_word_sets_shortcode');

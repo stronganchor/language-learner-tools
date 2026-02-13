@@ -1,40 +1,59 @@
 <?php
+if (!defined('WPINC')) { die; }
 
 /**
- * Automatically switches the site language based on the user's browser language settings.
+ * Optional browser-language fallback for locales.
+ *
+ * Disabled by default to avoid conflicts with explicit locale selection
+ * (for example, cookie/query handling in the language switcher shortcode flow).
+ *
+ * Enable only when desired:
+ * add_filter('ll_tools_enable_browser_language_autoswitch', '__return_true');
  */
-function switch_language() {
-    if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+function ll_tools_switch_language_from_browser() {
+    if (!apply_filters('ll_tools_enable_browser_language_autoswitch', false)) {
         return;
     }
 
-    // Get the list of available languages in your WordPress site
-    $available_languages = get_available_languages(); // Returns an array of installed language codes (e.g., 'en_US')
-
-    // Extract the preferred language from the browser
-    $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2); // This gets the 2-letter language code
-
-    // Convert browser language to WordPress format (e.g., 'en' to 'en_US')
-    // This part may require customization based on your specific available languages and default language format
-    switch ($browser_lang) {
-        case 'en':
-            $wp_lang = 'en_US';
-            break;
-        case 'tr':
-            $wp_lang = 'tr_TR';
-            break;
-        // Add more cases as needed for your site's languages
-        default:
-            $wp_lang = ''; // Default language set in WordPress settings
-            break;
+    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
+        return;
     }
 
-    // Check if the browser language is available in your site and switch
-    if (in_array($wp_lang, $available_languages)) {
+    // Respect explicit user locale choices.
+    if (isset($_GET['ll_locale'])) {
+        return;
+    }
+    if (defined('LL_TOOLS_I18N_COOKIE') && !empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
+        return;
+    }
+
+    $accept_language = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? (string) $_SERVER['HTTP_ACCEPT_LANGUAGE'] : '';
+    if ($accept_language === '') {
+        return;
+    }
+
+    $available_languages = get_available_languages();
+    if (empty($available_languages)) {
+        return;
+    }
+
+    // Use the first language range only; map to known locales.
+    $browser_lang = sanitize_key(substr($accept_language, 0, 2));
+    if ($browser_lang === '') {
+        return;
+    }
+
+    $map = [
+        'en' => 'en_US',
+        'tr' => 'tr_TR',
+    ];
+    $wp_lang = isset($map[$browser_lang]) ? $map[$browser_lang] : '';
+    if ($wp_lang === '') {
+        return;
+    }
+
+    if (in_array($wp_lang, $available_languages, true)) {
         switch_to_locale($wp_lang);
     }
 }
-
-// Hook the function to an action that runs early in the WordPress initialization process
-add_action('init', 'switch_language');
-?>
+add_action('init', 'll_tools_switch_language_from_browser');

@@ -667,6 +667,34 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
 add_action('wp_ajax_ll_get_words_by_category',        'll_get_words_by_category_ajax');
 add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+
+/**
+ * Remove internal speaker identifiers from public flashcard payloads.
+ *
+ * @param array $rows
+ * @return array
+ */
+function ll_tools_flashcards_redact_public_speaker_ids(array $rows): array {
+    foreach ($rows as $idx => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $rows[$idx]['preferred_speaker_user_id'] = 0;
+
+        if (!empty($row['audio_files']) && is_array($row['audio_files'])) {
+            foreach ($row['audio_files'] as $audio_idx => $audio_file) {
+                if (!is_array($audio_file)) {
+                    continue;
+                }
+                $rows[$idx]['audio_files'][$audio_idx]['speaker_user_id'] = 0;
+            }
+        }
+    }
+
+    return $rows;
+}
+
 function ll_get_words_by_category_ajax() {
     $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
@@ -692,7 +720,14 @@ function ll_get_words_by_category_ajax() {
         $base_config = array_merge($meta_config, $base_config);
     }
 
-    wp_send_json_success(ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config));
+    $words = ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config);
+
+    // Public endpoint should not expose internal user IDs.
+    if (!is_user_logged_in()) {
+        $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
+    }
+
+    wp_send_json_success($words);
 }
 
 function ll_tools_register_flashcard_widget_shortcode() {

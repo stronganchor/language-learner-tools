@@ -2025,6 +2025,14 @@ function ll_update_new_word_text_handler() {
         wp_send_json_error('Invalid word ID');
     }
 
+    $current_user_id = get_current_user_id();
+    $can_edit_word = current_user_can('edit_post', $word_id);
+    $owns_editable_draft = ((int) $word_post->post_author === $current_user_id)
+        && in_array($word_post->post_status, ['draft', 'pending', 'auto-draft'], true);
+    if (!$can_edit_word && !$owns_editable_draft) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
     $target_text = ll_sanitize_word_title_text($target_text_raw);
     $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
