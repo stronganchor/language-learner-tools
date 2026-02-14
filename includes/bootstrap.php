@@ -64,12 +64,14 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/recording-page.php');
+require_once(__DIR__ . '/pages/editor-hub-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
 require_once(__DIR__ . '/shortcodes/flashcard-widget.php');
 require_once(__DIR__ . '/shortcodes/word-audio-shortcode.php');
 require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
+require_once(__DIR__ . '/shortcodes/editor-hub-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
