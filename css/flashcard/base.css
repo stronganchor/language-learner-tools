@@ -1566,6 +1566,52 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     flex-wrap: wrap;
 }
 
+#ll-study-results-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#ll-study-results-suggestion {
+    width: 100%;
+    margin: 0 0 8px 0;
+    color: #374151;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+#ll-study-results-same-chunk,
+#ll-study-results-next-chunk {
+    min-width: 190px;
+    padding: 12px 24px !important;
+    border: 2px solid #111827 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer !important;
+}
+
+#ll-study-results-same-chunk:hover,
+#ll-study-results-next-chunk:hover {
+    background: #f8fafc !important;
+    border-color: #0f172a !important;
+}
+
+#ll-study-results-same-chunk[disabled],
+#ll-study-results-next-chunk[disabled] {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+}
+
 .quiz-mode-button {
     display: inline-flex;
     align-items: center;

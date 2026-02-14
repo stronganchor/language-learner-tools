@@ -722,6 +722,162 @@ function ll_tools_category_pipeline_sequence(array $category_meta): array {
     return $sequence;
 }
 
+function ll_tools_recommendation_chunk_size_for_pool(int $pool_size, int $preferred = 12): int {
+    $pool = max(0, (int) $pool_size);
+    if ($pool <= 0) {
+        return 0;
+    }
+
+    if ($pool <= 15) {
+        return $pool;
+    }
+
+    $target = max(8, min(15, (int) $preferred));
+    if ($pool >= 60) {
+        $target = 15;
+    } elseif ($pool >= 40) {
+        $target = 13;
+    } elseif ($pool >= 24) {
+        $target = 12;
+    } else {
+        $target = 10;
+    }
+
+    return max(8, min(15, min($pool, $target)));
+}
+
+/**
+ * Pick a balanced review chunk using existing progress rows.
+ *
+ * @return array{
+ *   rows:array<int,array<string,mixed>>,
+ *   word_ids:array<int>,
+ *   counts:array{weak:int,new:int,due:int}
+ * }
+ */
+function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_rows, array $goals, int $chunk_size = 12): array {
+    $all_word_ids = array_values(array_unique(array_filter(array_map('intval', $all_word_ids), function ($id) {
+        return $id > 0;
+    })));
+
+    $size = max(1, min(15, (int) $chunk_size));
+    if (empty($all_word_ids)) {
+        return [
+            'rows' => [],
+            'word_ids' => [],
+            'counts' => ['weak' => 0, 'new' => 0, 'due' => 0],
+        ];
+    }
+
+    $now = time();
+    $weak = [];
+    $new = [];
+    $stable = [];
+
+    foreach ($all_word_ids as $wid) {
+        $row = $progress_rows[$wid] ?? null;
+        if (!$row) {
+            $new[] = [
+                'word_id' => $wid,
+                'score' => 7,
+                'is_due' => false,
+                'is_weak' => false,
+                'is_new' => true,
+            ];
+            continue;
+        }
+
+        $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+        $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
+        $correct_clean = max(0, (int) ($row['correct_clean'] ?? 0));
+        $stage = max(0, (int) ($row['stage'] ?? 0));
+        $due_at_raw = isset($row['due_at']) ? (string) $row['due_at'] : '';
+        $due_ts = $due_at_raw !== '' ? strtotime($due_at_raw . ' UTC') : false;
+        $is_due = ($due_ts !== false) && ($due_ts <= $now);
+
+        $score = ($incorrect * 3) + ($lapses * 2) + max(0, 2 - $stage) - min(3, $correct_clean);
+        if ($is_due) {
+            $score += 8;
+        }
+
+        $is_weak = $is_due || $incorrect > $correct_clean || $stage <= 1;
+        $entry = [
+            'word_id' => $wid,
+            'score' => $score,
+            'is_due' => $is_due,
+            'is_weak' => $is_weak,
+            'is_new' => false,
+        ];
+
+        if ($is_weak) {
+            $weak[] = $entry;
+        } else {
+            $stable[] = $entry;
+        }
+    }
+
+    usort($weak, function ($a, $b) {
+        return ($b['score'] <=> $a['score']);
+    });
+    usort($stable, function ($a, $b) {
+        return ($b['score'] <=> $a['score']);
+    });
+    shuffle($new);
+
+    $daily_new_target = max(0, min(4, (int) ($goals['daily_new_word_target'] ?? 2)));
+    $due_weak_count = count(array_filter($weak, function ($row) {
+        return !empty($row['is_due']);
+    }));
+    $weak_take = min(count($weak), max(0, $size - 4));
+    $new_take = min(count($new), $daily_new_target);
+    if ($due_weak_count >= max(4, $size - 4)) {
+        $new_take = 0;
+    }
+
+    $selected_rows = array_slice($weak, 0, $weak_take);
+    $selected_rows = array_merge($selected_rows, array_slice($new, 0, $new_take));
+
+    $taken_lookup = [];
+    foreach ($selected_rows as $row) {
+        $taken_lookup[(int) $row['word_id']] = true;
+    }
+
+    foreach (array_merge($weak, $new, $stable) as $row) {
+        if (count($selected_rows) >= $size) {
+            break;
+        }
+        $wid = (int) $row['word_id'];
+        if ($wid <= 0 || !empty($taken_lookup[$wid])) {
+            continue;
+        }
+        $selected_rows[] = $row;
+        $taken_lookup[$wid] = true;
+    }
+
+    $word_ids = array_values(array_map(function ($row) {
+        return (int) $row['word_id'];
+    }, $selected_rows));
+
+    $counts = ['weak' => 0, 'new' => 0, 'due' => 0];
+    foreach ($selected_rows as $row) {
+        if (!empty($row['is_weak'])) {
+            $counts['weak']++;
+        }
+        if (!empty($row['is_new'])) {
+            $counts['new']++;
+        }
+        if (!empty($row['is_due'])) {
+            $counts['due']++;
+        }
+    }
+
+    return [
+        'rows' => $selected_rows,
+        'word_ids' => $word_ids,
+        'counts' => $counts,
+    ];
+}
+
 function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id = 0, $category_ids = [], $categories_payload = []): ?array {
     $uid = (int) ($user_id ?: get_current_user_id());
     if ($uid <= 0) {
@@ -795,22 +951,47 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
 
             $seen = max(0, (int) ($progress_for_cat[$mode] ?? 0));
             if ($seen === 0) {
+                $pipeline_chunk_word_ids = [];
+                if (function_exists('ll_tools_user_study_words')) {
+                    $pipeline_words_by_category = ll_tools_user_study_words([$cid], (int) $wordset_id);
+                    $pipeline_rows = isset($pipeline_words_by_category[$cid]) && is_array($pipeline_words_by_category[$cid])
+                        ? $pipeline_words_by_category[$cid]
+                        : [];
+                    $pipeline_word_ids = [];
+                    foreach ($pipeline_rows as $word) {
+                        $wid = isset($word['id']) ? (int) $word['id'] : 0;
+                        if ($wid > 0) {
+                            $pipeline_word_ids[] = $wid;
+                        }
+                    }
+                    $pipeline_word_ids = array_values(array_unique($pipeline_word_ids));
+                    if (!empty($pipeline_word_ids)) {
+                        $pipeline_progress_rows = ll_tools_get_user_word_progress_rows($uid, $pipeline_word_ids);
+                        $pipeline_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($pipeline_word_ids));
+                        $pipeline_chunk = ll_tools_select_review_chunk_rows($pipeline_word_ids, $pipeline_progress_rows, $goals, $pipeline_chunk_size);
+                        $pipeline_chunk_word_ids = $pipeline_chunk['word_ids'];
+                        if (empty($pipeline_chunk_word_ids)) {
+                            $pipeline_chunk_word_ids = array_slice($pipeline_word_ids, 0, $pipeline_chunk_size);
+                        }
+                    }
+                }
                 return [
                     'type'             => 'pipeline',
                     'reason_code'      => 'pipeline_unseen_mode',
                     'mode'             => $mode,
                     'category_ids'     => [$cid],
-                    'session_word_ids' => [],
+                    'session_word_ids' => $pipeline_chunk_word_ids,
                     'details'          => [
                         'pipeline' => $pipeline,
                         'seen_mode_count' => 0,
+                        'chunk_size' => count($pipeline_chunk_word_ids),
                     ],
                 ];
             }
         }
     }
 
-    // 2) Review chunk recommendation (~12 words) biased to weaker/due items.
+    // 2) Review chunk recommendation (typically 8-15 words) biased to weaker/due items.
     if (!function_exists('ll_tools_user_study_words')) {
         $fallback_mode = ll_tools_pick_recommendation_mode($enabled_modes, $selected, $category_lookup);
         return [
@@ -826,14 +1007,19 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
     $words_by_category = ll_tools_user_study_words($selected, (int) $wordset_id);
     $all_word_ids = [];
     $word_category_lookup = [];
+    $category_word_ids_lookup = [];
     foreach ($selected as $cid) {
         $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
+        if (!isset($category_word_ids_lookup[$cid])) {
+            $category_word_ids_lookup[$cid] = [];
+        }
         foreach ($rows as $word) {
             $wid = isset($word['id']) ? (int) $word['id'] : 0;
             if ($wid <= 0) {
                 continue;
             }
             $all_word_ids[] = $wid;
+            $category_word_ids_lookup[$cid][] = $wid;
             if (!isset($word_category_lookup[$wid])) {
                 $word_category_lookup[$wid] = $cid;
             }
@@ -853,119 +1039,87 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
         ];
     }
 
+    $total_pool_count = count($all_word_ids);
+
+    // Prefer a full single-category chunk when that category naturally fits the target range.
+    // This avoids mixed chunks like "11 from one category + 1 from another" unless required.
+    $single_category_candidates = [];
+    foreach ($selected as $cid) {
+        $ids = isset($category_word_ids_lookup[$cid]) && is_array($category_word_ids_lookup[$cid])
+            ? $category_word_ids_lookup[$cid]
+            : [];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($id) {
+            return $id > 0;
+        })));
+        $count = count($ids);
+        if ($count >= 8 && $count <= 15) {
+            $single_category_candidates[$cid] = $ids;
+        }
+    }
+    if (!empty($single_category_candidates)) {
+        $best_cid = 0;
+        $best_score = null;
+        foreach ($single_category_candidates as $cid => $ids) {
+            $meta = $category_lookup[$cid] ?? [];
+            $progress_for_cat = isset($category_progress[$cid]['exposure_by_mode']) && is_array($category_progress[$cid]['exposure_by_mode'])
+                ? $category_progress[$cid]['exposure_by_mode']
+                : [];
+            $exposure_total = max(0, (int) ($category_progress[$cid]['exposure_total'] ?? 0));
+            $missing_modes = 0;
+            foreach ($enabled_modes as $mode_raw) {
+                $mode = ll_tools_normalize_progress_mode($mode_raw);
+                if ($mode === 'gender' && empty($meta['gender_supported'])) {
+                    continue;
+                }
+                if ($mode === 'learning' && array_key_exists('learning_supported', $meta) && !$meta['learning_supported']) {
+                    continue;
+                }
+                $seen = max(0, (int) ($progress_for_cat[$mode] ?? 0));
+                if ($seen === 0) {
+                    $missing_modes++;
+                }
+            }
+
+            // Prefer categories that are less exposed and still missing enabled modes.
+            $score = ($missing_modes * 1000) - $exposure_total + count($ids);
+            if ($best_score === null || $score > $best_score) {
+                $best_score = $score;
+                $best_cid = (int) $cid;
+            }
+        }
+
+        if ($best_cid <= 0) {
+            $candidate_ids = array_keys($single_category_candidates);
+            $best_cid = !empty($candidate_ids) ? (int) $candidate_ids[0] : 0;
+        }
+
+        if ($best_cid > 0 && !empty($single_category_candidates[$best_cid])) {
+            $all_word_ids = $single_category_candidates[$best_cid];
+            $word_category_lookup = [];
+            foreach ($all_word_ids as $wid) {
+                $word_category_lookup[(int) $wid] = $best_cid;
+            }
+        }
+    }
+
     $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
-    $now = time();
-    $weak = [];
-    $new = [];
-    $stable = [];
-
-    foreach ($all_word_ids as $wid) {
-        $row = $progress_rows[$wid] ?? null;
-        if (!$row) {
-            $new[] = [
-                'word_id' => $wid,
-                'score' => 7,
-                'is_due' => false,
-                'is_weak' => false,
-                'is_new' => true,
-            ];
-            continue;
-        }
-
-        $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
-        $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
-        $correct_clean = max(0, (int) ($row['correct_clean'] ?? 0));
-        $stage = max(0, (int) ($row['stage'] ?? 0));
-        $due_at_raw = isset($row['due_at']) ? (string) $row['due_at'] : '';
-        $due_ts = $due_at_raw !== '' ? strtotime($due_at_raw . ' UTC') : false;
-        $is_due = ($due_ts !== false) && ($due_ts <= $now);
-
-        $score = ($incorrect * 3) + ($lapses * 2) + max(0, 2 - $stage) - min(3, $correct_clean);
-        if ($is_due) {
-            $score += 8;
-        }
-
-        $is_weak = $is_due || $incorrect > $correct_clean || $stage <= 1;
-        $entry = [
-            'word_id' => $wid,
-            'score' => $score,
-            'is_due' => $is_due,
-            'is_weak' => $is_weak,
-            'is_new' => false,
-        ];
-
-        if ($is_weak) {
-            $weak[] = $entry;
-        } else {
-            $stable[] = $entry;
-        }
-    }
-
-    usort($weak, function ($a, $b) {
-        return ($b['score'] <=> $a['score']);
-    });
-    usort($stable, function ($a, $b) {
-        return ($b['score'] <=> $a['score']);
-    });
-    shuffle($new);
-
-    $chunk_size = 12;
-    $daily_new_target = max(0, min(4, (int) ($goals['daily_new_word_target'] ?? 2)));
-    $due_weak_count = count(array_filter($weak, function ($row) {
-        return !empty($row['is_due']);
-    }));
-
-    $weak_take = min(count($weak), 8);
-    $new_take = min(count($new), $daily_new_target);
-    if ($due_weak_count >= 8) {
-        $new_take = 0;
-    }
-
-    $selected_rows = array_slice($weak, 0, $weak_take);
-    $selected_rows = array_merge($selected_rows, array_slice($new, 0, $new_take));
-
-    $taken_lookup = [];
-    foreach ($selected_rows as $row) {
-        $taken_lookup[(int) $row['word_id']] = true;
-    }
-
-    foreach (array_merge($weak, $new, $stable) as $row) {
-        if (count($selected_rows) >= $chunk_size) {
-            break;
-        }
-        $wid = (int) $row['word_id'];
-        if ($wid <= 0 || !empty($taken_lookup[$wid])) {
-            continue;
-        }
-        $selected_rows[] = $row;
-        $taken_lookup[$wid] = true;
-    }
-
-    $session_word_ids = array_values(array_map(function ($row) {
-        return (int) $row['word_id'];
-    }, $selected_rows));
+    $chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($all_word_ids));
+    $chunk_selection = ll_tools_select_review_chunk_rows($all_word_ids, $progress_rows, $goals, $chunk_size);
+    $selected_rows = $chunk_selection['rows'];
+    $session_word_ids = $chunk_selection['word_ids'];
+    $weak_selected = (int) ($chunk_selection['counts']['weak'] ?? 0);
+    $new_selected = (int) ($chunk_selection['counts']['new'] ?? 0);
+    $due_selected = (int) ($chunk_selection['counts']['due'] ?? 0);
 
     if (empty($session_word_ids)) {
         $session_word_ids = array_slice($all_word_ids, 0, $chunk_size);
     }
 
     $session_categories = [];
-    $weak_selected = 0;
-    $new_selected = 0;
-    $due_selected = 0;
     foreach ($selected_rows as $row) {
         $wid = (int) $row['word_id'];
         if (isset($word_category_lookup[$wid])) {
             $session_categories[$word_category_lookup[$wid]] = true;
-        }
-        if (!empty($row['is_weak'])) {
-            $weak_selected++;
-        }
-        if (!empty($row['is_new'])) {
-            $new_selected++;
-        }
-        if (!empty($row['is_due'])) {
-            $due_selected++;
         }
     }
 
@@ -1011,7 +1165,7 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
             'weak_count'   => $weak_selected,
             'new_count'    => $new_selected,
             'due_count'    => $due_selected,
-            'total_pool'   => count($all_word_ids),
+            'total_pool'   => $total_pool_count,
         ],
     ];
 }

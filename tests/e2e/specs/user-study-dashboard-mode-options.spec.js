@@ -130,7 +130,7 @@ function buildPayload(overrides = {}) {
   return Object.assign({}, base, overrides);
 }
 
-async function mountStudyPanel(page, payload) {
+async function mountStudyPanel(page, payload, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildStudyPanelMarkup());
   await page.addScriptTag({ content: jquerySource });
@@ -139,6 +139,7 @@ async function mountStudyPanel(page, payload) {
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: 'test-nonce',
     payload,
+    recommendation: options.recommendation || null,
     i18n: {
       noWords: 'No words',
       noCategories: 'No categories',
@@ -187,7 +188,7 @@ async function mountStudyPanel(page, payload) {
         return deferred.promise();
       }
       if (action === 'll_user_study_recommendation') {
-        deferred.resolve({ success: true, data: { next_activity: null } });
+        deferred.resolve({ success: true, data: { next_activity: data.recommendation || null } });
         return deferred.promise();
       }
 
@@ -255,6 +256,45 @@ test('study panel normalizes gender launch mode before initializing flashcards',
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('gender');
+});
+
+test('study panel practice launch applies recommended chunk word IDs', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload(), {
+    recommendation: {
+      type: 'review_chunk',
+      reason_code: 'review_chunk_balanced',
+      mode: 'practice',
+      category_ids: [11],
+      session_word_ids: [101],
+      details: { chunk_size: 1 }
+    }
+  });
+
+  await page.evaluate(() => {
+    window.__llInitCalls = [];
+    window.initFlashcardWidget = function (catNames, mode) {
+      window.__llInitCalls.push({
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        mode: String(mode || ''),
+        sessionWordIds: Array.isArray(window.llToolsFlashcardsData && window.llToolsFlashcardsData.sessionWordIds)
+          ? window.llToolsFlashcardsData.sessionWordIds.slice()
+          : []
+      });
+      return Promise.resolve();
+    };
+  });
+
+  await page.locator('[data-ll-study-start][data-mode="practice"]').click();
+  await page.waitForTimeout(100);
+
+  const launch = await page.evaluate(() => {
+    const calls = Array.isArray(window.__llInitCalls) ? window.__llInitCalls : [];
+    return calls.length ? calls[calls.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.sessionWordIds).toEqual([101]);
 });
 
 test('study panel keeps gender mode hidden when wordset gender is disabled', async ({ page }) => {

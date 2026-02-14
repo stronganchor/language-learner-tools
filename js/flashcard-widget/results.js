@@ -194,6 +194,24 @@
         $label.text(next || ($label.attr('data-default-label') || getDefaultGenderButtonLabel()));
     }
 
+    function getCurrentResultsMode() {
+        if (State.isGenderMode) { return 'gender'; }
+        if (State.isListeningMode) { return 'listening'; }
+        if (State.isLearningMode) { return 'learning'; }
+        if (State.isSelfCheckMode) { return 'self-check'; }
+        return 'practice';
+    }
+
+    function emitResultsShown(extra) {
+        try {
+            const payload = Object.assign(
+                { mode: getCurrentResultsMode() },
+                (extra && typeof extra === 'object') ? extra : {}
+            );
+            $(document).trigger('lltools:flashcard-results-shown', [payload]);
+        } catch (_) { /* no-op */ }
+    }
+
     function hideResults() {
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
@@ -202,6 +220,9 @@
         $('#restart-listening-mode').hide();
         $('#ll-gender-results-actions').hide();
         $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
+        $('#ll-study-results-actions').hide();
+        $('#ll-study-results-suggestion').hide().empty();
+        $('#ll-study-results-same-chunk, #ll-study-results-next-chunk').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
@@ -256,6 +277,9 @@
         resetGenderResultsButtonLabel();
         $('#ll-gender-results-actions').hide();
         $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
+        $('#ll-study-results-actions').hide();
+        $('#ll-study-results-suggestion').hide().empty();
+        $('#ll-study-results-same-chunk, #ll-study-results-next-chunk').hide();
 
         if (root.FlashcardAudio) {
             try {
@@ -323,6 +347,7 @@
             if (completedWords === totalWords) {
                 Effects.startConfetti();
             }
+            emitResultsShown({ total: totalWords, correct: completedWords });
             return;
         }
 
@@ -348,6 +373,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
+            emitResultsShown({ total: 0, correct: 0 });
             return;
         }
 
@@ -408,6 +434,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
+            emitResultsShown({ total: 0, correct: 0 });
             return;
         }
 
@@ -465,6 +492,7 @@
                     root.FlashcardAudio.playFeedback(false, null, null);
                 }
             } catch (_) { }
+            emitResultsShown({ total: 0, correct: 0 });
             return;
         }
 
@@ -505,6 +533,7 @@
         }
 
         if (ratio >= 0.7) Effects.startConfetti();
+        emitResultsShown({ total: total, correct: State.quizResults.correctOnFirstTry });
     }
 
     root.LLFlashcards = root.LLFlashcards || {};

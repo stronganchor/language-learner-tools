@@ -107,6 +107,27 @@ function ll_enqueue_audio_processor_assets($hook) {
         'recordings' => $recordings,
         'recordingTypes' => $recording_type_choices,
         'recordingTypeIcons' => ll_audio_processor_get_recording_type_icons_map(),
+        'i18n' => [
+            'saveNoFiles' => __('No files to save.', 'll-tools-text-domain'),
+            'saveConfirmTemplate' => __('Save %d processed audio file(s)?', 'll-tools-text-domain'),
+            'saveButtonDefault' => __('Save All Changes', 'll-tools-text-domain'),
+            'saveButtonSaving' => __('Saving...', 'll-tools-text-domain'),
+            'savePreparing' => __('Preparing uploads...', 'll-tools-text-domain'),
+            'saveStatusTemplate' => __('Saving: %1$s (%2$d/%3$d)', 'll-tools-text-domain'),
+            'saveSuccessTemplate' => __('Success! Saved %1$d of %2$d files.', 'll-tools-text-domain'),
+            'saveErrorSummaryTemplate' => __('Completed with errors: %1$d saved, %2$d failed.', 'll-tools-text-domain'),
+            'saveUnexpectedError' => __('Unexpected error while saving. Please try again.', 'll-tools-text-domain'),
+            'saveCountTemplate' => __('%1$d / %2$d complete', 'll-tools-text-domain'),
+            'beforeUnloadWarning' => __('Saving is still in progress. Leaving this page will interrupt uploads.', 'll-tools-text-domain'),
+            'editTitleButton' => __('Edit title', 'll-tools-text-domain'),
+            'saveTitleButton' => __('Save title', 'll-tools-text-domain'),
+            'cancelTitleButton' => __('Cancel', 'll-tools-text-domain'),
+            'titleInputLabel' => __('Word title', 'll-tools-text-domain'),
+            'titleInputPlaceholder' => __('Enter word title', 'll-tools-text-domain'),
+            'titleRequired' => __('Title cannot be empty.', 'll-tools-text-domain'),
+            'titleSaving' => __('Saving...', 'll-tools-text-domain'),
+            'titleSaveFailed' => __('Could not update title.', 'll-tools-text-domain'),
+        ],
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
@@ -308,11 +329,41 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
         $duplicate_label = __('Duplicate in queue', 'll-tools-text-domain');
     }
     ?>
-    <div class="ll-recording-item" data-id="<?php echo esc_attr($recording['id']); ?>">
-        <label class="ll-recording-label">
+    <div
+        class="ll-recording-item"
+        data-id="<?php echo esc_attr($recording['id']); ?>"
+        data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>"
+    >
+        <div class="ll-recording-label">
             <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
             <div class="ll-recording-info">
-                <strong><?php echo esc_html($recording['title']); ?></strong>
+                <div class="ll-word-title-block" data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>">
+                    <div class="ll-word-title-display-row">
+                        <strong class="ll-recording-title-text"><?php echo esc_html($recording['title']); ?></strong>
+                        <button type="button" class="ll-edit-word-title-btn button-link">
+                            <?php echo esc_html__('Edit title', 'll-tools-text-domain'); ?>
+                        </button>
+                    </div>
+                    <div class="ll-word-title-editor" hidden>
+                        <label class="screen-reader-text" for="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>">
+                            <?php echo esc_html__('Word title', 'll-tools-text-domain'); ?>
+                        </label>
+                        <input
+                            id="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>"
+                            type="text"
+                            class="ll-word-title-input"
+                            value="<?php echo esc_attr($recording['title']); ?>"
+                            placeholder="<?php echo esc_attr__('Enter word title', 'll-tools-text-domain'); ?>"
+                            maxlength="200"
+                        >
+                        <button type="button" class="button button-small ll-save-word-title-btn">
+                            <?php echo esc_html__('Save title', 'll-tools-text-domain'); ?>
+                        </button>
+                        <button type="button" class="button button-small ll-cancel-word-title-btn">
+                            <?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?>
+                        </button>
+                    </div>
+                </div>
                 <div class="ll-recording-meta">
                     <?php if (!empty($recording['categories'])): ?>
                         <span class="ll-recording-categories">
@@ -347,7 +398,7 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
                     </span>
                 </div>
             </div>
-        </label>
+        </div>
         <audio controls preload="none" src="<?php echo esc_url($recording['audioUrl']); ?>"></audio>
     </div>
     <?php
@@ -401,6 +452,20 @@ function ll_render_audio_processor_page() {
                     <div class="ll-progress-fill" style="width: 0%"></div>
                 </div>
                 <p class="ll-status-text">Processing...</p>
+            </div>
+
+            <div id="ll-save-progress-overlay" class="ll-save-progress-overlay" hidden aria-hidden="true">
+                <div class="ll-save-progress-panel" role="status" aria-live="assertive" aria-atomic="true">
+                    <h2 class="ll-save-progress-title"><?php echo esc_html__('Saving Processed Audio', 'll-tools-text-domain'); ?></h2>
+                    <p id="ll-save-progress-current" class="ll-save-progress-current"><?php echo esc_html__('Preparing uploads...', 'll-tools-text-domain'); ?></p>
+                    <div class="ll-progress-bar ll-save-progress-bar" aria-hidden="true">
+                        <div id="ll-save-progress-fill" class="ll-progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p id="ll-save-progress-count" class="ll-save-progress-count">0 / 0</p>
+                    <p class="ll-save-progress-note">
+                        <?php echo esc_html__('Keep this page open until saving is complete. Navigating away will interrupt remaining uploads.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
             </div>
 
             <div class="ll-audio-processor-tabs" role="tablist" data-initial-tab="<?php echo esc_attr($active_tab); ?>">
@@ -568,6 +633,46 @@ function ll_save_processed_audio_handler() {
         'file_path' => $relative_path,
         'audio_post_id' => $audio_post_id,
         'recording_type' => $recording_type,
+    ]);
+}
+
+add_action('wp_ajax_ll_audio_processor_update_word_title', 'll_audio_processor_update_word_title_handler');
+
+function ll_audio_processor_update_word_title_handler() {
+    check_ajax_referer('ll_audio_processor', 'nonce');
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
+    }
+
+    $word_id = isset($_POST['word_id']) ? intval($_POST['word_id']) : 0;
+    $title = isset($_POST['title']) ? sanitize_text_field(wp_unslash($_POST['title'])) : '';
+
+    if (!$word_id || $title === '') {
+        wp_send_json_error(__('Missing required data', 'll-tools-text-domain'));
+    }
+
+    $word_post = get_post($word_id);
+    if (!$word_post || $word_post->post_type !== 'words') {
+        wp_send_json_error(__('Invalid word post', 'll-tools-text-domain'));
+    }
+
+    if (!current_user_can('edit_post', $word_id)) {
+        wp_send_json_error(__('Insufficient permissions to edit this word.', 'll-tools-text-domain'));
+    }
+
+    $updated = wp_update_post([
+        'ID' => $word_id,
+        'post_title' => $title,
+    ], true);
+
+    if (is_wp_error($updated)) {
+        wp_send_json_error(__('Could not update title.', 'll-tools-text-domain'));
+    }
+
+    wp_send_json_success([
+        'word_id' => $word_id,
+        'title' => get_the_title($word_id),
     ]);
 }
 

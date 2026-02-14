@@ -690,6 +690,15 @@ function ll_qpg_print_flashcard_shell_once() {
                 <?php echo esc_html__('Next Recommended Set', 'll-tools-text-domain'); ?>
               </button>
             </div>
+            <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
+              <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
+              <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Same Set', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
+              </button>
+            </div>
             <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
           </div>
 

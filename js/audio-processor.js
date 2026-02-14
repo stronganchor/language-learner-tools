@@ -6,6 +6,7 @@
         selected: new Set(),
         processing: false,
         deleting: false,
+        saving: false,
         audioContext: null,
         reviewData: new Map(),
         // Track last clicked checkbox index for shift-click range selection
@@ -20,12 +21,337 @@
             enableLoudness: true
         },
         recordingTypes: [],
-        recordingTypeIcons: {}
+        recordingTypeIcons: {},
+        titleSavingWordIds: new Set()
     };
 
     const TARGET_LUFS = -18.0;
+    const i18n = (window.llAudioProcessor && window.llAudioProcessor.i18n && typeof window.llAudioProcessor.i18n === 'object')
+        ? window.llAudioProcessor.i18n
+        : {};
 
     document.addEventListener('DOMContentLoaded', init);
+
+    function t(key, fallback) {
+        if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
+            return i18n[key];
+        }
+        return fallback;
+    }
+
+    function formatText(template, values = []) {
+        let output = String(template || '');
+
+        output = output.replace(/%(\d+)\$[sd]/g, (match, index) => {
+            const mappedIndex = parseInt(index, 10) - 1;
+            if (!Number.isInteger(mappedIndex) || mappedIndex < 0 || typeof values[mappedIndex] === 'undefined') {
+                return '';
+            }
+            return String(values[mappedIndex]);
+        });
+
+        let nextIndex = 0;
+        output = output.replace(/%[sd]/g, () => {
+            if (typeof values[nextIndex] === 'undefined') {
+                nextIndex += 1;
+                return '';
+            }
+            const value = values[nextIndex];
+            nextIndex += 1;
+            return String(value);
+        });
+
+        return output;
+    }
+
+    function getSaveOverlayElements() {
+        return {
+            overlay: document.getElementById('ll-save-progress-overlay'),
+            fill: document.getElementById('ll-save-progress-fill'),
+            current: document.getElementById('ll-save-progress-current'),
+            count: document.getElementById('ll-save-progress-count')
+        };
+    }
+
+    function setSaveOverlayState(message, completed, total, tone = '') {
+        const elements = getSaveOverlayElements();
+        if (!elements.overlay) {
+            return;
+        }
+
+        elements.overlay.classList.remove('is-success', 'is-error');
+        if (tone === 'success') {
+            elements.overlay.classList.add('is-success');
+        } else if (tone === 'error') {
+            elements.overlay.classList.add('is-error');
+        }
+
+        if (elements.current) {
+            elements.current.textContent = message;
+        }
+
+        if (elements.fill) {
+            const progress = total > 0 ? Math.max(0, Math.min(100, (completed / total) * 100)) : 0;
+            elements.fill.style.width = `${progress}%`;
+        }
+
+        if (elements.count) {
+            const countTemplate = t('saveCountTemplate', '%1$d / %2$d complete');
+            elements.count.textContent = formatText(countTemplate, [completed, total]);
+        }
+    }
+
+    function showSaveOverlay(total) {
+        const elements = getSaveOverlayElements();
+        if (!elements.overlay) {
+            return;
+        }
+        elements.overlay.hidden = false;
+        elements.overlay.setAttribute('aria-hidden', 'false');
+        setSaveOverlayState(t('savePreparing', 'Preparing uploads...'), 0, total);
+    }
+
+    function hideSaveOverlay() {
+        const elements = getSaveOverlayElements();
+        if (!elements.overlay) {
+            return;
+        }
+        elements.overlay.hidden = true;
+        elements.overlay.setAttribute('aria-hidden', 'true');
+        elements.overlay.classList.remove('is-success', 'is-error');
+    }
+
+    function handleBeforeUnload(event) {
+        if (!state.saving) {
+            return undefined;
+        }
+        const warning = t('beforeUnloadWarning', 'Saving is still in progress. Leaving this page will interrupt uploads.');
+        event.preventDefault();
+        event.returnValue = warning;
+        return warning;
+    }
+
+    function setSavingState(isSaving) {
+        state.saving = !!isSaving;
+
+        document.body.classList.toggle('ll-audio-save-in-progress', state.saving);
+
+        if (state.saving) {
+            document.querySelectorAll('.ll-audio-processor-wrap audio').forEach(audio => {
+                try {
+                    audio.pause();
+                } catch (error) {
+                    // no-op
+                }
+            });
+            window.addEventListener('beforeunload', handleBeforeUnload);
+        } else {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        }
+    }
+
+    function getWordTitleBlocks(parentWordId) {
+        if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
+            return [];
+        }
+        return Array.from(document.querySelectorAll(`.ll-word-title-block[data-parent-word-id="${parentWordId}"]`));
+    }
+
+    function resetWordTitleEditor(block) {
+        if (!block) {
+            return;
+        }
+        const titleEl = block.querySelector('.ll-recording-title-text');
+        const inputEl = block.querySelector('.ll-word-title-input');
+        if (titleEl && inputEl) {
+            inputEl.value = titleEl.textContent.trim();
+        }
+    }
+
+    function openWordTitleEditor(block) {
+        if (!block || state.saving) {
+            return;
+        }
+        const editor = block.querySelector('.ll-word-title-editor');
+        if (!editor) {
+            return;
+        }
+        resetWordTitleEditor(block);
+        block.classList.add('is-editing');
+        editor.hidden = false;
+        const inputEl = block.querySelector('.ll-word-title-input');
+        if (inputEl) {
+            inputEl.focus();
+            inputEl.select();
+        }
+    }
+
+    function closeWordTitleEditor(block) {
+        if (!block) {
+            return;
+        }
+        const editor = block.querySelector('.ll-word-title-editor');
+        if (!editor) {
+            return;
+        }
+        resetWordTitleEditor(block);
+        editor.hidden = true;
+        block.classList.remove('is-editing');
+    }
+
+    function setWordTitleControlsDisabled(parentWordId, disabled) {
+        const blocks = getWordTitleBlocks(parentWordId);
+        blocks.forEach(block => {
+            const input = block.querySelector('.ll-word-title-input');
+            const saveBtn = block.querySelector('.ll-save-word-title-btn');
+            const cancelBtn = block.querySelector('.ll-cancel-word-title-btn');
+            const editBtn = block.querySelector('.ll-edit-word-title-btn');
+
+            if (input) {
+                input.disabled = !!disabled;
+            }
+            if (cancelBtn) {
+                cancelBtn.disabled = !!disabled;
+            }
+            if (editBtn) {
+                editBtn.disabled = !!disabled;
+            }
+            if (saveBtn) {
+                if (disabled) {
+                    if (!saveBtn.dataset.originalText) {
+                        saveBtn.dataset.originalText = saveBtn.textContent;
+                    }
+                    saveBtn.textContent = t('titleSaving', 'Saving...');
+                } else if (saveBtn.dataset.originalText) {
+                    saveBtn.textContent = saveBtn.dataset.originalText;
+                }
+                saveBtn.disabled = !!disabled;
+            }
+        });
+    }
+
+    function applyWordTitleToDom(parentWordId, nextTitle) {
+        if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
+            return;
+        }
+        const safeTitle = String(nextTitle || '').trim();
+        if (!safeTitle) {
+            return;
+        }
+
+        document
+            .querySelectorAll(`.ll-recording-item[data-parent-word-id="${parentWordId}"] .ll-recording-title-text`)
+            .forEach(el => {
+                el.textContent = safeTitle;
+            });
+
+        document
+            .querySelectorAll(`.ll-review-file[data-parent-word-id="${parentWordId}"] .ll-recording-title-text`)
+            .forEach(el => {
+                el.textContent = safeTitle;
+            });
+
+        document
+            .querySelectorAll(`.ll-word-title-block[data-parent-word-id="${parentWordId}"] .ll-word-title-input`)
+            .forEach(el => {
+                el.value = safeTitle;
+            });
+    }
+
+    function syncWordTitleAcrossState(parentWordId, nextTitle) {
+        if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
+            return;
+        }
+        const safeTitle = String(nextTitle || '').trim();
+        if (!safeTitle) {
+            return;
+        }
+
+        state.recordings.forEach(recording => {
+            if (parseInt(recording.parentWordId, 10) === parentWordId) {
+                recording.title = safeTitle;
+            }
+        });
+
+        state.reviewData.forEach(data => {
+            if (data && data.recording && parseInt(data.recording.parentWordId, 10) === parentWordId) {
+                data.recording.title = safeTitle;
+            }
+        });
+    }
+
+    async function saveWordTitle(parentWordId, title) {
+        const response = await fetch(window.llAudioProcessor.ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'll_audio_processor_update_word_title',
+                nonce: window.llAudioProcessor.nonce,
+                word_id: parentWordId,
+                title
+            })
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            const fallback = t('titleSaveFailed', 'Could not update title.');
+            const detail = typeof result.data === 'string'
+                ? result.data
+                : (result.data && typeof result.data.message === 'string' ? result.data.message : fallback);
+            throw new Error(detail || fallback);
+        }
+
+        if (!result.data || typeof result.data.title !== 'string') {
+            return { title };
+        }
+
+        return result.data;
+    }
+
+    async function saveWordTitleFromBlock(block) {
+        if (!block || state.saving) {
+            return;
+        }
+
+        const parentWordId = parseInt(block.dataset.parentWordId, 10);
+        const input = block.querySelector('.ll-word-title-input');
+        if (!Number.isInteger(parentWordId) || parentWordId <= 0 || !input) {
+            return;
+        }
+
+        const title = input.value.trim();
+        if (!title) {
+            alert(t('titleRequired', 'Title cannot be empty.'));
+            input.focus();
+            return;
+        }
+
+        if (state.titleSavingWordIds.has(parentWordId)) {
+            return;
+        }
+
+        state.titleSavingWordIds.add(parentWordId);
+        setWordTitleControlsDisabled(parentWordId, true);
+
+        try {
+            const payload = await saveWordTitle(parentWordId, title);
+            const nextTitle = (payload && typeof payload.title === 'string' && payload.title.trim() !== '')
+                ? payload.title.trim()
+                : title;
+
+            syncWordTitleAcrossState(parentWordId, nextTitle);
+            applyWordTitleToDom(parentWordId, nextTitle);
+
+            getWordTitleBlocks(parentWordId).forEach(closeWordTitleEditor);
+        } catch (error) {
+            alert(error && error.message ? error.message : t('titleSaveFailed', 'Could not update title.'));
+        } finally {
+            state.titleSavingWordIds.delete(parentWordId);
+            setWordTitleControlsDisabled(parentWordId, false);
+        }
+    }
 
     function init() {
         if (!window.llAudioProcessor || !window.llAudioProcessor.recordings) {
@@ -234,6 +560,18 @@
                 const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
                 const postId = parseInt(btn.dataset.id);
                 deleteRecording(postId, btn);
+            } else if (e.target.classList.contains('ll-edit-word-title-btn') || e.target.closest('.ll-edit-word-title-btn')) {
+                const btn = e.target.classList.contains('ll-edit-word-title-btn') ? e.target : e.target.closest('.ll-edit-word-title-btn');
+                const block = btn.closest('.ll-word-title-block');
+                openWordTitleEditor(block);
+            } else if (e.target.classList.contains('ll-cancel-word-title-btn') || e.target.closest('.ll-cancel-word-title-btn')) {
+                const btn = e.target.classList.contains('ll-cancel-word-title-btn') ? e.target : e.target.closest('.ll-cancel-word-title-btn');
+                const block = btn.closest('.ll-word-title-block');
+                closeWordTitleEditor(block);
+            } else if (e.target.classList.contains('ll-save-word-title-btn') || e.target.closest('.ll-save-word-title-btn')) {
+                const btn = e.target.classList.contains('ll-save-word-title-btn') ? e.target : e.target.closest('.ll-save-word-title-btn');
+                const block = btn.closest('.ll-word-title-block');
+                saveWordTitleFromBlock(block);
             }
         });
 
@@ -257,6 +595,22 @@
                 }
             }
         });
+
+        document.addEventListener('keydown', (e) => {
+            if (!e.target || !e.target.classList || !e.target.classList.contains('ll-word-title-input')) {
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const block = e.target.closest('.ll-word-title-block');
+                saveWordTitleFromBlock(block);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                const block = e.target.closest('.ll-word-title-block');
+                closeWordTitleEditor(block);
+            }
+        });
     }
 
     function updateSelectedCount() {
@@ -264,7 +618,7 @@
         const processBtn = document.getElementById('ll-process-selected');
         const deleteBtn = document.getElementById('ll-delete-selected');
         const deleteCountEl = document.getElementById('ll-delete-selected-count');
-        const isBusy = state.processing || state.deleting;
+        const isBusy = state.processing || state.deleting || state.saving;
         if (countEl) {
             countEl.textContent = state.selected.size;
         }
@@ -280,7 +634,7 @@
     }
 
     async function processSelectedRecordings() {
-        if (state.processing || state.selected.size === 0) return;
+        if (state.processing || state.saving || state.selected.size === 0) return;
 
         state.processing = true;
         const processBtn = document.getElementById('ll-process-selected');
@@ -551,6 +905,7 @@
         const div = document.createElement('div');
         div.className = 'll-review-file';
         div.dataset.postId = postId;
+        div.dataset.parentWordId = data && data.recording ? parseInt(data.recording.parentWordId, 10) || '' : '';
 
         const { recording, originalBuffer, processedBuffer, trimStart, trimEnd, options } = data;
 
@@ -569,12 +924,36 @@
             ? `<span class="ll-review-category"><strong>Category:</strong> ${escapeHtml(recording.categories.join(', '))}</span>`
             : '';
 
+        const titleInputLabel = t('titleInputLabel', 'Word title');
+        const titleInputPlaceholder = t('titleInputPlaceholder', 'Enter word title');
+        const editTitleButtonLabel = t('editTitleButton', 'Edit title');
+        const saveTitleButtonLabel = t('saveTitleButton', 'Save title');
+        const cancelTitleButtonLabel = t('cancelTitleButton', 'Cancel');
+
         div.innerHTML = `
             <div class="ll-review-header">
                 <div class="ll-review-title-section">
                     ${imageHtml}
                     <div class="ll-review-title-info">
-                        <h3 class="ll-review-title">${escapeHtml(recording.title)}</h3>
+                        <div class="ll-word-title-block" data-parent-word-id="${parseInt(recording.parentWordId, 10) || ''}">
+                            <div class="ll-word-title-display-row">
+                                <h3 class="ll-review-title ll-recording-title-text">${escapeHtml(recording.title)}</h3>
+                                <button type="button" class="ll-edit-word-title-btn button-link">${escapeHtml(editTitleButtonLabel)}</button>
+                            </div>
+                            <div class="ll-word-title-editor" hidden>
+                                <label class="screen-reader-text" for="ll-review-word-title-input-${postId}">${escapeHtml(titleInputLabel)}</label>
+                                <input
+                                    id="ll-review-word-title-input-${postId}"
+                                    type="text"
+                                    class="ll-word-title-input"
+                                    value="${escapeHtml(recording.title)}"
+                                    placeholder="${escapeHtml(titleInputPlaceholder)}"
+                                    maxlength="200"
+                                >
+                                <button type="button" class="button button-small ll-save-word-title-btn">${escapeHtml(saveTitleButtonLabel)}</button>
+                                <button type="button" class="button button-small ll-cancel-word-title-btn">${escapeHtml(cancelTitleButtonLabel)}</button>
+                            </div>
+                        </div>
                         <div class="ll-review-metadata">
                             ${categoryHtml}
                             ${wordsetHtml}
@@ -940,7 +1319,7 @@
     }
 
     async function deleteSelectedRecordings() {
-        if (state.deleting || state.processing || state.selected.size === 0) return;
+        if (state.deleting || state.processing || state.saving || state.selected.size === 0) return;
 
         const postIds = Array.from(state.selected);
 
@@ -1019,6 +1398,8 @@
     }
 
     function deleteRecording(postId, button) {
+        if (state.saving) return;
+
         const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
         if (!item) return;
 
@@ -1078,6 +1459,8 @@
     }
 
     function deleteReviewRecording(postId) {
+        if (state.saving) return;
+
         const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
         if (!reviewFile) return;
 
@@ -1139,6 +1522,8 @@
     }
 
     function removeReviewRecording(postId) {
+        if (state.saving) return;
+
         const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
         if (!reviewFile) return;
 
@@ -1164,6 +1549,8 @@
     }
 
     function deleteAllReviewRecordings() {
+        if (state.saving) return;
+
         const count = state.reviewData.size;
         if (count === 0) return;
 
@@ -1279,84 +1666,107 @@
     }
 
     async function saveAllProcessedAudio() {
+        if (state.saving) {
+            return;
+        }
+
         if (state.reviewData.size === 0) {
-            alert('No files to save.');
+            alert(t('saveNoFiles', 'No files to save.'));
             return;
         }
 
         const saveBtn = document.getElementById('ll-save-all');
         const cancelBtn = document.getElementById('ll-cancel-review');
-
-        if (!confirm(`Save ${state.reviewData.size} processed audio file(s)?`)) {
+        if (!saveBtn || !cancelBtn) {
             return;
         }
 
-        saveBtn.disabled = true;
-        cancelBtn.disabled = true;
-        saveBtn.textContent = 'Saving...';
+        const saveConfirmTemplate = t('saveConfirmTemplate', 'Save %d processed audio file(s)?');
+        if (!confirm(formatText(saveConfirmTemplate, [state.reviewData.size]))) {
+            return;
+        }
 
-        const statusDiv = document.getElementById('ll-processor-status');
-        const progressBar = statusDiv.querySelector('.ll-progress-fill');
-        const statusText = statusDiv.querySelector('.ll-status-text');
-
-        if (statusDiv) statusDiv.style.display = 'block';
-        if (progressBar) progressBar.style.width = '0%';
-
+        const total = state.reviewData.size;
         let saved = 0;
         let failed = 0;
-        const total = state.reviewData.size;
 
-        for (const [postId, data] of state.reviewData) {
-            try {
-                if (statusText) {
-                    statusText.textContent = `Saving: ${data.recording.title} (${saved + failed + 1}/${total})`;
+        setSavingState(true);
+        showSaveOverlay(total);
+
+        saveBtn.disabled = true;
+        cancelBtn.disabled = true;
+        saveBtn.textContent = t('saveButtonSaving', 'Saving...');
+
+        try {
+            for (const [postId, data] of state.reviewData) {
+                try {
+                    const index = saved + failed + 1;
+                    const savingTemplate = t('saveStatusTemplate', 'Saving: %1$s (%2$d/%3$d)');
+                    setSaveOverlayState(formatText(savingTemplate, [data.recording.title, index, total]), saved + failed, total);
+
+                    // Apply second pass of loudness normalization before saving
+                    let finalBuffer = data.processedBuffer;
+                    if (data.options.enableLoudness) {
+                        finalBuffer = await normalizeLoudness(data.processedBuffer);
+                    }
+
+                    await saveProcessedAudio(postId, data, finalBuffer);
+                    saved++;
+
+                    const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
+                    if (item) {
+                        item.classList.add('ll-processed');
+                        const checkbox = item.querySelector('.ll-recording-checkbox');
+                        if (checkbox) checkbox.disabled = true;
+                    }
+                } catch (error) {
+                    console.error(`Failed to save ${data.recording.title}:`, error);
+                    failed++;
                 }
 
-                // Apply second pass of loudness normalization before saving
-                let finalBuffer = data.processedBuffer;
-                if (data.options.enableLoudness) {
-                    finalBuffer = await normalizeLoudness(data.processedBuffer);
-                }
-
-                await saveProcessedAudio(postId, data, finalBuffer);
-                saved++;
-
-                const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
-                if (item) {
-                    item.classList.add('ll-processed');
-                    const checkbox = item.querySelector('.ll-recording-checkbox');
-                    if (checkbox) checkbox.disabled = true;
-                }
-            } catch (error) {
-                console.error(`Failed to save ${data.recording.title}:`, error);
-                failed++;
+                setSaveOverlayState(
+                    formatText(t('saveStatusTemplate', 'Saving: %1$s (%2$d/%3$d)'), [
+                        data.recording.title,
+                        Math.min(saved + failed, total),
+                        total
+                    ]),
+                    saved + failed,
+                    total
+                );
             }
 
-            if (progressBar) {
-                progressBar.style.width = `${((saved + failed) / total) * 100}%`;
-            }
-        }
-
-        if (statusText) {
             if (failed === 0) {
-                statusText.textContent = `Success! Saved ${saved} of ${total} files.`;
-                statusText.style.color = '#00a32a';
-            } else {
-                statusText.textContent = `Completed with errors: ${saved} saved, ${failed} failed.`;
-                statusText.style.color = '#d63638';
-            }
-        }
+                const successTemplate = t('saveSuccessTemplate', 'Success! Saved %1$d of %2$d files.');
+                setSaveOverlayState(formatText(successTemplate, [saved, total]), total, total, 'success');
 
-        setTimeout(() => {
-            if (failed === 0) {
-                location.reload();
+                setTimeout(() => {
+                    setSavingState(false);
+                    location.reload();
+                }, 900);
             } else {
+                const errorTemplate = t('saveErrorSummaryTemplate', 'Completed with errors: %1$d saved, %2$d failed.');
+                setSaveOverlayState(formatText(errorTemplate, [saved, failed]), total, total, 'error');
+
+                setTimeout(() => {
+                    setSavingState(false);
+                    hideSaveOverlay();
+                    saveBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                    saveBtn.textContent = t('saveButtonDefault', 'Save All Changes');
+                }, 1200);
+            }
+        } catch (error) {
+            console.error('Unexpected save flow failure:', error);
+            setSaveOverlayState(t('saveUnexpectedError', 'Unexpected error while saving. Please try again.'), saved + failed, total, 'error');
+
+            setTimeout(() => {
+                setSavingState(false);
+                hideSaveOverlay();
                 saveBtn.disabled = false;
                 cancelBtn.disabled = false;
-                saveBtn.textContent = 'Save All Changes';
-                if (statusDiv) statusDiv.style.display = 'none';
-            }
-        }, 2000);
+                saveBtn.textContent = t('saveButtonDefault', 'Save All Changes');
+            }, 1200);
+        }
     }
 
     async function saveProcessedAudio(postId, data, finalBuffer) {
@@ -1460,6 +1870,9 @@
     }
 
     function cancelReview() {
+        if (state.saving) {
+            return;
+        }
         if (confirm('Are you sure you want to cancel? All processing will be lost.')) {
             location.reload();
         }

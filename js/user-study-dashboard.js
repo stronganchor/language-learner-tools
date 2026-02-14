@@ -47,6 +47,10 @@
     const $checkApply = $root.find('[data-ll-study-check-apply]');
     const $checkRestart = $root.find('[data-ll-study-check-restart]');
     const $checkExit = $root.find('[data-ll-study-check-exit]');
+    const $checkFollowup = $root.find('[data-ll-study-check-followup]');
+    const $checkFollowupText = $root.find('[data-ll-study-check-followup-text]');
+    const $checkFollowupSame = $root.find('[data-ll-study-check-followup-same]');
+    const $checkFollowupNext = $root.find('[data-ll-study-check-followup-next]');
     const $nextText = $root.find('[data-ll-study-next-text]');
     const $startNext = $root.find('[data-ll-study-start-next]');
     const $goalsModes = $root.find('[data-ll-goals-modes]');
@@ -85,6 +89,9 @@
     const CHECK_AUTO_ADVANCE_DELAY_MS = 700;
     const CHECK_AUDIO_FAIL_DELAY_MS = 900;
     const CHECK_AUDIO_TIMEOUT_MS = 10000;
+    const SESSION_CHUNK_MIN = 8;
+    const SESSION_CHUNK_MAX = 15;
+    const SESSION_CHUNK_DEFAULT = 12;
     const CHECK_ACTIONS_CONFIDENCE = [
         { value: 'idk', labelKey: 'checkDontKnow', fallback: "I don't know it", className: 'll-study-check-btn--idk' },
         { value: 'think', labelKey: 'checkThinkKnow', fallback: 'I think I know it', className: 'll-study-check-btn--think' },
@@ -95,6 +102,16 @@
         { value: 'close', labelKey: 'checkGotClose', fallback: 'I got close', className: 'll-study-check-btn--close' },
         { value: 'right', labelKey: 'checkGotRight', fallback: 'I got it right', className: 'll-study-check-btn--right' }
     ];
+    let activeChunkLaunch = null;
+    let resultsSameChunkPlan = null;
+    let resultsNextChunkPlan = null;
+    let checkFollowupSamePlan = null;
+    let checkFollowupNextPlan = null;
+
+    const $resultsActions = $('#ll-study-results-actions');
+    const $resultsSuggestion = $('#ll-study-results-suggestion');
+    const $resultsSameChunk = $('#ll-study-results-same-chunk');
+    const $resultsNextChunk = $('#ll-study-results-next-chunk');
 
     function hasVisibleFlashcardPopup() {
         try {
@@ -687,6 +704,561 @@
         renderNextActivity();
     }
 
+    function hideResultsChunkActions() {
+        resultsSameChunkPlan = null;
+        resultsNextChunkPlan = null;
+        if ($resultsSuggestion.length) {
+            $resultsSuggestion.text('').hide();
+        }
+        if ($resultsSameChunk.length) {
+            $resultsSameChunk.hide().prop('disabled', false);
+        }
+        if ($resultsNextChunk.length) {
+            $resultsNextChunk.hide().prop('disabled', false);
+        }
+        if ($resultsActions.length) {
+            $resultsActions.hide();
+        }
+    }
+
+    function setActiveChunkLaunch(mode, categoryIds, sessionWordIds, source) {
+        activeChunkLaunch = {
+            mode: normalizeProgressMode(mode) || 'practice',
+            category_ids: uniqueIntList(categoryIds || []).filter(function (id) { return !isCategoryIgnored(id); }),
+            session_word_ids: uniqueIntList(sessionWordIds || []),
+            source: String(source || 'dashboard')
+        };
+    }
+
+    function getCategoryExposureScore(catId) {
+        const cid = parseInt(catId, 10) || 0;
+        if (!cid) { return Number.MAX_SAFE_INTEGER; }
+        const progress = categoryProgress[cid];
+        if (!progress || typeof progress !== 'object') { return 0; }
+        return Math.max(0, parseInt(progress.exposure_total, 10) || 0);
+    }
+
+    function resolveSessionChunkTargetSize(totalWordCount, preferredSize) {
+        const pool = Math.max(0, parseInt(totalWordCount, 10) || 0);
+        if (!pool) {
+            return 0;
+        }
+        if (pool <= SESSION_CHUNK_MAX) {
+            return pool;
+        }
+
+        let target = parseInt(preferredSize, 10);
+        if (!Number.isFinite(target)) {
+            target = SESSION_CHUNK_DEFAULT;
+        }
+        target = Math.max(SESSION_CHUNK_MIN, Math.min(SESSION_CHUNK_MAX, target));
+
+        if (pool >= 60) {
+            target = 15;
+        } else if (pool >= 40) {
+            target = 13;
+        } else if (pool >= 24) {
+            target = 12;
+        } else {
+            target = 10;
+        }
+
+        return Math.max(SESSION_CHUNK_MIN, Math.min(SESSION_CHUNK_MAX, Math.min(pool, target)));
+    }
+
+    function sortWordsForChunk(rows) {
+        const list = shuffleItems(Array.isArray(rows) ? rows.slice() : []);
+        list.sort(function (left, right) {
+            const leftStage = getWordProgressStage(left);
+            const rightStage = getWordProgressStage(right);
+            if (leftStage !== rightStage) {
+                return leftStage - rightStage;
+            }
+            const leftCoverage = getWordProgressCoverage(left);
+            const rightCoverage = getWordProgressCoverage(right);
+            if (leftCoverage !== rightCoverage) {
+                return leftCoverage - rightCoverage;
+            }
+            return 0;
+        });
+        return list;
+    }
+
+    function buildFallbackChunkPlan(categoryIds) {
+        const requested = uniqueIntList(categoryIds || []).filter(function (id) { return !isCategoryIgnored(id); });
+        if (!requested.length) {
+            return { category_ids: [], session_word_ids: [] };
+        }
+
+        const categoryOrder = requested.slice().sort(function (left, right) {
+            return getCategoryExposureScore(left) - getCategoryExposureScore(right);
+        });
+
+        // Prefer a full single-category chunk when the category naturally fits 8-15 words.
+        for (let i = 0; i < categoryOrder.length; i++) {
+            const cid = categoryOrder[i];
+            const words = sortWordsForChunk(getCategoryWords(cid) || []);
+            const seenInCategory = {};
+            const categoryWordIds = [];
+            for (let j = 0; j < words.length; j++) {
+                const wordId = parseInt(words[j] && words[j].id, 10) || 0;
+                if (!wordId || seenInCategory[wordId]) { continue; }
+                seenInCategory[wordId] = true;
+                categoryWordIds.push(wordId);
+            }
+            if (categoryWordIds.length >= SESSION_CHUNK_MIN && categoryWordIds.length <= SESSION_CHUNK_MAX) {
+                return {
+                    category_ids: [cid],
+                    session_word_ids: categoryWordIds
+                };
+            }
+        }
+
+        const poolLookup = {};
+        categoryOrder.forEach(function (cid) {
+            const words = getCategoryWords(cid) || [];
+            words.forEach(function (word) {
+                const wordId = parseInt(word && word.id, 10) || 0;
+                if (wordId > 0) {
+                    poolLookup[wordId] = true;
+                }
+            });
+        });
+        const chunkTargetSize = resolveSessionChunkTargetSize(Object.keys(poolLookup).length);
+        const seenWordLookup = {};
+        const selectedWordIds = [];
+        const usedCategoryLookup = {};
+
+        for (let i = 0; i < categoryOrder.length; i++) {
+            const cid = categoryOrder[i];
+            const words = sortWordsForChunk(getCategoryWords(cid) || []);
+            for (let j = 0; j < words.length; j++) {
+                const wordId = parseInt(words[j] && words[j].id, 10) || 0;
+                if (!wordId || seenWordLookup[wordId]) { continue; }
+                seenWordLookup[wordId] = true;
+                selectedWordIds.push(wordId);
+                usedCategoryLookup[cid] = true;
+                if (chunkTargetSize > 0 && selectedWordIds.length >= chunkTargetSize) {
+                    break;
+                }
+            }
+            if (chunkTargetSize > 0 && selectedWordIds.length >= chunkTargetSize) {
+                break;
+            }
+        }
+
+        const outCategories = uniqueIntList(Object.keys(usedCategoryLookup).map(function (key) {
+            return parseInt(key, 10) || 0;
+        }));
+
+        return {
+            category_ids: outCategories.length ? outCategories : requested.slice(0, 3),
+            session_word_ids: chunkTargetSize > 0 ? selectedWordIds.slice(0, chunkTargetSize) : []
+        };
+    }
+
+    function fetchRecommendationForCategories(categoryIds) {
+        const deferred = $.Deferred();
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) { return !isCategoryIgnored(id); });
+        if (!ids.length) {
+            deferred.resolve(null);
+            return deferred.promise();
+        }
+        $.post(ajaxUrl, {
+            action: 'll_user_study_recommendation',
+            nonce: nonce,
+            wordset_id: state.wordset_id,
+            category_ids: ids
+        }).done(function (res) {
+            let next = null;
+            if (res && res.success && res.data && Object.prototype.hasOwnProperty.call(res.data, 'next_activity')) {
+                next = normalizeNextActivity(res.data.next_activity);
+                applyNextActivity(next);
+            }
+            deferred.resolve(next);
+        }).fail(function () {
+            deferred.resolve(null);
+        });
+        return deferred.promise();
+    }
+
+    function resolveChunkPlanForMode(mode, categoryIds) {
+        const deferred = $.Deferred();
+        const normalizedMode = normalizeProgressMode(mode) || 'practice';
+        const requestedIds = uniqueIntList(categoryIds || []).filter(function (id) { return !isCategoryIgnored(id); });
+        if (!requestedIds.length) {
+            deferred.resolve({
+                mode: normalizedMode,
+                category_ids: [],
+                session_word_ids: [],
+                source: 'dashboard_chunk_manual',
+                recommendation: null
+            });
+            return deferred.promise();
+        }
+
+        ensureWordsForCategories(requestedIds).always(function () {
+            fetchRecommendationForCategories(requestedIds).done(function (next) {
+                let launchCategoryIds = requestedIds.slice();
+                let sessionWordIds = [];
+
+                if (next && next.category_ids && next.category_ids.length) {
+                    const suggestedCategoryIds = uniqueIntList(next.category_ids).filter(function (id) {
+                        return requestedIds.indexOf(id) !== -1 && !isCategoryIgnored(id);
+                    });
+                    if (suggestedCategoryIds.length) {
+                        launchCategoryIds = suggestedCategoryIds;
+                    }
+                }
+                if (next && next.session_word_ids && next.session_word_ids.length) {
+                    sessionWordIds = uniqueIntList(next.session_word_ids);
+                }
+                if (!sessionWordIds.length) {
+                    const fallback = buildFallbackChunkPlan(launchCategoryIds);
+                    sessionWordIds = uniqueIntList(fallback.session_word_ids || []);
+                    if (fallback.category_ids && fallback.category_ids.length) {
+                        launchCategoryIds = uniqueIntList(fallback.category_ids).filter(function (id) {
+                            return !isCategoryIgnored(id);
+                        });
+                    }
+                }
+                if (!launchCategoryIds.length) {
+                    launchCategoryIds = requestedIds.slice();
+                }
+
+                deferred.resolve({
+                    mode: normalizedMode,
+                    category_ids: launchCategoryIds,
+                    session_word_ids: sessionWordIds,
+                    source: 'dashboard_chunk_manual',
+                    recommendation: next
+                });
+            });
+        });
+
+        return deferred.promise();
+    }
+
+    function buildNextLogicalModeSequence(categoryIds) {
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) { return !isCategoryIgnored(id); });
+        const sequence = [];
+        if (isModeEnabled('learning')) {
+            sequence.push('learning');
+        }
+        if (isModeEnabled('practice')) {
+            sequence.push('practice');
+        }
+        if (isModeEnabled('gender') && isGenderSupportedForSelection(ids)) {
+            sequence.push('gender');
+        }
+        if (isModeEnabled('self-check')) {
+            sequence.push('self-check');
+        }
+        if (!sequence.length) {
+            const fallback = ['learning', 'practice', 'self-check'];
+            fallback.forEach(function (mode) {
+                if (sequence.indexOf(mode) === -1) {
+                    sequence.push(mode);
+                }
+            });
+        }
+        return sequence;
+    }
+
+    function getNextLogicalModeForChunk(currentMode, categoryIds) {
+        const sequence = buildNextLogicalModeSequence(categoryIds);
+        if (sequence.length <= 1) {
+            return '';
+        }
+        const current = normalizeProgressMode(currentMode);
+        const idx = sequence.indexOf(current);
+        if (idx === -1) {
+            return sequence[0];
+        }
+        return sequence[(idx + 1) % sequence.length];
+    }
+
+    function buildNextChunkPlanFromActivity() {
+        const next = normalizeNextActivity(nextActivity);
+        if (!next || !next.mode || !isModeEnabled(next.mode)) {
+            return null;
+        }
+        let categoryIds = uniqueIntList(next.category_ids || []).filter(function (id) { return !isCategoryIgnored(id); });
+        if (!categoryIds.length) {
+            categoryIds = uniqueIntList(state.category_ids || []).filter(function (id) { return !isCategoryIgnored(id); });
+        }
+        if (!categoryIds.length) {
+            return null;
+        }
+
+        let sessionWordIds = uniqueIntList(next.session_word_ids || []);
+        if (!sessionWordIds.length) {
+            const fallback = buildFallbackChunkPlan(categoryIds);
+            sessionWordIds = uniqueIntList(fallback.session_word_ids || []);
+            if (fallback.category_ids && fallback.category_ids.length) {
+                categoryIds = uniqueIntList(fallback.category_ids).filter(function (id) { return !isCategoryIgnored(id); });
+            }
+        }
+
+        return {
+            mode: next.mode,
+            category_ids: categoryIds,
+            session_word_ids: sessionWordIds,
+            source: 'dashboard_chunk_next'
+        };
+    }
+
+    function updateResultsChunkActionCopy() {
+        if (!$resultsActions.length) { return; }
+
+        const samePlan = resultsSameChunkPlan;
+        const nextPlan = resultsNextChunkPlan;
+
+        if (samePlan && $resultsSameChunk.length) {
+            const sameLabel = modeLabel(samePlan.mode);
+            $resultsSameChunk
+                .text(formatTemplate(i18n.resultsSameChunk || 'Same set: %1$s', [sameLabel]))
+                .show()
+                .prop('disabled', false);
+        } else if ($resultsSameChunk.length) {
+            $resultsSameChunk.hide().prop('disabled', true);
+        }
+
+        if ($resultsNextChunk.length) {
+            if (nextPlan) {
+                const nextModeLabel = modeLabel(nextPlan.mode);
+                const nextCount = uniqueIntList(nextPlan.session_word_ids || []).length;
+                const nextText = nextCount > 0
+                    ? formatTemplate(i18n.resultsNextChunkCount || 'Next set: %1$s (%2$d words)', [nextModeLabel, nextCount])
+                    : formatTemplate(i18n.resultsNextChunk || 'Next set: %1$s', [nextModeLabel]);
+                $resultsNextChunk.text(nextText).show().prop('disabled', false);
+            } else {
+                $resultsNextChunk
+                    .text(i18n.resultsNextChunkNone || 'Next set: update recommendation')
+                    .show()
+                    .prop('disabled', true);
+            }
+        }
+
+        if ($resultsSuggestion.length) {
+            if (samePlan && nextPlan) {
+                const message = formatTemplate(
+                    i18n.resultsFollowupSummary || 'Next suggestion: %1$s for this set, or %2$s for a new set.',
+                    [modeLabel(samePlan.mode), modeLabel(nextPlan.mode)]
+                );
+                $resultsSuggestion.text(message).show();
+            } else if (samePlan) {
+                const singleMessage = formatTemplate(
+                    i18n.resultsFollowupSummarySingle || 'Next suggestion: %1$s for this set.',
+                    [modeLabel(samePlan.mode)]
+                );
+                $resultsSuggestion.text(singleMessage).show();
+            } else if (nextPlan) {
+                const nextMessage = formatTemplate(
+                    i18n.resultsFollowupSummarySingle || 'Next suggestion: %1$s for this set.',
+                    [modeLabel(nextPlan.mode)]
+                );
+                $resultsSuggestion.text(nextMessage).show();
+            } else {
+                $resultsSuggestion.text('').hide();
+            }
+        }
+
+        if (samePlan || nextPlan) {
+            $resultsActions.show();
+        } else {
+            $resultsActions.hide();
+        }
+    }
+
+    function renderResultsChunkActions(resultMode) {
+        hideResultsChunkActions();
+        if (!$resultsActions.length) {
+            return;
+        }
+
+        const launch = activeChunkLaunch;
+        if (!launch || !Array.isArray(launch.session_word_ids) || !launch.session_word_ids.length) {
+            return;
+        }
+
+        const currentMode = normalizeProgressMode(resultMode || launch.mode);
+        if (!currentMode || currentMode === 'gender') {
+            return;
+        }
+
+        const categoryIds = uniqueIntList(launch.category_ids || state.category_ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!categoryIds.length) {
+            return;
+        }
+
+        const sameMode = getNextLogicalModeForChunk(currentMode, categoryIds);
+        resultsSameChunkPlan = sameMode ? {
+            mode: sameMode,
+            category_ids: categoryIds.slice(),
+            session_word_ids: uniqueIntList(launch.session_word_ids || []),
+            source: 'dashboard_chunk_followup'
+        } : null;
+        resultsNextChunkPlan = buildNextChunkPlanFromActivity();
+        updateResultsChunkActionCopy();
+
+        refreshRecommendation().always(function () {
+            resultsNextChunkPlan = buildNextChunkPlanFromActivity();
+            updateResultsChunkActionCopy();
+        });
+    }
+
+    function hideCheckFollowupActions() {
+        checkFollowupSamePlan = null;
+        checkFollowupNextPlan = null;
+        if ($checkFollowupText.length) {
+            $checkFollowupText.text('');
+        }
+        if ($checkFollowupSame.length) {
+            $checkFollowupSame.prop('disabled', false).hide();
+        }
+        if ($checkFollowupNext.length) {
+            $checkFollowupNext.prop('disabled', false).hide();
+        }
+        if ($checkFollowup.length) {
+            $checkFollowup.hide();
+        }
+    }
+
+    function updateCheckFollowupActionCopy() {
+        if (!$checkFollowup.length) {
+            return;
+        }
+
+        const samePlan = checkFollowupSamePlan;
+        const nextPlan = checkFollowupNextPlan;
+
+        if (samePlan && $checkFollowupSame.length) {
+            $checkFollowupSame
+                .text(formatTemplate(i18n.resultsSameChunk || 'Same set: %1$s', [modeLabel(samePlan.mode)]))
+                .show()
+                .prop('disabled', false);
+        } else if ($checkFollowupSame.length) {
+            $checkFollowupSame.hide().prop('disabled', true);
+        }
+
+        if ($checkFollowupNext.length) {
+            if (nextPlan) {
+                const nextModeLabel = modeLabel(nextPlan.mode);
+                const nextCount = uniqueIntList(nextPlan.session_word_ids || []).length;
+                const nextText = nextCount > 0
+                    ? formatTemplate(i18n.resultsNextChunkCount || 'Next set: %1$s (%2$d words)', [nextModeLabel, nextCount])
+                    : formatTemplate(i18n.resultsNextChunk || 'Next set: %1$s', [nextModeLabel]);
+                $checkFollowupNext.text(nextText).show().prop('disabled', false);
+            } else {
+                $checkFollowupNext
+                    .text(i18n.resultsNextChunkNone || 'Next set: update recommendation')
+                    .show()
+                    .prop('disabled', true);
+            }
+        }
+
+        if ($checkFollowupText.length) {
+            if (samePlan && nextPlan) {
+                $checkFollowupText.text(formatTemplate(
+                    i18n.resultsFollowupSummary || 'Next suggestion: %1$s for this set, or %2$s for a new set.',
+                    [modeLabel(samePlan.mode), modeLabel(nextPlan.mode)]
+                ));
+            } else if (samePlan) {
+                $checkFollowupText.text(formatTemplate(
+                    i18n.resultsFollowupSummarySingle || 'Next suggestion: %1$s for this set.',
+                    [modeLabel(samePlan.mode)]
+                ));
+            } else if (nextPlan) {
+                $checkFollowupText.text(formatTemplate(
+                    i18n.resultsFollowupSummarySingle || 'Next suggestion: %1$s for this set.',
+                    [modeLabel(nextPlan.mode)]
+                ));
+            } else {
+                $checkFollowupText.text('');
+            }
+        }
+
+        if (samePlan || nextPlan) {
+            $checkFollowup.show();
+        } else {
+            $checkFollowup.hide();
+        }
+    }
+
+    function renderCheckFollowupActions() {
+        hideCheckFollowupActions();
+        if (!$checkFollowup.length || !checkSession) {
+            return;
+        }
+        const chunkWordIds = uniqueIntList(checkSession.sessionWordIds || []);
+        const categoryIds = uniqueIntList(checkSession.categoryIds || []).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!chunkWordIds.length || !categoryIds.length) {
+            return;
+        }
+
+        const sameMode = getNextLogicalModeForChunk('self-check', categoryIds);
+        checkFollowupSamePlan = sameMode ? {
+            mode: sameMode,
+            category_ids: categoryIds.slice(),
+            session_word_ids: chunkWordIds.slice(),
+            source: 'dashboard_chunk_followup'
+        } : null;
+        checkFollowupNextPlan = buildNextChunkPlanFromActivity();
+        updateCheckFollowupActionCopy();
+
+        refreshRecommendation().always(function () {
+            checkFollowupNextPlan = buildNextChunkPlanFromActivity();
+            updateCheckFollowupActionCopy();
+        });
+    }
+
+    function launchDashboardPlan(plan) {
+        const target = (plan && typeof plan === 'object') ? plan : null;
+        if (!target || !target.mode) {
+            return;
+        }
+        const mode = normalizeProgressMode(target.mode);
+        if (!mode) {
+            return;
+        }
+        const categoryIds = uniqueIntList(target.category_ids || state.category_ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        const sessionWordIds = uniqueIntList(target.session_word_ids || []);
+        const source = String(target.source || 'dashboard_chunk_results');
+
+        hideResultsChunkActions();
+
+        if (mode === 'self-check') {
+            const mainApi = window.LLFlashcards && window.LLFlashcards.Main;
+            const popupOpen = $('body').hasClass('ll-tools-flashcard-open') ||
+                $('#ll-tools-flashcard-popup:visible, #ll-tools-flashcard-quiz-popup:visible').length > 0;
+            const closePromise = (popupOpen && mainApi && typeof mainApi.closeFlashcard === 'function')
+                ? Promise.resolve(mainApi.closeFlashcard())
+                : Promise.resolve();
+            closePromise.catch(function () {
+                return undefined;
+            }).finally(function () {
+                startCheckFlow(categoryIds, {
+                    sessionWordIds: sessionWordIds,
+                    source: source
+                });
+            });
+            return;
+        }
+
+        startFlashcards(mode, {
+            categoryIds: categoryIds,
+            sessionWordIds: sessionWordIds,
+            source: source
+        });
+    }
+
     function saveGoalsDebounced() {
         clearTimeout(goalsTimer);
         goalsTimer = setTimeout(function () {
@@ -911,8 +1483,13 @@
         return (parseInt(progress.exposure_total, 10) || 0) > 0;
     }
 
-    function buildCheckQueue(categoryIds) {
+    function buildCheckQueue(categoryIds, allowedWordIds) {
         const ids = shuffleItems(toIntList(categoryIds));
+        const allowedLookup = {};
+        toIntList(allowedWordIds || []).forEach(function (id) {
+            allowedLookup[id] = true;
+        });
+        const hasAllowed = Object.keys(allowedLookup).length > 0;
         const seen = {};
         const practiced = [];
         const mixed = [];
@@ -929,6 +1506,7 @@
             words.forEach(function (word) {
                 const wordId = parseInt(word && word.id, 10) || 0;
                 if (!wordId || seen[wordId]) { return; }
+                if (hasAllowed && !allowedLookup[wordId]) { return; }
                 seen[wordId] = true;
                 const coverage = getWordProgressCoverage(word);
                 const stage = getWordProgressStage(word);
@@ -1385,6 +1963,7 @@
         }
         setCheckFlipped(false);
         $checkComplete.hide();
+        hideCheckFollowupActions();
     }
 
     function closeCheckPanel() {
@@ -1403,6 +1982,7 @@
         }
         setCheckFlipped(false);
         $checkComplete.hide();
+        hideCheckFollowupActions();
         checkSession = null;
         stopCurrentAudio();
     }
@@ -1481,6 +2061,7 @@
         }
         setCheckFlipped(false);
         $checkComplete.show();
+        renderCheckFollowupActions();
     }
 
     function handleCheckConfidenceChoice(choice) {
@@ -1573,10 +2154,12 @@
         return ids;
     }
 
-    function startCheckFlow(categoryIds) {
+    function startCheckFlow(categoryIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const ids = toIntList(categoryIds || state.category_ids).filter(function (id) {
             return !isCategoryIgnored(id);
         });
+        const sessionWordIds = uniqueIntList(opts.sessionWordIds || opts.session_word_ids || []);
         if (!ids.length) {
             ensureCategoriesSelected();
             return;
@@ -1588,12 +2171,13 @@
         }
 
         ensureWordsForCategories(ids).always(function () {
-            const items = buildCheckQueue(ids);
+            const items = buildCheckQueue(ids, sessionWordIds);
             if (!items.length) {
                 alert(i18n.checkEmpty || 'No words available for this check.');
                 closeCheckPanel();
                 return;
             }
+            setActiveChunkLaunch('self-check', ids, sessionWordIds, opts.source || 'dashboard');
             checkSession = {
                 mode: 'self-check',
                 items: items,
@@ -1606,7 +2190,8 @@
                 phase: 'confidence',
                 pendingConfidence: '',
                 token: 0,
-                advanceTimer: null
+                advanceTimer: null,
+                sessionWordIds: sessionWordIds.slice()
             };
             openCheckPanel();
             showCheckItem();
@@ -1990,6 +2575,7 @@
 
     function startFlashcards(mode, launchOptions) {
         const options = (launchOptions && typeof launchOptions === 'object') ? launchOptions : {};
+        const launchSource = String(options.source || 'dashboard');
         const requestedCategoryIds = uniqueIntList(options.category_ids || options.categoryIds || state.category_ids || []).filter(function (id) {
             return !isCategoryIgnored(id);
         });
@@ -2102,6 +2688,7 @@
             window.llToolsFlashcardsData = flashData;
 
             setStudyPrefsGlobal();
+            setActiveChunkLaunch(quizMode, requestedCategoryIds, sessionWordIds, launchSource);
             syncProgressTrackerContext(quizMode, requestedCategoryIds);
 
             $('body').addClass('ll-tools-flashcard-open');
@@ -2121,6 +2708,32 @@
                         restoreDashboardScrollIfNeeded();
                     });
                 }
+            }
+        });
+    }
+
+    function startModeWithChunk(mode, categoryIds, triggerButton) {
+        const requestedMode = normalizeProgressMode(mode);
+        const requestedCategoryIds = uniqueIntList(categoryIds || state.category_ids).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!requestedMode) { return; }
+        if (!ensureCategoriesSelected(requestedCategoryIds)) { return; }
+
+        const $btn = (triggerButton && triggerButton.length) ? triggerButton : $();
+        if ($btn.length) {
+            $btn.prop('disabled', true).addClass('loading');
+        }
+
+        resolveChunkPlanForMode(requestedMode, requestedCategoryIds).done(function (plan) {
+            const launchPlan = Object.assign({}, plan, {
+                mode: requestedMode,
+                source: 'dashboard_chunk_manual'
+            });
+            launchDashboardPlan(launchPlan);
+        }).always(function () {
+            if ($btn.length) {
+                $btn.prop('disabled', false).removeClass('loading');
             }
         });
     }
@@ -2296,9 +2909,15 @@
         const modeRaw = $(this).data('mode') || $(this).attr('data-mode') || 'practice';
         const mode = normalizeQuizMode(modeRaw) || 'practice';
         const categoryIds = getSelectedCategoryIdsFromUI();
+        const launchCategoryIds = categoryIds.length ? categoryIds : state.category_ids;
+        if (mode === 'practice' || mode === 'learning') {
+            startModeWithChunk(mode, launchCategoryIds, $(this));
+            return;
+        }
         startFlashcards(mode, {
-            categoryIds: categoryIds.length ? categoryIds : state.category_ids,
-            sessionWordIds: []
+            categoryIds: launchCategoryIds,
+            sessionWordIds: [],
+            source: 'dashboard_manual'
         });
     });
 
@@ -2316,21 +2935,19 @@
             const categoryIds = uniqueIntList(next.category_ids.length ? next.category_ids : state.category_ids).filter(function (id) {
                 return !isCategoryIgnored(id);
             });
-            if (next.mode === 'self-check') {
-                syncProgressTrackerContext('self-check', categoryIds);
-                startCheckFlow(categoryIds);
-                return;
-            }
-            startFlashcards(next.mode, {
-                categoryIds: categoryIds,
-                sessionWordIds: next.session_word_ids || []
+            launchDashboardPlan({
+                mode: next.mode,
+                category_ids: categoryIds,
+                session_word_ids: next.session_word_ids || [],
+                source: 'dashboard_chunk_next'
             });
         });
     }
 
     if ($checkStart.length) {
         $checkStart.on('click', function () {
-            startCheckFlow(undefined);
+            const categoryIds = getSelectedCategoryIdsFromUI();
+            startModeWithChunk('self-check', categoryIds.length ? categoryIds : state.category_ids, $(this));
         });
     }
 
@@ -2352,12 +2969,40 @@
         });
     }
 
+    if ($checkFollowupSame.length) {
+        $checkFollowupSame.on('click', function (e) {
+            e.preventDefault();
+            if (!checkFollowupSamePlan) { return; }
+            launchDashboardPlan(checkFollowupSamePlan);
+        });
+    }
+
+    if ($checkFollowupNext.length) {
+        $checkFollowupNext.on('click', function (e) {
+            e.preventDefault();
+            if (!checkFollowupNextPlan) {
+                refreshRecommendation().always(function () {
+                    checkFollowupNextPlan = buildNextChunkPlanFromActivity();
+                    updateCheckFollowupActionCopy();
+                });
+                return;
+            }
+            launchDashboardPlan(checkFollowupNextPlan);
+        });
+    }
+
     if ($checkRestart.length) {
         $checkRestart.on('click', function () {
             const ids = checkSession && Array.isArray(checkSession.categoryIds)
                 ? checkSession.categoryIds
                 : state.category_ids;
-            startCheckFlow(ids);
+            const sessionWordIds = (checkSession && Array.isArray(checkSession.sessionWordIds))
+                ? checkSession.sessionWordIds
+                : [];
+            startCheckFlow(ids, {
+                sessionWordIds: sessionWordIds,
+                source: 'dashboard_chunk_restart'
+            });
         });
     }
 
@@ -2502,6 +3147,28 @@
         handleRecordingButtonClick($(this), this);
     });
 
+    if ($resultsSameChunk.length) {
+        $resultsSameChunk.on('click', function (e) {
+            e.preventDefault();
+            if (!resultsSameChunkPlan) { return; }
+            launchDashboardPlan(resultsSameChunkPlan);
+        });
+    }
+
+    if ($resultsNextChunk.length) {
+        $resultsNextChunk.on('click', function (e) {
+            e.preventDefault();
+            if (!resultsNextChunkPlan) {
+                refreshRecommendation().always(function () {
+                    resultsNextChunkPlan = buildNextChunkPlanFromActivity();
+                    updateResultsChunkActionCopy();
+                });
+                return;
+            }
+            launchDashboardPlan(resultsNextChunkPlan);
+        });
+    }
+
     // Keep dashboard state in sync with in-quiz star changes
     $(document).on('lltools:star-changed', function (_evt, detail) {
         const info = detail || {};
@@ -2526,6 +3193,15 @@
         } else {
             refreshRecommendation();
         }
+        if ($resultsActions.length && $resultsActions.is(':visible')) {
+            resultsNextChunkPlan = buildNextChunkPlanFromActivity();
+            updateResultsChunkActionCopy();
+        }
+    });
+
+    $(document).on('lltools:flashcard-results-shown', function (_evt, detail) {
+        const info = detail || {};
+        renderResultsChunkActions(normalizeProgressMode(info.mode || ''));
     });
 
     $(document).on('lltools:flashcard-opened', function () {
@@ -2533,11 +3209,13 @@
             closeCheckPanel();
         }
         stopCurrentAudio();
+        hideResultsChunkActions();
     });
 
     $(document).on('lltools:flashcard-closed', function () {
         stopCurrentAudio();
         restoreDashboardScrollIfNeeded();
+        hideResultsChunkActions();
     });
 
     // Initial render
@@ -2551,11 +3229,12 @@
     updateCheckActionLabels();
     renderNextActivity();
     updateGenderButtonVisibility();
+    hideResultsChunkActions();
     setStudyPrefsGlobal();
     syncProgressTrackerContext();
 
     window.LLToolsStudyDashboard = window.LLToolsStudyDashboard || {};
     window.LLToolsStudyDashboard.startSelfCheck = function (categoryIds) {
-        startCheckFlow(Array.isArray(categoryIds) ? categoryIds : undefined);
+        startModeWithChunk('self-check', Array.isArray(categoryIds) ? categoryIds : state.category_ids);
     };
 })(jQuery);

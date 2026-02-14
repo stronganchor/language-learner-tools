@@ -550,6 +550,14 @@
         return State.wordsByCategory || {};
     }
 
+    function getOptionWordsByCategory() {
+        const source = root.optionWordsByCategory;
+        if (source && typeof source === 'object') {
+            return source;
+        }
+        return getActiveWordsByCategory();
+    }
+
     function getCategoryDisplayMode(name) {
         if (!name) return State.DEFAULT_DISPLAY_MODE;
         const cfg = getCategoryConfig(name);
@@ -1238,12 +1246,28 @@
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
 
-        // In learning mode, only select from introduced words
+        // In learning mode, only select from introduced words.
+        // In other modes, keep target selection chunked but allow distractors from the
+        // full category pool (including non-starred) so option rules still hold.
+        const activeWordsByCategory = getActiveWordsByCategory();
+        const optionWordsByCategory = getOptionWordsByCategory();
         let availableWords = [];
+        const supplementalWords = [];
+        const supplementalLookup = {};
+        const appendSupplementalWords = function (list) {
+            if (!Array.isArray(list)) return;
+            list.forEach(function (word) {
+                const wid = parseInt(word && word.id, 10) || 0;
+                if (!wid || supplementalLookup[wid]) return;
+                supplementalLookup[wid] = true;
+                supplementalWords.push(word);
+            });
+        };
+
         if (State.isLearningMode) {
             // Collect all introduced words from all categories
             State.categoryNames.forEach(catName => {
-                const catWords = getActiveWordsByCategory()[catName] || [];
+                const catWords = activeWordsByCategory[catName] || [];
                 catWords.forEach(word => {
                     if (State.introducedWordIDs.includes(word.id)) {
                         availableWords.push(word);
@@ -1251,9 +1275,21 @@
                 });
             });
         } else {
-            // Practice / listening: only use words from the current category
-            const catWords = getActiveWordsByCategory()[targetCategoryName] || [];
-            availableWords.push(...catWords);
+            // Keep same-category distractors first, but don't limit to the session chunk.
+            const categoryPool = optionWordsByCategory[targetCategoryName] || activeWordsByCategory[targetCategoryName] || [];
+            availableWords.push(...categoryPool);
+
+            // If the current category cannot satisfy minimum options, backfill from
+            // other loaded categories as a fallback.
+            const selectedNames = Array.isArray(State.categoryNames) ? State.categoryNames.slice() : [];
+            selectedNames.forEach(function (name) {
+                if (!name || name === targetCategoryName) return;
+                appendSupplementalWords(optionWordsByCategory[name] || activeWordsByCategory[name] || []);
+            });
+            Object.keys(optionWordsByCategory || {}).forEach(function (name) {
+                if (!name || name === targetCategoryName) return;
+                appendSupplementalWords(optionWordsByCategory[name]);
+            });
         }
 
         const targetGroups = new Set();
@@ -1315,27 +1351,89 @@
             }
         }
 
-        // Fill remaining options from available words
-        for (let candidate of availableWords) {
-            if (chosen.length >= targetCount) break;
-            if (!root.FlashcardOptions.canAddMoreCards()) break;
+        const MIN_OPTIONS = 2;
+        const desiredCount = Math.max(MIN_OPTIONS, parseInt(targetCount, 10) || MIN_OPTIONS);
+        const addCandidate = function (candidate, rules) {
+            if (!candidate || typeof candidate !== 'object') return false;
+            const candidateId = String(candidate.id || '');
+            if (!candidateId) return false;
 
-            const isDup = chosen.some(w => w.id === candidate.id);
-            const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
-            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
-            const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
-            // Enforce pair safety across all cards already chosen for this round.
-            const hasOptionConflict = chosen.some(function (existingWord) {
-                return wordsConflictForOptions(existingWord, candidate);
+            const enforceSimilarity = !rules || rules.enforceSimilarity !== false;
+            const enforceTextUniqueness = !rules || rules.enforceTextUniqueness !== false;
+            const enforceConflict = !rules || rules.enforceConflict !== false;
+
+            const isDup = chosen.some(function (word) {
+                return String(word && word.id) === candidateId;
             });
+            if (isDup) return false;
 
-            if (!isDup && !isSim && !sameText && !hasOptionConflict) {
-                chosen.push(candidate);
-                if (isTextOptionMode) {
-                    seenOptionTexts.add(normalizedText);
-                }
-                root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
-                root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
+            if (enforceSimilarity) {
+                const isSim = chosen.some(function (word) {
+                    const chosenId = String(word && word.id);
+                    return String(word && word.similar_word_id) === candidateId
+                        || String(candidate.similar_word_id) === chosenId;
+                });
+                if (isSim) return false;
+            }
+
+            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
+            if (isTextOptionMode && enforceTextUniqueness && seenOptionTexts.has(normalizedText)) {
+                return false;
+            }
+
+            if (enforceConflict) {
+                const hasOptionConflict = chosen.some(function (existingWord) {
+                    return wordsConflictForOptions(existingWord, candidate);
+                });
+                if (hasOptionConflict) return false;
+            }
+
+            chosen.push(candidate);
+            if (isTextOptionMode) {
+                seenOptionTexts.add(normalizedText);
+            }
+            root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
+            root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
+            return true;
+        };
+
+        // Fill remaining options from primary category candidates with strict checks.
+        for (let candidate of availableWords) {
+            if (chosen.length >= desiredCount) break;
+            if (!root.FlashcardOptions.canAddMoreCards()) break;
+            addCandidate(candidate, {
+                enforceSimilarity: true,
+                enforceTextUniqueness: true,
+                enforceConflict: true
+            });
+        }
+
+        // If needed, backfill from same-category + cross-category candidates while
+        // preserving duplicate/similarity/text safeguards but relaxing pair conflicts.
+        if (chosen.length < desiredCount) {
+            const relaxedPool = Util.randomlySort(availableWords.concat(supplementalWords));
+            for (let candidate of relaxedPool) {
+                if (chosen.length >= desiredCount) break;
+                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                addCandidate(candidate, {
+                    enforceSimilarity: true,
+                    enforceTextUniqueness: true,
+                    enforceConflict: false
+                });
+            }
+        }
+
+        // Hard fallback to guarantee minimum option count when possible.
+        if (chosen.length < MIN_OPTIONS) {
+            const hardPool = Util.randomlySort(availableWords.concat(supplementalWords));
+            for (let candidate of hardPool) {
+                if (chosen.length >= MIN_OPTIONS) break;
+                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                addCandidate(candidate, {
+                    enforceSimilarity: false,
+                    enforceTextUniqueness: false,
+                    enforceConflict: false
+                });
             }
         }
 

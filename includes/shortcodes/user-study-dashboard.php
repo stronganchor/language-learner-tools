@@ -81,6 +81,12 @@ SVG;
         'nextNone'         => __('No recommendation yet. Pick categories or do one round first.', 'll-tools-text-domain'),
         'nextReady'        => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
         'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
+        'resultsFollowupSummary' => __('Next suggestion: %1$s for this set, or %2$s for a new set.', 'll-tools-text-domain'),
+        'resultsFollowupSummarySingle' => __('Next suggestion: %1$s for this set.', 'll-tools-text-domain'),
+        'resultsSameChunk' => __('Same set: %1$s', 'll-tools-text-domain'),
+        'resultsNextChunk' => __('Next set: %1$s', 'll-tools-text-domain'),
+        'resultsNextChunkCount' => __('Next set: %1$s (%2$d words)', 'll-tools-text-domain'),
+        'resultsNextChunkNone' => __('Next set: update recommendation', 'll-tools-text-domain'),
         'modePractice'     => __('Practice', 'll-tools-text-domain'),
         'modeLearning'     => __('Learn', 'll-tools-text-domain'),
         'modeListening'    => __('Listen', 'll-tools-text-domain'),
@@ -282,6 +288,13 @@ SVG;
                     <div class="ll-study-check-complete-actions">
                         <button type="button" class="ll-study-btn primary" data-ll-study-check-apply><?php echo esc_html($i18n['checkApply']); ?></button>
                         <button type="button" class="ll-study-btn ghost" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
+                    </div>
+                    <div class="ll-study-check-followup" data-ll-study-check-followup style="display:none;">
+                        <p class="ll-study-check-hint" data-ll-study-check-followup-text></p>
+                        <div class="ll-study-check-complete-actions">
+                            <button type="button" class="ll-study-btn ghost" data-ll-study-check-followup-same><?php echo esc_html__('Same set', 'll-tools-text-domain'); ?></button>
+                            <button type="button" class="ll-study-btn ghost" data-ll-study-check-followup-next><?php echo esc_html__('Next set', 'll-tools-text-domain'); ?></button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -103,6 +103,9 @@
             if (root.wordsByCategory && typeof root.wordsByCategory === 'object') {
                 Object.keys(root.wordsByCategory).forEach(k => delete root.wordsByCategory[k]);
             }
+            if (root.optionWordsByCategory && typeof root.optionWordsByCategory === 'object') {
+                Object.keys(root.optionWordsByCategory).forEach(k => delete root.optionWordsByCategory[k]);
+            }
             if (root.categoryRoundCount && typeof root.categoryRoundCount === 'object') {
                 Object.keys(root.categoryRoundCount).forEach(k => delete root.categoryRoundCount[k]);
             }

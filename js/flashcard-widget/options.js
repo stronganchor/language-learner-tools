@@ -111,6 +111,14 @@
             }
         }
 
+        function getCategoryOptionPool(categoryName) {
+            const optionPoolMap = (window.optionWordsByCategory && typeof window.optionWordsByCategory === 'object')
+                ? window.optionWordsByCategory
+                : window.wordsByCategory;
+            const list = optionPoolMap && optionPoolMap[categoryName];
+            return Array.isArray(list) ? list : [];
+        }
+
         /**
          * Ensures the number of options is within the defined minimum and maximum limits.
          *
@@ -153,8 +161,9 @@
             }
 
             // Also cap by how many words are actually available in that category
-            if (window.wordsByCategory[categoryName]) {
-                maxOptionsCount = Math.min(maxOptionsCount, window.wordsByCategory[categoryName].length);
+            const optionPool = getCategoryOptionPool(categoryName);
+            if (optionPool.length) {
+                maxOptionsCount = Math.min(maxOptionsCount, optionPool.length);
             }
 
             maxOptionsCount = Math.max(MINIMUM_NUMBER_OF_OPTIONS, maxOptionsCount);
@@ -186,9 +195,10 @@
                 return;
             }
 
-            if (window.wordsByCategory[categoryName]) {
+            const optionPool = getCategoryOptionPool(categoryName);
+            if (optionPool.length) {
                 categoryOptionsCount[categoryName] = checkMinMax(
-                    Math.min(window.wordsByCategory[categoryName].length, defaultNumberOfOptions),
+                    Math.min(optionPool.length, defaultNumberOfOptions),
                     categoryName
                 );
             } else {
