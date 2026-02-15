@@ -357,16 +357,14 @@
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg,
-#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg path,
-#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon svg,
-#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon svg path {
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-flip svg path {
   fill: none !important;
   stroke: currentColor !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-actions {
   display: flex !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
   align-items: center;
   justify-content: center;
   gap: 10px !important;
@@ -424,16 +422,59 @@
   color: #ffffff !important;
 }
 
-#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--unknown {
-  background: #ef4444;
-  border-color: #ef4444;
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--right {
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff !important;
 }
 
-#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--unknown:hover {
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--right:hover {
+  background: #166534;
+  border-color: #166534;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--think,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--close {
+  background: #ca8a04;
+  border-color: #ca8a04;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--think:hover,
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--close:hover {
+  background: #a16207;
+  border-color: #a16207;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--idk {
   background: #dc2626;
   border-color: #dc2626;
   color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--idk:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--wrong {
+  background: #be123c;
+  border-color: #be123c;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--wrong:hover {
+  background: #9f1239;
+  border-color: #9f1239;
+  color: #ffffff !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn:disabled {
+  opacity: 0.62;
+  cursor: not-allowed !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-icon {

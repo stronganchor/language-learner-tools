@@ -179,7 +179,19 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
             <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
           </button>
           <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-            <?php echo esc_html__('Next Chunk', 'll-tools-text-domain'); ?>
+            <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
+          </button>
+        </div>
+        <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
+          <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
+          <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('New words', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
           </button>
         </div>
         <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>

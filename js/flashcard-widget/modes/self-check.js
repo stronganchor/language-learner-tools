@@ -3,7 +3,6 @@
 
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Modes = root.LLFlashcards.Modes || {};
-    const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const State = (root.LLFlashcards.State = root.LLFlashcards.State || {});
     const Selection = (root.LLFlashcards.Selection = root.LLFlashcards.Selection || {});
@@ -13,6 +12,19 @@
     const $ = root.jQuery;
     let currentPromptAudio = null;
     let currentPromptAudioButton = null;
+    const SELF_CHECK_AUTO_ADVANCE_DELAY_MS = 700;
+    const SELF_CHECK_AUDIO_FAIL_DELAY_MS = 900;
+    const SELF_CHECK_AUDIO_TIMEOUT_MS = 10000;
+    const SELF_CHECK_ACTIONS_CONFIDENCE = [
+        { value: 'idk', labelKey: 'selfCheckDontKnow', fallback: "I don't know it", className: 'll-study-check-btn--idk' },
+        { value: 'think', labelKey: 'selfCheckThinkKnow', fallback: 'I think I know it', className: 'll-study-check-btn--think' },
+        { value: 'know', labelKey: 'selfCheckKnow', fallback: 'I know it', className: 'll-study-check-btn--know' }
+    ];
+    const SELF_CHECK_ACTIONS_RESULT = [
+        { value: 'wrong', labelKey: 'selfCheckGotWrong', fallback: 'I got it wrong', className: 'll-study-check-btn--wrong' },
+        { value: 'close', labelKey: 'selfCheckGotClose', fallback: 'I got close', className: 'll-study-check-btn--close' },
+        { value: 'right', labelKey: 'selfCheckGotRight', fallback: 'I got it right', className: 'll-study-check-btn--right' }
+    ];
 
     function getProgressTracker() {
         return root.LLFlashcards && root.LLFlashcards.ProgressTracker
@@ -175,16 +187,36 @@
         results.incorrect = Array.from(incorrectSet);
     }
 
-    function recordSelfCheckResult(wordId, knowsWord) {
+    function recordSelfCheckResult(wordId, confidence, bucket) {
         const idNum = parseInt(wordId, 10);
         if (!idNum) { return; }
         const key = String(idNum);
         const results = ensureQuizResultsShape();
         const stats = results.wordAttempts[key] || { seen: 0, clean: 0, hadWrong: false };
+        const confidenceKey = String(confidence || '').toLowerCase();
+        const bucketKey = String(bucket || '').toLowerCase();
+
+        let knowsWord = false;
+        let hadWrongBefore = true;
+        if (bucketKey === 'right') {
+            knowsWord = true;
+            hadWrongBefore = false;
+        } else if (bucketKey === 'close') {
+            knowsWord = true;
+            hadWrongBefore = true;
+        } else if (bucketKey === 'idk') {
+            knowsWord = false;
+            hadWrongBefore = true;
+        } else if (confidenceKey === 'idk') {
+            knowsWord = false;
+            hadWrongBefore = true;
+        }
+
         stats.seen += 1;
         if (knowsWord) {
             stats.clean += 1;
-        } else {
+        }
+        if (hadWrongBefore) {
             stats.hadWrong = true;
         }
         results.wordAttempts[key] = stats;
@@ -231,6 +263,28 @@
             }
         }
         return '';
+    }
+
+    function getIsolationAudioUrl(word) {
+        if (!word) { return ''; }
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        let match = null;
+
+        if (preferredSpeaker) {
+            match = files.find(function (file) {
+                return file && file.url && file.recording_type === 'isolation' && parseInt(file.speaker_user_id, 10) === preferredSpeaker;
+            });
+        }
+        if (!match) {
+            match = files.find(function (file) {
+                return file && file.url && file.recording_type === 'isolation';
+            });
+        }
+        if (match && match.url) {
+            return String(match.url);
+        }
+        return getAudioUrl(word);
     }
 
     function stopPromptAudio() {
@@ -297,6 +351,59 @@
 
         promptAudio.play().catch(function () {
             stopPromptAudio();
+        });
+    }
+
+    function playIsolationAudio(word, ctx) {
+        const audioUrl = getIsolationAudioUrl(word);
+        if (!audioUrl) {
+            return Promise.resolve(false);
+        }
+        stopPromptAudio();
+        try {
+            if (ctx && ctx.FlashcardAudio && typeof ctx.FlashcardAudio.pauseAllAudio === 'function') {
+                ctx.FlashcardAudio.pauseAllAudio();
+            }
+        } catch (_) { /* no-op */ }
+
+        return new Promise(function (resolve) {
+            let done = false;
+            const promptAudio = new Audio(audioUrl);
+            currentPromptAudio = promptAudio;
+            currentPromptAudioButton = null;
+            const timeoutId = setTimeout(function () {
+                finish(true);
+            }, SELF_CHECK_AUDIO_TIMEOUT_MS);
+
+            const finish = function (played) {
+                if (done) { return; }
+                done = true;
+                clearTimeout(timeoutId);
+                promptAudio.removeEventListener('ended', onEnded);
+                promptAudio.removeEventListener('error', onError);
+                try {
+                    if (!promptAudio.paused) {
+                        promptAudio.pause();
+                    }
+                } catch (_) { /* no-op */ }
+                if (currentPromptAudio === promptAudio) {
+                    currentPromptAudio = null;
+                    currentPromptAudioButton = null;
+                }
+                resolve(!!played);
+            };
+
+            const onEnded = function () { finish(true); };
+            const onError = function () { finish(false); };
+            promptAudio.addEventListener('ended', onEnded);
+            promptAudio.addEventListener('error', onError);
+            if (promptAudio.play) {
+                promptAudio.play().catch(function () {
+                    finish(false);
+                });
+            } else {
+                finish(false);
+            }
         });
     }
 
@@ -370,28 +477,107 @@
         appendDisplayContentFallback($host, displayMode, word, ctx);
     }
 
-    function createSvgIcon(viewBox, paths, ariaHidden) {
-        const doc = root.document;
-        if (!doc || typeof doc.createElementNS !== 'function') {
-            return null;
+    function buildActionIcon(choiceValue) {
+        const key = String(choiceValue || '').toLowerCase();
+        const isCross = (key === 'idk' || key === 'wrong');
+        const isCheck = (key === 'know' || key === 'right');
+        const isThink = (key === 'think');
+        const isClose = (key === 'close');
+        if (!isCross && !isCheck && !isThink && !isClose) { return null; }
+
+        const $icon = $('<span>', { class: 'll-study-check-icon', 'aria-hidden': 'true' });
+        if (isCross) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>
+                    <line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>
+                </svg>
+            `));
+            return $icon;
         }
 
-        const svg = doc.createElementNS(SVG_NS, 'svg');
-        svg.setAttribute('viewBox', viewBox);
-        svg.setAttribute('fill', 'none');
-        if (ariaHidden) {
-            svg.setAttribute('aria-hidden', 'true');
+        if (isThink) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="currentColor">
+                        <circle cx="22" cy="18" r="7.5"></circle>
+                        <circle cx="33" cy="14" r="8.5"></circle>
+                        <circle cx="44" cy="18" r="7.5"></circle>
+                        <circle cx="17" cy="27" r="7"></circle>
+                        <circle cx="49" cy="27" r="7"></circle>
+                        <circle cx="23" cy="35" r="7.5"></circle>
+                        <circle cx="33" cy="36" r="8.5"></circle>
+                        <circle cx="43" cy="34" r="7.5"></circle>
+                        <circle cx="33" cy="26" r="11"></circle>
+                        <circle cx="44.6" cy="51.2" r="4.3"></circle>
+                        <circle cx="54.8" cy="56.6" r="3.4"></circle>
+                    </g>
+                </svg>
+            `));
+            return $icon;
         }
 
-        (Array.isArray(paths) ? paths : []).forEach(function (spec) {
-            const path = doc.createElementNS(SVG_NS, 'path');
-            Object.keys(spec || {}).forEach(function (key) {
-                path.setAttribute(key, String(spec[key]));
+        if (isClose) {
+            $icon.append($(`
+                <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="6"></circle>
+                    <path fill="currentColor" fill-rule="evenodd" d="M32 8 A24 24 0 1 1 31.999 8 Z M32 32 L32 8 A24 24 0 0 0 8 32 Z"></path>
+                </svg>
+            `));
+            return $icon;
+        }
+
+        $icon.append($(`
+            <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="14,34 28,46 50,18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            </svg>
+        `));
+        return $icon;
+    }
+
+    function setActionsDisabled($actions, disabled) {
+        if (!$actions || !$actions.length) { return; }
+        $actions.find('button').prop('disabled', !!disabled).toggleClass('disabled', !!disabled);
+    }
+
+    function renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs) {
+        appendDisplayContent($front, 'image', targetWord, ctx);
+        appendDisplayContent($back, 'text', targetWord, ctx);
+
+        const isolationAudioUrl = getIsolationAudioUrl(targetWord);
+        if (!isolationAudioUrl || !$back || !$back.length) {
+            return;
+        }
+
+        let $inner = $back.find('.ll-study-check-prompt-inner').first();
+        if (!$inner.length) {
+            $inner = $('<div>', { class: 'll-study-check-prompt-inner' }).appendTo($back);
+        }
+        const label = msgs.selfCheckPlayAudio || 'Play audio';
+        let $audioBtn = null;
+        if (SelfCheckShared && typeof SelfCheckShared.buildAudioButton === 'function') {
+            $audioBtn = SelfCheckShared.buildAudioButton({
+                audioUrl: isolationAudioUrl,
+                label: label,
+                onActivate: function (audioUrl, buttonEl) {
+                    playAudioUrl(audioUrl, ctx, buttonEl);
+                }
             });
-            svg.appendChild(path);
-        });
-
-        return svg;
+        } else {
+            $audioBtn = $('<button>', {
+                type: 'button',
+                class: 'll-study-check-audio-btn',
+                text: label
+            });
+            $audioBtn.on('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                playAudioUrl(isolationAudioUrl, ctx, this);
+            });
+        }
+        if ($audioBtn && $audioBtn.length) {
+            $inner.append($audioBtn);
+        }
     }
 
     function buildRound(targetWord, promptType, optionType, ctx, meta) {
@@ -415,90 +601,6 @@
         const $front = $('<div>', { class: 'll-study-check-prompt ll-study-check-face ll-study-check-face--front' });
         const $back = $('<div>', { class: 'll-study-check-prompt ll-study-check-face ll-study-check-face--back' });
         const $actions = $('<div>', { class: 'll-study-check-actions' });
-        const $flip = $('<button>', {
-            type: 'button',
-            class: 'll-study-check-flip',
-            'aria-label': msgs.selfCheckFlip || 'Show answer'
-        });
-        const flipIcon = createSvgIcon(
-            '0 0 24 24',
-            [
-                {
-                    d: 'M20 7h-9a6 6 0 1 0 0 12h4',
-                    stroke: 'currentColor',
-                    'stroke-width': '2',
-                    'stroke-linecap': 'round',
-                    'stroke-linejoin': 'round'
-                },
-                {
-                    d: 'M20 7l-3-3M20 7l-3 3',
-                    stroke: 'currentColor',
-                    'stroke-width': '2',
-                    'stroke-linecap': 'round',
-                    'stroke-linejoin': 'round'
-                }
-            ],
-            true
-        );
-        if (flipIcon) {
-            $flip.append(flipIcon);
-        } else {
-            $flip.text('↻');
-        }
-        const $know = $('<button>', {
-            type: 'button',
-            class: 'll-study-btn ll-study-check-btn ll-study-check-btn--know'
-        });
-        const $knowIcon = $('<span>', { class: 'll-study-check-icon', 'aria-hidden': 'true' });
-        const knowIconSvg = createSvgIcon(
-            '0 0 24 24',
-            [
-                {
-                    d: 'M5 13l4 4L19 7',
-                    stroke: 'currentColor',
-                    'stroke-width': '2.5',
-                    'stroke-linecap': 'round',
-                    'stroke-linejoin': 'round'
-                }
-            ],
-            false
-        );
-        if (knowIconSvg) {
-            $knowIcon.append(knowIconSvg);
-        } else {
-            $knowIcon.text('✓');
-        }
-        $know.append(
-            $knowIcon,
-            $('<span>', { class: 'll-study-check-btn-text', text: msgs.selfCheckKnow || 'I know it' })
-        );
-        const $dontKnow = $('<button>', {
-            type: 'button',
-            class: 'll-study-btn ll-study-check-btn ll-study-check-btn--unknown'
-        });
-        const $dontKnowIcon = $('<span>', { class: 'll-study-check-icon', 'aria-hidden': 'true' });
-        const dontKnowIconSvg = createSvgIcon(
-            '0 0 24 24',
-            [
-                {
-                    d: 'M6 6l12 12M18 6l-12 12',
-                    stroke: 'currentColor',
-                    'stroke-width': '2.5',
-                    'stroke-linecap': 'round',
-                    'stroke-linejoin': 'round'
-                }
-            ],
-            false
-        );
-        if (dontKnowIconSvg) {
-            $dontKnowIcon.append(dontKnowIconSvg);
-        } else {
-            $dontKnowIcon.text('✕');
-        }
-        $dontKnow.append(
-            $dontKnowIcon,
-            $('<span>', { class: 'll-study-check-btn-text', text: msgs.selfCheckDontKnow || "I don't know it" })
-        );
 
         $('<span>', {
             class: 'll-study-check-title',
@@ -518,43 +620,118 @@
         }
         $header.append($headerTitleWrap, $headerMeta);
 
-        // Match dashboard self-check behavior: show option content first, reveal prompt on answer side.
-        appendDisplayContent($front, optionType, targetWord, ctx);
-        appendDisplayContent($back, promptType, targetWord, ctx);
+        // Match dashboard self-check behavior: image prompt first, then text + isolation audio on answer side.
+        renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs);
 
         let answered = false;
-        $flip.on('click', function () {
-            $card.toggleClass('is-flipped', !$card.hasClass('is-flipped'));
-        });
+        let phase = 'confidence';
+        let pendingConfidence = '';
+        let advanceTimer = null;
+        let actionToken = 0;
 
-        const advanceRound = function (knowsWord) {
+        const clearAdvanceTimer = function () {
+            if (advanceTimer) {
+                clearTimeout(advanceTimer);
+                advanceTimer = null;
+            }
+        };
+        const bumpActionToken = function () {
+            actionToken += 1;
+            return actionToken;
+        };
+        const isActionTokenCurrent = function (token) {
+            return !answered && token === actionToken;
+        };
+        const setFlipped = function (isFlipped) {
+            $card.toggleClass('is-flipped', !!isFlipped);
+        };
+
+        const renderActions = function (options, onSelect) {
+            $actions.empty();
+            (Array.isArray(options) ? options : []).forEach(function (opt) {
+                const label = msgs[opt.labelKey] || opt.fallback || '';
+                const $btn = $('<button>', {
+                    type: 'button',
+                    class: 'll-study-btn ll-study-check-btn ' + opt.className,
+                    'data-ll-check-choice': opt.value
+                });
+                const $icon = buildActionIcon(opt.value);
+                if ($icon && $icon.length) {
+                    $btn.append($icon);
+                }
+                $btn.append($('<span>', { class: 'll-study-check-btn-text', text: label }));
+                $btn.on('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelect(String(opt.value || '').toLowerCase());
+                });
+                $btn.appendTo($actions);
+            });
+        };
+
+        const finalizeRound = function (confidence, result) {
             if (answered) { return; }
             answered = true;
+            clearAdvanceTimer();
             stopPromptAudio();
+
+            const confidenceKey = String(confidence || '').toLowerCase();
+            const resultKey = String(result || '').toLowerCase();
+            let bucket = 'wrong';
+            let isCorrect = false;
+            let hadWrongBefore = true;
+
+            if (confidenceKey === 'idk') {
+                bucket = 'idk';
+                isCorrect = false;
+                hadWrongBefore = true;
+            } else if (resultKey === 'right') {
+                bucket = 'right';
+                isCorrect = true;
+                hadWrongBefore = false;
+            } else if (resultKey === 'close') {
+                bucket = 'close';
+                isCorrect = true;
+                hadWrongBefore = true;
+            } else {
+                bucket = 'wrong';
+                isCorrect = false;
+                hadWrongBefore = true;
+            }
 
             try {
                 const tracker = getProgressTracker();
                 if (tracker && typeof tracker.trackWordOutcome === 'function') {
-                tracker.trackWordOutcome({
-                    mode: 'self-check',
-                    wordId: targetWord.id,
-                    categoryName: State.currentCategoryName || '',
-                    wordsetId: resolveWordsetIdForProgress(),
-                    isCorrect: !!knowsWord,
-                    hadWrongBefore: !knowsWord
-                });
+                    tracker.trackWordOutcome({
+                        mode: 'self-check',
+                        wordId: targetWord.id,
+                        categoryName: State.currentCategoryName || '',
+                        wordsetId: resolveWordsetIdForProgress(),
+                        isCorrect: isCorrect,
+                        hadWrongBefore: hadWrongBefore,
+                        payload: {
+                            self_check_confidence: confidenceKey,
+                            self_check_result: resultKey || bucket,
+                            self_check_bucket: bucket,
+                            forced_prompt: 'image'
+                        }
+                    });
                 }
             } catch (_) { /* no-op */ }
 
-            recordSelfCheckResult(targetWord.id, !!knowsWord);
+            recordSelfCheckResult(targetWord.id, confidenceKey, bucket);
             State.isFirstRound = false;
-            State.hadWrongAnswerThisTurn = !knowsWord;
+            State.hadWrongAnswerThisTurn = hadWrongBefore;
 
             try {
                 if (ctx.FlashcardAudio && typeof ctx.FlashcardAudio.pauseAllAudio === 'function') {
                     ctx.FlashcardAudio.pauseAllAudio();
                 }
             } catch (_) { /* no-op */ }
+
+            if (!State || !State.widgetActive) {
+                return;
+            }
 
             if (State.forceTransitionTo) {
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Self check next word');
@@ -566,15 +743,68 @@
             }
         };
 
-        $know.on('click', function () { advanceRound(true); });
-        $dontKnow.on('click', function () { advanceRound(false); });
+        const openResultPhase = function (confidence) {
+            if (answered) { return; }
+            pendingConfidence = String(confidence || '').toLowerCase();
+            if (!pendingConfidence) { return; }
+            phase = 'result';
+            renderActions(SELF_CHECK_ACTIONS_RESULT, function (choice) {
+                if (answered) { return; }
+                if (choice !== 'wrong' && choice !== 'close' && choice !== 'right') { return; }
+                const conf = pendingConfidence === 'idk' ? 'idk' : (pendingConfidence || 'think');
+                finalizeRound(conf, choice);
+            });
+            setActionsDisabled($actions, true);
+            const token = bumpActionToken();
 
-        $actions.append($know, $dontKnow);
-        $card.append($inner.append($front, $back), $flip);
+            if (pendingConfidence === 'idk') {
+                setFlipped(false);
+                playIsolationAudio(targetWord, ctx).then(function (played) {
+                    if (!isActionTokenCurrent(token)) { return; }
+                    clearAdvanceTimer();
+                    advanceTimer = setTimeout(function () {
+                        if (!isActionTokenCurrent(token)) { return; }
+                        finalizeRound('idk', 'idk');
+                    }, played ? SELF_CHECK_AUTO_ADVANCE_DELAY_MS : SELF_CHECK_AUDIO_FAIL_DELAY_MS);
+                });
+                scheduleLayoutFitCheck($shell);
+                return;
+            }
+
+            setFlipped(true);
+            playIsolationAudio(targetWord, ctx).then(function (played) {
+                if (!isActionTokenCurrent(token)) { return; }
+                const enableResultButtons = function () {
+                    if (!isActionTokenCurrent(token)) { return; }
+                    setActionsDisabled($actions, false);
+                };
+                if (played) {
+                    enableResultButtons();
+                } else {
+                    setTimeout(enableResultButtons, SELF_CHECK_AUDIO_FAIL_DELAY_MS);
+                }
+            });
+            scheduleLayoutFitCheck($shell);
+        };
+
+        const openConfidencePhase = function () {
+            phase = 'confidence';
+            pendingConfidence = '';
+            setFlipped(false);
+            renderActions(SELF_CHECK_ACTIONS_CONFIDENCE, function (choice) {
+                if (answered) { return; }
+                if (choice !== 'idk' && choice !== 'think' && choice !== 'know') { return; }
+                openResultPhase(choice);
+            });
+            setActionsDisabled($actions, false);
+            scheduleLayoutFitCheck($shell);
+        };
+
+        $card.append($inner.append($front, $back));
         $round.append($card, $actions);
         $shell.append($header, $round);
         $flashcard.append($shell);
-        scheduleLayoutFitCheck($shell);
+        openConfidencePhase();
     }
 
     function syncLayoutFit() {
