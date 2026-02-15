@@ -2154,9 +2154,10 @@
         const wrong = Math.max(0, parseInt(safe.wrong, 10) || 0);
         const close = Math.max(0, parseInt(safe.close, 10) || 0);
         const right = Math.max(0, parseInt(safe.right, 10) || 0);
+        const unsureOrWrong = unsure + wrong;
         return formatTemplate(
-            i18n.checkSummary || 'Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.',
-            [unsure, wrong, close, right]
+            i18n.checkSummaryCompact || 'Self check complete: x %1$d, ~ %2$d, ✓ %3$d.',
+            [unsureOrWrong, close, right]
         );
     }
 

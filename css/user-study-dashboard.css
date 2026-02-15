@@ -1043,6 +1043,10 @@ body.ll-study-check-open {
   flex-wrap: wrap;
 }
 
+.ll-study-check .ll-study-check-followup {
+  margin-top: 14px;
+}
+
 .ll-user-study-dashboard #ll-tools-start-flashcard {
   display: none !important;
 }

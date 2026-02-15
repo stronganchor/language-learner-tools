@@ -117,6 +117,7 @@ SVG;
         'checkDontKnow'    => __("I don't know it", 'll-tools-text-domain'),
         'checkThinkKnow'   => __('I think I know it', 'll-tools-text-domain'),
         'checkSummary'     => __('Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.', 'll-tools-text-domain'),
+        'checkSummaryCompact' => __('Self check complete: x %1$d, ~ %2$d, ✓ %3$d.', 'll-tools-text-domain'),
         'checkPhasePrompt' => __('What do you think this word is?', 'll-tools-text-domain'),
         'checkPhaseResult' => __('Listen, then choose your result.', 'll-tools-text-domain'),
         'checkGotRight'    => __('I got it right', 'll-tools-text-domain'),
