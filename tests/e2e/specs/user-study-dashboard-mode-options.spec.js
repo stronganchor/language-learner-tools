@@ -258,6 +258,38 @@ test('study panel normalizes gender launch mode before initializing flashcards',
   expect(launch.mode).toBe('gender');
 });
 
+test('study panel falls back to the selected wordset ID when slug lookup is unavailable', async ({ page }) => {
+  const payload = buildPayload({
+    wordsets: []
+  });
+  payload.words_by_category[11][0].wordset_ids = [19];
+  payload.words_by_category[22][0].wordset_ids = [19];
+
+  await mountStudyPanel(page, payload);
+
+  await page.evaluate(() => {
+    window.initFlashcardWidget = function () {
+      return Promise.resolve();
+    };
+  });
+
+  await page.locator('[data-ll-study-start][data-mode="learning"]').click();
+  await page.waitForTimeout(100);
+
+  const launchState = await page.evaluate(() => {
+    const flash = window.llToolsFlashcardsData || {};
+    return {
+      wordset: String(flash.wordset || ''),
+      wordsetIds: Array.isArray(flash.wordsetIds)
+        ? flash.wordsetIds.map((id) => parseInt(id, 10) || 0).filter(Boolean)
+        : []
+    };
+  });
+
+  expect(launchState.wordset).toBe('19');
+  expect(launchState.wordsetIds).toEqual([19]);
+});
+
 test('study panel practice launch applies recommended chunk word IDs', async ({ page }) => {
   await mountStudyPanel(page, buildPayload(), {
     recommendation: {

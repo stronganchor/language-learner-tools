@@ -139,3 +139,7 @@ For behavior changes touching quiz/recording flows:
 1. `tests/bin/run-tests.sh`
 2. `tests/bin/run-e2e.sh`
 3. Update `tests/README.md` if test scope or runner behavior changed.
+
+Wordset-boundary changes should also include:
+
+1. `tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js`

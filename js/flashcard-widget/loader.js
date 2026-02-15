@@ -13,6 +13,8 @@
         // Tracks loaded categories and resources
         const loadedCategories = [];
         const loadedResources = {};
+        const inFlightRequests = {};
+        let requestSerial = 0;
         let lastWordsetKey = null;
         const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
         function getAllowedWordsetIds() {
@@ -79,6 +81,7 @@
         function resetCacheForNewWordset() {
             loadedCategories.length = 0;
             Object.keys(loadedResources).forEach(function (k) { delete loadedResources[k]; });
+            Object.keys(inFlightRequests).forEach(function (k) { delete inFlightRequests[k]; });
             if (window.optionWordsByCategory && typeof window.optionWordsByCategory === 'object') {
                 Object.keys(window.optionWordsByCategory).forEach(function (k) { delete window.optionWordsByCategory[k]; });
             }
@@ -275,8 +278,6 @@
 
             window.wordsByCategory[categoryName].push(...filteredBySession);
             window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
-
-            loadedCategories.push(categoryName);
         }
 
         /**
@@ -290,6 +291,8 @@
             const earlyCallback = opts.earlyCallback === true;
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
+            const requestId = ++requestSerial;
+            inFlightRequests[cacheKey] = requestId;
 
             if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
@@ -330,6 +333,11 @@
                 dataType: 'json',
                 data: payload,
                 success: function (response) {
+                    // Ignore stale responses from previous wordset/session requests.
+                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
+                        return;
+                    }
+                    delete inFlightRequests[cacheKey];
                     try {
                         if (window.__LL_LAST_WORDS_AJAX) {
                             window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
@@ -345,13 +353,19 @@
                         } else {
                             preloadCategoryResources(categoryName, callback);
                         }
-                        loadedCategories.push(cacheKey);
+                        if (!loadedCategories.includes(cacheKey)) {
+                            loadedCategories.push(cacheKey);
+                        }
                     } else {
                         console.error('Failed to load words for category:', categoryName, response);
                         if (typeof callback === 'function') callback();
                     }
                 },
                 error: function (xhr, status, error) {
+                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
+                        return;
+                    }
+                    delete inFlightRequests[cacheKey];
                     try {
                         if (window.__LL_LAST_WORDS_AJAX) {
                             window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
@@ -403,7 +417,6 @@
             function loadNextChunk() {
                 if (currentIndex >= totalWords) {
                     // All chunks loaded, we're done.
-                    loadedCategories.push(categoryName);
                     return;
                 }
 

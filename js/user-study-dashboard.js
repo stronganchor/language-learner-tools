@@ -25,6 +25,7 @@
     let savingTimer = null;
     let goalsTimer = null;
     let wordsetReloadToken = 0;
+    let wordsRequestEpoch = 0;
     let genderConfig = normalizeGenderConfig(payload.gender || {});
     state.category_ids = uniqueIntList(state.category_ids || []);
     state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
@@ -547,6 +548,32 @@
     function findWordsetSlug(id) {
         const ws = wordsets.find(function (w) { return parseInt(w.id, 10) === parseInt(id, 10); });
         return ws ? ws.slug : '';
+    }
+
+    function getCurrentWordsetId() {
+        return parseInt(state.wordset_id, 10) || 0;
+    }
+
+    function bumpWordsRequestEpoch() {
+        wordsRequestEpoch += 1;
+        return wordsRequestEpoch;
+    }
+
+    function wordMatchesWordset(word, wordsetId) {
+        const wsId = parseInt(wordsetId, 10) || 0;
+        if (!wsId) { return true; }
+        const ids = Array.isArray(word && word.wordset_ids) ? word.wordset_ids : [];
+        return ids.some(function (id) {
+            return (parseInt(id, 10) || 0) === wsId;
+        });
+    }
+
+    function categoryWordsMatchWordset(words, wordsetId) {
+        const list = Array.isArray(words) ? words : [];
+        if (!list.length) { return false; }
+        return list.every(function (word) {
+            return wordMatchesWordset(word, wordsetId);
+        });
     }
 
     function isWordStarred(id) {
@@ -1800,18 +1827,24 @@
     function ensureWordsForCategory(catId) {
         const cid = parseInt(catId, 10);
         if (!cid) { return $.Deferred().resolve([]).promise(); }
-        if (wordsByCategory[cid]) {
+        const requestedWordsetId = getCurrentWordsetId();
+        if (categoryWordsMatchWordset(wordsByCategory[cid], requestedWordsetId)) {
             return $.Deferred().resolve(wordsByCategory[cid]).promise();
         }
+        const requestEpoch = wordsRequestEpoch;
         return $.post(ajaxUrl, {
             action: 'll_user_study_fetch_words',
             nonce: nonce,
-            wordset_id: state.wordset_id,
+            wordset_id: requestedWordsetId,
             category_ids: [cid]
         }).then(function (res) {
+            if (requestEpoch !== wordsRequestEpoch || requestedWordsetId !== getCurrentWordsetId()) {
+                return [];
+            }
             if (res && res.success && res.data && res.data.words_by_category) {
                 wordsByCategory = Object.assign({}, wordsByCategory, res.data.words_by_category);
-                return wordsByCategory[cid] || [];
+                const nextRows = wordsByCategory[cid] || [];
+                return categoryWordsMatchWordset(nextRows, requestedWordsetId) ? nextRows : [];
             }
             return [];
         }, function () {
@@ -2963,12 +2996,17 @@
             refreshRecommendation();
             return;
         }
+        const requestEpoch = wordsRequestEpoch;
+        const requestedWordsetId = getCurrentWordsetId();
         $.post(ajaxUrl, {
             action: 'll_user_study_fetch_words',
             nonce: nonce,
-            wordset_id: state.wordset_id,
+            wordset_id: requestedWordsetId,
             category_ids: ids
         }).done(function (res) {
+            if (requestEpoch !== wordsRequestEpoch || requestedWordsetId !== getCurrentWordsetId()) {
+                return;
+            }
             if (res && res.success && res.data && res.data.words_by_category) {
                 wordsByCategory = res.data.words_by_category;
                 renderWords();
@@ -2978,6 +3016,7 @@
     }
 
     function reloadForWordset(wordsetId) {
+        bumpWordsRequestEpoch();
         const reloadToken = ++wordsetReloadToken;
         $.post(ajaxUrl, {
             action: 'll_user_study_bootstrap',
@@ -3095,8 +3134,10 @@
                 flashData.firstCategoryData = initialWordsRaw;
             }
 
-            flashData.wordset = findWordsetSlug(state.wordset_id);
-            flashData.wordsetIds = state.wordset_id ? [state.wordset_id] : [];
+            const activeWordsetId = getCurrentWordsetId();
+            const resolvedWordsetSpec = findWordsetSlug(activeWordsetId) || (activeWordsetId > 0 ? String(activeWordsetId) : '');
+            flashData.wordset = resolvedWordsetSpec;
+            flashData.wordsetIds = activeWordsetId > 0 ? [activeWordsetId] : [];
             flashData.wordsetFallback = false;
             flashData.quiz_mode = quizMode;
             flashData.starMode = starMode;
@@ -3194,6 +3235,9 @@
         state.category_ids = [];
         state.starred_word_ids = [];
         state.star_mode = normalizeStarMode(state.star_mode);
+        bumpWordsRequestEpoch();
+        wordsByCategory = {};
+        renderWords();
         if (newId > 0 && goals.preferred_wordset_ids.indexOf(newId) === -1) {
             goals.preferred_wordset_ids.push(newId);
             goals.preferred_wordset_ids = uniqueIntList(goals.preferred_wordset_ids);
