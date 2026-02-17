@@ -67,8 +67,8 @@ SVG;
         'nextReady'        => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
         'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
         'resultsRedoChunk' => __('Repeat', 'll-tools-text-domain'),
-        'resultsDifferentChunk' => __('New words', 'll-tools-text-domain'),
-        'resultsDifferentChunkCount' => __('New words (%2$d)', 'll-tools-text-domain'),
+        'resultsDifferentChunk' => __('Categories', 'll-tools-text-domain'),
+        'resultsDifferentChunkCount' => __('Categories (%2$d)', 'll-tools-text-domain'),
         'resultsRecommendedActivity' => __('Recommended', 'll-tools-text-domain'),
         'resultsRecommendedActivityCount' => __('Recommended (%2$d)', 'll-tools-text-domain'),
         'modePractice'     => __('Practice', 'll-tools-text-domain'),
@@ -103,7 +103,7 @@ SVG;
         'checkThinkKnow'   => __('I think I know it', 'll-tools-text-domain'),
         'checkSummary'     => __('Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.', 'll-tools-text-domain'),
         'checkSummaryCompact' => __('Self check complete: x %1$d, ~ %2$d, ✓ %3$d.', 'll-tools-text-domain'),
-        'checkSummaryCompactHtml' => __('Self check complete: %1$s %2$d, %3$s %4$d, %5$s %6$d.', 'll-tools-text-domain'),
+        'checkCompleteTitle' => __('Self check complete', 'll-tools-text-domain'),
         'checkPhasePrompt' => __('What do you think this word is?', 'll-tools-text-domain'),
         'checkPhaseResult' => __('Listen, then choose your result.', 'll-tools-text-domain'),
         'checkGotRight'    => __('I got it right', 'll-tools-text-domain'),
@@ -272,7 +272,7 @@ SVG;
                     <div class="ll-study-check-complete-actions">
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
                         <span class="ll-study-check-followup ll-study-check-followup-inline" data-ll-study-check-followup style="display:none;">
-                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-different><?php echo esc_html__('New words', 'll-tools-text-domain'); ?></button>
+                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-different><?php echo esc_html($i18n['categoriesLabel']); ?></button>
                             <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-next><?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?></button>
                         </span>
                     </div>

@@ -696,7 +696,7 @@ function ll_qpg_print_flashcard_shell_once() {
                 <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
               </button>
               <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
-                <?php echo esc_html__('New words', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Categories', 'll-tools-text-domain'); ?>
               </button>
               <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
                 <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>

@@ -2196,13 +2196,29 @@
         const close = Math.max(0, parseInt(safe.close, 10) || 0);
         const right = Math.max(0, parseInt(safe.right, 10) || 0);
         const unsureOrWrong = unsure + wrong;
-        const crossIcon = buildCheckSummaryIconHtml('wrong');
-        const closeIcon = buildCheckSummaryIconHtml('close');
-        const rightIcon = buildCheckSummaryIconHtml('right');
-        return formatTemplate(
-            i18n.checkSummaryCompactHtml || 'Self check complete: %1$s %2$d, %3$s %4$d, %5$s %6$d.',
-            [crossIcon, unsureOrWrong, closeIcon, close, rightIcon, right]
-        );
+        const summaryTitle = String(i18n.checkCompleteTitle || i18n.checkTitle || 'Self check complete').trim();
+        const safeTitle = $('<div>').text(summaryTitle).html();
+        return [
+            '<div class="ll-study-check-summary-title">' + safeTitle + '</div>',
+            '<div class="ll-study-check-summary-results">',
+            buildCheckSummaryPillHtml('wrong', unsureOrWrong),
+            buildCheckSummaryPillHtml('close', close),
+            buildCheckSummaryPillHtml('right', right),
+            '</div>'
+        ].join('');
+    }
+
+    function buildCheckSummaryPillHtml(kind, count) {
+        const key = String(kind || '').toLowerCase();
+        if (['wrong', 'close', 'right'].indexOf(key) === -1) {
+            return '';
+        }
+        const safeCount = Math.max(0, parseInt(count, 10) || 0);
+        const iconHtml = buildCheckSummaryIconHtml(key);
+        return '<span class="ll-study-check-summary-pill ll-study-check-summary-pill--' + key + '">' +
+            iconHtml +
+            '<span class="ll-study-check-summary-count">' + String(safeCount) + '</span>' +
+            '</span>';
     }
 
     function buildCheckSummaryIconHtml(choiceValue) {
@@ -2452,7 +2468,7 @@
         if (!$checkPanel.length) { return; }
         $checkPanel.addClass('is-active').attr('aria-hidden', 'false');
         lockCheckViewportScroll();
-        $checkSummary.text('');
+        $checkSummary.empty();
         $checkPrompt.show().empty();
         $checkAnswer.show().empty();
         $checkActions.show();

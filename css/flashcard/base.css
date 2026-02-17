@@ -1574,6 +1574,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     flex-wrap: wrap;
     width: 100%;
     margin-inline: auto;
+    margin-top: 20px !important;
 }
 
 #ll-study-results-suggestion {
@@ -1593,7 +1594,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 #quiz-results .quiz-mode-button,
 #quiz-results .ll-vocab-lesson-mode-button {
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;

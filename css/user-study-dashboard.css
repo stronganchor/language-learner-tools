@@ -94,7 +94,7 @@ body.ll-study-check-open {
 }
 
 .ll-user-study-dashboard .ll-vocab-lesson-mode-button {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center !important;
   gap: 8px !important;
   padding: 8px 14px !important;
@@ -1041,25 +1041,67 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-summary {
-  font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   line-height: 1.35;
 }
 
-.ll-study-check .ll-study-check-summary .ll-study-check-summary-icon {
-  width: 0.95em;
-  height: 0.95em;
-  margin: 0 0.12em 0 0.04em;
-  vertical-align: -0.08em;
-  color: #111827 !important;
+.ll-study-check .ll-study-check-summary-title {
+  font-weight: 700;
+  color: #111827;
 }
 
-.ll-study-check .ll-study-check-summary .ll-study-check-summary-icon svg {
+.ll-study-check .ll-study-check-summary-results {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ll-study-check .ll-study-check-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ll-study-check .ll-study-check-summary-pill--wrong {
+  background: #be123c;
+}
+
+.ll-study-check .ll-study-check-summary-pill--close {
+  background: #ca8a04;
+}
+
+.ll-study-check .ll-study-check-summary-pill--right {
+  background: #15803d;
+}
+
+.ll-study-check .ll-study-check-summary-pill .ll-study-check-summary-icon {
+  width: 14px;
+  height: 14px;
+  color: #ffffff !important;
+}
+
+.ll-study-check .ll-study-check-summary-pill .ll-study-check-summary-icon svg {
   width: 100%;
   height: 100%;
   display: block;
   fill: currentColor;
   stroke: currentColor;
+}
+
+.ll-study-check .ll-study-check-summary-count {
+  min-width: 1ch;
 }
 
 .ll-study-check .ll-study-check-hint {
@@ -1072,7 +1114,8 @@ body.ll-study-check-open {
   justify-content: center;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  margin-top: 18px;
 }
 
 .ll-study-check .ll-study-check-followup {
@@ -1081,8 +1124,15 @@ body.ll-study-check-open {
 
 .ll-study-check .ll-study-check-followup.ll-study-check-followup-inline {
   margin-top: 0;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .ll-study-check .ll-study-check-complete-actions {
+    flex-wrap: wrap;
+  }
 }
 
 .ll-user-study-dashboard #ll-tools-start-flashcard {
