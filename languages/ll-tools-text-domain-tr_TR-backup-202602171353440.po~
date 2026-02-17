@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-02-17 13:53+0000\n"
+"PO-Revision-Date: 2026-02-17 12:21+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Loco https://localise.biz/\n"
-"X-Loco-Version: 2.8.0; wp-6.9.1; php-8.2.23\n"
+"X-Loco-Version: 2.8.0; wp-6.9; php-8.2.23\n"
 "X-Domain: ll-tools-text-domain"
 
 #: includes/admin/audio-processor-admin.php:120
@@ -1365,7 +1365,7 @@ msgstr "Birlikte kullanılan kelime grupları"
 
 #: includes/shortcodes/user-study-dashboard.php:136
 msgid "Hard"
-msgstr "Zor"
+msgstr "Sert"
 
 #: includes/shortcodes/user-study-dashboard.php:143
 msgid "Hardest"
