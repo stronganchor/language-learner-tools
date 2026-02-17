@@ -3742,13 +3742,15 @@
         const effectiveStarMode = sessionStarModeOverride || starMode;
 
         ensureWordsForCategories(requestedCategoryIds).always(function () {
-            const allowedLookup = {};
-            sessionWordIds.forEach(function (id) { allowedLookup[id] = true; });
+            let effectiveSessionWordIds = sessionWordIds.slice();
+            let effectiveCategoryIds = requestedCategoryIds.slice();
+            let allowedLookup = {};
+            effectiveSessionWordIds.forEach(function (id) { allowedLookup[id] = true; });
             const filteredCountForCategory = function (cat) {
                 const cid = parseInt(cat && cat.id, 10) || 0;
                 if (!cid) { return 0; }
                 let rows = Array.isArray(wordsByCategory[cid]) ? wordsByCategory[cid] : [];
-                if (sessionWordIds.length) {
+                if (effectiveSessionWordIds.length) {
                     rows = rows.filter(function (word) {
                         const wordId = parseInt(word && word.id, 10) || 0;
                         return !!allowedLookup[wordId];
@@ -3756,8 +3758,36 @@
                 }
                 return rows.length;
             };
-            const orderedCats = selectedCats.slice();
-            if (sessionWordIds.length) {
+
+            if (effectiveSessionWordIds.length) {
+                const matchedCategoryIds = selectedCats.filter(function (cat) {
+                    return filteredCountForCategory(cat) > 0;
+                }).map(function (cat) {
+                    return parseInt(cat && cat.id, 10) || 0;
+                }).filter(function (id) {
+                    return id > 0;
+                });
+
+                if (matchedCategoryIds.length) {
+                    effectiveCategoryIds = matchedCategoryIds;
+                } else {
+                    // Stale plan: fallback to a category-based launch instead of failing with loading error.
+                    effectiveSessionWordIds = [];
+                    allowedLookup = {};
+                }
+            }
+
+            const effectiveSelectedCats = categories.filter(function (c) {
+                return effectiveCategoryIds.indexOf(parseInt(c.id, 10) || 0) !== -1;
+            });
+
+            if (!effectiveSelectedCats.length) {
+                alert(i18n.noCategories || 'Pick at least one category.');
+                return;
+            }
+
+            const orderedCats = effectiveSelectedCats.slice();
+            if (effectiveSessionWordIds.length) {
                 orderedCats.sort(function (a, b) {
                     return filteredCountForCategory(b) - filteredCountForCategory(a);
                 });
@@ -3775,7 +3805,7 @@
                 ? wordsByCategory[firstCat.id]
                 : [];
 
-            if (sessionWordIds.length) {
+            if (effectiveSessionWordIds.length) {
                 initialWordsRaw = initialWordsRaw.filter(function (word) {
                     const wordId = parseInt(word && word.id, 10) || 0;
                     return !!allowedLookup[wordId];
@@ -3802,17 +3832,17 @@
             flashData.session_star_mode_override = sessionStarModeOverride;
             flashData.fastTransitions = !!state.fast_transitions;
             flashData.fast_transitions = !!state.fast_transitions;
-            flashData.sessionWordIds = sessionWordIds.slice();
-            flashData.session_word_ids = sessionWordIds.slice();
+            flashData.sessionWordIds = effectiveSessionWordIds.slice();
+            flashData.session_word_ids = effectiveSessionWordIds.slice();
             flashData.userStudyState = flashData.userStudyState || {};
             flashData.userStudyState.wordset_id = parseInt(state.wordset_id, 10) || 0;
-            flashData.userStudyState.category_ids = requestedCategoryIds.slice();
+            flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
             applyGenderConfigToFlashcardsData(flashData);
             if (quizMode === 'gender') {
                 flashData.genderLaunchSource = 'dashboard';
-                if (sessionWordIds.length) {
+                if (effectiveSessionWordIds.length) {
                     flashData.genderSessionPlan = {
-                        word_ids: sessionWordIds.slice(),
+                        word_ids: effectiveSessionWordIds.slice(),
                         launch_source: 'dashboard',
                         reason_code: 'dashboard_chunk'
                     };
@@ -3832,8 +3862,8 @@
             window.llToolsFlashcardsData = flashData;
 
             setStudyPrefsGlobal();
-            setActiveChunkLaunch(quizMode, requestedCategoryIds, sessionWordIds, launchSource);
-            syncProgressTrackerContext(quizMode, requestedCategoryIds);
+            setActiveChunkLaunch(quizMode, effectiveCategoryIds, effectiveSessionWordIds, launchSource);
+            syncProgressTrackerContext(quizMode, effectiveCategoryIds);
 
             $('body').addClass('ll-tools-flashcard-open');
             const $popup = $('#ll-tools-flashcard-popup');
