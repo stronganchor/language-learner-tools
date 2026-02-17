@@ -476,14 +476,16 @@
          * @param {string} displayMode - The display mode ('image' or 'text').
          * @returns {Promise} Resolves when resources are loaded.
          */
-        function loadResourcesForWord(word, displayMode, categoryName, categoryConfig) {
+        function loadResourcesForWord(word, displayMode, categoryName, categoryConfig, options) {
             if (!word) return Promise.resolve();
+            const opts = options || {};
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
+            const shouldPreloadImage = needsImage && !opts.skipImagePreload;
             const preloader = Promise.all([
                 (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
-                (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
+                (shouldPreloadImage && word.image ? loadImage(word.image) : Promise.resolve())
             ]);
             // Never let a single media preload failure block rendering of the round.
             // Other callers invoke this without `.catch()`.
