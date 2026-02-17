@@ -36,7 +36,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
 
         $this->assertFalse((bool) ($response['success'] ?? true));
-        $this->assertSame('Forbidden', (string) ($response['data'] ?? ''));
+        $this->assertStringStartsWith('Forbidden', (string) ($response['data'] ?? ''));
         $this->assertSame('Locked Word', (string) get_post_field('post_title', $word_id));
     }
 

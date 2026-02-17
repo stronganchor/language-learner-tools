@@ -1609,14 +1609,14 @@ function ll_get_images_for_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to record audio', 403);
+        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'), 403);
     }
 
     if (!isset($_POST['category']) || !isset($_POST['wordset_ids'])) {
-        wp_send_json_error('Missing parameters');
+        wp_send_json_error(__('Missing parameters.', 'll-tools-text-domain'));
     }
 
     $category = sanitize_text_field($_POST['category']);
@@ -1657,10 +1657,10 @@ function ll_hide_recording_word_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to record audio', 403);
+        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'), 403);
     }
 
     $user_id = get_current_user_id();
@@ -1675,7 +1675,7 @@ function ll_hide_recording_word_handler() {
         $hide_key = ll_tools_build_recording_hide_key($word_id, $image_id, $title);
     }
     if ($hide_key === '') {
-        wp_send_json_error('Missing hide key');
+        wp_send_json_error(__('Missing hide key.', 'll-tools-text-domain'));
     }
 
     $hidden_words = ll_tools_add_hidden_recording_word($user_id, [
@@ -1711,10 +1711,10 @@ function ll_unhide_recording_word_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to record audio', 403);
+        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'), 403);
     }
 
     $user_id = get_current_user_id();
@@ -1724,7 +1724,7 @@ function ll_unhide_recording_word_handler() {
     $title = sanitize_text_field((string) ($_POST['title'] ?? ''));
 
     if ($hide_key === '' && $word_id < 1 && $image_id < 1 && $title === '') {
-        wp_send_json_error('Missing hide key');
+        wp_send_json_error(__('Missing hide key.', 'll-tools-text-domain'));
     }
 
     $hidden_words = ll_tools_remove_hidden_recording_word($user_id, $hide_key, $word_id, $image_id, $title);
@@ -1742,18 +1742,18 @@ function ll_get_recording_types_for_category_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to record audio');
+        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
     }
 
     $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
-        wp_send_json_error('No recording types are configured');
+        wp_send_json_error(__('No recording types are configured.', 'll-tools-text-domain'));
     }
 
     $category_term_id = 0;
@@ -1770,7 +1770,7 @@ function ll_get_recording_types_for_category_handler() {
     }
 
     if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
-        wp_send_json_error('Recording is disabled for this category');
+        wp_send_json_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
     }
 
     $desired_types = [];
@@ -1785,7 +1785,7 @@ function ll_get_recording_types_for_category_handler() {
     $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $filtered_types)));
 
     if (empty($filtered_types)) {
-        wp_send_json_error('No recording types are available for this category');
+        wp_send_json_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
     }
 
     $dropdown_types = ll_build_recording_type_payload($filtered_types);
@@ -1802,17 +1802,17 @@ function ll_prepare_new_word_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to record audio');
+        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
     }
 
     $config = function_exists('ll_get_user_recording_config') ? ll_get_user_recording_config(get_current_user_id()) : [];
     $allow_new = is_array($config) && !empty($config['allow_new_words']);
     if (!$allow_new && !current_user_can('manage_options')) {
-        wp_send_json_error('New word recording is not enabled for your account');
+        wp_send_json_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'));
     }
 
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
@@ -1829,7 +1829,7 @@ function ll_prepare_new_word_recording_handler() {
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
-        wp_send_json_error('No recording types are configured');
+        wp_send_json_error(__('No recording types are configured.', 'll-tools-text-domain'));
     }
 
     $category_term = null;
@@ -1839,7 +1839,7 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($create_category) {
         if ($new_category_name === '') {
-            wp_send_json_error('Missing new category name');
+            wp_send_json_error(__('Missing new category name.', 'll-tools-text-domain'));
         }
         $existing = term_exists($new_category_name, 'word-category');
         if (is_array($existing)) {
@@ -1849,7 +1849,11 @@ function ll_prepare_new_word_recording_handler() {
         } else {
             $created = wp_insert_term($new_category_name, 'word-category');
             if (is_wp_error($created)) {
-                wp_send_json_error('Failed to create category: ' . $created->get_error_message());
+                wp_send_json_error(sprintf(
+                    /* translators: %s: category creation error message */
+                    __('Failed to create category: %s', 'll-tools-text-domain'),
+                    $created->get_error_message()
+                ));
             }
             $category_term_id = (int) $created['term_id'];
         }
@@ -1879,7 +1883,7 @@ function ll_prepare_new_word_recording_handler() {
     }
 
     if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
-        wp_send_json_error('Recording is disabled for this category');
+        wp_send_json_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
     }
 
     $desired_types = [];
@@ -1893,7 +1897,7 @@ function ll_prepare_new_word_recording_handler() {
     $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $type_filters['filtered_types'])));
 
     if (empty($filtered_types)) {
-        wp_send_json_error('No recording types are available for this category');
+        wp_send_json_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
     }
 
     $store_in_title = (get_option('ll_word_title_language_role', 'target') === 'target');
@@ -1927,7 +1931,11 @@ function ll_prepare_new_word_recording_handler() {
 
     if (is_wp_error($word_id) || !$word_id) {
         $err = is_wp_error($word_id) ? $word_id->get_error_message() : 'Unknown error';
-        wp_send_json_error('Failed to create word: ' . $err);
+        wp_send_json_error(sprintf(
+            /* translators: %s: word creation error */
+            __('Failed to create word: %s', 'll-tools-text-domain'),
+            $err
+        ));
     }
 
     if ($store_in_title) {
@@ -2186,21 +2194,21 @@ function ll_update_new_word_text_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
     $word_id = intval($_POST['word_id'] ?? 0);
     if (!$word_id) {
-        wp_send_json_error('Missing word ID');
+        wp_send_json_error(__('Missing word ID.', 'll-tools-text-domain'));
     }
 
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
-        wp_send_json_error('Invalid word ID');
+        wp_send_json_error(__('Invalid word ID.', 'll-tools-text-domain'));
     }
 
     $current_user_id = get_current_user_id();
@@ -2208,7 +2216,7 @@ function ll_update_new_word_text_handler() {
     $owns_editable_draft = ((int) $word_post->post_author === $current_user_id)
         && in_array($word_post->post_status, ['draft', 'pending', 'auto-draft'], true);
     if (!$can_edit_word && !$owns_editable_draft) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
@@ -2294,7 +2302,7 @@ function ll_tools_send_recording_error($error) {
 
     wp_send_json_error([
         'code' => 'unknown_error',
-        'message' => 'Unknown recorder error.',
+        'message' => __('Unknown recorder error.', 'll-tools-text-domain'),
     ]);
 }
 
@@ -2314,7 +2322,7 @@ function ll_tools_prepare_transcription_response_data($raw_transcript, $posted_i
 
     $transcript = sanitize_text_field($transcript);
     if ($transcript === '') {
-        return new WP_Error('empty_transcript', 'No transcript text returned');
+        return new WP_Error('empty_transcript', __('No transcript text returned.', 'll-tools-text-domain'));
     }
 
     $trimmed = trim($transcript);
@@ -2352,22 +2360,22 @@ function ll_transcribe_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
     if (empty($_FILES['audio'])) {
-        wp_send_json_error('Missing audio file');
+        wp_send_json_error(__('Missing audio file.', 'll-tools-text-domain'));
     }
 
     $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
     $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
 
     if (!function_exists('ll_tools_assemblyai_start_transcription') || !function_exists('ll_tools_assemblyai_get_transcript')) {
-        wp_send_json_error('AssemblyAI integration not available');
+        wp_send_json_error(__('AssemblyAI integration not available.', 'll-tools-text-domain'));
     }
 
     $transcript_id = ll_tools_assemblyai_start_transcription($_FILES['audio']['tmp_name'], $language_code);
@@ -2394,7 +2402,7 @@ function ll_transcribe_recording_handler() {
     }
 
     if ($state === 'error') {
-        $message = isset($status['error']) ? (string) $status['error'] : 'AssemblyAI transcription failed.';
+        $message = isset($status['error']) ? (string) $status['error'] : __('AssemblyAI transcription failed.', 'll-tools-text-domain');
         wp_send_json_error([
             'code' => 'transcript_error',
             'message' => $message,
@@ -2415,20 +2423,20 @@ function ll_transcribe_recording_status_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
     $transcript_id = sanitize_text_field($_POST['transcript_id'] ?? '');
     if ($transcript_id === '') {
-        wp_send_json_error('Missing transcript ID');
+        wp_send_json_error(__('Missing transcript ID.', 'll-tools-text-domain'));
     }
 
     if (!function_exists('ll_tools_assemblyai_get_transcript')) {
-        wp_send_json_error('AssemblyAI integration not available');
+        wp_send_json_error(__('AssemblyAI integration not available.', 'll-tools-text-domain'));
     }
 
     $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
@@ -2452,7 +2460,7 @@ function ll_transcribe_recording_status_handler() {
     }
 
     if ($state === 'error') {
-        $message = isset($status['error']) ? (string) $status['error'] : 'AssemblyAI transcription failed.';
+        $message = isset($status['error']) ? (string) $status['error'] : __('AssemblyAI transcription failed.', 'll-tools-text-domain');
         wp_send_json_error([
             'code' => 'transcript_error',
             'message' => $message,
@@ -2473,23 +2481,23 @@ function ll_translate_recording_text_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in');
+        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
     $text = sanitize_text_field($_POST['text'] ?? '');
     if ($text === '') {
-        wp_send_json_error('Missing text');
+        wp_send_json_error(__('Missing text.', 'll-tools-text-domain'));
     }
 
     $has_deepl = ((string) get_option('ll_deepl_api_key') !== '');
     if (!$has_deepl || !function_exists('translate_with_deepl')) {
         wp_send_json_error([
             'code' => 'missing_key',
-            'message' => 'DeepL API key not configured',
+            'message' => __('DeepL API key not configured.', 'll-tools-text-domain'),
         ]);
     }
 
@@ -2497,12 +2505,12 @@ function ll_translate_recording_text_handler() {
 
     [$source_lang, $target_lang] = ll_tools_get_deepl_language_codes($posted_ids);
     if ($target_lang === '') {
-        wp_send_json_error('Translation language is not configured');
+        wp_send_json_error(__('Translation language is not configured.', 'll-tools-text-domain'));
     }
 
     $translated = translate_with_deepl($text, $target_lang, $source_lang);
     if ($translated === null) {
-        wp_send_json_error('Translation failed');
+        wp_send_json_error(__('Translation failed.', 'll-tools-text-domain'));
     }
 
     wp_send_json_success([
@@ -2519,10 +2527,10 @@ function ll_verify_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in to verify recordings');
+        wp_send_json_error(__('You must be logged in to verify recordings.', 'll-tools-text-domain'));
     }
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to verify recordings', 403);
+        wp_send_json_error(__('You do not have permission to verify recordings.', 'll-tools-text-domain'), 403);
     }
 
     $image_id       = intval($_POST['image_id'] ?? 0);
@@ -2535,30 +2543,38 @@ function ll_verify_recording_handler() {
 
     if (!$image_id && !$word_id) {
         if ($word_title === '') {
-            wp_send_json_error('Missing image_id or word_id');
+            wp_send_json_error(__('Missing image_id or word_id.', 'll-tools-text-domain'));
         }
     }
 
     if ($image_id) {
         $image_post = get_post($image_id);
         if (!$image_post || $image_post->post_type !== 'word_images') {
-            wp_send_json_error('Invalid image ID');
+            wp_send_json_error(__('Invalid image ID.', 'll-tools-text-domain'));
         }
         $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids);
         if (is_wp_error($word_id)) {
-            wp_send_json_error('Failed to find/create word: ' . $word_id->get_error_message());
+            wp_send_json_error(sprintf(
+                /* translators: %s: word creation error */
+                __('Failed to find/create word: %s', 'll-tools-text-domain'),
+                $word_id->get_error_message()
+            ));
         }
         $word_id = (int) $word_id;
     } else {
         if ($word_id) {
             $word_post = get_post($word_id);
             if (!$word_post || $word_post->post_type !== 'words') {
-                wp_send_json_error('Invalid word ID');
+                wp_send_json_error(__('Invalid word ID.', 'll-tools-text-domain'));
             }
         } else {
             $created_word_id = ll_find_or_create_word_by_title($word_title, $wordset_ids);
             if (is_wp_error($created_word_id)) {
-                wp_send_json_error('Failed to create word: ' . $created_word_id->get_error_message());
+                wp_send_json_error(sprintf(
+                    /* translators: %s: word creation error */
+                    __('Failed to create word: %s', 'll-tools-text-domain'),
+                    $created_word_id->get_error_message()
+                ));
             }
             $word_id = (int) $created_word_id;
         }
@@ -3412,10 +3428,10 @@ function ll_skip_recording_type_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in to skip recordings');
+        wp_send_json_error(__('You must be logged in to skip recordings.', 'll-tools-text-domain'));
     }
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error('You do not have permission to skip recordings', 403);
+        wp_send_json_error(__('You do not have permission to skip recordings.', 'll-tools-text-domain'), 403);
     }
 
     $image_id       = intval($_POST['image_id'] ?? 0);
@@ -3425,30 +3441,38 @@ function ll_skip_recording_type_handler() {
 
     if (!$image_id && !$word_id) {
         if ($word_title === '') {
-            wp_send_json_error('Missing image_id or word_id');
+            wp_send_json_error(__('Missing image_id or word_id.', 'll-tools-text-domain'));
         }
     }
 
     if ($image_id) {
         $image_post = get_post($image_id);
         if (!$image_post || $image_post->post_type !== 'word_images') {
-            wp_send_json_error('Invalid image ID');
+            wp_send_json_error(__('Invalid image ID.', 'll-tools-text-domain'));
         }
         $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
         if (is_wp_error($word_id)) {
-            wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+            wp_send_json_error(sprintf(
+                /* translators: %s: word creation error */
+                __('Failed to find/create word post: %s', 'll-tools-text-domain'),
+                $word_id->get_error_message()
+            ));
         }
         $word_id = (int) $word_id;
     } else {
         if ($word_id) {
             $word_post = get_post($word_id);
             if (!$word_post || $word_post->post_type !== 'words') {
-                wp_send_json_error('Invalid word ID');
+                wp_send_json_error(__('Invalid word ID.', 'll-tools-text-domain'));
             }
         } else {
             $created_word_id = ll_find_or_create_word_by_title($word_title, $posted_ids);
             if (is_wp_error($created_word_id)) {
-                wp_send_json_error('Failed to create word post: ' . $created_word_id->get_error_message());
+                wp_send_json_error(sprintf(
+                    /* translators: %s: word creation error */
+                    __('Failed to create word post: %s', 'll-tools-text-domain'),
+                    $created_word_id->get_error_message()
+                ));
             }
             $word_id = (int) $created_word_id;
         }
@@ -3807,13 +3831,13 @@ function ll_handle_recording_upload() {
     check_ajax_referer('ll_upload_recording', 'nonce');
 
     if (!is_user_logged_in()) {
-        wp_send_json_error('You must be logged in to upload recordings');
+        wp_send_json_error(__('You must be logged in to upload recordings', 'll-tools-text-domain'));
     }
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('You do not have permission to upload recordings');
+        wp_send_json_error(__('You do not have permission to upload recordings', 'll-tools-text-domain'));
     }
     if (!current_user_can('upload_files')) {
-        wp_send_json_error('You do not have permission to upload recordings');
+        wp_send_json_error(__('You do not have permission to upload recordings', 'll-tools-text-domain'));
     }
 
     $current_user_id = get_current_user_id();
@@ -3826,7 +3850,7 @@ function ll_handle_recording_upload() {
     $auto_publish = $auto_processed_request && $auto_process_allowed;
 
     if (empty($_FILES['audio'])) {
-        wp_send_json_error('Missing data');
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'));
     }
 
     $upload_validation = ll_tools_validate_recording_upload_file((array) $_FILES['audio']);
@@ -3849,7 +3873,7 @@ function ll_handle_recording_upload() {
 
     if (!$image_id && !$word_id) {
         if ($word_title === '') {
-            wp_send_json_error('Missing image_id or word_id');
+            wp_send_json_error(__('Missing image_id or word_id', 'll-tools-text-domain'));
         }
     }
 
@@ -3857,13 +3881,16 @@ function ll_handle_recording_upload() {
         $image_post = get_post($image_id);
         if (!$image_post || $image_post->post_type !== 'word_images') {
             error_log('Upload step: Invalid image ID');
-            wp_send_json_error('Invalid image ID');
+            wp_send_json_error(__('Invalid image ID', 'll-tools-text-domain'));
         }
         $title = $image_post->post_title;
         $word_id = ll_find_or_create_word_for_image($image_id, $image_post, $posted_ids);
         if (is_wp_error($word_id)) {
             error_log('Upload step: Failed to find/create word post: ' . $word_id->get_error_message());
-            wp_send_json_error('Failed to find/create word post: ' . $word_id->get_error_message());
+            wp_send_json_error(sprintf(
+                __('Failed to find/create word post: %s', 'll-tools-text-domain'),
+                $word_id->get_error_message()
+            ));
         }
         $word_id = (int) $word_id;
     } else {
@@ -3871,14 +3898,17 @@ function ll_handle_recording_upload() {
             $word_post = get_post($word_id);
             if (!$word_post || $word_post->post_type !== 'words') {
                 error_log('Upload step: Invalid word ID');
-                wp_send_json_error('Invalid word ID');
+                wp_send_json_error(__('Invalid word ID', 'll-tools-text-domain'));
             }
             $title = $word_post->post_title;
         } else {
             $created_word_id = ll_find_or_create_word_by_title($word_title, $posted_ids);
             if (is_wp_error($created_word_id)) {
                 error_log('Upload step: Failed to create word post: ' . $created_word_id->get_error_message());
-                wp_send_json_error('Failed to create word post: ' . $created_word_id->get_error_message());
+                wp_send_json_error(sprintf(
+                    __('Failed to create word post: %s', 'll-tools-text-domain'),
+                    $created_word_id->get_error_message()
+                ));
             }
             $word_id = (int) $created_word_id;
             $title = $word_title;
@@ -3917,7 +3947,7 @@ function ll_handle_recording_upload() {
     if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
         $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
         error_log('Upload step: Failed to save file' . ($upload_error !== '' ? ': ' . $upload_error : ''));
-        wp_send_json_error('Failed to save file');
+        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'));
     }
     $filepath = (string) $upload_result['file'];
 
@@ -3940,7 +3970,10 @@ function ll_handle_recording_upload() {
             @unlink($filepath);
         }
         error_log('Upload step: Failed to create word_audio post: ' . $err_msg);
-        wp_send_json_error('Failed to create word_audio post: ' . $err_msg);
+        wp_send_json_error(sprintf(
+            __('Failed to create word_audio post: %s', 'll-tools-text-domain'),
+            $err_msg
+        ));
     }
 
     $extension = '.' . strtolower((string) pathinfo($filepath, PATHINFO_EXTENSION));
@@ -4061,7 +4094,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     $attachment_id = get_post_thumbnail_id($image_id);
 
     if (!$attachment_id) {
-        return new WP_Error('no_attachment', 'Image has no attachment');
+        return new WP_Error('no_attachment', __('Image has no attachment', 'll-tools-text-domain'));
     }
 
     // Check if a word already exists with this image IN THE SPECIFIED WORDSET
@@ -4135,7 +4168,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
 function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
     $word_title = ll_sanitize_word_title_text($word_title);
     if ($word_title === '') {
-        return new WP_Error('empty_title', 'Missing word title');
+        return new WP_Error('empty_title', __('Missing word title', 'll-tools-text-domain'));
     }
 
     // Try to find existing by exact title
