@@ -60,6 +60,7 @@ SVG;
     $i18n = [
         'wordsetLabel'     => __('Word set', 'll-tools-text-domain'),
         'categoriesLabel'  => __('Categories', 'll-tools-text-domain'),
+        'starredWordsLabel' => __('Starred words', 'll-tools-text-domain'),
         'wordsLabel'       => __('Words', 'll-tools-text-domain'),
         'nextLabel'        => __('Next', 'll-tools-text-domain'),
         'nextStart'        => __('Start next', 'll-tools-text-domain'),
