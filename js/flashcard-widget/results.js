@@ -241,6 +241,16 @@
         return 'Practice';
     }
 
+    function summarizeCategoryLabel(categoryNames) {
+        const list = Array.isArray(categoryNames)
+            ? categoryNames.map(name => String(name || '').trim()).filter(Boolean)
+            : [];
+        if (!list.length) { return ''; }
+        if (list.length === 1) { return list[0]; }
+        if (list.length === 2) { return list[0] + ', ' + list[1]; }
+        return list[0] + ' +' + String(list.length - 1);
+    }
+
     function buildModeIconElement(mode, fallbackEmoji) {
         const ui = getModeUiConfig(mode);
         const svg = String(ui && ui.svg ? ui.svg : '').trim();
@@ -324,7 +334,7 @@
         }
     }
 
-    function renderVocabLessonResultsActions(currentMode, genderAllowed) {
+    function renderVocabLessonResultsActions(currentMode, genderAllowed, categoryNamesForLabel) {
         if (!isVocabLessonLaunchContext()) {
             return false;
         }
@@ -335,6 +345,7 @@
 
         const normalizedCurrentMode = normalizeProgressMode(currentMode) || 'practice';
         const nextMode = getNextModeInLessonSequence(normalizedCurrentMode, !!genderAllowed);
+        const categoryLabel = summarizeCategoryLabel(categoryNamesForLabel);
         const $same = $('#ll-study-results-same-chunk');
         const $different = $('#ll-study-results-different-chunk');
         const $next = $('#ll-study-results-next-chunk');
@@ -352,7 +363,12 @@
         }
 
         if ($different.length) {
-            setModeActionButtonContent($different, nextMode, modeLabel(nextMode), modeIconFallback(nextMode));
+            setModeActionButtonContent(
+                $different,
+                nextMode,
+                categoryLabel || modeLabel(nextMode),
+                modeIconFallback(nextMode)
+            );
             $different.show().prop('disabled', false);
             $different.off('click.llLessonResults').on('click.llLessonResults', function (e) {
                 e.preventDefault();
@@ -521,7 +537,7 @@
             if (completedWords === totalWords) {
                 Effects.startConfetti();
             }
-            renderVocabLessonResultsActions('learning', genderAllowed);
+            renderVocabLessonResultsActions('learning', genderAllowed, categoriesForDisplay);
             emitResultsShown({ total: totalWords, correct: completedWords });
             return;
         }
@@ -548,7 +564,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
-            renderVocabLessonResultsActions('listening', genderAllowed);
+            renderVocabLessonResultsActions('listening', genderAllowed, categoriesForDisplay);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -610,7 +626,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
-            renderVocabLessonResultsActions('gender', genderAllowed);
+            renderVocabLessonResultsActions('gender', genderAllowed, categoriesForDisplay);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -669,7 +685,7 @@
                     root.FlashcardAudio.playFeedback(false, null, null);
                 }
             } catch (_) { }
-            renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed);
+            renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed, categoriesForDisplay);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -711,7 +727,7 @@
         }
 
         if (ratio >= 0.7) Effects.startConfetti();
-        renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed);
+        renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed, categoriesForDisplay);
         emitResultsShown({ total: total, correct: State.quizResults.correctOnFirstTry });
     }
 

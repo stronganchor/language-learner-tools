@@ -1587,9 +1587,9 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 #ll-study-results-actions .ll-vocab-lesson-mode-button {
-    flex: 0 1 auto;
-    max-width: 300px;
-    min-width: 170px;
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
 }
 
 #quiz-results .quiz-mode-button,
@@ -1676,6 +1676,15 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 #quiz-results .ll-vocab-lesson-mode-label {
     min-width: 0;
+}
+
+#quiz-results #ll-study-results-actions .quiz-mode-button,
+#quiz-results #ll-study-results-actions .ll-vocab-lesson-mode-button {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: none;
+    padding: 8px 10px !important;
+    flex: 0 0 auto;
 }
 
 /* Hide mode switcher during results */
