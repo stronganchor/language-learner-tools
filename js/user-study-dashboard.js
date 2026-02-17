@@ -29,6 +29,7 @@
     let analyticsRequestToken = 0;
     let analyticsWordFilter = 'all';
     let analyticsTab = 'categories';
+    let analyticsScreenOpen = false;
     let wordsetReloadToken = 0;
     let wordsRequestEpoch = 0;
     let genderConfig = normalizeGenderConfig(payload.gender || {});
@@ -67,6 +68,14 @@
     const $goalDailyNew = $root.find('[data-ll-goal-daily-new]');
     const $goalMarkKnown = $root.find('[data-ll-goal-mark-known]');
     const $goalClearKnown = $root.find('[data-ll-goal-clear-known]');
+    const $studyMain = $root.find('[data-ll-study-main]');
+    const $analyticsScreen = $root.find('[data-ll-analytics-screen]');
+    const $analyticsMiniOpen = $root.find('[data-ll-analytics-open]');
+    const $analyticsMiniScope = $root.find('[data-ll-analytics-mini-scope]');
+    const $analyticsMiniIconHolders = $root.find('[data-ll-mini-icon]');
+    const $analyticsMiniValueMastered = $root.find('[data-ll-mini-value="mastered"]');
+    const $analyticsMiniValueStudied = $root.find('[data-ll-mini-value="studied"]');
+    const $analyticsMiniValueNew = $root.find('[data-ll-mini-value="new"]');
     const $analyticsRoot = $root.find('[data-ll-analytics-root]');
     const $analyticsScope = $root.find('[data-ll-analytics-scope]');
     const $analyticsStatus = $root.find('[data-ll-analytics-status]');
@@ -3138,7 +3147,7 @@
     }
 
     function analyticsStatusLabel(status) {
-        if (status === 'mastered') { return i18n.analyticsWordStatusMastered || 'Mastered'; }
+        if (status === 'mastered') { return i18n.analyticsWordStatusMastered || 'Learned'; }
         if (status === 'studied') { return i18n.analyticsWordStatusStudied || 'Studied'; }
         return i18n.analyticsWordStatusNew || 'New';
     }
@@ -3175,20 +3184,16 @@
         return rows;
     }
 
-    function renderAnalyticsScope() {
-        if (!$analyticsScope.length) { return; }
+    function buildAnalyticsScopeText() {
         const scope = analytics.scope || {};
         const count = Math.max(0, parseInt(scope.category_count, 10) || 0);
         const template = (scope.mode === 'selected')
             ? (i18n.analyticsScopeSelected || 'Selected categories (%d)')
             : (i18n.analyticsScopeAll || 'All categories (%d)');
-        $analyticsScope.text(formatTemplate(template, [count]));
+        return formatTemplate(template, [count]);
     }
 
-    function renderAnalyticsSummary() {
-        if (!$analyticsSummary.length) { return; }
-        $analyticsSummary.empty();
-
+    function getAnalyticsSummaryCounts() {
         const words = Array.isArray(analytics.words) ? analytics.words : [];
         const starredLookup = {};
         (state.starred_word_ids || []).forEach(function (id) { starredLookup[id] = true; });
@@ -3200,16 +3205,90 @@
         });
 
         const summary = analytics.summary || {};
+        return {
+            mastered: Math.max(0, parseInt(summary.mastered_words, 10) || 0),
+            studied: Math.max(0, parseInt(summary.studied_words, 10) || 0),
+            newWords: Math.max(0, parseInt(summary.new_words, 10) || 0),
+            starred: Math.max(starredCount, Math.max(0, parseInt(summary.starred_words, 10) || 0)),
+            hard: Math.max(0, parseInt(summary.hard_words, 10) || 0)
+        };
+    }
+
+    function renderAnalyticsScope() {
+        const text = buildAnalyticsScopeText();
+        if ($analyticsScope.length) {
+            $analyticsScope.text(text);
+        }
+        if ($analyticsMiniScope.length) {
+            $analyticsMiniScope.text(text);
+        }
+    }
+
+    function renderAnalyticsMiniIcons() {
+        if (!$analyticsMiniIconHolders.length) { return; }
+        $analyticsMiniIconHolders.each(function () {
+            const $holder = $(this);
+            const key = String($holder.attr('data-ll-mini-icon') || '').toLowerCase();
+            let choice = '';
+            if (key === 'mastered') { choice = 'right'; }
+            else if (key === 'studied') { choice = 'close'; }
+            else if (key === 'new') { choice = 'wrong'; }
+            const $icon = buildCheckActionIcon(choice);
+            $holder.empty();
+            if ($icon && $icon.length) {
+                $icon.addClass('ll-study-analytics-mini-icon').attr('aria-hidden', 'true');
+                $holder.append($icon);
+            }
+        });
+    }
+
+    function renderAnalyticsMiniOverview() {
+        if (!$analyticsMiniOpen.length) { return; }
+        const counts = getAnalyticsSummaryCounts();
+        if ($analyticsMiniValueMastered.length) {
+            $analyticsMiniValueMastered.text(counts.mastered);
+        }
+        if ($analyticsMiniValueStudied.length) {
+            $analyticsMiniValueStudied.text(counts.studied);
+        }
+        if ($analyticsMiniValueNew.length) {
+            $analyticsMiniValueNew.text(counts.newWords);
+        }
+    }
+
+    function renderAnalyticsSummary() {
+        if (!$analyticsSummary.length) { return; }
+        $analyticsSummary.empty();
+
+        const counts = getAnalyticsSummaryCounts();
         const items = [
-            { key: 'mastered', value: Math.max(0, parseInt(summary.mastered_words, 10) || 0), label: i18n.analyticsMastered || 'Mastered' },
-            { key: 'studied', value: Math.max(0, parseInt(summary.studied_words, 10) || 0), label: i18n.analyticsStudied || 'Studied' },
-            { key: 'new', value: Math.max(0, parseInt(summary.new_words, 10) || 0), label: i18n.analyticsNew || 'New' },
-            { key: 'starred', value: starredCount, label: i18n.analyticsStarred || 'Starred' },
-            { key: 'hard', value: Math.max(0, parseInt(summary.hard_words, 10) || 0), label: i18n.analyticsHard || 'Hard' }
+            { key: 'mastered', value: counts.mastered, label: i18n.analyticsMastered || 'Learned' },
+            { key: 'studied', value: counts.studied, label: i18n.analyticsStudied || 'Studied' },
+            { key: 'new', value: counts.newWords, label: i18n.analyticsNew || 'New' },
+            { key: 'starred', value: counts.starred, label: i18n.analyticsStarred || 'Starred' },
+            { key: 'hard', value: counts.hard, label: i18n.analyticsHard || 'Hard' }
         ];
 
         items.forEach(function (item) {
-            const $card = $('<div>', { class: 'll-study-analytics-kpi ll-study-analytics-kpi--' + item.key });
+            let iconChoice = '';
+            if (item.key === 'mastered') {
+                iconChoice = 'right';
+            } else if (item.key === 'studied') {
+                iconChoice = 'close';
+            } else if (item.key === 'new') {
+                iconChoice = 'wrong';
+            }
+            const hasOutcomeIcon = !!iconChoice;
+            const $card = $('<div>', {
+                class: 'll-study-analytics-kpi ll-study-analytics-kpi--' + item.key + (hasOutcomeIcon ? ' ll-study-analytics-kpi--outcome' : '')
+            });
+            if (hasOutcomeIcon) {
+                const $icon = buildCheckActionIcon(iconChoice);
+                if ($icon && $icon.length) {
+                    $icon.addClass('ll-study-analytics-kpi-icon').attr('aria-hidden', 'true');
+                    $('<span>', { class: 'll-study-analytics-kpi-icon-wrap' }).append($icon).appendTo($card);
+                }
+            }
             $('<span>', { class: 'll-study-analytics-kpi-value', text: item.value }).appendTo($card);
             $('<span>', { class: 'll-study-analytics-kpi-label', text: item.label }).appendTo($card);
             $analyticsSummary.append($card);
@@ -3355,7 +3434,44 @@
         });
     }
 
+    function setAnalyticsScreenOpen(isOpen, options) {
+        if (!$analyticsScreen.length) { return; }
+        const open = !!isOpen;
+        const opts = (options && typeof options === 'object') ? options : {};
+        analyticsScreenOpen = open;
+        $analyticsScreen.prop('hidden', !open);
+        if ($studyMain.length) {
+            $studyMain.prop('hidden', open);
+        }
+        if ($analyticsMiniOpen.length) {
+            $analyticsMiniOpen.attr('aria-expanded', open ? 'true' : 'false').toggleClass('is-active', open);
+        }
+        if (open && opts.scroll !== false) {
+            const top = $analyticsScreen.offset() ? Math.max(0, Math.round($analyticsScreen.offset().top) - 12) : 0;
+            window.scrollTo({
+                top: top,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    function openAnalyticsScreen(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        if (!$analyticsScreen.length) { return; }
+        setAnalyticsScreenOpen(true, opts);
+        if (opts.tab) {
+            setAnalyticsTab(opts.tab);
+        }
+        refreshAnalyticsNow({ silent: true });
+    }
+
+    function closeAnalyticsScreen() {
+        if (!analyticsScreenOpen) { return; }
+        setAnalyticsScreenOpen(false, { scroll: false });
+    }
+
     function renderAnalytics() {
+        renderAnalyticsMiniOverview();
         if (!$analyticsRoot.length) { return; }
         renderAnalyticsScope();
         renderAnalyticsSummary();
@@ -3884,6 +4000,17 @@
         renderAnalytics();
     });
 
+    if ($analyticsMiniOpen.length) {
+        $analyticsMiniOpen.on('click', function (e) {
+            e.preventDefault();
+            if (analyticsScreenOpen) {
+                closeAnalyticsScreen();
+                return;
+            }
+            openAnalyticsScreen({ tab: 'categories' });
+        });
+    }
+
     if ($analyticsTabButtons.length) {
         $analyticsTabButtons.on('click', function () {
             const tab = String($(this).attr('data-ll-analytics-tab') || '');
@@ -3918,6 +4045,7 @@
     });
 
     $root.find('[data-ll-study-start]').on('click', function () {
+        closeAnalyticsScreen();
         const modeRaw = $(this).data('mode') || $(this).attr('data-mode') || 'practice';
         const mode = normalizeQuizMode(modeRaw) || 'practice';
         const categoryIds = getSelectedCategoryIdsFromUI();
@@ -3927,6 +4055,7 @@
 
     if ($startNext.length) {
         $startNext.on('click', function () {
+            closeAnalyticsScreen();
             const next = normalizeNextActivity(nextActivity);
             if (!next || !next.mode) {
                 refreshRecommendation();
@@ -3950,6 +4079,7 @@
 
     if ($checkStart.length) {
         $checkStart.on('click', function () {
+            closeAnalyticsScreen();
             const categoryIds = getSelectedCategoryIdsFromUI();
             startModeWithChunk('self-check', categoryIds.length ? categoryIds : state.category_ids, $(this));
         });
@@ -4250,6 +4380,7 @@
     });
 
     $(document).on('lltools:flashcard-opened', function () {
+        closeAnalyticsScreen();
         if ($checkPanel.length && $checkPanel.hasClass('is-active')) {
             closeCheckPanel();
         }
@@ -4267,8 +4398,10 @@
     ensureSelectedCategoriesRespectGoals();
     renderWordsets();
     renderGoalsControls();
+    renderAnalyticsMiniIcons();
     renderCategories();
     renderWords();
+    setAnalyticsScreenOpen(false, { scroll: false });
     renderAnalytics();
     renderStarModeToggle();
     renderTransitionToggle();

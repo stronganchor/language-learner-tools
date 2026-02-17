@@ -129,7 +129,7 @@ SVG;
         'analyticsUnavailable' => __('Progress is unavailable right now.', 'll-tools-text-domain'),
         'analyticsScopeSelected' => __('Selected categories (%d)', 'll-tools-text-domain'),
         'analyticsScopeAll' => __('All categories (%d)', 'll-tools-text-domain'),
-        'analyticsMastered' => __('Mastered', 'll-tools-text-domain'),
+        'analyticsMastered' => __('Learned', 'll-tools-text-domain'),
         'analyticsStudied' => __('Studied', 'll-tools-text-domain'),
         'analyticsNew' => __('New', 'll-tools-text-domain'),
         'analyticsStarred' => __('Starred', 'll-tools-text-domain'),
@@ -142,7 +142,8 @@ SVG;
         'analyticsWordFilterAll' => __('All', 'll-tools-text-domain'),
         'analyticsWordFilterHard' => __('Hardest', 'll-tools-text-domain'),
         'analyticsWordFilterNew' => __('Unseen', 'll-tools-text-domain'),
-        'analyticsWordStatusMastered' => __('Mastered', 'll-tools-text-domain'),
+        'analyticsUnseen' => __('Unseen', 'll-tools-text-domain'),
+        'analyticsWordStatusMastered' => __('Learned', 'll-tools-text-domain'),
         'analyticsWordStatusStudied' => __('Studied', 'll-tools-text-domain'),
         'analyticsWordStatusNew' => __('New', 'll-tools-text-domain'),
         'analyticsStarWord' => __('Star word', 'll-tools-text-domain'),
@@ -167,9 +168,43 @@ SVG;
     ?>
     <div class="ll-user-study-dashboard" data-ll-study-root>
         <div class="ll-study-header">
-            <div>
+            <div class="ll-study-header-title">
                 <h2><?php echo esc_html__('Your study plan', 'll-tools-text-domain'); ?></h2>
-                <p class="ll-study-subhead"><?php echo esc_html__('Choose a word set, pick categories, and star the words you want to see more often.', 'll-tools-text-domain'); ?></p>
+            </div>
+            <div class="ll-study-grid ll-study-grid--hero">
+                <div class="ll-study-card ll-study-wordset-card">
+                    <label for="ll-study-wordset"><?php echo esc_html($i18n['wordsetLabel']); ?></label>
+                    <select id="ll-study-wordset" data-ll-study-wordset></select>
+                    <p class="ll-study-hint"><?php echo esc_html__('Switch word sets to load their categories and words.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <button type="button" class="ll-study-card ll-study-analytics-mini" data-ll-analytics-open aria-expanded="false" aria-controls="ll-study-analytics-screen">
+                    <span class="ll-card-title ll-study-analytics-mini-title-row">
+                        <span><?php echo esc_html($i18n['analyticsLabel']); ?></span>
+                        <span class="ll-study-analytics-mini-open" aria-hidden="true">
+                            <svg class="ll-study-analytics-mini-open-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                        </span>
+                    </span>
+                    <span class="ll-study-analytics-mini-scope" data-ll-analytics-mini-scope></span>
+                    <span class="ll-study-analytics-mini-summary">
+                        <span class="ll-study-analytics-mini-pill ll-study-analytics-mini-pill--mastered">
+                            <span class="ll-study-analytics-mini-icon-wrap" data-ll-mini-icon="mastered"></span>
+                            <span class="ll-study-analytics-mini-value" data-ll-mini-value="mastered">0</span>
+                            <span class="ll-study-analytics-mini-label"><?php echo esc_html($i18n['analyticsMastered']); ?></span>
+                        </span>
+                        <span class="ll-study-analytics-mini-pill ll-study-analytics-mini-pill--studied">
+                            <span class="ll-study-analytics-mini-icon-wrap" data-ll-mini-icon="studied"></span>
+                            <span class="ll-study-analytics-mini-value" data-ll-mini-value="studied">0</span>
+                            <span class="ll-study-analytics-mini-label"><?php echo esc_html($i18n['analyticsStudied']); ?></span>
+                        </span>
+                        <span class="ll-study-analytics-mini-pill ll-study-analytics-mini-pill--new">
+                            <span class="ll-study-analytics-mini-icon-wrap" data-ll-mini-icon="new"></span>
+                            <span class="ll-study-analytics-mini-value" data-ll-mini-value="new">0</span>
+                            <span class="ll-study-analytics-mini-label"><?php echo esc_html($i18n['analyticsUnseen']); ?></span>
+                        </span>
+                    </span>
+                </button>
             </div>
             <div class="ll-study-actions">
                 <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-study-start-next disabled>
@@ -203,71 +238,10 @@ SVG;
             <p class="ll-study-hint" data-ll-study-next-text><?php echo esc_html($i18n['nextNone']); ?></p>
         </div>
 
-        <div class="ll-study-grid ll-study-grid--top">
-            <div class="ll-study-card ll-study-wordset-card">
-                <label for="ll-study-wordset"><?php echo esc_html($i18n['wordsetLabel']); ?></label>
-                <select id="ll-study-wordset" data-ll-study-wordset></select>
-                <p class="ll-study-hint"><?php echo esc_html__('Switch word sets to load their categories and words.', 'll-tools-text-domain'); ?></p>
-                <div class="ll-star-mode">
-                    <span class="ll-card-title-sub"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></span>
-                    <div class="ll-star-toggle-group" data-ll-star-mode>
-                        <button type="button" class="ll-study-btn tiny active" data-mode="normal"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-mode="weighted"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
-                    </div>
-                    <p class="ll-study-hint"><?php echo esc_html__('Decide how often starred words appear: normal mix, starred twice, or only starred.', 'll-tools-text-domain'); ?></p>
-                </div>
-                <div class="ll-transition-speed">
-                    <span class="ll-card-title-sub"><?php echo esc_html($i18n['transitionLabel']); ?></span>
-                    <div class="ll-star-toggle-group" data-ll-transition-speed>
-                        <button type="button" class="ll-study-btn tiny" data-speed="slow"><?php echo esc_html($i18n['transitionSlow']); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-speed="fast"><?php echo esc_html($i18n['transitionFast']); ?></button>
-                    </div>
-                    <p class="ll-study-hint"><?php echo esc_html($i18n['transitionHint']); ?></p>
-                </div>
-                <div class="ll-study-goals">
-                    <span class="ll-card-title-sub"><?php echo esc_html($i18n['goalsLabel']); ?></span>
-                    <span class="ll-study-goal-label"><?php echo esc_html($i18n['enabledModesLabel']); ?></span>
-                    <div class="ll-star-toggle-group" data-ll-goals-modes>
-                        <button type="button" class="ll-study-btn tiny" data-goal-mode="learning"><?php echo esc_html($i18n['modeLearning']); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-goal-mode="listening"><?php echo esc_html($i18n['modeListening']); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-goal-mode="practice"><?php echo esc_html($i18n['modePractice']); ?></button>
-                        <button type="button" class="ll-study-btn tiny ll-study-btn--hidden" data-goal-mode="gender" data-ll-study-goal-gender aria-hidden="true"><?php echo esc_html($i18n['modeGender']); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-goal-mode="self-check"><?php echo esc_html($i18n['modeSelfCheck']); ?></button>
-                    </div>
-                    <label for="ll-study-daily-new" class="ll-study-goal-input-label"><?php echo esc_html($i18n['dailyNewLabel']); ?></label>
-                    <input id="ll-study-daily-new" class="ll-study-goal-input" data-ll-goal-daily-new type="number" min="0" max="12" step="1" value="2" />
-                    <p class="ll-study-hint"><?php echo esc_html($i18n['dailyNewHint']); ?></p>
-                    <div class="ll-study-goal-actions">
-                        <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-mark-known><?php echo esc_html($i18n['markKnownSelected']); ?></button>
-                        <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-clear-known><?php echo esc_html($i18n['clearKnownSelected']); ?></button>
-                    </div>
-                </div>
+        <div id="ll-study-analytics-screen" class="ll-study-analytics-screen" data-ll-analytics-screen hidden>
+            <div class="ll-study-analytics-screen-head">
+                <span class="ll-card-title-sub"><?php echo esc_html($i18n['analyticsLabel']); ?></span>
             </div>
-
-            <div class="ll-study-card ll-study-categories-card">
-                <div class="ll-card-title">
-                    <span><?php echo esc_html($i18n['categoriesLabel']); ?></span>
-                    <button type="button" class="ll-study-btn ghost" data-ll-check-all><?php echo esc_html__('All', 'll-tools-text-domain'); ?></button>
-                    <button type="button" class="ll-study-btn ghost" data-ll-uncheck-all><?php echo esc_html__('None', 'll-tools-text-domain'); ?></button>
-                </div>
-                <div id="ll-study-categories" data-ll-study-categories></div>
-                <p class="ll-study-empty" data-ll-cat-empty><?php echo esc_html($i18n['noCategories']); ?></p>
-            </div>
-        </div>
-
-        <div class="ll-study-words-section">
-            <div class="ll-study-card ll-study-words-card">
-                <div class="ll-card-title">
-                    <span><?php echo esc_html($i18n['wordsLabel']); ?></span>
-                    <span class="ll-badge" data-ll-star-count>0</span>
-                </div>
-                <div id="ll-study-words" data-ll-study-words></div>
-                <p class="ll-study-empty" data-ll-words-empty><?php echo esc_html($i18n['noWords']); ?></p>
-            </div>
-        </div>
-
-        <div class="ll-study-analytics-section">
             <div class="ll-study-card ll-study-analytics-card" data-ll-analytics-root>
                 <div class="ll-card-title ll-study-analytics-title-row">
                     <span><?php echo esc_html($i18n['analyticsLabel']); ?></span>
@@ -334,8 +308,71 @@ SVG;
             </div>
         </div>
 
-        <div class="ll-study-flashcard">
-            <?php echo $flashcard_markup; ?>
+        <div class="ll-study-main" data-ll-study-main>
+            <div class="ll-study-grid ll-study-grid--top">
+                <div class="ll-study-card ll-study-controls-card">
+                    <div class="ll-star-mode">
+                        <span class="ll-card-title-sub"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></span>
+                        <div class="ll-star-toggle-group" data-ll-star-mode>
+                            <button type="button" class="ll-study-btn tiny active" data-mode="normal"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-mode="weighted"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-mode="only"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
+                        </div>
+                        <p class="ll-study-hint"><?php echo esc_html__('Decide how often starred words appear: normal mix, starred twice, or only starred.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <div class="ll-transition-speed">
+                        <span class="ll-card-title-sub"><?php echo esc_html($i18n['transitionLabel']); ?></span>
+                        <div class="ll-star-toggle-group" data-ll-transition-speed>
+                            <button type="button" class="ll-study-btn tiny" data-speed="slow"><?php echo esc_html($i18n['transitionSlow']); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-speed="fast"><?php echo esc_html($i18n['transitionFast']); ?></button>
+                        </div>
+                        <p class="ll-study-hint"><?php echo esc_html($i18n['transitionHint']); ?></p>
+                    </div>
+                    <div class="ll-study-goals">
+                        <span class="ll-card-title-sub"><?php echo esc_html($i18n['goalsLabel']); ?></span>
+                        <span class="ll-study-goal-label"><?php echo esc_html($i18n['enabledModesLabel']); ?></span>
+                        <div class="ll-star-toggle-group" data-ll-goals-modes>
+                            <button type="button" class="ll-study-btn tiny" data-goal-mode="learning"><?php echo esc_html($i18n['modeLearning']); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-goal-mode="listening"><?php echo esc_html($i18n['modeListening']); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-goal-mode="practice"><?php echo esc_html($i18n['modePractice']); ?></button>
+                            <button type="button" class="ll-study-btn tiny ll-study-btn--hidden" data-goal-mode="gender" data-ll-study-goal-gender aria-hidden="true"><?php echo esc_html($i18n['modeGender']); ?></button>
+                            <button type="button" class="ll-study-btn tiny" data-goal-mode="self-check"><?php echo esc_html($i18n['modeSelfCheck']); ?></button>
+                        </div>
+                        <label for="ll-study-daily-new" class="ll-study-goal-input-label"><?php echo esc_html($i18n['dailyNewLabel']); ?></label>
+                        <input id="ll-study-daily-new" class="ll-study-goal-input" data-ll-goal-daily-new type="number" min="0" max="12" step="1" value="2" />
+                        <p class="ll-study-hint"><?php echo esc_html($i18n['dailyNewHint']); ?></p>
+                        <div class="ll-study-goal-actions">
+                            <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-mark-known><?php echo esc_html($i18n['markKnownSelected']); ?></button>
+                            <button type="button" class="ll-study-btn tiny ghost" data-ll-goal-clear-known><?php echo esc_html($i18n['clearKnownSelected']); ?></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ll-study-card ll-study-categories-card">
+                    <div class="ll-card-title">
+                        <span><?php echo esc_html($i18n['categoriesLabel']); ?></span>
+                        <button type="button" class="ll-study-btn ghost" data-ll-check-all><?php echo esc_html__('All', 'll-tools-text-domain'); ?></button>
+                        <button type="button" class="ll-study-btn ghost" data-ll-uncheck-all><?php echo esc_html__('None', 'll-tools-text-domain'); ?></button>
+                    </div>
+                    <div id="ll-study-categories" data-ll-study-categories></div>
+                    <p class="ll-study-empty" data-ll-cat-empty><?php echo esc_html($i18n['noCategories']); ?></p>
+                </div>
+            </div>
+
+            <div class="ll-study-words-section">
+                <div class="ll-study-card ll-study-words-card">
+                    <div class="ll-card-title">
+                        <span><?php echo esc_html($i18n['wordsLabel']); ?></span>
+                        <span class="ll-badge" data-ll-star-count>0</span>
+                    </div>
+                    <div id="ll-study-words" data-ll-study-words></div>
+                    <p class="ll-study-empty" data-ll-words-empty><?php echo esc_html($i18n['noWords']); ?></p>
+                </div>
+            </div>
+
+            <div class="ll-study-flashcard">
+                <?php echo $flashcard_markup; ?>
+            </div>
         </div>
 
         <div class="ll-study-check" data-ll-study-check aria-hidden="true">
