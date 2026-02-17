@@ -53,11 +53,34 @@ function buildStudyPanelMarkup() {
           <div data-ll-study-check-actions></div>
           <div data-ll-study-check-complete style="display:none;">
             <p data-ll-study-check-summary></p>
-            <button type="button" data-ll-study-check-apply>Set stars</button>
             <button type="button" data-ll-study-check-restart>Restart</button>
+            <div data-ll-study-check-followup style="display:none;">
+              <p data-ll-study-check-followup-text></p>
+              <button type="button" data-ll-study-check-followup-different>Different</button>
+              <button type="button" data-ll-study-check-followup-next>Recommended</button>
+            </div>
           </div>
         </div>
       </div>
+
+      <div id="quiz-mode-buttons" style="display:none;">
+        <button id="restart-practice-mode" type="button">Practice</button>
+        <button id="restart-learning-mode" type="button">Learn</button>
+        <button id="restart-self-check-mode" type="button">Check</button>
+        <button id="restart-gender-mode" type="button">Gender</button>
+        <button id="restart-listening-mode" type="button">Listen</button>
+      </div>
+      <div id="ll-gender-results-actions" style="display:none;">
+        <button id="ll-gender-next-activity" type="button">Next Gender Activity</button>
+        <button id="ll-gender-next-chunk" type="button">Next Gender Chunk</button>
+      </div>
+      <div id="ll-study-results-actions" style="display:none;">
+        <p id="ll-study-results-suggestion" style="display:none;"></p>
+        <button id="ll-study-results-same-chunk" type="button" style="display:none;">Repeat</button>
+        <button id="ll-study-results-different-chunk" type="button" style="display:none;">New words</button>
+        <button id="ll-study-results-next-chunk" type="button" style="display:none;">Recommended</button>
+      </div>
+      <button id="restart-quiz" type="button" style="display:none;">Restart</button>
     </div>
   `;
 }
@@ -154,6 +177,28 @@ async function mountStudyPanel(page, payload, options = {}) {
     window.alert = function () {};
     window.__llSaveRequests = [];
     window.__llGoalSaveRequests = [];
+    window.LLToolsSelfCheckShared = {
+      getIsolationAudioUrl: function (word, options) {
+        const target = word && typeof word === 'object' ? word : {};
+        const files = Array.isArray(target.audio_files) ? target.audio_files : [];
+        const isolation = files.find((file) => file && file.url && file.recording_type === 'isolation');
+        if (isolation && isolation.url) {
+          return isolation.url;
+        }
+        const intro = files.find((file) => file && file.url && file.recording_type === 'introduction');
+        if (intro && intro.url) {
+          return intro.url;
+        }
+        const allowFallback = !(options && options.fallbackToAnyAudio === false);
+        if (allowFallback) {
+          const any = files.find((file) => file && file.url);
+          if (any && any.url) {
+            return any.url;
+          }
+        }
+        return typeof target.audio === 'string' ? target.audio : '';
+      }
+    };
 
     const $ = window.jQuery;
     $.post = function (_url, request) {
@@ -329,6 +374,109 @@ test('study panel practice launch applies recommended chunk word IDs', async ({ 
   expect(launch.sessionWordIds).toEqual([101]);
 });
 
+test('dashboard results actions cap visible buttons and hide legacy mode switches', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload(), {
+    recommendation: {
+      type: 'next_mode',
+      reason_code: 'test_next_mode',
+      mode: 'listening',
+      category_ids: [11],
+      session_word_ids: [101]
+    }
+  });
+
+  await page.evaluate(() => {
+    window.initFlashcardWidget = function () {
+      return Promise.resolve();
+    };
+  });
+
+  await page.locator('[data-ll-study-start][data-mode="practice"]').click();
+  await page.waitForTimeout(120);
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const isVisible = (selector) => {
+        const el = document.querySelector(selector);
+        if (!el) { return false; }
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const visibleActions = [
+        '#ll-study-results-same-chunk',
+        '#ll-study-results-different-chunk',
+        '#ll-study-results-next-chunk'
+      ].filter((selector) => isVisible(selector));
+      return {
+        actionsWrapVisible: isVisible('#ll-study-results-actions'),
+        hasSame: visibleActions.includes('#ll-study-results-same-chunk')
+      };
+    });
+  }).toEqual({
+    actionsWrapVisible: true,
+    hasSame: true
+  });
+
+  const resultsState = await page.evaluate(() => {
+    const isVisible = (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) { return false; }
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const visibleActions = [
+      '#ll-study-results-same-chunk',
+      '#ll-study-results-different-chunk',
+      '#ll-study-results-next-chunk'
+    ].filter((selector) => isVisible(selector));
+    const sameButton = document.querySelector('#ll-study-results-same-chunk');
+    const differentButton = document.querySelector('#ll-study-results-different-chunk');
+    const recommendedButton = document.querySelector('#ll-study-results-next-chunk');
+    const readAction = (button) => {
+      if (!button) {
+        return {
+          text: '',
+          iconEmoji: '',
+          hasIcon: false
+        };
+      }
+      const icon = button.querySelector('.ll-vocab-lesson-mode-icon');
+      return {
+        text: (button.textContent || '').trim(),
+        iconEmoji: icon ? (icon.getAttribute('data-emoji') || '').trim() : '',
+        hasIcon: !!icon
+      };
+    };
+    return {
+      visibleActionCount: visibleActions.length,
+      hasRecommended: visibleActions.includes('#ll-study-results-next-chunk'),
+      hasDifferent: visibleActions.includes('#ll-study-results-different-chunk'),
+      modeButtonsVisible: isVisible('#quiz-mode-buttons'),
+      genderButtonsVisible: isVisible('#ll-gender-results-actions'),
+      sameAction: readAction(sameButton),
+      differentAction: readAction(differentButton),
+      recommendedAction: readAction(recommendedButton)
+    };
+  });
+
+  expect(resultsState.visibleActionCount).toBeGreaterThanOrEqual(2);
+  expect(resultsState.visibleActionCount).toBeLessThanOrEqual(3);
+  expect(resultsState.hasRecommended).toBe(true);
+  expect(resultsState.modeButtonsVisible).toBe(false);
+  expect(resultsState.genderButtonsVisible).toBe(false);
+  expect(resultsState.sameAction.iconEmoji).toBe('↻');
+  if (resultsState.hasDifferent) {
+    expect(resultsState.differentAction.hasIcon).toBe(true);
+    expect(resultsState.differentAction.text).not.toBe('New words');
+    expect(resultsState.differentAction.text).toContain('Category');
+  }
+  expect(resultsState.recommendedAction.hasIcon).toBe(true);
+  expect(resultsState.recommendedAction.text).toContain('Category');
+});
+
 test('study panel keeps gender mode hidden when wordset gender is disabled', async ({ page }) => {
   await mountStudyPanel(page, buildPayload({
     gender: {
@@ -499,7 +647,7 @@ test('wordset switch keeps gender launch aligned with checked UI categories even
   expect(launch.catNames).toContain('Hebrew Gender');
 });
 
-test('self-check apply only updates stars inside the checked category scope', async ({ page }) => {
+test('self-check completion does not rewrite starred words', async ({ page }) => {
   const payload = buildPayload({
     state: {
       wordset_id: 19,
@@ -513,6 +661,11 @@ test('self-check apply only updates stars inside the checked category scope', as
   await mountStudyPanel(page, payload);
 
   await page.locator('[data-ll-study-categories] input[type="checkbox"][value="22"]').uncheck();
+  await page.waitForTimeout(400);
+  const baselineSaveCount = await page.evaluate(() => {
+    const list = Array.isArray(window.__llSaveRequests) ? window.__llSaveRequests : [];
+    return list.length;
+  });
   await page.locator('[data-ll-study-check-start]').click();
 
   await expect.poll(async () => {
@@ -531,8 +684,23 @@ test('self-check apply only updates stars inside the checked category scope', as
 
   await page.locator('[data-ll-check-choice="idk"]').click();
   await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
-  await page.locator('[data-ll-study-check-apply]').click();
-  await page.waitForTimeout(500);
+  await expect(page.locator('[data-ll-study-check-apply]')).toHaveCount(0);
+  await page.waitForTimeout(300);
+
+  const starredPrefs = await page.evaluate(() => {
+    const prefs = window.llToolsStudyPrefs || {};
+    const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+    return ids.map((id) => Number(id)).sort((a, b) => a - b);
+  });
+  expect(starredPrefs).toEqual([202]);
+
+  const afterSaveCount = await page.evaluate(() => {
+    const list = Array.isArray(window.__llSaveRequests) ? window.__llSaveRequests : [];
+    return list.length;
+  });
+  expect(afterSaveCount).toBe(baselineSaveCount);
+
+  await page.locator('[data-ll-study-check-exit]').click();
 
   await expect.poll(async () => {
     return page.evaluate(() => ({
@@ -544,14 +712,6 @@ test('self-check apply only updates stars inside the checked category scope', as
     htmlClass: false
   });
 
-  const saveRequest = await page.evaluate(() => {
-    const list = Array.isArray(window.__llSaveRequests) ? window.__llSaveRequests : [];
-    return list.length ? list[list.length - 1] : null;
-  });
-
-  expect(saveRequest).not.toBeNull();
-  const starred = Array.isArray(saveRequest.starred_word_ids) ? saveRequest.starred_word_ids.map((id) => Number(id)).sort((a, b) => a - b) : [];
-  expect(starred).toEqual([101, 202]);
 });
 
 test('self-check confident correct answers mark category known and persist goals', async ({ page }) => {
@@ -583,7 +743,6 @@ test('self-check confident correct answers mark category known and persist goals
   await page.locator('[data-ll-check-choice="right"]').click();
 
   await expect(page.locator('[data-ll-study-check-complete]')).toBeVisible();
-  await page.locator('[data-ll-study-check-apply]').click();
   await page.waitForTimeout(400);
 
   const goalSaveRequest = await page.evaluate(() => {

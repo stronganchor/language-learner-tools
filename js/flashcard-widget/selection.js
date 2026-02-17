@@ -1246,23 +1246,11 @@
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
 
-        // In learning mode, only select from introduced words.
-        // In other modes, keep target selection chunked but allow distractors from the
-        // full category pool (including non-starred) so option rules still hold.
+        // In learning mode, select from introduced words across introduced categories.
+        // In other modes, keep options scoped to the target category pool only.
         const activeWordsByCategory = getActiveWordsByCategory();
         const optionWordsByCategory = getOptionWordsByCategory();
         let availableWords = [];
-        const supplementalWords = [];
-        const supplementalLookup = {};
-        const appendSupplementalWords = function (list) {
-            if (!Array.isArray(list)) return;
-            list.forEach(function (word) {
-                const wid = parseInt(word && word.id, 10) || 0;
-                if (!wid || supplementalLookup[wid]) return;
-                supplementalLookup[wid] = true;
-                supplementalWords.push(word);
-            });
-        };
 
         if (State.isLearningMode) {
             // Collect all introduced words from all categories
@@ -1275,21 +1263,9 @@
                 });
             });
         } else {
-            // Keep same-category distractors first, but don't limit to the session chunk.
+            // Keep distractors in the same category as the target word.
             const categoryPool = optionWordsByCategory[targetCategoryName] || activeWordsByCategory[targetCategoryName] || [];
             availableWords.push(...categoryPool);
-
-            // If the current category cannot satisfy minimum options, backfill from
-            // other loaded categories as a fallback.
-            const selectedNames = Array.isArray(State.categoryNames) ? State.categoryNames.slice() : [];
-            selectedNames.forEach(function (name) {
-                if (!name || name === targetCategoryName) return;
-                appendSupplementalWords(optionWordsByCategory[name] || activeWordsByCategory[name] || []);
-            });
-            Object.keys(optionWordsByCategory || {}).forEach(function (name) {
-                if (!name || name === targetCategoryName) return;
-                appendSupplementalWords(optionWordsByCategory[name]);
-            });
         }
 
         const targetGroups = new Set();
@@ -1397,7 +1373,7 @@
             return true;
         };
 
-        // Fill remaining options from primary category candidates with strict checks.
+        // Fill remaining options with strict conflict checks.
         for (let candidate of availableWords) {
             if (chosen.length >= desiredCount) break;
             if (!root.FlashcardOptions.canAddMoreCards()) break;
@@ -1406,35 +1382,6 @@
                 enforceTextUniqueness: true,
                 enforceConflict: true
             });
-        }
-
-        // If needed, backfill from same-category + cross-category candidates while
-        // preserving duplicate/similarity/text safeguards but relaxing pair conflicts.
-        if (chosen.length < desiredCount) {
-            const relaxedPool = Util.randomlySort(availableWords.concat(supplementalWords));
-            for (let candidate of relaxedPool) {
-                if (chosen.length >= desiredCount) break;
-                if (!root.FlashcardOptions.canAddMoreCards()) break;
-                addCandidate(candidate, {
-                    enforceSimilarity: true,
-                    enforceTextUniqueness: true,
-                    enforceConflict: false
-                });
-            }
-        }
-
-        // Hard fallback to guarantee minimum option count when possible.
-        if (chosen.length < MIN_OPTIONS) {
-            const hardPool = Util.randomlySort(availableWords.concat(supplementalWords));
-            for (let candidate of hardPool) {
-                if (chosen.length >= MIN_OPTIONS) break;
-                if (!root.FlashcardOptions.canAddMoreCards()) break;
-                addCandidate(candidate, {
-                    enforceSimilarity: false,
-                    enforceTextUniqueness: false,
-                    enforceConflict: false
-                });
-            }
         }
 
         jQuery('.flashcard-container').each(function (idx) {

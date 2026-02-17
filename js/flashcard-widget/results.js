@@ -222,7 +222,7 @@
         $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
         $('#ll-study-results-actions').hide();
         $('#ll-study-results-suggestion').hide().empty();
-        $('#ll-study-results-same-chunk, #ll-study-results-next-chunk').hide();
+        $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk').hide();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
@@ -279,7 +279,7 @@
         $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
         $('#ll-study-results-actions').hide();
         $('#ll-study-results-suggestion').hide().empty();
-        $('#ll-study-results-same-chunk, #ll-study-results-next-chunk').hide();
+        $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk').hide();
 
         if (root.FlashcardAudio) {
             try {

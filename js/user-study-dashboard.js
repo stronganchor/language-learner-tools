@@ -49,7 +49,6 @@
     const $checkActions = $root.find('[data-ll-study-check-actions]');
     const $checkComplete = $root.find('[data-ll-study-check-complete]');
     const $checkSummary = $root.find('[data-ll-study-check-summary]');
-    const $checkApply = $root.find('[data-ll-study-check-apply]');
     const $checkRestart = $root.find('[data-ll-study-check-restart]');
     const $checkExit = $root.find('[data-ll-study-check-exit]');
     const $checkFollowup = $root.find('[data-ll-study-check-followup]');
@@ -721,8 +720,9 @@
     function styleFollowupButton($button) {
         if (!$button || !$button.length) { return; }
         $button
+            .removeClass('quiz-mode-button')
             .removeClass('ghost')
-            .addClass('ll-vocab-lesson-mode-button ll-study-followup-mode-button');
+            .addClass('ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button');
     }
 
     function setModeActionButtonContent($button, mode, labelText, fallbackEmoji) {
@@ -738,6 +738,10 @@
             class: 'll-vocab-lesson-mode-label',
             text: label
         }));
+    }
+
+    function setRedoActionButtonContent($button, labelText) {
+        setModeActionButtonContent($button, '', labelText, '↻');
     }
 
     function setPlanActionButtonContent($button, plan, fallbackText) {
@@ -1465,14 +1469,20 @@
         const samePlan = resultsSameChunkPlan;
         const differentPlan = resultsDifferentChunkPlan;
         const nextPlan = resultsNextChunkPlan;
+        const currentMode = normalizeProgressMode((samePlan && samePlan.mode) || (activeChunkLaunch && activeChunkLaunch.mode) || '');
+        const nextMode = normalizeProgressMode(nextPlan && nextPlan.mode);
         const showSame = !!samePlan;
-        const showDifferent = !!differentPlan &&
-            !(nextPlan && arePlansDuplicate(differentPlan, nextPlan));
         const showNext = !!nextPlan &&
+            !!nextMode &&
+            !!currentMode &&
+            nextMode !== currentMode &&
             !(showSame && arePlansDuplicate(nextPlan, samePlan));
+        const showDifferent = !!differentPlan &&
+            !(showSame && arePlansDuplicate(differentPlan, samePlan)) &&
+            !(showNext && arePlansDuplicate(differentPlan, nextPlan));
 
         if (showSame && $resultsSameChunk.length) {
-            setModeActionButtonContent($resultsSameChunk, '', i18n.resultsRedoChunk || 'Repeat', '↻');
+            setRedoActionButtonContent($resultsSameChunk, i18n.resultsRedoChunk || 'Repeat');
             $resultsSameChunk.show().prop('disabled', false);
         } else if ($resultsSameChunk.length) {
             $resultsSameChunk.hide().prop('disabled', false);
@@ -1480,7 +1490,7 @@
 
         if ($resultsDifferentChunk.length) {
             if (showDifferent) {
-                setPlanActionButtonContent($resultsDifferentChunk, differentPlan, i18n.resultsDifferentChunk || '');
+                setPlanActionButtonContent($resultsDifferentChunk, differentPlan, i18n.categoriesLabel || 'Categories');
                 $resultsDifferentChunk.show().prop('disabled', false);
             } else {
                 $resultsDifferentChunk.hide().prop('disabled', false);
@@ -1489,7 +1499,7 @@
 
         if ($resultsNextChunk.length) {
             if (showNext) {
-                setPlanActionButtonContent($resultsNextChunk, nextPlan, i18n.resultsRecommendedActivity || '');
+                setPlanActionButtonContent($resultsNextChunk, nextPlan, i18n.categoriesLabel || 'Categories');
                 $resultsNextChunk.show().prop('disabled', false);
             } else {
                 $resultsNextChunk.hide().prop('disabled', false);
@@ -1501,6 +1511,9 @@
         }
 
         if (showSame || showDifferent || showNext) {
+            $('#quiz-mode-buttons').hide();
+            $('#ll-gender-results-actions').hide();
+            $('#restart-quiz').hide();
             $resultsActions.show();
         } else {
             $resultsActions.hide();
@@ -1514,12 +1527,12 @@
         }
 
         const launch = activeChunkLaunch;
-        if (!launch || !Array.isArray(launch.session_word_ids) || !launch.session_word_ids.length) {
+        if (!launch) {
             return;
         }
 
         const currentMode = normalizeProgressMode(resultMode || launch.mode);
-        if (!currentMode || currentMode === 'gender') {
+        if (!currentMode) {
             return;
         }
 
@@ -1528,47 +1541,71 @@
             return;
         }
 
-        resultsSameChunkPlan = {
-            mode: currentMode,
-            category_ids: categoryIds.slice(),
-            session_word_ids: uniqueIntList(launch.session_word_ids || []),
-            source: 'dashboard_chunk_repeat'
-        };
-        resultsDifferentChunkPlan = null;
-        resultsNextChunkPlan = null;
-        updateResultsChunkActionCopy();
-
-        resolveChunkPlanForMode(currentMode, categoryIds, {
-            prefer_different: true,
-            require_different: false,
-            prior_plan: resultsSameChunkPlan,
-            source: 'dashboard_chunk_mode_next'
-        }).done(function (plan) {
-            if (hasChunkPlanTarget(plan)) {
-                resultsDifferentChunkPlan = plan;
-                updateResultsChunkActionCopy();
+        const initializeResultPlans = function (samePlan) {
+            if (!hasChunkPlanTarget(samePlan)) {
                 return;
             }
-            resolveChunkPlanForMode(currentMode, categoryIds, {
-                prefer_different: false,
-                require_different: false,
-                source: 'dashboard_chunk_mode_next'
-            }).done(function (fallbackPlan) {
-                resultsDifferentChunkPlan = hasChunkPlanTarget(fallbackPlan) ? fallbackPlan : null;
-                updateResultsChunkActionCopy();
-            });
-        });
+            const sameCategoryIds = uniqueIntList(samePlan.category_ids || []);
 
-        resolveRecommendedFollowupPlan(currentMode, categoryIds).done(function (plan) {
-            resultsNextChunkPlan = plan;
+            resultsSameChunkPlan = {
+                mode: currentMode,
+                category_ids: sameCategoryIds.length ? sameCategoryIds : categoryIds.slice(),
+                session_word_ids: uniqueIntList(samePlan.session_word_ids || []),
+                source: 'dashboard_chunk_repeat'
+            };
+            resultsDifferentChunkPlan = null;
+            resultsNextChunkPlan = null;
             updateResultsChunkActionCopy();
-        });
 
-        refreshRecommendation().always(function () {
+            resolveChunkPlanForMode(currentMode, categoryIds, {
+                prefer_different: true,
+                require_different: false,
+                prior_plan: resultsSameChunkPlan,
+                source: 'dashboard_chunk_mode_next'
+            }).done(function (plan) {
+                if (hasChunkPlanTarget(plan)) {
+                    resultsDifferentChunkPlan = plan;
+                    updateResultsChunkActionCopy();
+                    return;
+                }
+                resolveChunkPlanForMode(currentMode, categoryIds, {
+                    prefer_different: false,
+                    require_different: false,
+                    source: 'dashboard_chunk_mode_next'
+                }).done(function (fallbackPlan) {
+                    resultsDifferentChunkPlan = hasChunkPlanTarget(fallbackPlan) ? fallbackPlan : null;
+                    updateResultsChunkActionCopy();
+                });
+            });
+
             resolveRecommendedFollowupPlan(currentMode, categoryIds).done(function (plan) {
                 resultsNextChunkPlan = plan;
                 updateResultsChunkActionCopy();
             });
+
+            refreshRecommendation().always(function () {
+                resolveRecommendedFollowupPlan(currentMode, categoryIds).done(function (plan) {
+                    resultsNextChunkPlan = plan;
+                    updateResultsChunkActionCopy();
+                });
+            });
+        };
+
+        const initialSessionWordIds = uniqueIntList(launch.session_word_ids || []);
+        if (initialSessionWordIds.length) {
+            initializeResultPlans({
+                category_ids: categoryIds.slice(),
+                session_word_ids: initialSessionWordIds
+            });
+            return;
+        }
+
+        resolveChunkPlanForMode(currentMode, categoryIds, {
+            prefer_different: false,
+            require_different: false,
+            source: 'dashboard_chunk_repeat'
+        }).done(function (plan) {
+            initializeResultPlans(plan);
         });
     }
 
@@ -1589,19 +1626,50 @@
         }
     }
 
+    function getCurrentSelfCheckRepeatPlan() {
+        if (!checkSession) {
+            return null;
+        }
+        let chunkWordIds = uniqueIntList(checkSession.sessionWordIds || []);
+        if (!chunkWordIds.length && Array.isArray(checkSession.items)) {
+            chunkWordIds = uniqueIntList(checkSession.items.map(function (item) {
+                return parseInt(item && item.wordId, 10) || 0;
+            }));
+        }
+        const categoryIds = uniqueIntList(checkSession.categoryIds || []).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        if (!chunkWordIds.length || !categoryIds.length) {
+            return null;
+        }
+        return {
+            mode: 'self-check',
+            category_ids: categoryIds.slice(),
+            session_word_ids: chunkWordIds.slice(),
+            source: 'dashboard_chunk_repeat'
+        };
+    }
+
     function updateCheckFollowupActionCopy() {
         if (!$checkFollowup.length) {
             return;
         }
 
+        const repeatPlan = getCurrentSelfCheckRepeatPlan();
         const differentPlan = checkFollowupDifferentPlan;
         const nextPlan = checkFollowupNextPlan;
-        const showNext = !!nextPlan;
-        const showDifferent = !!differentPlan && !(showNext && arePlansDuplicate(differentPlan, nextPlan));
+        const nextMode = normalizeProgressMode(nextPlan && nextPlan.mode);
+        const showNext = !!nextPlan &&
+            !!nextMode &&
+            nextMode !== 'self-check' &&
+            !(repeatPlan && arePlansDuplicate(nextPlan, repeatPlan));
+        const showDifferent = !!differentPlan &&
+            !(repeatPlan && arePlansDuplicate(differentPlan, repeatPlan)) &&
+            !(showNext && arePlansDuplicate(differentPlan, nextPlan));
 
         if ($checkFollowupDifferent.length) {
             if (showDifferent) {
-                setPlanActionButtonContent($checkFollowupDifferent, differentPlan, i18n.resultsDifferentChunk || '');
+                setPlanActionButtonContent($checkFollowupDifferent, differentPlan, i18n.categoriesLabel || 'Categories');
                 $checkFollowupDifferent.show().prop('disabled', false);
             } else {
                 $checkFollowupDifferent.hide().prop('disabled', false);
@@ -1610,7 +1678,7 @@
 
         if ($checkFollowupNext.length) {
             if (showNext) {
-                setPlanActionButtonContent($checkFollowupNext, nextPlan, i18n.resultsRecommendedActivity || '');
+                setPlanActionButtonContent($checkFollowupNext, nextPlan, i18n.categoriesLabel || 'Categories');
                 $checkFollowupNext.show().prop('disabled', false);
             } else {
                 $checkFollowupNext.hide().prop('disabled', false);
@@ -1633,29 +1701,16 @@
         if (!$checkFollowup.length || !checkSession) {
             return;
         }
-        let chunkWordIds = uniqueIntList(checkSession.sessionWordIds || []);
-        if (!chunkWordIds.length && Array.isArray(checkSession.items)) {
-            chunkWordIds = uniqueIntList(checkSession.items.map(function (item) {
-                return parseInt(item && item.wordId, 10) || 0;
-            }));
-        }
-        const categoryIds = uniqueIntList(checkSession.categoryIds || []).filter(function (id) {
-            return !isCategoryIgnored(id);
-        });
-        if (!chunkWordIds.length || !categoryIds.length) {
+        const currentSelfCheckPlan = getCurrentSelfCheckRepeatPlan();
+        if (!currentSelfCheckPlan || !hasChunkPlanTarget(currentSelfCheckPlan)) {
             return;
         }
+        const categoryIds = uniqueIntList(currentSelfCheckPlan.category_ids || []);
 
         checkFollowupDifferentPlan = null;
         checkFollowupNextPlan = null;
         updateCheckFollowupActionCopy();
 
-        const currentSelfCheckPlan = {
-            mode: 'self-check',
-            category_ids: categoryIds.slice(),
-            session_word_ids: chunkWordIds.slice(),
-            source: 'dashboard_chunk_repeat'
-        };
         const followupCategoryIds = getFollowupCategoryIds(categoryIds);
         resolveChunkPlanForMode('self-check', followupCategoryIds, {
             prefer_different: true,
@@ -1700,9 +1755,13 @@
         if (!mode) {
             return;
         }
-        const categoryIds = uniqueIntList(target.category_ids || state.category_ids).filter(function (id) {
+        const targetCategoryIds = uniqueIntList(target.category_ids || []).filter(function (id) {
             return !isCategoryIgnored(id);
         });
+        const fallbackCategoryIds = uniqueIntList(state.category_ids || []).filter(function (id) {
+            return !isCategoryIgnored(id);
+        });
+        const categoryIds = targetCategoryIds.length ? targetCategoryIds : fallbackCategoryIds;
         const sessionWordIds = uniqueIntList(target.session_word_ids || []);
         const source = String(target.source || 'dashboard_chunk_results');
 
@@ -1720,6 +1779,25 @@
             }).finally(function () {
                 startCheckFlow(categoryIds, {
                     sessionWordIds: sessionWordIds,
+                    source: source
+                });
+            });
+            return;
+        }
+
+        if (!sessionWordIds.length && categoryIds.length) {
+            resolveChunkPlanForMode(mode, categoryIds, {
+                prefer_different: false,
+                require_different: false,
+                source: source
+            }).done(function (resolvedPlan) {
+                const resolvedCategoryIds = uniqueIntList((resolvedPlan && resolvedPlan.category_ids) || categoryIds).filter(function (id) {
+                    return !isCategoryIgnored(id);
+                });
+                const resolvedSessionWordIds = uniqueIntList((resolvedPlan && resolvedPlan.session_word_ids) || []);
+                startFlashcards(mode, {
+                    categoryIds: resolvedCategoryIds.length ? resolvedCategoryIds : categoryIds,
+                    sessionWordIds: resolvedSessionWordIds,
                     source: source
                 });
             });
@@ -2021,11 +2099,8 @@
     }
 
     function updateCheckActionLabels() {
-        if ($checkApply.length) {
-            $checkApply.text(i18n.checkApply || 'Apply self check');
-        }
         if ($checkRestart.length) {
-            setModeActionButtonContent($checkRestart, '', i18n.checkRestart || 'Repeat', '↻');
+            setRedoActionButtonContent($checkRestart, i18n.checkRestart || 'Repeat');
         }
     }
 
@@ -2466,6 +2541,7 @@
         }
         setCheckFlipped(false);
         $checkComplete.show();
+        persistSelfCheckKnownCategories(checkSession);
         renderCheckFollowupActions();
     }
 
@@ -2544,19 +2620,36 @@
         return uniqueIntList(known);
     }
 
-    function getWordIdsForCategories(catIds) {
-        const ids = [];
-        const seen = {};
-        toIntList(catIds).forEach(function (cid) {
-            const words = getCategoryWords(cid) || [];
-            words.forEach(function (word) {
-                const wordId = parseInt(word.id, 10) || 0;
-                if (!wordId || seen[wordId]) { return; }
-                seen[wordId] = true;
-                ids.push(wordId);
-            });
+    function persistSelfCheckKnownCategories(session) {
+        const src = (session && typeof session === 'object') ? session : null;
+        if (!src || src.persistedKnownCategories) {
+            return;
+        }
+        src.persistedKnownCategories = true;
+
+        const testedCategoryIds = uniqueIntList(Object.keys(src.categoryStats || {}).map(function (key) {
+            return parseInt(key, 10) || 0;
+        }).filter(Boolean));
+        if (!testedCategoryIds.length) {
+            return;
+        }
+
+        const testedLookup = {};
+        testedCategoryIds.forEach(function (id) {
+            testedLookup[id] = true;
         });
-        return ids;
+        const knownCategoryIds = getKnownCategoryIdsFromSelfCheck(src);
+        const keepExisting = uniqueIntList(goals.placement_known_category_ids || []).filter(function (id) {
+            return !testedLookup[id];
+        });
+        const nextKnownCategoryIds = uniqueIntList(keepExisting.concat(knownCategoryIds));
+        if (areIntListsEqual(nextKnownCategoryIds, goals.placement_known_category_ids || [])) {
+            return;
+        }
+
+        goals.placement_known_category_ids = nextKnownCategoryIds;
+        renderGoalsControls();
+        saveGoalsNow();
     }
 
     function startCheckFlow(categoryIds, options) {
@@ -2596,6 +2689,7 @@
                 pendingConfidence: '',
                 token: 0,
                 advanceTimer: null,
+                persistedKnownCategories: false,
                 sessionWordIds: sessionWordIds.slice()
             };
             openCheckPanel();
@@ -2605,71 +2699,6 @@
                 $checkStart.prop('disabled', false).removeClass('loading');
             }
         });
-    }
-
-    function applyCheckStars() {
-        if (!checkSession) { return; }
-        const selectedCategoryLookup = {};
-        toIntList(state.category_ids).forEach(function (id) {
-            selectedCategoryLookup[id] = true;
-        });
-
-        const categoryIds = toIntList(checkSession.categoryIds || []).filter(function (id) {
-            return !!selectedCategoryLookup[id];
-        });
-        if (!categoryIds.length) {
-            closeCheckPanel();
-            return;
-        }
-        const selectedWordIds = getWordIdsForCategories(categoryIds);
-        if (!selectedWordIds.length) {
-            closeCheckPanel();
-            return;
-        }
-        const selectedLookup = {};
-        selectedWordIds.forEach(function (id) { selectedLookup[id] = true; });
-
-        const keep = (state.starred_word_ids || []).filter(function (id) {
-            return !selectedLookup[id];
-        });
-        const unknownIds = toIntList(checkSession.unknownIds || []);
-        const next = keep.slice();
-        unknownIds.forEach(function (id) {
-            if (!selectedLookup[id]) { return; }
-            if (next.indexOf(id) === -1) { next.push(id); }
-        });
-        setStarredWordIds(next);
-        setStudyPrefsGlobal();
-        saveStateDebounced();
-
-        const testedCategoryIds = uniqueIntList(Object.keys(checkSession.categoryStats || {}).map(function (key) {
-            return parseInt(key, 10) || 0;
-        }).filter(Boolean));
-        if (testedCategoryIds.length) {
-            const testedLookup = {};
-            testedCategoryIds.forEach(function (id) {
-                testedLookup[id] = true;
-            });
-            const knownCategoryIds = getKnownCategoryIdsFromSelfCheck(checkSession);
-            const keepExisting = uniqueIntList(goals.placement_known_category_ids || []).filter(function (id) {
-                return !testedLookup[id];
-            });
-            goals.placement_known_category_ids = uniqueIntList(keepExisting.concat(knownCategoryIds));
-            renderGoalsControls();
-        }
-
-        renderWords();
-        renderCategories();
-        renderNextActivity();
-        if (testedCategoryIds.length) {
-            saveGoalsNow().always(function () {
-                refreshRecommendation();
-                closeCheckPanel();
-            });
-            return;
-        }
-        refreshRecommendation();
-        closeCheckPanel();
     }
 
     function setStudyPrefsGlobal() {
@@ -2987,7 +3016,11 @@
     function startFlashcards(mode, launchOptions) {
         const options = (launchOptions && typeof launchOptions === 'object') ? launchOptions : {};
         const launchSource = String(options.source || 'dashboard');
-        const requestedCategoryIds = uniqueIntList(options.category_ids || options.categoryIds || state.category_ids || []).filter(function (id) {
+        const requestedFromOptions = uniqueIntList(options.category_ids || options.categoryIds || []);
+        const requestedCategoryIds = (requestedFromOptions.length
+            ? requestedFromOptions
+            : uniqueIntList(state.category_ids || [])
+        ).filter(function (id) {
             return !isCategoryIgnored(id);
         });
         if (!ensureCategoriesSelected(requestedCategoryIds)) { return; }
@@ -3329,15 +3362,7 @@
         const mode = normalizeQuizMode(modeRaw) || 'practice';
         const categoryIds = getSelectedCategoryIdsFromUI();
         const launchCategoryIds = categoryIds.length ? categoryIds : state.category_ids;
-        if (mode === 'practice' || mode === 'learning') {
-            startModeWithChunk(mode, launchCategoryIds, $(this));
-            return;
-        }
-        startFlashcards(mode, {
-            categoryIds: launchCategoryIds,
-            sessionWordIds: [],
-            source: 'dashboard_manual'
-        });
+        startModeWithChunk(mode, launchCategoryIds, $(this));
     });
 
     if ($startNext.length) {
@@ -3379,12 +3404,6 @@
                 return;
             }
             handleCheckConfidenceChoice(choice);
-        });
-    }
-
-    if ($checkApply.length) {
-        $checkApply.on('click', function () {
-            applyCheckStars();
         });
     }
 

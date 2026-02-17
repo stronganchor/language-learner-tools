@@ -123,8 +123,6 @@ SVG;
         'checkGotRight'    => __('I got it right', 'll-tools-text-domain'),
         'checkGotClose'    => __('I got close', 'll-tools-text-domain'),
         'checkGotWrong'    => __('I got it wrong', 'll-tools-text-domain'),
-        'checkApply'       => __('Apply self check', 'll-tools-text-domain'),
-        'checkApplyHint'   => __('Save these results.', 'll-tools-text-domain'),
         'checkRestart'     => __('Repeat', 'll-tools-text-domain'),
         'checkExit'        => __('Close', 'll-tools-text-domain'),
         'checkEmpty'       => __('No words available for this check.', 'll-tools-text-domain'),
@@ -285,14 +283,12 @@ SVG;
 
                 <div class="ll-study-check-complete" data-ll-study-check-complete style="display:none;">
                     <p class="ll-study-check-summary" data-ll-study-check-summary></p>
-                    <p class="ll-study-check-hint"><?php echo esc_html($i18n['checkApplyHint']); ?></p>
                     <div class="ll-study-check-complete-actions">
-                        <button type="button" class="ll-study-btn primary" data-ll-study-check-apply><?php echo esc_html($i18n['checkApply']); ?></button>
+                        <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
                     </div>
                     <div class="ll-study-check-followup" data-ll-study-check-followup style="display:none;">
                         <p class="ll-study-check-hint" data-ll-study-check-followup-text></p>
                         <div class="ll-study-check-complete-actions">
-                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
                             <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-different><?php echo esc_html__('New words', 'll-tools-text-domain'); ?></button>
                             <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-next><?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?></button>
                         </div>

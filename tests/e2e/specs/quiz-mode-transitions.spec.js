@@ -79,12 +79,13 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
   await expect(learningOptionAfterSelfCheck).not.toHaveClass(/active/);
   await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveClass(/ll-self-check-active/);
   await expect(page.locator('.ll-study-check-round')).toBeVisible();
+  await expect(page.locator('.ll-study-check-btn--idk')).toBeVisible();
+  await expect(page.locator('.ll-study-check-btn--think')).toBeVisible();
   await expect(page.locator('.ll-study-check-btn--know')).toBeVisible();
-  await expect(page.locator('.ll-study-check-btn--unknown')).toBeVisible();
   const selfCheckUi = await page.evaluate(() => {
     const card = document.querySelector('.ll-study-check-flip-card');
     const actions = document.querySelector('.ll-study-check-actions');
-    const flipSvg = document.querySelector('.ll-study-check-flip svg');
+    const thinkSvg = document.querySelector('.ll-study-check-btn--think svg');
     const knowSvg = document.querySelector('.ll-study-check-btn--know svg');
     const popupRoot = document.querySelector('#ll-tools-flashcard-popup');
     const flashcard = document.querySelector('#ll-tools-flashcard');
@@ -92,9 +93,9 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
     const cardRect = card ? card.getBoundingClientRect() : null;
     const actionsRect = actions ? actions.getBoundingClientRect() : null;
     return {
-      flipNamespace: flipSvg ? flipSvg.namespaceURI : '',
+      thinkNamespace: thinkSvg ? thinkSvg.namespaceURI : '',
       knowNamespace: knowSvg ? knowSvg.namespaceURI : '',
-      iconPathCount: document.querySelectorAll('.ll-study-check-flip svg path, .ll-study-check-btn .ll-study-check-icon svg path').length,
+      iconSvgCount: document.querySelectorAll('.ll-study-check-btn .ll-study-check-icon svg').length,
       cardBottom: cardRect ? cardRect.bottom : 0,
       actionsTop: actionsRect ? actionsRect.top : 0,
       popupParentTag: popupRoot && popupRoot.parentElement ? popupRoot.parentElement.tagName.toLowerCase() : '',
@@ -102,9 +103,9 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
       contentHasAudioLineMode: !!(flashcardContent && flashcardContent.classList.contains('audio-line-mode'))
     };
   });
-  expect(selfCheckUi.flipNamespace).toBe('http://www.w3.org/2000/svg');
+  expect(selfCheckUi.thinkNamespace).toBe('http://www.w3.org/2000/svg');
   expect(selfCheckUi.knowNamespace).toBe('http://www.w3.org/2000/svg');
-  expect(selfCheckUi.iconPathCount).toBeGreaterThanOrEqual(3);
+  expect(selfCheckUi.iconSvgCount).toBeGreaterThanOrEqual(3);
   expect(selfCheckUi.actionsTop).toBeGreaterThanOrEqual(selfCheckUi.cardBottom - 1);
   expect(selfCheckUi.popupParentTag).toBe('body');
   expect(selfCheckUi.flashcardHasAudioLineLayout).toBe(false);
@@ -125,7 +126,8 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
   expect(modeMeta.starModeOverride).toBe('normal');
 
   await expectFaceMatchesMode(page, '.ll-study-check-face--front', modeMeta.optionType);
-  await page.locator('.ll-study-check-flip').click();
+  await page.locator('.ll-study-check-btn--think').click();
+  await expect(page.locator('.ll-study-check-flip-card')).toHaveClass(/is-flipped/);
   await expectFaceMatchesMode(page, '.ll-study-check-face--back', modeMeta.promptType);
 
   await switchToMode(page, 'listening');
