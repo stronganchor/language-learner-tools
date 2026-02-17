@@ -686,6 +686,511 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
     return $out;
 }
 
+function ll_tools_user_progress_mastered_stage_threshold(): int {
+    return max(1, min(6, (int) apply_filters('ll_tools_user_progress_mastered_stage_threshold', 5)));
+}
+
+function ll_tools_user_progress_mastered_clean_threshold(): int {
+    return max(1, (int) apply_filters('ll_tools_user_progress_mastered_clean_threshold', 3));
+}
+
+function ll_tools_user_progress_word_is_studied(array $row): bool {
+    $coverage = max(0, (int) ($row['total_coverage'] ?? 0));
+    $correct_clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    $correct_retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
+    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+    return ($coverage > 0) || ($correct_clean > 0) || ($correct_retry > 0) || ($incorrect > 0);
+}
+
+function ll_tools_user_progress_word_is_mastered(array $row): bool {
+    if (!ll_tools_user_progress_word_is_studied($row)) {
+        return false;
+    }
+    $stage_threshold = ll_tools_user_progress_mastered_stage_threshold();
+    $clean_threshold = ll_tools_user_progress_mastered_clean_threshold();
+    $stage = max(0, (int) ($row['stage'] ?? 0));
+    $clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    return ($stage >= $stage_threshold) && ($clean >= $clean_threshold);
+}
+
+function ll_tools_user_progress_word_status(array $row): string {
+    if (ll_tools_user_progress_word_is_mastered($row)) {
+        return 'mastered';
+    }
+    if (ll_tools_user_progress_word_is_studied($row)) {
+        return 'studied';
+    }
+    return 'new';
+}
+
+function ll_tools_user_progress_word_difficulty_score(array $row): int {
+    if (!ll_tools_user_progress_word_is_studied($row)) {
+        return -1000;
+    }
+    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+    $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
+    $clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    $retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
+    $stage = max(0, (int) ($row['stage'] ?? 0));
+
+    return ($incorrect * 3)
+        + ($lapses * 2)
+        + max(0, 2 - $stage)
+        - min(4, $clean)
+        - min(2, $retry);
+}
+
+function ll_tools_user_progress_category_ids_in_scope(array $categories_payload, array $requested_category_ids, array $goals): array {
+    $category_lookup = [];
+    foreach ((array) $categories_payload as $cat) {
+        if (!is_array($cat)) {
+            continue;
+        }
+        $cid = isset($cat['id']) ? (int) $cat['id'] : 0;
+        if ($cid > 0) {
+            $category_lookup[$cid] = true;
+        }
+    }
+
+    $ignored_lookup = [];
+    foreach ((array) ($goals['ignored_category_ids'] ?? []) as $ignored_id) {
+        $iid = (int) $ignored_id;
+        if ($iid > 0) {
+            $ignored_lookup[$iid] = true;
+        }
+    }
+
+    $requested = array_values(array_filter(array_map('intval', (array) $requested_category_ids), function ($id) use ($category_lookup, $ignored_lookup) {
+        return $id > 0 && isset($category_lookup[$id]) && empty($ignored_lookup[$id]);
+    }));
+
+    if (!empty($requested)) {
+        return $requested;
+    }
+
+    $all_available = array_values(array_filter(array_map('intval', array_keys($category_lookup)), function ($id) use ($ignored_lookup) {
+        return $id > 0 && empty($ignored_lookup[$id]);
+    }));
+    return $all_available;
+}
+
+/**
+ * @return array{
+ *   days:array<int,array{date:string,events:int,unique_words:int,outcomes:int}>,
+ *   max_events:int,
+ *   window_days:int
+ * }
+ */
+function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id, array $category_ids, int $days = 14): array {
+    global $wpdb;
+
+    if ($user_id <= 0) {
+        return [
+            'days' => [],
+            'max_events' => 0,
+            'window_days' => 0,
+        ];
+    }
+
+    $window_days = max(7, min(60, (int) $days));
+    $start_ts = strtotime(gmdate('Y-m-d 00:00:00')) - (($window_days - 1) * DAY_IN_SECONDS);
+    $start_mysql = gmdate('Y-m-d H:i:s', $start_ts);
+
+    $tables = ll_tools_user_progress_table_names();
+    $table = $tables['events'];
+
+    $where_parts = [
+        'user_id = %d',
+        'created_at >= %s',
+    ];
+    $params = [$user_id, $start_mysql];
+
+    if ($wordset_id > 0) {
+        $where_parts[] = 'wordset_id = %d';
+        $params[] = $wordset_id;
+    }
+
+    $scoped_categories = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
+        return $id > 0;
+    }));
+    if (!empty($scoped_categories)) {
+        $placeholders = implode(', ', array_fill(0, count($scoped_categories), '%d'));
+        $where_parts[] = "category_id IN ({$placeholders})";
+        $params = array_merge($params, $scoped_categories);
+    }
+
+    $where_sql = implode(' AND ', $where_parts);
+    $sql = "
+        SELECT
+            DATE(created_at) AS activity_date,
+            COUNT(*) AS events_count,
+            COUNT(DISTINCT CASE WHEN word_id > 0 THEN word_id END) AS unique_words_count,
+            SUM(CASE WHEN event_type = 'word_outcome' THEN 1 ELSE 0 END) AS outcomes_count
+        FROM {$table}
+        WHERE {$where_sql}
+        GROUP BY DATE(created_at)
+        ORDER BY activity_date ASC
+    ";
+
+    $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+    $by_date = [];
+    foreach ((array) $rows as $row) {
+        $date = isset($row['activity_date']) ? (string) $row['activity_date'] : '';
+        if ($date === '') {
+            continue;
+        }
+        $by_date[$date] = [
+            'events' => max(0, (int) ($row['events_count'] ?? 0)),
+            'unique_words' => max(0, (int) ($row['unique_words_count'] ?? 0)),
+            'outcomes' => max(0, (int) ($row['outcomes_count'] ?? 0)),
+        ];
+    }
+
+    $series = [];
+    $max_events = 0;
+    for ($offset = 0; $offset < $window_days; $offset++) {
+        $day_ts = $start_ts + ($offset * DAY_IN_SECONDS);
+        $date = gmdate('Y-m-d', $day_ts);
+        $entry = $by_date[$date] ?? ['events' => 0, 'unique_words' => 0, 'outcomes' => 0];
+        $events = max(0, (int) ($entry['events'] ?? 0));
+        $max_events = max($max_events, $events);
+        $series[] = [
+            'date' => $date,
+            'events' => $events,
+            'unique_words' => max(0, (int) ($entry['unique_words'] ?? 0)),
+            'outcomes' => max(0, (int) ($entry['outcomes'] ?? 0)),
+        ];
+    }
+
+    return [
+        'days' => $series,
+        'max_events' => $max_events,
+        'window_days' => $window_days,
+    ];
+}
+
+/**
+ * Build analytics used by the user study dashboard.
+ *
+ * @return array<string,mixed>
+ */
+function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id = 0, $category_ids = [], $days = 14): array {
+    $uid = (int) ($user_id ?: get_current_user_id());
+    $scope_wordset_id = max(0, (int) $wordset_id);
+    if ($uid <= 0) {
+        return [
+            'scope' => [
+                'wordset_id' => $scope_wordset_id,
+                'category_ids' => [],
+                'category_count' => 0,
+                'mode' => 'all',
+            ],
+            'summary' => [
+                'total_words' => 0,
+                'mastered_words' => 0,
+                'studied_words' => 0,
+                'new_words' => 0,
+                'hard_words' => 0,
+                'starred_words' => 0,
+            ],
+            'daily_activity' => [
+                'days' => [],
+                'max_events' => 0,
+                'window_days' => 0,
+            ],
+            'categories' => [],
+            'words' => [],
+            'generated_at' => gmdate('c'),
+        ];
+    }
+
+    $goals = ll_tools_get_user_study_goals($uid);
+    $categories_payload = function_exists('ll_tools_user_study_categories_for_wordset')
+        ? ll_tools_user_study_categories_for_wordset($scope_wordset_id)
+        : [];
+
+    $category_lookup = [];
+    foreach ((array) $categories_payload as $cat) {
+        if (!is_array($cat)) {
+            continue;
+        }
+        $cid = isset($cat['id']) ? (int) $cat['id'] : 0;
+        if ($cid <= 0) {
+            continue;
+        }
+        $category_lookup[$cid] = $cat;
+    }
+
+    $requested_scope_category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), function ($id) use ($category_lookup) {
+        return $id > 0 && isset($category_lookup[$id]);
+    }));
+
+    $scope_category_ids = ll_tools_user_progress_category_ids_in_scope($categories_payload, (array) $category_ids, $goals);
+    $requested_scope_included = !empty(array_intersect($requested_scope_category_ids, $scope_category_ids));
+    $scope_mode = $requested_scope_included ? 'selected' : 'all';
+
+    $words_by_category = function_exists('ll_tools_user_study_words')
+        ? ll_tools_user_study_words($scope_category_ids, $scope_wordset_id)
+        : [];
+
+    $word_map = [];
+    $category_word_ids = [];
+
+    foreach ($scope_category_ids as $cid) {
+        $category_word_ids[$cid] = [];
+        $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
+        foreach ($rows as $word) {
+            if (!is_array($word)) {
+                continue;
+            }
+            $wid = isset($word['id']) ? (int) $word['id'] : 0;
+            if ($wid <= 0) {
+                continue;
+            }
+            $category_word_ids[$cid][$wid] = true;
+
+            if (!isset($word_map[$wid])) {
+                $title = isset($word['title']) ? (string) $word['title'] : '';
+                $translation = isset($word['translation']) ? (string) $word['translation'] : '';
+                $word_map[$wid] = [
+                    'id' => $wid,
+                    'title' => $title,
+                    'translation' => $translation,
+                    'label' => isset($word['label']) ? (string) $word['label'] : '',
+                    'image' => isset($word['image']) ? (string) $word['image'] : '',
+                    'audio_files_count' => isset($word['audio_files']) && is_array($word['audio_files']) ? count($word['audio_files']) : 0,
+                    'category_ids' => [],
+                ];
+            }
+            $word_map[$wid]['category_ids'][$cid] = true;
+        }
+    }
+
+    $all_word_ids = array_values(array_filter(array_map('intval', array_keys($word_map)), function ($id) {
+        return $id > 0;
+    }));
+    $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
+    $category_progress = ll_tools_get_user_category_progress($uid);
+
+    $study_state = function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [];
+    $starred_lookup = [];
+    foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_id) {
+        $sid = (int) $starred_id;
+        if ($sid > 0) {
+            $starred_lookup[$sid] = true;
+        }
+    }
+
+    $word_rows = [];
+    $summary_total = 0;
+    $summary_mastered = 0;
+    $summary_studied = 0;
+    $summary_hard = 0;
+    $summary_starred = 0;
+    $category_studied_lookup = [];
+    $category_mastered_lookup = [];
+    $category_last_word_seen = [];
+
+    foreach ($word_map as $wid => $word) {
+        $progress = isset($progress_rows[$wid]) && is_array($progress_rows[$wid]) ? $progress_rows[$wid] : [];
+        $status = ll_tools_user_progress_word_status($progress);
+        $difficulty = ll_tools_user_progress_word_difficulty_score($progress);
+        $coverage = max(0, (int) ($progress['total_coverage'] ?? 0));
+        $stage = max(0, (int) ($progress['stage'] ?? 0));
+        $correct_clean = max(0, (int) ($progress['correct_clean'] ?? 0));
+        $correct_retry = max(0, (int) ($progress['correct_after_retry'] ?? 0));
+        $incorrect = max(0, (int) ($progress['incorrect'] ?? 0));
+        $lapses = max(0, (int) ($progress['lapse_count'] ?? 0));
+        $total_outcomes = $correct_clean + $correct_retry + $incorrect;
+        $accuracy = ($total_outcomes > 0)
+            ? round((($correct_clean + $correct_retry) / $total_outcomes) * 100, 1)
+            : null;
+        $last_seen_at = isset($progress['last_seen_at']) ? (string) $progress['last_seen_at'] : '';
+        $last_mode = isset($progress['last_mode']) ? ll_tools_normalize_progress_mode((string) $progress['last_mode']) : '';
+        $due_at = isset($progress['due_at']) ? (string) $progress['due_at'] : '';
+
+        $word_category_ids = array_values(array_filter(array_map('intval', array_keys((array) ($word['category_ids'] ?? []))), function ($id) {
+            return $id > 0;
+        }));
+        sort($word_category_ids, SORT_NUMERIC);
+
+        $word_category_labels = [];
+        foreach ($word_category_ids as $cid) {
+            $meta = $category_lookup[$cid] ?? [];
+            $label = '';
+            if (is_array($meta)) {
+                $label = isset($meta['translation']) && (string) $meta['translation'] !== ''
+                    ? (string) $meta['translation']
+                    : (string) ($meta['name'] ?? '');
+            }
+            if ($label === '') {
+                $label = (string) ll_tools_get_category_display_name($cid);
+            }
+            $word_category_labels[] = $label;
+
+            if ($status !== 'new') {
+                if (!isset($category_studied_lookup[$cid])) {
+                    $category_studied_lookup[$cid] = [];
+                }
+                $category_studied_lookup[$cid][$wid] = true;
+            }
+            if ($status === 'mastered') {
+                if (!isset($category_mastered_lookup[$cid])) {
+                    $category_mastered_lookup[$cid] = [];
+                }
+                $category_mastered_lookup[$cid][$wid] = true;
+            }
+            if ($last_seen_at !== '') {
+                if (!isset($category_last_word_seen[$cid]) || strcmp($last_seen_at, (string) $category_last_word_seen[$cid]) > 0) {
+                    $category_last_word_seen[$cid] = $last_seen_at;
+                }
+            }
+        }
+
+        $word_rows[] = [
+            'id' => (int) $wid,
+            'title' => (string) ($word['title'] ?? ''),
+            'translation' => (string) ($word['translation'] ?? ''),
+            'label' => (string) ($word['label'] ?? ''),
+            'image' => (string) ($word['image'] ?? ''),
+            'audio_files_count' => max(0, (int) ($word['audio_files_count'] ?? 0)),
+            'category_ids' => $word_category_ids,
+            'category_labels' => $word_category_labels,
+            'category_id' => !empty($word_category_ids) ? (int) $word_category_ids[0] : 0,
+            'category_label' => !empty($word_category_labels) ? (string) $word_category_labels[0] : '',
+            'status' => $status,
+            'difficulty_score' => $difficulty,
+            'total_coverage' => $coverage,
+            'stage' => $stage,
+            'correct_clean' => $correct_clean,
+            'correct_after_retry' => $correct_retry,
+            'incorrect' => $incorrect,
+            'lapse_count' => $lapses,
+            'accuracy_percent' => $accuracy,
+            'last_mode' => $last_mode,
+            'last_seen_at' => $last_seen_at,
+            'due_at' => $due_at,
+            'is_starred' => !empty($starred_lookup[$wid]),
+        ];
+
+        $summary_total++;
+        if ($status !== 'new') {
+            $summary_studied++;
+        }
+        if ($status === 'mastered') {
+            $summary_mastered++;
+        }
+        if ($status === 'studied' && $difficulty >= 4) {
+            $summary_hard++;
+        }
+        if (!empty($starred_lookup[$wid])) {
+            $summary_starred++;
+        }
+    }
+
+    usort($word_rows, function ($left, $right) {
+        $left_status = isset($left['status']) ? (string) $left['status'] : 'new';
+        $right_status = isset($right['status']) ? (string) $right['status'] : 'new';
+        if ($left_status !== $right_status) {
+            if ($left_status === 'new') {
+                return 1;
+            }
+            if ($right_status === 'new') {
+                return -1;
+            }
+        }
+
+        $left_score = (int) ($left['difficulty_score'] ?? 0);
+        $right_score = (int) ($right['difficulty_score'] ?? 0);
+        if ($left_score !== $right_score) {
+            return $right_score <=> $left_score;
+        }
+
+        $left_incorrect = (int) ($left['incorrect'] ?? 0);
+        $right_incorrect = (int) ($right['incorrect'] ?? 0);
+        if ($left_incorrect !== $right_incorrect) {
+            return $right_incorrect <=> $left_incorrect;
+        }
+
+        return strcasecmp((string) ($left['title'] ?? ''), (string) ($right['title'] ?? ''));
+    });
+
+    $category_rows = [];
+    $progress_modes = ll_tools_progress_modes();
+    foreach ($scope_category_ids as $cid) {
+        $cat_meta = isset($category_lookup[$cid]) && is_array($category_lookup[$cid]) ? $category_lookup[$cid] : [];
+        $cat_label = isset($cat_meta['translation']) && (string) $cat_meta['translation'] !== ''
+            ? (string) $cat_meta['translation']
+            : (string) ($cat_meta['name'] ?? '');
+        if ($cat_label === '') {
+            $cat_label = (string) ll_tools_get_category_display_name($cid);
+        }
+
+        $cat_word_total = isset($category_word_ids[$cid]) && is_array($category_word_ids[$cid]) ? count($category_word_ids[$cid]) : 0;
+        $cat_studied = isset($category_studied_lookup[$cid]) && is_array($category_studied_lookup[$cid]) ? count($category_studied_lookup[$cid]) : 0;
+        $cat_mastered = isset($category_mastered_lookup[$cid]) && is_array($category_mastered_lookup[$cid]) ? count($category_mastered_lookup[$cid]) : 0;
+        $cat_progress = isset($category_progress[$cid]) && is_array($category_progress[$cid]) ? $category_progress[$cid] : [];
+        $exposure_by_mode_raw = isset($cat_progress['exposure_by_mode']) && is_array($cat_progress['exposure_by_mode'])
+            ? $cat_progress['exposure_by_mode']
+            : [];
+        $exposure_by_mode = [];
+        foreach ($progress_modes as $mode) {
+            $exposure_by_mode[$mode] = max(0, (int) ($exposure_by_mode_raw[$mode] ?? 0));
+        }
+        $last_seen_at = isset($cat_progress['last_seen_at']) ? (string) $cat_progress['last_seen_at'] : '';
+        if ($last_seen_at === '' && !empty($category_last_word_seen[$cid])) {
+            $last_seen_at = (string) $category_last_word_seen[$cid];
+        } elseif ($last_seen_at !== '' && !empty($category_last_word_seen[$cid]) && strcmp((string) $category_last_word_seen[$cid], $last_seen_at) > 0) {
+            $last_seen_at = (string) $category_last_word_seen[$cid];
+        }
+
+        $exposure_total = max(0, (int) ($cat_progress['exposure_total'] ?? 0));
+        if ($exposure_total === 0) {
+            $exposure_total = array_sum($exposure_by_mode);
+        }
+
+        $category_rows[] = [
+            'id' => $cid,
+            'label' => $cat_label,
+            'word_count' => $cat_word_total,
+            'studied_words' => $cat_studied,
+            'mastered_words' => $cat_mastered,
+            'new_words' => max(0, $cat_word_total - $cat_studied),
+            'exposure_total' => $exposure_total,
+            'exposure_by_mode' => $exposure_by_mode,
+            'last_mode' => isset($cat_progress['last_mode']) ? ll_tools_normalize_progress_mode((string) $cat_progress['last_mode']) : 'practice',
+            'last_seen_at' => $last_seen_at,
+        ];
+    }
+
+    usort($category_rows, function ($left, $right) {
+        return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+    });
+
+    $daily_activity = ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, (int) $days);
+
+    return [
+        'scope' => [
+            'wordset_id' => $scope_wordset_id,
+            'category_ids' => $scope_category_ids,
+            'category_count' => count($scope_category_ids),
+            'mode' => $scope_mode,
+        ],
+        'summary' => [
+            'total_words' => $summary_total,
+            'mastered_words' => $summary_mastered,
+            'studied_words' => $summary_studied,
+            'new_words' => max(0, $summary_total - $summary_studied),
+            'hard_words' => $summary_hard,
+            'starred_words' => $summary_starred,
+        ],
+        'daily_activity' => $daily_activity,
+        'categories' => $category_rows,
+        'words' => $word_rows,
+        'generated_at' => gmdate('c'),
+    ];
+}
+
 function ll_tools_pick_recommendation_mode(array $enabled_modes, array $category_ids, array $category_lookup): string {
     $enabled_lookup = array_flip($enabled_modes);
 
@@ -1260,6 +1765,27 @@ function ll_tools_user_study_recommendation_ajax() {
     ]);
 }
 add_action('wp_ajax_ll_user_study_recommendation', 'll_tools_user_study_recommendation_ajax');
+
+function ll_tools_user_study_analytics_ajax() {
+    if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
+        wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
+    }
+    check_ajax_referer('ll_user_study', 'nonce');
+
+    $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
+    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
+    $days = isset($_POST['days']) ? (int) $_POST['days'] : 14;
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
+        return $id > 0;
+    }));
+
+    $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, $category_ids, $days);
+
+    wp_send_json_success([
+        'analytics' => $analytics,
+    ]);
+}
+add_action('wp_ajax_ll_user_study_analytics', 'll_tools_user_study_analytics_ajax');
 
 function ll_tools_cleanup_user_progress_for_deleted_user($user_id): void {
     global $wpdb;

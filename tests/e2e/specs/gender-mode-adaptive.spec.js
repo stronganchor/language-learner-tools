@@ -30,6 +30,7 @@ function bootstrapGenderHarness(page, options = {}) {
   const wordsetId = Number(options.wordsetId || 77);
   const categoryWords = options.categoryWords || {};
   const launchSource = String(options.launchSource || 'direct');
+  const launchContext = String(options.launchContext || '');
   const sessionPlan = options.sessionPlan && typeof options.sessionPlan === 'object'
     ? options.sessionPlan
     : null;
@@ -39,7 +40,7 @@ function bootstrapGenderHarness(page, options = {}) {
   const trackIntroCalls = !!options.trackIntroCalls;
   const trackFeedbackOrdering = !!options.trackFeedbackOrdering;
 
-  return page.evaluate(({ wordsetId: wsId, wordsByCategory, source, plan, seedStore, shouldTrackIntroCalls, shouldTrackFeedbackOrdering }) => {
+  return page.evaluate(({ wordsetId: wsId, wordsByCategory, source, context, plan, seedStore, shouldTrackIntroCalls, shouldTrackFeedbackOrdering }) => {
     window.localStorage.clear();
     window.__llIntroPlayCount = 0;
     window.__llEventLog = [];
@@ -56,6 +57,10 @@ function bootstrapGenderHarness(page, options = {}) {
       userStudyState: { wordset_id: wsId },
       genderLaunchSource: source
     };
+    if (context) {
+      window.llToolsFlashcardsData.launchContext = context;
+      window.llToolsFlashcardsData.launch_context = context;
+    }
     if (plan) {
       window.llToolsFlashcardsData.genderSessionPlan = plan;
       window.llToolsFlashcardsData.genderSessionPlanArmed = true;
@@ -179,6 +184,7 @@ function bootstrapGenderHarness(page, options = {}) {
     wordsetId,
     wordsByCategory: categoryWords,
     source: launchSource,
+    context: launchContext,
     plan: sessionPlan,
     seedStore: preseedStore,
     shouldTrackIntroCalls: trackIntroCalls,
@@ -792,6 +798,98 @@ test('gender mode never repeats the same word in consecutive rounds when another
     const second = Gender.selectTargetWord();
     const secondId = Number(second && second.id) || 0;
 
+    return { firstId, secondId };
+  });
+
+  expect(result.firstId).toBeGreaterThan(0);
+  expect(result.secondId).toBeGreaterThan(0);
+  expect(result.secondId).not.toBe(result.firstId);
+});
+
+test('vocab lesson launch with mixed levels (1/2/3) starts level one using the full lesson set', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 91,
+    launchSource: 'direct',
+    launchContext: 'vocab_lesson',
+    categoryWords: {
+      CatA: [
+        makeNounWord(911, 'CatA', 'masculine'),
+        makeNounWord(912, 'CatA', 'feminine'),
+        makeNounWord(913, 'CatA', 'masculine'),
+        makeNounWord(914, 'CatA', 'feminine')
+      ]
+    },
+    preseedStore: {
+      words: {
+        '911': { level: 1, seen_total: 0, intro_seen: false, confidence: -1 },
+        '912': { level: 2, seen_total: 3, intro_seen: true, confidence: 2 },
+        '913': { level: 3, seen_total: 9, intro_seen: true, confidence: 7 },
+        '914': { level: 3, seen_total: 12, intro_seen: true, confidence: 8 }
+      },
+      updated_at: Date.now()
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const firstPick = Gender.selectTargetWord();
+    const ids = Array.isArray(firstPick)
+      ? firstPick.map((word) => Number(word && word.id) || 0).filter((id) => id > 0)
+      : [];
+    return {
+      introCount: ids.length,
+      uniqueCount: Array.from(new Set(ids)).length
+    };
+  });
+
+  // With one level-one word, this proves level-one includes higher-level lesson words.
+  expect(result.introCount).toBe(2);
+  expect(result.uniqueCount).toBe(2);
+});
+
+test('vocab lesson launch with mixed levels (2/3) runs level two across the lesson, not only existing level-two words', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 92,
+    launchSource: 'direct',
+    launchContext: 'vocab_lesson',
+    categoryWords: {
+      CatA: [
+        makeNounWord(921, 'CatA', 'masculine'),
+        makeNounWord(922, 'CatA', 'feminine'),
+        makeNounWord(923, 'CatA', 'masculine')
+      ]
+    },
+    preseedStore: {
+      words: {
+        '921': { level: 2, seen_total: 4, intro_seen: true, confidence: 1 },
+        '922': { level: 3, seen_total: 7, intro_seen: true, confidence: 6 },
+        '923': { level: 3, seen_total: 9, intro_seen: true, confidence: 7 }
+      },
+      updated_at: Date.now()
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const first = Gender.selectTargetWord();
+    const firstId = Number(first && first.id) || 0;
+    await Gender.handleAnswer({
+      targetWord: first,
+      isCorrect: false,
+      isDontKnow: false
+    });
+
+    const second = Gender.selectTargetWord();
+    const secondId = Number(second && second.id) || 0;
     return { firstId, secondId };
   });
 

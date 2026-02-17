@@ -674,6 +674,307 @@ body.ll-study-check-open {
   font-weight: 700;
 }
 
+.ll-study-analytics-section {
+  margin-top: 14px;
+}
+
+.ll-study-analytics-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ll-study-analytics-title-row {
+  align-items: center;
+}
+
+.ll-study-analytics-scope {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ll-study-analytics-status {
+  margin: 0;
+  min-height: 18px;
+}
+
+.ll-study-analytics-status.is-loading {
+  color: #475569;
+}
+
+.ll-study-analytics-status.is-error {
+  color: #b91c1c;
+}
+
+.ll-study-analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.ll-study-analytics-kpi {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ll-study-analytics-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.ll-study-analytics-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ll-study-analytics-kpi--mastered .ll-study-analytics-kpi-value {
+  color: #15803d;
+}
+
+.ll-study-analytics-kpi--studied .ll-study-analytics-kpi-value {
+  color: #0369a1;
+}
+
+.ll-study-analytics-kpi--new .ll-study-analytics-kpi-value {
+  color: #334155;
+}
+
+.ll-study-analytics-kpi--starred .ll-study-analytics-kpi-value {
+  color: #b45309;
+}
+
+.ll-study-analytics-kpi--hard .ll-study-analytics-kpi-value {
+  color: #9f1239;
+}
+
+.ll-study-analytics-graph-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ll-study-analytics-graph {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 8px;
+  min-height: 120px;
+}
+
+.ll-study-analytics-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ll-study-analytics-bars {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 6px;
+  align-items: end;
+}
+
+.ll-study-analytics-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ll-study-analytics-day-bar {
+  width: 100%;
+  min-height: 8px;
+  height: calc(8px + 66px * var(--ratio, 0));
+  border-radius: 6px;
+  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.ll-study-analytics-day-label {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ll-study-analytics-day-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.ll-study-analytics-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ll-study-analytics-tabs .ll-study-btn.active {
+  background: #0f172a !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.ll-study-analytics-word-filters {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ll-study-analytics-word-filters .ll-study-btn.active {
+  background: #0f172a !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.ll-study-analytics-table-wrap {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.ll-study-analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+.ll-study-analytics-table th,
+.ll-study-analytics-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  vertical-align: middle;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.ll-study-analytics-table th {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #475569;
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.ll-study-analytics-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ll-study-analytics-word-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ll-study-analytics-word-main-text {
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.ll-study-analytics-word-main-sub {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.ll-study-analytics-word-main-sub:empty {
+  display: none;
+}
+
+.ll-study-analytics-star {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  background-image: none;
+  color: #111827;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+  text-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+  text-transform: none;
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
+}
+
+.ll-study-analytics-star.active {
+  background: #fde68a;
+  border-color: #f59e0b;
+  color: #111827;
+}
+
+.ll-study-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ll-study-status-pill--mastered {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ll-study-status-pill--studied {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.ll-study-status-pill--new {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.ll-study-analytics-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ll-study-analytics-activity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .ll-study-flashcard {
   margin-top: 10px;
 }
@@ -1211,6 +1512,22 @@ body.ll-study-check-open {
 
   .ll-study-check .ll-study-check-text {
     font-size: 20px;
+  }
+
+  .ll-study-analytics-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ll-study-analytics-bars {
+    gap: 4px;
+  }
+
+  .ll-study-analytics-day-bar {
+    height: calc(8px + 56px * var(--ratio, 0));
+  }
+
+  .ll-study-analytics-table {
+    min-width: 620px;
   }
 }
 

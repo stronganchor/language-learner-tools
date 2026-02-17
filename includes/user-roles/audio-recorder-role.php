@@ -417,23 +417,30 @@ function ll_hide_admin_bar_for_ll_tools_limited_roles($show) {
 add_filter('show_admin_bar', 'll_hide_admin_bar_for_ll_tools_limited_roles', 999);
 
 /**
- * Prevent recorder/learner users from accessing wp-admin and redirect them.
+ * Resolve wp-admin redirect targets for limited study-only roles.
+ *
+ * Returns an empty string when the current request should be allowed through.
  */
-function ll_block_admin_for_recorder_and_learner() {
-    if (!is_user_logged_in()) {
-        return;
+function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin_request = null, $doing_ajax = null): string {
+    if ($is_admin_request === null) {
+        $is_admin_request = is_admin();
+    }
+    if ($doing_ajax === null) {
+        $doing_ajax = wp_doing_ajax();
     }
 
-    if (!is_admin() || wp_doing_ajax()) {
-        return;
+    if (!$is_admin_request || $doing_ajax) {
+        return '';
     }
 
-    $user = wp_get_current_user();
-    if (!$user) {
-        return;
+    if (!($user instanceof WP_User)) {
+        $user = wp_get_current_user();
+    }
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return '';
     }
     if (user_can($user, 'manage_options')) {
-        return;
+        return '';
     }
 
     $roles = (array) $user->roles;
@@ -441,7 +448,7 @@ function ll_block_admin_for_recorder_and_learner() {
     $is_learner = in_array('ll_tools_learner', $roles, true);
 
     if (!$is_recorder && !$is_learner) {
-        return;
+        return '';
     }
 
     $target = home_url('/');
@@ -451,7 +458,18 @@ function ll_block_admin_for_recorder_and_learner() {
         $target = ll_tools_get_study_dashboard_redirect_url();
     }
 
-    $target = wp_validate_redirect($target, home_url('/'));
+    return (string) wp_validate_redirect($target, home_url('/'));
+}
+
+/**
+ * Prevent recorder/learner users from accessing wp-admin and redirect them.
+ */
+function ll_block_admin_for_recorder_and_learner() {
+    $target = ll_tools_get_limited_role_admin_redirect_target();
+    if ($target === '') {
+        return;
+    }
+
     wp_safe_redirect($target);
     exit;
 }

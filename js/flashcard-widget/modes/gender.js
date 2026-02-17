@@ -92,6 +92,14 @@
         return root.llToolsFlashcardsMessages || {};
     }
 
+    function getLaunchContext() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = (typeof data.launchContext !== 'undefined')
+            ? data.launchContext
+            : data.launch_context;
+        return String(raw || '').trim().toLowerCase();
+    }
+
     function toInt(value) {
         const parsed = parseInt(value, 10);
         return parsed > 0 ? parsed : 0;
@@ -551,15 +559,27 @@
             buckets[level].push(word);
         });
 
-        let targetLevel = LEVEL_ONE;
-        if (buckets[LEVEL_ONE].length) targetLevel = LEVEL_ONE;
-        else if (buckets[LEVEL_TWO].length) targetLevel = LEVEL_TWO;
-        else targetLevel = LEVEL_THREE;
-
-        const targetWords = sortWordsForLevel(buckets[targetLevel], targetLevel);
         const launchSource = String((root.llToolsFlashcardsData && root.llToolsFlashcardsData.genderLaunchSource) || 'direct');
-        const shouldMixCategories = launchSource === 'dashboard' && categoryCount > 1;
-        const chosenIds = pickChunkWordIds(targetWords, CHUNK_SIZE, shouldMixCategories);
+        const launchContext = getLaunchContext();
+        const isVocabLessonLaunch = launchContext === 'vocab_lesson';
+
+        let targetLevel = LEVEL_ONE;
+        let targetWords = [];
+        let chosenIds = [];
+        if (isVocabLessonLaunch) {
+            targetLevel = inferLevelFromWords(words);
+            targetWords = sortWordsForLevel(words, targetLevel);
+            chosenIds = targetWords
+                .map(function (word) { return toInt(word && word.id); })
+                .filter(function (id) { return id > 0; });
+        } else {
+            if (buckets[LEVEL_ONE].length) targetLevel = LEVEL_ONE;
+            else if (buckets[LEVEL_TWO].length) targetLevel = LEVEL_TWO;
+            else targetLevel = LEVEL_THREE;
+            targetWords = sortWordsForLevel(buckets[targetLevel], targetLevel);
+            const shouldMixCategories = launchSource === 'dashboard' && categoryCount > 1;
+            chosenIds = pickChunkWordIds(targetWords, CHUNK_SIZE, shouldMixCategories);
+        }
         const chosen = chosenIds.map(function (wordId) { return words.find(function (word) { return toInt(word && word.id) === wordId; }); }).filter(Boolean);
         const allUnseenInSingleCategory = (
             categoryCount === 1 &&

@@ -124,6 +124,32 @@ SVG;
         'categoryUnknown'  => __('Unknown', 'll-tools-text-domain'),
         'markKnownSelected' => __('Mark selected as known', 'll-tools-text-domain'),
         'clearKnownSelected' => __('Clear known on selected', 'll-tools-text-domain'),
+        'analyticsLabel' => __('Progress', 'll-tools-text-domain'),
+        'analyticsLoading' => __('Loading progress...', 'll-tools-text-domain'),
+        'analyticsUnavailable' => __('Progress is unavailable right now.', 'll-tools-text-domain'),
+        'analyticsScopeSelected' => __('Selected categories (%d)', 'll-tools-text-domain'),
+        'analyticsScopeAll' => __('All categories (%d)', 'll-tools-text-domain'),
+        'analyticsMastered' => __('Mastered', 'll-tools-text-domain'),
+        'analyticsStudied' => __('Studied', 'll-tools-text-domain'),
+        'analyticsNew' => __('New', 'll-tools-text-domain'),
+        'analyticsStarred' => __('Starred', 'll-tools-text-domain'),
+        'analyticsHard' => __('Hard', 'll-tools-text-domain'),
+        'analyticsDaily' => __('Last 14 days', 'll-tools-text-domain'),
+        'analyticsDailyEmpty' => __('No activity yet.', 'll-tools-text-domain'),
+        'analyticsTabCategories' => __('Categories', 'll-tools-text-domain'),
+        'analyticsTabWords' => __('Words', 'll-tools-text-domain'),
+        'analyticsNoRows' => __('No data yet.', 'll-tools-text-domain'),
+        'analyticsWordFilterAll' => __('All', 'll-tools-text-domain'),
+        'analyticsWordFilterHard' => __('Hardest', 'll-tools-text-domain'),
+        'analyticsWordFilterNew' => __('Unseen', 'll-tools-text-domain'),
+        'analyticsWordStatusMastered' => __('Mastered', 'll-tools-text-domain'),
+        'analyticsWordStatusStudied' => __('Studied', 'll-tools-text-domain'),
+        'analyticsWordStatusNew' => __('New', 'll-tools-text-domain'),
+        'analyticsStarWord' => __('Star word', 'll-tools-text-domain'),
+        'analyticsUnstarWord' => __('Unstar word', 'll-tools-text-domain'),
+        'analyticsLast' => __('Last', 'll-tools-text-domain'),
+        'analyticsNever' => __('Never', 'll-tools-text-domain'),
+        'analyticsDayEvents' => __('%1$d events, %2$d words', 'll-tools-text-domain'),
     ];
 
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
@@ -238,6 +264,73 @@ SVG;
                 </div>
                 <div id="ll-study-words" data-ll-study-words></div>
                 <p class="ll-study-empty" data-ll-words-empty><?php echo esc_html($i18n['noWords']); ?></p>
+            </div>
+        </div>
+
+        <div class="ll-study-analytics-section">
+            <div class="ll-study-card ll-study-analytics-card" data-ll-analytics-root>
+                <div class="ll-card-title ll-study-analytics-title-row">
+                    <span><?php echo esc_html($i18n['analyticsLabel']); ?></span>
+                    <span class="ll-study-analytics-scope" data-ll-analytics-scope></span>
+                </div>
+                <p class="ll-study-hint ll-study-analytics-status" data-ll-analytics-status><?php echo esc_html($i18n['analyticsLoading']); ?></p>
+                <div class="ll-study-analytics-summary" data-ll-analytics-summary></div>
+                <div class="ll-study-analytics-graph-wrap">
+                    <span class="ll-card-title-sub"><?php echo esc_html($i18n['analyticsDaily']); ?></span>
+                    <div class="ll-study-analytics-graph" data-ll-analytics-graph></div>
+                </div>
+                <div class="ll-study-analytics-tabs" role="tablist" aria-label="<?php echo esc_attr($i18n['analyticsLabel']); ?>">
+                    <button type="button" class="ll-study-btn tiny ghost active" data-ll-analytics-tab="categories" aria-selected="true"><?php echo esc_html($i18n['analyticsTabCategories']); ?></button>
+                    <button type="button" class="ll-study-btn tiny ghost" data-ll-analytics-tab="words" aria-selected="false"><?php echo esc_html($i18n['analyticsTabWords']); ?></button>
+                </div>
+                <div class="ll-study-analytics-panel" data-ll-analytics-panel="categories">
+                    <div class="ll-study-analytics-table-wrap">
+                        <table class="ll-study-analytics-table ll-study-analytics-table--categories">
+                            <thead>
+                                <tr>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsTabCategories']); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsStudied']); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsMastered']); ?></th>
+                                    <th scope="col"><?php echo esc_html__('Activity', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsLast']); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody data-ll-analytics-categories-body>
+                                <tr>
+                                    <td colspan="5"><?php echo esc_html($i18n['analyticsNoRows']); ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="ll-study-analytics-panel" data-ll-analytics-panel="words" hidden>
+                    <div class="ll-study-analytics-word-filters">
+                        <button type="button" class="ll-study-btn tiny ghost active" data-ll-analytics-word-filter="all"><?php echo esc_html($i18n['analyticsWordFilterAll']); ?></button>
+                        <button type="button" class="ll-study-btn tiny ghost" data-ll-analytics-word-filter="hard"><?php echo esc_html($i18n['analyticsWordFilterHard']); ?></button>
+                        <button type="button" class="ll-study-btn tiny ghost" data-ll-analytics-word-filter="new"><?php echo esc_html($i18n['analyticsWordFilterNew']); ?></button>
+                    </div>
+                    <div class="ll-study-analytics-table-wrap">
+                        <table class="ll-study-analytics-table ll-study-analytics-table--words">
+                            <thead>
+                                <tr>
+                                    <th scope="col"><span class="screen-reader-text"><?php echo esc_html($i18n['starLabel']); ?></span></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsTabWords']); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsTabCategories']); ?></th>
+                                    <th scope="col"><?php echo esc_html__('Status', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsHard']); ?></th>
+                                    <th scope="col"><?php echo esc_html__('Seen', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col"><?php echo esc_html__('Wrong', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col"><?php echo esc_html($i18n['analyticsLast']); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody data-ll-analytics-words-body>
+                                <tr>
+                                    <td colspan="8"><?php echo esc_html($i18n['analyticsNoRows']); ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
