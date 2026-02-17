@@ -766,6 +766,44 @@
         return found.translation || found.name || '';
     }
 
+    function getStarredWordsLabel() {
+        return i18n.starredWordsLabel || 'Starred words';
+    }
+
+    function isStarredOnlyModeActive() {
+        return normalizeStarMode(state && state.star_mode) === 'only';
+    }
+
+    function getStarredWordLookup() {
+        const lookup = {};
+        uniqueIntList((state && state.starred_word_ids) || []).forEach(function (id) {
+            lookup[id] = true;
+        });
+        return lookup;
+    }
+
+    function filterWordIdsByCurrentStarMode(wordIds) {
+        const ids = uniqueIntList(wordIds || []);
+        if (!isStarredOnlyModeActive()) {
+            return ids;
+        }
+        const starredLookup = getStarredWordLookup();
+        return ids.filter(function (id) {
+            return !!starredLookup[id];
+        });
+    }
+
+    function shouldUseStarredWordsLabelForPlan(plan) {
+        if (!isStarredOnlyModeActive()) {
+            return false;
+        }
+        const target = (plan && typeof plan === 'object') ? plan : {};
+        const categoryCount = uniqueIntList(target.category_ids || []).filter(function (id) {
+            return !isCategoryIgnored(id);
+        }).length;
+        return categoryCount !== 1;
+    }
+
     function modeLabel(mode) {
         const key = normalizeProgressMode(mode);
         if (key === 'learning') { return i18n.modeLearning || 'Learn'; }
@@ -800,6 +838,9 @@
     }
 
     function getPlanCategorySummary(plan) {
+        if (shouldUseStarredWordsLabelForPlan(plan)) {
+            return getStarredWordsLabel();
+        }
         const ids = uniqueIntList((plan && plan.category_ids) || []);
         const labels = ids.map(getCategoryLabelById).filter(Boolean);
         if (!labels.length) {
@@ -953,7 +994,9 @@
         }
 
         const labels = uniqueIntList(next.category_ids).map(getCategoryLabelById).filter(Boolean);
-        const categoryText = labels.length ? labels.join(', ') : (i18n.categoriesLabel || 'Categories');
+        const categoryText = shouldUseStarredWordsLabelForPlan(next)
+            ? getStarredWordsLabel()
+            : (labels.length ? labels.join(', ') : (i18n.categoriesLabel || 'Categories'));
         const wordCount = uniqueIntList(next.session_word_ids).length;
         const modeText = modeLabel(next.mode);
         const message = (wordCount > 0)
@@ -1259,6 +1302,10 @@
             avoidLookup[id] = true;
         });
         const hasAvoidWords = Object.keys(avoidLookup).length > 0;
+        const onlyStarred = !!opts.only_starred;
+        const starredLookup = (opts.starred_lookup && typeof opts.starred_lookup === 'object')
+            ? opts.starred_lookup
+            : {};
 
         const collectCategoryWordIds = function (cid, includeAvoided) {
             const words = sortWordsForChunk(getCategoryWords(cid) || []);
@@ -1268,6 +1315,7 @@
                 const wordId = parseInt(words[j] && words[j].id, 10) || 0;
                 if (!wordId || seenInCategory[wordId]) { continue; }
                 if (!includeAvoided && avoidLookup[wordId]) { continue; }
+                if (onlyStarred && !starredLookup[wordId]) { continue; }
                 seenInCategory[wordId] = true;
                 out.push(wordId);
             }
@@ -1374,14 +1422,15 @@
         }
 
         const recWords = uniqueIntList(next.session_word_ids || []);
-        if (!recWords.length) {
+        const filteredRecWords = filterWordIdsByCurrentStarMode(recWords);
+        if (!filteredRecWords.length) {
             return null;
         }
 
         return {
             mode: normalizedMode,
             category_ids: recCategories,
-            session_word_ids: recWords,
+            session_word_ids: filteredRecWords,
             source: 'dashboard_chunk_recommendation'
         };
     }
@@ -1445,6 +1494,8 @@
                 const avoidCategoryIds = (preferDifferent && priorPlan)
                     ? uniqueIntList(priorPlan.category_ids || [])
                     : [];
+                const onlyStarred = isStarredOnlyModeActive();
+                const starredLookup = onlyStarred ? getStarredWordLookup() : {};
 
                 const recommendedPlan = buildModeChunkPlanFromRecommendation(normalizedMode, baseCategories, fetchedRecommendation);
                 let launchCategoryIds = [];
@@ -1460,7 +1511,9 @@
                     });
                     const fallback = buildFallbackChunkPlan(baseCategories, {
                         category_order: categoryOrder,
-                        avoid_word_ids: avoidWordIds
+                        avoid_word_ids: avoidWordIds,
+                        only_starred: onlyStarred,
+                        starred_lookup: starredLookup
                     });
                     launchCategoryIds = uniqueIntList(fallback.category_ids || []);
                     sessionWordIds = uniqueIntList(fallback.session_word_ids || []);
@@ -1480,7 +1533,9 @@
                                 prefer_different: false,
                                 avoid_category_ids: []
                             }),
-                            avoid_word_ids: []
+                            avoid_word_ids: [],
+                            only_starred: onlyStarred,
+                            starred_lookup: starredLookup
                         });
                         const retryPlan = {
                             category_ids: uniqueIntList(retryFallback.category_ids || []),
@@ -1532,9 +1587,13 @@
         }
 
         let sessionWordIds = uniqueIntList(next.session_word_ids || []);
+        sessionWordIds = filterWordIdsByCurrentStarMode(sessionWordIds);
         if (!sessionWordIds.length) {
+            const onlyStarred = isStarredOnlyModeActive();
             const fallback = buildFallbackChunkPlan(modeCategoryIds, {
-                category_order: buildModeCategoryOrder(next.mode, modeCategoryIds, { prefer_different: false })
+                category_order: buildModeCategoryOrder(next.mode, modeCategoryIds, { prefer_different: false }),
+                only_starred: onlyStarred,
+                starred_lookup: onlyStarred ? getStarredWordLookup() : {}
             });
             sessionWordIds = uniqueIntList(fallback.session_word_ids || []);
             if (fallback.category_ids && fallback.category_ids.length) {
