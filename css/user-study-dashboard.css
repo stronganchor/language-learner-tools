@@ -116,6 +116,11 @@ body.ll-study-check-open {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
+.ll-user-study-dashboard .ll-study-btn.ll-study-btn--hidden,
+.ll-user-study-dashboard .ll-vocab-lesson-mode-button.ll-study-btn--hidden {
+  display: none !important;
+}
+
 .ll-user-study-dashboard .ll-vocab-lesson-mode-button:hover,
 .ll-user-study-dashboard .ll-vocab-lesson-mode-button:focus-visible {
   border-color: rgba(31, 107, 92, 0.4) !important;

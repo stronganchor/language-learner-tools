@@ -634,7 +634,7 @@ function ll_qpg_print_flashcard_shell_once() {
               <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
                 <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option gender" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender">
+              <button class="ll-tools-mode-option gender hidden" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" aria-hidden="true">
                 <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">

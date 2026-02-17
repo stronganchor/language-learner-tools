@@ -59,6 +59,7 @@
     const $nextText = $root.find('[data-ll-study-next-text]');
     const $startNext = $root.find('[data-ll-study-start-next]');
     const $goalsModes = $root.find('[data-ll-goals-modes]');
+    const $goalGenderMode = $goalsModes.find('[data-ll-study-goal-gender]');
     const $goalDailyNew = $root.find('[data-ll-goal-daily-new]');
     const $goalMarkKnown = $root.find('[data-ll-goal-mark-known]');
     const $goalClearKnown = $root.find('[data-ll-goal-clear-known]');
@@ -1804,6 +1805,12 @@
     }
 
     function updateGenderButtonVisibility() {
+        const wordsetEnabled = isGenderEnabledForWordset();
+        if ($goalGenderMode.length) {
+            $goalGenderMode.toggleClass('ll-study-btn--hidden', !wordsetEnabled);
+            $goalGenderMode.attr('aria-hidden', wordsetEnabled ? 'false' : 'true');
+        }
+
         if (!$genderStart.length) { return; }
         const allowed = isGenderSupportedForSelection();
         $genderStart.toggleClass('ll-study-btn--hidden', !allowed);

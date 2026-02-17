@@ -222,7 +222,7 @@ SVG;
                         <button type="button" class="ll-study-btn tiny" data-goal-mode="learning"><?php echo esc_html($i18n['modeLearning']); ?></button>
                         <button type="button" class="ll-study-btn tiny" data-goal-mode="listening"><?php echo esc_html($i18n['modeListening']); ?></button>
                         <button type="button" class="ll-study-btn tiny" data-goal-mode="practice"><?php echo esc_html($i18n['modePractice']); ?></button>
-                        <button type="button" class="ll-study-btn tiny" data-goal-mode="gender"><?php echo esc_html($i18n['modeGender']); ?></button>
+                        <button type="button" class="ll-study-btn tiny ll-study-btn--hidden" data-goal-mode="gender" data-ll-study-goal-gender aria-hidden="true"><?php echo esc_html($i18n['modeGender']); ?></button>
                         <button type="button" class="ll-study-btn tiny" data-goal-mode="self-check"><?php echo esc_html($i18n['modeSelfCheck']); ?></button>
                     </div>
                     <label for="ll-study-daily-new" class="ll-study-goal-input-label"><?php echo esc_html($i18n['dailyNewLabel']); ?></label>

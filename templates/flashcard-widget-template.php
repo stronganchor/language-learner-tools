@@ -26,6 +26,10 @@ $tmpl_wordset = isset($wordset) ? (string) $wordset : '';
 $tmpl_wordset_fallback = !empty($wordset_fallback);
 $tmpl_ll_config = isset($ll_config) && is_array($ll_config) ? $ll_config : [];
 $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
+$tmpl_gender_options = isset($tmpl_ll_config['genderOptions']) && is_array($tmpl_ll_config['genderOptions'])
+  ? array_values(array_filter(array_map('strval', $tmpl_ll_config['genderOptions']), function ($opt) { return $opt !== ''; }))
+  : [];
+$tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($tmpl_gender_options) >= 2;
 ?>
 <div id="ll-tools-flashcard-container"
      class="ll-tools-flashcard-container"
@@ -125,7 +129,7 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
             <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option gender" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender">
+          <button class="ll-tools-mode-option gender<?php echo $tmpl_gender_mode_visible ? '' : ' hidden'; ?>" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender"<?php echo $tmpl_gender_mode_visible ? '' : ' aria-hidden="true"'; ?>>
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
           </button>
           <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
