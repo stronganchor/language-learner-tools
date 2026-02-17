@@ -1111,7 +1111,10 @@
             }
         } catch (_) { /* no-op */ }
 
-        loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig).then(function () {
+        const deferImagePreload = (promptType === 'audio');
+        loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
+            skipImagePreload: deferImagePreload
+        }).then(function () {
             // Pre-render content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
