@@ -623,7 +623,7 @@ function ll_render_word_images_columns($column, $post_id) {
  * Enqueue admin script for bulk edit category handling
  */
 function ll_word_images_enqueue_bulk_edit_script($hook) {
-    ll_enqueue_bulk_category_edit_script('word_images', 'll-word-images-bulk-edit', 'js/word-images-bulk-edit.js');
+    ll_enqueue_bulk_category_edit_script('word_images', 'll-word-images-bulk-edit', 'js/bulk-category-edit.js', 'll_word_images_get_common_categories');
 }
 add_action('admin_enqueue_scripts', 'll_word_images_enqueue_bulk_edit_script');
 

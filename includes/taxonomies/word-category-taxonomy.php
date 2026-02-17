@@ -1611,12 +1611,19 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
  * @param string $post_type The post type slug ('words' or 'word_images')
  * @param string $script_handle The script handle
  * @param string $script_path Relative path to the JS file
+ * @param string $ajax_action AJAX action used to fetch common categories
  */
-function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $script_path) {
+function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $script_path, $ajax_action = '') {
     global $pagenow, $typenow;
 
     if ($pagenow !== 'edit.php' || $typenow !== $post_type) {
         return;
+    }
+
+    if ($ajax_action === '') {
+        $ajax_action = ($post_type === 'word_images')
+            ? 'll_word_images_get_common_categories'
+            : 'll_words_get_common_categories';
     }
 
     ll_enqueue_asset_by_timestamp($script_path, $script_handle, ['jquery', 'inline-edit-post'], true);
@@ -1625,6 +1632,7 @@ function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $scrip
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_bulk_category_edit_' . $post_type),
         'postType' => $post_type,
+        'actionName' => sanitize_key($ajax_action),
     ]);
 }
 
@@ -1637,35 +1645,74 @@ function ll_get_common_categories_for_post_type($post_type) {
     check_ajax_referer('ll_bulk_category_edit_' . $post_type, 'nonce');
 
     if (!current_user_can('edit_posts')) {
-        wp_send_json_error('Permission denied');
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
-    $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+    $post_ids = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
 
     if (empty($post_ids)) {
-        wp_send_json_error('No posts selected');
+        wp_send_json_error(__('No posts selected', 'll-tools-text-domain'));
     }
 
-    // Get categories for each post
+    $common = ll_tools_get_common_word_category_ids_for_posts($post_ids, (string) $post_type);
+    wp_send_json_success(['common' => array_values($common)]);
+}
+
+/**
+ * Return word-category IDs common to all eligible posts in the given set.
+ * A post is eligible when it exists, matches the requested post type, and
+ * the current user can edit it.
+ *
+ * @param int[]  $post_ids
+ * @param string $post_type
+ * @return int[]
+ */
+function ll_tools_get_common_word_category_ids_for_posts(array $post_ids, string $post_type): array {
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
+    if (empty($post_ids) || $post_type === '') {
+        return [];
+    }
+
     $all_categories = [];
+
     foreach ($post_ids as $post_id) {
-        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($terms)) {
-            $all_categories[$post_id] = $terms;
+        $post = get_post($post_id);
+        if (!$post || $post->post_type !== $post_type) {
+            continue;
         }
+        if (!current_user_can('edit_post', $post_id)) {
+            continue;
+        }
+
+        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($terms)) {
+            continue;
+        }
+
+        $all_categories[] = array_values(array_unique(array_filter(array_map('intval', (array) $terms), function ($term_id) {
+            return $term_id > 0;
+        })));
     }
 
     if (empty($all_categories)) {
-        wp_send_json_success(['common' => []]);
+        return [];
     }
 
-    // Find categories common to ALL selected posts
     $common = array_shift($all_categories);
-    foreach ($all_categories as $post_cats) {
-        $common = array_intersect($common, $post_cats);
+    foreach ($all_categories as $post_categories) {
+        $common = array_values(array_intersect($common, $post_categories));
+        if (empty($common)) {
+            break;
+        }
     }
 
-    wp_send_json_success(['common' => array_values($common)]);
+    sort($common, SORT_NUMERIC);
+    return $common;
 }
 
 /**
@@ -1715,9 +1762,5 @@ function ll_handle_bulk_category_edit($post_id, $post_type) {
     // Only update if something changed
     if (count($new_terms) !== count($current_terms)) {
         wp_set_object_terms($post_id, array_values($new_terms), 'word-category', false);
-
-        // Log for debugging
-        error_log("LL Tools: $post_type post $post_id - Removed categories: " . implode(',', $categories_to_remove));
-        error_log("LL Tools: $post_type post $post_id - New categories: " . implode(',', $new_terms));
     }
 }

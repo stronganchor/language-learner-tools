@@ -854,21 +854,10 @@ function ll_tools_handle_export_bundle() {
 
     $token = wp_generate_password(20, false, false);
     $zip_path = trailingslashit($export_dir) . 'll-tools-export-' . $token . '.zip';
-    $zip = new ZipArchive();
-    if ($zip->open($zip_path, ZipArchive::OVERWRITE) !== true) {
-        wp_die(__('Could not create export zip.', 'll-tools-text-domain'));
+    $zip_result = ll_tools_write_export_bundle_zip($zip_path, (array) $export['data'], (array) $export['attachments']);
+    if (is_wp_error($zip_result)) {
+        wp_die($zip_result->get_error_message());
     }
-
-    $data_json = wp_json_encode($export['data']);
-    $zip->addFromString('data.json', $data_json);
-
-    foreach ($export['attachments'] as $attachment) {
-        if (!empty($attachment['path']) && file_exists($attachment['path'])) {
-            $zip->addFile($attachment['path'], $attachment['zip_path']);
-        }
-    }
-
-    $zip->close();
 
     $filename = ll_tools_build_export_zip_filename($include_full_bundle, $category_id, $full_wordset_id);
     $download_manifest = [
@@ -890,6 +879,64 @@ function ll_tools_handle_export_bundle() {
 
     wp_safe_redirect($download_url);
     exit;
+}
+
+/**
+ * Write export payload + media attachments into a zip file.
+ *
+ * @param string $zip_path Absolute destination path.
+ * @param array  $data_payload Export data payload for data.json.
+ * @param array  $attachments Media attachment map/list.
+ * @return true|WP_Error
+ */
+function ll_tools_write_export_bundle_zip(string $zip_path, array $data_payload, array $attachments) {
+    if (!class_exists('ZipArchive')) {
+        return new WP_Error('ll_tools_export_zip_missing', __('ZipArchive is not available on this server.', 'll-tools-text-domain'));
+    }
+
+    $zip = new ZipArchive();
+    $open_result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    if ($open_result !== true) {
+        return new WP_Error('ll_tools_export_zip_open_failed', __('Could not create export zip.', 'll-tools-text-domain'));
+    }
+
+    $data_json = wp_json_encode($data_payload);
+    if (!is_string($data_json) || $data_json === '') {
+        $zip->close();
+        @unlink($zip_path);
+        return new WP_Error('ll_tools_export_zip_data_json_failed', __('Could not encode export payload.', 'll-tools-text-domain'));
+    }
+
+    if (!$zip->addFromString('data.json', $data_json)) {
+        $zip->close();
+        @unlink($zip_path);
+        return new WP_Error('ll_tools_export_zip_data_file_failed', __('Could not add export data to the zip file.', 'll-tools-text-domain'));
+    }
+
+    foreach ($attachments as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+
+        $source_path = isset($attachment['path']) ? (string) $attachment['path'] : '';
+        $target_path = isset($attachment['zip_path']) ? ltrim((string) $attachment['zip_path'], '/') : '';
+        if ($source_path === '' || $target_path === '' || !is_file($source_path)) {
+            continue;
+        }
+
+        if (!$zip->addFile($source_path, $target_path)) {
+            $zip->close();
+            @unlink($zip_path);
+            return new WP_Error('ll_tools_export_zip_add_file_failed', __('Could not add media files to the export zip.', 'll-tools-text-domain'));
+        }
+    }
+
+    if (!$zip->close()) {
+        @unlink($zip_path);
+        return new WP_Error('ll_tools_export_zip_close_failed', __('Could not finalize export zip.', 'll-tools-text-domain'));
+    }
+
+    return true;
 }
 
 /**

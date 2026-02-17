@@ -197,6 +197,74 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNotSame('', (string) ($result['error'] ?? ''));
     }
 
+    public function test_recording_upload_validation_rejects_empty_file(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, '');
+
+        try {
+            $result = ll_tools_validate_recording_upload_file([
+                'name' => 'empty.wav',
+                'tmp_name' => $tmp,
+                'error' => UPLOAD_ERR_OK,
+                'size' => 0,
+            ], false);
+        } finally {
+            @unlink($tmp);
+        }
+
+        $this->assertFalse((bool) ($result['valid'] ?? true));
+        $this->assertSame(400, (int) ($result['status'] ?? 0));
+        $this->assertNotSame('', (string) ($result['error'] ?? ''));
+    }
+
+    public function test_recording_upload_validation_rejects_file_over_max_size(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, str_repeat('a', 16));
+
+        $max_size_filter = static function (): int {
+            return 8;
+        };
+        add_filter('ll_tools_max_recording_upload_bytes', $max_size_filter);
+
+        try {
+            $result = ll_tools_validate_recording_upload_file([
+                'name' => 'oversize.wav',
+                'tmp_name' => $tmp,
+                'error' => UPLOAD_ERR_OK,
+                'size' => 16,
+            ], false);
+        } finally {
+            remove_filter('ll_tools_max_recording_upload_bytes', $max_size_filter);
+            @unlink($tmp);
+        }
+
+        $this->assertFalse((bool) ($result['valid'] ?? true));
+        $this->assertSame(413, (int) ($result['status'] ?? 0));
+    }
+
+    public function test_recording_upload_validation_rejects_disallowed_extension(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.exe');
+        file_put_contents($tmp, "MZ fake payload");
+
+        try {
+            $result = ll_tools_validate_recording_upload_file([
+                'name' => 'payload.exe',
+                'tmp_name' => $tmp,
+                'error' => UPLOAD_ERR_OK,
+                'size' => 15,
+            ], false);
+        } finally {
+            @unlink($tmp);
+        }
+
+        $this->assertFalse((bool) ($result['valid'] ?? true));
+        $this->assertSame('', (string) ($result['ext'] ?? ''));
+        $this->assertSame(400, (int) ($result['status'] ?? 0));
+    }
+
     public function test_manage_word_sets_shortcode_uses_ll_tools_handler(): void
     {
         global $shortcode_tags;

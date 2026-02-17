@@ -73,7 +73,7 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
     public function test_placement_known_category_biases_recommendation_to_self_check(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
-        $fixture = $this->create_wordset_category_with_words(4);
+        $fixture = $this->create_wordset_category_with_words(6);
 
         ll_tools_save_user_study_goals([
             'enabled_modes' => ['learning', 'practice', 'self-check', 'listening'],

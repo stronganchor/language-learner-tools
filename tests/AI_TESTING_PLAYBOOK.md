@@ -116,6 +116,10 @@ Local site returns `500`:
 - Check Local DB service and `DB_HOST` in site `wp-config.php`.
 - Confirm MySQL port matches active Local run config.
 
+`Deadlock found when trying to get lock` during PHPUnit:
+- Usually caused by running multiple `tests/bin/run-tests.sh` commands in parallel against the same `wptests` DB.
+- Run PHPUnit serially (one process at a time) for reliable results.
+
 Playwright shows Local router `404 Site Not Found`:
 - The hostname route is not active in Local Router.
 - Use a reachable `LL_E2E_BASE_URL` in `tests/.env` (for example active Local domain or resolved localhost URL).

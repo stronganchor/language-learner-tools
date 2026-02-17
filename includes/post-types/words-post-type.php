@@ -640,7 +640,7 @@ add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
  * Enqueue admin script for bulk edit category handling
  */
 function ll_words_enqueue_bulk_edit_script($hook) {
-    ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/words-bulk-edit.js');
+    ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/bulk-category-edit.js', 'll_words_get_common_categories');
 }
 add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
 

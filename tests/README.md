@@ -181,6 +181,7 @@ tests/bin/run-e2e.sh specs/user-study-dashboard-mode-options.spec.js
 ## Notes
 
 - Tests run against a WordPress test database, not your production site DB.
+- Avoid running multiple PHPUnit commands in parallel against the same `wptests` database; InnoDB deadlocks can produce intermittent false failures.
 - Keep all new tests under `tests/Integration/` and use translation-ready messages in assertions where relevant.
 - `run-tests.sh` supports either Linux PHP or Local Windows `php.exe` through `bin/php-local.sh`.
 - `install-wp-tests.sh` writes `WP_PHP_BINARY` and `$table_prefix` into `wp-tests-config.php` for Local Windows PHP compatibility.

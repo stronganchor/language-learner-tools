@@ -129,8 +129,7 @@ js/
   user-study-dashboard.js
   word-audio.js
   manage-wordsets.js
-  words-bulk-edit.js
-  word-images-bulk-edit.js
+  bulk-category-edit.js
 css/
   language-learner-tools.css
   quiz-pages.css
