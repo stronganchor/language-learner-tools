@@ -1,0 +1,184 @@
+.ll-tools-login-window-wrap {
+  --ll-login-bg: #ffffff;
+  --ll-login-border: #d6d9df;
+  --ll-login-text: #18202a;
+  --ll-login-muted: #4a5a6c;
+  --ll-login-accent: #0f6b4d;
+  --ll-login-accent-hover: #0b553d;
+  --ll-login-shadow: 0 14px 34px rgba(16, 24, 40, 0.12);
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ll-tools-login-window-wrap *,
+.ll-tools-login-window-wrap *::before,
+.ll-tools-login-window-wrap *::after {
+  box-sizing: border-box;
+}
+
+.ll-tools-login-window {
+  width: min(100%, 420px);
+  border: 1px solid var(--ll-login-border);
+  border-radius: 16px;
+  background: var(--ll-login-bg);
+  box-shadow: var(--ll-login-shadow);
+  color: var(--ll-login-text);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.ll-tools-login-window__icon {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: #ecfdf3;
+  border: 1px solid #b7efcc;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.65rem;
+  color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: currentColor;
+}
+
+.ll-tools-login-window__title {
+  margin: 0;
+  color: var(--ll-login-text);
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+
+.ll-tools-login-window__message {
+  margin: 0.55rem 0 1rem;
+  color: var(--ll-login-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.ll-tools-login-window__form form {
+  margin: 0;
+  text-align: left;
+}
+
+.ll-tools-login-window__form form p {
+  margin: 0 0 0.75rem;
+}
+
+.ll-tools-login-window__form label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ll-login-text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ll-tools-login-window__form input[type="text"],
+.ll-tools-login-window__form input[type="email"],
+.ll-tools-login-window__form input[type="password"] {
+  width: 100%;
+  min-height: 2.6rem;
+  margin: 0;
+  border: 1px solid #b9c0cb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  box-shadow: none;
+}
+
+.ll-tools-login-window__form input[type="text"]:focus,
+.ll-tools-login-window__form input[type="email"]:focus,
+.ll-tools-login-window__form input[type="password"]:focus {
+  outline: 2px solid rgba(15, 107, 77, 0.35);
+  outline-offset: 1px;
+  border-color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__form .login-remember {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.ll-tools-login-window__form .login-remember label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ll-login-muted);
+  font-weight: 500;
+}
+
+.ll-tools-login-window__form input[type="checkbox"] {
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+}
+
+.ll-tools-login-window__form .login-submit {
+  margin-top: 0.8rem;
+}
+
+.ll-tools-login-window__form .button,
+.ll-tools-login-window__form [type="submit"] {
+  appearance: none;
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid var(--ll-login-accent);
+  border-radius: 10px;
+  background: var(--ll-login-accent);
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.ll-tools-login-window__form .button:hover,
+.ll-tools-login-window__form .button:focus,
+.ll-tools-login-window__form [type="submit"]:hover,
+.ll-tools-login-window__form [type="submit"]:focus {
+  background: var(--ll-login-accent-hover);
+  border-color: var(--ll-login-accent-hover);
+  color: #ffffff;
+}
+
+.ll-tools-login-window__assist {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+}
+
+.ll-tools-login-window__assist a {
+  color: var(--ll-login-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.1em;
+}
+
+.ll-tools-login-window__assist a:hover,
+.ll-tools-login-window__assist a:focus {
+  color: var(--ll-login-accent-hover);
+}
+
+@media (max-width: 640px) {
+  .ll-tools-login-window-wrap {
+    padding: 0.65rem;
+  }
+
+  .ll-tools-login-window {
+    padding: 1rem;
+  }
+}

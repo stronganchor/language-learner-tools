@@ -1043,6 +1043,23 @@ body.ll-study-check-open {
 .ll-study-check .ll-study-check-summary {
   font-weight: 700;
   margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.ll-study-check .ll-study-check-summary .ll-study-check-summary-icon {
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0 0.12em 0 0.04em;
+  vertical-align: -0.08em;
+  color: #111827 !important;
+}
+
+.ll-study-check .ll-study-check-summary .ll-study-check-summary-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .ll-study-check .ll-study-check-hint {
@@ -1053,12 +1070,19 @@ body.ll-study-check-open {
 .ll-study-check .ll-study-check-complete-actions {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .ll-study-check .ll-study-check-followup {
   margin-top: 14px;
+}
+
+.ll-study-check .ll-study-check-followup.ll-study-check-followup-inline {
+  margin-top: 0;
+  align-items: center;
+  gap: 10px;
 }
 
 .ll-user-study-dashboard #ll-tools-start-flashcard {

@@ -1586,7 +1586,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 #ll-study-results-actions .ll-vocab-lesson-mode-button {
-    flex: 1 1 190px;
+    flex: 0 1 auto;
     max-width: 300px;
     min-width: 170px;
 }

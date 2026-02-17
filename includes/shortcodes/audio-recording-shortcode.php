@@ -593,9 +593,13 @@ function ll_tools_remove_hidden_recording_word(int $user_id, string $hide_key, i
 function ll_audio_recording_interface_shortcode($atts) {
     // Require user to be logged in
     if (!is_user_logged_in()) {
-        return '<div class="ll-recording-interface"><p>' .
-               __('You must be logged in to record audio.', 'll-tools-text-domain') .
-               ' <a href="' . wp_login_url(get_permalink()) . '">' . __('Log in', 'll-tools-text-domain') . '</a></p></div>';
+        return ll_tools_render_login_window([
+            'container_class' => 'll-recording-interface ll-login-required',
+            'title' => __('Sign in to record', 'll-tools-text-domain'),
+            'message' => __('Use an account with recording access to continue.', 'll-tools-text-domain'),
+            'submit_label' => __('Continue', 'll-tools-text-domain'),
+            'redirect_to' => ll_tools_get_current_request_url(),
+        ]);
     }
 
     if (!ll_tools_user_can_record()) {

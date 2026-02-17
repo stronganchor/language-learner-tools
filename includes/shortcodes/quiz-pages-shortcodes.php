@@ -761,12 +761,27 @@ function ll_qpg_print_flashcard_shell_once() {
                 : '';
             var currentWordset = wordset;
             var wordsetChanged = (previousWordset !== currentWordset);
+            var launchContext = (opts && typeof opts.launchContext === 'string')
+                ? String(opts.launchContext || '').toLowerCase()
+                : '';
+            if (!launchContext && opts && opts.triggerEl) {
+                try {
+                    var triggerEl = opts.triggerEl;
+                    var isVocabLessonTrigger = !!(
+                        (triggerEl.classList && triggerEl.classList.contains('ll-vocab-lesson-mode-button')) ||
+                        (triggerEl.closest && triggerEl.closest('[data-ll-vocab-lesson], .ll-vocab-lesson-page'))
+                    );
+                    launchContext = isVocabLessonTrigger ? 'vocab_lesson' : 'quiz_pages';
+                } catch (_) {}
+            }
 
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
                 window.llToolsFlashcardsData.wordsetFallback = false;
                 window.llToolsFlashcardsData.quiz_mode = mode;
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
+                window.llToolsFlashcardsData.launchContext = launchContext;
+                window.llToolsFlashcardsData.launch_context = launchContext;
                 if (mode === 'gender') {
                     delete window.llToolsFlashcardsData.genderSessionPlan;
                     delete window.llToolsFlashcardsData.genderSessionPlanArmed;

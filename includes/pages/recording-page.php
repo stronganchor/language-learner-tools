@@ -228,12 +228,25 @@ function ll_get_recording_redirect_url($user_id = 0) {
  * Redirect audio_recorder users to their designated recording page on login
  */
 function ll_audio_recorder_login_redirect($redirect_to, $request, $user) {
-    // Only redirect if it's a WP_User object and has audio_recorder role
-    if (isset($user->roles) && is_array($user->roles) && in_array('audio_recorder', $user->roles)) {
-        return ll_get_recording_redirect_url($user->ID);
+    if (!($user instanceof WP_User)) {
+        return $redirect_to;
+    }
+    if (user_can($user, 'manage_options')) {
+        return $redirect_to;
     }
 
-    return $redirect_to;
+    if (!in_array('audio_recorder', (array) $user->roles, true)) {
+        return $redirect_to;
+    }
+
+    $requested_redirect = function_exists('ll_tools_get_valid_login_redirect_request')
+        ? ll_tools_get_valid_login_redirect_request($request)
+        : '';
+    if ($requested_redirect !== '') {
+        return $requested_redirect;
+    }
+
+    return ll_get_recording_redirect_url((int) $user->ID);
 }
 // High priority to win over other plugins altering login redirects
 add_filter('login_redirect', 'll_audio_recorder_login_redirect', 999, 3);

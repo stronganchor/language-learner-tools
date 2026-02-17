@@ -368,6 +368,7 @@ if (have_posts()) {
                             $mode_url = $embed_base;
                             if ($mode_url !== '') {
                                 $args = ['mode' => $mode];
+                                $args['ll_context'] = 'vocab_lesson';
                                 if ($wordset_slug !== '') {
                                     $args['wordset'] = $wordset_slug;
                                 }

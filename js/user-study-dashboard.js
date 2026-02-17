@@ -744,14 +744,21 @@
         setModeActionButtonContent($button, '', labelText, '↻');
     }
 
-    function setPlanActionButtonContent($button, plan, fallbackText) {
+    function setPlanActionButtonContent($button, plan, fallbackText, fallbackMode) {
         const target = (plan && typeof plan === 'object') ? plan : null;
         const label = target ? getPlanCategorySummary(target) : String(fallbackText || '');
-        const mode = target ? normalizeProgressMode(target.mode) : '';
+        const mode = normalizeProgressMode((target && target.mode) || fallbackMode || '');
         if (!mode) {
             setModeActionButtonContent($button, '', label, '');
             return;
         }
+        setModeActionButtonContent($button, mode, label, modeIconFallback(mode));
+    }
+
+    function setCategorySwitchActionButtonContent($button, currentMode, plan, fallbackText) {
+        const target = (plan && typeof plan === 'object') ? plan : null;
+        const label = target ? getPlanCategorySummary(target) : String(fallbackText || '');
+        const mode = normalizeProgressMode(currentMode || (target && target.mode) || '');
         setModeActionButtonContent($button, mode, label, modeIconFallback(mode));
     }
 
@@ -1490,7 +1497,7 @@
 
         if ($resultsDifferentChunk.length) {
             if (showDifferent) {
-                setPlanActionButtonContent($resultsDifferentChunk, differentPlan, i18n.categoriesLabel || 'Categories');
+                setCategorySwitchActionButtonContent($resultsDifferentChunk, currentMode, differentPlan, i18n.categoriesLabel || 'Categories');
                 $resultsDifferentChunk.show().prop('disabled', false);
             } else {
                 $resultsDifferentChunk.hide().prop('disabled', false);
@@ -1499,7 +1506,7 @@
 
         if ($resultsNextChunk.length) {
             if (showNext) {
-                setPlanActionButtonContent($resultsNextChunk, nextPlan, i18n.categoriesLabel || 'Categories');
+                setPlanActionButtonContent($resultsNextChunk, nextPlan, i18n.categoriesLabel || 'Categories', currentMode);
                 $resultsNextChunk.show().prop('disabled', false);
             } else {
                 $resultsNextChunk.hide().prop('disabled', false);
@@ -1658,6 +1665,7 @@
         const repeatPlan = getCurrentSelfCheckRepeatPlan();
         const differentPlan = checkFollowupDifferentPlan;
         const nextPlan = checkFollowupNextPlan;
+        const currentMode = normalizeProgressMode((repeatPlan && repeatPlan.mode) || 'self-check');
         const nextMode = normalizeProgressMode(nextPlan && nextPlan.mode);
         const showNext = !!nextPlan &&
             !!nextMode &&
@@ -1669,7 +1677,7 @@
 
         if ($checkFollowupDifferent.length) {
             if (showDifferent) {
-                setPlanActionButtonContent($checkFollowupDifferent, differentPlan, i18n.categoriesLabel || 'Categories');
+                setCategorySwitchActionButtonContent($checkFollowupDifferent, currentMode, differentPlan, i18n.categoriesLabel || 'Categories');
                 $checkFollowupDifferent.show().prop('disabled', false);
             } else {
                 $checkFollowupDifferent.hide().prop('disabled', false);
@@ -1678,7 +1686,7 @@
 
         if ($checkFollowupNext.length) {
             if (showNext) {
-                setPlanActionButtonContent($checkFollowupNext, nextPlan, i18n.categoriesLabel || 'Categories');
+                setPlanActionButtonContent($checkFollowupNext, nextPlan, i18n.categoriesLabel || 'Categories', currentMode);
                 $checkFollowupNext.show().prop('disabled', false);
             } else {
                 $checkFollowupNext.hide().prop('disabled', false);
@@ -1690,7 +1698,7 @@
         }
 
         if (showDifferent || showNext) {
-            $checkFollowup.show();
+            $checkFollowup.css('display', 'inline-flex');
         } else {
             $checkFollowup.hide();
         }
@@ -2188,10 +2196,20 @@
         const close = Math.max(0, parseInt(safe.close, 10) || 0);
         const right = Math.max(0, parseInt(safe.right, 10) || 0);
         const unsureOrWrong = unsure + wrong;
+        const crossIcon = buildCheckSummaryIconHtml('wrong');
+        const closeIcon = buildCheckSummaryIconHtml('close');
+        const rightIcon = buildCheckSummaryIconHtml('right');
         return formatTemplate(
-            i18n.checkSummaryCompact || 'Self check complete: x %1$d, ~ %2$d, ✓ %3$d.',
-            [unsureOrWrong, close, right]
+            i18n.checkSummaryCompactHtml || 'Self check complete: %1$s %2$d, %3$s %4$d, %5$s %6$d.',
+            [crossIcon, unsureOrWrong, closeIcon, close, rightIcon, right]
         );
+    }
+
+    function buildCheckSummaryIconHtml(choiceValue) {
+        const $icon = buildCheckActionIcon(choiceValue);
+        if (!$icon || !$icon.length) { return ''; }
+        $icon.addClass('ll-study-check-summary-icon').attr('aria-hidden', 'true');
+        return $('<div>').append($icon).html();
     }
 
     function buildCheckActionIcon(choiceValue) {
@@ -2526,7 +2544,7 @@
     function showCheckComplete() {
         if (!checkSession) { return; }
         const total = checkSession.items.length || 0;
-        $checkSummary.text(formatCheckSummaryFromCounts(checkSession.counts || {}));
+        $checkSummary.html(formatCheckSummaryFromCounts(checkSession.counts || {}));
         if (total) {
             $checkProgress.text(total + ' / ' + total);
         }
@@ -3069,6 +3087,8 @@
             const catNames = orderedCats.map(function (cat) { return cat.name; });
 
             const flashData = window.llToolsFlashcardsData || {};
+            flashData.launchContext = 'dashboard';
+            flashData.launch_context = 'dashboard';
             flashData.categories = orderedCats;
             flashData.categoriesPreselected = true;
             flashData.firstCategoryName = catNames[0] || '';

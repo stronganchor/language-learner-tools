@@ -123,6 +123,11 @@
         try {
             // If some other script replaced the global with a custom one, still call it:
             var opts = { url: url, triggerEl: trigger };
+            var isVocabLessonTrigger = !!(
+                trigger.classList.contains('ll-vocab-lesson-mode-button') ||
+                trigger.closest('[data-ll-vocab-lesson], .ll-vocab-lesson-page')
+            );
+            opts.launchContext = isVocabLessonTrigger ? 'vocab_lesson' : 'quiz_pages';
             var mode = trigger.getAttribute('data-mode') || '';
             var wordsetId = trigger.getAttribute('data-wordset-id') || '';
             var wordset = trigger.getAttribute('data-wordset') || '';

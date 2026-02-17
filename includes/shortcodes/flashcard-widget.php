@@ -416,6 +416,17 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         $user_study_state = ll_tools_get_user_study_state();
     }
 
+    $launch_context = '';
+    if (isset($atts['launch_context'])) {
+        $launch_context = sanitize_key((string) $atts['launch_context']);
+    }
+    if ($launch_context === '' && isset($_GET['ll_context'])) {
+        $launch_context = sanitize_key((string) wp_unslash($_GET['ll_context']));
+    }
+    if (!in_array($launch_context, ['vocab_lesson', 'dashboard', 'quiz_pages'], true)) {
+        $launch_context = '';
+    }
+
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
     $localized_data = [
         'mode'                  => $mode,
@@ -452,6 +463,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'genderVisualConfig'   => $gender_visual_config,
         'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
+        'launchContext'        => $launch_context,
+        'launch_context'       => $launch_context,
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -485,6 +498,7 @@ function ll_tools_flashcard_widget($atts) {
         'wordset'   => '',
         'wordset_fallback' => true,
         'quiz_mode' => 'practice',
+        'launch_context' => '',
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';

@@ -6,6 +6,7 @@ require_once(__DIR__ . '/assets.php');
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
+require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
@@ -27,6 +28,7 @@ require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');
 require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
+require_once(__DIR__ . '/user-roles/learner-role.php');
 require_once(__DIR__ . '/user-roles/audio-recorder-role.php');
 
 // Include admin functionality

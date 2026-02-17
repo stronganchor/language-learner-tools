@@ -202,6 +202,178 @@
         return 'practice';
     }
 
+    function normalizeProgressMode(mode) {
+        const key = String(mode || '').trim().toLowerCase();
+        if (key === 'selfcheck') { return 'self-check'; }
+        return key;
+    }
+
+    function modeIconFallback(mode) {
+        const key = normalizeProgressMode(mode);
+        if (key === 'learning') { return '🎓'; }
+        if (key === 'practice') { return '❓'; }
+        if (key === 'listening') { return '🎧'; }
+        if (key === 'gender') { return '⚥'; }
+        if (key === 'self-check') { return '✔✖'; }
+        return '';
+    }
+
+    function getModeUiConfig(mode) {
+        const data = root.llToolsFlashcardsData || {};
+        const modeUi = (data.modeUi && typeof data.modeUi === 'object') ? data.modeUi : {};
+        const key = normalizeProgressMode(mode);
+        if (!key || !modeUi[key] || typeof modeUi[key] !== 'object') {
+            return {};
+        }
+        return modeUi[key];
+    }
+
+    function modeLabel(mode) {
+        const ui = getModeUiConfig(mode);
+        const text = String(ui.resultsButtonText || '').trim();
+        if (text) { return text; }
+        const key = normalizeProgressMode(mode);
+        if (key === 'learning') { return 'Learning'; }
+        if (key === 'practice') { return 'Practice'; }
+        if (key === 'listening') { return 'Listening'; }
+        if (key === 'gender') { return 'Gender'; }
+        if (key === 'self-check') { return 'Self check'; }
+        return 'Practice';
+    }
+
+    function buildModeIconElement(mode, fallbackEmoji) {
+        const ui = getModeUiConfig(mode);
+        const svg = String(ui && ui.svg ? ui.svg : '').trim();
+        if (svg) {
+            const $icon = $('<span>', { class: 'll-vocab-lesson-mode-icon', 'aria-hidden': 'true' });
+            $icon.html(svg);
+            return $icon;
+        }
+        const emoji = String(ui && ui.icon ? ui.icon : (fallbackEmoji || modeIconFallback(mode))).trim();
+        if (!emoji) {
+            return null;
+        }
+        return $('<span>', {
+            class: 'll-vocab-lesson-mode-icon',
+            'aria-hidden': 'true',
+            'data-emoji': emoji
+        });
+    }
+
+    function styleFollowupButton($button) {
+        if (!$button || !$button.length) { return; }
+        $button
+            .removeClass('quiz-mode-button')
+            .removeClass('ghost')
+            .addClass('ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button');
+    }
+
+    function setModeActionButtonContent($button, mode, labelText, fallbackEmoji) {
+        if (!$button || !$button.length) { return; }
+        styleFollowupButton($button);
+        $button.empty();
+        const $icon = buildModeIconElement(mode, fallbackEmoji);
+        if ($icon) {
+            $button.append($icon);
+        }
+        $button.append($('<span>', {
+            class: 'll-vocab-lesson-mode-label',
+            text: String(labelText || '').trim()
+        }));
+    }
+
+    function setRedoActionButtonContent($button, labelText) {
+        setModeActionButtonContent($button, '', labelText, '↻');
+    }
+
+    function isVocabLessonLaunchContext() {
+        const data = root.llToolsFlashcardsData || {};
+        const context = String(data.launchContext || data.launch_context || '').trim().toLowerCase();
+        return context === 'vocab_lesson';
+    }
+
+    function getNextModeInLessonSequence(currentMode, genderAllowed) {
+        const key = normalizeProgressMode(currentMode) || 'practice';
+        if (key === 'learning') { return 'practice'; }
+        if (key === 'practice') { return genderAllowed ? 'gender' : 'listening'; }
+        if (key === 'gender') { return 'listening'; }
+        if (key === 'listening') { return 'self-check'; }
+        if (key === 'self-check') { return 'practice'; }
+        return 'practice';
+    }
+
+    function triggerModeRestart(mode) {
+        const key = normalizeProgressMode(mode);
+        const selectorByMode = {
+            practice: '#restart-practice-mode',
+            learning: '#restart-learning-mode',
+            listening: '#restart-listening-mode',
+            'self-check': '#restart-self-check-mode',
+            gender: '#restart-gender-mode'
+        };
+        const selector = selectorByMode[key] || selectorByMode.practice;
+        const $button = $(selector);
+        if ($button.length) {
+            $button.trigger('click');
+            return;
+        }
+
+        const main = root.LLFlashcards && root.LLFlashcards.Main;
+        if (main && typeof main.switchMode === 'function') {
+            main.switchMode(key || 'practice');
+        }
+    }
+
+    function renderVocabLessonResultsActions(currentMode, genderAllowed) {
+        if (!isVocabLessonLaunchContext()) {
+            return false;
+        }
+        const $actions = $('#ll-study-results-actions');
+        if (!$actions.length) {
+            return false;
+        }
+
+        const normalizedCurrentMode = normalizeProgressMode(currentMode) || 'practice';
+        const nextMode = getNextModeInLessonSequence(normalizedCurrentMode, !!genderAllowed);
+        const $same = $('#ll-study-results-same-chunk');
+        const $different = $('#ll-study-results-different-chunk');
+        const $next = $('#ll-study-results-next-chunk');
+        const $suggestion = $('#ll-study-results-suggestion');
+
+        if ($same.length) {
+            const repeatLabel = ($same.attr('data-default-label') || $same.text() || 'Repeat').trim();
+            $same.attr('data-default-label', repeatLabel);
+            setRedoActionButtonContent($same, repeatLabel);
+            $same.show().prop('disabled', false);
+            $same.off('click.llLessonResults').on('click.llLessonResults', function (e) {
+                e.preventDefault();
+                triggerModeRestart(normalizedCurrentMode);
+            });
+        }
+
+        if ($different.length) {
+            setModeActionButtonContent($different, nextMode, modeLabel(nextMode), modeIconFallback(nextMode));
+            $different.show().prop('disabled', false);
+            $different.off('click.llLessonResults').on('click.llLessonResults', function (e) {
+                e.preventDefault();
+                triggerModeRestart(nextMode);
+            });
+        }
+
+        if ($next.length) {
+            $next.hide().prop('disabled', false).off('click.llLessonResults');
+        }
+        if ($suggestion.length) {
+            $suggestion.text('').hide();
+        }
+
+        $('#quiz-mode-buttons').hide();
+        $('#ll-gender-results-actions').hide();
+        $('#restart-quiz').hide();
+        $actions.show();
+        return true;
+    }
+
     function emitResultsShown(extra) {
         try {
             const payload = Object.assign(
@@ -222,7 +394,9 @@
         $('#ll-gender-next-activity, #ll-gender-next-chunk').hide();
         $('#ll-study-results-actions').hide();
         $('#ll-study-results-suggestion').hide().empty();
-        $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk').hide();
+        $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk')
+            .hide()
+            .off('click.llLessonResults');
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
@@ -347,6 +521,7 @@
             if (completedWords === totalWords) {
                 Effects.startConfetti();
             }
+            renderVocabLessonResultsActions('learning', genderAllowed);
             emitResultsShown({ total: totalWords, correct: completedWords });
             return;
         }
@@ -373,6 +548,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
+            renderVocabLessonResultsActions('listening', genderAllowed);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -434,6 +610,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
+            renderVocabLessonResultsActions('gender', genderAllowed);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -492,6 +669,7 @@
                     root.FlashcardAudio.playFeedback(false, null, null);
                 }
             } catch (_) { }
+            renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed);
             emitResultsShown({ total: 0, correct: 0 });
             return;
         }
@@ -533,6 +711,7 @@
         }
 
         if (ratio >= 0.7) Effects.startConfetti();
+        renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed);
         emitResultsShown({ total: total, correct: State.quizResults.correctOnFirstTry });
     }
 

@@ -788,9 +788,13 @@ add_action('wp_ajax_ll_get_editor_hub_items', 'll_get_editor_hub_items_handler')
 
 function ll_editor_hub_shortcode($atts) {
     if (!is_user_logged_in()) {
-        return '<div class="ll-editor-hub"><p>'
-            . esc_html__('You must be logged in to access Editor Hub.', 'll-tools-text-domain')
-            . ' <a href="' . esc_url(wp_login_url(get_permalink())) . '">' . esc_html__('Log in', 'll-tools-text-domain') . '</a></p></div>';
+        return ll_tools_render_login_window([
+            'container_class' => 'll-editor-hub ll-login-required',
+            'title' => __('Sign in to access Editor Hub', 'll-tools-text-domain'),
+            'message' => __('Use an account with editor access to continue.', 'll-tools-text-domain'),
+            'submit_label' => __('Continue', 'll-tools-text-domain'),
+            'redirect_to' => ll_tools_get_current_request_url(),
+        ]);
     }
 
     if (!ll_tools_editor_hub_user_can_access()) {

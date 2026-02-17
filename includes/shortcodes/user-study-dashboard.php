@@ -25,28 +25,13 @@ add_action('wp_enqueue_scripts', 'll_tools_user_study_maybe_enqueue_assets');
 
 function ll_tools_user_study_dashboard_shortcode($atts) {
     if (!is_user_logged_in()) {
-        global $wp;
-
-        $request_path = isset($wp->request) ? $wp->request : '';
-        $query_args   = !empty($_GET) ? wp_unslash($_GET) : [];
-        $redirect_path = $request_path;
-        if (!empty($query_args)) {
-            $redirect_path = add_query_arg($query_args, $request_path);
-        }
-
-        $redirect_to = home_url(ltrim((string) $redirect_path, '/'));
-        $login_url   = wp_login_url(esc_url_raw($redirect_to));
-
-        $message = sprintf(
-            wp_kses(
-                /* translators: %s: login URL */
-                __('Please <a href="%s">log in</a> to save your study preferences. We will bring you back to this page after you sign in.', 'll-tools-text-domain'),
-                ['a' => ['href' => []]]
-            ),
-            esc_url($login_url)
-        );
-
-        return '<div class="ll-user-study-dashboard ll-login-required"><p>' . $message . '</p></div>';
+        return ll_tools_render_login_window([
+            'container_class' => 'll-user-study-dashboard ll-login-required',
+            'title' => __('Sign in to study', 'll-tools-text-domain'),
+            'message' => __('Use your account to open your study panel and keep your progress.', 'll-tools-text-domain'),
+            'submit_label' => __('Open study panel', 'll-tools-text-domain'),
+            'redirect_to' => ll_tools_get_current_request_url(),
+        ]);
     }
 
     $payload = ll_tools_build_user_study_payload(get_current_user_id());
@@ -118,6 +103,7 @@ SVG;
         'checkThinkKnow'   => __('I think I know it', 'll-tools-text-domain'),
         'checkSummary'     => __('Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right.', 'll-tools-text-domain'),
         'checkSummaryCompact' => __('Self check complete: x %1$d, ~ %2$d, ✓ %3$d.', 'll-tools-text-domain'),
+        'checkSummaryCompactHtml' => __('Self check complete: %1$s %2$d, %3$s %4$d, %5$s %6$d.', 'll-tools-text-domain'),
         'checkPhasePrompt' => __('What do you think this word is?', 'll-tools-text-domain'),
         'checkPhaseResult' => __('Listen, then choose your result.', 'll-tools-text-domain'),
         'checkGotRight'    => __('I got it right', 'll-tools-text-domain'),
@@ -285,14 +271,12 @@ SVG;
                     <p class="ll-study-check-summary" data-ll-study-check-summary></p>
                     <div class="ll-study-check-complete-actions">
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-restart><?php echo esc_html($i18n['checkRestart']); ?></button>
-                    </div>
-                    <div class="ll-study-check-followup" data-ll-study-check-followup style="display:none;">
-                        <p class="ll-study-check-hint" data-ll-study-check-followup-text></p>
-                        <div class="ll-study-check-complete-actions">
+                        <span class="ll-study-check-followup ll-study-check-followup-inline" data-ll-study-check-followup style="display:none;">
                             <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-different><?php echo esc_html__('New words', 'll-tools-text-domain'); ?></button>
                             <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button" data-ll-study-check-followup-next><?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?></button>
-                        </div>
+                        </span>
                     </div>
+                    <p class="ll-study-check-hint" data-ll-study-check-followup-text style="display:none;"></p>
                 </div>
             </div>
         </div>

@@ -210,6 +210,9 @@ function ll_tools_editor_hub_login_redirect($redirect_to, $request, $user) {
     if (!($user instanceof WP_User)) {
         return $redirect_to;
     }
+    if (user_can($user, 'manage_options')) {
+        return $redirect_to;
+    }
 
     $roles = (array) $user->roles;
     if (in_array('audio_recorder', $roles, true)) {
@@ -217,6 +220,13 @@ function ll_tools_editor_hub_login_redirect($redirect_to, $request, $user) {
     }
 
     if (in_array('ll_tools_editor', $roles, true)) {
+        $requested_redirect = function_exists('ll_tools_get_valid_login_redirect_request')
+            ? ll_tools_get_valid_login_redirect_request($request)
+            : '';
+        if ($requested_redirect !== '') {
+            return $requested_redirect;
+        }
+
         return ll_get_editor_hub_redirect_url((int) $user->ID);
     }
 
