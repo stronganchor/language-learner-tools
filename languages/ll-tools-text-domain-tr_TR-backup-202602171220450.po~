@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-02-17 12:21+0000\n"
+"PO-Revision-Date: 2026-02-17 12:19+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -18,7 +18,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:120
 #, php-format
 msgid "%1$d / %2$d complete"
-msgstr "%1$d / %2$d tamamlandı"
+msgstr "1$d / %2$d tamamlandı"
 
 #: includes/shortcodes/user-study-dashboard.php:153
 #, php-format
@@ -1336,8 +1336,9 @@ msgid "Grammatical gender is not enabled for this word set."
 msgstr "Bu sözcük kümesi için dilbilgisel cinsiyet etkinleştirilmemiştir."
 
 #: includes/shortcodes/flashcard-widget.php:162
-msgid "Great work. Continue?"
-msgstr "İyi iş çıkardın. Devam edelim mi?"
+#, php-format
+msgid "Great work. Continue with set %1$d of %2$d?"
+msgstr "Harika iş. 2$d'nin %1$d seti ile devam edelim mi?"
 
 #: includes/admin/word-option-rules-admin.php:755
 msgid "Group names"
@@ -3211,7 +3212,7 @@ msgstr "Çalışma ayarları"
 #: includes/admin/audio-processor-admin.php:117
 #, php-format
 msgid "Success! Saved %1$d of %2$d files."
-msgstr "Başarılı! %2$d dosyadan %1$d'si kaydedildi."
+msgstr "Başarılı! 2$d dosyadan %1$d'si kaydedildi."
 
 #: includes/taxonomies/word-category-taxonomy.php:1372
 msgid "Successfully added %d category."

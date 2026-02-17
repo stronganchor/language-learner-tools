@@ -159,7 +159,7 @@ function ll_flashcards_get_messages(): array {
         // Results page messages
         'learningComplete'        => __('Learning Complete!', 'll-tools-text-domain'),
         'learningCompleteMessage' => __('✓', 'll-tools-text-domain'),
-        'learningContinuePrompt'  => __('Great work. Continue with set %1$d of %2$d?', 'll-tools-text-domain'),
+        'learningContinuePrompt'  => __('Great work. Continue?', 'll-tools-text-domain'),
         'learningContinueButton'  => __('Continue Learning', 'll-tools-text-domain'),
         'listeningComplete'       => __('Listening Complete', 'll-tools-text-domain'),
         'perfect'                 => __('Perfect!', 'll-tools-text-domain'),
