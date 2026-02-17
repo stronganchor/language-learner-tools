@@ -187,13 +187,25 @@
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
         const gateOnAudio = (promptType === 'audio');
-        $card.off('click').on('click', function (e) {
+        let lastPointerHandledAt = 0;
+        const handleSelection = function (e, triggerType) {
             // Ignore clicks on the inline play button for audio options
             if ($(e.target).closest('.ll-audio-play').length) return;
 
+            // On touch devices pointerup is followed by click; suppress duplicate handling.
+            if (triggerType === 'click' && lastPointerHandledAt > 0 && (Date.now() - lastPointerHandledAt) < 450) {
+                return;
+            }
+
             const $clicked = $(this);
             const isGenderMode = !!(root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.isGenderMode);
-            if (gateOnAudio && root.FlashcardAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) {
+            const isPracticeMode = !!(root.LLFlashcards && root.LLFlashcards.State) &&
+                !root.LLFlashcards.State.isLearningMode &&
+                !root.LLFlashcards.State.isListeningMode &&
+                !root.LLFlashcards.State.isGenderMode &&
+                !root.LLFlashcards.State.isSelfCheckMode;
+            const shouldGateOnAudio = gateOnAudio && !isPracticeMode;
+            if (shouldGateOnAudio && root.FlashcardAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) {
                 if (!isGenderMode) return;
                 const genderMode = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
                 const rapidTapGuardActive = !!(genderMode && typeof genderMode.isAnswerTapGuardActive === 'function' && genderMode.isAnswerTapGuardActive());
@@ -224,7 +236,16 @@
 
             if (isCorrect) root.LLFlashcards.Main.onCorrectAnswer(targetWord, $(this));
             else root.LLFlashcards.Main.onWrongAnswer(targetWord, index, $(this));
-        });
+        };
+
+        $card.off('.llCardSelect')
+            .on('pointerup.llCardSelect', function (e) {
+                lastPointerHandledAt = Date.now();
+                handleSelection.call(this, e, 'pointerup');
+            })
+            .on('click.llCardSelect', function (e) {
+                handleSelection.call(this, e, 'click');
+            });
     }
 
     function installOptionGuards() {
