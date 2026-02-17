@@ -769,7 +769,7 @@ body.ll-study-check-open {
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
-  padding: 32px 24px;
+  padding: 36px 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -780,16 +780,25 @@ body.ll-study-check-open {
 .ll-study-check .ll-study-check-prompt-inner {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
+  width: 100%;
+}
+
+.ll-study-check .ll-study-check-recordings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
   width: 100%;
 }
 
 .ll-study-check .ll-study-check-image {
   display: inline-flex;
   justify-content: center;
-  width: 84%;
-  max-width: 290px;
+  width: 70%;
+  max-width: 236px;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);

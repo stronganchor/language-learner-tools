@@ -266,25 +266,26 @@
     }
 
     function getIsolationAudioUrl(word) {
-        if (!word) { return ''; }
-        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
-        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
-        let match = null;
+        if (SelfCheckShared && typeof SelfCheckShared.getIsolationAudioUrl === 'function') {
+            return SelfCheckShared.getIsolationAudioUrl(word, { fallbackToAnyAudio: false });
+        }
+        return '';
+    }
 
-        if (preferredSpeaker) {
-            match = files.find(function (file) {
-                return file && file.url && file.recording_type === 'isolation' && parseInt(file.speaker_user_id, 10) === preferredSpeaker;
-            });
-        }
-        if (!match) {
-            match = files.find(function (file) {
-                return file && file.url && file.recording_type === 'isolation';
-            });
-        }
-        if (match && match.url) {
-            return String(match.url);
-        }
-        return getAudioUrl(word);
+    function getSelfCheckRenderOptions(msgs, ctx) {
+        const messages = msgs || {};
+        return {
+            emptyLabel: messages.noWordsFound || 'No content available.',
+            playAudioLabel: messages.selfCheckPlayAudio || 'Play audio',
+            playAudioType: messages.playAudioType || 'Play %s recording',
+            recordingIsolation: messages.recordingIsolation || 'Isolation',
+            recordingIntroduction: messages.recordingIntroduction || 'Introduction',
+            recordingsLabel: messages.recordingsLabel || 'Recordings',
+            selfCheckPlayAudio: messages.selfCheckPlayAudio || 'Play audio',
+            onPlayAudio: function (audioUrl, buttonEl) {
+                playAudioUrl(audioUrl, ctx, buttonEl);
+            }
+        };
     }
 
     function stopPromptAudio() {
@@ -541,43 +542,25 @@
     }
 
     function renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs) {
-        appendDisplayContent($front, 'image', targetWord, ctx);
-        appendDisplayContent($back, 'text', targetWord, ctx);
+        if (!$front || !$front.length || !$back || !$back.length) {
+            return;
+        }
+        const renderOptions = getSelfCheckRenderOptions(msgs, ctx);
 
-        const isolationAudioUrl = getIsolationAudioUrl(targetWord);
-        if (!isolationAudioUrl || !$back || !$back.length) {
+        if (SelfCheckShared && typeof SelfCheckShared.renderSelfCheckPromptDisplay === 'function' && typeof SelfCheckShared.renderSelfCheckAnswerDisplay === 'function') {
+            SelfCheckShared.renderSelfCheckPromptDisplay($front, targetWord, Object.assign({}, renderOptions, { displayType: 'image' }));
+            SelfCheckShared.renderSelfCheckAnswerDisplay($back, targetWord, Object.assign({}, renderOptions, {
+                displayType: 'image',
+                recordingTypes: ['isolation', 'introduction'],
+                isolationFallbackToAnyAudio: false,
+                introductionFallbackToAnyAudio: false,
+                messages: renderOptions
+            }));
             return;
         }
 
-        let $inner = $back.find('.ll-study-check-prompt-inner').first();
-        if (!$inner.length) {
-            $inner = $('<div>', { class: 'll-study-check-prompt-inner' }).appendTo($back);
-        }
-        const label = msgs.selfCheckPlayAudio || 'Play audio';
-        let $audioBtn = null;
-        if (SelfCheckShared && typeof SelfCheckShared.buildAudioButton === 'function') {
-            $audioBtn = SelfCheckShared.buildAudioButton({
-                audioUrl: isolationAudioUrl,
-                label: label,
-                onActivate: function (audioUrl, buttonEl) {
-                    playAudioUrl(audioUrl, ctx, buttonEl);
-                }
-            });
-        } else {
-            $audioBtn = $('<button>', {
-                type: 'button',
-                class: 'll-study-check-audio-btn',
-                text: label
-            });
-            $audioBtn.on('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                playAudioUrl(isolationAudioUrl, ctx, this);
-            });
-        }
-        if ($audioBtn && $audioBtn.length) {
-            $inner.append($audioBtn);
-        }
+        appendDisplayContent($front, 'image', targetWord, ctx);
+        appendDisplayContent($back, 'image', targetWord, ctx);
     }
 
     function buildRound(targetWord, promptType, optionType, ctx, meta) {
@@ -620,7 +603,7 @@
         }
         $header.append($headerTitleWrap, $headerMeta);
 
-        // Match dashboard self-check behavior: image prompt first, then text + isolation audio on answer side.
+        // Match dashboard self-check behavior: image prompt first, then image + recordings on answer side.
         renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs);
 
         let answered = false;

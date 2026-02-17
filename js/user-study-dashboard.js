@@ -1875,14 +1875,6 @@
         return cat.prompt_type || 'audio';
     }
 
-    function isTextOptionType(optionType) {
-        return (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
-    }
-
-    function isAudioOptionType(optionType) {
-        return (optionType === 'audio' || optionType === 'text_audio');
-    }
-
     function getWordPrimaryText(word) {
         if (!word) { return ''; }
         const title = (typeof word.title === 'string') ? word.title.trim() : '';
@@ -1899,27 +1891,6 @@
             return '';
         }
         return translation;
-    }
-
-    function getCheckWordLabel(word) {
-        if (!word) { return ''; }
-        return word.label || word.title || '';
-    }
-
-    function getWordAudioUrl(word) {
-        if (!word) { return ''; }
-        if (word.audio) { return word.audio; }
-        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
-        if (!audioFiles.length) { return ''; }
-        const preferred = parseInt(word.preferred_speaker_user_id, 10) || 0;
-        if (preferred) {
-            const match = audioFiles.find(function (file) {
-                return file && file.url && parseInt(file.speaker_user_id, 10) === preferred;
-            });
-            if (match) { return match.url; }
-        }
-        const fallback = audioFiles.find(function (file) { return file && file.url; });
-        return fallback ? fallback.url : '';
     }
 
     function ensureWordsForCategories(catIds) {
@@ -2051,111 +2022,58 @@
         }
     }
 
-    function buildCheckAudioButton(audioUrl) {
-        const label = i18n.playAudio || 'Play audio';
-        if (selfCheckShared && typeof selfCheckShared.buildAudioButton === 'function') {
-            return selfCheckShared.buildAudioButton({
-                audioUrl: audioUrl,
-                label: label
-            });
-        }
-        const $btn = $('<button>', {
-            type: 'button',
-            class: 'll-study-recording-btn ll-study-recording-btn--prompt',
-            'data-audio-url': audioUrl,
-            'data-recording-type': 'prompt',
-            'aria-label': label,
-            title: label
-        });
-        $('<span>', {
-            class: 'll-study-recording-icon',
-            'aria-hidden': 'true',
-            'data-emoji': '\u25B6'
-        }).appendTo($btn);
-        const viz = $('<span>', {
-            class: 'll-study-recording-visualizer',
-            'aria-hidden': 'true'
-        });
-        for (let i = 0; i < 6; i++) {
-            $('<span>', { class: 'bar' }).appendTo(viz);
-        }
-        $btn.append(viz);
-        return $btn;
-    }
-
-    function renderCheckDisplay($container, displayType, word) {
-        if (!$container || !$container.length) { return false; }
-        const mode = String(displayType || '');
-        if (selfCheckShared && typeof selfCheckShared.renderPromptDisplay === 'function') {
-            return !!selfCheckShared.renderPromptDisplay($container, mode, word, {
-                emptyLabel: i18n.checkEmpty || 'No words available for this check.',
-                playAudioLabel: i18n.playAudio || 'Play audio'
-            });
-        }
-        $container.empty();
-
-        const showImage = mode === 'image';
-        const showText = isTextOptionType(mode);
-        const showAudio = isAudioOptionType(mode);
-        const text = getCheckWordLabel(word);
-        const audioUrl = showAudio ? getWordAudioUrl(word) : '';
-
-        const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
-        let hasContent = false;
-
-        if (showImage && word && word.image) {
-            const $imgWrap = $('<div>', { class: 'll-study-check-image' });
-            $('<img>', {
-                src: word.image,
-                alt: text || word.title || '',
-                loading: 'lazy'
-            }).appendTo($imgWrap);
-            $inner.append($imgWrap);
-            hasContent = true;
-        }
-
-        if (showText && text) {
-            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
-            hasContent = true;
-        }
-
-        if (showAudio && audioUrl) {
-            $inner.append(buildCheckAudioButton(audioUrl));
-            hasContent = true;
-        }
-
-        if (!$inner.children().length) {
-            if (text) {
-                $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
-                hasContent = true;
-            } else {
-                $('<div>', { class: 'll-study-check-empty', text: i18n.checkEmpty || 'No words available for this check.' }).appendTo($inner);
-            }
-        }
-
-        $container.append($inner);
-        return hasContent;
+    function getSelfCheckRenderMessages() {
+        return {
+            emptyLabel: i18n.checkEmpty || 'No words available for this check.',
+            playAudioLabel: i18n.playAudio || 'Play audio',
+            playAudioType: i18n.playAudioType || 'Play %s recording',
+            recordingIsolation: i18n.recordingIsolation || 'Isolation',
+            recordingIntroduction: i18n.recordingIntroduction || 'Introduction',
+            recordingsLabel: i18n.recordingsLabel || 'Recordings',
+            selfCheckPlayAudio: i18n.playAudio || 'Play audio'
+        };
     }
 
     function renderCheckPrompt(item) {
         const word = (item && item.word) ? item.word : null;
-        renderCheckDisplay($checkPrompt, 'image', word);
+        const messages = getSelfCheckRenderMessages();
+        if (selfCheckShared && typeof selfCheckShared.renderSelfCheckPromptDisplay === 'function') {
+            selfCheckShared.renderSelfCheckPromptDisplay($checkPrompt, word, Object.assign({}, messages, { displayType: 'image' }));
+            return;
+        }
+        if (selfCheckShared && typeof selfCheckShared.renderPromptDisplay === 'function') {
+            selfCheckShared.renderPromptDisplay($checkPrompt, 'image', word, messages);
+        }
     }
 
     function renderCheckAnswer(item) {
         const word = (item && item.word) ? item.word : null;
-        const audioUrl = getCheckIsolationAudioUrl(word);
-        const hasAnswer = renderCheckDisplay($checkAnswer, audioUrl ? 'text_audio' : 'text', word);
-        if (audioUrl && $checkAnswer && $checkAnswer.length) {
-            $checkAnswer.find('.ll-study-recording-btn').first().attr('data-audio-url', audioUrl);
+        const messages = getSelfCheckRenderMessages();
+        const options = Object.assign({}, messages, {
+            displayType: 'image',
+            recordingTypes: ['isolation', 'introduction'],
+            isolationFallbackToAnyAudio: false,
+            introductionFallbackToAnyAudio: false,
+            messages: messages,
+            onPlayAudio: function (_audioUrl, buttonEl) {
+                handleRecordingButtonClick($(buttonEl), buttonEl);
+            }
+        });
+
+        if (selfCheckShared && typeof selfCheckShared.renderSelfCheckAnswerDisplay === 'function') {
+            return selfCheckShared.renderSelfCheckAnswerDisplay($checkAnswer, word, options);
         }
-        return hasAnswer;
+        if (selfCheckShared && typeof selfCheckShared.renderPromptDisplay === 'function') {
+            selfCheckShared.renderPromptDisplay($checkAnswer, 'image', word, messages);
+        }
+        return [];
     }
 
     function getCheckIsolationAudioUrl(word) {
-        const isolation = selectRecordingUrl(word, 'isolation');
-        if (isolation) { return isolation; }
-        return getWordAudioUrl(word);
+        if (selfCheckShared && typeof selfCheckShared.getIsolationAudioUrl === 'function') {
+            return selfCheckShared.getIsolationAudioUrl(word, { fallbackToAnyAudio: false });
+        }
+        return '';
     }
 
     function clearCheckAdvanceTimer() {

@@ -137,7 +137,7 @@
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
-  padding: 32px 24px !important;
+  padding: 36px 24px !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,16 +149,25 @@
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-prompt-inner {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
+  width: 100%;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-recordings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
   width: 100%;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-image {
   display: inline-flex;
   justify-content: center;
-  width: 84% !important;
-  max-width: 290px !important;
+  width: 70% !important;
+  max-width: 236px !important;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
