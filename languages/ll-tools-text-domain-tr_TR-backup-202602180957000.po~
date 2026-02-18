@@ -1157,7 +1157,7 @@ msgstr "Bu kelime seti için dili girin."
 
 #: includes/post-types/words-post-type.php:85
 msgid "Enter the Post ID of a word that looks similar:"
-msgstr "Benzer görünen bir kelimenin Posta Kimliğini girin:"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:175
 #: includes/taxonomies/word-category-taxonomy.php:198
@@ -1249,7 +1249,6 @@ msgstr "Dişil sembol"
 #: includes/post-types/words-post-type.php:87
 msgid "Find the Post ID in the list of words. Use numerical ID only."
 msgstr ""
-"Sözcük listesinde Posta Kimliğini bulun. Yalnızca sayısal kimliği kullanın."
 
 #: includes/admin/admin-dashboard-menu.php:324
 msgid "Find words without audio and resolve gaps in recording coverage."
@@ -1927,7 +1926,7 @@ msgstr "Yüklenen ses ve görüntüleri doğru kelime ve kategorilerle eşleşti
 
 #: includes/post-types/words-post-type.php:186
 msgid "Meaning:"
-msgstr "Anlamı:"
+msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:846
 msgid "Missing"
@@ -2129,7 +2128,7 @@ msgstr "Bu kategoride eksik ürün yok."
 
 #: includes/taxonomies/word-category-taxonomy.php:1657
 msgid "No posts selected"
-msgstr "Hiçbir gönderi seçilmedi"
+msgstr ""
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1029
 msgid "No quiz pages are available yet."
@@ -3078,7 +3077,7 @@ msgstr "Benzer kelime"
 #. ID of the meta box
 #: includes/post-types/words-post-type.php:68
 msgid "Similar Words"
-msgstr "Benzer Kelimeler"
+msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:855
 #: includes/shortcodes/editor-hub-shortcode.php:921
@@ -3186,7 +3185,7 @@ msgstr "Yıldızlı"
 
 #: includes/shortcodes/user-study-dashboard.php:63
 msgid "Starred words"
-msgstr "Yıldızlı kelimeler"
+msgstr ""
 
 #: templates/flashcard-widget-template.php:40
 msgid "Start"
@@ -3752,7 +3751,7 @@ msgstr "Kelime Kategorileri"
 
 #: includes/post-types/words-post-type.php:133
 msgid "Word categories:"
-msgstr "Kelime kategorileri:"
+msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:11
 msgid "Word Category"

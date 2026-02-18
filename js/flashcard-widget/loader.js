@@ -289,6 +289,7 @@
         function loadResourcesForCategory(categoryName, callback, options) {
             const opts = options || {};
             const earlyCallback = opts.earlyCallback === true;
+            const skipCategoryPreload = opts.skipCategoryPreload === true;
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
             const requestId = ++requestSerial;
@@ -347,11 +348,15 @@
                     if (response.success) {
                         processFetchedWordData(response.data, categoryName);
                         if (earlyCallback && typeof callback === 'function') {
-                            // Let the caller continue as soon as data is available; preload continues in background.
+                            // Let the caller continue as soon as data is available; optional preload continues in background.
                             try { callback(); } catch (_) { }
-                            preloadCategoryResources(categoryName);
-                        } else {
+                            if (!skipCategoryPreload) {
+                                preloadCategoryResources(categoryName);
+                            }
+                        } else if (!skipCategoryPreload) {
                             preloadCategoryResources(categoryName, callback);
+                        } else if (typeof callback === 'function') {
+                            callback();
                         }
                         if (!loadedCategories.includes(cacheKey)) {
                             loadedCategories.push(cacheKey);

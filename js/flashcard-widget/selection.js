@@ -959,6 +959,7 @@
 
         // Fallback: if still no target and queue exists, pick from queue but avoid last shown
         if (!target && queue && queue.length) {
+            const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
             // Try to find a word that isn't the last shown
             let queueCandidate = queue.find(item => {
                 if (!item || !item.wordData) return false;
@@ -973,8 +974,22 @@
                 if (others.length) {
                     target = others[Math.floor(Math.random() * others.length)];
                 } else {
-                    // No choice but to use the queue item (only happens with very small word sets)
-                    queueCandidate = queue[0];
+                    if (isPracticeMode) {
+                        // Practice-mode rule: never show the same target word in consecutive rounds.
+                        // If play caps block alternatives, allow any other word before repeating.
+                        const overflowOthers = candidateCategory.filter(function (w) {
+                            return w && w.id !== State.lastWordShownId;
+                        });
+                        if (overflowOthers.length) {
+                            target = overflowOthers[Math.floor(Math.random() * overflowOthers.length)];
+                        } else {
+                            // No alternative exists in this category right now; defer and let another category run.
+                            return null;
+                        }
+                    } else {
+                        // Non-practice modes keep existing fallback behavior.
+                        queueCandidate = queue[0];
+                    }
                 }
             }
 

@@ -272,14 +272,14 @@ SVG;
             'icon'              => '🎧',
             'className'         => 'listening-mode',
             'switchLabel'       => __('Switch to Listening Mode', 'll-tools-text-domain'),
-            'resultsButtonText' => __('Replay Listening', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Listen', 'll-tools-text-domain'),
         ],
         'gender' => [
             'icon'              => '',
             'svg'               => $gender_svg,
             'className'         => 'gender-mode',
-            'switchLabel'       => __('Switch to Gender Mode', 'll-tools-text-domain'),
-            'resultsButtonText' => __('Gender Mode', 'll-tools-text-domain'),
+            'switchLabel'       => __('Switch to Gender', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
 }

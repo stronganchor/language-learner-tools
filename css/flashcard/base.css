@@ -1166,6 +1166,10 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    align-self: stretch;
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
     gap: 0.4rem;
     order: 2;
 }
@@ -1178,6 +1182,9 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 /* Ensure the category name is centered and visually distinct */
 #ll-tools-category-display.ll-tools-category-display {
+    display: block;
+    width: 100%;
+    margin-inline: auto;
     text-align: center;
     font-size: 16px;
     font-weight: 600;

@@ -3207,7 +3207,7 @@
 
     function analyticsStatusLabel(status) {
         if (status === 'mastered') { return i18n.analyticsWordStatusMastered || 'Learned'; }
-        if (status === 'studied') { return i18n.analyticsWordStatusStudied || 'Studied'; }
+        if (status === 'studied') { return i18n.analyticsWordStatusStudied || 'In progress'; }
         return i18n.analyticsWordStatusNew || 'New';
     }
 
@@ -3322,7 +3322,7 @@
         const counts = getAnalyticsSummaryCounts();
         const items = [
             { key: 'mastered', value: counts.mastered, label: i18n.analyticsMastered || 'Learned' },
-            { key: 'studied', value: counts.studied, label: i18n.analyticsStudied || 'Studied' },
+            { key: 'studied', value: counts.studied, label: i18n.analyticsStudied || 'In progress' },
             { key: 'new', value: counts.newWords, label: i18n.analyticsNew || 'New' },
             { key: 'starred', value: counts.starred, label: i18n.analyticsStarred || 'Starred' },
             { key: 'hard', value: counts.hard, label: i18n.analyticsHard || 'Hard' }

@@ -257,6 +257,12 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
             'preferred_wordset_ids' => [],
             'placement_known_category_ids' => [],
             'daily_new_word_target' => 2,
+            'priority_focus' => '',
+            'prioritize_new_words' => false,
+            'prioritize_studied_words' => false,
+            'prioritize_learned_words' => false,
+            'prefer_starred_words' => false,
+            'prefer_hard_words' => false,
         ];
     $wordset_id = $requested_wordset_id ? (int) $requested_wordset_id : (int) $state['wordset_id'];
     if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
@@ -411,13 +417,21 @@ function ll_tools_user_study_save_ajax() {
     ]);
 
     $categories = ll_tools_user_study_categories_for_wordset($wordset_id);
-    $next_activity = function_exists('ll_tools_build_next_activity_recommendation')
-        ? ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories)
+    $recommendation_queue = [];
+    if (function_exists('ll_tools_refresh_user_recommendation_queue')) {
+        $recommendation_queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories, 8);
+    }
+    $next_activity = function_exists('ll_tools_recommendation_queue_pick_next')
+        ? ll_tools_recommendation_queue_pick_next($recommendation_queue)
         : null;
+    if (!$next_activity && function_exists('ll_tools_build_next_activity_recommendation')) {
+        $next_activity = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories);
+    }
 
     wp_send_json_success([
         'state' => $payload,
         'next_activity' => $next_activity,
+        'recommendation_queue' => $recommendation_queue,
     ]);
 }
 add_action('wp_ajax_ll_user_study_save', 'll_tools_user_study_save_ajax');

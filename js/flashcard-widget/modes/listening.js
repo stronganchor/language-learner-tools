@@ -47,6 +47,19 @@
     const REPEAT_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.listeningRepeatGapMs === 'number')
         ? root.llToolsFlashcardsData.listeningRepeatGapMs
         : 700;
+    const LISTENING_PREFETCH_BATCH_SIZE = (function () {
+        const raw = root.llToolsFlashcardsData && parseInt(root.llToolsFlashcardsData.listeningPreloadBatchSize, 10);
+        const fallback = 16;
+        const size = (typeof raw === 'number' && isFinite(raw)) ? raw : fallback;
+        return Math.max(10, Math.min(20, size));
+    })();
+    const LISTENING_PREFETCH_TRIGGER_RATIO = 0.5;
+    const LISTENING_PREFETCH_CONCURRENCY = 2;
+
+    let listeningPrefetchQueue = Promise.resolve();
+    let listeningPrefetchWindowStart = 0;
+    let listeningPrefetchWindowEnd = 0;
+    let listeningPrefetchCursor = 0;
 
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
@@ -454,6 +467,7 @@
                 }
             }
 
+            resetListeningPrefetchPlanner();
             updateControlsState();
             if (!isStarredFlag && State.listeningCurrentTarget && String(State.listeningCurrentTarget.id) === String(wordId)) {
                 return true;
@@ -466,6 +480,7 @@
         if (State.listenIndex > total) {
             State.listenIndex = total;
         }
+        resetListeningPrefetchPlanner();
         updateControlsState();
         return false;
     }
@@ -489,7 +504,7 @@
                 loader.loadResourcesForCategory(name, function () {
                     rebuildWordsLinear();
                     resolve(key);
-                }, { earlyCallback: true });
+                }, { earlyCallback: true, skipCategoryPreload: true });
             } catch (_) {
                 resolve(key);
             }
@@ -564,14 +579,129 @@
         });
     }
 
+    function resetListeningPrefetchPlanner() {
+        listeningPrefetchQueue = Promise.resolve();
+        listeningPrefetchWindowStart = 0;
+        listeningPrefetchWindowEnd = 0;
+        listeningPrefetchCursor = 0;
+    }
+
+    function getListeningCategoryConfig(categoryName) {
+        const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;
+        if (selectionApi && typeof selectionApi.getCategoryConfig === 'function') {
+            const config = selectionApi.getCategoryConfig(categoryName);
+            if (config && typeof config === 'object') {
+                return config;
+            }
+        }
+        return { prompt_type: 'audio', option_type: 'image' };
+    }
+
+    function collectListeningPrefetchWords(startIndex, batchSize) {
+        const words = Array.isArray(State.wordsLinear) ? State.wordsLinear : [];
+        const total = words.length;
+        if (!total || batchSize <= 0) {
+            return [];
+        }
+        const maxUnique = Math.min(total, batchSize);
+        const start = ((Math.max(0, startIndex) % total) + total) % total;
+        const out = [];
+        const seen = {};
+
+        for (let step = 0; step < total && out.length < maxUnique; step += 1) {
+            const idx = (start + step) % total;
+            const word = words[idx];
+            const wordId = parseInt(word && word.id, 10);
+            if (!word || !wordId) {
+                continue;
+            }
+            if (seen[wordId]) {
+                continue;
+            }
+            seen[wordId] = true;
+            out.push(word);
+        }
+
+        return out;
+    }
+
+    function queueListeningPrefetchBatch(loader, words) {
+        if (!loader || typeof loader.loadResourcesForWord !== 'function' || !Array.isArray(words) || !words.length) {
+            return;
+        }
+
+        listeningPrefetchQueue = listeningPrefetchQueue.then(function () {
+            let cursor = 0;
+            const workerCount = Math.max(1, Math.min(LISTENING_PREFETCH_CONCURRENCY, words.length));
+            const workers = [];
+
+            const runWorker = function () {
+                if (cursor >= words.length) {
+                    return Promise.resolve();
+                }
+                const index = cursor;
+                cursor += 1;
+                const word = words[index];
+                const categoryName = String((word && word.__categoryName) || State.currentCategoryName || '');
+                const categoryConfig = getListeningCategoryConfig(categoryName);
+                const optionType = String(categoryConfig.option_type || 'image');
+
+                return Promise.resolve(
+                    loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig)
+                ).catch(function () {
+                    return [];
+                }).then(runWorker);
+            };
+
+            for (let i = 0; i < workerCount; i += 1) {
+                workers.push(runWorker());
+            }
+            return Promise.all(workers);
+        }).catch(function () {
+            return [];
+        });
+    }
+
+    function maybeQueueListeningPrefetch(loader, force) {
+        if (!loader || typeof loader.loadResourcesForWord !== 'function') {
+            return;
+        }
+        const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        if (!total) {
+            return;
+        }
+
+        const consumedIndex = Math.max(0, (parseInt(State.listenIndex, 10) || 1) - 1);
+        if (!force && listeningPrefetchWindowEnd > listeningPrefetchWindowStart) {
+            const windowSize = Math.max(1, listeningPrefetchWindowEnd - listeningPrefetchWindowStart);
+            const triggerOffset = Math.max(1, Math.floor(windowSize * LISTENING_PREFETCH_TRIGGER_RATIO));
+            const triggerIndex = listeningPrefetchWindowStart + triggerOffset;
+            if (consumedIndex < triggerIndex) {
+                return;
+            }
+        }
+
+        const startIndex = Math.max(consumedIndex + 1, listeningPrefetchCursor);
+        const batchWords = collectListeningPrefetchWords(startIndex, LISTENING_PREFETCH_BATCH_SIZE);
+        if (!batchWords.length) {
+            return;
+        }
+
+        listeningPrefetchWindowStart = startIndex;
+        listeningPrefetchWindowEnd = startIndex + batchWords.length;
+        listeningPrefetchCursor = listeningPrefetchWindowEnd;
+        queueListeningPrefetchBatch(loader, batchWords);
+    }
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
         State.lastWordShownId = null;
         resetListeningHistory();
+        resetListeningPrefetchPlanner();
         try { ListeningPlayback.clear(); } catch (_) { }
-        State.listeningLoop = State.listeningLoop === true; // preserve if toggled previously during session
+        State.listeningLoop = (typeof State.listeningLoop === 'boolean') ? State.listeningLoop : true;
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
         rebuildWordsLinear();
         queueAllSelectedCategories(FlashcardLoader);
@@ -1151,6 +1281,11 @@
 
             Dom.disableRepeatButton && Dom.disableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
+            // Keep media preloading ahead in small batches so current playback is never blocked.
+            const prefetchDelayId = scheduleTimeout(utils, function () {
+                maybeQueueListeningPrefetch(loader, (State.listenIndex || 0) <= 1);
+            }, 120);
+            State.addTimeout && State.addTimeout(prefetchDelayId);
 
             // Determine sequence. For image->audio (or audio+text), play intro then isolation only.
             const isoUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
@@ -1240,9 +1375,24 @@
                             rebuildWordsLinear();
                             const hasMore = hasWords && (State.wordsLinear || []).length > 0 && (State.listenIndex || 0) < (State.wordsLinear || []).length;
                             if (!hasMore && !hasPendingCategoryLoads(loader)) {
-                                State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                                resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-                                try { WakeLock.update(); } catch (_) { }
+                                if (State.listeningLoop) {
+                                    try {
+                                        rebuildWordsLinear();
+                                    } catch (_) { }
+                                    resetListeningHistory();
+                                    resetListeningPrefetchPlanner();
+                                    State.listenIndex = 0;
+                                    State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening after preload');
+                                    if (typeof utils.runQuizRound === 'function') {
+                                        utils.runQuizRound();
+                                    } else if (typeof utils.startQuizRound === 'function') {
+                                        utils.startQuizRound();
+                                    }
+                                } else {
+                                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
+                                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                                    try { WakeLock.update(); } catch (_) { }
+                                }
                                 return;
                             }
                             State.forceTransitionTo(STATES.QUIZ_READY, 'Listening continue after preload');
@@ -1263,6 +1413,7 @@
                                     rebuildWordsLinear();
                                 } catch (_) {}
                                 resetListeningHistory();
+                                resetListeningPrefetchPlanner();
                                 State.listenIndex = 0;
                                 State.forceTransitionTo(STATES.QUIZ_READY, 'Loop listening');
                                 if (typeof utils.runQuizRound === 'function') utils.runQuizRound();

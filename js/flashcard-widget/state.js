@@ -74,6 +74,7 @@
         practiceForcedReplays: {},
         userClickedCorrectAnswer: false,
         quizResults: { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} },
+        modeSessionCompleteTracked: false,
 
         // Learning/listening mode data
         isLearningMode: false,
@@ -294,6 +295,7 @@
             this.practiceForcedReplays = {};
             this.userClickedCorrectAnswer = false;
             this.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+            this.modeSessionCompleteTracked = false;
 
             // Reset learning mode data
             this.isLearningMode = false;

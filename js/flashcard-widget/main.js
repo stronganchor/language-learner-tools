@@ -15,6 +15,7 @@
     let __LastWordsetKey = null;
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
+    let firstRoundRecoveryAttempts = 0;
 
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
@@ -135,9 +136,11 @@
         __LLSession++;
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
+        firstRoundRecoveryAttempts = 0;
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
         setStarModeOverride(null);
+        try { State.modeSessionCompleteTracked = false; } catch (_) { /* no-op */ }
 
         // IMPORTANT: pause the *previous* audio session (snapshot the id now)
         try {
@@ -171,6 +174,46 @@
         }, ms);
         __LLTimers.add(id);
         return id;
+    }
+
+    function tryRecoverFirstRoundLoad() {
+        const names = Array.isArray(State.categoryNames)
+            ? State.categoryNames.filter(Boolean)
+            : [];
+        if (!names.length) {
+            return false;
+        }
+        const maxAttempts = Math.max(2, names.length * 2);
+        if (firstRoundRecoveryAttempts >= maxAttempts) {
+            return false;
+        }
+        firstRoundRecoveryAttempts += 1;
+
+        const categoryToLoad = names.find(function (name) {
+            const rows = State.wordsByCategory ? State.wordsByCategory[name] : null;
+            return !Array.isArray(rows) || rows.length === 0;
+        });
+
+        const retryRound = function () {
+            setGuardedTimeout(function () {
+                if (!State.widgetActive) { return; }
+                if (!State.isFirstRound) {
+                    runQuizRound();
+                    return;
+                }
+                startQuizRound();
+            }, 80);
+        };
+
+        if (categoryToLoad &&
+            root.FlashcardLoader &&
+            typeof root.FlashcardLoader.loadResourcesForCategory === 'function') {
+            root.FlashcardLoader.loadResourcesForCategory(categoryToLoad, retryRound, { earlyCallback: true });
+            return true;
+        }
+
+        retryRound();
+        return true;
     }
 
     function shouldAutoplayOptionAudio() {
@@ -1204,7 +1247,7 @@
                 className: 'listening-mode'
             },
             gender: {
-                label: 'Switch to Gender Mode',
+                label: 'Switch to Gender',
                 icon: '',
                 className: 'gender-mode'
             }
@@ -1478,7 +1521,7 @@
         $wrap.css('display', 'block');
 
         // Update icons/labels and active state
-        ['learning', 'practice', 'self-check', 'gender', 'listening'].forEach(function (mode) {
+        ['learning', 'practice', 'listening', 'gender', 'self-check'].forEach(function (mode) {
             const cfg = MODE_SWITCH_CONFIG[mode] || {};
             const $btn = $menu.find('.ll-tools-mode-option.' + mode);
             if (!$btn.length) return;
@@ -1882,6 +1925,7 @@
     }
 
     function startQuizRound(number_of_options) {
+        State.modeSessionCompleteTracked = false;
         if (State.isFirstRound) {
             if (!State.is(STATES.LOADING)) {
                 const transitioned = State.transitionTo(STATES.LOADING, 'First round initialization');
@@ -1890,7 +1934,30 @@
                 }
             }
 
-            const initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            let initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            if (!initialCategories.length) {
+                const flashData = root.llToolsFlashcardsData || {};
+                const fallbackFromData = Array.isArray(flashData.categories)
+                    ? flashData.categories.map(function (cat) {
+                        if (typeof cat === 'string') {
+                            return String(cat || '').trim();
+                        }
+                        if (cat && typeof cat === 'object') {
+                            return String(cat.name || '').trim();
+                        }
+                        return '';
+                    }).filter(Boolean)
+                    : [];
+                const fallbackCategories = fallbackFromData.slice(0, 3);
+                if (fallbackCategories.length) {
+                    State.categoryNames = fallbackCategories.slice();
+                    State.initialCategoryNames = fallbackCategories.slice();
+                    root.categoryNames = State.categoryNames;
+                    State.firstCategoryName = fallbackCategories[0] || '';
+                    initialCategories = fallbackCategories.slice();
+                    console.warn('Flashcards: Recovered missing categories from launch data.', fallbackCategories);
+                }
+            }
             if (!initialCategories.length) {
                 console.error('Flashcards: No categories available to start quiz round');
                 showLoadingError();
@@ -1914,6 +1981,9 @@
                 }
                 runQuizRound();
             };
+            const categoryLoadOptions = State.isListeningMode
+                ? { earlyCallback: true, skipCategoryPreload: true }
+                : { earlyCallback: true };
 
             if (State.isGenderMode) {
                 // Gender planning needs words from every selected category before first round.
@@ -1938,15 +2008,19 @@
                     }
                 };
                 allCategories.forEach(function (categoryName) {
-                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, { earlyCallback: true });
+                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, categoryLoadOptions);
                 });
                 return;
             }
 
-            root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, { earlyCallback: true });
+            root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, categoryLoadOptions);
 
             for (let i = 1; i < initialCategories.length; i++) {
-                root.FlashcardLoader.loadResourcesForCategory(initialCategories[i]);
+                root.FlashcardLoader.loadResourcesForCategory(
+                    initialCategories[i],
+                    null,
+                    State.isListeningMode ? { skipCategoryPreload: true } : undefined
+                );
             }
         } else {
             if (!State.is(STATES.QUIZ_READY)) {
@@ -2042,6 +2116,9 @@
                     }
                 }
                 if (!hasWords) {
+                    if (tryRecoverFirstRoundLoad()) {
+                        return;
+                    }
                     showLoadingError();
                     return;
                 }
@@ -2142,6 +2219,19 @@
 
     function showLoadingError() {
         const msgs = root.llToolsFlashcardsMessages || {};
+        try { State.clearActiveTimeouts(); } catch (_) { /* no-op */ }
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.pauseAllAudio === 'function') {
+                root.FlashcardAudio.pauseAllAudio();
+                root.FlashcardAudio.pauseAllAudio(-1);
+            }
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.setTargetWordAudio === 'function') {
+                root.FlashcardAudio.setTargetWordAudio(null);
+            }
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                root.FlashcardAudio.suspendPlayback();
+            }
+        } catch (_) { /* no-op */ }
         $('#quiz-results-title').text(msgs.loadingError || 'Loading Error');
 
         const errorBullets = [
@@ -2269,6 +2359,13 @@
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
                 updateProgressTrackerContext(requestedMode, State.categoryNames);
+                // Ensure mode-local session state is reset on every launch.
+                // Gender mode keeps a module-level session object, so without this
+                // it can reuse the first launched category across later launches.
+                const activeModule = getActiveModeModule();
+                if (activeModule && typeof activeModule.initialize === 'function') {
+                    try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
+                }
                 root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
                 Dom.updateCategoryNameDisplay(State.firstCategoryName);
 

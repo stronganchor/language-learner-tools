@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: * Language Learner Tools\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-02-18 09:56+0000\n"
+"PO-Revision-Date: 2026-02-17 13:53+0000\n"
 "Last-Translator: \n"
 "Language-Team: Turkish\n"
 "Language: tr_TR\n"
@@ -20,7 +20,7 @@ msgstr ""
 msgid "%1$d / %2$d complete"
 msgstr "%1$d / %2$d tamamlandı"
 
-#: includes/shortcodes/user-study-dashboard.php:154
+#: includes/shortcodes/user-study-dashboard.php:153
 #, php-format
 msgid "%1$d events, %2$d words"
 msgstr "1$d olay, %2$d kelime"
@@ -179,7 +179,7 @@ msgstr "%s adresinde varsayılan bir kayıt sayfası oluşturuldu"
 msgid "A quick review cycle in Level 1 should help."
 msgstr "Seviye 1'de hızlı bir gözden geçirme döngüsü yardımcı olacaktır."
 
-#: includes/shortcodes/user-study-dashboard.php:269
+#: includes/shortcodes/user-study-dashboard.php:268
 msgid "Activity"
 msgstr "Etkinlik"
 
@@ -255,8 +255,8 @@ msgstr "Aynı kelimelerle bir sonraki cinsiyet seviyesine geçin."
 msgid "Advanced"
 msgstr "Gelişmiş"
 
-#: includes/shortcodes/user-study-dashboard.php:143
-#: includes/shortcodes/user-study-dashboard.php:355
+#: includes/shortcodes/user-study-dashboard.php:142
+#: includes/shortcodes/user-study-dashboard.php:354
 msgid "All"
 msgstr "Tümü"
 
@@ -266,7 +266,7 @@ msgstr "Tümü"
 msgid "All Categories"
 msgstr "Tüm Kategoriler"
 
-#: includes/shortcodes/user-study-dashboard.php:132
+#: includes/shortcodes/user-study-dashboard.php:131
 msgid "All categories (%d)"
 msgstr "Tüm kategoriler (%d)"
 
@@ -543,12 +543,12 @@ msgstr "Başlıklar"
 #: includes/shortcodes/flashcard-widget.php:169
 #: includes/shortcodes/quiz-pages-shortcodes.php:699
 #: includes/shortcodes/user-study-dashboard.php:62
-#: includes/shortcodes/user-study-dashboard.php:71
-#: includes/shortcodes/user-study-dashboard.php:140
+#: includes/shortcodes/user-study-dashboard.php:70
+#: includes/shortcodes/user-study-dashboard.php:139
 msgid "Categories"
 msgstr "Kategoriler"
 
-#: includes/shortcodes/user-study-dashboard.php:72
+#: includes/shortcodes/user-study-dashboard.php:71
 #, php-format
 msgid "Categories (%2$d)"
 msgstr "Kategoriler (%2$d)"
@@ -661,7 +661,7 @@ msgstr "Temiz"
 msgid "Clear captions for this lesson"
 msgstr "Bu ders için açık başlıklar"
 
-#: includes/shortcodes/user-study-dashboard.php:127
+#: includes/shortcodes/user-study-dashboard.php:126
 msgid "Clear known on selected"
 msgstr "Seçilen üzerinde bilinenleri temizle"
 
@@ -683,7 +683,7 @@ msgstr ""
 #: templates/flashcard-widget-template.php:54
 #: templates/flashcard-widget-template.php:59 includes/pages/quiz-pages.php:494
 #: includes/shortcodes/quiz-pages-shortcodes.php:568
-#: includes/shortcodes/user-study-dashboard.php:114
+#: includes/shortcodes/user-study-dashboard.php:113
 msgid "Close"
 msgstr "Kapat"
 
@@ -886,7 +886,7 @@ msgstr ""
 msgid "Date"
 msgstr "Tarih"
 
-#: includes/shortcodes/user-study-dashboard.php:322
+#: includes/shortcodes/user-study-dashboard.php:321
 msgid ""
 "Decide how often starred words appear: normal mix, starred twice, or only "
 "starred."
@@ -1123,7 +1123,7 @@ msgstr "Bu sözcük kümesi için fiil zamanını etkinleştirin"
 msgid "Enable verb tense tags for this word set."
 msgstr "Bu sözcük kümesi için fiil zaman etiketlerini etkinleştirin."
 
-#: includes/shortcodes/user-study-dashboard.php:119
+#: includes/shortcodes/user-study-dashboard.php:118
 msgid "Enabled modes"
 msgstr "Etkin modlar"
 
@@ -1154,10 +1154,6 @@ msgstr "Satır başına bir kelime girin"
 #: includes/taxonomies/wordset-taxonomy.php:257
 msgid "Enter the language for this word set."
 msgstr "Bu kelime seti için dili girin."
-
-#: includes/post-types/words-post-type.php:85
-msgid "Enter the Post ID of a word that looks similar:"
-msgstr "Benzer görünen bir kelimenin Posta Kimliğini girin:"
 
 #: includes/taxonomies/word-category-taxonomy.php:175
 #: includes/taxonomies/word-category-taxonomy.php:198
@@ -1224,7 +1220,7 @@ msgstr "Bölünmüş sözcük oluşturulamadı."
 msgid "Failed to run regex on post ID %d"
 msgstr "Gönderi kimliği %d üzerinde regex çalıştırılamadı"
 
-#: includes/shortcodes/user-study-dashboard.php:99
+#: includes/shortcodes/user-study-dashboard.php:98
 msgid "Faster"
 msgstr "Daha hızlı"
 
@@ -1245,11 +1241,6 @@ msgstr "Kadınsı renk"
 #: includes/taxonomies/wordset-taxonomy.php:289
 msgid "Feminine symbol"
 msgstr "Dişil sembol"
-
-#: includes/post-types/words-post-type.php:87
-msgid "Find the Post ID in the list of words. Use numerical ID only."
-msgstr ""
-"Sözcük listesinde Posta Kimliğini bulun. Yalnızca sayısal kimliği kullanın."
 
 #: includes/admin/admin-dashboard-menu.php:324
 msgid "Find words without audio and resolve gaps in recording coverage."
@@ -1278,8 +1269,8 @@ msgstr "Şifrenizi mi unuttunuz?"
 #: templates/vocab-lesson-template.php:270
 #: includes/shortcodes/editor-hub-shortcode.php:399
 #: includes/shortcodes/editor-hub-shortcode.php:841
-#: includes/shortcodes/user-study-dashboard.php:78
-#: includes/shortcodes/user-study-dashboard.php:84
+#: includes/shortcodes/user-study-dashboard.php:77
+#: includes/shortcodes/user-study-dashboard.php:83
 msgid "Gender"
 msgstr "Cinsiyet"
 
@@ -1372,11 +1363,11 @@ msgstr ""
 msgid "Groups of words that go together"
 msgstr "Birlikte kullanılan kelime grupları"
 
-#: includes/shortcodes/user-study-dashboard.php:137
+#: includes/shortcodes/user-study-dashboard.php:136
 msgid "Hard"
 msgstr "Zor"
 
-#: includes/shortcodes/user-study-dashboard.php:144
+#: includes/shortcodes/user-study-dashboard.php:143
 msgid "Hardest"
 msgstr "En zoru"
 
@@ -1401,32 +1392,32 @@ msgid "I don't know"
 msgstr "Bilmiyorum"
 
 #: includes/shortcodes/flashcard-widget.php:174
-#: includes/shortcodes/user-study-dashboard.php:103
+#: includes/shortcodes/user-study-dashboard.php:102
 msgid "I don't know it"
 msgstr "Bilmiyorum"
 
 #: includes/shortcodes/flashcard-widget.php:177
-#: includes/shortcodes/user-study-dashboard.php:111
+#: includes/shortcodes/user-study-dashboard.php:110
 msgid "I got close"
 msgstr "Yaklaştım"
 
 #: includes/shortcodes/flashcard-widget.php:178
-#: includes/shortcodes/user-study-dashboard.php:110
+#: includes/shortcodes/user-study-dashboard.php:109
 msgid "I got it right"
 msgstr "Doğru anladım"
 
 #: includes/shortcodes/flashcard-widget.php:176
-#: includes/shortcodes/user-study-dashboard.php:112
+#: includes/shortcodes/user-study-dashboard.php:111
 msgid "I got it wrong"
 msgstr "Yanlış anlamışım"
 
 #: includes/shortcodes/flashcard-widget.php:173
-#: includes/shortcodes/user-study-dashboard.php:102
+#: includes/shortcodes/user-study-dashboard.php:101
 msgid "I know it"
 msgstr "Biliyorum"
 
 #: includes/shortcodes/flashcard-widget.php:175
-#: includes/shortcodes/user-study-dashboard.php:104
+#: includes/shortcodes/user-study-dashboard.php:103
 msgid "I think I know it"
 msgstr "Sanırım biliyorum"
 
@@ -1512,7 +1503,7 @@ msgstr "Bu kelimeyi düzenlemek için yeterli izin yok."
 
 #: includes/shortcodes/editor-hub-shortcode.php:193
 #: includes/shortcodes/flashcard-widget.php:182
-#: includes/shortcodes/user-study-dashboard.php:94
+#: includes/shortcodes/user-study-dashboard.php:93
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
@@ -1580,7 +1571,7 @@ msgstr "IPA:"
 
 #: includes/shortcodes/editor-hub-shortcode.php:192
 #: includes/shortcodes/flashcard-widget.php:181
-#: includes/shortcodes/user-study-dashboard.php:93
+#: includes/shortcodes/user-study-dashboard.php:92
 #: includes/taxonomies/recording-type-taxonomy.php:41
 #: includes/admin/uploads/audio-upload-form.php:62
 msgid "Isolation"
@@ -1598,7 +1589,7 @@ msgstr "Hızı korumak için sadece izolasyon pratiği yapmaya devam edin."
 msgid "Keep practicing!"
 msgstr "Çalışmaya devam edin!"
 
-#: includes/shortcodes/user-study-dashboard.php:97
+#: includes/shortcodes/user-study-dashboard.php:96
 msgid "Keep the default smooth pacing or speed up after correct answers."
 msgstr ""
 "Varsayılan yumuşak tempoyu koruyun veya doğru cevaplardan sonra hızlandırın."
@@ -1615,7 +1606,7 @@ msgstr ""
 msgid "Keep training noun gender with the next activity."
 msgstr "Bir sonraki faaliyetle birlikte isim cinsiyeti eğitimine devam edin."
 
-#: includes/shortcodes/user-study-dashboard.php:124
+#: includes/shortcodes/user-study-dashboard.php:123
 msgid "Known"
 msgstr "Bilinen"
 
@@ -1649,22 +1640,22 @@ msgstr "Diller"
 msgid "Large files:"
 msgstr "Büyük dosyalar:"
 
-#: includes/shortcodes/user-study-dashboard.php:152
+#: includes/shortcodes/user-study-dashboard.php:151
 msgid "Last"
 msgstr "En son"
 
-#: includes/shortcodes/user-study-dashboard.php:138
+#: includes/shortcodes/user-study-dashboard.php:137
 msgid "Last 14 days"
 msgstr "Son 14 gün"
 
 #: templates/vocab-lesson-template.php:43
-#: includes/shortcodes/user-study-dashboard.php:76
-#: includes/shortcodes/user-study-dashboard.php:83
+#: includes/shortcodes/user-study-dashboard.php:75
+#: includes/shortcodes/user-study-dashboard.php:82
 msgid "Learn"
 msgstr "Öğren"
 
-#: includes/shortcodes/user-study-dashboard.php:133
-#: includes/shortcodes/user-study-dashboard.php:147
+#: includes/shortcodes/user-study-dashboard.php:132
+#: includes/shortcodes/user-study-dashboard.php:146
 msgid "Learned"
 msgstr "Öğrenilmiş"
 
@@ -1676,7 +1667,7 @@ msgstr "Öğrenci"
 msgid "Learning Complete!"
 msgstr "Öğrenme Tamamlandı!"
 
-#: includes/shortcodes/user-study-dashboard.php:118
+#: includes/shortcodes/user-study-dashboard.php:117
 msgid "Learning goals"
 msgstr "Öğrenme hedefleri"
 
@@ -1771,12 +1762,12 @@ msgid "Linked Words"
 msgstr "Bağlantılı Kelimeler"
 
 #: templates/vocab-lesson-template.php:46
-#: includes/shortcodes/user-study-dashboard.php:77
-#: includes/shortcodes/user-study-dashboard.php:85
+#: includes/shortcodes/user-study-dashboard.php:76
+#: includes/shortcodes/user-study-dashboard.php:84
 msgid "Listen"
 msgstr "Dinle"
 
-#: includes/shortcodes/user-study-dashboard.php:109
+#: includes/shortcodes/user-study-dashboard.php:108
 msgid "Listen, then choose your result."
 msgstr "Dinleyin, sonra sonucunuzu seçin."
 
@@ -1827,7 +1818,7 @@ msgstr "Yükleme Hatası"
 msgid "Loading IPA symbols..."
 msgstr "IPA sembolleri yükleniyor..."
 
-#: includes/shortcodes/user-study-dashboard.php:129
+#: includes/shortcodes/user-study-dashboard.php:128
 msgid "Loading progress..."
 msgstr "Yükleme ilerliyor..."
 
@@ -1843,10 +1834,10 @@ msgstr "Kilitli"
 msgid "Log in"
 msgstr "Giriş yap"
 
-#: includes/user-progress.php:2170 includes/user-progress.php:2210
-#: includes/user-progress.php:2247 includes/user-progress.php:2288
-#: includes/user-progress.php:2306 includes/user-study.php:345
-#: includes/user-study.php:364 includes/user-study.php:384
+#: includes/user-progress.php:1680 includes/user-progress.php:1715
+#: includes/user-progress.php:1747 includes/user-progress.php:1771
+#: includes/user-study.php:294 includes/user-study.php:313
+#: includes/user-study.php:332
 msgid "Login required."
 msgstr "Giriş gerekli."
 
@@ -1901,7 +1892,7 @@ msgstr ""
 msgid "Mark for Audio Reprocessing"
 msgstr "Ses Yeniden İşleme için İşaret"
 
-#: includes/shortcodes/user-study-dashboard.php:126
+#: includes/shortcodes/user-study-dashboard.php:125
 msgid "Mark selected as known"
 msgstr "Bilindiği gibi seçilen işaret"
 
@@ -1924,10 +1915,6 @@ msgstr "Yeni kelime oluşturmak yerine mevcut kelime gönderileriyle eşleştiri
 #: includes/admin/admin-dashboard-menu.php:317
 msgid "Match uploaded audio and images to the correct words and categories."
 msgstr "Yüklenen ses ve görüntüleri doğru kelime ve kategorilerle eşleştirin."
-
-#: includes/post-types/words-post-type.php:186
-msgid "Meaning:"
-msgstr "Anlamı:"
 
 #: includes/shortcodes/editor-hub-shortcode.php:846
 msgid "Missing"
@@ -1966,12 +1953,12 @@ msgstr "Hareket"
 msgid "Move All to New Word"
 msgstr "Tümünü Yeni Sözcüğe Taşı"
 
-#: includes/shortcodes/user-study-dashboard.php:153
+#: includes/shortcodes/user-study-dashboard.php:152
 msgid "Never"
 msgstr "Asla"
 
-#: includes/shortcodes/user-study-dashboard.php:135
-#: includes/shortcodes/user-study-dashboard.php:149
+#: includes/shortcodes/user-study-dashboard.php:134
+#: includes/shortcodes/user-study-dashboard.php:148
 msgid "New"
 msgstr "Yeni"
 
@@ -2007,11 +1994,11 @@ msgstr "Yeni Kelime Dersi"
 msgid "New word title (optional)"
 msgstr "Yeni kelime başlığı (isteğe bağlı)"
 
-#: includes/shortcodes/user-study-dashboard.php:120
+#: includes/shortcodes/user-study-dashboard.php:119
 msgid "New words / day"
 msgstr "Yeni kelimeler / gün"
 
-#: includes/shortcodes/user-study-dashboard.php:65
+#: includes/shortcodes/user-study-dashboard.php:64
 msgid "Next"
 msgstr "Sonraki"
 
@@ -2034,7 +2021,7 @@ msgstr "Sonraki Set"
 msgid "No"
 msgstr "Hayır"
 
-#: includes/shortcodes/user-study-dashboard.php:139
+#: includes/shortcodes/user-study-dashboard.php:138
 msgid "No activity yet."
 msgstr "Henüz bir faaliyet yok."
 
@@ -2058,7 +2045,7 @@ msgstr "Bu kelime için herhangi bir ses kaydı bulunamadı."
 msgid "No blocked pairs yet."
 msgstr "Henüz engellenmiş çift yok."
 
-#: includes/shortcodes/user-study-dashboard.php:86
+#: includes/shortcodes/user-study-dashboard.php:85
 msgid "No categories available for this word set yet."
 msgstr "Bu kelime seti için henüz kategori mevcut değil."
 
@@ -2070,7 +2057,7 @@ msgstr "Seçilen sözcük kümesi için kategori bulunamadı."
 msgid "No change"
 msgstr "Değişiklik yok"
 
-#: includes/shortcodes/user-study-dashboard.php:142
+#: includes/shortcodes/user-study-dashboard.php:141
 msgid "No data yet."
 msgstr "Henüz veri yok."
 
@@ -2115,6 +2102,10 @@ msgstr "Resim mevcut değil"
 msgid "No IPA symbols found for this word set."
 msgstr "Bu sözcük kümesi için IPA sembolü bulunamadı."
 
+#: includes/pages/wordset-pages.php:624
+msgid "No lesson categories yet."
+msgstr "Henüz ders kategorisi yok."
+
 #: includes/admin/ipa-keyboard-admin.php:43
 msgid "No letter mappings found for this word set."
 msgstr "Bu kelime grubu için harf eşleştirmesi bulunamadı."
@@ -2127,10 +2118,6 @@ msgstr "Henüz eşleme yok."
 msgid "No missing items in this category."
 msgstr "Bu kategoride eksik ürün yok."
 
-#: includes/taxonomies/word-category-taxonomy.php:1657
-msgid "No posts selected"
-msgstr "Hiçbir gönderi seçilmedi"
-
 #: includes/shortcodes/quiz-pages-shortcodes.php:1029
 msgid "No quiz pages are available yet."
 msgstr "Henüz sınav sayfası bulunmamaktadır."
@@ -2139,7 +2126,7 @@ msgstr "Henüz sınav sayfası bulunmamaktadır."
 msgid "No quizzes found."
 msgstr "Sınav bulunamadı."
 
-#: includes/shortcodes/user-study-dashboard.php:67
+#: includes/shortcodes/user-study-dashboard.php:66
 msgid "No recommendation yet. Pick categories or do one round first."
 msgstr "Henüz bir öneri yok. Kategorileri seçin veya önce bir tur yapın."
 
@@ -2203,7 +2190,7 @@ msgstr "Henüz bir haber bulunamadı."
 msgid "No words are linked to this dictionary entry yet."
 msgstr "Bu sözlük girdisine henüz hiçbir kelime bağlanmamıştır."
 
-#: includes/shortcodes/user-study-dashboard.php:115
+#: includes/shortcodes/user-study-dashboard.php:114
 msgid "No words available for this check."
 msgstr "Bu kontrol için kelime mevcut değil."
 
@@ -2223,7 +2210,7 @@ msgstr ""
 #: includes/admin/metabox-word-audio-parent.php:35
 #: includes/post-types/dictionary-entry-post-type.php:1004
 #: includes/shortcodes/editor-hub-shortcode.php:847
-#: includes/shortcodes/user-study-dashboard.php:356
+#: includes/shortcodes/user-study-dashboard.php:355
 #: includes/admin/uploads/image-upload-form.php:249
 msgid "None"
 msgstr "Hiçbiri"
@@ -2245,7 +2232,7 @@ msgstr "İsim cinsiyeti"
 msgid "Noun plurality"
 msgstr "İsim çoğulluğu"
 
-#: includes/shortcodes/user-study-dashboard.php:117
+#: includes/shortcodes/user-study-dashboard.php:116
 msgid "Now choose how close your answer was."
 msgstr "Şimdi cevabınızın ne kadar yakın olduğunu seçin."
 
@@ -2403,7 +2390,6 @@ msgstr "Mükemmel!"
 #: includes/admin/audio-processor-admin.php:645
 #: includes/admin/word-images-fixer.php:80
 #: includes/pages/editor-hub-page.php:161
-#: includes/taxonomies/word-category-taxonomy.php:1648
 msgid "Permission denied"
 msgstr "İzin reddedildi"
 
@@ -2425,13 +2411,13 @@ msgstr "Oyun"
 
 #: includes/admin/word-option-rules-admin.php:822
 #: includes/shortcodes/flashcard-widget.php:180
-#: includes/shortcodes/user-study-dashboard.php:91
+#: includes/shortcodes/user-study-dashboard.php:90
 #, php-format
 msgid "Play %s recording"
 msgstr "%s kaydını oynat"
 
 #: includes/shortcodes/flashcard-widget.php:179
-#: includes/shortcodes/user-study-dashboard.php:90
+#: includes/shortcodes/user-study-dashboard.php:89
 msgid "Play audio"
 msgstr "Ses çalma"
 
@@ -2441,7 +2427,7 @@ msgstr "Ses çalma"
 msgid "Play audio (default)"
 msgstr "Ses çal (varsayılan)"
 
-#: includes/shortcodes/user-study-dashboard.php:116
+#: includes/shortcodes/user-study-dashboard.php:115
 msgid "Playing audio, then moving to the next word..."
 msgstr "Ses çalınıyor, sonra bir sonraki kelimeye geçiliyor..."
 
@@ -2474,8 +2460,8 @@ msgid "Plurality Override"
 msgstr "Çoğunluk Geçersiz Kılma"
 
 #: templates/vocab-lesson-template.php:42
-#: includes/shortcodes/user-study-dashboard.php:75
-#: includes/shortcodes/user-study-dashboard.php:82
+#: includes/shortcodes/user-study-dashboard.php:74
+#: includes/shortcodes/user-study-dashboard.php:81
 msgid "Practice"
 msgstr "Tekrarla"
 
@@ -2512,11 +2498,11 @@ msgid "Process recordings immediately and publish them after review."
 msgstr "Kayıtları hemen işleyin ve inceledikten sonra yayınlayın."
 
 #: includes/shortcodes/editor-hub-shortcode.php:877
-#: includes/shortcodes/user-study-dashboard.php:128
+#: includes/shortcodes/user-study-dashboard.php:127
 msgid "Progress"
 msgstr "İlerleme"
 
-#: includes/shortcodes/user-study-dashboard.php:130
+#: includes/shortcodes/user-study-dashboard.php:129
 msgid "Progress is unavailable right now."
 msgstr "Şu anda ilerleme kaydedilemiyor."
 
@@ -2525,7 +2511,7 @@ msgid "Published audio exists"
 msgstr "Yayınlanmış ses var"
 
 #: includes/shortcodes/editor-hub-shortcode.php:191
-#: includes/shortcodes/user-study-dashboard.php:92
+#: includes/shortcodes/user-study-dashboard.php:91
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
@@ -2588,22 +2574,22 @@ msgstr "Sebep"
 
 #: templates/flashcard-widget-template.php:198
 #: includes/shortcodes/quiz-pages-shortcodes.php:702
-#: includes/shortcodes/user-study-dashboard.php:73
-#: includes/shortcodes/user-study-dashboard.php:407
+#: includes/shortcodes/user-study-dashboard.php:72
+#: includes/shortcodes/user-study-dashboard.php:406
 msgid "Recommended"
 msgstr "Tavsiye edilir"
 
-#: includes/shortcodes/user-study-dashboard.php:74
+#: includes/shortcodes/user-study-dashboard.php:73
 #, php-format
 msgid "Recommended (%2$d)"
 msgstr "Önerilen (%2$d)"
 
-#: includes/shortcodes/user-study-dashboard.php:68
+#: includes/shortcodes/user-study-dashboard.php:67
 #, php-format
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr "Önerilen: %2$s içinde %1$s (%3$d kelime)."
 
-#: includes/shortcodes/user-study-dashboard.php:69
+#: includes/shortcodes/user-study-dashboard.php:68
 #, php-format
 msgid "Recommended: %1$s in %2$s."
 msgstr "Önerilen: %2$s içinde %1$s."
@@ -2641,7 +2627,7 @@ msgstr "Kayıt Türleri"
 
 #: includes/shortcodes/editor-hub-shortcode.php:845
 #: includes/shortcodes/flashcard-widget.php:183
-#: includes/shortcodes/user-study-dashboard.php:95
+#: includes/shortcodes/user-study-dashboard.php:94
 msgid "Recordings"
 msgstr "Kayıtlar"
 
@@ -2680,8 +2666,8 @@ msgstr ""
 
 #: templates/flashcard-widget-template.php:192
 #: includes/shortcodes/quiz-pages-shortcodes.php:696
-#: includes/shortcodes/user-study-dashboard.php:70
-#: includes/shortcodes/user-study-dashboard.php:113
+#: includes/shortcodes/user-study-dashboard.php:69
+#: includes/shortcodes/user-study-dashboard.php:112
 msgid "Repeat"
 msgstr "Tekrarla"
 
@@ -2789,7 +2775,7 @@ msgstr "Başlığı kaydet"
 
 #: includes/admin/ipa-keyboard-admin.php:36
 #: includes/shortcodes/editor-hub-shortcode.php:850
-#: includes/shortcodes/user-study-dashboard.php:81
+#: includes/shortcodes/user-study-dashboard.php:80
 msgid "Saved."
 msgstr "Kaydedildi."
 
@@ -2852,7 +2838,7 @@ msgstr "Güvenlik kontrolü başarısız oldu."
 msgid "Security check failed. Please try again."
 msgstr "Güvenlik kontrolü başarısız oldu. Lütfen tekrar deneyin."
 
-#: includes/shortcodes/user-study-dashboard.php:296
+#: includes/shortcodes/user-study-dashboard.php:295
 msgid "Seen"
 msgstr "Görüldü"
 
@@ -2860,7 +2846,7 @@ msgstr "Görüldü"
 msgid "Select a category"
 msgstr "Bir kategori seçin"
 
-#: includes/shortcodes/user-study-dashboard.php:87
+#: includes/shortcodes/user-study-dashboard.php:86
 msgid "Select a category to see its words."
 msgstr "Kelimelerini görmek için bir kategori seçin."
 
@@ -2973,7 +2959,7 @@ msgstr ""
 msgid "Select word set"
 msgstr "Sözcük kümesini seçin"
 
-#: includes/shortcodes/user-study-dashboard.php:131
+#: includes/shortcodes/user-study-dashboard.php:130
 msgid "Selected categories (%d)"
 msgstr "Seçilen kategoriler (%d)"
 
@@ -2985,28 +2971,28 @@ msgstr "Kontrol"
 
 #: templates/vocab-lesson-template.php:44
 #: includes/shortcodes/flashcard-widget.php:170
-#: includes/shortcodes/user-study-dashboard.php:79
+#: includes/shortcodes/user-study-dashboard.php:78
+#: includes/shortcodes/user-study-dashboard.php:99
 #: includes/shortcodes/user-study-dashboard.php:100
-#: includes/shortcodes/user-study-dashboard.php:101
 msgid "Self check"
 msgstr "Kontrol"
 
-#: includes/shortcodes/user-study-dashboard.php:107
+#: includes/shortcodes/user-study-dashboard.php:106
 msgid "Self check complete"
 msgstr "Kendi kendine kontrol tamamlandı"
 
-#: includes/shortcodes/user-study-dashboard.php:105
+#: includes/shortcodes/user-study-dashboard.php:104
 #, php-format
 msgid "Self check complete: %1$d unsure, %2$d wrong, %3$d close, %4$d right."
 msgstr ""
 "Öz kontrol tamamlandı: %1$d emin değil, %2$d yanlış, %3$d yakın, %4$d doğru."
 
-#: includes/shortcodes/user-study-dashboard.php:106
+#: includes/shortcodes/user-study-dashboard.php:105
 #, php-format
 msgid "Self check complete: x %1$d, ~ %2$d, ✓ %3$d."
 msgstr "Öz kontrol tamamlandı: x %1$d, ~ %2$d, ✓ %3$d."
 
-#: includes/shortcodes/user-study-dashboard.php:121
+#: includes/shortcodes/user-study-dashboard.php:120
 msgid "Set 0 to focus only on review."
 msgstr "Yalnızca incelemeye odaklanmak için 0 olarak ayarlayın."
 
@@ -3075,14 +3061,9 @@ msgstr "Çalışmak için oturum açın"
 msgid "Similar word"
 msgstr "Benzer kelime"
 
-#. ID of the meta box
-#: includes/post-types/words-post-type.php:68
-msgid "Similar Words"
-msgstr "Benzer Kelimeler"
-
 #: includes/shortcodes/editor-hub-shortcode.php:855
 #: includes/shortcodes/editor-hub-shortcode.php:921
-#: includes/shortcodes/user-study-dashboard.php:122
+#: includes/shortcodes/user-study-dashboard.php:121
 msgid "Skip"
 msgstr "Atla"
 
@@ -3161,7 +3142,7 @@ msgstr "Bölünmüş Kelime"
 msgid "Split Word Audio"
 msgstr "Bölünmüş Kelime Sesi"
 
-#: includes/shortcodes/user-study-dashboard.php:98
+#: includes/shortcodes/user-study-dashboard.php:97
 msgid "Standard"
 msgstr "Standart"
 
@@ -3171,22 +3152,18 @@ msgid "Standard pace"
 msgstr "Standart hız"
 
 #: templates/vocab-lesson-template.php:149
-#: includes/shortcodes/user-study-dashboard.php:88
+#: includes/shortcodes/user-study-dashboard.php:87
 msgid "Star all"
 msgstr "Tümünü işaretle"
 
-#: includes/shortcodes/user-study-dashboard.php:150
+#: includes/shortcodes/user-study-dashboard.php:149
 msgid "Star word"
 msgstr "Yıldız kelimesi"
 
-#: includes/shortcodes/user-study-dashboard.php:80
-#: includes/shortcodes/user-study-dashboard.php:136
+#: includes/shortcodes/user-study-dashboard.php:79
+#: includes/shortcodes/user-study-dashboard.php:135
 msgid "Starred"
 msgstr "Yıldızlı"
-
-#: includes/shortcodes/user-study-dashboard.php:63
-msgid "Starred words"
-msgstr "Yıldızlı kelimeler"
 
 #: templates/flashcard-widget-template.php:40
 msgid "Start"
@@ -3200,7 +3177,7 @@ msgstr "Seviye 2'ye başlayın"
 msgid "Start Level 3"
 msgstr "Seviye 3'e başlayın"
 
-#: includes/shortcodes/user-study-dashboard.php:66
+#: includes/shortcodes/user-study-dashboard.php:65
 msgid "Start next"
 msgstr "Sonraki"
 
@@ -3209,7 +3186,7 @@ msgid "Start Quiz"
 msgstr "Başla"
 
 #: includes/admin/split-word-admin.php:234
-#: includes/shortcodes/user-study-dashboard.php:294
+#: includes/shortcodes/user-study-dashboard.php:293
 msgid "Status"
 msgstr "Durum"
 
@@ -3217,8 +3194,8 @@ msgstr "Durum"
 msgid "Strong Anchor Tech"
 msgstr "Strong Anchor Tech"
 
-#: includes/shortcodes/user-study-dashboard.php:134
-#: includes/shortcodes/user-study-dashboard.php:148
+#: includes/shortcodes/user-study-dashboard.php:133
+#: includes/shortcodes/user-study-dashboard.php:147
 msgid "Studied"
 msgstr "Çalışıldı"
 
@@ -3271,7 +3248,7 @@ msgstr "Dinleme Moduna Geçin"
 msgid "Switch to Practice Mode"
 msgstr "Tekrar Moduna Geçin"
 
-#: includes/shortcodes/user-study-dashboard.php:179
+#: includes/shortcodes/user-study-dashboard.php:178
 msgid "Switch word sets to load their categories and words."
 msgstr ""
 "Kategorilerini ve kelimelerini yüklemek için kelime setlerini değiştirin."
@@ -3404,7 +3381,7 @@ msgstr "Araçlar"
 #: templates/flashcard-widget-template.php:113
 #: includes/shortcodes/quiz-pages-shortcodes.php:617
 #: includes/shortcodes/quiz-pages-shortcodes.php:618
-#: includes/shortcodes/user-study-dashboard.php:96
+#: includes/shortcodes/user-study-dashboard.php:95
 msgid "Transition speed"
 msgstr "Geçiş hızı"
 
@@ -3519,7 +3496,7 @@ msgid "Unexpected error while saving. Please try again."
 msgstr "Kaydederken beklenmeyen hata. Lütfen tekrar deneyin."
 
 #: includes/admin/word-option-rules-admin.php:938
-#: includes/shortcodes/user-study-dashboard.php:125
+#: includes/shortcodes/user-study-dashboard.php:124
 msgid "Unknown"
 msgstr "Bilinmiyor"
 
@@ -3527,16 +3504,16 @@ msgstr "Bilinmiyor"
 msgid "Unknown error."
 msgstr "Bilinmeyen hata."
 
+#: includes/shortcodes/user-study-dashboard.php:144
 #: includes/shortcodes/user-study-dashboard.php:145
-#: includes/shortcodes/user-study-dashboard.php:146
 msgid "Unseen"
 msgstr "Görünmeyen"
 
-#: includes/shortcodes/user-study-dashboard.php:89
+#: includes/shortcodes/user-study-dashboard.php:88
 msgid "Unstar all"
 msgstr "Hepsini kaldır"
 
-#: includes/shortcodes/user-study-dashboard.php:151
+#: includes/shortcodes/user-study-dashboard.php:150
 msgid "Unstar word"
 msgstr "Yıldızsız kelime"
 
@@ -3552,7 +3529,7 @@ msgstr ""
 "Dışa aktarılmış bir JSON dosyası yükleyin ve uygulanacak kelime setini seçin."
 " Bir sonraki adımda kategoriyi onaylayacaksınız."
 
-#: includes/shortcodes/user-study-dashboard.php:123
+#: includes/shortcodes/user-study-dashboard.php:122
 msgid "Use"
 msgstr "Kullanım"
 
@@ -3706,7 +3683,7 @@ msgstr "Kelime Dersleri"
 msgid "Vocab: %1$s (%2$s)"
 msgstr "Kelime: %1$s (%2$s)"
 
-#: includes/shortcodes/user-study-dashboard.php:108
+#: includes/shortcodes/user-study-dashboard.php:107
 msgid "What do you think this word is?"
 msgstr "Sence bu kelime nedir?"
 
@@ -3750,10 +3727,6 @@ msgstr "Kelime B"
 msgid "Word Categories"
 msgstr "Kelime Kategorileri"
 
-#: includes/post-types/words-post-type.php:133
-msgid "Word categories:"
-msgstr "Kelime kategorileri:"
-
 #: includes/taxonomies/word-category-taxonomy.php:11
 msgid "Word Category"
 msgstr "Kelime Kategorisi"
@@ -3781,7 +3754,7 @@ msgstr "Kelime Görselleri"
 #: templates/vocab-lesson-template.php:404
 #: includes/shortcodes/quiz-pages-shortcodes.php:609
 #: includes/shortcodes/quiz-pages-shortcodes.php:610
-#: includes/shortcodes/user-study-dashboard.php:316
+#: includes/shortcodes/user-study-dashboard.php:315
 msgid "Word inclusion"
 msgstr "Kelime seçimi"
 
@@ -3817,7 +3790,7 @@ msgstr "Kelime Seti"
 msgid "Word set"
 msgstr "Kelime seti"
 
-#: templates/wordset-page-template.php:14
+#: templates/wordset-page-template.php:14 includes/pages/wordset-pages.php:572
 msgid "Word set not found."
 msgstr "Kelime seti bulunamadı."
 
@@ -3847,8 +3820,8 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:193
 #: includes/post-types/words-post-type.php:18
 #: includes/post-types/words-post-type.php:23
-#: includes/shortcodes/user-study-dashboard.php:64
-#: includes/shortcodes/user-study-dashboard.php:141
+#: includes/shortcodes/user-study-dashboard.php:63
+#: includes/shortcodes/user-study-dashboard.php:140
 msgid "Words"
 msgstr "Kelimeler"
 
@@ -3860,11 +3833,15 @@ msgstr "Kelimeler kategoriye uygun şekilde atanır"
 msgid "Words to import"
 msgstr "İçe aktarılacak kelimeler"
 
+#: includes/pages/wordset-pages.php:686
+msgid "Words: %d"
+msgstr "Kelimeler: %d"
+
 #: includes/admin/admin-dashboard-menu.php:433
 msgid "Workflows"
 msgstr "İş Akışları"
 
-#: includes/shortcodes/user-study-dashboard.php:297
+#: includes/shortcodes/user-study-dashboard.php:296
 msgid "Wrong"
 msgstr "Yanlış"
 
@@ -3919,8 +3896,8 @@ msgstr "Dosya yüklemek için izniniz yok."
 msgid "You do not have permission to view this page."
 msgstr "Bu sayfayı görüntülemek için izniniz yok."
 
-#: includes/user-study.php:348 includes/user-study.php:367
-#: includes/user-study.php:387
+#: includes/user-study.php:297 includes/user-study.php:316
+#: includes/user-study.php:335
 msgid "You do not have permission."
 msgstr "İzniniz yok."
 
@@ -3933,7 +3910,7 @@ msgstr "Bu sayfaya erişmek için yeterli izniniz yok."
 msgid "You're on the right track..."
 msgstr "Doğru yoldasın."
 
-#: includes/shortcodes/user-study-dashboard.php:173
+#: includes/shortcodes/user-study-dashboard.php:172
 msgid "Your study plan"
 msgstr "Çalışma planınız"
 
@@ -3944,21 +3921,21 @@ msgstr "- Seçiniz -"
 #: templates/flashcard-widget-template.php:108
 #: templates/vocab-lesson-template.php:407
 #: includes/shortcodes/quiz-pages-shortcodes.php:613
-#: includes/shortcodes/user-study-dashboard.php:320
+#: includes/shortcodes/user-study-dashboard.php:319
 msgid "★ Starred only"
 msgstr "★ Sadece yıldızlılar"
 
 #: templates/flashcard-widget-template.php:107
 #: templates/vocab-lesson-template.php:406
 #: includes/shortcodes/quiz-pages-shortcodes.php:612
-#: includes/shortcodes/user-study-dashboard.php:319
+#: includes/shortcodes/user-study-dashboard.php:318
 msgid "★☆★ Starred twice"
 msgstr "★☆★ Yıldızlılar iki kere"
 
 #: templates/flashcard-widget-template.php:106
 #: templates/vocab-lesson-template.php:405
 #: includes/shortcodes/quiz-pages-shortcodes.php:611
-#: includes/shortcodes/user-study-dashboard.php:318
+#: includes/shortcodes/user-study-dashboard.php:317
 msgid "☆★ All words once"
 msgstr "☆★ Tüm kelimeler bir kez"
 

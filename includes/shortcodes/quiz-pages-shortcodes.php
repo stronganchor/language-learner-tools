@@ -590,7 +590,7 @@ function ll_qpg_print_flashcard_shell_once() {
             $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
             $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
             $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
-            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
+            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender', 'll-tools-text-domain');
             $settings_label = __('Study Settings', 'll-tools-text-domain');
           ?>
           <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
@@ -624,21 +624,21 @@ function ll_qpg_print_flashcard_shell_once() {
               </div>
             <?php endif; ?>
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-              <!-- Fixed order: learning, practice, self-check, gender, listening -->
+              <!-- Fixed order: learning, practice, listening, gender, self-check -->
               <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
                 <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
                 <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
-                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
+              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
+                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option gender hidden" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" aria-hidden="true">
                 <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
-                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
+              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
               </button>
             </div>
             <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
@@ -658,8 +658,8 @@ function ll_qpg_print_flashcard_shell_once() {
                 $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
                 $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
                 $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
-                $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
-                $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
+                $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
+                $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
               ?>
               <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
                 <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>

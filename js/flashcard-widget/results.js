@@ -120,7 +120,7 @@
     function getDefaultGenderButtonLabel() {
         const modeUi = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
         const genderUi = modeUi.gender || {};
-        return genderUi.resultsButtonText || 'Gender Mode';
+        return genderUi.resultsButtonText || 'Gender';
     }
 
     function getLearningResultsLabelElement() {
@@ -239,6 +239,26 @@
         if (key === 'gender') { return 'Gender'; }
         if (key === 'self-check') { return 'Self check'; }
         return 'Practice';
+    }
+
+    function trackModeSessionCompletionForProgress(mode) {
+        const tracker = root.LLFlashcards && root.LLFlashcards.ProgressTracker;
+        if (!tracker || typeof tracker.trackModeSessionComplete !== 'function') {
+            return;
+        }
+        const names = Array.isArray(State && State.categoryNames) ? State.categoryNames : [];
+        let categoryIds = [];
+        if (typeof tracker.categoryNameToId === 'function') {
+            categoryIds = names.map(function (name) {
+                return parseInt(tracker.categoryNameToId(name), 10) || 0;
+            }).filter(function (id) {
+                return id > 0;
+            });
+        }
+        tracker.trackModeSessionComplete({
+            mode: normalizeProgressMode(mode) || 'practice',
+            categoryIds: categoryIds
+        });
     }
 
     function summarizeCategoryLabel(categoryNames) {
@@ -423,6 +443,10 @@
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
+        if (State && !State.modeSessionCompleteTracked) {
+            trackModeSessionCompletionForProgress(getCurrentResultsMode());
+            State.modeSessionCompleteTracked = true;
+        }
         const learningAllowed = isLearningSupportedForResults();
         const genderAllowed = isGenderSupportedForResults();
         let categoriesForDisplay = getCategoryNamesForDisplay();
