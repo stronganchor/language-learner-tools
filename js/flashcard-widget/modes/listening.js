@@ -1078,6 +1078,13 @@
                 return true;
             }
             if (State.isFirstRound) {
+                const recoveredFromSessionFilter = utils && typeof utils.tryRecoverSessionWordFilter === 'function'
+                    ? !!utils.tryRecoverSessionWordFilter()
+                    : false;
+                if (recoveredFromSessionFilter) {
+                    try { WakeLock.update(); } catch (_) { }
+                    return true;
+                }
                 if (typeof utils.showLoadingError === 'function') {
                     utils.showLoadingError();
                 } else {

@@ -16,6 +16,7 @@
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
     let firstRoundRecoveryAttempts = 0;
+    let sessionWordFilterRecoveryAttempts = 0;
 
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
@@ -137,6 +138,7 @@
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
         firstRoundRecoveryAttempts = 0;
+        sessionWordFilterRecoveryAttempts = 0;
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
         setStarModeOverride(null);
@@ -149,6 +151,55 @@
                 : undefined;
             window.FlashcardAudio.pauseAllAudio(sid);
         } catch (_) { /* no-op */ }
+    }
+
+    // Reset per-launch quiz state without touching cached loaded words.
+    // Dashboard chunk repeat relaunches keep the popup open and call initFlashcardWidget
+    // directly, so these fields must be cleared manually to avoid carrying over
+    // used/completed markers from the prior session.
+    function resetRoundStateForLaunch() {
+        State.clearActiveTimeouts();
+
+        State.usedWordIDs = [];
+        State.categoryRoundCount = {};
+        State.completedCategories = {};
+        State.starPlayCounts = {};
+        State.wrongIndexes = [];
+        State.currentCategory = null;
+        State.currentCategoryName = null;
+        State.firstCategoryName = '';
+        State.currentCategoryRoundCount = 0;
+        State.isFirstRound = true;
+        State.currentOptionType = 'image';
+        State.currentPromptType = 'audio';
+        State.categoryRepetitionQueues = {};
+        State.practiceForcedReplays = {};
+        State.userClickedCorrectAnswer = false;
+        State.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+        State.modeSessionCompleteTracked = false;
+        State.hadWrongAnswerThisTurn = false;
+        State.lastWordShownId = null;
+
+        State.wordsLinear = [];
+        State.listenIndex = 0;
+        State.listeningCurrentTarget = null;
+        State.listeningHistory = [];
+        State.introducedWordIDs = [];
+        State.wordIntroductionProgress = {};
+        State.wordCorrectCounts = {};
+        State.wordsToIntroduce = [];
+        State.totalWordCount = 0;
+        State.wrongAnswerQueue = [];
+        State.isIntroducingWord = false;
+        State.currentIntroductionAudio = null;
+        State.currentIntroductionRound = 0;
+        State.learningModeOptionsCount = 2;
+        State.learningModeConsecutiveCorrect = 0;
+        State.wordsAnsweredSinceLastIntro = new Set();
+        State.learningModeRepetitionQueue = [];
+        State.learningWordSets = [];
+        State.learningWordSetIndex = 0;
+        State.learningWordSetSignature = '';
     }
 
     // Restore the full category list for a fresh session (e.g., after completion)
@@ -213,6 +264,87 @@
         }
 
         retryRound();
+        return true;
+    }
+
+    function getSessionWordIdsFromData(data) {
+        const raw = Array.isArray(data && data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data && data.session_word_ids) ? data.session_word_ids : []);
+        return raw
+            .map(function (value) { return parseInt(value, 10) || 0; })
+            .filter(function (id) { return id > 0; });
+    }
+
+    function clearWordCachesForSessionRetry() {
+        try {
+            if (State.wordsByCategory && typeof State.wordsByCategory === 'object') {
+                Object.keys(State.wordsByCategory).forEach(function (key) {
+                    delete State.wordsByCategory[key];
+                });
+            }
+            if (root.wordsByCategory && typeof root.wordsByCategory === 'object') {
+                Object.keys(root.wordsByCategory).forEach(function (key) {
+                    delete root.wordsByCategory[key];
+                });
+            }
+            if (root.optionWordsByCategory && typeof root.optionWordsByCategory === 'object') {
+                Object.keys(root.optionWordsByCategory).forEach(function (key) {
+                    delete root.optionWordsByCategory[key];
+                });
+            }
+            if (State.categoryRoundCount && typeof State.categoryRoundCount === 'object') {
+                Object.keys(State.categoryRoundCount).forEach(function (key) {
+                    delete State.categoryRoundCount[key];
+                });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
+    function tryRecoverSessionWordFilter() {
+        if (!State.isFirstRound) {
+            return false;
+        }
+        if (sessionWordFilterRecoveryAttempts > 0) {
+            return false;
+        }
+
+        const flashData = root.llToolsFlashcardsData || {};
+        const activeSessionWordIds = getSessionWordIdsFromData(flashData);
+        if (!activeSessionWordIds.length) {
+            return false;
+        }
+
+        sessionWordFilterRecoveryAttempts += 1;
+
+        flashData.sessionWordIds = [];
+        flashData.session_word_ids = [];
+        if (flashData.lastLaunchPlan && typeof flashData.lastLaunchPlan === 'object') {
+            flashData.lastLaunchPlan.session_word_ids = [];
+        }
+        if (flashData.last_launch_plan && typeof flashData.last_launch_plan === 'object') {
+            flashData.last_launch_plan.session_word_ids = [];
+        }
+        root.llToolsFlashcardsData = flashData;
+
+        clearWordCachesForSessionRetry();
+
+        try {
+            if (root.FlashcardLoader && typeof root.FlashcardLoader.resetCacheForNewWordset === 'function') {
+                root.FlashcardLoader.resetCacheForNewWordset();
+            }
+        } catch (_) { /* no-op */ }
+
+        const movedToLoading = State.transitionTo(STATES.LOADING, 'Retrying without session word filter');
+        if (!movedToLoading) {
+            State.forceTransitionTo(STATES.LOADING, 'Forcing retry without session word filter');
+        }
+
+        setGuardedTimeout(function () {
+            if (!State.widgetActive) { return; }
+            startQuizRound();
+        }, 80);
+
         return true;
     }
 
@@ -2075,6 +2207,7 @@
                 startQuizRound,
                 runQuizRound,
                 showLoadingError,
+                tryRecoverSessionWordFilter,
                 Dom,
                 Cards,
                 Results,
@@ -2116,6 +2249,9 @@
                     }
                 }
                 if (!hasWords) {
+                    if (tryRecoverSessionWordFilter()) {
+                        return;
+                    }
                     if (tryRecoverFirstRoundLoad()) {
                         return;
                     }
@@ -2284,9 +2420,8 @@
                 State.forceTransitionTo(STATES.IDLE, 'Resetting before initialization');
             }
 
-            // Ensure new sessions always begin from a clean first-round state
-            State.isFirstRound = true;
-            State.hadWrongAnswerThisTurn = false;
+            // Ensure every relaunch starts from a clean round state, even if the popup stays open.
+            resetRoundStateForLaunch();
 
             if (!State.is(STATES.LOADING)) {
                 const movedToLoading = State.transitionTo(STATES.LOADING, 'Widget initialization');
