@@ -13,6 +13,28 @@
     const FlashcardLoader = root.FlashcardLoader;
     const STATES = State.STATES || {};
 
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function resolveWordsetIdForProgress() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = data.userStudyState || {};
+        const fromState = parseInt(userState.wordset_id, 10) || 0;
+        if (fromState > 0) {
+            return fromState;
+        }
+        if (Array.isArray(data.wordsetIds) && data.wordsetIds.length) {
+            const first = parseInt(data.wordsetIds[0], 10) || 0;
+            if (first > 0) {
+                return first;
+            }
+        }
+        return 0;
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -335,7 +357,9 @@
         const copies = [];
         (Array.isArray(words) ? words : []).forEach(function (w) {
             if (!w) return;
-            const isStarred = !!starredLookup[w.id];
+            const wordId = parseInt(w.id, 10);
+            if (!wordId) return;
+            const isStarred = !!starredLookup[wordId];
             if (starMode === 'only' && !isStarred) return;
             const weight = (starMode === 'weighted' && isStarred) ? 2 : 1;
             for (let i = 0; i < weight; i++) {
@@ -364,15 +388,29 @@
         if (State.categoryNames && State.wordsByCategory) {
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
+            const uniqueWordsById = {};
+            const uniqueWordIds = [];
             for (const name of State.categoryNames) {
                 const list = State.wordsByCategory[name] || [];
                 for (const w of list) {
                     if (!w) continue;
-                    try { if (w && !w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                    const wordId = parseInt(w.id, 10);
+                    if (!wordId) continue;
+                    try { if (!w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
+                    if (!uniqueWordsById[wordId]) {
+                        uniqueWordsById[wordId] = w;
+                        uniqueWordIds.push(wordId);
+                    }
                 }
-                const categorySeq = buildWeightedSequence(list, starredLookup, starMode);
-                if (categorySeq.length) {
-                    categorySeq.forEach(function (word) { seq.push(word); });
+            }
+
+            if (uniqueWordIds.length) {
+                const uniqueWords = uniqueWordIds.map(function (id) {
+                    return uniqueWordsById[id];
+                }).filter(Boolean);
+                const weightedSeq = buildWeightedSequence(uniqueWords, starredLookup, starMode);
+                if (weightedSeq.length) {
+                    weightedSeq.forEach(function (word) { seq.push(word); });
                 }
             }
         }
@@ -945,6 +983,24 @@
             } catch (_) { /* no-op */ }
         })();
 
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.setContext === 'function') {
+                tracker.setContext({
+                    mode: 'listening',
+                    wordsetId: resolveWordsetIdForProgress()
+                });
+            }
+            if (tracker && typeof tracker.trackCategoryStudy === 'function') {
+                tracker.trackCategoryStudy({
+                    mode: 'listening',
+                    categoryName: State.currentCategoryName || '',
+                    wordsetId: resolveWordsetIdForProgress(),
+                    payload: { units: 1 }
+                });
+            }
+        } catch (_) { /* no-op */ }
+
         try { WakeLock.update(); } catch (_) { }
 
         const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;
@@ -1055,7 +1111,10 @@
             }
         } catch (_) { /* no-op */ }
 
-        loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig).then(function () {
+        const deferImagePreload = (promptType === 'audio');
+        loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
+            skipImagePreload: deferImagePreload
+        }).then(function () {
             // Pre-render content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {

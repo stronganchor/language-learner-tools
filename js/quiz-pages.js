@@ -6,6 +6,12 @@
 (function () {
     'use strict';
 
+    var quizCfg = (window.llQuizPages && typeof window.llQuizPages === 'object') ? window.llQuizPages : {};
+    var labelCfg = (quizCfg.labels && typeof quizCfg.labels === 'object') ? quizCfg.labels : {};
+    var defaultQuizTitle = labelCfg.defaultTitle || 'Quiz';
+    var closeLabel = labelCfg.closeLabel || 'Close';
+    var iframeTitle = labelCfg.iframeTitle || 'Quiz Content';
+
     // -------------------------
     // Minimal modal infrastructure
     // -------------------------
@@ -26,12 +32,12 @@
         header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.1);';
         var title = document.createElement('div');
         title.id = 'll-quiz-modal-title';
-        title.textContent = 'Quiz';
+        title.textContent = defaultQuizTitle;
         title.style.cssText = 'font-weight:600';
         var closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.textContent = '✕';
-        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.setAttribute('aria-label', closeLabel);
         closeBtn.style.cssText = 'border:0;background:transparent;color:#eee;font-size:18px;cursor:pointer;padding:6px 8px;';
         closeBtn.addEventListener('click', closeModal);
         header.appendChild(title);
@@ -40,7 +46,7 @@
         iframeEl = document.createElement('iframe');
         iframeEl.className = 'll-quiz-iframe';
         iframeEl.setAttribute('loading', 'eager');
-        iframeEl.setAttribute('title', 'Quiz Content');
+        iframeEl.setAttribute('title', iframeTitle);
         iframeEl.style.cssText = 'flex:1;width:100%;border:0;background:#000;';
 
         modalEl.appendChild(header);
@@ -60,7 +66,7 @@
         lastFocus = document.activeElement;
         iframeEl.src = url;
         var titleEl = modalEl.querySelector('#ll-quiz-modal-title');
-        if (titleEl) titleEl.textContent = titleTxt || 'Quiz';
+        if (titleEl) titleEl.textContent = titleTxt || defaultQuizTitle;
         document.body.appendChild(overlayEl);
         modalEl.setAttribute('tabindex', '-1');
         modalEl.focus({ preventScroll: true });
@@ -89,7 +95,7 @@
         window.llOpenFlashcardForCategory = function (catName, opts) {
             // If a URL is provided via opts, prefer it; otherwise construct a fallback.
             var url = (opts && opts.url) ? String(opts.url) : buildFallbackUrl(catName);
-            openModal(url, catName || 'Quiz');
+            openModal(url, catName || defaultQuizTitle);
         };
     }
 
@@ -112,11 +118,16 @@
 
         var cat = trigger.getAttribute('data-ll-open-cat') || trigger.getAttribute('data-category') || '';
         var url = trigger.getAttribute('data-url'); // NEW: prefer real permalink if provided
-        var title = trigger.querySelector('.ll-quiz-page-name')?.textContent?.trim() || cat || 'Quiz';
+        var title = trigger.querySelector('.ll-quiz-page-name')?.textContent?.trim() || cat || defaultQuizTitle;
 
         try {
             // If some other script replaced the global with a custom one, still call it:
             var opts = { url: url, triggerEl: trigger };
+            var isVocabLessonTrigger = !!(
+                trigger.classList.contains('ll-vocab-lesson-mode-button') ||
+                trigger.closest('[data-ll-vocab-lesson], .ll-vocab-lesson-page')
+            );
+            opts.launchContext = isVocabLessonTrigger ? 'vocab_lesson' : 'quiz_pages';
             var mode = trigger.getAttribute('data-mode') || '';
             var wordsetId = trigger.getAttribute('data-wordset-id') || '';
             var wordset = trigger.getAttribute('data-wordset') || '';

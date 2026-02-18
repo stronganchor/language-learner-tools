@@ -11,6 +11,77 @@ function ll_image_upload_user_can_access_admin_tool() {
     return ll_image_upload_user_can_access() && current_user_can('view_ll_tools');
 }
 
+/**
+ * Validate an uploaded image using server-side checks.
+ *
+ * @param string $tmp_name Temporary uploaded file path.
+ * @param string $original_name Original client filename.
+ * @param int    $file_error PHP upload error code.
+ * @param array  $allowed_image_types Allowed image mime types.
+ * @param array  $allowed_image_extensions Allowed image extensions.
+ * @param bool   $require_uploaded_file When true, require is_uploaded_file() to pass.
+ * @return array{valid:bool,error:string,mime:string,ext:string,safe_name:string}
+ */
+function ll_image_upload_validate_uploaded_image(
+    $tmp_name,
+    $original_name,
+    $file_error,
+    array $allowed_image_types,
+    array $allowed_image_extensions,
+    $require_uploaded_file = true
+) {
+    $result = [
+        'valid' => false,
+        'error' => '',
+        'mime' => '',
+        'ext' => '',
+        'safe_name' => '',
+    ];
+
+    if ((int) $file_error !== UPLOAD_ERR_OK) {
+        $result['error'] = 'File upload error';
+        return $result;
+    }
+    if ($require_uploaded_file && !is_uploaded_file((string) $tmp_name)) {
+        $result['error'] = 'File upload error';
+        return $result;
+    }
+
+    $ft = wp_check_filetype_and_ext((string) $tmp_name, (string) $original_name);
+    $validated_mime = isset($ft['type']) ? (string) $ft['type'] : '';
+    $validated_ext = isset($ft['ext']) ? strtolower((string) $ft['ext']) : '';
+
+    if ($validated_mime === '' || $validated_ext === ''
+        || !in_array($validated_mime, $allowed_image_types, true)
+        || !in_array($validated_ext, $allowed_image_extensions, true)) {
+        $result['error'] = 'Invalid image type';
+        return $result;
+    }
+
+    $image_size = @getimagesize((string) $tmp_name);
+    if ($image_size === false) {
+        $result['error'] = 'Invalid image data';
+        return $result;
+    }
+
+    $normalized_original = !empty($ft['proper_filename']) ? (string) $ft['proper_filename'] : (string) $original_name;
+    $base_without_ext = pathinfo($normalized_original, PATHINFO_FILENAME);
+    if ($base_without_ext === '') {
+        $base_without_ext = 'image';
+    }
+    $safe_file_name = sanitize_file_name($base_without_ext . '.' . $validated_ext);
+    if ($safe_file_name === '') {
+        $safe_file_name = 'image.' . $validated_ext;
+    }
+
+    $result['valid'] = true;
+    $result['mime'] = $validated_mime;
+    $result['ext'] = $validated_ext;
+    $result['safe_name'] = $safe_file_name;
+
+    return $result;
+}
+
 function ll_image_upload_enqueue_form_assets() {
     ll_enqueue_asset_by_timestamp('/js/image-upload-form-admin.js', 'll-image-upload-form-admin', ['jquery'], true);
 
@@ -334,49 +405,55 @@ function ll_handle_image_file_uploads() {
     }
 
     $allowed_image_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $allowed_image_extensions = ['jpg', 'jpeg', 'jpe', 'png', 'gif', 'webp'];
 
     foreach ($_FILES['ll_image_files']['tmp_name'] as $key => $tmp_name) {
         $original_name = $_FILES['ll_image_files']['name'][$key];
-        $file_type = $_FILES['ll_image_files']['type'][$key];
         $file_error = $_FILES['ll_image_files']['error'][$key];
 
-        // Validate the uploaded file
-        if (!in_array($file_type, $allowed_image_types)) {
-            $failed_uploads[] = $original_name . ' (Invalid file type)';
-            continue;
-        }
-        if ($file_error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp_name)) {
-            $failed_uploads[] = $original_name . ' (File upload error)';
+        $validation = ll_image_upload_validate_uploaded_image(
+            (string) $tmp_name,
+            (string) $original_name,
+            (int) $file_error,
+            $allowed_image_types,
+            $allowed_image_extensions
+        );
+        if (empty($validation['valid'])) {
+            $message = isset($validation['error']) ? (string) $validation['error'] : 'Invalid image file';
+            $failed_uploads[] = $original_name . ' (' . $message . ')';
             continue;
         }
 
-        // Sanitize and prepare file name
-        $file_name = sanitize_file_name($original_name);
+        // Sanitize and prepare a unique filename using the validated extension.
+        $safe_file_name = (string) ($validation['safe_name'] ?? '');
+        $validated_mime = (string) ($validation['mime'] ?? '');
+        $file_name = wp_unique_filename($upload_dir['path'], $safe_file_name);
         $upload_path = trailingslashit($upload_dir['path']) . $file_name;
-
-        // Check if the file already exists and modify the file name if it does
-        $counter = 0;
-        $file_info = pathinfo($file_name);
-        $original_base_name = $file_info['filename'];
-        $extension = isset($file_info['extension']) ? '.' . $file_info['extension'] : '';
-        while (file_exists($upload_path)) {
-            $file_name = $original_base_name . '_' . $counter . $extension;
-            $upload_path = trailingslashit($upload_dir['path']) . $file_name;
-            $counter++;
-        }
 
         if (move_uploaded_file($tmp_name, $upload_path)) {
             // Preserve original (Unicode) base name for titles
             $original_title = pathinfo($original_name, PATHINFO_FILENAME);
             $attachment_id = wp_insert_attachment([
                 'guid' => trailingslashit($upload_dir['baseurl']) . $file_name,
-                'post_mime_type' => $file_type,
+                'post_mime_type' => $validated_mime,
                 'post_title' => $original_title,
                 'post_content' => '',
                 'post_status' => 'inherit'
             ], $upload_path);
 
             if ($attachment_id && !is_wp_error($attachment_id)) {
+                if (function_exists('ll_tools_maybe_regenerate_attachment_metadata')) {
+                    ll_tools_maybe_regenerate_attachment_metadata((int) $attachment_id);
+                } else {
+                    if (!function_exists('wp_generate_attachment_metadata')) {
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+                    }
+                    $metadata = wp_generate_attachment_metadata((int) $attachment_id, $upload_path);
+                    if (is_array($metadata) && !empty($metadata)) {
+                        wp_update_attachment_metadata((int) $attachment_id, $metadata);
+                    }
+                }
+
                 $post_id = wp_insert_post([
                     'post_title' => $original_title,
                     'post_content' => '',

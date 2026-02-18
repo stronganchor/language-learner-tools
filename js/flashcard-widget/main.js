@@ -16,9 +16,29 @@
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
 
+    // Keep the quiz popup at the top document level so theme/container transforms
+    // cannot clip or scale it when opened from lesson/dashboard contexts.
+    function ensureFlashcardPopupPortal() {
+        const doc = root.document;
+        if (!doc || !doc.body) { return; }
+        const popupRoot = doc.getElementById('ll-tools-flashcard-popup');
+        if (!popupRoot || popupRoot.parentNode === doc.body) { return; }
+        try {
+            doc.body.appendChild(popupRoot);
+        } catch (_) { /* no-op */ }
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
+    }
+
+    function parseOptionalStarMode(mode) {
+        const val = (mode || '').toString();
+        if (val === 'only' || val === 'normal' || val === 'weighted') {
+            return val;
+        }
+        return null;
     }
 
     function setStarModeOverride(mode) {
@@ -30,14 +50,31 @@
         return normalized;
     }
 
+    function getSessionStarModeOverride() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = (typeof data.sessionStarModeOverride !== 'undefined')
+            ? data.sessionStarModeOverride
+            : data.session_star_mode_override;
+        return parseOptionalStarMode(raw);
+    }
+
     function getCurrentWordsetKey() {
-        const ws = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordset !== 'undefined')
-            ? root.llToolsFlashcardsData.wordset
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined')
+            ? data.wordset
             : '';
-        const fallback = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.wordsetFallback !== 'undefined')
-            ? !!root.llToolsFlashcardsData.wordsetFallback
+        const fallback = (typeof data.wordsetFallback !== 'undefined')
+            ? !!data.wordsetFallback
             : true;
-        return String(ws || '') + '|' + (fallback ? '1' : '0');
+        const sessionRaw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        const sessionKey = sessionRaw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; })
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+        return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
     }
 
     function resetWordsetScopedCachesIfNeeded() {
@@ -65,6 +102,9 @@
             }
             if (root.wordsByCategory && typeof root.wordsByCategory === 'object') {
                 Object.keys(root.wordsByCategory).forEach(k => delete root.wordsByCategory[k]);
+            }
+            if (root.optionWordsByCategory && typeof root.optionWordsByCategory === 'object') {
+                Object.keys(root.optionWordsByCategory).forEach(k => delete root.optionWordsByCategory[k]);
             }
             if (root.categoryRoundCount && typeof root.categoryRoundCount === 'object') {
                 Object.keys(root.categoryRoundCount).forEach(k => delete root.categoryRoundCount[k]);
@@ -203,6 +243,17 @@
             if (['0', 'false', 'no', 'off', ''].includes(lowered)) return false;
         }
         return !!val;
+    }
+
+    function parseBooleanFlag(raw) {
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'number') return raw > 0;
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
+        }
+        return !!raw;
     }
 
     function isUserLoggedIn() {
@@ -706,9 +757,25 @@
             State.wordsToIntroduce = Array.isArray(State.wordsToIntroduce) ? State.wordsToIntroduce : [];
             State.introducedWordIDs = Array.isArray(State.introducedWordIDs) ? State.introducedWordIDs : [];
             State.wrongAnswerQueue = Array.isArray(State.wrongAnswerQueue) ? State.wrongAnswerQueue : [];
+            State.learningWordSets = Array.isArray(State.learningWordSets) ? State.learningWordSets : [];
+            State.learningWordSetIndex = parseInt(State.learningWordSetIndex, 10) || 0;
             State.wordCorrectCounts = State.wordCorrectCounts || {};
             State.wordIntroductionProgress = State.wordIntroductionProgress || {};
             if (starMode !== 'only') return;
+
+            const recalcLearningWordSetSignature = function () {
+                const seen = {};
+                const allIds = [];
+                (State.learningWordSets || []).forEach(function (set) {
+                    (Array.isArray(set) ? set : []).forEach(function (id) {
+                        const num = parseInt(id, 10);
+                        if (!num || seen[num]) return;
+                        seen[num] = true;
+                        allIds.push(num);
+                    });
+                });
+                State.learningWordSetSignature = allIds.sort(function (a, b) { return a - b; }).join(',');
+            };
 
             if (!isStarredFlag) {
                 State.wordsToIntroduce = State.wordsToIntroduce.filter(id => id !== wordId);
@@ -719,9 +786,34 @@
                 if (State.wordsAnsweredSinceLastIntro && typeof State.wordsAnsweredSinceLastIntro.delete === 'function') {
                     State.wordsAnsweredSinceLastIntro.delete(wordId);
                 }
+                if (State.learningWordSets.length) {
+                    State.learningWordSets = State.learningWordSets.map(function (set) {
+                        return (Array.isArray(set) ? set : []).filter(function (id) { return id !== wordId; });
+                    }).filter(function (set) { return set.length > 0; });
+                    if (!State.learningWordSets.length) {
+                        State.learningWordSetIndex = 0;
+                        State.wordsToIntroduce = [];
+                    } else {
+                        State.learningWordSetIndex = Math.max(0, Math.min(State.learningWordSetIndex, State.learningWordSets.length - 1));
+                        State.wordsToIntroduce = State.learningWordSets[State.learningWordSetIndex].slice();
+                    }
+                    recalcLearningWordSetSignature();
+                }
             } else {
                 if (!State.wordsToIntroduce.includes(wordId) && !State.introducedWordIDs.includes(wordId)) {
                     State.wordsToIntroduce.push(wordId);
+                }
+                if (State.learningWordSets.length) {
+                    const alreadyPresent = State.learningWordSets.some(function (set) {
+                        return Array.isArray(set) && set.indexOf(wordId) !== -1;
+                    });
+                    if (!alreadyPresent) {
+                        const idx = Math.max(0, Math.min(State.learningWordSetIndex, State.learningWordSets.length - 1));
+                        State.learningWordSets[idx] = Array.isArray(State.learningWordSets[idx]) ? State.learningWordSets[idx] : [];
+                        State.learningWordSets[idx].push(wordId);
+                        State.wordsToIntroduce = State.learningWordSets[idx].slice();
+                        recalcLearningWordSetSignature();
+                    }
                 }
             }
             const total = new Set([...(State.wordsToIntroduce || []), ...(State.introducedWordIDs || [])]).size;
@@ -891,20 +983,25 @@
     function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
     function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
 
-    function isLearningSupportedForCurrentSelection() {
+    function isLearningSupportedForCategories(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
-                return Selection.isLearningSupportedForCategories(State.categoryNames);
+                return Selection.isLearningSupportedForCategories(names);
             }
             if (!Selection || typeof Selection.getCategoryConfig !== 'function') return true;
-            if (!Array.isArray(State.categoryNames) || State.categoryNames.length === 0) return true;
-            return State.categoryNames.every(function (name) {
+            if (!names.length) return true;
+            return names.every(function (name) {
                 const cfg = Selection.getCategoryConfig(name);
                 return cfg.learning_supported !== false;
             });
         } catch (e) {
             return true;
         }
+    }
+
+    function isLearningSupportedForCurrentSelection() {
+        return isLearningSupportedForCategories(State.categoryNames);
     }
 
     function isGenderSupportedForSelection(categoryNames) {
@@ -915,9 +1012,12 @@
             if (!Selection || typeof Selection.getCategoryConfig !== 'function') return false;
             const names = Array.isArray(categoryNames) ? categoryNames : [];
             if (!names.length) return false;
-            return names.every(function (name) {
+            return names.some(function (name) {
                 const cfg = Selection.getCategoryConfig(name);
-                return cfg.gender_supported === true;
+                if (!cfg || !Object.prototype.hasOwnProperty.call(cfg, 'gender_supported')) {
+                    return false;
+                }
+                return parseBooleanFlag(cfg.gender_supported);
             });
         } catch (e) {
             return false;
@@ -926,6 +1026,157 @@
 
     function isGenderSupportedForCurrentSelection() {
         return isGenderSupportedForSelection(State.categoryNames);
+    }
+
+    function isSelfCheckMode(mode) {
+        const normalized = String(mode || '').trim().toLowerCase();
+        return normalized === 'self-check' || normalized === 'self_check';
+    }
+
+    function getCurrentModeKey() {
+        if (State.isGenderMode) { return 'gender'; }
+        if (State.isListeningMode) { return 'listening'; }
+        if (State.isLearningMode) { return 'learning'; }
+        if (State.isSelfCheckMode) { return 'self-check'; }
+        return 'practice';
+    }
+
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
+
+    function categoryNamesToIds(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames : [];
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const byName = {};
+        categories.forEach(function (cat) {
+            if (!cat || !cat.name) { return; }
+            byName[String(cat.name)] = parseInt(cat.id, 10) || 0;
+        });
+        const seen = {};
+        const out = [];
+        names.forEach(function (name) {
+            const id = parseInt(byName[String(name)] || 0, 10) || 0;
+            if (!id || seen[id]) { return; }
+            seen[id] = true;
+            out.push(id);
+        });
+        return out;
+    }
+
+    function resolveWordsetIdForProgress() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = data.userStudyState || {};
+        const fromState = parseInt(userState.wordset_id, 10) || 0;
+        if (fromState > 0) {
+            return fromState;
+        }
+        if (Array.isArray(data.wordsetIds) && data.wordsetIds.length) {
+            const first = parseInt(data.wordsetIds[0], 10) || 0;
+            if (first > 0) {
+                return first;
+            }
+        }
+        return 0;
+    }
+
+    function resolveCategoryIdByName(categoryName) {
+        const target = String(categoryName || '').trim();
+        if (!target) {
+            return 0;
+        }
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const lowered = target.toLowerCase();
+        const found = categories.find(function (cat) {
+            if (!cat) { return false; }
+            const name = String(cat.name || '').toLowerCase();
+            const slug = String(cat.slug || '').toLowerCase();
+            return (name && name === lowered) || (slug && slug === lowered);
+        });
+        return found ? (parseInt(found.id, 10) || 0) : 0;
+    }
+
+    function resolveCategoryForWordProgress(targetWord, fallbackCategoryName) {
+        const word = targetWord || {};
+        const categoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
+            ? (Selection.getTargetCategoryName(word) || fallbackCategoryName || State.currentCategoryName || '')
+            : (fallbackCategoryName || State.currentCategoryName || '');
+        return {
+            category_id: resolveCategoryIdByName(categoryName),
+            category_name: categoryName
+        };
+    }
+
+    function updateProgressTrackerContext(modeOverride, categoryNamesOverride) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.setContext !== 'function') {
+            return;
+        }
+        const names = Array.isArray(categoryNamesOverride) && categoryNamesOverride.length
+            ? categoryNamesOverride
+            : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
+        tracker.setContext({
+            mode: modeOverride || getCurrentModeKey(),
+            wordsetId: resolveWordsetIdForProgress(),
+            categoryIds: categoryNamesToIds(names)
+        });
+    }
+
+    function trackWordExposureForProgress(targetWord, fallbackCategoryName) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.trackWordExposure !== 'function' || !targetWord || !targetWord.id) {
+            return;
+        }
+        const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        tracker.trackWordExposure({
+            mode: getCurrentModeKey(),
+            wordId: targetWord.id,
+            categoryId: cat.category_id,
+            categoryName: cat.category_name,
+            wordsetId: resolveWordsetIdForProgress()
+        });
+    }
+
+    function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
+        const tracker = getProgressTracker();
+        if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
+            return;
+        }
+        const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        tracker.trackWordOutcome({
+            mode: getCurrentModeKey(),
+            wordId: targetWord.id,
+            categoryId: cat.category_id,
+            categoryName: cat.category_name,
+            wordsetId: resolveWordsetIdForProgress(),
+            isCorrect: !!isCorrect,
+            hadWrongBefore: !!hadWrongBefore,
+            payload: (payload && typeof payload === 'object') ? payload : {}
+        });
+    }
+
+    function triggerSelfCheckFlowFromFlashcard() {
+        const dashboardApi = root.LLToolsStudyDashboard;
+        if (!dashboardApi || typeof dashboardApi.startSelfCheck !== 'function') {
+            return false;
+        }
+
+        Promise.resolve(closeFlashcard())
+            .catch(function () { return undefined; })
+            .finally(function () {
+                try {
+                    dashboardApi.startSelfCheck();
+                } catch (err) {
+                    console.warn('LL Tools: failed to open self-check flow', err);
+                }
+            });
+        return true;
     }
 
 
@@ -941,6 +1192,11 @@
                 label: 'Switch to Learning Mode',
                 icon: '🎓',
                 className: 'learning-mode'
+            },
+            'self-check': {
+                label: 'Open Self Check',
+                icon: '',
+                className: 'self-check-mode'
             },
             listening: {
                 label: 'Switch to Listening Mode',
@@ -960,6 +1216,7 @@
         if (State.isGenderMode && Modes.Gender) return Modes.Gender;
         if (State.isListeningMode && Modes.Listening) return Modes.Listening;
         if (State.isLearningMode && Modes.Learning) return Modes.Learning;
+        if (State.isSelfCheckMode && Modes.SelfCheck) return Modes.SelfCheck;
         return Modes.Practice || null;
     }
 
@@ -1210,8 +1467,7 @@
     }
 
     function refreshModeMenuOptions() {
-        const current = State.isGenderMode ? 'gender'
-            : (State.isListeningMode ? 'listening' : (State.isLearningMode ? 'learning' : 'practice'));
+        const current = getCurrentModeKey();
         const $wrap = $('#ll-tools-mode-switcher-wrap');
         const $menu = $('#ll-tools-mode-menu');
         if (!$wrap.length || !$menu.length) return;
@@ -1222,7 +1478,7 @@
         $wrap.css('display', 'block');
 
         // Update icons/labels and active state
-        ['learning', 'practice', 'gender', 'listening'].forEach(function (mode) {
+        ['learning', 'practice', 'self-check', 'gender', 'listening'].forEach(function (mode) {
             const cfg = MODE_SWITCH_CONFIG[mode] || {};
             const $btn = $menu.find('.ll-tools-mode-option.' + mode);
             if (!$btn.length) return;
@@ -1302,7 +1558,9 @@
         syncSettingsPanelSelections();
     }
 
-    function switchMode(newMode) {
+    function switchMode(newMode, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const preserveGenderPlan = !!opts.preserveGenderPlan;
         if (!State.canSwitchMode()) {
             console.warn('Cannot switch mode in state:', State.getState());
             return;
@@ -1312,10 +1570,37 @@
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
+        if (isSelfCheckMode(newMode)) {
+            if (triggerSelfCheckFlowFromFlashcard()) {
+                setMenuOpen(false);
+                return;
+            }
+            newMode = 'self-check';
+        }
         if (newMode === 'gender' && !isGenderSupportedForCurrentSelection()) {
             console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
+        if (newMode === 'gender' && !preserveGenderPlan) {
+            const flashData = root.llToolsFlashcardsData || {};
+            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+            root.llToolsFlashcardsData = flashData;
+        }
+
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                root.FlashcardAudio.suspendPlayback();
+            }
+        } catch (_) { /* no-op */ }
 
         const $btn = $('#ll-tools-mode-switcher');
         if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
@@ -1343,10 +1628,14 @@
             // IMPORTANT: allow operations again before we start the next round
             State.abortAllOperations = false;
 
+            State.isSelfCheckMode = (targetMode === 'self-check');
             State.isLearningMode = (targetMode === 'learning');
             State.isListeningMode = (targetMode === 'listening');
             State.isGenderMode = (targetMode === 'gender');
+            // Self-check should always review all words once, independent of star prefs.
+            setStarModeOverride(targetMode === 'self-check' ? 'normal' : getSessionStarModeOverride());
             restoreCategorySelection();
+            updateProgressTrackerContext(targetMode);
 
             const activeModule = getActiveModeModule();
             if (activeModule && typeof activeModule.initialize === 'function') {
@@ -1374,6 +1663,80 @@
             console.error('Error during mode switch:', err);
             State.forceTransitionTo(STATES.IDLE, 'Mode switch error');
             if ($btn.length) $btn.prop('disabled', false).removeAttr('aria-busy');
+        });
+    }
+
+    function onGenderAnswer(targetWord, $selectedCard, selectionMeta) {
+        if (!State.canProcessAnswer()) {
+            console.warn('Cannot process gender answer in state:', State.getState());
+            return;
+        }
+        if (State.userClickedCorrectAnswer) return;
+        ensureQuizResultsShape();
+
+        const modeModule = getActiveModeModule();
+        if (!State.isGenderMode || !modeModule || typeof modeModule.handleAnswer !== 'function') {
+            const isCorrectFallback = !!(selectionMeta && selectionMeta.isCorrect);
+            if (isCorrectFallback) {
+                onCorrectAnswer(targetWord, $selectedCard);
+            } else {
+                onWrongAnswer(targetWord, selectionMeta && selectionMeta.optionIndex, $selectedCard);
+            }
+            return;
+        }
+
+        State.transitionTo(STATES.PROCESSING_ANSWER, 'Gender answer');
+        State.userClickedCorrectAnswer = true;
+
+        const fallbackCategoryName = State.currentCategoryName;
+        const selection = (selectionMeta && typeof selectionMeta === 'object') ? selectionMeta : {};
+
+        Promise.resolve(modeModule.handleAnswer({
+            targetWord: targetWord,
+            $card: $selectedCard,
+            isCorrect: !!selection.isCorrect,
+            isDontKnow: !!selection.isDontKnow,
+            selectedValue: selection.selectedValue || '',
+            selectedLabel: selection.selectedLabel || '',
+            optionIndex: selection.optionIndex
+        })).then(function (outcome) {
+            if (!outcome || outcome.ignored) {
+                State.userClickedCorrectAnswer = false;
+                State.transitionTo(STATES.SHOWING_QUESTION, 'Gender answer ignored');
+                return;
+            }
+
+            const isCorrect = !!outcome.isCorrect;
+            const hadWrongThisTurn = (typeof outcome.hadWrongThisTurn === 'boolean')
+                ? outcome.hadWrongThisTurn
+                : !isCorrect;
+
+            trackWordOutcomeForProgress(
+                targetWord,
+                isCorrect,
+                hadWrongThisTurn,
+                fallbackCategoryName,
+                (outcome.progressPayload && typeof outcome.progressPayload === 'object') ? outcome.progressPayload : {}
+            );
+
+            recordWordResult(targetWord.id, hadWrongThisTurn);
+            State.isFirstRound = false;
+            State.hadWrongAnswerThisTurn = false;
+            State.userClickedCorrectAnswer = false;
+
+            if (outcome.completed) {
+                State.transitionTo(STATES.SHOWING_RESULTS, 'Gender session complete');
+                Results.showResults();
+                return;
+            }
+
+            State.transitionTo(STATES.QUIZ_READY, 'Gender next question');
+            startQuizRound();
+        }).catch(function (err) {
+            console.error('Gender answer handling failed:', err);
+            State.userClickedCorrectAnswer = false;
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Gender answer error recovery');
+            startQuizRound();
         });
     }
 
@@ -1405,6 +1768,8 @@
         const recordResultForWord = function () {
             recordWordResult(targetWord.id, State.hadWrongAnswerThisTurn);
         };
+
+        trackWordOutcomeForProgress(targetWord, true, State.hadWrongAnswerThisTurn, State.currentCategoryName);
 
         callModeHook('onCorrectAnswer', {
             targetWord,
@@ -1506,6 +1871,7 @@
         const wrongId = parseInt(targetWord.id, 10) || targetWord.id;
         if (!State.quizResults.incorrect.includes(wrongId)) State.quizResults.incorrect.push(wrongId);
         State.wrongIndexes.push(index);
+        trackWordOutcomeForProgress(targetWord, false, false, State.currentCategoryName);
 
         if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
             $('.flashcard-container').not(function () {
@@ -1524,8 +1890,8 @@
                 }
             }
 
-            const firstThree = State.categoryNames.slice(0, 3).filter(Boolean);
-            if (!firstThree.length) {
+            const initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            if (!initialCategories.length) {
                 console.error('Flashcards: No categories available to start quiz round');
                 showLoadingError();
                 return;
@@ -1549,10 +1915,38 @@
                 runQuizRound();
             };
 
-            root.FlashcardLoader.loadResourcesForCategory(firstThree[0], bootstrapFirstRound);
+            if (State.isGenderMode) {
+                // Gender planning needs words from every selected category before first round.
+                const allCategories = State.categoryNames.slice().filter(Boolean);
+                if (!allCategories.length) {
+                    bootstrapFirstRound();
+                    return;
+                }
+                let pending = allCategories.length;
+                let bootstrapped = false;
+                const bootstrapOnce = function () {
+                    if (bootstrapped) return;
+                    bootstrapped = true;
+                    bootstrapFirstRound();
+                };
+                const fallbackTimer = setGuardedTimeout(bootstrapOnce, 7000);
+                const onCategoryReady = function () {
+                    pending -= 1;
+                    if (pending <= 0) {
+                        clearTimeout(fallbackTimer);
+                        bootstrapOnce();
+                    }
+                };
+                allCategories.forEach(function (categoryName) {
+                    root.FlashcardLoader.loadResourcesForCategory(categoryName, onCategoryReady, { earlyCallback: true });
+                });
+                return;
+            }
 
-            for (let i = 1; i < firstThree.length; i++) {
-                root.FlashcardLoader.loadResourcesForCategory(firstThree[i]);
+            root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, { earlyCallback: true });
+
+            for (let i = 1; i < initialCategories.length; i++) {
+                root.FlashcardLoader.loadResourcesForCategory(initialCategories[i]);
             }
         } else {
             if (!State.is(STATES.QUIZ_READY)) {
@@ -1570,6 +1964,8 @@
             console.warn('Cannot start quiz round in state:', State.getState());
             return;
         }
+
+        updateProgressTrackerContext();
 
         State.clearActiveTimeouts();
         clearPrompt();
@@ -1680,6 +2076,8 @@
             State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
             try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
         }
+        updateProgressTrackerContext(getCurrentModeKey());
+        trackWordExposureForProgress(target, categoryNameForRound);
 
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(categoryNameForRound)
@@ -1722,7 +2120,20 @@
             }
             Dom.hideLoading();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
-            scheduleAutoplayAfterOptionsReady();
+            const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
+                ? !!modeModule.afterQuestionShown({
+                    targetWord: target,
+                    categoryName: categoryNameForRound,
+                    promptType: promptType,
+                    optionType: displayMode,
+                    setGuardedTimeout: setGuardedTimeout,
+                    startQuizRound: startQuizRound,
+                    runQuizRound: runQuizRound
+                })
+                : false;
+            if (!handledAfterRender) {
+                scheduleAutoplayAfterOptionsReady();
+            }
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
             State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
@@ -1760,6 +2171,7 @@
         }
 
         const proceed = () => {
+            ensureFlashcardPopupPortal();
             resetWordsetScopedCachesIfNeeded();
             newSession();
 
@@ -1798,7 +2210,10 @@
                     ? selectedCategories.filter(Boolean)
                     : (selectedCategories ? [selectedCategories] : []);
                 let requestedMode = mode;
-                if (requestedMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
+                if (isSelfCheckMode(requestedMode)) {
+                    requestedMode = 'self-check';
+                }
+                if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
@@ -1806,24 +2221,40 @@
                     console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
+                if (requestedMode === 'gender') {
+                    const flashData = root.llToolsFlashcardsData || {};
+                    const launchSource = String(flashData.genderLaunchSource || 'direct');
+                    const hasArmedPlan = !!(flashData.genderSessionPlanArmed || flashData.gender_session_plan_armed);
+                    const keepDashboardPlan = launchSource === 'dashboard' && hasArmedPlan;
+                    if (!keepDashboardPlan) {
+                        try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+                        try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+                        try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+                        root.llToolsFlashcardsData = flashData;
+                    }
+                }
 
                 State.isLearningMode = false;
                 State.isListeningMode = false;
                 State.isGenderMode = false;
+                State.isSelfCheckMode = false;
                 if (requestedMode === 'learning') {
                     State.isLearningMode = true;
                 } else if (requestedMode === 'listening') {
                     State.isListeningMode = true;
                 } else if (requestedMode === 'gender') {
                     State.isGenderMode = true;
+                } else if (requestedMode === 'self-check') {
+                    State.isSelfCheckMode = true;
                 }
+                // Self-check should always review all words once, independent of star prefs.
+                setStarModeOverride(State.isSelfCheckMode ? 'normal' : getSessionStarModeOverride());
+                updateProgressTrackerContext(requestedMode);
 
-                const activeModule = getActiveModeModule();
-                if (activeModule && typeof activeModule.initialize === 'function') {
-                    try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
+                if (State.widgetActive) {
+                    State.clearActiveTimeouts();
+                    $('#ll-tools-flashcard').empty();
                 }
-
-                if (State.widgetActive) return;
                 State.widgetActive = true;
 
                 if (root.LLFlashcards?.Results?.hideResults) {
@@ -1837,10 +2268,17 @@
                 State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
+                updateProgressTrackerContext(requestedMode, State.categoryNames);
                 root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
                 Dom.updateCategoryNameDisplay(State.firstCategoryName);
 
                 $('body').addClass('ll-tools-flashcard-open');
+                try {
+                    $(document).trigger('lltools:flashcard-opened', [{
+                        mode: requestedMode,
+                        categories: cleanedCategories.slice()
+                    }]);
+                } catch (_) { /* no-op */ }
                 $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
                 $('#ll-tools-flashcard-header').show();
 
@@ -1864,8 +2302,42 @@
                 $('#ll-tools-mode-switcher-wrap').show();
                 updateModeSwitcherPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
-                $('#restart-learning-mode').off('click').on('click', () => switchMode('learning'));
-                $('#restart-gender-mode').off('click').on('click', () => switchMode('gender'));
+                $('#restart-learning-mode').off('click').on('click', () => {
+                    if (!continueLearningSetIfAvailable()) {
+                        switchMode('learning');
+                    }
+                });
+                $('#restart-self-check-mode').off('click').on('click', () => switchMode('self-check'));
+                $('#restart-gender-mode').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (State.isGenderMode && gender && typeof gender.queueResultsAction === 'function') {
+                            preserveGenderPlan = !!gender.queueResultsAction('primary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
+                });
+                $('#ll-gender-next-activity').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (gender && typeof gender.queueResultsAction === 'function') {
+                            preserveGenderPlan = !!gender.queueResultsAction('primary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
+                });
+                $('#ll-gender-next-chunk').off('click').on('click', () => {
+                    let preserveGenderPlan = false;
+                    try {
+                        const gender = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                        if (gender && typeof gender.queueResultsAction === 'function') {
+                            preserveGenderPlan = !!gender.queueResultsAction('secondary');
+                        }
+                    } catch (_) { /* no-op */ }
+                    switchMode('gender', { preserveGenderPlan: preserveGenderPlan });
+                });
                 $('#restart-listening-mode').off('click').on('click', () => switchMode('listening'));
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
@@ -1955,6 +2427,19 @@
             return closingCleanupPromise;
         }
 
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                root.FlashcardAudio.suspendPlayback();
+            }
+        } catch (_) { /* no-op */ }
+
         // Immediately restore scrolling (belt-and-suspenders)
         restorePageScroll();
 
@@ -2031,6 +2516,11 @@
                     return root.FlashcardAudio.startNewSession();
                 }
             })
+            .then(function () {
+                if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+                    return root.FlashcardAudio.suspendPlayback();
+                }
+            })
             .catch(function (err) {
                 console.error('Failed to start audio cleanup session:', err);
             })
@@ -2065,6 +2555,9 @@
             });
 
         closingCleanupPromise = cleanupPromise.finally(function () {
+            try {
+                $(document).trigger('lltools:flashcard-closed');
+            } catch (_) { /* no-op */ }
             closingCleanupPromise = null;
         });
 
@@ -2072,6 +2565,13 @@
     }
 
     function restartQuiz() {
+        try {
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.flush === 'function') {
+                tracker.flush();
+            }
+        } catch (_) { /* no-op */ }
+
         newSession();
         $('#ll-tools-learning-progress').hide().empty();
         // Remove any listening-mode specific UI
@@ -2079,10 +2579,12 @@
         const wasLearning = State.isLearningMode;
         const wasListening = State.isListeningMode;
         const wasGender = State.isGenderMode;
+        const wasSelfCheck = State.isSelfCheckMode;
         State.reset();
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
         State.isGenderMode = wasGender;
+        State.isSelfCheckMode = wasSelfCheck;
         restoreCategorySelection();
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {
@@ -2094,6 +2596,44 @@
         updateModeSwitcherPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
+    }
+
+    function continueLearningSetIfAvailable() {
+        if (!State.isLearningMode) return false;
+        const learning = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Learning;
+        if (!learning || typeof learning.hasNextSet !== 'function' || typeof learning.startNextSet !== 'function') {
+            return false;
+        }
+        if (!learning.hasNextSet()) return false;
+        if (!learning.startNextSet()) return false;
+
+        State.clearActiveTimeouts();
+        clearPrompt();
+        try {
+            if (root.FlashcardAudio && typeof root.FlashcardAudio.pauseAllAudio === 'function') {
+                root.FlashcardAudio.pauseAllAudio();
+            }
+        } catch (_) { /* no-op */ }
+
+        State.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+        State.wrongIndexes = [];
+        State.hadWrongAnswerThisTurn = false;
+        State.userClickedCorrectAnswer = false;
+        State.isFirstRound = false;
+
+        if (root.LLFlashcards?.Results?.hideResults) {
+            root.LLFlashcards.Results.hideResults();
+        }
+        $('#ll-tools-flashcard').empty();
+        Dom.restoreHeaderUI();
+        updateModeSwitcherPanel();
+
+        const ready = State.transitionTo(STATES.QUIZ_READY, 'Continue learning set');
+        if (!ready) {
+            State.forceTransitionTo(STATES.QUIZ_READY, 'Continue learning set');
+        }
+        startQuizRound();
+        return true;
     }
 
     if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.categoriesPreselected) {
@@ -2117,6 +2657,16 @@
         },
         canUseStarOnlyForCurrentSelection: canUseStarOnlyForCurrentSelection
     };
-    root.LLFlashcards.Main = { initFlashcardWidget, startQuizRound, runQuizRound, onCorrectAnswer, onWrongAnswer, closeFlashcard, restartQuiz, switchMode };
+    root.LLFlashcards.Main = {
+        initFlashcardWidget,
+        startQuizRound,
+        runQuizRound,
+        onCorrectAnswer,
+        onWrongAnswer,
+        onGenderAnswer,
+        closeFlashcard,
+        restartQuiz,
+        switchMode
+    };
     root.initFlashcardWidget = initFlashcardWidget;
 })(window, jQuery);

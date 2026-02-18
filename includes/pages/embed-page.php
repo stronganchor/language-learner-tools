@@ -82,7 +82,7 @@ if ($term && !is_wp_error($term)) {
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
             }
-            if (!empty($mode) && in_array($mode, ['practice', 'learning', 'listening'], true)) {
+            if (!empty($mode) && in_array($mode, ['practice', 'learning', 'self-check', 'gender', 'listening'], true)) {
                 $shortcode .= ' quiz_mode="' . esc_attr($mode) . '"';
             }
             $shortcode .= ']';

@@ -12,6 +12,7 @@
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
         var autoplayBlocked = false;
+        var playbackSuspended = false;
 
         // Cleanup tracking
         var pendingCleanup = null;
@@ -94,6 +95,7 @@
         function startNewSession() {
             var previousSession = currentSession;
             currentSession++;
+            playbackSuspended = false;
 
             log('Audio: Starting session ' + currentSession + ' (was ' + previousSession + ')');
 
@@ -149,6 +151,11 @@
             if (!audio) {
                 warn('Audio: Cannot play null audio');
                 return Promise.reject(new Error('No audio element'));
+            }
+
+            if (playbackSuspended) {
+                log('Audio: Playback suspended, skipping play request');
+                return stopAudio(audio).then(function () { return; });
             }
 
             // Check session validity
@@ -321,6 +328,20 @@
         }
 
         /**
+         * Suspend playback immediately to block late/racing plays during close/switch.
+         */
+        function suspendPlayback() {
+            playbackSuspended = true;
+            var tasks = [
+                pauseAllAudio(),
+                pauseAllAudio(-1)
+            ];
+            return Promise.all(tasks.map(function (p) {
+                return Promise.resolve(p).catch(function () { return; });
+            })).then(function () { return; });
+        }
+
+        /**
          * Stop all audio for a given sessionId (defaults to current if not provided)
          */
         function pauseAllAudio(sessionIdParam) {
@@ -448,6 +469,12 @@
                 return Promise.resolve();
             }
 
+            if (playbackSuspended) {
+                currentTargetAudio = null;
+                targetAudioHasPlayed = true;
+                return Promise.resolve();
+            }
+
             var audioSrc = normalizeUrlToPageOrigin(targetWord.audio);
 
             // Create new audio in DOM
@@ -492,9 +519,16 @@
         function playFeedback(isCorrect, targetWordAudio, callback) {
             var audioToPlay = isCorrect ? correctAudio : wrongAudio;
 
+            if (playbackSuspended) {
+                if (typeof callback === 'function') {
+                    try { callback(); } catch (_) { /* no-op */ }
+                }
+                return Promise.resolve();
+            }
+
             // If there's no target audio, treat the requirement as satisfied
             var playbackSatisfied = targetAudioHasPlayed || !currentTargetAudio;
-            if (!playbackSatisfied || (isCorrect && !audioToPlay.paused)) {
+            if (!playbackSatisfied) {
                 return Promise.resolve();
             }
 
@@ -542,6 +576,10 @@
                     return new Promise(function (resolve, reject) {
                         if (!isCurrentSession(audio)) {
                             resolve(); // Not an error, just outdated
+                            return;
+                        }
+                        if (playbackSuspended) {
+                            resolve();
                             return;
                         }
 
@@ -627,6 +665,7 @@
             isCurrentSession: isCurrentSession,
             playAudio: playAudio,
             pauseAllAudio: pauseAllAudio,
+            suspendPlayback: suspendPlayback,
             // Expose full-session flush so callers can clean everything
             flushAllAudioSessions: flushAllAudioSessions,
             setTargetWordAudio: setTargetWordAudio,

@@ -65,6 +65,11 @@ function ll_aim_enqueue_admin_assets($hook) {
         'window.ajaxurl = window.ajaxurl || "'.esc_js(admin_url('admin-ajax.php')).'";',
         'before'
     );
+
+    wp_localize_script('ll-audio-image-matcher', 'llAimData', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce'   => wp_create_nonce('ll_aim_admin'),
+    ]);
 }
 add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
 
@@ -102,13 +107,22 @@ function ll_render_audio_image_matcher_page() {
     }
 }
 
-// AJAX: Fetch candidate images for a category (word_images posts)
-add_action('wp_ajax_ll_aim_get_images', function() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
+function ll_aim_verify_ajax_request() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error('forbidden', 403);
+    }
+    check_ajax_referer('ll_aim_admin', 'nonce');
+}
 
-    $term_id  = isset($_GET['term_id'])   ? intval($_GET['term_id'])   : 0;
+// AJAX: Fetch candidate images for a category (word_images posts)
+function ll_aim_get_images_handler() {
+    ll_aim_verify_ajax_request();
+
+    $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $hide_used = isset($_GET['hide_used']) ? (intval($_GET['hide_used']) === 1) : false;
-    if (!$term_id) wp_send_json_success(['images' => []]);
+    if (!$term_id) {
+        wp_send_json_success(['images' => []]);
+    }
 
     $images = get_posts([
         'post_type'      => 'word_images',
@@ -125,7 +139,7 @@ add_action('wp_ajax_ll_aim_get_images', function() {
 
     $out = [];
     foreach ($images as $img_post) {
-        $thumb_id  = get_post_thumbnail_id($img_post->ID);
+        $thumb_id = get_post_thumbnail_id($img_post->ID);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
         // Always count actual published words using this image (ignore cached meta)
@@ -155,13 +169,14 @@ add_action('wp_ajax_ll_aim_get_images', function() {
         ];
     }
     wp_send_json_success(['images' => $out]);
-});
+}
+add_action('wp_ajax_ll_aim_get_images', 'll_aim_get_images_handler');
 
 /**
  * AJAX: Next "words" post with audio; include/skip existing thumbnails based on rematch flag
  */
-add_action('wp_ajax_ll_aim_get_next', function() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
+function ll_aim_get_next_handler() {
+    ll_aim_verify_ajax_request();
 
     $term_id    = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
     $rematch    = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
@@ -183,7 +198,9 @@ add_action('wp_ajax_ll_aim_get_next', function() {
         }
     }
 
-    if (!$term_id) wp_send_json_success(['item' => null]);
+    if (!$term_id) {
+        wp_send_json_success(['item' => null]);
+    }
 
     $word_ids = ll_aim_get_word_ids_with_audio($term_id, $wordset_id, $exclude, 10, false);
 
@@ -209,27 +226,71 @@ add_action('wp_ajax_ll_aim_get_next', function() {
     }
 
     wp_send_json_success(['item' => $item]);
-});
+}
+add_action('wp_ajax_ll_aim_get_next', 'll_aim_get_next_handler');
 
 /**
  * AJAX: Assign chosen image’s thumbnail to the "words" post (replaces existing if present)
  */
-add_action('wp_ajax_ll_aim_assign', function() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
+function ll_aim_assign_handler() {
+    ll_aim_verify_ajax_request();
 
     $word_id  = isset($_POST['word_id']) ? intval($_POST['word_id']) : 0;
     $image_id = isset($_POST['image_id']) ? intval($_POST['image_id']) : 0;
 
-    if (!$word_id || !$image_id) wp_send_json_error('missing params', 400);
+    if (!$word_id || !$image_id) {
+        wp_send_json_error('missing params', 400);
+    }
+
+    $word_post = get_post($word_id);
+    if (!$word_post || $word_post->post_type !== 'words') {
+        wp_send_json_error('invalid word', 400);
+    }
+    if (!current_user_can('edit_post', $word_id)) {
+        wp_send_json_error('forbidden', 403);
+    }
+
+    $image_post = get_post($image_id);
+    if (!$image_post || $image_post->post_type !== 'word_images') {
+        wp_send_json_error('invalid image', 400);
+    }
+    if (!current_user_can('edit_post', $image_id)) {
+        wp_send_json_error('forbidden', 403);
+    }
 
     $attachment_id = get_post_thumbnail_id($image_id);
-    if (!$attachment_id) wp_send_json_error('image has no thumbnail', 400);
+    if (!$attachment_id) {
+        wp_send_json_error('image has no thumbnail', 400);
+    }
 
-    // This overwrites any existing thumbnail on the words post
+    // Optional: if you maintain meta counts, decrement the old image’s _ll_picked_count
+    $old_attachment = get_post_thumbnail_id($word_id);
+    if ($old_attachment && function_exists('attachment_url_to_postid')) {
+        // If your image CPT keeps the thumbnail as its featured image,
+        // we can try to resolve the parent image post for the old attachment.
+        $old_image_post = get_posts([
+            'post_type' => 'word_images',
+            'posts_per_page' => 1,
+            'meta_query' => [[ 'key' => '_thumbnail_id', 'value' => $old_attachment, 'compare' => '=' ]],
+            'fields' => 'ids',
+        ]);
+        if (!empty($old_image_post)) {
+            $old_id = (int) $old_image_post[0];
+            $count = max(0, (int) get_post_meta($old_id, '_ll_picked_count', true) - 1);
+            update_post_meta($old_id, '_ll_picked_count', $count);
+        }
+    }
+
+    // Overwrite any existing thumbnail on the word
     set_post_thumbnail($word_id, $attachment_id);
 
+    if (function_exists('ll_mark_image_picked_for_word')) {
+        ll_mark_image_picked_for_word($image_id, $word_id);
+    }
+
     wp_send_json_success(['ok' => true]);
-});
+}
+add_action('wp_ajax_ll_aim_assign', 'll_aim_assign_handler');
 
 /* ----------------------------------------------------------------------
  * AUTO-LAUNCH LOGIC (disabled by default)
@@ -420,42 +481,3 @@ function ll_aim_admin_autolaunch_redirect() {
     }
 }
 add_action('admin_init', 'll_aim_admin_autolaunch_redirect');
-
-// in audio-image-matcher.php
-add_action('wp_ajax_ll_aim_assign', function() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error('forbidden', 403);
-
-    $word_id  = isset($_POST['word_id']) ? intval($_POST['word_id']) : 0;
-    $image_id = isset($_POST['image_id']) ? intval($_POST['image_id']) : 0;
-    if (!$word_id || !$image_id) wp_send_json_error('missing params', 400);
-
-    $attachment_id = get_post_thumbnail_id($image_id);
-    if (!$attachment_id) wp_send_json_error('image has no thumbnail', 400);
-
-    // Optional: if you maintain meta counts, decrement the old image’s _ll_picked_count
-    $old_attachment = get_post_thumbnail_id($word_id);
-    if ($old_attachment && function_exists('attachment_url_to_postid')) {
-        // If your image CPT keeps the thumbnail as its featured image,
-        // we can try to resolve the parent image post for the old attachment.
-        $old_image_post = get_posts([
-            'post_type' => 'word_images',
-            'posts_per_page' => 1,
-            'meta_query' => [[ 'key' => '_thumbnail_id', 'value' => $old_attachment, 'compare' => '=' ]],
-            'fields' => 'ids',
-        ]);
-        if (!empty($old_image_post)) {
-            $old_id = (int)$old_image_post[0];
-            $count = max(0, (int)get_post_meta($old_id, '_ll_picked_count', true) - 1);
-            update_post_meta($old_id, '_ll_picked_count', $count);
-        }
-    }
-
-    // Overwrite any existing thumbnail on the word
-    set_post_thumbnail($word_id, $attachment_id);
-
-    if (function_exists('ll_mark_image_picked_for_word')) {
-        ll_mark_image_picked_for_word($image_id, $word_id);
-    }
-
-    wp_send_json_success(['ok' => true]);
-});

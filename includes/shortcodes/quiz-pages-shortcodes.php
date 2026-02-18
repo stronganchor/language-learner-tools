@@ -250,12 +250,16 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
         $gender_enabled = false;
         $gender_options = [];
+        $gender_visual_config = [];
         $gender_supported = false;
         if ($wordset_id_for_item > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
             if (!isset($gender_config_cache[$wordset_id_for_item])) {
                 $enabled = ll_tools_wordset_has_grammatical_gender($wordset_id_for_item);
                 $options = ($enabled && function_exists('ll_tools_wordset_get_gender_options'))
                     ? ll_tools_wordset_get_gender_options($wordset_id_for_item)
+                    : [];
+                $visual_config = ($enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+                    ? ll_tools_wordset_get_gender_visual_config($wordset_id_for_item)
                     : [];
                 $options = array_values(array_filter(array_map('strval', (array) $options), function ($val) {
                     return $val !== '';
@@ -273,12 +277,14 @@ function ll_get_all_quiz_pages_data($opts = []) {
                 $gender_config_cache[$wordset_id_for_item] = [
                     'enabled' => $enabled,
                     'options' => $options,
+                    'visual_config' => $visual_config,
                     'support_map' => $support_map,
                 ];
             }
             $cached = $gender_config_cache[$wordset_id_for_item];
             $gender_enabled = !empty($cached['enabled']);
             $gender_options = $cached['options'];
+            $gender_visual_config = is_array($cached['visual_config'] ?? null) ? $cached['visual_config'] : [];
             $gender_supported = !empty($cached['support_map'][$term_id]);
         }
 
@@ -298,6 +304,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'learning_supported' => $config['learning_supported'] ?? true,
             'gender_enabled' => $gender_enabled,
             'gender_options' => $gender_options,
+            'gender_visual_config' => $gender_visual_config,
             'gender_supported' => $gender_supported,
         ];
     }
@@ -398,7 +405,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
       body.ll-qpg-popup-active #ll-tools-flashcard-container,
       body.ll-qpg-popup-active #ll-tools-flashcard-popup,
       body.ll-qpg-popup-active #ll-tools-flashcard-quiz-popup{position:fixed;inset:0;z-index:999999}
-      body.ll-qpg-popup-active #ll-tools-flashcard-content{height:100%;overflow:auto}
+      body.ll-qpg-popup-active #ll-tools-flashcard-content{flex:1 1 auto;min-height:0;height:auto}
     </style>';
 
     ?>
@@ -417,16 +424,26 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var genderEnabledAttr = a.getAttribute('data-gender-enabled');
             var genderSupportedAttr = a.getAttribute('data-gender-supported');
             var genderOptionsAttr = a.getAttribute('data-gender-options') || '';
+            var genderVisualConfigAttr = a.getAttribute('data-gender-visual-config') || '';
             if (!cat) return;
 
             var genderEnabled = (genderEnabledAttr === '1' || genderEnabledAttr === 'true');
             var genderSupported = (genderSupportedAttr === '1' || genderSupportedAttr === 'true');
             var genderOptions = [];
+            var genderVisualConfig = null;
             if (genderOptionsAttr) {
                 try {
                     var parsed = JSON.parse(genderOptionsAttr);
                     if (Array.isArray(parsed)) {
                         genderOptions = parsed;
+                    }
+                } catch (_) {}
+            }
+            if (genderVisualConfigAttr) {
+                try {
+                    var parsedVisual = JSON.parse(genderVisualConfigAttr);
+                    if (parsedVisual && typeof parsedVisual === 'object') {
+                        genderVisualConfig = parsedVisual;
                     }
                 } catch (_) {}
             }
@@ -466,6 +483,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                     genderEnabled: genderEnabled,
                     genderSupported: genderSupported,
                     genderOptions: genderOptions,
+                    genderVisualConfig: genderVisualConfig,
                     triggerEl: a
                 };
                 if (wordsetId) {
@@ -530,6 +548,7 @@ function ll_qpg_print_flashcard_shell_once() {
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $practice_mode_ui = $mode_ui['practice'] ?? [];
     $learning_mode_ui = $mode_ui['learning'] ?? [];
+    $self_check_mode_ui = $mode_ui['self-check'] ?? [];
     $listening_mode_ui = $mode_ui['listening'] ?? [];
     $gender_mode_ui = $mode_ui['gender'] ?? [];
     $render_mode_icon = function (array $cfg, string $fallback, string $class = 'mode-icon'): void {
@@ -560,6 +579,7 @@ function ll_qpg_print_flashcard_shell_once() {
           </div>
 
           <div id="ll-tools-flashcard-content">
+            <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
             <div id="ll-tools-flashcard"></div>
             <audio controls class="hidden"></audio>
           </div>
@@ -568,6 +588,7 @@ function ll_qpg_print_flashcard_shell_once() {
           <?php
             $practice_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
             $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
+            $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
             $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
             $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
             $settings_label = __('Study Settings', 'll-tools-text-domain');
@@ -603,14 +624,17 @@ function ll_qpg_print_flashcard_shell_once() {
               </div>
             <?php endif; ?>
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-              <!-- Fixed order: learning, practice, gender, listening -->
+              <!-- Fixed order: learning, practice, self-check, gender, listening -->
               <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
                 <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
                 <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option gender" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender">
+              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
+              </button>
+              <button class="ll-tools-mode-option gender hidden" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" aria-hidden="true">
                 <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
@@ -633,6 +657,7 @@ function ll_qpg_print_flashcard_shell_once() {
               <?php
                 $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
                 $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
+                $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
                 $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
                 $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
               ?>
@@ -642,15 +667,39 @@ function ll_qpg_print_flashcard_shell_once() {
               </button>
               <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
                 <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
-                <?php echo esc_html($learning_label); ?>
+                <span class="ll-learning-results-label"><?php echo esc_html($learning_label); ?></span>
+              </button>
+              <button id="restart-self-check-mode" class="quiz-button quiz-mode-button">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
+                <?php echo esc_html($self_check_results_label); ?>
               </button>
               <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
                 <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
-                <?php echo esc_html($gender_results_label); ?>
+                <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
               </button>
               <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
                 <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
                 <?php echo esc_html($listening_label); ?>
+              </button>
+            </div>
+            <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
+              <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Next Recommended Set', 'll-tools-text-domain'); ?>
+              </button>
+            </div>
+            <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
+              <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
+              <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Categories', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+                <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
               </button>
             </div>
             <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
@@ -712,17 +761,41 @@ function ll_qpg_print_flashcard_shell_once() {
                 : '';
             var currentWordset = wordset;
             var wordsetChanged = (previousWordset !== currentWordset);
+            var launchContext = (opts && typeof opts.launchContext === 'string')
+                ? String(opts.launchContext || '').toLowerCase()
+                : '';
+            if (!launchContext && opts && opts.triggerEl) {
+                try {
+                    var triggerEl = opts.triggerEl;
+                    var isVocabLessonTrigger = !!(
+                        (triggerEl.classList && triggerEl.classList.contains('ll-vocab-lesson-mode-button')) ||
+                        (triggerEl.closest && triggerEl.closest('[data-ll-vocab-lesson], .ll-vocab-lesson-page'))
+                    );
+                    launchContext = isVocabLessonTrigger ? 'vocab_lesson' : 'quiz_pages';
+                } catch (_) {}
+            }
 
             if (window.llToolsFlashcardsData) {
                 window.llToolsFlashcardsData.wordset = currentWordset;
                 window.llToolsFlashcardsData.wordsetFallback = false;
                 window.llToolsFlashcardsData.quiz_mode = mode;
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
+                window.llToolsFlashcardsData.launchContext = launchContext;
+                window.llToolsFlashcardsData.launch_context = launchContext;
+                if (mode === 'gender') {
+                    delete window.llToolsFlashcardsData.genderSessionPlan;
+                    delete window.llToolsFlashcardsData.genderSessionPlanArmed;
+                    delete window.llToolsFlashcardsData.gender_session_plan_armed;
+                    window.llToolsFlashcardsData.genderLaunchSource = 'direct';
+                }
             }
 
             var genderEnabled = (opts && typeof opts.genderEnabled !== 'undefined') ? !!opts.genderEnabled : null;
             var genderSupported = (opts && typeof opts.genderSupported !== 'undefined') ? !!opts.genderSupported : null;
             var genderOptions = (opts && Array.isArray(opts.genderOptions)) ? opts.genderOptions : null;
+            var genderVisualConfig = (opts && opts.genderVisualConfig && typeof opts.genderVisualConfig === 'object')
+                ? opts.genderVisualConfig
+                : null;
             if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
                 if (genderEnabled === null) {
                     var geAttr = opts.triggerEl.getAttribute('data-gender-enabled');
@@ -747,6 +820,17 @@ function ll_qpg_print_flashcard_shell_once() {
                         } catch (_) {}
                     }
                 }
+                if (genderVisualConfig === null) {
+                    var gvAttr = opts.triggerEl.getAttribute('data-gender-visual-config') || '';
+                    if (gvAttr) {
+                        try {
+                            var parsedVisualCfg = JSON.parse(gvAttr);
+                            if (parsedVisualCfg && typeof parsedVisualCfg === 'object') {
+                                genderVisualConfig = parsedVisualCfg;
+                            }
+                        } catch (_) {}
+                    }
+                }
             }
             if (genderEnabled === false && !Array.isArray(genderOptions)) {
                 genderOptions = [];
@@ -759,6 +843,9 @@ function ll_qpg_print_flashcard_shell_once() {
                 }
                 if (Array.isArray(genderOptions)) {
                     window.llToolsFlashcardsData.genderOptions = genderOptions;
+                }
+                if (genderVisualConfig !== null) {
+                    window.llToolsFlashcardsData.genderVisualConfig = genderVisualConfig;
                 }
                 if (genderSupported !== null && window.llToolsFlashcardsData.categories) {
                     for (var i = 0; i < window.llToolsFlashcardsData.categories.length; i++) {
@@ -844,7 +931,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
 
     $use_popup = (strtolower($atts['popup']) === 'yes');
     $grid_id   = 'll-quiz-pages-grid-' . wp_generate_uuid4();
-    $quiz_mode = in_array($atts['mode'], ['practice', 'learning']) ? $atts['mode'] : 'practice';
+    $quiz_mode = in_array($atts['mode'], ['practice', 'learning', 'self-check'], true) ? $atts['mode'] : 'practice';
 
     if ($use_popup) {
         ll_qpg_bootstrap_flashcards_for_grid($atts['wordset']);
@@ -883,6 +970,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             $gender_enabled_attr = ' data-gender-enabled="' . (!empty($it['gender_enabled']) ? '1' : '0') . '"';
             $gender_supported_attr = ' data-gender-supported="' . (!empty($it['gender_supported']) ? '1' : '0') . '"';
             $gender_options_attr = ' data-gender-options="' . esc_attr(wp_json_encode($it['gender_options'] ?? [])) . '"';
+            $gender_visual_attr = ' data-gender-visual-config="' . esc_attr(wp_json_encode($it['gender_visual_config'] ?? [])) . '"';
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
             . ' aria-label="Start ' . esc_attr($title) . '"'
@@ -897,6 +985,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . $gender_enabled_attr
             . $gender_supported_attr
             . $gender_options_attr
+            . $gender_visual_attr
             . '>';
             echo   '<span class="ll-quiz-page-name">' . esc_html($title) . '</span>';
             echo '</a>';

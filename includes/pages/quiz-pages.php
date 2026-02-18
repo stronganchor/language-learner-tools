@@ -121,8 +121,8 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
         }
     }
 
-    // Check for mode parameter in URL (support practice, learning, listening)
-    if (isset($_GET['mode']) && in_array($_GET['mode'], ['practice', 'learning', 'listening'], true)) {
+    // Check for mode parameter in URL (support practice, learning, self-check, listening)
+    if (isset($_GET['mode']) && in_array($_GET['mode'], ['practice', 'learning', 'self-check', 'listening'], true)) {
         $src = add_query_arg('mode', sanitize_text_field($_GET['mode']), $src);
     }
 
@@ -484,23 +484,31 @@ function ll_qp_enqueue_assets() {
     $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
 
     // Base JS for both grid and quiz pages
-    wp_enqueue_script('ll-quiz-pages-js', plugins_url('js/quiz-pages.js', LL_TOOLS_MAIN_FILE), [], null, true);
+    ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', [], true);
 
     // Localize unconditionally so llQuizPages.vh is always present
     wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
         'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
+        'labels' => [
+            'defaultTitle' => __('Quiz', 'll-tools-text-domain'),
+            'closeLabel'   => __('Close', 'll-tools-text-domain'),
+            'iframeTitle'  => __('Quiz Content', 'll-tools-text-domain'),
+        ],
     ]);
 
     // Only quiz pages need the iframe CSS
     if ($is_quiz_ctx) {
-        wp_enqueue_style('ll-quiz-pages-css', plugins_url('css/quiz-pages.css', LL_TOOLS_MAIN_FILE), [], null);
+        ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
     }
 }
 add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
 
 /** Manual cleanup UI on the word-category admin screen */
 function ll_tools_add_manual_cleanup_button() {
-    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($_POST['ll_cleanup_nonce'] ?? '', 'll_cleanup_quiz_pages')) {
+    if (!current_user_can('manage_options')) return;
+
+    $cleanup_nonce = isset($_POST['ll_cleanup_nonce']) ? sanitize_text_field(wp_unslash($_POST['ll_cleanup_nonce'])) : '';
+    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($cleanup_nonce, 'll_cleanup_quiz_pages')) {
         $removed = ll_tools_cleanup_invalid_quiz_pages();
         ll_tools_sync_quiz_pages();
         echo '<div class="notice notice-success is-dismissible"><p>';
@@ -523,13 +531,26 @@ add_action('after-word-category-table', 'll_tools_add_manual_cleanup_button');
 /** Force cleanup via query param (admin only) */
 function ll_tools_force_quiz_cleanup() {
     if (!is_admin() || !isset($_GET['ll_force_quiz_cleanup']) || !current_user_can('manage_options')) return;
+
+    $nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
+    if (!wp_verify_nonce($nonce, 'll_force_quiz_cleanup')) {
+        wp_die(esc_html__('Security check failed.', 'll-tools-text-domain'), 403);
+    }
+
     $removed = ll_tools_cleanup_invalid_quiz_pages();
     ll_tools_sync_quiz_pages();
-    wp_die(sprintf(
-        'Quiz page cleanup completed. %d invalid pages removed. <a href="%s">Go to Pages</a>',
-        $removed,
-        admin_url('edit.php?post_type=page')
-    ));
+
+    $message = sprintf(
+        esc_html__('Quiz page cleanup completed. %d invalid pages removed.', 'll-tools-text-domain'),
+        $removed
+    );
+    $link = sprintf(
+        ' <a href="%s">%s</a>',
+        esc_url(admin_url('edit.php?post_type=page')),
+        esc_html__('Go to Pages', 'll-tools-text-domain')
+    );
+
+    wp_die($message . $link);
 }
 add_action('admin_init', 'll_tools_force_quiz_cleanup', LL_TOOLS_MIN_WORDS_PER_QUIZ);
 
@@ -549,7 +570,11 @@ add_action('admin_init', function () {
 
     $opt_key    = 'll_tools_autopage_source_mtime';
     $last_mtime = (int) get_option($opt_key, 0);
-    $force = ( isset($_GET['lltools-resync']) && wp_create_nonce('lltools-resync') === ($_GET['_wpnonce'] ?? '') ); // Fixed nonce check
+    $force = false;
+    if (isset($_GET['lltools-resync'])) {
+        $resync_nonce = isset($_GET['_wpnonce']) ? sanitize_text_field(wp_unslash($_GET['_wpnonce'])) : '';
+        $force = (bool) wp_verify_nonce($resync_nonce, 'lltools-resync');
+    }
 
     if (!$force && $current_mtime === $last_mtime) return;
     if (get_transient('ll_tools_autopage_resync_running')) return;
@@ -609,19 +634,30 @@ function ll_tools_register_autopage_activation($main_file) {
 
 /** Manual cleanup UI on admin pages (expanded from just category edit) */
 add_action('admin_notices', function() {
-    $screen = get_current_screen();
-    // Allow on category terms and tools page for broader access
-    if (!$screen || !in_array($screen->id, ['edit-word-category', 'tools_page_ll-tools'])) return;
+    if (!current_user_can('manage_options')) return;
 
-    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($_POST['ll_cleanup_nonce'] ?? '', 'll_cleanup_quiz_pages')) {
+    $screen = get_current_screen();
+    $expected_screen_id = 'tools_page_ll-tools';
+    if (function_exists('ll_tools_get_admin_menu_slug') && function_exists('ll_tools_get_tools_hub_page_slug')) {
+        $expected_screen_id = ll_tools_get_admin_menu_slug() . '_page_' . ll_tools_get_tools_hub_page_slug();
+    }
+    if (!$screen || $screen->id !== $expected_screen_id) return;
+
+    $cleanup_nonce = isset($_POST['ll_cleanup_nonce']) ? sanitize_text_field(wp_unslash($_POST['ll_cleanup_nonce'])) : '';
+    if (isset($_POST['ll_cleanup_quiz_pages']) && wp_verify_nonce($cleanup_nonce, 'll_cleanup_quiz_pages')) {
         $removed = ll_tools_cleanup_invalid_quiz_pages();
         ll_tools_sync_quiz_pages();
-        printf('<div class="notice notice-success"><p>Quiz page cleanup completed. %d invalid pages removed and valid pages synced.</p></div>', $removed);
+        echo '<div class="notice notice-success"><p>';
+        printf(
+            esc_html__('Quiz page cleanup completed. %d invalid pages removed and valid pages synced.', 'll-tools-text-domain'),
+            $removed
+        );
+        echo '</p></div>';
     }
 
-    echo '<div class="wrap"><h2>Quiz Page Management</h2>
-          <p>Clean up quiz pages for categories that can no longer generate valid quizzes and sync pages for valid categories.</p>
+    echo '<div class="wrap"><h2>' . esc_html__('Quiz Page Management', 'll-tools-text-domain') . '</h2>
+          <p>' . esc_html__('Clean up quiz pages for categories that can no longer generate valid quizzes and sync pages for valid categories.', 'll-tools-text-domain') . '</p>
           <form method="post">';
     wp_nonce_field('ll_cleanup_quiz_pages', 'll_cleanup_nonce');
-    echo '<input type="submit" name="ll_cleanup_quiz_pages" class="button button-secondary" value="Clean Up & Sync Quiz Pages"></form></div>';
+    echo '<input type="submit" name="ll_cleanup_quiz_pages" class="button button-secondary" value="' . esc_attr__('Clean Up & Sync Quiz Pages', 'll-tools-text-domain') . '"></form></div>';
 });

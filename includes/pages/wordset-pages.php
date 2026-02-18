@@ -22,6 +22,57 @@ function ll_tools_get_wordset_page_term() {
     return ($term && !is_wp_error($term)) ? $term : null;
 }
 
+function ll_tools_resolve_wordset_term($wordset) {
+    if ($wordset instanceof WP_Term) {
+        if ($wordset->taxonomy === 'wordset') {
+            return $wordset;
+        }
+        return null;
+    }
+
+    if (is_numeric($wordset)) {
+        $term = get_term((int) $wordset, 'wordset');
+        return ($term && !is_wp_error($term)) ? $term : null;
+    }
+
+    if (!is_string($wordset)) {
+        return null;
+    }
+
+    $wordset = trim($wordset);
+    if ($wordset === '') {
+        return null;
+    }
+
+    $term = get_term_by('slug', sanitize_title($wordset), 'wordset');
+    if ($term && !is_wp_error($term)) {
+        return $term;
+    }
+
+    $term = get_term_by('name', $wordset, 'wordset');
+    return ($term && !is_wp_error($term)) ? $term : null;
+}
+
+function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
+    $normalized = [];
+    foreach ($classes as $class) {
+        if (!is_string($class) || $class === '') {
+            continue;
+        }
+        $parts = preg_split('/\s+/', trim($class));
+        if (!is_array($parts)) {
+            continue;
+        }
+        foreach ($parts as $part) {
+            $part = sanitize_html_class($part);
+            if ($part !== '') {
+                $normalized[$part] = true;
+            }
+        }
+    }
+    return array_keys($normalized);
+}
+
 function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -502,6 +553,150 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
     return apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
 }
 
+function ll_tools_render_wordset_page_missing_content(array $extra_classes = [], string $wrapper_tag = 'main'): string {
+    $classes = ll_tools_wordset_page_sanitize_class_list(array_merge(
+        ['ll-wordset-page', 'll-wordset-page--missing'],
+        $extra_classes
+    ));
+
+    if (empty($classes)) {
+        $classes = ['ll-wordset-page', 'll-wordset-page--missing'];
+    }
+
+    $wrapper_tag = strtolower(sanitize_key($wrapper_tag));
+    if (!in_array($wrapper_tag, ['main', 'div', 'section'], true)) {
+        $wrapper_tag = 'main';
+    }
+
+    return '<' . $wrapper_tag . ' class="' . esc_attr(implode(' ', $classes)) . '"><div class="ll-wordset-empty">' .
+        esc_html__('Word set not found.', 'll-tools-text-domain') .
+        '</div></' . $wrapper_tag . '>';
+}
+
+function ll_tools_render_wordset_page_content($wordset, array $args = []): string {
+    $defaults = [
+        'show_title' => true,
+        'preview_limit' => 2,
+        'extra_classes' => [],
+        'wrapper_tag' => 'main',
+    ];
+    $args = wp_parse_args($args, $defaults);
+
+    $wrapper_tag = strtolower(sanitize_key((string) $args['wrapper_tag']));
+    if (!in_array($wrapper_tag, ['main', 'div', 'section'], true)) {
+        $wrapper_tag = 'main';
+    }
+
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return ll_tools_render_wordset_page_missing_content((array) ($args['extra_classes'] ?? []), $wrapper_tag);
+    }
+
+    $show_title = (bool) $args['show_title'];
+    $preview_limit = max(1, (int) $args['preview_limit']);
+    $classes = ll_tools_wordset_page_sanitize_class_list(array_merge(
+        ['ll-wordset-page'],
+        (array) ($args['extra_classes'] ?? [])
+    ));
+    if (empty($classes)) {
+        $classes = ['ll-wordset-page'];
+    }
+
+    $categories = ll_tools_get_wordset_page_categories((int) $wordset_term->term_id, $preview_limit);
+
+    ob_start();
+    ?>
+    <<?php echo esc_html($wrapper_tag); ?> class="<?php echo esc_attr(implode(' ', $classes)); ?>" data-ll-wordset-page>
+        <?php if ($show_title) : ?>
+            <header class="ll-wordset-hero">
+                <div class="ll-wordset-hero__icon" aria-hidden="true">
+                    <span class="ll-wordset-hero__dot"></span>
+                    <span class="ll-wordset-hero__dot"></span>
+                    <span class="ll-wordset-hero__dot"></span>
+                    <span class="ll-wordset-hero__dot"></span>
+                </div>
+                <h1 class="ll-wordset-title"><?php echo esc_html($wordset_term->name); ?></h1>
+            </header>
+        <?php endif; ?>
+
+        <?php if (empty($categories)) : ?>
+            <div class="ll-wordset-empty">
+                <?php echo esc_html__('No lesson categories yet.', 'll-tools-text-domain'); ?>
+            </div>
+        <?php else : ?>
+            <div class="ll-wordset-grid" role="list">
+                <?php foreach ($categories as $cat) : ?>
+                    <?php
+                    $preview_style = '';
+                    if (!empty($cat['preview_aspect_ratio'])) {
+                        $preview_style = ' style="--ll-wordset-preview-aspect: ' . esc_attr($cat['preview_aspect_ratio']) . ';"';
+                    }
+                    ?>
+                    <a class="ll-wordset-card" href="<?php echo esc_url($cat['url']); ?>" role="listitem" aria-label="<?php echo esc_attr($cat['name']); ?>">
+                        <div class="ll-wordset-card__preview <?php echo $cat['has_images'] ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
+                            <?php if (!empty($cat['preview'])) : ?>
+                                <?php
+                                $preview_items = array_values((array) $cat['preview']);
+                                $preview_count = count($preview_items);
+                                $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
+                                if ($current_preview_limit < 1) {
+                                    $current_preview_limit = 1;
+                                }
+                                $displayed_count = min($preview_count, $current_preview_limit);
+                                ?>
+                                <?php foreach (array_slice($preview_items, 0, $current_preview_limit) as $preview) : ?>
+                                    <?php if (($preview['type'] ?? '') === 'image') : ?>
+                                        <?php
+                                        $preview_ratio_style = '';
+                                        if (!empty($preview['ratio'])) {
+                                            $ratio_value = esc_attr($preview['ratio']);
+                                            $preview_ratio_style = ' style="aspect-ratio: ' . $ratio_value . ' !important;"';
+                                        }
+                                        $preview_width = !empty($preview['width']) ? (int) $preview['width'] : 0;
+                                        $preview_height = !empty($preview['height']) ? (int) $preview['height'] : 0;
+                                        $preview_width_attr = $preview_width > 0 ? ' width="' . esc_attr($preview_width) . '"' : '';
+                                        $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
+                                        ?>
+                                        <span class="ll-wordset-preview-item ll-wordset-preview-item--image"<?php echo $preview_ratio_style; ?>>
+                                            <img src="<?php echo esc_url($preview['url']); ?>" alt="<?php echo esc_attr($preview['alt'] ?? ''); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" />
+                                        </span>
+                                    <?php else : ?>
+                                        <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                                            <span class="ll-wordset-preview-text"><?php echo esc_html($preview['label'] ?? ''); ?></span>
+                                        </span>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                <?php for ($i = $displayed_count; $i < $current_preview_limit; $i++) : ?>
+                                    <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                                <?php endfor; ?>
+                            <?php else : ?>
+                                <?php
+                                $empty_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
+                                if ($empty_preview_limit < 1) {
+                                    $empty_preview_limit = 1;
+                                }
+                                ?>
+                                <?php for ($i = 0; $i < $empty_preview_limit; $i++) : ?>
+                                    <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                                <?php endfor; ?>
+                            <?php endif; ?>
+                        </div>
+                        <div class="ll-wordset-card__meta">
+                            <h2 class="ll-wordset-card__title"><?php echo esc_html($cat['name']); ?></h2>
+                            <span class="ll-wordset-card__count" aria-label="<?php echo esc_attr(sprintf(__('Words: %d', 'll-tools-text-domain'), (int) ($cat['count'] ?? 0))); ?>">
+                                <?php echo (int) ($cat['count'] ?? 0); ?>
+                            </span>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </<?php echo esc_html($wrapper_tag); ?>>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_register_wordset_page_query_vars($vars) {
     $vars[] = 'll_wordset_page';
     return $vars;
@@ -575,6 +770,10 @@ function ll_tools_wordset_page_enqueue_assets() {
     if (!ll_tools_is_wordset_page_context()) {
         return;
     }
-    ll_enqueue_asset_by_timestamp('/css/wordset-pages.css', 'll-wordset-pages-css');
+    ll_tools_wordset_page_enqueue_styles();
 }
 add_action('wp_enqueue_scripts', 'll_tools_wordset_page_enqueue_assets');
+
+function ll_tools_wordset_page_enqueue_styles(): void {
+    ll_enqueue_asset_by_timestamp('/css/wordset-pages.css', 'll-wordset-pages-css');
+}

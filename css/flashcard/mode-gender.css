@@ -1,4 +1,481 @@
-/* Gender mode: light emphasis for text options */
+/* Gender mode options */
+.ll-gender-option,
+.ll-gender-intro-card,
+.ll-gender-intro-badge {
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+}
+
+.ll-gender-option--masculine,
+.ll-gender-intro-card--masculine,
+.ll-gender-intro-badge[data-ll-gender-role="masculine"] {
+    --ll-gender-accent: #2563eb;
+    --ll-gender-bg: rgba(37, 99, 235, 0.14);
+    --ll-gender-border: rgba(37, 99, 235, 0.38);
+}
+
+.ll-gender-option--feminine,
+.ll-gender-intro-card--feminine,
+.ll-gender-intro-badge[data-ll-gender-role="feminine"] {
+    --ll-gender-accent: #ec4899;
+    --ll-gender-bg: rgba(236, 72, 153, 0.14);
+    --ll-gender-border: rgba(236, 72, 153, 0.38);
+}
+
+.ll-gender-option--other,
+.ll-gender-intro-card--other,
+.ll-gender-intro-badge[data-ll-gender-role="other"] {
+    --ll-gender-accent: #6b7280;
+    --ll-gender-bg: rgba(107, 114, 128, 0.14);
+    --ll-gender-border: rgba(107, 114, 128, 0.38);
+}
+
+.ll-gender-option {
+    --ll-gender-option-scale: 1;
+    --ll-gender-option-label-size: calc(0.88em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
+    --ll-gender-option-text-size: calc(var(--ll-gender-option-label-size) * 0.8);
+    border: 2px solid var(--ll-gender-border) !important;
+    background: var(--ll-gender-bg) !important;
+    color: var(--ll-gender-accent) !important;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
 .ll-gender-option .quiz-text {
+    color: inherit !important;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center !important;
+    font-size: var(--ll-gender-option-text-size);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: 0.01em;
+    padding: calc(14px * var(--ll-gender-layout-scale, 1)) calc(12px * var(--ll-gender-layout-scale, 1));
+}
+
+.ll-gender-option .ll-gender-option-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(8px * var(--ll-gender-option-scale));
+    max-width: 100%;
+    width: max-content;
+    margin: 0 auto;
+    font-size: var(--ll-gender-option-label-size);
+    line-height: 1.06;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.ll-gender-option--unknown .quiz-text {
+    font-size: var(--ll-gender-option-text-size);
+    line-height: 1.08;
+    text-wrap: balance;
+}
+
+.ll-gender-option .ll-gender-option-label {
+    color: inherit;
+    font-size: 0.8em;
+    font-weight: 700;
+    line-height: 1;
+}
+
+#ll-tools-flashcard.ll-gender-options-layout {
+    --ll-gender-layout-scale: 1;
+    gap: calc(10px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard.ll-gender-options-layout .flashcard-container.ll-gender-option {
+    width: calc(50% - (8px * var(--ll-gender-layout-scale)));
+    max-width: calc(220px * var(--ll-gender-layout-scale));
+    min-width: 0;
+    height: clamp(56px, calc(150px * var(--ll-gender-layout-scale)), 150px);
+    max-height: clamp(56px, calc(150px * var(--ll-gender-layout-scale)), 150px);
+    border-radius: calc(10px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode {
+    --ll-gender-layout-scale: 1;
+    --ll-gender-safe-bottom: 0px;
+    overflow: hidden;
+    max-height: none;
+    padding-bottom: calc(18px * var(--ll-gender-layout-scale) + var(--ll-gender-safe-bottom));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt {
+    margin: 0 auto calc(12px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-prompt-stack {
+    gap: calc(10px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-prompt-audio-button {
+    padding: calc(8px * var(--ll-gender-layout-scale)) calc(10px * var(--ll-gender-layout-scale));
+    border-radius: calc(14px * var(--ll-gender-layout-scale));
+    gap: calc(8px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-repeat-icon-wrap {
+    width: clamp(26px, calc(42px * var(--ll-gender-layout-scale)), 42px);
+    height: clamp(26px, calc(42px * var(--ll-gender-layout-scale)), 42px);
+    border-radius: calc(12px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-repeat-icon-wrap .ll-audio-play-icon {
+    font-size: clamp(13px, calc(18px * var(--ll-gender-layout-scale)), 18px);
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-audio-mini-visualizer {
+    gap: calc(6px * var(--ll-gender-layout-scale));
+    min-height: clamp(10px, calc(18px * var(--ll-gender-layout-scale)), 18px);
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-audio-mini-visualizer .bar {
+    width: clamp(3px, calc(5px * var(--ll-gender-layout-scale)), 5px);
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-tools-prompt .ll-prompt-image-wrap {
+    width: clamp(78px, calc(250px * var(--ll-gender-layout-scale)), 250px);
+    max-width: clamp(78px, calc(250px * var(--ll-gender-layout-scale)), 250px);
+    max-height: clamp(78px, calc(250px * var(--ll-gender-layout-scale)), 250px);
+    border-radius: calc(12px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-prompt-star-row {
+    gap: calc(8px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-quiz-star-spacer {
+    width: calc(28px * var(--ll-gender-layout-scale));
+    height: calc(28px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode .ll-quiz-star-btn {
+    width: clamp(24px, calc(32px * var(--ll-gender-layout-scale)), 32px);
+    height: clamp(24px, calc(32px * var(--ll-gender-layout-scale)), 32px);
+    font-size: clamp(12px, calc(16px * var(--ll-gender-layout-scale)), 16px);
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode.ll-gender-layout-compact {
+    padding-top: calc(8px * var(--ll-gender-layout-scale));
+}
+
+#ll-tools-flashcard-content.ll-gender-options-mode.ll-gender-layout-compact .ll-tools-prompt {
+    margin-bottom: calc(8px * var(--ll-gender-layout-scale));
+}
+
+.ll-gender-option .ll-gender-symbol,
+.ll-gender-intro-badge .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35em;
+    min-height: 1.35em;
+    font-size: 1.15em;
+    line-height: 1;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+}
+
+.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg {
+    display: block;
+    width: 1.15em;
+    height: 1.15em;
+}
+
+.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-option .ll-gender-symbol--svg svg *,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg,
+.ll-gender-intro-badge .ll-gender-symbol--svg svg * {
+    fill: currentColor !important;
+    stroke: currentColor !important;
+}
+
+.ll-gender-option--unknown {
+    border-style: dashed !important;
+    border-color: #9ca3af !important;
+    background: #f9fafb !important;
+    color: #374151 !important;
+}
+
+.ll-gender-option-locked {
+    pointer-events: none !important;
+    opacity: 0.74;
+}
+
+.ll-gender-selected-wrong {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.ll-gender-correct-reveal {
+    border-color: #16a34a !important;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+}
+
+/* Level-1 introduction visuals */
+.ll-gender-intro-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid var(--ll-gender-border) !important;
+    background: var(--ll-gender-bg) !important;
+}
+
+.ll-gender-intro-card--active {
+    border-color: var(--ll-gender-accent) !important;
+    box-shadow: 0 0 0 4px var(--ll-gender-bg) !important;
+    animation: ll-gender-intro-pulse 1s ease-in-out;
+    transform-origin: center;
+}
+
+@keyframes ll-gender-intro-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+.ll-gender-intro-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border: 1px solid var(--ll-gender-border);
+    background: var(--ll-gender-accent);
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+    z-index: 6;
+}
+
+.ll-gender-intro-category {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #1f2937;
+    font-size: 11px;
     font-weight: 600;
+    line-height: 1.2;
+    padding: 3px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 5;
+}
+
+/* Reuse listening countdown animation for level-2 timing cue */
+.ll-gender-level2-countdown-slot {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.ll-gender-level2-countdown-floating {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%);
+    min-width: 64px;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 8;
+}
+
+.ll-gender-level2-countdown {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    margin: 0 !important;
+    z-index: 7;
+}
+
+.ll-gender-countdown-anchor {
+    position: relative !important;
+}
+
+.ll-gender-countdown-hidden {
+    pointer-events: none !important;
+}
+
+.ll-gender-countdown-hidden .ll-repeat-audio-ui,
+.ll-gender-countdown-hidden .ll-repeat-icon-wrap,
+.ll-gender-countdown-hidden .ll-audio-mini-visualizer,
+.ll-gender-countdown-hidden .ll-audio-play-icon {
+    opacity: 0 !important;
+}
+
+.ll-gender-level2-countdown.ll-gender-level2-countdown--near-audio {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 100%;
+    height: 100%;
+    margin: 0 !important;
+    font-size: 40px !important;
+    line-height: 1 !important;
+    z-index: 8;
+    pointer-events: none;
+}
+
+.ll-gender-level2-countdown-floating .ll-gender-level2-countdown {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    font-size: 40px !important;
+    line-height: 1 !important;
+}
+
+/* Gender-specific results actions */
+#ll-gender-results-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#ll-gender-next-activity,
+#ll-gender-next-chunk {
+    min-width: 190px;
+    padding: 12px 24px !important;
+    border: 2px solid #111827 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer !important;
+}
+
+#ll-gender-next-activity:hover,
+#ll-gender-next-chunk:hover {
+    background: #f8fafc !important;
+    border-color: #0f172a !important;
+}
+
+@media (max-width: 640px) {
+    #ll-tools-flashcard.ll-gender-options-layout .flashcard-container.ll-gender-option {
+        width: calc(50% - 7px);
+        max-width: calc(190px * var(--ll-gender-layout-scale));
+        height: clamp(52px, calc(122px * var(--ll-gender-layout-scale)), 122px);
+        max-height: clamp(52px, calc(122px * var(--ll-gender-layout-scale)), 122px);
+    }
+
+    .ll-gender-option {
+        --ll-gender-option-label-size: calc(0.78em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
+        border-width: 1.5px !important;
+    }
+
+    .ll-gender-option .quiz-text {
+        padding: 10px 8px;
+    }
+
+    .ll-gender-option .ll-gender-option-inner {
+        gap: calc(6px * var(--ll-gender-option-scale));
+        line-height: 1.02;
+    }
+
+    .ll-gender-option .ll-gender-option-label {
+        font-size: 0.74em;
+    }
+
+    .ll-gender-option .ll-gender-symbol {
+        min-width: 1em;
+        min-height: 1em;
+        font-size: 1em;
+    }
+
+    .ll-gender-option .ll-gender-symbol--svg svg {
+        width: 1em;
+        height: 1em;
+    }
+}
+
+@media (max-width: 420px) {
+    #ll-tools-flashcard.ll-gender-options-layout .flashcard-container.ll-gender-option {
+        width: calc(50% - 6px);
+        max-width: calc(170px * var(--ll-gender-layout-scale));
+        height: clamp(48px, calc(108px * var(--ll-gender-layout-scale)), 108px);
+        max-height: clamp(48px, calc(108px * var(--ll-gender-layout-scale)), 108px);
+    }
+
+    .ll-gender-option {
+        --ll-gender-option-label-size: calc(0.72em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
+    }
+}
+
+@media (max-width: 340px), (max-height: 500px) {
+    .ll-tools-mode-switcher-wrap {
+        --ll-tools-fab-size: 48px;
+        bottom: 10px;
+        right: 10px;
+        gap: 8px;
+    }
+
+    .ll-tools-mode-switcher-wrap > * + * {
+        margin-top: 8px;
+    }
+
+    #ll-tools-mode-switcher-wrap #ll-tools-mode-switcher.ll-tools-mode-switcher {
+        width: 48px !important;
+        height: 48px !important;
+    }
+
+    #ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option,
+    #ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option {
+        width: 48px !important;
+        height: 48px !important;
+    }
+
+    #ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon {
+        font-size: 24px !important;
+    }
+
+    #ll-tools-mode-switcher-wrap .ll-tools-mode-option .mode-icon::before {
+        font-size: 22px !important;
+    }
+
+    #ll-tools-mode-switcher-wrap .ll-tools-mode-option .mode-icon svg,
+    #ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon svg {
+        width: 22px !important;
+        height: 22px !important;
+    }
 }

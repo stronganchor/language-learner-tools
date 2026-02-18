@@ -159,12 +159,52 @@ function ll_flashcards_get_messages(): array {
         // Results page messages
         'learningComplete'        => __('Learning Complete!', 'll-tools-text-domain'),
         'learningCompleteMessage' => __('✓', 'll-tools-text-domain'),
+        'learningContinuePrompt'  => __('Great work. Continue?', 'll-tools-text-domain'),
+        'learningContinueButton'  => __('Continue Learning', 'll-tools-text-domain'),
         'listeningComplete'       => __('Listening Complete', 'll-tools-text-domain'),
         'perfect'                 => __('Perfect!', 'll-tools-text-domain'),
         'goodJob'                 => __('Good job!', 'll-tools-text-domain'),
         'keepPracticingTitle'     => __('Keep practicing!', 'll-tools-text-domain'),
         'keepPracticingMessage'   => __("You're on the right track...", 'll-tools-text-domain'),
         'categoriesLabel'         => __('Categories', 'll-tools-text-domain'),
+        'selfCheckTitle'          => __('Self check', 'll-tools-text-domain'),
+        'selfCheckFlip'           => __('Show answer', 'll-tools-text-domain'),
+        'selfCheckHideAnswer'     => __('Hide answer', 'll-tools-text-domain'),
+        'selfCheckKnow'           => __('I know it', 'll-tools-text-domain'),
+        'selfCheckDontKnow'       => __("I don't know it", 'll-tools-text-domain'),
+        'selfCheckThinkKnow'      => __('I think I know it', 'll-tools-text-domain'),
+        'selfCheckGotWrong'       => __('I got it wrong', 'll-tools-text-domain'),
+        'selfCheckGotClose'       => __('I got close', 'll-tools-text-domain'),
+        'selfCheckGotRight'       => __('I got it right', 'll-tools-text-domain'),
+        'selfCheckPlayAudio'      => __('Play audio', 'll-tools-text-domain'),
+        'playAudioType'           => __('Play %s recording', 'll-tools-text-domain'),
+        'recordingIsolation'      => __('Isolation', 'll-tools-text-domain'),
+        'recordingIntroduction'   => __('Introduction', 'll-tools-text-domain'),
+        'recordingsLabel'         => __('Recordings', 'll-tools-text-domain'),
+        'genderDontKnow'          => __("I don't know", 'll-tools-text-domain'),
+        'genderResultsTitle'      => __('Gender Round Complete', 'll-tools-text-domain'),
+        'genderResultsMessage'    => __('Keep training noun gender with the next activity.', 'll-tools-text-domain'),
+        'genderNextActivity'      => __('Next Gender Activity', 'll-tools-text-domain'),
+        'genderNextChunk'         => __('Next Recommended Set', 'll-tools-text-domain'),
+        'genderNextRepeat'        => __('Repeat This Level', 'll-tools-text-domain'),
+        'genderNextLevel2'        => __('Start Level 2', 'll-tools-text-domain'),
+        'genderNextLevel3'        => __('Start Level 3', 'll-tools-text-domain'),
+        'genderFallbackLevel1'    => __('Go Back to Level 1', 'll-tools-text-domain'),
+        'genderFallbackLevel2'    => __('Back to Level 2', 'll-tools-text-domain'),
+        'genderLevelOneDoneTitle' => __('Level 1 Complete', 'll-tools-text-domain'),
+        'genderLevelOneDoneMessage' => __('Advance to the next gender level with the same words.', 'll-tools-text-domain'),
+        'genderLevelOneRetryTitle' => __('Level 1: Keep Building', 'll-tools-text-domain'),
+        'genderLevelOneRetryMessage' => __('Repeat this level to reinforce word-gender memory.', 'll-tools-text-domain'),
+        'genderLevelTwoDoneTitle' => __('Level 2 Complete', 'll-tools-text-domain'),
+        'genderLevelTwoDoneMessage' => __('You are ready for pure isolation practice.', 'll-tools-text-domain'),
+        'genderLevelTwoRetryTitle' => __('Level 2: Keep Practicing', 'll-tools-text-domain'),
+        'genderLevelTwoRetryMessage' => __('Repeat this level until you get all answers right and answer quickly.', 'll-tools-text-domain'),
+        'genderLevelTwoFallbackTitle' => __('Level 2: Reset Needed', 'll-tools-text-domain'),
+        'genderLevelTwoFallbackMessage' => __('A quick review cycle in Level 1 should help.', 'll-tools-text-domain'),
+        'genderLevelThreeKeepTitle' => __('Level 3 Stable', 'll-tools-text-domain'),
+        'genderLevelThreeKeepMessage' => __('Keep practicing isolation-only to maintain speed.', 'll-tools-text-domain'),
+        'genderLevelThreeFallbackTitle' => __('Level 3: Rebuild Confidence', 'll-tools-text-domain'),
+        'genderLevelThreeFallbackMessage' => __('Some words need context support again.', 'll-tools-text-domain'),
 
         // Error messages
         'loadingError'            => __('Loading Error', 'll-tools-text-domain'),
@@ -178,12 +218,35 @@ function ll_flashcards_get_messages(): array {
 
 /** Return UI metadata (icon + labels) for each quiz mode */
 function ll_flashcards_get_mode_ui_config(): array {
-    $gender_svg = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
-        . '<circle cx="7.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
-        . '<circle cx="16.5" cy="9" r="3.5" stroke="currentColor" stroke-width="2" />'
-        . '<path d="M7.5 12.5v6.5M5 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
-        . '<path d="M18.5 7.5l4-4M20.5 3.5h2M22.5 3.5v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />'
-        . '</svg>';
+    $gender_svg = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
+    <g stroke="#FF4FA3">
+      <circle cx="184" cy="284" r="92"/>
+      <path d="M184 376 L184 470"/>
+      <path d="M140 430 L228 430"/>
+    </g>
+    <g stroke="#1E73FF">
+      <circle cx="328" cy="292" r="92"/>
+      <path d="M402 218 L480 148"/>
+      <path d="M480 148 L480 196"/>
+      <path d="M480 148 L432 148"/>
+    </g>
+  </g>
+</svg>
+SVG;
+    $self_check_svg_path = LL_TOOLS_BASE_PATH . 'media/self-check-symbol.svg';
+    $self_check_svg = '';
+    if (file_exists($self_check_svg_path)) {
+        $self_check_svg = trim((string) file_get_contents($self_check_svg_path));
+    }
+    if ($self_check_svg === '') {
+        $self_check_svg = '<svg viewBox="0 0 96 96" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M12 50L31 68L58 22" stroke="#2BAE4A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#E63946" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '</svg>';
+    }
 
     return [
         'practice' => [
@@ -197,6 +260,13 @@ function ll_flashcards_get_mode_ui_config(): array {
             'className'         => 'learning-mode',
             'switchLabel'       => __('Switch to Learning Mode', 'll-tools-text-domain'),
             'resultsButtonText' => __('Learning Mode', 'll-tools-text-domain'),
+        ],
+        'self-check' => [
+            'icon'              => '',
+            'svg'               => $self_check_svg,
+            'className'         => 'self-check-mode',
+            'switchLabel'       => __('Open Self Check', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Self Check', 'll-tools-text-domain'),
         ],
         'listening' => [
             'icon'              => '🎧',
@@ -227,6 +297,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         : ($wordset === '');
 
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
+    ll_enqueue_asset_by_timestamp('/css/self-check-shared.css', 'll-tools-self-check-shared', ['ll-tools-flashcard-style']);
     ll_enqueue_asset_by_timestamp(
         '/css/flashcard/mode-practice.css',
         'll-tools-flashcard-mode-practice',
@@ -256,8 +327,10 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
 
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery'], true);
+    ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'progress-tracker.js', 'll-flc-progress-tracker', ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio-visualizer.js', 'll-flc-audio-visualizer', ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
@@ -266,10 +339,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state', 'll-flc-dom', 'll-flc-effects'], true);
 
     // New mode-specific modules (loaded after selection.js)
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/learning.js',  'll-flc-mode-learning',  ['ll-flc-selection', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/practice.js',  'll-flc-mode-practice',  ['ll-flc-selection', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/self-check.js', 'll-flc-mode-self-check', ['ll-flc-selection', 'll-tools-self-check-shared-script', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection', 'll-flc-progress-tracker'], true);
 
     // Main orchestrator depends on the mode modules as well
     ll_enqueue_asset_by_timestamp(
@@ -281,8 +355,10 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
             'll-tools-flashcard-audio',
             'll-tools-flashcard-loader',
             'll-tools-flashcard-options',
+            'll-flc-progress-tracker',
             'll-flc-mode-learning',
             'll-flc-mode-practice',
+            'll-flc-mode-self-check',
             'll-flc-mode-listening',
             'll-flc-mode-gender'
         ],
@@ -296,8 +372,6 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         ['jquery', 'll-flc-main'],
         true
     );
-
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'category-selection.js', 'll-tools-category-selection-script', ['jquery','ll-flc-main'], true);
 
     // Stop parallel audio playback when the grid is present
     wp_add_inline_script('jquery', <<<JS
@@ -326,6 +400,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $gender_options = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options'))
         ? ll_tools_wordset_get_gender_options($gender_wordset_id)
         : [];
+    $gender_visual_config = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+        ? ll_tools_wordset_get_gender_visual_config($gender_wordset_id)
+        : [];
 
     // Pull saved study prefs (stars/fast transitions) for logged-in users so the widget can reflect them outside the dashboard.
     $user_study_state = [
@@ -337,6 +414,17 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ];
     if (is_user_logged_in() && function_exists('ll_tools_get_user_study_state')) {
         $user_study_state = ll_tools_get_user_study_state();
+    }
+
+    $launch_context = '';
+    if (isset($atts['launch_context'])) {
+        $launch_context = sanitize_key((string) $atts['launch_context']);
+    }
+    if ($launch_context === '' && isset($_GET['ll_context'])) {
+        $launch_context = sanitize_key((string) wp_unslash($_GET['ll_context']));
+    }
+    if (!in_array($launch_context, ['vocab_lesson', 'dashboard', 'quiz_pages'], true)) {
+        $launch_context = '';
     }
 
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
@@ -365,13 +453,18 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'star_mode'            => $user_study_state['star_mode'] ?? 'normal',
         'fastTransitions'      => !empty($user_study_state['fast_transitions']),
         'fast_transitions'     => !empty($user_study_state['fast_transitions']),
+        'sessionWordIds'       => [],
+        'session_word_ids'     => [],
         'userStudyState'       => $user_study_state,
         'userStudyNonce'       => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
         'genderEnabled'        => $gender_enabled,
         'genderWordsetId'      => $gender_wordset_id,
         'genderOptions'        => $gender_options,
+        'genderVisualConfig'   => $gender_visual_config,
         'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
+        'launchContext'        => $launch_context,
+        'launch_context'       => $launch_context,
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -405,6 +498,7 @@ function ll_tools_flashcard_widget($atts) {
         'wordset'   => '',
         'wordset_fallback' => true,
         'quiz_mode' => 'practice',
+        'launch_context' => '',
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
@@ -595,6 +689,34 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
 add_action('wp_ajax_ll_get_words_by_category',        'll_get_words_by_category_ajax');
 add_action('wp_ajax_nopriv_ll_get_words_by_category', 'll_get_words_by_category_ajax');
+
+/**
+ * Remove internal speaker identifiers from public flashcard payloads.
+ *
+ * @param array $rows
+ * @return array
+ */
+function ll_tools_flashcards_redact_public_speaker_ids(array $rows): array {
+    foreach ($rows as $idx => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $rows[$idx]['preferred_speaker_user_id'] = 0;
+
+        if (!empty($row['audio_files']) && is_array($row['audio_files'])) {
+            foreach ($row['audio_files'] as $audio_idx => $audio_file) {
+                if (!is_array($audio_file)) {
+                    continue;
+                }
+                $rows[$idx]['audio_files'][$audio_idx]['speaker_user_id'] = 0;
+            }
+        }
+    }
+
+    return $rows;
+}
+
 function ll_get_words_by_category_ajax() {
     $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
     $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
@@ -620,7 +742,14 @@ function ll_get_words_by_category_ajax() {
         $base_config = array_merge($meta_config, $base_config);
     }
 
-    wp_send_json_success(ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config));
+    $words = ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config);
+
+    // Public endpoint should not expose internal user IDs.
+    if (!is_user_logged_in()) {
+        $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
+    }
+
+    wp_send_json_success($words);
 }
 
 function ll_tools_register_flashcard_widget_shortcode() {

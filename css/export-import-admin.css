@@ -90,3 +90,42 @@
   border-color: #93c5fd;
   cursor: not-allowed;
 }
+
+.ll-tools-export-import .ll-tools-import-wordset-mode {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.ll-tools-export-import .ll-tools-import-wordset-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview {
+  max-width: 860px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview ul {
+  margin: 8px 0 12px 18px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview-table {
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview-table .ll-tools-input {
+  max-width: 100%;
+}

@@ -7,12 +7,18 @@
 
 if (!defined('WPINC')) { die; }
 
+if (!function_exists('ll_tools_api_settings_capability')) {
+    function ll_tools_api_settings_capability() {
+        return (string) apply_filters('ll_tools_api_settings_capability', 'manage_options');
+    }
+}
+
 // Add an admin page under Tools for entering the AssemblyAI API key.
 function ll_add_assemblyai_api_key_page() {
     add_management_page(
-        'AssemblyAI API Key',
-        'AssemblyAI API Key',
-        'view_ll_tools',
+        __('AssemblyAI API Key', 'll-tools-text-domain'),
+        __('AssemblyAI API Key', 'll-tools-text-domain'),
+        ll_tools_api_settings_capability(),
         'assemblyai-api-key',
         'll_assemblyai_api_key_page_content'
     );
@@ -23,9 +29,13 @@ add_action('admin_menu', 'll_add_assemblyai_api_key_page');
  * Renders the AssemblyAI API Key admin page content.
  */
 function ll_assemblyai_api_key_page_content() {
+    if (!current_user_can(ll_tools_api_settings_capability())) {
+        wp_die(__('You do not have permission to view this page.', 'll-tools-text-domain'));
+    }
+
     ?>
     <div class="wrap">
-        <h1>Enter Your AssemblyAI API Key</h1>
+        <h1><?php esc_html_e('Enter Your AssemblyAI API Key', 'll-tools-text-domain'); ?></h1>
         <form method="post" action="options.php">
             <?php
             settings_fields('ll-assemblyai-api-key-group');
@@ -33,9 +43,9 @@ function ll_assemblyai_api_key_page_content() {
             ?>
             <table class="form-table">
                 <tr valign="top">
-                    <th scope="row">AssemblyAI API Key</th>
+                    <th scope="row"><?php esc_html_e('AssemblyAI API Key', 'll-tools-text-domain'); ?></th>
                     <td>
-                        <input type="text" name="ll_assemblyai_api_key" value="<?php echo esc_attr(get_option('ll_assemblyai_api_key')); ?>" />
+                        <input type="password" name="ll_assemblyai_api_key" value="<?php echo esc_attr(get_option('ll_assemblyai_api_key')); ?>" autocomplete="off" />
                     </td>
                 </tr>
             </table>
@@ -49,7 +59,11 @@ function ll_assemblyai_api_key_page_content() {
  * Registers the AssemblyAI API key setting.
  */
 function ll_register_assemblyai_api_key_setting() {
-    register_setting('ll-assemblyai-api-key-group', 'll_assemblyai_api_key');
+    register_setting('ll-assemblyai-api-key-group', 'll_assemblyai_api_key', [
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '',
+    ]);
 }
 add_action('admin_init', 'll_register_assemblyai_api_key_setting');
 
@@ -186,19 +200,30 @@ function ll_tools_assemblyai_get_transcript($transcript_id) {
 }
 
 /**
- * Upload and transcribe an audio file with AssemblyAI.
+ * Upload an audio file and create a transcript request in AssemblyAI.
+ *
+ * @param string $file_path
+ * @param string $language_code
+ * @return string|WP_Error Transcript ID
+ */
+function ll_tools_assemblyai_start_transcription($file_path, $language_code = '') {
+    $upload_url = ll_tools_assemblyai_upload_audio($file_path);
+    if (is_wp_error($upload_url)) {
+        return $upload_url;
+    }
+
+    return ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+}
+
+/**
+ * Upload and transcribe an audio file with AssemblyAI (blocking helper).
  *
  * @param string $file_path
  * @param string $language_code
  * @return array|WP_Error
  */
 function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '') {
-    $upload_url = ll_tools_assemblyai_upload_audio($file_path);
-    if (is_wp_error($upload_url)) {
-        return $upload_url;
-    }
-
-    $transcript_id = ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code);
     if (is_wp_error($transcript_id)) {
         return $transcript_id;
     }
@@ -235,4 +260,3 @@ function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = 
 
     return new WP_Error('transcript_timeout', 'AssemblyAI transcription is still processing.');
 }
-

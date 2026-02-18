@@ -1,10 +1,22 @@
 (function (root) {
     'use strict';
     const { Util, State } = root.LLFlashcards;
+    let genderFitResizeBound = false;
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
+    }
+
+    function parseBooleanFlag(raw) {
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'number') return raw > 0;
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+            if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
+        }
+        return !!raw;
     }
 
     function getRawCategoryConfig(name) {
@@ -61,23 +73,434 @@
     }
 
     function normalizeGenderValue(value, options) {
+        const opts = Array.isArray(options) ? options : getGenderOptions();
         const base = stripGenderVariation((value === null || value === undefined) ? '' : String(value)).trim();
         if (!base) return '';
         const lowered = base.toLowerCase();
-        for (let i = 0; i < options.length; i++) {
-            const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+        for (let i = 0; i < opts.length; i++) {
+            const opt = stripGenderVariation((opts[i] === null || opts[i] === undefined) ? '' : String(opts[i])).trim();
             if (!opt) continue;
             if (opt.toLowerCase() === lowered) return opt;
         }
-        if (lowered === 'masculine' || lowered === 'feminine') {
-            const symbol = lowered === 'masculine' ? '♂' : '♀';
-            for (let i = 0; i < options.length; i++) {
-                const opt = stripGenderVariation((options[i] === null || options[i] === undefined) ? '' : String(options[i])).trim();
+
+        let desiredRole = '';
+        const aliases = getGenderRoleAliases();
+        const roleNames = Object.keys(aliases);
+        for (let i = 0; i < roleNames.length; i++) {
+            const role = roleNames[i];
+            const variants = aliases[role] || [];
+            for (let j = 0; j < variants.length; j++) {
+                if (normalizeGenderLookupKey(variants[j]) === lowered) {
+                    desiredRole = role;
+                    break;
+                }
+            }
+            if (desiredRole) break;
+        }
+
+        if (desiredRole) {
+            for (let i = 0; i < opts.length; i++) {
+                const opt = stripGenderVariation((opts[i] === null || opts[i] === undefined) ? '' : String(opts[i])).trim();
                 if (!opt) continue;
-                if (opt === symbol) return opt;
+                const inferred = inferGenderRoleFromValue(opt, i);
+                if (inferred === desiredRole) {
+                    return opt;
+                }
             }
         }
+
         return '';
+    }
+
+    function normalizeGenderLookupKey(value) {
+        const cleaned = stripGenderVariation((value === null || value === undefined) ? '' : String(value)).trim();
+        return cleaned ? cleaned.toLowerCase() : '';
+    }
+
+    function escapeHtml(raw) {
+        return String(raw === null || raw === undefined ? '' : raw)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function getGenderRoleAliases() {
+        return {
+            masculine: ['masculine', 'masc', 'male', 'm', '♂'],
+            feminine: ['feminine', 'fem', 'female', 'f', '♀']
+        };
+    }
+
+    function normalizeGenderRole(role) {
+        const cleaned = String(role || '').trim().toLowerCase();
+        if (cleaned === 'masculine' || cleaned === 'feminine') return cleaned;
+        return 'other';
+    }
+
+    function inferGenderRoleFromValue(value, index) {
+        const key = normalizeGenderLookupKey(value);
+        if (key) {
+            const aliases = getGenderRoleAliases();
+            const roleNames = Object.keys(aliases);
+            for (let i = 0; i < roleNames.length; i++) {
+                const role = roleNames[i];
+                const variants = aliases[role] || [];
+                for (let j = 0; j < variants.length; j++) {
+                    if (normalizeGenderLookupKey(variants[j]) === key) {
+                        return role;
+                    }
+                }
+            }
+        }
+        if (index === 0) return 'masculine';
+        if (index === 1) return 'feminine';
+        return 'other';
+    }
+
+    function getGenderVisualConfig() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = data.genderVisualConfig;
+        return (raw && typeof raw === 'object') ? raw : {};
+    }
+
+    function findGenderVisualOption(configOptions, value) {
+        const options = Array.isArray(configOptions) ? configOptions : [];
+        const needle = normalizeGenderLookupKey(value);
+        if (!needle) return null;
+        for (let i = 0; i < options.length; i++) {
+            const entry = options[i];
+            if (!entry || typeof entry !== 'object') continue;
+            const keys = [entry.normalized, entry.value, entry.label];
+            for (let j = 0; j < keys.length; j++) {
+                if (normalizeGenderLookupKey(keys[j]) === needle) {
+                    return entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    function hexToRgb(hex) {
+        let cleaned = String(hex || '').trim().replace(/^#/, '');
+        if (cleaned.length === 3) {
+            cleaned = cleaned[0] + cleaned[0] + cleaned[1] + cleaned[1] + cleaned[2] + cleaned[2];
+        }
+        if (!/^[a-f0-9]{6}$/i.test(cleaned)) {
+            return [107, 114, 128];
+        }
+        return [
+            parseInt(cleaned.slice(0, 2), 16),
+            parseInt(cleaned.slice(2, 4), 16),
+            parseInt(cleaned.slice(4, 6), 16)
+        ];
+    }
+
+    function buildGenderStyleString(color) {
+        const fallback = '#6B7280';
+        const normalized = /^#[a-f0-9]{3,6}$/i.test(String(color || '').trim())
+            ? String(color || '').trim().toUpperCase()
+            : fallback;
+        const rgb = hexToRgb(normalized);
+        const bg = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.14)';
+        const border = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.38)';
+        return '--ll-gender-accent:' + normalized + ';--ll-gender-bg:' + bg + ';--ll-gender-border:' + border + ';';
+    }
+
+    function applyGenderStyleVariables($el, styleText) {
+        if (!$el || !$el.length || !$el[0] || !$el[0].style) return;
+        const node = $el[0];
+        const props = ['--ll-gender-accent', '--ll-gender-bg', '--ll-gender-border'];
+        props.forEach(function (prop) {
+            try { node.style.removeProperty(prop); } catch (_) { /* no-op */ }
+        });
+
+        const raw = String(styleText || '').trim();
+        if (!raw) return;
+        raw.split(';').forEach(function (chunk) {
+            const trimmed = String(chunk || '').trim();
+            if (!trimmed) return;
+            const idx = trimmed.indexOf(':');
+            if (idx < 1) return;
+            const prop = trimmed.slice(0, idx).trim();
+            const value = trimmed.slice(idx + 1).trim();
+            if (!prop || !value || prop.indexOf('--ll-gender-') !== 0) return;
+            try { node.style.setProperty(prop, value); } catch (_) { /* no-op */ }
+        });
+    }
+
+    function getGenderVisualForOption(value, index, options) {
+        const genderOptions = Array.isArray(options) ? options : getGenderOptions();
+        const normalizedValue = normalizeGenderValue(value, genderOptions) || stripGenderVariation(String(value || '')).trim();
+        const displayLabel = formatGenderDisplayLabel(normalizedValue || value || '');
+
+        const visualConfig = getGenderVisualConfig();
+        const configOptions = Array.isArray(visualConfig.options) ? visualConfig.options : [];
+        let optionVisual = findGenderVisualOption(configOptions, normalizedValue) || findGenderVisualOption(configOptions, value);
+        if (!optionVisual && index >= 0 && index < configOptions.length) {
+            optionVisual = configOptions[index];
+        }
+
+        const defaultColors = { masculine: '#2563EB', feminine: '#EC4899', other: '#6B7280' };
+        const colors = Object.assign({}, defaultColors, (visualConfig.colors && typeof visualConfig.colors === 'object') ? visualConfig.colors : {});
+        const role = normalizeGenderRole((optionVisual && optionVisual.role) || inferGenderRoleFromValue(normalizedValue || value, index));
+
+        let color = String((optionVisual && optionVisual.color) || colors[role] || colors.other || defaultColors.other).trim();
+        if (!/^#[a-f0-9]{3,6}$/i.test(color)) {
+            color = colors[role] || colors.other || defaultColors.other;
+        }
+        let style = String((optionVisual && optionVisual.style) || '').trim();
+        if (!style) {
+            style = buildGenderStyleString(color);
+        }
+
+        let symbol = (optionVisual && optionVisual.symbol && typeof optionVisual.symbol === 'object')
+            ? optionVisual.symbol
+            : null;
+        if (!symbol && (role === 'masculine' || role === 'feminine')) {
+            const symbols = (visualConfig.symbols && typeof visualConfig.symbols === 'object') ? visualConfig.symbols : {};
+            if (symbols[role] && typeof symbols[role] === 'object') {
+                symbol = symbols[role];
+            }
+        }
+
+        let symbolType = symbol && symbol.type === 'svg' ? 'svg' : 'text';
+        let symbolValue = String((symbol && symbol.value) || '').trim();
+        if (symbolType === 'svg') {
+            const lower = symbolValue.toLowerCase();
+            if (!(lower.indexOf('<svg') !== -1 && lower.indexOf('</svg>') !== -1)) {
+                symbolType = 'text';
+                symbolValue = displayLabel || '?';
+            }
+        }
+        if (symbolType !== 'svg') {
+            symbolValue = formatGenderDisplayLabel(symbolValue || displayLabel || '?');
+        }
+
+        return {
+            value: normalizedValue,
+            label: displayLabel,
+            role: role,
+            color: color,
+            style: style,
+            symbol: {
+                type: symbolType,
+                value: symbolValue
+            }
+        };
+    }
+
+    function buildGenderSymbolMarkup(visual, fallbackLabel) {
+        const meta = (visual && visual.symbol && typeof visual.symbol === 'object') ? visual.symbol : {};
+        const symbolType = meta.type === 'svg' ? 'svg' : 'text';
+        const symbolValue = String(meta.value || '').trim();
+        if (symbolType === 'svg') {
+            const lowered = symbolValue.toLowerCase();
+            if (lowered.indexOf('<svg') !== -1 && lowered.indexOf('</svg>') !== -1) {
+                return '<span class="ll-gender-symbol ll-gender-symbol--svg" aria-hidden="true">' + symbolValue + '</span>';
+            }
+        }
+        const text = formatGenderDisplayLabel(symbolValue || fallbackLabel || '?');
+        return '<span class="ll-gender-symbol" aria-hidden="true">' + escapeHtml(text) + '</span>';
+    }
+
+    function shouldShowGenderOptionLabel(visual) {
+        const labelKey = normalizeGenderLookupKey(visual && visual.label);
+        if (!labelKey) return false;
+        const symbol = (visual && visual.symbol && typeof visual.symbol === 'object') ? visual.symbol : {};
+        const symbolType = symbol.type === 'svg' ? 'svg' : 'text';
+        if (symbolType === 'svg' && (labelKey === '♂' || labelKey === '♀')) {
+            return false;
+        }
+        if (symbolType === 'text') {
+            const symbolKey = normalizeGenderLookupKey(symbol.value || '');
+            if (symbolKey && symbolKey === labelKey) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function applyGenderVisualToOptionCard($card, visual) {
+        if (!$card || !$card.length) return;
+        const role = normalizeGenderRole(visual && visual.role);
+        $card.removeClass('ll-gender-option--masculine ll-gender-option--feminine ll-gender-option--other');
+        $card.addClass('ll-gender-option--' + role).attr('data-ll-gender-role', role);
+        applyGenderStyleVariables($card, visual && visual.style ? visual.style : '');
+
+        const displayLabel = String((visual && visual.label) || '').trim();
+        const symbolHtml = buildGenderSymbolMarkup(visual, displayLabel);
+        const showTextLabel = shouldShowGenderOptionLabel(visual);
+        const labelHtml = showTextLabel
+            ? '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
+            : '';
+        const srText = '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>';
+
+        const $label = $card.find('.quiz-text').first();
+        if ($label.length) {
+            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + srText + '</span>');
+        }
+    }
+
+    function cardGenderLabelOverflows(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return false;
+        const textEl = cardEl.querySelector('.quiz-text');
+        const innerEl = cardEl.querySelector('.ll-gender-option-inner');
+        if (!textEl || !innerEl) return false;
+        const available = Math.max(0, Math.floor(textEl.clientWidth) - 2);
+        if (!available) return false;
+        const needed = Math.ceil(innerEl.scrollWidth);
+        return needed > available;
+    }
+
+    function fitGenderOptionTextScale() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $allCards = $('#ll-tools-flashcard .ll-gender-option');
+        if (!$allCards.length) return;
+        const $cards = $allCards.not('.ll-gender-option--unknown');
+        const $measureCards = $cards.length ? $cards : $allCards;
+
+        const MIN_SCALE = 0.56;
+        const SCALE_STEP = 0.03;
+        const MAX_PASSES = 16;
+
+        const applyScale = function (scale) {
+            const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
+            const value = normalized.toFixed(3).replace(/\.?0+$/, '');
+            $allCards.each(function () {
+                if (this && this.style) {
+                    this.style.setProperty('--ll-gender-option-scale', value);
+                }
+            });
+            return normalized;
+        };
+
+        let scale = applyScale(1);
+        for (let pass = 0; pass < MAX_PASSES; pass++) {
+            let hasOverflow = false;
+            $measureCards.each(function () {
+                if (cardGenderLabelOverflows(this)) {
+                    hasOverflow = true;
+                    return false;
+                }
+            });
+            if (!hasOverflow || scale <= MIN_SCALE) break;
+            scale = applyScale(scale - SCALE_STEP);
+        }
+    }
+
+    function syncGenderUnknownTextSize() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $unknownText = $('#ll-tools-flashcard .ll-gender-option--unknown .quiz-text').first();
+        if (!$unknownText.length) return;
+
+        let measuredFontSize = '';
+        const labelEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .ll-gender-option-label').get(0);
+        if (labelEl && typeof root.getComputedStyle === 'function') {
+            measuredFontSize = String(root.getComputedStyle(labelEl).fontSize || '').trim();
+        }
+        if (!measuredFontSize) {
+            const fallbackEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .quiz-text').get(0);
+            if (fallbackEl && typeof root.getComputedStyle === 'function') {
+                measuredFontSize = String(root.getComputedStyle(fallbackEl).fontSize || '').trim();
+            }
+        }
+        if (!measuredFontSize) return;
+        try {
+            $unknownText[0].style.setProperty('font-size', measuredFontSize);
+            $unknownText[0].style.setProperty('line-height', '1.06');
+        } catch (_) { /* no-op */ }
+    }
+
+    function getGenderSafeBottomInset() {
+        const viewportWidth = Math.max(0, parseInt(root.innerWidth, 10) || 0);
+        const viewportHeight = Math.max(0, parseInt(root.innerHeight, 10) || 0);
+        if (viewportWidth > 420 && viewportHeight > 620) return 0;
+        const doc = root.document;
+        if (!doc) return 0;
+        const wrap = doc.getElementById('ll-tools-mode-switcher-wrap');
+        if (!wrap || typeof wrap.getBoundingClientRect !== 'function') return 0;
+        if (typeof root.getComputedStyle === 'function') {
+            const computed = root.getComputedStyle(wrap);
+            if (!computed || computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') {
+                return 0;
+            }
+        }
+        const rect = wrap.getBoundingClientRect();
+        if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
+        return Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+    }
+
+    function fitGenderLayoutToViewport() {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $content = $('#ll-tools-flashcard-content.ll-gender-options-mode');
+        const $container = $('#ll-tools-flashcard.ll-gender-options-layout');
+        if (!$content.length || !$container.length) return;
+        const contentEl = $content[0];
+        const containerEl = $container[0];
+        if (!contentEl || !containerEl || !contentEl.style || !containerEl.style) return;
+
+        const safeBottom = getGenderSafeBottomInset();
+        contentEl.style.setProperty('--ll-gender-safe-bottom', safeBottom + 'px');
+
+        const MIN_LAYOUT_SCALE = 0.5;
+        const SCALE_STEP = 0.04;
+        const MAX_PASSES = 16;
+
+        const applyLayoutScale = function (scale) {
+            const normalized = Math.max(MIN_LAYOUT_SCALE, Math.min(1, scale));
+            const value = normalized.toFixed(3).replace(/\.?0+$/, '');
+            contentEl.style.setProperty('--ll-gender-layout-scale', value);
+            containerEl.style.setProperty('--ll-gender-layout-scale', value);
+            return normalized;
+        };
+
+        let layoutScale = applyLayoutScale(1);
+        fitGenderOptionTextScale();
+        syncGenderUnknownTextSize();
+
+        for (let pass = 0; pass < MAX_PASSES; pass++) {
+            const allowedHeight = Math.max(0, contentEl.clientHeight || 0);
+            const usedHeight = Math.max(contentEl.scrollHeight || 0, containerEl.scrollHeight || 0);
+            const widthLimit = Math.max(0, (contentEl.clientWidth || 0) - 1);
+            const horizontalOverflow = (containerEl.scrollWidth || 0) > widthLimit;
+            const verticalOverflow = usedHeight > (allowedHeight + 1);
+
+            if (!horizontalOverflow && !verticalOverflow) break;
+            if (layoutScale <= MIN_LAYOUT_SCALE) break;
+            layoutScale = applyLayoutScale(layoutScale - SCALE_STEP);
+            fitGenderOptionTextScale();
+            syncGenderUnknownTextSize();
+        }
+
+        if (contentEl.classList && typeof contentEl.classList.toggle === 'function') {
+            contentEl.classList.toggle('ll-gender-layout-compact', layoutScale < 0.999);
+        }
+    }
+
+    function scheduleGenderOptionTextScaleFit() {
+        if (typeof root.requestAnimationFrame === 'function') {
+            root.requestAnimationFrame(function () {
+                fitGenderLayoutToViewport();
+                root.requestAnimationFrame(fitGenderLayoutToViewport);
+            });
+            return;
+        }
+        setTimeout(fitGenderLayoutToViewport, 0);
+        setTimeout(fitGenderLayoutToViewport, 120);
+    }
+
+    function ensureGenderOptionFitResizeHandler() {
+        if (genderFitResizeBound || !root || typeof root.addEventListener !== 'function') return;
+        root.addEventListener('resize', function () {
+            if (!State || !State.isGenderMode) return;
+            scheduleGenderOptionTextScaleFit();
+        }, { passive: true });
+        genderFitResizeBound = true;
     }
 
     function getGenderAssetRequirements(categoryName) {
@@ -125,6 +548,14 @@
             return getGenderWordsByCategory();
         }
         return State.wordsByCategory || {};
+    }
+
+    function getOptionWordsByCategory() {
+        const source = root.optionWordsByCategory;
+        if (source && typeof source === 'object') {
+            return source;
+        }
+        return getActiveWordsByCategory();
     }
 
     function getCategoryDisplayMode(name) {
@@ -352,10 +783,10 @@
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return false;
             const minCount = parseInt((root.llToolsFlashcardsData && root.llToolsFlashcardsData.genderMinCount) || '', 10) || 2;
-            return names.every(function (name) {
+            return names.some(function (name) {
                 const cfg = getCategoryConfig(name);
-                if (typeof cfg.gender_supported === 'boolean') {
-                    return cfg.gender_supported;
+                if (Object.prototype.hasOwnProperty.call(cfg, 'gender_supported')) {
+                    return parseBooleanFlag(cfg.gender_supported);
                 }
                 const list = getGenderWordsByCategory()[name] || [];
                 return list.length >= minCount;
@@ -711,6 +1142,8 @@
         const genderOptions = getGenderOptions();
         const genderLabel = normalizeGenderValue(targetWord.grammatical_gender, genderOptions) || targetWord.__gender_label || '';
         if (!genderLabel || genderOptions.length < 2) return false;
+        const msgs = root.llToolsFlashcardsMessages || {};
+        const dontKnowLabel = String(msgs.genderDontKnow || "I don't know");
 
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = 'text';
@@ -719,29 +1152,75 @@
 
         const $container = $('#ll-tools-flashcard');
         const $content = $('#ll-tools-flashcard-content');
-        $container.removeClass('audio-line-layout');
-        $content.removeClass('audio-line-mode');
+        $container.removeClass('audio-line-layout').addClass('ll-gender-options-layout');
+        $content.removeClass('audio-line-mode').addClass('ll-gender-options-mode');
+        if ($container.length && $container[0] && $container[0].style) {
+            try { $container[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
+        }
+        if ($content.length && $content[0] && $content[0].style) {
+            try { $content[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
+            try { $content[0].style.setProperty('--ll-gender-safe-bottom', '0px'); } catch (_) { /* no-op */ }
+        }
+        $('#ll-tools-prompt img').off('load.llGenderFit').on('load.llGenderFit', function () {
+            scheduleGenderOptionTextScaleFit();
+        });
 
-        genderOptions.forEach(function (label, idx) {
-            const normalized = normalizeGenderValue(label, genderOptions);
+        let optionIndex = 0;
+        genderOptions.forEach(function (label) {
+            const visual = getGenderVisualForOption(label, optionIndex, genderOptions);
+            const normalized = normalizeGenderValue(label, genderOptions) || visual.value;
             const isCorrect = normalized && normalized === genderLabel;
-            const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + idx);
+            const optionId = isCorrect ? targetWord.id : (String(targetWord.id) + '-gender-' + optionIndex);
             const optionWord = {
                 id: optionId,
-                title: label,
-                label: formatGenderDisplayLabel(label)
+                title: visual.label || formatGenderDisplayLabel(label),
+                label: visual.label || formatGenderDisplayLabel(label)
             };
             const $card = root.LLFlashcards.Cards.appendWordToContainer(optionWord, 'text', promptType, true);
             $card.addClass('ll-gender-option');
-            root.LLFlashcards.Cards.addClickEventToCard($card, idx, targetWord, 'text', promptType);
+            $card.attr('data-ll-gender-choice', normalized || '')
+                .attr('data-ll-gender-correct', isCorrect ? '1' : '0')
+                .attr('data-ll-gender-unknown', '0')
+                .attr('aria-label', visual.label || '')
+                .attr('title', visual.label || '');
+            applyGenderVisualToOptionCard($card, visual);
+            root.LLFlashcards.Cards.addClickEventToCard($card, optionIndex, targetWord, 'text', promptType);
+            optionIndex += 1;
         });
 
+        const unknownWord = {
+            id: String(targetWord.id) + '-gender-unknown',
+            title: dontKnowLabel,
+            label: dontKnowLabel
+        };
+        const $unknownCard = root.LLFlashcards.Cards.appendWordToContainer(unknownWord, 'text', promptType, true);
+        $unknownCard.addClass('ll-gender-option ll-gender-option--unknown')
+            .attr('data-ll-gender-choice', '')
+            .attr('data-ll-gender-correct', '0')
+            .attr('data-ll-gender-unknown', '1')
+            .attr('data-ll-gender-role', 'unknown');
+        root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
+
+        ensureGenderOptionFitResizeHandler();
+        scheduleGenderOptionTextScaleFit();
         $(document).trigger('ll-tools-options-ready');
         return true;
     }
 
     function fillQuizOptions(targetWord) {
         let chosen = [];
+        const $layoutContainer = jQuery('#ll-tools-flashcard');
+        const $layoutContent = jQuery('#ll-tools-flashcard-content');
+        $layoutContainer.removeClass('ll-gender-options-layout');
+        $layoutContent.removeClass('ll-gender-options-mode ll-gender-layout-compact');
+        if ($layoutContainer.length && $layoutContainer[0] && $layoutContainer[0].style) {
+            try { $layoutContainer[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+        }
+        if ($layoutContent.length && $layoutContent[0] && $layoutContent[0].style) {
+            try { $layoutContent[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+            try { $layoutContent[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
+        }
+
         const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
         if (targetCategoryName && targetCategoryName !== State.currentCategoryName) {
             State.currentCategoryName = targetCategoryName;
@@ -767,12 +1246,16 @@
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
 
-        // In learning mode, only select from introduced words
+        // In learning mode, select from introduced words across introduced categories.
+        // In other modes, keep options scoped to the target category pool only.
+        const activeWordsByCategory = getActiveWordsByCategory();
+        const optionWordsByCategory = getOptionWordsByCategory();
         let availableWords = [];
+
         if (State.isLearningMode) {
             // Collect all introduced words from all categories
             State.categoryNames.forEach(catName => {
-                const catWords = getActiveWordsByCategory()[catName] || [];
+                const catWords = activeWordsByCategory[catName] || [];
                 catWords.forEach(word => {
                     if (State.introducedWordIDs.includes(word.id)) {
                         availableWords.push(word);
@@ -780,9 +1263,9 @@
                 });
             });
         } else {
-            // Practice / listening: only use words from the current category
-            const catWords = getActiveWordsByCategory()[targetCategoryName] || [];
-            availableWords.push(...catWords);
+            // Keep distractors in the same category as the target word.
+            const categoryPool = optionWordsByCategory[targetCategoryName] || activeWordsByCategory[targetCategoryName] || [];
+            availableWords.push(...categoryPool);
         }
 
         const targetGroups = new Set();
@@ -844,28 +1327,61 @@
             }
         }
 
-        // Fill remaining options from available words
-        for (let candidate of availableWords) {
-            if (chosen.length >= targetCount) break;
-            if (!root.FlashcardOptions.canAddMoreCards()) break;
+        const MIN_OPTIONS = 2;
+        const desiredCount = Math.max(MIN_OPTIONS, parseInt(targetCount, 10) || MIN_OPTIONS);
+        const addCandidate = function (candidate, rules) {
+            if (!candidate || typeof candidate !== 'object') return false;
+            const candidateId = String(candidate.id || '');
+            if (!candidateId) return false;
 
-            const isDup = chosen.some(w => w.id === candidate.id);
-            const isSim = chosen.some(w => w.similar_word_id === String(candidate.id) || candidate.similar_word_id === String(w.id));
-            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
-            const sameText = isTextOptionMode && seenOptionTexts.has(normalizedText);
-            // Enforce pair safety across all cards already chosen for this round.
-            const hasOptionConflict = chosen.some(function (existingWord) {
-                return wordsConflictForOptions(existingWord, candidate);
+            const enforceSimilarity = !rules || rules.enforceSimilarity !== false;
+            const enforceTextUniqueness = !rules || rules.enforceTextUniqueness !== false;
+            const enforceConflict = !rules || rules.enforceConflict !== false;
+
+            const isDup = chosen.some(function (word) {
+                return String(word && word.id) === candidateId;
             });
+            if (isDup) return false;
 
-            if (!isDup && !isSim && !sameText && !hasOptionConflict) {
-                chosen.push(candidate);
-                if (isTextOptionMode) {
-                    seenOptionTexts.add(normalizedText);
-                }
-                root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
-                root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
+            if (enforceSimilarity) {
+                const isSim = chosen.some(function (word) {
+                    const chosenId = String(word && word.id);
+                    return String(word && word.similar_word_id) === candidateId
+                        || String(candidate.similar_word_id) === chosenId;
+                });
+                if (isSim) return false;
             }
+
+            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
+            if (isTextOptionMode && enforceTextUniqueness && seenOptionTexts.has(normalizedText)) {
+                return false;
+            }
+
+            if (enforceConflict) {
+                const hasOptionConflict = chosen.some(function (existingWord) {
+                    return wordsConflictForOptions(existingWord, candidate);
+                });
+                if (hasOptionConflict) return false;
+            }
+
+            chosen.push(candidate);
+            if (isTextOptionMode) {
+                seenOptionTexts.add(normalizedText);
+            }
+            root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
+            root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
+            return true;
+        };
+
+        // Fill remaining options with strict conflict checks.
+        for (let candidate of availableWords) {
+            if (chosen.length >= desiredCount) break;
+            if (!root.FlashcardOptions.canAddMoreCards()) break;
+            addCandidate(candidate, {
+                enforceSimilarity: true,
+                enforceTextUniqueness: true,
+                enforceConflict: true
+            });
         }
 
         jQuery('.flashcard-container').each(function (idx) {
@@ -946,6 +1462,7 @@
     root.LLFlashcards.Selection = {
         getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
+        getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt
     };
 

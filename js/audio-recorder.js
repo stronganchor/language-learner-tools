@@ -29,6 +29,7 @@
     let lastNewWordCategory = null;
     let processingState = null;
     let processingAudioContext = null;
+    let hiddenWordsPanelOpen = false;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -39,13 +40,39 @@
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
     const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
     const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
+    const recordingTypeOrder = Array.isArray(window.ll_recorder_data?.recording_type_order)
+        ? window.ll_recorder_data.recording_type_order
+        : ['isolation', 'introduction', 'question', 'sentence'];
+    const recordingTypeIcons = (window.ll_recorder_data && typeof window.ll_recorder_data.recording_type_icons === 'object' && window.ll_recorder_data.recording_type_icons !== null)
+        ? window.ll_recorder_data.recording_type_icons
+        : {};
+    const transcribePollAttemptsRaw = parseInt(window.ll_recorder_data?.transcribe_poll_attempts, 10);
+    const transcribePollIntervalRaw = parseInt(window.ll_recorder_data?.transcribe_poll_interval_ms, 10);
+    const transcribePollAttempts = Number.isFinite(transcribePollAttemptsRaw) && transcribePollAttemptsRaw > 0
+        ? transcribePollAttemptsRaw
+        : 20;
+    const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
+        ? transcribePollIntervalRaw
+        : 1200;
     const processingDefaults = {
         enableTrim: true,
         enableNoise: true,
         enableLoudness: true
     };
+    let hiddenWords = Array.isArray(window.ll_recorder_data?.hidden_words)
+        ? window.ll_recorder_data.hidden_words.slice()
+        : [];
 
-    if (images.length === 0 && !allowNewWords) return;
+    images.forEach(item => {
+        if (Array.isArray(item?.missing_types)) {
+            item.missing_types = sortRecordingTypes(item.missing_types);
+        }
+        if (Array.isArray(item?.existing_types)) {
+            item.existing_types = sortRecordingTypes(item.existing_types);
+        }
+    });
+
+    if (images.length === 0 && !allowNewWords && hiddenWords.length === 0) return;
 
     const icons = {
         record: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><circle cx="12" cy="12" r="8"/></svg>',
@@ -54,18 +81,24 @@
         redo: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>',
         skip: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>',
         play: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+        hide: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" fill="none"><path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="32" r="7" fill="currentColor"/><path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>',
+        unhide: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></svg>',
     };
 
     document.addEventListener('DOMContentLoaded', init);
 
     function init() {
         setupElements();
+        hiddenWords = normalizeHiddenWords(hiddenWords);
+        renderHiddenWordsList();
         setupCategorySelector();
         setupNewWordMode();
         if (images.length > 0) {
             loadImage(0);
         } else if (allowNewWords) {
             enterNewWordMode(false);
+        } else {
+            showComplete();
         }
         setupEventListeners();
 
@@ -84,6 +117,9 @@
         if (window.llRecorder && window.llRecorder.newWordRedoBtn) {
             window.llRecorder.newWordRedoBtn.innerHTML = icons.redo;
         }
+        if (window.llRecorder && window.llRecorder.hideBtn) {
+            window.llRecorder.hideBtn.innerHTML = icons.hide;
+        }
     }
 
     function setupElements() {
@@ -92,6 +128,7 @@
             imageContainer: document.querySelector('.ll-recording-image-container'),
             title: document.getElementById('ll-image-title'),
             recordBtn: document.getElementById('ll-record-btn'),
+            hideBtn: document.getElementById('ll-hide-btn'),
             indicator: document.getElementById('ll-recording-indicator'),
             timer: document.getElementById('ll-recording-timer'),
             playbackControls: document.getElementById('ll-playback-controls'),
@@ -100,6 +137,12 @@
             submitBtn: document.getElementById('ll-submit-btn'),
             skipBtn: document.getElementById('ll-skip-btn'),
             status: document.getElementById('ll-upload-status'),
+            hiddenToggleBtn: document.getElementById('ll-hidden-words-toggle'),
+            hiddenCount: document.getElementById('ll-hidden-words-count'),
+            hiddenPanel: document.getElementById('ll-hidden-words-panel'),
+            hiddenList: document.getElementById('ll-hidden-words-list'),
+            hiddenEmpty: document.getElementById('ll-hidden-words-empty'),
+            hiddenCloseBtn: document.getElementById('ll-hidden-words-close'),
             currentNum: document.querySelector('.ll-current-num'),
             totalNum: document.querySelector('.ll-total-num'),
             completeScreen: document.querySelector('.ll-recording-complete'),
@@ -154,6 +197,7 @@
                 playbackAudio: el.newWordPlaybackAudio,
                 redoBtn: el.newWordRedoBtn,
                 skipBtn: null,
+                hideBtn: null,
             };
         }
         return {
@@ -165,6 +209,7 @@
             playbackAudio: el.playbackAudio,
             redoBtn: el.redoBtn,
             skipBtn: el.skipBtn,
+            hideBtn: el.hideBtn,
         };
     }
 
@@ -254,6 +299,189 @@
         return div.textContent || div.innerText || '';
     }
 
+    function sanitizeHideKey(raw) {
+        if (raw === null || raw === undefined) return '';
+        const key = String(raw).trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '');
+        if (!key) return '';
+        if (key.startsWith('word:') || key.startsWith('image:') || key.startsWith('title:')) {
+            return key;
+        }
+        return '';
+    }
+
+    function normalizeHideTitle(title) {
+        const decoded = decodeEntities(title || '');
+        const normalized = decoded
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        if (normalized) return normalized;
+        if (!decoded.trim()) return '';
+        // Keep deterministic fallback for non-Latin titles.
+        let hash = 0;
+        for (let i = 0; i < decoded.length; i += 1) {
+            hash = ((hash << 5) - hash + decoded.charCodeAt(i)) | 0;
+        }
+        return `t${Math.abs(hash)}`;
+    }
+
+    function buildHideKey(wordId, imageId, title) {
+        const wid = Number.isFinite(wordId) ? Number(wordId) : parseInt(wordId, 10) || 0;
+        const iid = Number.isFinite(imageId) ? Number(imageId) : parseInt(imageId, 10) || 0;
+        if (wid > 0) return `word:${wid}`;
+        if (iid > 0) return `image:${iid}`;
+        const normalizedTitle = normalizeHideTitle(title || '');
+        return normalizedTitle ? `title:${normalizedTitle}` : '';
+    }
+
+    function getItemHideKeys(item) {
+        if (!item || typeof item !== 'object') return [];
+        const keys = [];
+        const explicit = sanitizeHideKey(item.hide_key);
+        if (explicit) keys.push(explicit);
+
+        const wordId = parseInt(item.word_id, 10) || 0;
+        const imageId = parseInt(item.id || item.image_id, 10) || 0;
+        if (wordId > 0) keys.push(`word:${wordId}`);
+        if (imageId > 0) keys.push(`image:${imageId}`);
+
+        const titleCandidates = [];
+        if (typeof item.word_title === 'string' && item.word_title.trim()) {
+            titleCandidates.push(item.word_title);
+        }
+        if (typeof item.title === 'string' && item.title.trim()) {
+            titleCandidates.push(item.title);
+        }
+        titleCandidates.forEach(candidate => {
+            const key = buildHideKey(0, 0, candidate);
+            if (key) keys.push(key);
+        });
+
+        return Array.from(new Set(keys));
+    }
+
+    function normalizeHiddenWordEntry(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        const wordId = parseInt(entry.word_id, 10) || 0;
+        const imageId = parseInt(entry.image_id, 10) || 0;
+        const title = decodeEntities(entry.title || '');
+        const categoryName = decodeEntities(entry.category_name || '');
+        const categorySlug = String(entry.category_slug || '').trim();
+        let key = sanitizeHideKey(entry.key || '');
+        if (!key) {
+            key = buildHideKey(wordId, imageId, title);
+        }
+        if (!key) return null;
+
+        return {
+            key,
+            word_id: wordId,
+            image_id: imageId,
+            title: title || key.replace(/^title:/, '').replace(/-/g, ' '),
+            category_name: categoryName,
+            category_slug: categorySlug,
+            hidden_at: String(entry.hidden_at || ''),
+        };
+    }
+
+    function normalizeHiddenWords(list) {
+        if (!Array.isArray(list)) return [];
+        const byKey = new Map();
+        list.forEach(entry => {
+            const normalized = normalizeHiddenWordEntry(entry);
+            if (!normalized) return;
+            byKey.set(normalized.key, normalized);
+        });
+        const normalizedList = Array.from(byKey.values());
+        normalizedList.sort((left, right) => {
+            const leftTime = Date.parse(left.hidden_at || '') || 0;
+            const rightTime = Date.parse(right.hidden_at || '') || 0;
+            if (leftTime !== rightTime) return rightTime - leftTime;
+            return (left.title || '').localeCompare(right.title || '');
+        });
+        return normalizedList;
+    }
+
+    function setHiddenWordsFromServer(payload) {
+        const maybeList = Array.isArray(payload)
+            ? payload
+            : (Array.isArray(payload?.hidden_words) ? payload.hidden_words : null);
+        if (!maybeList) return;
+        hiddenWords = normalizeHiddenWords(maybeList);
+        renderHiddenWordsList();
+    }
+
+    function getPrimaryHideKeyForItem(item) {
+        const keys = getItemHideKeys(item);
+        return keys.length ? keys[0] : '';
+    }
+
+    function itemMatchesHideKeySet(item, keySet) {
+        const keys = getItemHideKeys(item);
+        return keys.some(key => keySet.has(key));
+    }
+
+    function renderHiddenWordsList() {
+        const el = window.llRecorder;
+        if (!el) return;
+
+        if (el.hiddenCount) {
+            el.hiddenCount.textContent = String(hiddenWords.length);
+        }
+        if (el.hiddenList) {
+            el.hiddenList.innerHTML = '';
+            hiddenWords.forEach(entry => {
+                const row = document.createElement('li');
+                row.className = 'll-hidden-word-item';
+
+                const main = document.createElement('div');
+                main.className = 'll-hidden-word-main';
+
+                const title = document.createElement('span');
+                title.className = 'll-hidden-word-title';
+                title.textContent = entry.title || entry.key;
+                main.appendChild(title);
+
+                if (entry.category_name) {
+                    const category = document.createElement('span');
+                    category.className = 'll-hidden-word-category';
+                    category.textContent = entry.category_name;
+                    main.appendChild(category);
+                }
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'll-btn ll-hidden-word-unhide';
+                btn.dataset.hideKey = entry.key;
+                btn.title = i18n.unhide || 'Unhide';
+                btn.setAttribute('aria-label', i18n.unhide || 'Unhide');
+                btn.innerHTML = icons.unhide;
+
+                row.appendChild(main);
+                row.appendChild(btn);
+                el.hiddenList.appendChild(row);
+            });
+        }
+
+        if (el.hiddenEmpty) {
+            el.hiddenEmpty.style.display = hiddenWords.length ? 'none' : '';
+        }
+    }
+
+    function setHiddenWordsPanelOpen(open) {
+        const el = window.llRecorder;
+        if (!el || !el.hiddenPanel || !el.hiddenToggleBtn) return;
+        hiddenWordsPanelOpen = !!open;
+        if (hiddenWordsPanelOpen) {
+            el.hiddenPanel.removeAttribute('hidden');
+        } else {
+            el.hiddenPanel.setAttribute('hidden', 'hidden');
+        }
+        el.hiddenToggleBtn.setAttribute('aria-expanded', hiddenWordsPanelOpen ? 'true' : 'false');
+    }
+
     function cloneImages(list) {
         return list.map(item => ({
             ...item,
@@ -279,6 +507,7 @@
 
     function enterNewWordMode(skipSave) {
         if (!allowNewWords) return;
+        setHiddenWordsPanelOpen(false);
         if (!skipSave && !savedExistingState) {
             savedExistingState = captureExistingState();
         }
@@ -805,6 +1034,97 @@
         return '.webm';
     }
 
+    function createAbortError() {
+        const err = new Error('Request aborted');
+        err.name = 'AbortError';
+        return err;
+    }
+
+    function waitForDuration(ms, signal) {
+        if (!ms || ms <= 0) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const onAbort = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (signal) {
+                    signal.removeEventListener('abort', onAbort);
+                }
+                reject(createAbortError());
+            };
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                if (signal) {
+                    signal.removeEventListener('abort', onAbort);
+                }
+                resolve();
+            }, ms);
+
+            if (signal) {
+                if (signal.aborted) {
+                    onAbort();
+                    return;
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
+        });
+    }
+
+    async function pollNewWordTranscription(transcriptId, wordsetIds, wordsetLegacy, signal) {
+        if (!transcriptId) {
+            throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+        }
+
+        for (let attempt = 0; attempt < transcribePollAttempts; attempt++) {
+            if (signal?.aborted || newWordAutoCancelled) {
+                throw createAbortError();
+            }
+
+            if (attempt > 0) {
+                await waitForDuration(transcribePollIntervalMs, signal);
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'll_transcribe_recording_status');
+            formData.append('nonce', nonce);
+            formData.append('transcript_id', transcriptId);
+            formData.append('wordset_ids', JSON.stringify(wordsetIds));
+            formData.append('wordset', wordsetLegacy);
+
+            const response = await fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData,
+                signal
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                const message = data.data?.message || data.data || data.message || 'Transcription failed';
+                throw new Error(message);
+            }
+
+            const payload = data.data || {};
+            if (!payload.pending) {
+                return payload;
+            }
+        }
+
+        throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+    }
+
     async function maybeTranslateTargetText(text) {
         const el = window.llRecorder;
         if (!hasDeepl || !text) return;
@@ -925,12 +1245,22 @@
                 throw new Error(message);
             }
 
+            let resultData = data.data || {};
+            if (resultData.pending) {
+                resultData = await pollNewWordTranscription(
+                    resultData.transcript_id || '',
+                    wordsetIds,
+                    wordsetLegacy,
+                    transcribeController.signal
+                );
+            }
+
             if (newWordAutoCancelled || transcribeController.signal.aborted) {
                 return;
             }
 
-            const transcript = (data.data?.transcript || '').trim();
-            const translation = (data.data?.translation || '').trim();
+            const transcript = (resultData.transcript || '').trim();
+            const translation = (resultData.translation || '').trim();
 
             if (transcript && el.newWordTextTarget) {
                 if ((el.newWordTextTarget.value || '').trim() === '' || el.newWordTextTarget.dataset.llManual !== '1') {
@@ -965,6 +1295,50 @@
         }
     }
 
+    function getRecordingTypeSlug(item) {
+        if (typeof item === 'string') {
+            return item;
+        }
+        return item?.slug || '';
+    }
+
+    function getRecordingTypeOrderIndex(slug) {
+        if (!slug) return Number.MAX_SAFE_INTEGER;
+        const idx = recordingTypeOrder.indexOf(slug);
+        return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+    }
+
+    function compareRecordingTypes(left, right) {
+        const leftSlug = getRecordingTypeSlug(left);
+        const rightSlug = getRecordingTypeSlug(right);
+        const orderDiff = getRecordingTypeOrderIndex(leftSlug) - getRecordingTypeOrderIndex(rightSlug);
+        if (orderDiff !== 0) {
+            return orderDiff;
+        }
+        return leftSlug.localeCompare(rightSlug);
+    }
+
+    function sortRecordingTypes(list) {
+        if (!Array.isArray(list)) return [];
+        const sorted = list.slice().sort(compareRecordingTypes);
+        const seen = new Set();
+        const deduped = [];
+        sorted.forEach(item => {
+            const slug = getRecordingTypeSlug(item);
+            if (!slug || seen.has(slug)) return;
+            seen.add(slug);
+            deduped.push(item);
+        });
+        return deduped;
+    }
+
+    function getRecordingTypeIcon(slug) {
+        if (slug && recordingTypeIcons[slug]) {
+            return recordingTypeIcons[slug];
+        }
+        return recordingTypeIcons.default || '';
+    }
+
     function getRecordingTypeLabel(slug, typeList) {
         if (!slug) return '';
         const types = Array.isArray(typeList) && typeList.length
@@ -972,14 +1346,28 @@
             : (Array.isArray(window.ll_recorder_data?.recording_types)
                 ? window.ll_recorder_data.recording_types
                 : []);
-        const match = types.find(item => (typeof item === 'string' ? item : item?.slug) === slug);
+        const match = types.find(item => getRecordingTypeSlug(item) === slug);
         if (typeof match === 'object' && match) {
             return match.name || match.slug || slug;
         }
         if (typeof match === 'string') {
             return match;
         }
-        return slug.charAt(0).toUpperCase() + slug.slice(1);
+        return slug
+            .split(/[-_]+/)
+            .filter(Boolean)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+    }
+
+    function getRecordingTypeDisplay(slug, typeList) {
+        const label = getRecordingTypeLabel(slug, typeList);
+        const icon = getRecordingTypeIcon(slug);
+        return {
+            icon,
+            label,
+            text: icon ? `${icon} ${label}` : label
+        };
     }
 
     function getNewWordCreateCategoryTypes() {
@@ -988,8 +1376,7 @@
         const inputs = Array.from(el.newWordTypesWrap.querySelectorAll('input[type="checkbox"]'));
         const types = inputs
             .map(input => {
-                const label = input.closest('label');
-                const name = label ? label.textContent.replace(/\s+/g, ' ').trim() : '';
+                const name = (input.dataset.typeName || '').trim();
                 return { slug: input.value, name };
             })
             .filter(type => type.slug);
@@ -1030,7 +1417,7 @@
                 return;
             }
             const types = Array.isArray(data.data?.recording_types) ? data.data.recording_types : [];
-            newWordCategoryTypeCache[categorySlug] = prioritizeIsolation(types);
+            newWordCategoryTypeCache[categorySlug] = sortRecordingTypes(types);
             updateNewWordRecordingTypeLabel();
         } catch (err) {
             if (err && err.name === 'AbortError') {
@@ -1053,38 +1440,38 @@
         }
 
         let slug = '';
-        let label = '';
+        let labelText = '';
 
         if (newWordPrepared) {
             const img = images[currentImageIndex];
             const missing = Array.isArray(img?.missing_types) ? img.missing_types : [];
             slug = el.recordingTypeSelect?.value || missing[0] || '';
-            label = getRecordingTypeLabel(slug);
+            labelText = getRecordingTypeDisplay(slug).text;
         } else if (el.newWordCreateCategory?.checked) {
             const { types, selected } = getNewWordCreateCategoryTypes();
-            const prioritized = selected.length ? prioritizeIsolation(selected) : prioritizeIsolation(types);
-            const first = prioritized[0];
+            const ordered = selected.length ? sortRecordingTypes(selected) : sortRecordingTypes(types);
+            const first = ordered[0];
             slug = typeof first === 'string' ? first : first?.slug || '';
-            label = getRecordingTypeLabel(slug, types);
+            labelText = getRecordingTypeDisplay(slug, types).text;
         } else {
             const categorySlug = el.newWordCategory?.value || lastNewWordCategory || 'uncategorized';
             const cached = newWordCategoryTypeCache[categorySlug];
             if (Array.isArray(cached) && cached.length) {
-                const prioritized = prioritizeIsolation(cached);
-                const first = prioritized[0];
+                const ordered = sortRecordingTypes(cached);
+                const first = ordered[0];
                 slug = typeof first === 'string' ? first : first?.slug || '';
-                label = getRecordingTypeLabel(slug, cached);
+                labelText = getRecordingTypeDisplay(slug, cached).text;
             } else if (categorySlug) {
                 requestNewWordCategoryTypes(categorySlug);
             }
         }
 
-        if (!label) {
+        if (!labelText) {
             el.newWordRecordingType.style.display = 'none';
             return;
         }
 
-        el.newWordRecordingTypeLabel.textContent = label;
+        el.newWordRecordingTypeLabel.textContent = labelText;
         el.newWordRecordingType.style.display = 'inline-flex';
     }
 
@@ -1092,38 +1479,24 @@
         const el = window.llRecorder;
         if (!el.recordingTypeSelect) return;
         el.recordingTypeSelect.innerHTML = '';
-        if (!Array.isArray(types) || types.length === 0) {
+        const orderedTypes = sortRecordingTypes(types);
+        if (orderedTypes.length === 0) {
             updateNewWordRecordingTypeLabel();
             return;
         }
-        if (types.length && typeof types[0] === 'object') {
-            window.ll_recorder_data.recording_types = types;
+        if (orderedTypes.length && typeof orderedTypes[0] === 'object') {
+            window.ll_recorder_data.recording_types = orderedTypes;
         }
-        types.forEach(type => {
+        orderedTypes.forEach(type => {
             const slug = typeof type === 'string' ? type : type.slug;
-            const label = typeof type === 'string'
-                ? (type.charAt(0).toUpperCase() + type.slice(1))
-                : (type.name || type.slug);
             if (!slug) return;
+            const display = getRecordingTypeDisplay(slug, orderedTypes);
             const option = document.createElement('option');
             option.value = slug;
-            option.textContent = label;
+            option.textContent = display.text || display.label || slug;
             el.recordingTypeSelect.appendChild(option);
         });
         updateNewWordRecordingTypeLabel();
-    }
-
-    function prioritizeIsolation(list) {
-        if (!Array.isArray(list)) return list;
-        const hasIsolation = list.some(item => (typeof item === 'string' ? item : item?.slug) === 'isolation');
-        if (!hasIsolation) return list.slice();
-        return list.slice().sort((a, b) => {
-            const aSlug = (typeof a === 'string' ? a : a?.slug);
-            const bSlug = (typeof b === 'string' ? b : b?.slug);
-            if (aSlug === 'isolation') return -1;
-            if (bSlug === 'isolation') return 1;
-            return 0;
-        });
     }
 
     async function prepareNewWordRecording(options = {}) {
@@ -1194,9 +1567,12 @@
             if (!word) {
                 throw new Error('Missing word data');
             }
-            const recordingTypes = prioritizeIsolation(data.data?.recording_types || []);
+            const recordingTypes = sortRecordingTypes(data.data?.recording_types || []);
             if (Array.isArray(word.missing_types)) {
-                word.missing_types = prioritizeIsolation(word.missing_types);
+                word.missing_types = sortRecordingTypes(word.missing_types);
+            }
+            if (Array.isArray(word.existing_types)) {
+                word.existing_types = sortRecordingTypes(word.existing_types);
             }
 
             if (data.data?.category?.slug && el.newWordCategory) {
@@ -1331,9 +1707,8 @@
         if (!opt) {
             opt = document.createElement('option');
             opt.value = next;
-            // Try to show a nice label if we have it in localized data; fallback to slug
-            const term = (window.ll_recorder_data?.recording_types || []).find(t => t.slug === next);
-            opt.textContent = term?.name || next.charAt(0).toUpperCase() + next.slice(1);
+            const display = getRecordingTypeDisplay(next, window.ll_recorder_data?.recording_types || []);
+            opt.textContent = display.text || display.label || next;
             el.recordingTypeSelect.appendChild(opt);
         }
 
@@ -1367,8 +1742,9 @@
         }
         if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
             images[currentImageIndex].existing_types.push(recordingType);
+            images[currentImageIndex].existing_types = sortRecordingTypes(images[currentImageIndex].existing_types);
         }
-        images[currentImageIndex].missing_types = remaining.slice();
+        images[currentImageIndex].missing_types = sortRecordingTypes(remaining.slice());
 
         if (requireAll && remaining.length > 0) {
             if (isNewWordPanelActive()) {
@@ -1400,15 +1776,34 @@
         if (el.redoBtn) el.redoBtn.addEventListener('click', redo);
         if (el.submitBtn) el.submitBtn.addEventListener('click', submitAndNext);
         if (el.skipBtn) el.skipBtn.addEventListener('click', skipToNext);
+        if (el.hideBtn) el.hideBtn.addEventListener('click', hideCurrentItem);
         if (el.reviewRedoBtn) {
             el.reviewRedoBtn.addEventListener('click', redo);
         }
         if (el.reviewSubmitBtn) {
             el.reviewSubmitBtn.addEventListener('click', submitAndNext);
         }
+        if (el.hiddenToggleBtn) {
+            el.hiddenToggleBtn.addEventListener('click', () => {
+                setHiddenWordsPanelOpen(!hiddenWordsPanelOpen);
+            });
+        }
+        if (el.hiddenCloseBtn) {
+            el.hiddenCloseBtn.addEventListener('click', () => {
+                setHiddenWordsPanelOpen(false);
+            });
+        }
+        if (el.hiddenList) {
+            el.hiddenList.addEventListener('click', handleHiddenListClick);
+        }
         if (el.recordingTypeSelect) {
             el.recordingTypeSelect.addEventListener('change', updateNewWordRecordingTypeLabel);
         }
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && hiddenWordsPanelOpen) {
+                setHiddenWordsPanelOpen(false);
+            }
+        });
     }
 
     // Proactively surface likely microphone issues so users know what to fix
@@ -1547,6 +1942,13 @@
         categoryEl.textContent = (i18n.category || 'Category:') + ' ' +
             (img.category_name || i18n.uncategorized || 'Uncategorized');
 
+        if (el.hideBtn) {
+            const hasHideKey = !!getPrimaryHideKeyForItem(img);
+            el.hideBtn.style.display = hasHideKey ? 'inline-flex' : 'none';
+            el.hideBtn.disabled = !hasHideKey;
+            el.hideBtn.innerHTML = icons.hide;
+        }
+
         setTypeForCurrentImage();
         resetRecordingState();
         if (img.is_text_only && el.textDisplay) {
@@ -1563,6 +1965,13 @@
             el.recordBtn.disabled = false;
         }
         if (el.skipBtn) el.skipBtn.disabled = false;
+        if (el.hideBtn) {
+            const currentItem = images[currentImageIndex] || null;
+            const hasHideKey = !newWordMode && !!getPrimaryHideKeyForItem(currentItem);
+            el.hideBtn.style.display = hasHideKey ? 'inline-flex' : 'none';
+            el.hideBtn.disabled = !hasHideKey;
+            el.hideBtn.innerHTML = icons.hide;
+        }
         if (el.redoBtn) el.redoBtn.disabled = false;
         if (el.submitBtn) el.submitBtn.disabled = false;
         if (el.indicator) el.indicator.style.display = 'none';
@@ -1680,6 +2089,9 @@
             if (controls.skipBtn) {
                 controls.skipBtn.disabled = true;
             }
+            if (controls.hideBtn) {
+                controls.hideBtn.disabled = true;
+            }
 
             timerInterval = setInterval(updateTimer, 100);
 
@@ -1694,6 +2106,7 @@
             // Make sure UI remains usable after failure
             if (controls.recordBtn) controls.recordBtn.disabled = false;
             if (controls.skipBtn) controls.skipBtn.disabled = false;
+            if (controls.hideBtn) controls.hideBtn.disabled = false;
         }
     }
 
@@ -1807,6 +2220,9 @@
         }
         if (controls.skipBtn) {
             controls.skipBtn.disabled = false;
+        }
+        if (controls.hideBtn) {
+            controls.hideBtn.disabled = false;
         }
         if (isNewWordPanelActive() && el.newWordStartBtn) {
             el.newWordStartBtn.disabled = false;
@@ -1980,7 +2396,7 @@
         if (!curType) return;
 
         // Remove the current type for this session only
-        images[currentImageIndex].missing_types = img.missing_types.filter(t => t !== curType);
+        images[currentImageIndex].missing_types = sortRecordingTypes(img.missing_types.filter(t => t !== curType));
 
         if (images[currentImageIndex].missing_types.length > 0) {
             setTypeForCurrentImage();
@@ -1988,6 +2404,125 @@
             showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
         } else {
             loadImage(currentImageIndex + 1);
+        }
+    }
+
+    async function handleHiddenListClick(event) {
+        const trigger = event.target && event.target.closest
+            ? event.target.closest('.ll-hidden-word-unhide')
+            : null;
+        if (!trigger) return;
+
+        const hideKey = sanitizeHideKey(trigger.dataset.hideKey || '');
+        if (!hideKey) return;
+
+        trigger.disabled = true;
+        try {
+            await unhideItemByKey(hideKey);
+        } finally {
+            trigger.disabled = false;
+        }
+    }
+
+    async function unhideItemByKey(hideKey) {
+        if (!hideKey || !ajaxUrl || !nonce) return;
+
+        const formData = new FormData();
+        formData.append('action', 'll_unhide_recording_word');
+        formData.append('nonce', nonce);
+        formData.append('hide_key', hideKey);
+
+        try {
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            if (!data?.success) {
+                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || 'Request failed';
+                throw new Error(message);
+            }
+
+            setHiddenWordsFromServer(data.data);
+            showStatus(i18n.unhide_success || 'Word unhidden.', 'success');
+
+            if (images.length === 0 && !newWordMode) {
+                window.location.reload();
+            }
+        } catch (err) {
+            const detail = err?.message || '';
+            showStatus(`${i18n.unhide_failed || 'Unhide failed:'} ${detail}`.trim(), 'error');
+        }
+    }
+
+    async function hideCurrentItem() {
+        if (newWordMode) return;
+        if (!ajaxUrl || !nonce) return;
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            showStatus(i18n.hide_while_recording || 'Stop recording before hiding this word.', 'error');
+            return;
+        }
+
+        const el = window.llRecorder;
+        const img = images[currentImageIndex];
+        if (!img) return;
+
+        const hideKey = getPrimaryHideKeyForItem(img);
+        if (!hideKey) {
+            showStatus(i18n.hide_failed || 'Hide failed:', 'error');
+            return;
+        }
+
+        showStatus(i18n.hiding || 'Hiding...', 'info');
+        if (el?.hideBtn) el.hideBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('action', 'll_hide_recording_word');
+        formData.append('nonce', nonce);
+        formData.append('hide_key', hideKey);
+        formData.append('image_id', img.id || 0);
+        formData.append('word_id', img.word_id || 0);
+        formData.append('title', img.word_title || img.title || '');
+        formData.append('category_name', img.category_name || '');
+        formData.append('category_slug', img.category_slug || '');
+
+        try {
+            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            if (!data?.success) {
+                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || 'Request failed';
+                throw new Error(message);
+            }
+
+            setHiddenWordsFromServer(data.data);
+
+            const hiddenKeySet = new Set(getItemHideKeys(img));
+            const serverKey = sanitizeHideKey(data?.data?.entry?.key || hideKey);
+            if (serverKey) hiddenKeySet.add(serverKey);
+            for (let idx = images.length - 1; idx >= 0; idx -= 1) {
+                if (itemMatchesHideKeySet(images[idx], hiddenKeySet)) {
+                    images.splice(idx, 1);
+                }
+            }
+
+            if (images.length === 0) {
+                showStatus(i18n.hidden_success || 'Word hidden. Moving to the next item.', 'success');
+                showComplete();
+                return;
+            }
+
+            if (currentImageIndex >= images.length) {
+                currentImageIndex = images.length - 1;
+            }
+            loadImage(currentImageIndex);
+            showStatus(i18n.hidden_success || 'Word hidden. Moving to the next item.', 'success');
+        } catch (err) {
+            const detail = err?.message || '';
+            showStatus(`${i18n.hide_failed || 'Hide failed:'} ${detail}`.trim(), 'error');
+            if (el?.hideBtn) el.hideBtn.disabled = false;
         }
     }
 
@@ -2043,7 +2578,8 @@
         showStatus(i18n.uploading || 'Uploading...', 'uploading');
         if (el.submitBtn) el.submitBtn.disabled = true;
         if (el.redoBtn) el.redoBtn.disabled = true;
-        if (el.skipBtn) el.skipBtn.disabled = false;
+        if (el.skipBtn) el.skipBtn.disabled = true;
+        if (el.hideBtn) el.hideBtn.disabled = true;
         if (isNewWordPanelActive()) {
             setNewWordActionState(true);
         }
@@ -2137,6 +2673,8 @@
             if (el.redoBtn) el.redoBtn.disabled = false;
             if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
             if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+            if (el.skipBtn) el.skipBtn.disabled = false;
+            if (el.hideBtn) el.hideBtn.disabled = false;
             if (isNewWordPanelActive()) {
                 setNewWordActionState(false);
             }
@@ -2752,6 +3290,7 @@
         el.categorySelect.disabled = true;
         el.recordBtn.disabled = true;
         el.skipBtn.disabled = true;
+        if (el.hideBtn) el.hideBtn.disabled = true;
 
         const formData = new FormData();
         formData.append('action', 'll_get_images_for_recording');
@@ -2775,7 +3314,15 @@
             const data = await response.json();
 
             if (data.success) {
-                const newImages = data.data?.images || [];
+                const newImages = Array.isArray(data.data?.images) ? data.data.images : [];
+                newImages.forEach(item => {
+                    if (Array.isArray(item?.missing_types)) {
+                        item.missing_types = sortRecordingTypes(item.missing_types);
+                    }
+                    if (Array.isArray(item?.existing_types)) {
+                        item.existing_types = sortRecordingTypes(item.existing_types);
+                    }
+                });
                 if (newImages.length === 0) {
                     // Mark this category as exhausted
                     exhaustedCategories.add(newCategory);
@@ -2787,12 +3334,14 @@
                         el.categorySelect.disabled = false;
                         el.recordBtn.disabled = false;
                         el.skipBtn.disabled = false;
+                        if (el.hideBtn) el.hideBtn.disabled = false;
                         // Recursively try the next category
                         return switchCategory();
                     } else {
                         // No more categories to try
                         showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
                         el.categorySelect.disabled = false;
+                        if (el.hideBtn) el.hideBtn.disabled = false;
                         return;
                     }
                 }
@@ -2804,7 +3353,7 @@
                 currentImageIndex = 0;
 
                 // Update recording type dropdown options
-                const newTypes = data.data?.recording_types || [];
+                const newTypes = sortRecordingTypes(data.data?.recording_types || []);
                 updateRecordingTypeOptions(newTypes);
 
                 // Reset and load first image
@@ -2824,6 +3373,7 @@
             el.categorySelect.disabled = false;
             el.recordBtn.disabled = false;
             el.skipBtn.disabled = false;
+            if (el.hideBtn) el.hideBtn.disabled = false;
         }
     }
 

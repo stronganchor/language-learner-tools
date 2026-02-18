@@ -21,7 +21,7 @@ function ll_tools_register_or_refresh_audio_recorder_role() {
     if (!$role) {
         add_role(
             'audio_recorder',
-            __('Audio Recorder', 'll-tools'),
+            __('Audio Recorder', 'll-tools-text-domain'),
             array(
                 'read'         => true,
                 'upload_files' => true,
@@ -59,10 +59,13 @@ add_action('init', 'll_tools_register_or_refresh_audio_recorder_role', 1);
 
 /**
  * Helper: who can record?
- * You’re gating on `upload_files`, so centralize the check.
+ * Recording access requires media upload capability plus LL Tools access
+ * (or stricter manage_options access).
  */
 function ll_tools_user_can_record() {
-    return is_user_logged_in() && current_user_can('upload_files');
+    return is_user_logged_in()
+        && current_user_can('upload_files')
+        && (current_user_can('view_ll_tools') || current_user_can('manage_options'));
 }
 
 /**
@@ -386,47 +389,89 @@ add_action('edit_user_profile_update', 'll_save_audio_recorder_profile_fields');
 add_action('user_register', 'll_save_audio_recorder_profile_fields');
 
 /**
- * Hide admin toolbar for audio recorder role
+ * Hide admin toolbar for limited front-end focused roles.
  */
-function ll_hide_admin_bar_for_audio_recorder($show) {
+function ll_hide_admin_bar_for_ll_tools_limited_roles($show) {
     if (!is_user_logged_in()) {
         return $show;
     }
+
     $user = wp_get_current_user();
-    if ($user && in_array('audio_recorder', (array) $user->roles, true)) {
-        return false;
+    if (!$user) {
+        return $show;
     }
+    if (user_can($user, 'manage_options')) {
+        return $show;
+    }
+
+    $roles = (array) $user->roles;
+    $hide_for_roles = ['audio_recorder', 'll_tools_learner', 'll_tools_editor'];
+    foreach ($hide_for_roles as $role) {
+        if (in_array($role, $roles, true)) {
+            return false;
+        }
+    }
+
     return $show;
 }
-add_filter('show_admin_bar', 'll_hide_admin_bar_for_audio_recorder', 999);
+add_filter('show_admin_bar', 'll_hide_admin_bar_for_ll_tools_limited_roles', 999);
 
 /**
- * Prevent audio recorder users from accessing wp-admin and redirect them
+ * Resolve wp-admin redirect targets for limited study-only roles.
+ *
+ * Returns an empty string when the current request should be allowed through.
  */
-function ll_block_admin_for_audio_recorder() {
-    if (!is_user_logged_in()) {
-        return;
+function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin_request = null, $doing_ajax = null): string {
+    if ($is_admin_request === null) {
+        $is_admin_request = is_admin();
+    }
+    if ($doing_ajax === null) {
+        $doing_ajax = wp_doing_ajax();
     }
 
-    // Only act on admin screens, and allow AJAX to continue
-    if (!is_admin() || wp_doing_ajax()) {
-        return;
+    if (!$is_admin_request || $doing_ajax) {
+        return '';
     }
 
-    $user = wp_get_current_user();
-    if (!$user || !in_array('audio_recorder', (array) $user->roles, true)) {
-        return;
+    if (!($user instanceof WP_User)) {
+        $user = wp_get_current_user();
+    }
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return '';
+    }
+    if (user_can($user, 'manage_options')) {
+        return '';
     }
 
-    // Build target URL consistently with login redirect
-    if (function_exists('ll_get_recording_redirect_url')) {
-        $target = ll_get_recording_redirect_url($user->ID);
-    } else {
-        $target = home_url('/');
+    $roles = (array) $user->roles;
+    $is_recorder = in_array('audio_recorder', $roles, true);
+    $is_learner = in_array('ll_tools_learner', $roles, true);
+
+    if (!$is_recorder && !$is_learner) {
+        return '';
+    }
+
+    $target = home_url('/');
+    if ($is_recorder && function_exists('ll_get_recording_redirect_url')) {
+        $target = ll_get_recording_redirect_url((int) $user->ID);
+    } elseif ($is_learner && function_exists('ll_tools_get_study_dashboard_redirect_url')) {
+        $target = ll_tools_get_study_dashboard_redirect_url();
+    }
+
+    return (string) wp_validate_redirect($target, home_url('/'));
+}
+
+/**
+ * Prevent recorder/learner users from accessing wp-admin and redirect them.
+ */
+function ll_block_admin_for_recorder_and_learner() {
+    $target = ll_tools_get_limited_role_admin_redirect_target();
+    if ($target === '') {
+        return;
     }
 
     wp_safe_redirect($target);
     exit;
 }
-// Priority 1 so it runs early during admin bootstrap
-add_action('admin_init', 'll_block_admin_for_audio_recorder', 1);
+// Priority 1 so it runs early during admin bootstrap.
+add_action('admin_init', 'll_block_admin_for_recorder_and_learner', 1);

@@ -15,12 +15,12 @@
 function ll_tools_register_words_post_type() {
 
     $labels = [
-        "name" => esc_html__( "Words", "astra" ),
-        "singular_name" => esc_html__( "Word", "astra" ),
+        "name" => esc_html__( "Words", "ll-tools-text-domain" ),
+        "singular_name" => esc_html__( "Word", "ll-tools-text-domain" ),
     ];
 
     $args = [
-        "label" => esc_html__( "Words", "astra" ),
+        "label" => esc_html__( "Words", "ll-tools-text-domain" ),
         "labels" => $labels,
         "description" => "",
         "public" => true,
@@ -65,7 +65,7 @@ add_action('add_meta_boxes', 'll_tools_add_similar_words_metabox');
 function ll_tools_add_similar_words_metabox() {
     add_meta_box(
         'similar_words_meta', // ID of the meta box
-        'Similar Words', // Title of the meta box
+        __('Similar Words', 'll-tools-text-domain'), // Title of the meta box
         'll_tools_similar_words_metabox_callback', // Callback function
         'words', // Post type
         'side', // Context
@@ -82,9 +82,9 @@ function ll_tools_similar_words_metabox_callback($post) {
     $similar_word_id = get_post_meta($post->ID, 'similar_word_id', true);
 
     // Display the meta box HTML
-    echo '<p>Enter the Post ID of a word that looks similar:</p>';
+    echo '<p>' . esc_html__('Enter the Post ID of a word that looks similar:', 'll-tools-text-domain') . '</p>';
     echo '<input type="text" id="similar_word_id" name="similar_word_id" value="' . esc_attr($similar_word_id) . '" class="widefat" />';
-    echo '<p>Find the Post ID in the list of words. Use numerical ID only.</p>';
+    echo '<p>' . esc_html__('Find the Post ID in the list of words. Use numerical ID only.', 'll-tools-text-domain') . '</p>';
 }
 
 // Hook to save the post metadata
@@ -130,7 +130,7 @@ function ll_tools_display_vocab_content($content) {
         $word_categories_content = '';
         $word_categories = get_the_terms($post->ID, 'word-category');
         if (!empty($word_categories) && !is_wp_error($word_categories)) {
-            $word_categories_content .= '<div class="word-categories">Word categories: ';
+            $word_categories_content .= '<div class="word-categories">' . esc_html__('Word categories:', 'll-tools-text-domain') . ' ';
             $category_links = array();
 
             foreach ($word_categories as $category) {
@@ -167,15 +167,23 @@ function ll_tools_display_vocab_content($content) {
 
         // Display the featured image if one is set.
         if (has_post_thumbnail($post->ID)) {
-            $custom_content .= get_the_post_thumbnail(
-                $post->ID,
-                'full',
-                array('class' => 'vocab-featured-image')
-            );
+            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
+                $custom_content .= ll_tools_get_post_thumbnail_html_with_repair(
+                    $post->ID,
+                    'full',
+                    array('class' => 'vocab-featured-image')
+                );
+            } else {
+                $custom_content .= get_the_post_thumbnail(
+                    $post->ID,
+                    'full',
+                    array('class' => 'vocab-featured-image')
+                );
+            }
         }
 
         // Show the English meaning as a heading.
-        $custom_content .= "<h2>Meaning: " . esc_html($word_english_meaning) . "</h2>";
+        $custom_content .= '<h2>' . esc_html__('Meaning:', 'll-tools-text-domain') . ' ' . esc_html($word_english_meaning) . '</h2>';
 
         // Show example sentence and its translation, if available.
         if ($word_example_sentence && $word_example_translation) {
@@ -241,7 +249,11 @@ function ll_render_words_columns($column, $post_id) {
             break;
 
         case 'featured_image':
-            $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
+                $thumbnail = ll_tools_get_post_thumbnail_html_with_repair($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            } else {
+                $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));
+            }
             echo $thumbnail ? $thumbnail : '—';
             break;
 
@@ -628,7 +640,7 @@ add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
  * Enqueue admin script for bulk edit category handling
  */
 function ll_words_enqueue_bulk_edit_script($hook) {
-    ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/words-bulk-edit.js');
+    ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/bulk-category-edit.js', 'll_words_get_common_categories');
 }
 add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
 

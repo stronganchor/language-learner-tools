@@ -79,6 +79,7 @@
         isLearningMode: false,
         isListeningMode: false,
         isGenderMode: false,
+        isSelfCheckMode: false,
         introducedWordIDs: [],
         wordIntroductionProgress: {},
         wordCorrectCounts: {},
@@ -99,6 +100,9 @@
         wordsAnsweredSinceLastIntro: new Set(),
         lastWordShownId: null,
         learningModeRepetitionQueue: [],
+        learningWordSets: [],
+        learningWordSetIndex: 0,
+        learningWordSetSignature: '',
 
         // Timeout management
         activeTimeouts: [],
@@ -295,6 +299,7 @@
             this.isLearningMode = false;
             this.isListeningMode = false;
             this.isGenderMode = false;
+            this.isSelfCheckMode = false;
             this.wordsLinear = [];
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;
@@ -314,6 +319,9 @@
             this.wordsAnsweredSinceLastIntro = new Set();
             this.lastWordShownId = null;
             this.learningModeRepetitionQueue = [];
+            this.learningWordSets = [];
+            this.learningWordSetIndex = 0;
+            this.learningWordSetSignature = '';
 
             // Clear abort flag after delay
             setTimeout(() => {

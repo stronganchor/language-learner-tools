@@ -13,6 +13,8 @@
         // Tracks loaded categories and resources
         const loadedCategories = [];
         const loadedResources = {};
+        const inFlightRequests = {};
+        let requestSerial = 0;
         let lastWordsetKey = null;
         const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
         function getAllowedWordsetIds() {
@@ -20,6 +22,22 @@
                 ? window.llToolsFlashcardsData.wordsetIds
                 : [];
             return ids.map(function (v) { return parseInt(v, 10); }).filter(function (v) { return v > 0 && isFinite(v); });
+        }
+        function getSessionWordLookup() {
+            const data = window.llToolsFlashcardsData || {};
+            const raw = Array.isArray(data.sessionWordIds)
+                ? data.sessionWordIds
+                : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+            const lookup = {};
+            let count = 0;
+            raw.forEach(function (value) {
+                const id = parseInt(value, 10);
+                if (id > 0 && isFinite(id) && !lookup[id]) {
+                    lookup[id] = true;
+                    count++;
+                }
+            });
+            return count > 0 ? lookup : null;
         }
 
         function getCategoryConfig(name) {
@@ -47,12 +65,26 @@
             const fallback = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordsetFallback !== 'undefined')
                 ? !!window.llToolsFlashcardsData.wordsetFallback
                 : true;
-            return String(ws || '') + '|' + (fallback ? '1' : '0');
+            const sessionRaw = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.sessionWordIds))
+                ? window.llToolsFlashcardsData.sessionWordIds
+                : ((window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.session_word_ids))
+                    ? window.llToolsFlashcardsData.session_word_ids
+                    : []);
+            const sessionKey = sessionRaw
+                .map(function (id) { return parseInt(id, 10) || 0; })
+                .filter(function (id) { return id > 0; })
+                .sort(function (a, b) { return a - b; })
+                .join(',');
+            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
         }
 
         function resetCacheForNewWordset() {
             loadedCategories.length = 0;
             Object.keys(loadedResources).forEach(function (k) { delete loadedResources[k]; });
+            Object.keys(inFlightRequests).forEach(function (k) { delete inFlightRequests[k]; });
+            if (window.optionWordsByCategory && typeof window.optionWordsByCategory === 'object') {
+                Object.keys(window.optionWordsByCategory).forEach(function (k) { delete window.optionWordsByCategory[k]; });
+            }
             lastWordsetKey = null;
         }
 
@@ -91,23 +123,47 @@
 
             return new Promise((resolve) => {
                 let audio = document.createElement('audio');
-                audio.crossOrigin = 'anonymous';
-                audio.src = audioURL;
-                audio.preload = 'auto';      // hint to preload
-                audio.load();                // force the load() call
-
-                const onLoad = () => {
+                let settled = false;
+                let timeoutId = null;
+                const settle = () => {
+                    if (settled) { return; }
+                    settled = true;
                     loadedResources[audioURL] = true;
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    try { audio.oncanplaythrough = null; } catch (_) { /* no-op */ }
+                    try { audio.onerror = null; } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadstart', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadeddata', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('stalled', settle); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('abort', settle); } catch (_) { /* no-op */ }
                     cleanupAudio(audio);
                     audio = null;
                     resolve();
                 };
 
-                // main “loaded” events
-                audio.oncanplaythrough = onLoad;
-                audio.onerror = onLoad;
-                // iOS fallback — loadstart always fires once loading begins
-                audio.addEventListener('loadstart', onLoad, { once: true });
+                audio.crossOrigin = 'anonymous';
+                audio.preload = 'auto';
+
+                // Register listeners before setting src/load to avoid missing early events.
+                audio.oncanplaythrough = settle;
+                audio.onerror = settle;
+                audio.addEventListener('loadstart', settle, { once: true });
+                audio.addEventListener('loadeddata', settle, { once: true });
+                audio.addEventListener('stalled', settle, { once: true });
+                audio.addEventListener('abort', settle, { once: true });
+
+                // Safety net so one bad media request can never stall quiz boot.
+                timeoutId = setTimeout(settle, 4000);
+
+                try {
+                    audio.src = audioURL;
+                    audio.load();
+                } catch (_) {
+                    settle();
+                }
             });
         }
 
@@ -139,18 +195,30 @@
             }
             return new Promise((resolve) => {
                 let img = new Image();
-
-                img.onload = () => {
+                let settled = false;
+                let timeoutId = null;
+                const settle = () => {
+                    if (settled) { return; }
+                    settled = true;
                     loadedResources[imageURL] = true;
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    img.onload = null;
+                    img.onerror = null;
                     resolve();
                 };
 
-                img.onerror = () => {
-                    loadedResources[imageURL] = true;
-                    resolve();
-                };
+                img.onload = settle;
+                img.onerror = settle;
+                timeoutId = setTimeout(settle, 4000);
 
-                img.src = imageURL;
+                try {
+                    img.src = imageURL;
+                } catch (_) {
+                    settle();
+                }
             });
         }
 
@@ -163,6 +231,8 @@
         function processFetchedWordData(wordData, categoryName) {
             // IMPORTANT: Replace existing data instead of appending to avoid mixing wordsets
             window.wordsByCategory[categoryName] = [];
+            window.optionWordsByCategory = window.optionWordsByCategory || {};
+            window.optionWordsByCategory[categoryName] = [];
 
             if (!window.categoryRoundCount[categoryName]) {
                 window.categoryRoundCount[categoryName] = 0;
@@ -170,12 +240,13 @@
 
             const allowedWordsetIds = getAllowedWordsetIds();
             const hasWordsetFilter = allowedWordsetIds.length > 0;
+            const sessionWordLookup = getSessionWordLookup();
 
             const cfg = getCategoryConfig(categoryName);
             const needsAudio = categoryRequiresAudio(cfg);
 
             // Filter out words that do not have a resolvable audio URL
-            const filtered = Array.isArray(wordData) ? wordData.map(function (w) {
+            const filteredByCategory = Array.isArray(wordData) ? wordData.map(function (w) {
                 const url = resolvePlayableAudio(w);
                 if (url) {
                     w.audio = url;
@@ -195,10 +266,18 @@
                 return true;
             }) : [];
 
-            window.wordsByCategory[categoryName].push(...filtered);
-            window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
+            const filteredBySession = sessionWordLookup
+                ? filteredByCategory.filter(function (w) {
+                    const wordId = parseInt(w && w.id, 10);
+                    return !!wordId && !!sessionWordLookup[wordId];
+                })
+                : filteredByCategory.slice();
 
-            loadedCategories.push(categoryName);
+            window.optionWordsByCategory[categoryName].push(...filteredByCategory);
+            window.optionWordsByCategory[categoryName] = randomlySort(window.optionWordsByCategory[categoryName]);
+
+            window.wordsByCategory[categoryName].push(...filteredBySession);
+            window.wordsByCategory[categoryName] = randomlySort(window.wordsByCategory[categoryName]);
         }
 
         /**
@@ -212,6 +291,8 @@
             const earlyCallback = opts.earlyCallback === true;
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
+            const requestId = ++requestSerial;
+            inFlightRequests[cacheKey] = requestId;
 
             if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
@@ -252,6 +333,11 @@
                 dataType: 'json',
                 data: payload,
                 success: function (response) {
+                    // Ignore stale responses from previous wordset/session requests.
+                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
+                        return;
+                    }
+                    delete inFlightRequests[cacheKey];
                     try {
                         if (window.__LL_LAST_WORDS_AJAX) {
                             window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
@@ -267,13 +353,19 @@
                         } else {
                             preloadCategoryResources(categoryName, callback);
                         }
-                        loadedCategories.push(cacheKey);
+                        if (!loadedCategories.includes(cacheKey)) {
+                            loadedCategories.push(cacheKey);
+                        }
                     } else {
                         console.error('Failed to load words for category:', categoryName, response);
                         if (typeof callback === 'function') callback();
                     }
                 },
                 error: function (xhr, status, error) {
+                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
+                        return;
+                    }
+                    delete inFlightRequests[cacheKey];
                     try {
                         if (window.__LL_LAST_WORDS_AJAX) {
                             window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
@@ -325,7 +417,6 @@
             function loadNextChunk() {
                 if (currentIndex >= totalWords) {
                     // All chunks loaded, we're done.
-                    loadedCategories.push(categoryName);
                     return;
                 }
 
@@ -385,15 +476,20 @@
          * @param {string} displayMode - The display mode ('image' or 'text').
          * @returns {Promise} Resolves when resources are loaded.
          */
-        function loadResourcesForWord(word, displayMode, categoryName, categoryConfig) {
+        function loadResourcesForWord(word, displayMode, categoryName, categoryConfig, options) {
             if (!word) return Promise.resolve();
+            const opts = options || {};
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
-            return Promise.all([
+            const shouldPreloadImage = needsImage && !opts.skipImagePreload;
+            const preloader = Promise.all([
                 (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
-                (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
+                (shouldPreloadImage && word.image ? loadImage(word.image) : Promise.resolve())
             ]);
+            // Never let a single media preload failure block rendering of the round.
+            // Other callers invoke this without `.catch()`.
+            return preloader.catch(function () { return []; });
         }
 
         function resolvePlayableAudio(word) {

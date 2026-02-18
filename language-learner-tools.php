@@ -2,8 +2,8 @@
 /*
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
-Description: A toolkit for building vocabulary-driven language sites in WordPress: custom post types (“Words”, “Word Images”), taxonomies (Word Category, Word Set, Language, Part of Speech), flashcard quizzes with audio & images via [flashcard_widget], auto-generated quiz pages (/quiz/<category>) and embeddable pages (/embed/<category>), vocabulary grids, audio players, bulk uploaders (audio/images), DeepL-assisted translations, template overrides, and lightweight roles (“Word Set Manager”, “LL Tools Editor”).
-Version: 5.0.1
+Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
+Version: 5.2.4
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,6 +19,7 @@ define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
+define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 
 function ll_tools_normalize_update_branch($branch) {
     return ($branch === 'dev') ? 'dev' : 'main';
@@ -127,6 +128,10 @@ register_activation_hook(__FILE__, function () {
     set_transient('ll_tools_create_recording_page', 1, 10 * MINUTE_IN_SECONDS);
     // Safeguard to skip quiz page sync until seeding completes
     set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
+
+    if (function_exists('ll_tools_install_user_progress_schema')) {
+        ll_tools_install_user_progress_schema();
+    }
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).
@@ -179,8 +184,6 @@ function ll_embed_template_include($template) {
 }
 add_filter('template_include', 'll_embed_template_include');
 
-const LL_TOOLS_SETTINGS_SLUG = 'language-learning-tools-settings';
-
 /**
  * Add a "Settings" link on the Plugins screen row for this plugin.
  */
@@ -189,8 +192,8 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
         return $links;
     }
 
-    $url = admin_url('options-general.php?page=' . LL_TOOLS_SETTINGS_SLUG);
-    $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools') . '</a>';
+    $url = admin_url('admin.php?page=' . LL_TOOLS_SETTINGS_SLUG);
+    $settings_link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'll-tools-text-domain') . '</a>';
 
     array_unshift($links, $settings_link);
     return $links;

@@ -373,6 +373,21 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     flex-direction: column;
 }
 
+/* Keep quiz-page and vocab-lesson popup geometry consistent with shortcode embeds. */
+body.ll-qpg-popup-active #ll-tools-flashcard-container,
+body.ll-qpg-popup-active #ll-tools-flashcard-popup,
+body.ll-qpg-popup-active #ll-tools-flashcard-quiz-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 1000000;
+}
+
+body.ll-qpg-popup-active #ll-tools-flashcard-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+}
+
 /* Close Button Styles */
 #ll-tools-close-category-selection,
 #ll-tools-close-flashcard {
@@ -1546,42 +1561,130 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 /* Quiz Mode Buttons on Results Page */
 #quiz-mode-buttons {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     justify-content: center;
     flex-wrap: wrap;
 }
 
-.quiz-mode-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    font-size: 16px;
-    font-weight: 600;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    min-width: 160px;
+#ll-study-results-actions {
+    display: flex;
+    gap: 10px;
     justify-content: center;
+    align-items: stretch;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-inline: auto;
+    margin-top: 20px !important;
 }
 
-.quiz-mode-button .button-icon {
+#ll-study-results-suggestion {
+    width: 100%;
+    margin: 0 0 8px 0;
+    color: #374151;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+#ll-study-results-actions .ll-vocab-lesson-mode-button {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+}
+
+#quiz-results .quiz-mode-button,
+#quiz-results .ll-vocab-lesson-mode-button {
+    display: inline-flex;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    min-width: 170px !important;
+    padding: 8px 14px !important;
+    border-radius: 12px !important;
+    border: 1px solid #e6ded1 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #2e2a24 !important;
+    font-weight: 600 !important;
+    font-family: inherit !important;
+    font-size: 0.9rem !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+}
+
+#quiz-results .quiz-mode-button:hover,
+#quiz-results .quiz-mode-button:focus-visible,
+#quiz-results .ll-vocab-lesson-mode-button:hover,
+#quiz-results .ll-vocab-lesson-mode-button:focus-visible {
+    border-color: rgba(31, 107, 92, 0.4) !important;
+    box-shadow: 0 10px 20px rgba(46, 42, 36, 0.12) !important;
+    transform: translateY(-2px);
+    outline: none !important;
+}
+
+#quiz-results .quiz-mode-button:focus-visible,
+#quiz-results .ll-vocab-lesson-mode-button:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.35) !important;
+    outline-offset: 2px !important;
+}
+
+#quiz-results .quiz-mode-button[disabled],
+#quiz-results .ll-vocab-lesson-mode-button[disabled] {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+#quiz-results .quiz-mode-button .button-icon,
+#quiz-results .ll-vocab-lesson-mode-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: rgba(31, 107, 92, 0.12);
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     line-height: 1;
+    font-size: 1rem;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
+    -webkit-text-size-adjust: none;
+    color: #2e2a24 !important;
 }
 
-.quiz-mode-button .button-icon::before {
+#quiz-results .quiz-mode-button .button-icon::before,
+#quiz-results .ll-vocab-lesson-mode-icon::before {
     content: attr(data-emoji);
-    font-size: 20px;
-    line-height: 1;
+    font-size: 1rem;
 }
 
-.quiz-mode-button .button-icon svg {
-    width: 20px !important;
-    height: 20px !important;
+#quiz-results .quiz-mode-button .button-icon svg,
+#quiz-results .ll-vocab-lesson-mode-icon svg {
+    width: 16px !important;
+    height: 16px !important;
     display: block !important;
     fill: currentColor !important;
     stroke: currentColor !important;
+}
+
+#quiz-results .ll-vocab-lesson-mode-label {
+    min-width: 0;
+}
+
+#quiz-results #ll-study-results-actions .quiz-mode-button,
+#quiz-results #ll-study-results-actions .ll-vocab-lesson-mode-button {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: none;
+    padding: 8px 10px !important;
+    flex: 0 0 auto;
 }
 
 /* Hide mode switcher during results */
@@ -1595,17 +1698,20 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
-    .quiz-mode-button {
+    .quiz-mode-button,
+    #quiz-results .ll-vocab-lesson-mode-button {
         min-width: 140px;
         padding: 10px 20px;
         font-size: 14px;
     }
 
-    .quiz-mode-button .button-icon::before {
+    .quiz-mode-button .button-icon::before,
+    #quiz-results .ll-vocab-lesson-mode-icon::before {
         font-size: 18px;
     }
 
-    .quiz-mode-button .button-icon svg {
+    .quiz-mode-button .button-icon svg,
+    #quiz-results .ll-vocab-lesson-mode-icon svg {
         width: 18px !important;
         height: 18px !important;
     }

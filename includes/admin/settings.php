@@ -7,11 +7,15 @@
  */
 
 function ll_register_settings_page() {
+    $settings_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+        ? ll_tools_get_admin_settings_page_slug()
+        : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+
     add_options_page(
         'Language Learning Tools Settings', // Page title
         'Language Learning Tools', // Menu title
         'view_ll_tools', // Capability required to see the page
-        'language-learning-tools-settings', // Menu slug
+        $settings_slug, // Menu slug
         'll_render_settings_page' // Function to display the settings page
     );
 }
@@ -228,7 +232,12 @@ function ll_render_settings_page() {
         <?php echo $cache_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <form action="options.php" method="post">
             <?php settings_fields('language-learning-tools-options'); ?>
-            <?php do_settings_sections('language-learning-tools-settings'); ?>
+            <?php
+            $settings_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+                ? ll_tools_get_admin_settings_page_slug()
+                : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+            do_settings_sections($settings_slug);
+            ?>
             
             <table class="form-table">
                 <tr valign="top">

@@ -3,6 +3,7 @@
 $mode_ui = (isset($mode_ui) && is_array($mode_ui)) ? $mode_ui : [];
 $practice_mode_ui = $mode_ui['practice'] ?? [];
 $learning_mode_ui = $mode_ui['learning'] ?? [];
+$self_check_mode_ui = $mode_ui['self-check'] ?? [];
 $listening_mode_ui = $mode_ui['listening'] ?? [];
 $gender_mode_ui = $mode_ui['gender'] ?? [];
 $render_mode_icon = function (array $cfg, string $fallback, string $class = 'mode-icon'): void {
@@ -25,6 +26,10 @@ $tmpl_wordset = isset($wordset) ? (string) $wordset : '';
 $tmpl_wordset_fallback = !empty($wordset_fallback);
 $tmpl_ll_config = isset($ll_config) && is_array($ll_config) ? $ll_config : [];
 $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
+$tmpl_gender_options = isset($tmpl_ll_config['genderOptions']) && is_array($tmpl_ll_config['genderOptions'])
+  ? array_values(array_filter(array_map('strval', $tmpl_ll_config['genderOptions']), function ($opt) { return $opt !== ''; }))
+  : [];
+$tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($tmpl_gender_options) >= 2;
 ?>
 <div id="ll-tools-flashcard-container"
      class="ll-tools-flashcard-container"
@@ -78,6 +83,7 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
       <?php
         $practice_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
         $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
+        $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
         $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
         $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
         $settings_label = __('Study Settings', 'll-tools-text-domain');
@@ -113,14 +119,17 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           </div>
         <?php endif; ?>
         <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-          <!-- Fixed order: learning, practice, gender, listening -->
+          <!-- Fixed order: learning, practice, self-check, gender, listening -->
           <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
             <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
           </button>
           <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
             <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option gender" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender">
+          <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
+            <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
+          </button>
+          <button class="ll-tools-mode-option gender<?php echo $tmpl_gender_mode_visible ? '' : ' hidden'; ?>" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender"<?php echo $tmpl_gender_mode_visible ? '' : ' aria-hidden="true"'; ?>>
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
           </button>
           <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
@@ -144,6 +153,7 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           <?php
             $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
             $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
+            $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
             $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
             $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
           ?>
@@ -153,15 +163,39 @@ $tmpl_ll_config_json = wp_json_encode($tmpl_ll_config);
           </button>
           <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
             <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
-            <?php echo esc_html($learning_label); ?>
+            <span class="ll-learning-results-label"><?php echo esc_html($learning_label); ?></span>
+          </button>
+          <button id="restart-self-check-mode" class="quiz-button quiz-mode-button">
+            <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
+            <?php echo esc_html($self_check_results_label); ?>
           </button>
           <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
-            <?php echo esc_html($gender_results_label); ?>
+            <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
           </button>
           <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
             <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
             <?php echo esc_html($listening_label); ?>
+          </button>
+        </div>
+        <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
+          <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
+          </button>
+        </div>
+        <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
+          <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
+          <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Categories', 'll-tools-text-domain'); ?>
+          </button>
+          <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+            <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
           </button>
         </div>
         <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>

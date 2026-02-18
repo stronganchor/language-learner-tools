@@ -12,8 +12,8 @@
  * @return string The HTML form for uploading audio files.
  */
 function ll_audio_upload_form_shortcode() {
-    if ( ! current_user_can( 'upload_files' ) ) {
-        return 'You do not have permission to upload files.';
+    if (!current_user_can('upload_files') || !current_user_can('view_ll_tools')) {
+        return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
     }
 
     // Get recording types
@@ -108,6 +108,7 @@ function ll_audio_upload_form_shortcode() {
         </div>
 
         <input type="hidden" name="action" value="process_audio_files">
+        <?php wp_nonce_field('ll_process_audio_files', 'll_audio_upload_nonce'); ?>
         <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
     </form>
     <?php
@@ -168,10 +169,11 @@ function ll_display_wordsets_dropdown() {
  * Handles the processing of uploaded audio files.
  */
 function ll_handle_audio_file_uploads() {
-    // Security check: Ensure the current user can upload files
-    if (!current_user_can('upload_files')) {
-        wp_die('You do not have permission to upload files.');
+    // Security checks for the admin-post endpoint.
+    if (!current_user_can('upload_files') || !current_user_can('view_ll_tools')) {
+        wp_die(__('You do not have permission to upload files.', 'll-tools-text-domain'));
     }
+    check_admin_referer('ll_process_audio_files', 'll_audio_upload_nonce');
 
     $match_existing_posts = !empty($_POST['match_existing_posts']);
     $selected_categories  = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];

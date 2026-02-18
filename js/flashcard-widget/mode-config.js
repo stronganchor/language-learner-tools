@@ -14,6 +14,12 @@
             switchLabel: 'Switch to Learning Mode',
             resultsButtonText: 'Learning Mode',
         },
+        'self-check': {
+            icon: '',
+            className: 'self-check-mode',
+            switchLabel: 'Open Self Check',
+            resultsButtonText: 'Self Check',
+        },
         listening: {
             icon: '🎧',
             className: 'listening-mode',

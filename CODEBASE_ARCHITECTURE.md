@@ -18,6 +18,7 @@ read_first:
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
   - includes/post-types/words-post-type.php
+  - includes/post-types/dictionary-entry-post-type.php
   - includes/post-types/word-audio-post-type.php
   - includes/admin/settings.php
   - includes/admin/audio-processor-admin.php
@@ -28,7 +29,7 @@ read_first:
 
 # Overview (30-second tour)
 - WordPress plugin for vocabulary-driven language learning.
-- Custom post types for words, word images, and word audio recordings.
+- Custom post types for words, dictionary entries, word images, and word audio recordings.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
 - Flashcard quizzes with three modes (practice, learning, listening) and per-category prompt/option config.
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
@@ -78,6 +79,7 @@ includes/
     recording-page.php        # Recording page creation + login redirect
   post-types/
     words-post-type.php
+    dictionary-entry-post-type.php
     word-image-post-type.php
     word-audio-post-type.php
   taxonomies/
@@ -91,6 +93,7 @@ includes/
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
     word-audio-shortcode.php
+    wordset-page-shortcode.php
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
@@ -126,8 +129,7 @@ js/
   user-study-dashboard.js
   word-audio.js
   manage-wordsets.js
-  words-bulk-edit.js
-  word-images-bulk-edit.js
+  bulk-category-edit.js
 css/
   language-learner-tools.css
   quiz-pages.css
@@ -156,15 +158,16 @@ vendor/
   getid3/                     # audio metadata
   plugin-update-checker/      # GitHub update checker
 ```
-Note: `includes/admin/migrate-word-audio.php` exists as a legacy migration tool but is not loaded by default.
-
 # Core data model (canonical)
 ## Custom post types
 - `words` (public, REST)
   - Key meta: `word_translation`, legacy `word_english_meaning`, legacy `word_audio_file`.
   - Other meta: `word_example_sentence`, `word_example_sentence_translation`, `similar_word_id`.
+  - Optional link meta: `ll_dictionary_entry_id` (links to umbrella dictionary entry).
   - Publish guard: requires at least one published `word_audio` when category config needs audio.
     - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
+- `ll_dictionary_entry` (admin-facing umbrella entries)
+  - Groups related `words` posts (e.g., different learnable forms) without changing `words` as the quiz/recording unit.
 - `word_images` (public, REST)
   - Featured image is the media asset.
   - Meta: `copyright_info`, plus translation fields used by grids.
@@ -217,6 +220,7 @@ Core settings live in `includes/admin/settings.php`:
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
+- `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
@@ -252,6 +256,7 @@ Core settings live in `includes/admin/settings.php`:
 
 ## Mode behavior (high level)
 - Practice mode: standard multiple-choice quiz with adaptive option count.
+  - Audio prompt preference: `question` first, then `isolation`, then `introduction` (set in `js/flashcard-widget/modes/practice.js`).
 - Learning mode: guided introduction + mastery tracking.
   - Implementation: `js/flashcard-widget/modes/learning.js` + `selection.js`.
   - State highlights: `introducedWordIDs`, `wordIntroductionProgress`, `wordCorrectCounts`, `wrongAnswerQueue` (with `dueTurn`), `learningChoiceCount`, `learningCorrectStreak`.
@@ -259,6 +264,7 @@ Core settings live in `includes/admin/settings.php`:
   - Progress UI updated via `Dom.updateLearningProgress()`.
 - Listening mode: audio-first playback with simplified UI and visualizer.
   - Implementation: `js/flashcard-widget/modes/listening.js` + `audio-visualizer.js`.
+  - Prompt audio preference is isolation-first when available.
   - Uses study prefs (`llToolsStudyPrefs`) to honor star mode and fast transitions.
 
 # Admin tools and workflows
@@ -269,7 +275,7 @@ Core settings live in `includes/admin/settings.php`:
 - Recording Types admin: `includes/admin/recording-types-admin.php`.
 - Bulk Translations: `includes/admin/bulk-translation-admin.php` (DeepL + dictionary fallback).
 - Bulk Word Import: `includes/admin/bulk-word-import-admin.php` (Turkish casing support).
-- Export/Import: `includes/admin/export-import.php` (zip of categories + word_images + attachments).
+- Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments).
 - Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
 - Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).
@@ -303,6 +309,7 @@ Core settings live in `includes/admin/settings.php`:
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
+- Wordset scope is strict: learn/practice/listening flows (including study dashboard launches) must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
 - Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.

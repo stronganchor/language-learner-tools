@@ -186,20 +186,66 @@
     }
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
-        const mode = optionType || root.LLFlashcards.Selection.getCurrentDisplayMode();
         const gateOnAudio = (promptType === 'audio');
-        $card.off('click').on('click', function (e) {
+        let lastPointerHandledAt = 0;
+        const handleSelection = function (e, triggerType) {
             // Ignore clicks on the inline play button for audio options
             if ($(e.target).closest('.ll-audio-play').length) return;
 
-            if (gateOnAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) return;
+            // On touch devices pointerup is followed by click; suppress duplicate handling.
+            if (triggerType === 'click' && lastPointerHandledAt > 0 && (Date.now() - lastPointerHandledAt) < 450) {
+                return;
+            }
 
-            const clickedId = String($(this).data('wordId') || $(this).attr('data-word-id') || '');
+            const $clicked = $(this);
+            const isGenderMode = !!(root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.isGenderMode);
+            const isPracticeMode = !!(root.LLFlashcards && root.LLFlashcards.State) &&
+                !root.LLFlashcards.State.isLearningMode &&
+                !root.LLFlashcards.State.isListeningMode &&
+                !root.LLFlashcards.State.isGenderMode &&
+                !root.LLFlashcards.State.isSelfCheckMode;
+            const shouldGateOnAudio = gateOnAudio && !isPracticeMode;
+            if (shouldGateOnAudio && root.FlashcardAudio && !root.FlashcardAudio.getTargetAudioHasPlayed()) {
+                if (!isGenderMode) return;
+                const genderMode = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+                const rapidTapGuardActive = !!(genderMode && typeof genderMode.isAnswerTapGuardActive === 'function' && genderMode.isAnswerTapGuardActive());
+                if (rapidTapGuardActive) return;
+            }
+
+            const hasGenderAttrs = (
+                typeof $clicked.attr('data-ll-gender-correct') !== 'undefined' ||
+                typeof $clicked.attr('data-ll-gender-choice') !== 'undefined' ||
+                typeof $clicked.attr('data-ll-gender-unknown') !== 'undefined'
+            );
+            if (isGenderMode && hasGenderAttrs && root.LLFlashcards.Main && typeof root.LLFlashcards.Main.onGenderAnswer === 'function') {
+                const selectedValue = String($clicked.attr('data-ll-gender-choice') || '');
+                const isCorrectGender = String($clicked.attr('data-ll-gender-correct') || '0') === '1';
+                const isDontKnow = String($clicked.attr('data-ll-gender-unknown') || '0') === '1';
+                root.LLFlashcards.Main.onGenderAnswer(targetWord, $clicked, {
+                    isCorrect: isCorrectGender,
+                    isDontKnow: isDontKnow,
+                    selectedValue: selectedValue,
+                    selectedLabel: String($clicked.attr('data-word') || ''),
+                    optionIndex: index
+                });
+                return;
+            }
+
+            const clickedId = String($clicked.data('wordId') || $clicked.attr('data-word-id') || '');
             const isCorrect = clickedId === String(targetWord.id);
 
             if (isCorrect) root.LLFlashcards.Main.onCorrectAnswer(targetWord, $(this));
             else root.LLFlashcards.Main.onWrongAnswer(targetWord, index, $(this));
-        });
+        };
+
+        $card.off('.llCardSelect')
+            .on('pointerup.llCardSelect', function (e) {
+                lastPointerHandledAt = Date.now();
+                handleSelection.call(this, e, 'pointerup');
+            })
+            .on('click.llCardSelect', function (e) {
+                handleSelection.call(this, e, 'click');
+            });
     }
 
     function installOptionGuards() {

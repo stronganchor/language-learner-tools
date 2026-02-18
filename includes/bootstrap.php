@@ -6,12 +6,14 @@ require_once(__DIR__ . '/assets.php');
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
+require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
 
 // Include custom post types
 require_once(__DIR__ . '/post-types/words-post-type.php');
+require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
@@ -26,9 +28,11 @@ require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');
 require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
+require_once(__DIR__ . '/user-roles/learner-role.php');
 require_once(__DIR__ . '/user-roles/audio-recorder-role.php');
 
 // Include admin functionality
+require_once(__DIR__ . '/admin/admin-dashboard-menu.php');
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/admin/manage-wordsets.php');
@@ -46,6 +50,8 @@ require_once(__DIR__ . '/admin/example-sentence-migration.php');
 require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
 require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 require_once(__DIR__ . '/admin/split-word-admin.php');
+require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
+require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/user-study.php');
 
 // Include API integrations
@@ -60,17 +66,20 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/recording-page.php');
+require_once(__DIR__ . '/pages/editor-hub-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
 require_once(__DIR__ . '/shortcodes/flashcard-widget.php');
 require_once(__DIR__ . '/shortcodes/word-audio-shortcode.php');
 require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
+require_once(__DIR__ . '/shortcodes/editor-hub-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 require_once(__DIR__ . '/shortcodes/user-study-dashboard.php');
+require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
 
 // Include the plugin update checker
 require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';

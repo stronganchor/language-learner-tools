@@ -7,12 +7,12 @@
  */
 function ll_tools_register_word_category_taxonomy() {
     $labels = [
-        "name" => esc_html__("Word Categories", "astra"),
-        "singular_name" => esc_html__("Word Category", "astra"),
+        "name" => esc_html__("Word Categories", "ll-tools-text-domain"),
+        "singular_name" => esc_html__("Word Category", "ll-tools-text-domain"),
     ];
 
     $args = [
-        "label" => esc_html__("Word Categories", "astra"),
+        "label" => esc_html__("Word Categories", "ll-tools-text-domain"),
         "labels" => $labels,
         "public" => true,
         "publicly_queryable" => true,
@@ -820,6 +820,113 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
     return 'image';
 }
 
+/**
+ * Resolve a stored audio path/URL to a browser-safe URL for the current site origin.
+ *
+ * Handles legacy absolute URLs that still point to old local hosts/ports (e.g. Local WP),
+ * while leaving truly external URLs untouched.
+ */
+function ll_tools_resolve_audio_file_url($audio_path): string {
+    $audio_path = trim((string) $audio_path);
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if (strpos($audio_path, '//') === 0) {
+        $audio_path = (is_ssl() ? 'https:' : 'http:') . $audio_path;
+    }
+
+    static $resolved_cache = [];
+    if (isset($resolved_cache[$audio_path])) {
+        return $resolved_cache[$audio_path];
+    }
+
+    // Relative path stored in meta (canonical plugin format).
+    if (!preg_match('#^https?://#i', $audio_path)) {
+        $resolved_cache[$audio_path] = site_url($audio_path);
+        return $resolved_cache[$audio_path];
+    }
+
+    $parsed = wp_parse_url($audio_path);
+    $path   = is_array($parsed) && !empty($parsed['path']) ? '/' . ltrim((string) $parsed['path'], '/') : '';
+    if ($path === '') {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    $home = wp_parse_url(home_url('/'));
+    if (!is_array($home) || empty($home['host'])) {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    $url_host = strtolower((string) ($parsed['host'] ?? ''));
+    $home_host = strtolower((string) $home['host']);
+    $url_scheme = strtolower((string) ($parsed['scheme'] ?? 'http'));
+    $home_scheme = strtolower((string) ($home['scheme'] ?? 'http'));
+    $url_port = isset($parsed['port']) ? (int) $parsed['port'] : (($url_scheme === 'https') ? 443 : 80);
+    $home_port = isset($home['port']) ? (int) $home['port'] : (($home_scheme === 'https') ? 443 : 80);
+
+    if ($url_host !== '' && $url_host === $home_host && $url_port === $home_port && $url_scheme === $home_scheme) {
+        $resolved_cache[$audio_path] = $audio_path;
+        return $resolved_cache[$audio_path];
+    }
+
+    // If the path maps to a local file, force current-site origin to avoid cross-origin media requests.
+    $local_path = ABSPATH . ltrim($path, '/');
+    if (file_exists($local_path) && is_readable($local_path)) {
+        $resolved_cache[$audio_path] = home_url($path);
+        return $resolved_cache[$audio_path];
+    }
+
+    // Fallback: if the URL path is under uploads, prefer current uploads origin.
+    $uploads = wp_get_upload_dir();
+    if (empty($uploads['error']) && !empty($uploads['baseurl'])) {
+        $uploads_base_path = (string) wp_parse_url($uploads['baseurl'], PHP_URL_PATH);
+        if ($uploads_base_path !== '' && strpos($path, $uploads_base_path) === 0) {
+            $relative = ltrim(substr($path, strlen($uploads_base_path)), '/');
+            $resolved_cache[$audio_path] = trailingslashit($uploads['baseurl']) . $relative;
+            return $resolved_cache[$audio_path];
+        }
+    }
+
+    $resolved_cache[$audio_path] = $audio_path;
+    return $resolved_cache[$audio_path];
+}
+
+/**
+ * Normalize audio URLs in cached word payload rows.
+ *
+ * @param array $rows Array of quiz word rows.
+ * @return array
+ */
+function ll_tools_normalize_words_audio_urls(array $rows): array {
+    foreach ($rows as $idx => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        if (!empty($row['audio'])) {
+            $rows[$idx]['audio'] = ll_tools_resolve_audio_file_url($row['audio']);
+        }
+
+        if (!empty($row['audio_files']) && is_array($row['audio_files'])) {
+            foreach ($row['audio_files'] as $aidx => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $url = isset($entry['url']) ? (string) $entry['url'] : '';
+                if ($url === '') {
+                    continue;
+                }
+                $rows[$idx]['audio_files'][$aidx]['url'] = ll_tools_resolve_audio_file_url($url);
+            }
+        }
+    }
+
+    return $rows;
+}
+
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $term = get_term_by('name', $categoryName, 'word-category');
     $config = $quiz_config;
@@ -852,6 +959,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'include_plurality'    => true,
     ];
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
+    $cache_ttl = 6 * HOUR_IN_SECONDS;
 
     static $request_cache = [];
     if (isset($request_cache[$cache_key])) {
@@ -863,8 +971,14 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $cached = get_transient($cache_key);
     }
     if ($cached !== false) {
-        $request_cache[$cache_key] = $cached;
-        return $cached;
+        $cached_rows = is_array($cached) ? $cached : [];
+        $normalized_cached_rows = ll_tools_normalize_words_audio_urls($cached_rows);
+        if ($normalized_cached_rows !== $cached_rows) {
+            wp_cache_set($cache_key, $normalized_cached_rows, 'll_tools_words', $cache_ttl);
+            set_transient($cache_key, $normalized_cached_rows, $cache_ttl);
+        }
+        $request_cache[$cache_key] = $normalized_cached_rows;
+        return $normalized_cached_rows;
     }
 
     $args = [
@@ -936,7 +1050,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         foreach ($audio_posts as $audio_post) {
             $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
             if ($audio_path) {
-                $audio_url       = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                $audio_url       = ll_tools_resolve_audio_file_url($audio_path);
                 $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
@@ -953,7 +1067,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
             if ($audio_path) {
-                $primary_audio = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                $primary_audio = ll_tools_resolve_audio_file_url($audio_path);
             }
         }
 
@@ -1089,7 +1203,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
     }
 
-    $cache_ttl = 6 * HOUR_IN_SECONDS;
+    $words = ll_tools_normalize_words_audio_urls($words);
     $request_cache[$cache_key] = $words;
     wp_cache_set($cache_key, $words, 'll_tools_words', $cache_ttl);
     set_transient($cache_key, $words, $cache_ttl);
@@ -1098,8 +1212,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 }
 
 /**
- * Get audio URL for a word - prioritizes by recording type
- * Priority: question > introduction > isolation > in sentence > any other
+ * Check whether a word has at least one child audio post in the given statuses.
  */
 function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
     $word_id = (int) $word_id;
@@ -1129,6 +1242,14 @@ function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
     return !empty($audio_posts);
 }
 
+/**
+ * Get a default audio URL for a word.
+ *
+ * Default priority is isolation-first for non-practice flows:
+ * isolation > introduction > question > in sentence > any other.
+ *
+ * Practice prompt audio ordering is handled in the flashcard JS mode layer.
+ */
 function ll_get_word_audio_url($word_id) {
     // Get all word_audio child posts
     $audio_posts = get_posts([
@@ -1145,7 +1266,7 @@ function ll_get_word_audio_url($word_id) {
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
             if ($audio_path) {
-                return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+                return ll_tools_resolve_audio_file_url($audio_path);
             }
         }
     }
@@ -1155,7 +1276,11 @@ function ll_get_word_audio_url($word_id) {
 
 /**
  * Select the highest priority audio from an array of word_audio posts
- * Priority: question > introduction > isolation > in sentence > any other
+ *
+ * Default priority is isolation-first for non-practice flows:
+ * isolation > introduction > question > in sentence > any other.
+ *
+ * Practice prompt audio ordering is handled in the flashcard JS mode layer.
  *
  * @param array $audio_posts Array of word_audio post objects
  * @return WP_Post|null The highest priority audio post or null
@@ -1486,26 +1611,28 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
  * @param string $post_type The post type slug ('words' or 'word_images')
  * @param string $script_handle The script handle
  * @param string $script_path Relative path to the JS file
+ * @param string $ajax_action AJAX action used to fetch common categories
  */
-function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $script_path) {
+function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $script_path, $ajax_action = '') {
     global $pagenow, $typenow;
 
     if ($pagenow !== 'edit.php' || $typenow !== $post_type) {
         return;
     }
 
-    wp_enqueue_script(
-        $script_handle,
-        plugins_url($script_path, LL_TOOLS_MAIN_FILE),
-        ['jquery', 'inline-edit-post'],
-        filemtime(LL_TOOLS_BASE_PATH . $script_path),
-        true
-    );
+    if ($ajax_action === '') {
+        $ajax_action = ($post_type === 'word_images')
+            ? 'll_word_images_get_common_categories'
+            : 'll_words_get_common_categories';
+    }
+
+    ll_enqueue_asset_by_timestamp($script_path, $script_handle, ['jquery', 'inline-edit-post'], true);
 
     wp_localize_script($script_handle, 'llBulkEditData', [
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_bulk_category_edit_' . $post_type),
         'postType' => $post_type,
+        'actionName' => sanitize_key($ajax_action),
     ]);
 }
 
@@ -1518,35 +1645,74 @@ function ll_get_common_categories_for_post_type($post_type) {
     check_ajax_referer('ll_bulk_category_edit_' . $post_type, 'nonce');
 
     if (!current_user_can('edit_posts')) {
-        wp_send_json_error('Permission denied');
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
-    $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+    $post_ids = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
 
     if (empty($post_ids)) {
-        wp_send_json_error('No posts selected');
+        wp_send_json_error(__('No posts selected', 'll-tools-text-domain'));
     }
 
-    // Get categories for each post
+    $common = ll_tools_get_common_word_category_ids_for_posts($post_ids, (string) $post_type);
+    wp_send_json_success(['common' => array_values($common)]);
+}
+
+/**
+ * Return word-category IDs common to all eligible posts in the given set.
+ * A post is eligible when it exists, matches the requested post type, and
+ * the current user can edit it.
+ *
+ * @param int[]  $post_ids
+ * @param string $post_type
+ * @return int[]
+ */
+function ll_tools_get_common_word_category_ids_for_posts(array $post_ids, string $post_type): array {
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
+    if (empty($post_ids) || $post_type === '') {
+        return [];
+    }
+
     $all_categories = [];
+
     foreach ($post_ids as $post_id) {
-        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($terms)) {
-            $all_categories[$post_id] = $terms;
+        $post = get_post($post_id);
+        if (!$post || $post->post_type !== $post_type) {
+            continue;
         }
+        if (!current_user_can('edit_post', $post_id)) {
+            continue;
+        }
+
+        $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($terms)) {
+            continue;
+        }
+
+        $all_categories[] = array_values(array_unique(array_filter(array_map('intval', (array) $terms), function ($term_id) {
+            return $term_id > 0;
+        })));
     }
 
     if (empty($all_categories)) {
-        wp_send_json_success(['common' => []]);
+        return [];
     }
 
-    // Find categories common to ALL selected posts
     $common = array_shift($all_categories);
-    foreach ($all_categories as $post_cats) {
-        $common = array_intersect($common, $post_cats);
+    foreach ($all_categories as $post_categories) {
+        $common = array_values(array_intersect($common, $post_categories));
+        if (empty($common)) {
+            break;
+        }
     }
 
-    wp_send_json_success(['common' => array_values($common)]);
+    sort($common, SORT_NUMERIC);
+    return $common;
 }
 
 /**
@@ -1596,9 +1762,5 @@ function ll_handle_bulk_category_edit($post_id, $post_type) {
     // Only update if something changed
     if (count($new_terms) !== count($current_terms)) {
         wp_set_object_terms($post_id, array_values($new_terms), 'word-category', false);
-
-        // Log for debugging
-        error_log("LL Tools: $post_type post $post_id - Removed categories: " . implode(',', $categories_to_remove));
-        error_log("LL Tools: $post_type post $post_id - New categories: " . implode(',', $new_terms));
     }
 }

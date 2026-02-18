@@ -20,7 +20,7 @@ class LL_Tools_Word_Audio_Parent_Simple_Metabox {
     public static function add_metabox() {
         add_meta_box(
             'll-tools-wa-parent-simple',
-            __('Parent Word (ID)', 'll-tools'),
+            __('Parent Word (ID)', 'll-tools-text-domain'),
             [__CLASS__, 'render'],
             'word_audio',
             'side',
@@ -32,7 +32,7 @@ class LL_Tools_Word_Audio_Parent_Simple_Metabox {
         wp_nonce_field(self::NONCE_ACTION, self::NONCE_FIELD);
 
         $parent_id = (int) $post->post_parent;
-        $label     = '<em>' . esc_html__('None', 'll-tools') . '</em>';
+        $label     = '<em>' . esc_html__('None', 'll-tools-text-domain') . '</em>';
 
         if ($parent_id) {
             $p = get_post($parent_id);
@@ -41,21 +41,21 @@ class LL_Tools_Word_Audio_Parent_Simple_Metabox {
                 $label = esc_html($title) . ' (ID ' . (int)$parent_id . ')';
             } else {
                 // parent_id is set but not a valid 'words' post
-                $label = '<strong style="color:#b32d2e;">' . esc_html__('Invalid parent reference', 'll-tools') . '</strong> (ID ' . (int)$parent_id . ')';
+                $label = '<strong style="color:#b32d2e;">' . esc_html__('Invalid parent reference', 'll-tools-text-domain') . '</strong> (ID ' . (int)$parent_id . ')';
             }
         }
         ?>
         <p class="description" style="margin-top:0;">
-            <?php esc_html_e('Set the parent Word by numeric post ID. Use 0 to detach.', 'll-tools'); ?>
+            <?php esc_html_e('Set the parent Word by numeric post ID. Use 0 to detach.', 'll-tools-text-domain'); ?>
         </p>
 
         <p style="margin-bottom:6px;">
-            <strong><?php esc_html_e('Current:', 'll-tools'); ?></strong>
+            <strong><?php esc_html_e('Current:', 'll-tools-text-domain'); ?></strong>
             <span><?php echo $label; // already escaped above ?></span>
         </p>
 
         <label for="ll_parent_word_id" style="display:block; font-weight:600; margin-bottom:4px;">
-            <?php esc_html_e('New Parent Word ID', 'll-tools'); ?>
+            <?php esc_html_e('New Parent Word ID', 'll-tools-text-domain'); ?>
         </label>
         <input type="number"
                id="ll_parent_word_id"
@@ -68,7 +68,7 @@ class LL_Tools_Word_Audio_Parent_Simple_Metabox {
         <?php if ($parent_id) : ?>
             <p style="margin-top:6px;">
                 <a href="<?php echo esc_url(get_edit_post_link($parent_id)); ?>">
-                    <?php esc_html_e('Open current parent', 'll-tools'); ?>
+                    <?php esc_html_e('Open current parent', 'll-tools-text-domain'); ?>
                 </a>
             </p>
         <?php endif; ?>
