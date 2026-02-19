@@ -2231,6 +2231,267 @@
     cursor: pointer;
 }
 
+/* Theme-resistant button hardening for themes with broad button overrides. */
+.ll-wordset-page button.ll-wordset-select-all,
+.ll-wordset-page button.ll-wordset-card__hide,
+.ll-wordset-page button.ll-wordset-card__quiz-btn,
+.ll-wordset-page button.ll-wordset-hidden-item__btn,
+.ll-wordset-page button.ll-wordset-progress-star,
+.ll-wordset-page button.ll-wordset-selection-bar__clear {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    box-sizing: border-box !important;
+    font: inherit !important;
+    letter-spacing: normal !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    text-shadow: none !important;
+    text-transform: none !important;
+}
+
+.ll-wordset-page .ll-wordset-select-all {
+    min-height: 34px !important;
+    border-radius: 10px !important;
+    border: 1px solid #cfd7e2 !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 7px 12px !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-select-all:hover,
+.ll-wordset-page .ll-wordset-select-all:focus,
+.ll-wordset-page .ll-wordset-select-all:focus-visible,
+.ll-wordset-page .ll-wordset-select-all:active {
+    border-color: #8fa0b5 !important;
+    background: #f8fafc !important;
+    color: #1f2937 !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__hide {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    border-radius: 9px !important;
+    border: 1px solid #d0d7de !important;
+    background: #ffffff !important;
+    color: #5c6672 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__hide:hover,
+.ll-wordset-page .ll-wordset-card__hide:focus,
+.ll-wordset-page .ll-wordset-card__hide:focus-visible,
+.ll-wordset-page .ll-wordset-card__hide:active {
+    color: #2f3a47 !important;
+    border-color: #8a98a8 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(77, 93, 113, 0.15) !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__hide .ll-wordset-hide-icon {
+    width: 18px !important;
+    height: 18px !important;
+    display: block !important;
+    flex: 0 0 auto !important;
+}
+
+.ll-wordset-page .ll-wordset-card__hide .ll-wordset-hide-icon path {
+    fill: none !important;
+    stroke: currentColor !important;
+}
+
+.ll-wordset-page .ll-wordset-card__hide .ll-wordset-hide-icon circle {
+    fill: currentColor !important;
+    stroke: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    border: 1px solid #e5e7eb !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25) !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn:hover,
+.ll-wordset-page .ll-wordset-card__quiz-btn:focus,
+.ll-wordset-page .ll-wordset-card__quiz-btn:focus-visible {
+    background: #f9fafb !important;
+    border-color: #d1d5db !important;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3) !important;
+    color: #0f172a !important;
+    transform: scale(1.05) !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn:active {
+    background: #f3f4f6 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    transform: scale(1.03) !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn:focus-visible {
+    outline: 3px solid #38bdf8 !important;
+    outline-offset: 2px !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn .ll-wordset-card__quiz-icon {
+    width: 22px !important;
+    height: 22px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: inherit !important;
+    line-height: 1 !important;
+    font-size: 18px !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn .ll-wordset-card__quiz-icon::before {
+    line-height: 1 !important;
+}
+
+.ll-wordset-page .ll-wordset-card__quiz-btn .ll-wordset-card__quiz-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+    display: block !important;
+    fill: currentColor !important;
+    stroke: currentColor !important;
+}
+
+.ll-wordset-page .ll-wordset-hidden-item__btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    border-radius: 9px !important;
+    border: 1px solid #cfd6df !important;
+    background: #f9fbff !important;
+    color: #334155 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-hidden-item__btn:hover,
+.ll-wordset-page .ll-wordset-hidden-item__btn:focus,
+.ll-wordset-page .ll-wordset-hidden-item__btn:focus-visible,
+.ll-wordset-page .ll-wordset-hidden-item__btn:active {
+    border-color: #93a1b3 !important;
+    color: #1f2f44 !important;
+    background: #f9fbff !important;
+    box-shadow: 0 0 0 3px rgba(78, 98, 122, 0.15) !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-hidden-item__btn .ll-wordset-unhide-icon {
+    width: 16px !important;
+    height: 16px !important;
+    display: block !important;
+    fill: currentColor !important;
+    stroke: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star:hover,
+.ll-wordset-page .ll-wordset-progress-star:focus,
+.ll-wordset-page .ll-wordset-progress-star:focus-visible,
+.ll-wordset-page .ll-wordset-progress-star:active {
+    border-color: #cbd5e1 !important;
+    background: #f8fafc !important;
+    color: #111827 !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star.active,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"] {
+    background: #fde68a !important;
+    border-color: #f59e0b !important;
+    color: #8a5b00 !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star.active:hover,
+.ll-wordset-page .ll-wordset-progress-star.active:focus,
+.ll-wordset-page .ll-wordset-progress-star.active:focus-visible,
+.ll-wordset-page .ll-wordset-progress-star.active:active,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"]:hover,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"]:focus,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"]:focus-visible,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"]:active {
+    background: #fcd34d !important;
+    border-color: #d97706 !important;
+    color: #713f12 !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="false"] {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    color: #111827 !important;
+}
+
+.ll-wordset-page .ll-wordset-selection-bar__clear {
+    border: 1px solid #d4d9df !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    padding: 6px 10px !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-selection-bar__clear:hover,
+.ll-wordset-page .ll-wordset-selection-bar__clear:focus,
+.ll-wordset-page .ll-wordset-selection-bar__clear:focus-visible,
+.ll-wordset-page .ll-wordset-selection-bar__clear:active {
+    border-color: #8fa0b5 !important;
+    background: #f1f5f9 !important;
+    color: #1f2937 !important;
+    outline: none !important;
+}
+
 .ll-wordset-flashcard-host #ll-tools-start-flashcard {
     display: none !important;
 }
@@ -2488,12 +2749,12 @@
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-star {
-        width: 24px;
-        height: 24px;
-        min-width: 24px;
-        min-height: 24px;
-        border-radius: 7px;
-        font-size: 14px;
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        border-radius: 7px !important;
+        font-size: 14px !important;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {
@@ -2677,12 +2938,12 @@
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-star {
-        width: 20px;
-        height: 20px;
-        min-width: 20px;
-        min-height: 20px;
-        font-size: 11px;
-        border-radius: 5px;
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        font-size: 11px !important;
+        border-radius: 5px !important;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {

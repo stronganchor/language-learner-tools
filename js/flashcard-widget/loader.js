@@ -14,9 +14,14 @@
         const loadedCategories = [];
         const loadedResources = {};
         const inFlightRequests = {};
+        const inFlightMediaLoads = {};
         let requestSerial = 0;
         let lastWordsetKey = null;
         const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
+        const AUDIO_LOAD_TIMEOUT_MS = 4500;
+        const AUDIO_LOAD_MAX_RETRIES = 1;
+        const IMAGE_LOAD_TIMEOUT_MS = 3500;
+        const IMAGE_LOAD_MAX_RETRIES = 1;
         function getAllowedWordsetIds() {
             const ids = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.wordsetIds))
                 ? window.llToolsFlashcardsData.wordsetIds
@@ -82,6 +87,7 @@
             loadedCategories.length = 0;
             Object.keys(loadedResources).forEach(function (k) { delete loadedResources[k]; });
             Object.keys(inFlightRequests).forEach(function (k) { delete inFlightRequests[k]; });
+            Object.keys(inFlightMediaLoads).forEach(function (k) { delete inFlightMediaLoads[k]; });
             if (window.optionWordsByCategory && typeof window.optionWordsByCategory === 'object') {
                 Object.keys(window.optionWordsByCategory).forEach(function (k) { delete window.optionWordsByCategory[k]; });
             }
@@ -110,61 +116,167 @@
             return [...inputArray].sort(() => 0.5 - Math.random());
         }
 
-        /**
-         * Loads an audio file and marks it as loaded.
-         *
-         * @param {string} audioURL - The URL of the audio file.
-         * @returns {Promise} Resolves when the audio is loaded or fails.
-         */
-        function loadAudio(audioURL) {
-            if (!audioURL || loadedResources[audioURL]) {
-                return Promise.resolve();
-            }
+        function getRetryCount(raw, fallback) {
+            const parsed = parseInt(raw, 10);
+            if (!Number.isFinite(parsed)) return fallback;
+            return Math.max(0, Math.min(parsed, 5));
+        }
 
+        function getTimeoutMs(raw, fallback, min, max) {
+            const parsed = parseInt(raw, 10);
+            if (!Number.isFinite(parsed)) return fallback;
+            return Math.max(min, Math.min(parsed, max));
+        }
+
+        function getRetryDelayMs(attempt) {
+            const step = Math.max(1, parseInt(attempt, 10) || 1);
+            return Math.min(1200, (170 * step) + Math.round(Math.random() * 140));
+        }
+
+        function performAudioLoadAttempt(audioURL, timeoutMs) {
             return new Promise((resolve) => {
                 let audio = document.createElement('audio');
                 let settled = false;
                 let timeoutId = null;
-                const settle = () => {
+
+                const onPlayable = function () { settle(true); };
+                const onFailure = function () { settle(false); };
+
+                const detach = function () {
+                    try { audio.removeEventListener('canplaythrough', onPlayable); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('canplay', onPlayable); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadeddata', onPlayable); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('error', onFailure); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('stalled', onFailure); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('abort', onFailure); } catch (_) { /* no-op */ }
+                };
+
+                const settle = function (ready) {
                     if (settled) { return; }
                     settled = true;
-                    loadedResources[audioURL] = true;
                     if (timeoutId) {
                         clearTimeout(timeoutId);
                         timeoutId = null;
                     }
-                    try { audio.oncanplaythrough = null; } catch (_) { /* no-op */ }
-                    try { audio.onerror = null; } catch (_) { /* no-op */ }
-                    try { audio.removeEventListener('loadstart', settle); } catch (_) { /* no-op */ }
-                    try { audio.removeEventListener('loadeddata', settle); } catch (_) { /* no-op */ }
-                    try { audio.removeEventListener('stalled', settle); } catch (_) { /* no-op */ }
-                    try { audio.removeEventListener('abort', settle); } catch (_) { /* no-op */ }
+                    detach();
                     cleanupAudio(audio);
                     audio = null;
-                    resolve();
+                    resolve(!!ready);
                 };
 
                 audio.crossOrigin = 'anonymous';
                 audio.preload = 'auto';
 
-                // Register listeners before setting src/load to avoid missing early events.
-                audio.oncanplaythrough = settle;
-                audio.onerror = settle;
-                audio.addEventListener('loadstart', settle, { once: true });
-                audio.addEventListener('loadeddata', settle, { once: true });
-                audio.addEventListener('stalled', settle, { once: true });
-                audio.addEventListener('abort', settle, { once: true });
+                audio.addEventListener('canplaythrough', onPlayable, { once: true });
+                audio.addEventListener('canplay', onPlayable, { once: true });
+                audio.addEventListener('loadeddata', onPlayable, { once: true });
+                audio.addEventListener('error', onFailure, { once: true });
+                audio.addEventListener('stalled', onFailure, { once: true });
+                audio.addEventListener('abort', onFailure, { once: true });
 
-                // Safety net so one bad media request can never stall quiz boot.
-                timeoutId = setTimeout(settle, 4000);
+                timeoutId = setTimeout(function () {
+                    const canPlay = !!(audio && typeof audio.readyState === 'number' && audio.readyState >= 2 && !audio.error);
+                    settle(canPlay);
+                }, timeoutMs);
 
                 try {
                     audio.src = audioURL;
                     audio.load();
+                    if (audio.readyState >= 2 && !audio.error) {
+                        settle(true);
+                    }
                 } catch (_) {
-                    settle();
+                    settle(false);
                 }
             });
+        }
+
+        /**
+         * Loads an audio file and marks it as loaded.
+         *
+         * @param {string} audioURL - The URL of the audio file.
+         * @param {Object} options - Retry/timeout options.
+         * @returns {Promise<Object>} Resolves with readiness metadata.
+         */
+        function loadAudio(audioURL, options) {
+            const opts = options || {};
+            const forceRetry = opts.forceRetry === true;
+            if (!audioURL) {
+                return Promise.resolve({
+                    ready: false,
+                    missing: true,
+                    attempts: 0,
+                    url: ''
+                });
+            }
+            if (!forceRetry && loadedResources[audioURL]) {
+                return Promise.resolve({
+                    ready: true,
+                    cached: true,
+                    attempts: 0,
+                    url: audioURL
+                });
+            }
+            if (!forceRetry && inFlightMediaLoads[audioURL]) {
+                return inFlightMediaLoads[audioURL];
+            }
+
+            const maxRetries = getRetryCount(opts.maxRetries, AUDIO_LOAD_MAX_RETRIES);
+            const timeoutMs = getTimeoutMs(opts.timeoutMs, AUDIO_LOAD_TIMEOUT_MS, 900, 20000);
+            let attempt = 0;
+
+            const runAttempt = function () {
+                attempt += 1;
+                return performAudioLoadAttempt(audioURL, timeoutMs).then(function (ready) {
+                    if (ready) {
+                        loadedResources[audioURL] = true;
+                        return {
+                            ready: true,
+                            attempts: attempt,
+                            url: audioURL
+                        };
+                    }
+
+                    if (attempt <= maxRetries) {
+                        const retryDelay = getRetryDelayMs(attempt);
+                        return new Promise(function (resolve) {
+                            setTimeout(resolve, retryDelay);
+                        }).then(runAttempt);
+                    }
+
+                    delete loadedResources[audioURL];
+                    return {
+                        ready: false,
+                        attempts: attempt,
+                        url: audioURL
+                    };
+                });
+            };
+
+            let loadPromise = runAttempt().catch(function () {
+                delete loadedResources[audioURL];
+                return {
+                    ready: false,
+                    attempts: Math.max(1, attempt),
+                    url: audioURL
+                };
+            });
+
+            if (!forceRetry) {
+                inFlightMediaLoads[audioURL] = loadPromise;
+            }
+
+            loadPromise = loadPromise.finally(function () {
+                if (inFlightMediaLoads[audioURL] === loadPromise) {
+                    delete inFlightMediaLoads[audioURL];
+                }
+            });
+
+            if (!forceRetry) {
+                inFlightMediaLoads[audioURL] = loadPromise;
+            }
+
+            return loadPromise;
         }
 
         /**
@@ -174,52 +286,141 @@
          */
         function cleanupAudio(audio) {
             if (!audio) return;
-            audio.pause();
-            audio.removeAttribute('src');
-            audio.load();
+            try { audio.pause(); } catch (_) { /* no-op */ }
+            try { audio.removeAttribute('src'); } catch (_) { /* no-op */ }
+            try { audio.load(); } catch (_) { /* no-op */ }
             // If for any reason it was added to the DOM, remove it.
             if (audio.parentNode) {
                 audio.parentNode.removeChild(audio);
             }
         }
 
-        /**
-         * Loads an image file and marks it as loaded.
-         *
-         * @param {string} imageURL - The URL of the image file.
-         * @returns {Promise} Resolves when the image is loaded or fails.
-         */
-        function loadImage(imageURL) {
-            if (!imageURL || loadedResources[imageURL]) {
-                return Promise.resolve();
-            }
+        function performImageLoadAttempt(imageURL, timeoutMs) {
             return new Promise((resolve) => {
                 let img = new Image();
                 let settled = false;
                 let timeoutId = null;
-                const settle = () => {
+
+                const detach = function () {
+                    img.onload = null;
+                    img.onerror = null;
+                };
+
+                const settle = function (ready) {
                     if (settled) { return; }
                     settled = true;
-                    loadedResources[imageURL] = true;
                     if (timeoutId) {
                         clearTimeout(timeoutId);
                         timeoutId = null;
                     }
-                    img.onload = null;
-                    img.onerror = null;
-                    resolve();
+                    detach();
+                    resolve(!!ready);
                 };
 
-                img.onload = settle;
-                img.onerror = settle;
-                timeoutId = setTimeout(settle, 4000);
+                img.onload = function () { settle(true); };
+                img.onerror = function () { settle(false); };
+                timeoutId = setTimeout(function () {
+                    const ready = !!(img && img.complete && img.naturalWidth > 0);
+                    settle(ready);
+                }, timeoutMs);
 
                 try {
                     img.src = imageURL;
+                    if (img.complete && img.naturalWidth > 0) {
+                        settle(true);
+                    }
                 } catch (_) {
-                    settle();
+                    settle(false);
                 }
             });
+        }
+
+        /**
+         * Loads an image file and marks it as loaded.
+         *
+         * @param {string} imageURL - The URL of the image file.
+         * @param {Object} options - Retry/timeout options.
+         * @returns {Promise<Object>} Resolves with readiness metadata.
+         */
+        function loadImage(imageURL, options) {
+            const opts = options || {};
+            const forceRetry = opts.forceRetry === true;
+            if (!imageURL) {
+                return Promise.resolve({
+                    ready: false,
+                    missing: true,
+                    attempts: 0,
+                    url: ''
+                });
+            }
+            if (!forceRetry && loadedResources[imageURL]) {
+                return Promise.resolve({
+                    ready: true,
+                    cached: true,
+                    attempts: 0,
+                    url: imageURL
+                });
+            }
+            if (!forceRetry && inFlightMediaLoads[imageURL]) {
+                return inFlightMediaLoads[imageURL];
+            }
+
+            const maxRetries = getRetryCount(opts.maxRetries, IMAGE_LOAD_MAX_RETRIES);
+            const timeoutMs = getTimeoutMs(opts.timeoutMs, IMAGE_LOAD_TIMEOUT_MS, 800, 15000);
+            let attempt = 0;
+
+            const runAttempt = function () {
+                attempt += 1;
+                return performImageLoadAttempt(imageURL, timeoutMs).then(function (ready) {
+                    if (ready) {
+                        loadedResources[imageURL] = true;
+                        return {
+                            ready: true,
+                            attempts: attempt,
+                            url: imageURL
+                        };
+                    }
+
+                    if (attempt <= maxRetries) {
+                        const retryDelay = getRetryDelayMs(attempt);
+                        return new Promise(function (resolve) {
+                            setTimeout(resolve, retryDelay);
+                        }).then(runAttempt);
+                    }
+
+                    delete loadedResources[imageURL];
+                    return {
+                        ready: false,
+                        attempts: attempt,
+                        url: imageURL
+                    };
+                });
+            };
+
+            let loadPromise = runAttempt().catch(function () {
+                delete loadedResources[imageURL];
+                return {
+                    ready: false,
+                    attempts: Math.max(1, attempt),
+                    url: imageURL
+                };
+            });
+
+            if (!forceRetry) {
+                inFlightMediaLoads[imageURL] = loadPromise;
+            }
+
+            loadPromise = loadPromise.finally(function () {
+                if (inFlightMediaLoads[imageURL] === loadPromise) {
+                    delete inFlightMediaLoads[imageURL];
+                }
+            });
+
+            if (!forceRetry) {
+                inFlightMediaLoads[imageURL] = loadPromise;
+            }
+
+            return loadPromise;
         }
 
         /**
@@ -479,22 +680,90 @@
          *
          * @param {Object} word - The word object.
          * @param {string} displayMode - The display mode ('image' or 'text').
-         * @returns {Promise} Resolves when resources are loaded.
+         * @returns {Promise<Object>} Resolves with per-media readiness.
          */
         function loadResourcesForWord(word, displayMode, categoryName, categoryConfig, options) {
-            if (!word) return Promise.resolve();
+            if (!word) {
+                return Promise.resolve({
+                    ready: false,
+                    missingWord: true,
+                    audioReady: false,
+                    imageReady: false
+                });
+            }
             const opts = options || {};
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
             const shouldPreloadImage = needsImage && !opts.skipImagePreload;
+            const audioURL = (typeof word.audio === 'string') ? word.audio : '';
+            const imageURL = (typeof word.image === 'string') ? word.image : '';
+            const audioPromise = needsAudio
+                ? (audioURL
+                    ? loadAudio(audioURL, {
+                        maxRetries: opts.audioRetryCount,
+                        timeoutMs: opts.audioTimeoutMs,
+                        forceRetry: opts.forceAudioRetry === true
+                    })
+                    : Promise.resolve({
+                        ready: false,
+                        missing: true,
+                        attempts: 0,
+                        url: ''
+                    }))
+                : Promise.resolve({
+                    ready: true,
+                    skipped: true,
+                    attempts: 0,
+                    url: audioURL
+                });
+            const imagePromise = shouldPreloadImage
+                ? (imageURL
+                    ? loadImage(imageURL, {
+                        maxRetries: opts.imageRetryCount,
+                        timeoutMs: opts.imageTimeoutMs,
+                        forceRetry: opts.forceImageRetry === true
+                    })
+                    : Promise.resolve({
+                        ready: false,
+                        missing: true,
+                        attempts: 0,
+                        url: ''
+                    }))
+                : Promise.resolve({
+                    ready: true,
+                    skipped: true,
+                    attempts: 0,
+                    url: imageURL
+                });
             const preloader = Promise.all([
-                (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
-                (shouldPreloadImage && word.image ? loadImage(word.image) : Promise.resolve())
-            ]);
+                audioPromise,
+                imagePromise
+            ]).then(function (results) {
+                const audioResult = results[0] || { ready: !needsAudio };
+                const imageResult = results[1] || { ready: !shouldPreloadImage };
+                const audioReady = !needsAudio || !!audioResult.ready;
+                const imageReady = !shouldPreloadImage || !!imageResult.ready;
+
+                return {
+                    ready: audioReady && imageReady,
+                    audioReady: audioReady,
+                    imageReady: imageReady,
+                    audio: audioResult,
+                    image: imageResult,
+                    wordId: parseInt(word.id, 10) || word.id
+                };
+            });
             // Never let a single media preload failure block rendering of the round.
             // Other callers invoke this without `.catch()`.
-            return preloader.catch(function () { return []; });
+            return preloader.catch(function () {
+                return {
+                    ready: false,
+                    audioReady: !needsAudio,
+                    imageReady: !shouldPreloadImage,
+                    wordId: parseInt(word.id, 10) || word.id
+                };
+            });
         }
 
         function resolvePlayableAudio(word) {

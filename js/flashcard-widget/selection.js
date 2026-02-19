@@ -1260,6 +1260,27 @@
         const $content = jQuery('#ll-tools-flashcard-content');
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
+        const optionPreloadPromises = [];
+        const queueWordPreload = function (word) {
+            if (!word || !root.FlashcardLoader || typeof root.FlashcardLoader.loadResourcesForWord !== 'function') {
+                return Promise.resolve({
+                    ready: true,
+                    skipped: true
+                });
+            }
+            const promise = Promise.resolve(
+                root.FlashcardLoader.loadResourcesForWord(word, mode, targetCategoryName, config)
+            ).catch(function () {
+                return {
+                    ready: false,
+                    audioReady: false,
+                    imageReady: false,
+                    wordId: parseInt(word.id, 10) || word.id
+                };
+            });
+            optionPreloadPromises.push(promise);
+            return promise;
+        };
 
         // In learning mode, select from introduced words across introduced categories.
         // In other modes, keep options scoped to the target category pool only.
@@ -1321,7 +1342,7 @@
         }
 
         // Add target word first
-        root.FlashcardLoader.loadResourcesForWord(targetWord, mode, targetCategoryName, config);
+        queueWordPreload(targetWord);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
         if (isTextOptionMode && targetWord) {
@@ -1383,7 +1404,7 @@
             if (isTextOptionMode) {
                 seenOptionTexts.add(normalizedText);
             }
-            root.FlashcardLoader.loadResourcesForWord(candidate, mode, targetCategoryName, config);
+            queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
         };
@@ -1470,6 +1491,26 @@
         };
 
         revealOptions();
+        return Promise.all(optionPreloadPromises.map(function (promise) {
+            return Promise.resolve(promise).catch(function () {
+                return {
+                    ready: false,
+                    audioReady: false,
+                    imageReady: false
+                };
+            });
+        })).then(function (results) {
+            const normalized = Array.isArray(results) ? results : [];
+            const failedWordIds = normalized
+                .filter(function (item) { return item && item.ready === false; })
+                .map(function (item) { return item.wordId; })
+                .filter(function (id) { return !!id; });
+            return {
+                ready: normalized.every(function (item) { return !item || item.ready !== false; }),
+                results: normalized,
+                failedWordIds: failedWordIds
+            };
+        });
     }
 
     window.LLFlashcards = window.LLFlashcards || {};

@@ -22,6 +22,7 @@
         ? root.llToolsFlashcardsData.introSilenceMs : 800;
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
+    const INTRO_AUDIO_RETRY_LIMIT = 2;
     const LEARNING_SET_SPLIT_THRESHOLD = 15;
     const LEARNING_SET_MAX_SIZE = 12;
 
@@ -762,7 +763,7 @@
             }
 
             const timeoutId = scheduleTimeout(context, function () {
-                playIntroductionSequence(wordsArray, 0, 0, context);
+                playIntroductionSequence(wordsArray, 0, 0, context, 0);
             }, 650);
             State.addTimeout(timeoutId);
         }).catch(function (err) {
@@ -771,7 +772,40 @@
         });
     }
 
-    function playIntroductionSequence(words, wordIndex, repetition, context) {
+    function continueIntroductionSequence(words, wordIndex, repetition, context, options) {
+        const opts = options || {};
+        const currentWord = words[wordIndex];
+        const countProgress = opts.countProgress !== false;
+        const normalizedCurrentId = parseInt(currentWord && currentWord.id, 10) || (currentWord && currentWord.id);
+
+        if (countProgress && normalizedCurrentId) {
+            State.wordIntroductionProgress[normalizedCurrentId] =
+                (State.wordIntroductionProgress[normalizedCurrentId] || 0) + 1;
+            syncProgressUI();
+        }
+
+        if (repetition < State.AUDIO_REPETITIONS - 1) {
+            const nextTimeoutId = scheduleTimeout(context, function () {
+                if (!State.abortAllOperations) {
+                    playIntroductionSequence(words, wordIndex, repetition + 1, context, 0);
+                }
+            }, INTRO_GAP_MS);
+            State.addTimeout(nextTimeoutId);
+            return;
+        }
+
+        if (normalizedCurrentId && !State.introducedWordIDs.includes(normalizedCurrentId)) {
+            State.introducedWordIDs.push(normalizedCurrentId);
+        }
+        const nextTimeoutId = scheduleTimeout(context, function () {
+            if (!State.abortAllOperations) {
+                playIntroductionSequence(words, wordIndex + 1, 0, context, 0);
+            }
+        }, INTRO_WORD_GAP_MS);
+        State.addTimeout(nextTimeoutId);
+    }
+
+    function playIntroductionSequence(words, wordIndex, repetition, context, retryCount) {
         const $jq = getJQuery();
 
         if (State.abortAllOperations || !State.isIntroducing()) {
@@ -819,12 +853,14 @@
                 try { audioPattern = JSON.parse(raw); } catch (_) { audioPattern = []; }
             }
             const audioUrl = audioPattern[repetition] || audioPattern[0];
+            const retriesUsed = Math.max(0, parseInt(retryCount, 10) || 0);
             const managedAudio = FlashcardAudio.createIntroductionAudio
                 ? FlashcardAudio.createIntroductionAudio(audioUrl)
                 : null;
 
             if (!managedAudio) {
                 console.error('Failed to create introduction audio');
+                continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
                 return;
             }
 
@@ -839,43 +875,27 @@
                         managedAudio.cleanup();
                         return;
                     }
-
-                    const normalizedCurrentId = parseInt(currentWord && currentWord.id, 10) || (currentWord && currentWord.id);
-                    if (!normalizedCurrentId) {
-                        managedAudio.cleanup();
-                        return;
-                    }
-
-                    State.wordIntroductionProgress[normalizedCurrentId] =
-                        (State.wordIntroductionProgress[normalizedCurrentId] || 0) + 1;
-
-                    syncProgressUI();
-
                     managedAudio.cleanup();
-
-                    if (repetition < State.AUDIO_REPETITIONS - 1) {
-                        if ($currentCard) $currentCard.removeClass('introducing-active');
-                        const nextTimeoutId = scheduleTimeout(context, function () {
-                            if (!State.abortAllOperations) {
-                                playIntroductionSequence(words, wordIndex, repetition + 1, context);
-                            }
-                        }, INTRO_GAP_MS);
-                        State.addTimeout(nextTimeoutId);
-                    } else {
-                        if (!State.introducedWordIDs.includes(normalizedCurrentId)) {
-                            State.introducedWordIDs.push(normalizedCurrentId);
-                        }
-                        const nextTimeoutId = scheduleTimeout(context, function () {
-                            if (!State.abortAllOperations) {
-                                playIntroductionSequence(words, wordIndex + 1, 0, context);
-                            }
-                        }, INTRO_WORD_GAP_MS);
-                        State.addTimeout(nextTimeoutId);
-                    }
+                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: true });
                 })
                 .catch(err => {
-                    console.error('Audio play failed:', err);
+                    console.warn('Audio play failed during introduction:', err);
                     managedAudio.cleanup();
+                    if (retriesUsed < INTRO_AUDIO_RETRY_LIMIT) {
+                        const retryDelay = 180 * (retriesUsed + 1);
+                        const retryTimeoutId = scheduleTimeout(context, function () {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex, repetition, context, retriesUsed + 1);
+                            }
+                        }, retryDelay);
+                        State.addTimeout(retryTimeoutId);
+                        return;
+                    }
+                    console.warn('Skipping failed introduction clip after retries', {
+                        wordId: currentWord && currentWord.id ? currentWord.id : null,
+                        repetition: repetition
+                    });
+                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
                 });
         }, 100);
         State.addTimeout(timeoutId);
