@@ -48,6 +48,21 @@
         return normalizeStarMode(mode);
     }
 
+    function normalizeWordId(value) {
+        const id = parseInt(value, 10);
+        return id > 0 ? id : 0;
+    }
+
+    function isPromptEligibleWord(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Selection && typeof Selection.isWordBlockedFromPromptRounds === 'function') {
+            try {
+                if (Selection.isWordBlockedFromPromptRounds(word)) return false;
+            } catch (_) { /* no-op */ }
+        }
+        return true;
+    }
+
     function pickWeightedId(ids, avoidId) {
         const list = Array.isArray(ids) ? ids.slice() : [];
         if (!list.length) return null;
@@ -198,9 +213,14 @@
     }
 
     function wordObjectById(wordId) {
+        const normalizedId = normalizeWordId(wordId);
+        if (!normalizedId) return null;
+
         for (let name of (State.categoryNames || [])) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
-            const word = words.find(w => w.id === wordId);
+            const word = words.find(function (item) {
+                return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
+            });
             if (word) {
                 State.currentCategoryName = name;
                 State.currentCategory = words;
@@ -211,13 +231,13 @@
     }
 
     function findWordObjectById(wordId) {
-        const normalizedId = parseInt(wordId, 10);
+        const normalizedId = normalizeWordId(wordId);
         if (!normalizedId) return null;
 
         for (let name of (State.categoryNames || [])) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             const word = words.find(function (item) {
-                return parseInt(item && item.id, 10) === normalizedId;
+                return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
             });
             if (word) {
                 return word;
@@ -244,7 +264,8 @@
         for (const name of (State.categoryNames || [])) {
             const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             for (const w of list) {
-                const id = parseInt(w && w.id, 10);
+                if (!isPromptEligibleWord(w)) continue;
+                const id = normalizeWordId(w && w.id);
                 if (!id || seen.has(id)) continue;
                 seen.add(id);
                 allIds.push(id);
@@ -436,6 +457,45 @@
 
         State.wordsToIntroduce = getCurrentLearningWordSetIds();
         State.totalWordCount = State.wordsToIntroduce.length;
+
+        const eligibleLookup = {};
+        filteredAllIds.forEach(function (id) {
+            const normalizedId = normalizeWordId(id);
+            if (normalizedId) eligibleLookup[normalizedId] = true;
+        });
+        const isEligibleWordId = function (value) {
+            const normalizedId = normalizeWordId(value);
+            return !!(normalizedId && eligibleLookup[normalizedId]);
+        };
+        State.introducedWordIDs = (State.introducedWordIDs || []).filter(isEligibleWordId);
+        State.wrongAnswerQueue = (State.wrongAnswerQueue || []).filter(function (item) {
+            return !!(item && isEligibleWordId(item.id));
+        });
+        State.wordsToIntroduce = (State.wordsToIntroduce || []).filter(isEligibleWordId);
+        State.totalWordCount = State.wordsToIntroduce.length;
+
+        if (State.wordsAnsweredSinceLastIntro && typeof State.wordsAnsweredSinceLastIntro.forEach === 'function') {
+            const nextAnswered = [];
+            State.wordsAnsweredSinceLastIntro.forEach(function (id) {
+                if (isEligibleWordId(id)) nextAnswered.push(normalizeWordId(id));
+            });
+            State.wordsAnsweredSinceLastIntro = new Set(nextAnswered);
+        }
+
+        if (State.wordCorrectCounts && typeof State.wordCorrectCounts === 'object') {
+            Object.keys(State.wordCorrectCounts).forEach(function (rawId) {
+                if (!isEligibleWordId(rawId)) {
+                    delete State.wordCorrectCounts[rawId];
+                }
+            });
+        }
+        if (State.wordIntroductionProgress && typeof State.wordIntroductionProgress === 'object') {
+            Object.keys(State.wordIntroductionProgress).forEach(function (rawId) {
+                if (!isEligibleWordId(rawId)) {
+                    delete State.wordIntroductionProgress[rawId];
+                }
+            });
+        }
 
         // When in starred-only mode, purge any unstarred items from in-progress tracking.
         if (starMode === 'only') {

@@ -88,6 +88,17 @@
         return normalizeStarMode(mode);
     }
 
+    function isPromptEligibleWord(word) {
+        if (!word || typeof word !== 'object') return false;
+        const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;
+        if (selectionApi && typeof selectionApi.isWordBlockedFromPromptRounds === 'function') {
+            try {
+                if (selectionApi.isWordBlockedFromPromptRounds(word)) return false;
+            } catch (_) { /* no-op */ }
+        }
+        return true;
+    }
+
     function getJQuery() {
         if (root.jQuery) return root.jQuery;
         if (typeof window !== 'undefined' && window.jQuery) return window.jQuery;
@@ -486,6 +497,7 @@
                     if (!w) continue;
                     const wordId = parseInt(w.id, 10);
                     if (!wordId) continue;
+                    if (!isPromptEligibleWord(w)) continue;
                     if (globalSeenWordIds[wordId] || categorySeenWordIds[wordId]) continue;
                     if (starMode === 'only' && !starredLookup[wordId]) continue;
                     try { w.__categoryName = name; } catch (_) { /* no-op */ }
@@ -516,7 +528,7 @@
             if (!isStarredFlag && Array.isArray(State.wordsLinear) && State.wordsLinear.length) {
                 State.wordsLinear = State.wordsLinear.filter(function (w) {
                     const id = parseInt(w && w.id, 10);
-                    return id && starredLookup[id];
+                    return id && starredLookup[id] && isPromptEligibleWord(w);
                 });
                 State.totalWordCount = (State.wordsLinear || []).length || 0;
             } else {
@@ -529,7 +541,7 @@
                 const nextHistory = [];
                 State.listeningHistory.forEach(function (w, idx) {
                     const id = parseInt(w && w.id, 10);
-                    if (id && starredLookup[id]) {
+                    if (id && starredLookup[id] && isPromptEligibleWord(w)) {
                         nextHistory.push(w);
                     } else if (idx < pointer) {
                         removedBefore += 1;

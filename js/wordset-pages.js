@@ -2665,8 +2665,9 @@
 
         const metrics = buildSelectionWordMetrics(selectedIds);
         const minimumWords = getSelectionMinimumWordCount();
-        const showStarredOnly = metrics.starred >= minimumWords;
-        const showHardOnly = metrics.hard >= minimumWords;
+        // Starred/hard filters are user-specific and should stay unavailable for guests.
+        const showStarredOnly = isLoggedIn && metrics.starred >= minimumWords;
+        const showHardOnly = isLoggedIn && metrics.hard >= minimumWords;
 
         if (!showStarredOnly) {
             selectionStarredOnly = false;

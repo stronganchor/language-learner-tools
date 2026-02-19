@@ -703,6 +703,87 @@
         return normalizeTextForComparison(val);
     }
 
+    function normalizeIdList(raw) {
+        const out = [];
+        const seen = {};
+        (Array.isArray(raw) ? raw : []).forEach(function (value) {
+            const id = normalizeWordId(value);
+            if (!id || seen[id]) return;
+            seen[id] = true;
+            out.push(id);
+        });
+        return out;
+    }
+
+    function getWordSpecificWrongAnswerIds(word) {
+        if (!word || typeof word !== 'object') return [];
+        return normalizeIdList(word.specific_wrong_answer_ids);
+    }
+
+    function getWordSpecificWrongAnswerOwnerIds(word) {
+        if (!word || typeof word !== 'object') return [];
+        return normalizeIdList(word.specific_wrong_answer_owner_ids);
+    }
+
+    function isWordBlockedFromPromptRounds(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
+            if (parseBooleanFlag(word.is_specific_wrong_answer_only)) return true;
+        }
+        return getWordSpecificWrongAnswerOwnerIds(word).length > 0;
+    }
+
+    function isWordAllowedAsWrongAnswerForTarget(word, targetWord) {
+        const ownerIds = getWordSpecificWrongAnswerOwnerIds(word);
+        if (!ownerIds.length) return true;
+        const targetId = normalizeWordId(targetWord && targetWord.id);
+        if (!targetId) return false;
+        return ownerIds.indexOf(targetId) !== -1;
+    }
+
+    function appendWordMapToLookup(lookup, source) {
+        const map = source && typeof source === 'object' ? source : {};
+        Object.keys(map).forEach(function (categoryName) {
+            const list = Array.isArray(map[categoryName]) ? map[categoryName] : [];
+            list.forEach(function (word) {
+                const id = normalizeWordId(word && word.id);
+                if (!id || lookup[id]) return;
+                lookup[id] = word;
+            });
+        });
+    }
+
+    function buildWordLookupById() {
+        const lookup = {};
+        appendWordMapToLookup(lookup, State.wordsByCategory || {});
+        appendWordMapToLookup(lookup, getOptionWordsByCategory());
+        appendWordMapToLookup(lookup, root.wordsByCategory || {});
+        appendWordMapToLookup(lookup, root.optionWordsByCategory || {});
+        return lookup;
+    }
+
+    function findWordById(wordId, lookup) {
+        const id = normalizeWordId(wordId);
+        if (!id) return null;
+        const map = lookup && typeof lookup === 'object' ? lookup : buildWordLookupById();
+        return map[id] || null;
+    }
+
+    function isTextPromptType(promptType) {
+        return promptType === 'text' || promptType === 'text_title' || promptType === 'text_translation';
+    }
+
+    function getPromptTextValue(word, promptType) {
+        if (!word || typeof word !== 'object') return '';
+        if (isTextPromptType(promptType)) {
+            const promptLabel = (typeof word.prompt_label === 'string') ? word.prompt_label.trim() : '';
+            if (promptLabel) return promptLabel;
+        }
+        const label = (typeof word.label === 'string') ? word.label.trim() : '';
+        if (label) return label;
+        return (typeof word.title === 'string') ? word.title.trim() : '';
+    }
+
     function normalizeWordId(value) {
         const id = parseInt(value, 10);
         return id > 0 ? id : 0;
@@ -806,9 +887,10 @@
         const optionType = rawConfig.option_type || rawConfig.mode || State.DEFAULT_DISPLAY_MODE;
         const isGender = (State && State.isGenderMode && isGenderModeEnabled());
         const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
+        const isTextPrompt = isTextPromptType(promptType);
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
         const showImage = (promptType === 'image') || (isGender && optionType === 'image');
-        const showText = isGender && isTextOption;
+        const showText = isTextPrompt || (isGender && isTextOption);
         const showAudio = isGender && requirements.requiresAudio && promptType !== 'audio';
         const $ = root.jQuery;
         if (!$) return;
@@ -821,7 +903,7 @@
             $prompt.hide().empty();
             return;
         }
-        const labelText = showText ? (targetWord.label || targetWord.title || '') : '';
+        const labelText = showText ? getPromptTextValue(targetWord, promptType) : '';
         const hasImage = showImage && !!targetWord.image;
         const hasText = showText && !!labelText;
         const hasAudio = showAudio && !!targetWord.audio;
@@ -871,6 +953,9 @@
             State.completedCategories[candidateCategoryName] = true;
             return null;
         }
+        const isPromptEligibleWord = function (word) {
+            return !!word && !isWordBlockedFromPromptRounds(word);
+        };
         let target = null;
         let didRecordPlay = false;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
@@ -885,7 +970,7 @@
                 const queuedItem = queue[i];
                 const queuedWord = queuedItem.wordData;
                 const allowOverflow = !!queuedItem.forceReplay; // forceReplay allows wrong answers to bypass max-play caps
-                const playable = queuedWord && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
+                const playable = queuedWord && isPromptEligibleWord(queuedWord) && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
 
                 if (!playable) {
                     queue.splice(i, 1);
@@ -914,6 +999,7 @@
         if (!target) {
             State.completedCategories = State.completedCategories || {};
             const unused = getAvailableUnusedWords(candidateCategoryName, starredLookup, starMode)
+                .filter(isPromptEligibleWord)
                 .filter(function (w) { return w.id !== State.lastWordShownId; })
                 .filter(function (w) { return canPlayWord(w.id, starredLookup, starMode); });
 
@@ -963,6 +1049,7 @@
             // Try to find a word that isn't the last shown
             let queueCandidate = queue.find(item => {
                 if (!item || !item.wordData) return false;
+                if (!isPromptEligibleWord(item.wordData)) return false;
                 if (item.wordData.id === State.lastWordShownId) return false;
                 return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
             });
@@ -970,7 +1057,7 @@
             if (!queueCandidate && queue.length > 0) {
                 // All queue items are the last shown word, or only one word in queue
                 // Try to find any other word from the category
-                const others = candidateCategory.filter(w => w.id !== State.lastWordShownId && canPlayWord(w.id, starredLookup, starMode));
+                const others = candidateCategory.filter(w => isPromptEligibleWord(w) && w.id !== State.lastWordShownId && canPlayWord(w.id, starredLookup, starMode));
                 if (others.length) {
                     target = others[Math.floor(Math.random() * others.length)];
                 } else {
@@ -978,7 +1065,7 @@
                         // Practice-mode rule: never show the same target word in consecutive rounds.
                         // If play caps block alternatives, allow any other word before repeating.
                         const overflowOthers = candidateCategory.filter(function (w) {
-                            return w && w.id !== State.lastWordShownId;
+                            return isPromptEligibleWord(w) && w && w.id !== State.lastWordShownId;
                         });
                         if (overflowOthers.length) {
                             target = overflowOthers[Math.floor(Math.random() * overflowOthers.length)];
@@ -1003,6 +1090,10 @@
                 }
                 if (qi !== -1) queue.splice(qi, 1);
             }
+        }
+
+        if (target && !isPromptEligibleWord(target)) {
+            return null;
         }
 
         if (target) {
@@ -1369,6 +1460,7 @@
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
             if (!candidateId) return false;
+            if (!isWordAllowedAsWrongAnswerForTarget(candidate, targetWord)) return false;
 
             const enforceSimilarity = !rules || rules.enforceSimilarity !== false;
             const enforceTextUniqueness = !rules || rules.enforceTextUniqueness !== false;
@@ -1409,15 +1501,31 @@
             return true;
         };
 
-        // Fill remaining options with strict conflict checks.
-        for (let candidate of availableWords) {
-            if (chosen.length >= desiredCount) break;
-            if (!root.FlashcardOptions.canAddMoreCards()) break;
-            addCandidate(candidate, {
-                enforceSimilarity: true,
-                enforceTextUniqueness: true,
-                enforceConflict: true
+        const specificWrongAnswerIds = getWordSpecificWrongAnswerIds(targetWord);
+        const hasSpecificWrongAnswers = specificWrongAnswerIds.length > 0;
+        if (hasSpecificWrongAnswers) {
+            const lookup = buildWordLookupById();
+            specificWrongAnswerIds.forEach(function (wrongId) {
+                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                const candidate = findWordById(wrongId, lookup);
+                if (!candidate || String(candidate.id) === String(targetWord.id)) return;
+                addCandidate(candidate, {
+                    enforceSimilarity: false,
+                    enforceTextUniqueness: false,
+                    enforceConflict: false
+                });
             });
+        } else {
+            // Fill remaining options with strict conflict checks.
+            for (let candidate of availableWords) {
+                if (chosen.length >= desiredCount) break;
+                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                addCandidate(candidate, {
+                    enforceSimilarity: true,
+                    enforceTextUniqueness: true,
+                    enforceConflict: true
+                });
+            }
         }
 
         jQuery('.flashcard-container').each(function (idx) {
@@ -1519,7 +1627,8 @@
         getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
-        selectLearningModeWord, initializeLearningMode, renderPrompt
+        selectLearningModeWord, initializeLearningMode, renderPrompt,
+        isWordBlockedFromPromptRounds, isWordAllowedAsWrongAnswerForTarget
     };
 
     // legacy exports

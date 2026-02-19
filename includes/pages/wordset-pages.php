@@ -2011,7 +2011,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
             <div class="ll-wordset-selection-bar" data-ll-wordset-selection-bar hidden>
                 <span class="ll-wordset-selection-bar__text" data-ll-wordset-selection-text><?php echo esc_html__('Select categories to study together', 'll-tools-text-domain'); ?></span>
-                <label class="ll-wordset-selection-bar__starred-toggle" aria-label="<?php echo esc_attr__('Starred only', 'll-tools-text-domain'); ?>">
+                <label class="ll-wordset-selection-bar__starred-toggle" aria-label="<?php echo esc_attr__('Starred only', 'll-tools-text-domain'); ?>" hidden>
                     <input type="checkbox" data-ll-wordset-selection-starred-only />
                     <span class="ll-wordset-selection-bar__starred-icon" data-ll-wordset-selection-starred-icon aria-hidden="true">☆</span>
                     <span class="ll-wordset-selection-bar__starred-text" data-ll-wordset-selection-starred-label><?php echo esc_html__('Starred only', 'll-tools-text-domain'); ?></span>

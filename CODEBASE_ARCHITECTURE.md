@@ -179,7 +179,7 @@ vendor/
 ## Taxonomies
 - `word-category` (hierarchical; attached to `words` and `word_images`)
   - Translation meta: `term_translation` when translation is enabled.
-  - Quiz config meta: `ll_quiz_prompt_type` (audio|image), `ll_quiz_option_type` (image|text_translation|text_title|audio|text_audio).
+  - Quiz config meta: `ll_quiz_prompt_type` (audio|image|text_translation|text_title), `ll_quiz_option_type` (image|text_translation|text_title|audio|text_audio).
   - Desired recording types: `ll_desired_recording_types` (list of slugs; sentinel `__none__` disables recording for the category).
   - Helpers: `ll_tools_get_category_display_name()`, `ll_tools_get_category_quiz_config()`, `ll_can_category_generate_quiz()`.
 - `wordset` (flat; attached to `words`)

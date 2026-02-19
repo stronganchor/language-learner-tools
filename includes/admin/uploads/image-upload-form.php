@@ -262,6 +262,8 @@ function ll_image_upload_form_shortcode() {
                     <select id="ll-new-category-prompt" name="ll_new_category_prompt_type" class="regular-text" data-ll-new-category-prompt>
                         <option value="audio"><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
                         <option value="image"><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                        <option value="text_translation"><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
+                        <option value="text_title"><?php esc_html_e('Show text (title)', 'll-tools-text-domain'); ?></option>
                     </select>
                 </div>
 
@@ -269,6 +271,7 @@ function ll_image_upload_form_shortcode() {
                     <label for="ll-new-category-option"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?>:</label><br>
                     <select id="ll-new-category-option" name="ll_new_category_option_type" class="regular-text" data-ll-new-category-option>
                         <option value="image"><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+                        <option value="text"><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
                         <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
@@ -590,16 +593,23 @@ function ll_image_upload_create_category_from_request() {
         : 'audio';
     $prompt = function_exists('ll_tools_normalize_quiz_prompt_type')
         ? ll_tools_normalize_quiz_prompt_type($prompt_raw)
-        : (($prompt_raw === 'image') ? 'image' : 'audio');
+        : (
+            in_array($prompt_raw, ['audio', 'image', 'text_translation', 'text_title'], true)
+                ? $prompt_raw
+                : 'audio'
+        );
 
     $option_raw = isset($_POST['ll_new_category_option_type'])
         ? sanitize_text_field(wp_unslash($_POST['ll_new_category_option_type']))
         : 'image';
     if (function_exists('ll_tools_normalize_quiz_option_type')) {
-        $option = ll_tools_normalize_quiz_option_type($option_raw, false);
+        $option = ll_tools_normalize_quiz_option_type($option_raw, false, $prompt);
     } else {
-        $allowed_options = ['image', 'text_translation', 'text_title', 'audio', 'text_audio'];
+        $allowed_options = ['image', 'text', 'text_translation', 'text_title', 'audio', 'text_audio'];
         $option = in_array($option_raw, $allowed_options, true) ? $option_raw : 'image';
+        if ($option === 'text') {
+            $option = ($prompt === 'text_title') ? 'text_title' : 'text_translation';
+        }
     }
 
     // Keep invalid combinations aligned with the category add/edit screen behavior.
@@ -676,17 +686,24 @@ function ll_image_upload_category_supports_autocreate($term_id) {
 
     $cfg = ll_tools_get_category_quiz_config($term_id);
     $requires_audio = ll_tools_quiz_requires_audio($cfg, isset($cfg['option_type']) ? (string) $cfg['option_type'] : '');
-    $prompt_is_image = isset($cfg['prompt_type']) && $cfg['prompt_type'] === 'image';
-    $answer_is_text = isset($cfg['option_type']) && in_array($cfg['option_type'], ['text_translation', 'text_title'], true);
+    $prompt_type = isset($cfg['prompt_type']) ? (string) $cfg['prompt_type'] : '';
+    $option_type = isset($cfg['option_type']) ? (string) $cfg['option_type'] : '';
+    $prompt_is_image = ($prompt_type === 'image');
+    $prompt_is_text = in_array($prompt_type, ['text_translation', 'text_title'], true);
+    $answer_is_image = ($option_type === 'image');
+    $answer_is_text = in_array($option_type, ['text_translation', 'text_title'], true);
 
-    return $prompt_is_image && $answer_is_text && !$requires_audio;
+    return !$requires_audio && (
+        ($prompt_is_image && $answer_is_text)
+        || ($prompt_is_text && $answer_is_image)
+    );
 }
 
 /**
  * Determine if image uploads should auto-create word posts based on category quiz config.
  *
  * @param array $category_ids Selected category IDs from the upload form.
- * @return bool True when any selected category quizzes with an image prompt and text answers (no audio required).
+ * @return bool True when any selected category quizzes without audio and mixes text/image between prompt and options.
  */
 function ll_image_upload_should_autocreate_word($category_ids) {
     if (empty($category_ids)) {

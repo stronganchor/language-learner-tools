@@ -734,9 +734,17 @@ function ll_get_words_by_category_ajax() {
 
     $term = get_term_by('name', $category, 'word-category');
     $meta_config = ($term && !is_wp_error($term)) ? ll_tools_get_category_quiz_config($term) : [];
+    $normalized_prompt_type = ll_tools_normalize_quiz_prompt_type(
+        $prompt_type ?: ($meta_config['prompt_type'] ?? 'audio'),
+        !empty($meta_config['use_titles'])
+    );
     $base_config = [
-        'prompt_type' => ll_tools_normalize_quiz_prompt_type($prompt_type ?: ($meta_config['prompt_type'] ?? 'audio')),
-        'option_type' => ll_tools_normalize_quiz_option_type($option_type ?: $display_mode, !empty($meta_config['use_titles'])),
+        'prompt_type' => $normalized_prompt_type,
+        'option_type' => ll_tools_normalize_quiz_option_type(
+            $option_type ?: $display_mode,
+            !empty($meta_config['use_titles']),
+            $normalized_prompt_type
+        ),
     ];
     if (!empty($meta_config)) {
         $base_config = array_merge($meta_config, $base_config);

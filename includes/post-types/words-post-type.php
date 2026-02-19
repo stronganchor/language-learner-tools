@@ -54,6 +54,13 @@ add_action( 'init', 'll_tools_register_words_post_type', 0 );
  *  Words metadata functions
  */
 
+if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY')) {
+    define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY', '_ll_specific_wrong_answer_ids');
+}
+if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION')) {
+    define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION', 'll_tools_specific_wrong_answer_owner_map');
+}
+
 // Hook to add the meta boxes
 add_action('add_meta_boxes', 'll_tools_add_similar_words_metabox');
 
@@ -108,6 +115,451 @@ function ll_tools_save_similar_words_metadata($post_id) {
         update_post_meta($post_id, 'similar_word_id', $similar_word_id);
     }
 }
+
+/**
+ * Normalize the configured per-word specific wrong-answer IDs.
+ *
+ * @param mixed $raw_ids Raw IDs from meta or form input.
+ * @param int $self_word_id Word ID the list belongs to (to avoid self-references).
+ * @param bool $validate_existing_words Whether to keep only existing `words` posts.
+ * @return array
+ */
+function ll_tools_normalize_specific_wrong_answer_ids($raw_ids, $self_word_id = 0, bool $validate_existing_words = false): array {
+    $tokens = [];
+    if (is_string($raw_ids)) {
+        $tokens = preg_split('/[\s,]+/', $raw_ids);
+    } elseif (is_array($raw_ids)) {
+        foreach ($raw_ids as $raw) {
+            if (is_string($raw) && (strpos($raw, ',') !== false || strpos($raw, "\n") !== false || strpos($raw, "\r") !== false || strpos($raw, "\t") !== false || strpos($raw, ' ') !== false)) {
+                $parts = preg_split('/[\s,]+/', $raw);
+                if (is_array($parts)) {
+                    $tokens = array_merge($tokens, $parts);
+                }
+            } else {
+                $tokens[] = $raw;
+            }
+        }
+    } elseif ($raw_ids !== null && $raw_ids !== '') {
+        $tokens = [$raw_ids];
+    }
+
+    $self_word_id = (int) $self_word_id;
+    $ids = [];
+    foreach ((array) $tokens as $token) {
+        $id = (int) $token;
+        if ($id <= 0) {
+            continue;
+        }
+        if ($self_word_id > 0 && $id === $self_word_id) {
+            continue;
+        }
+        $ids[$id] = true;
+    }
+
+    $ids = array_map('intval', array_keys($ids));
+    if (empty($ids) || !$validate_existing_words) {
+        return $ids;
+    }
+
+    $existing = get_posts([
+        'post_type'        => 'words',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'post__in'         => $ids,
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'orderby'          => 'post__in',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+    ]);
+    $existing_lookup = [];
+    foreach ((array) $existing as $existing_id) {
+        $existing_lookup[(int) $existing_id] = true;
+    }
+
+    return array_values(array_filter($ids, function ($id) use ($existing_lookup) {
+        return isset($existing_lookup[(int) $id]);
+    }));
+}
+
+/**
+ * Get specific wrong-answer IDs configured on a single word.
+ *
+ * @param int $word_id
+ * @return array
+ */
+function ll_tools_get_word_specific_wrong_answer_ids($word_id): array {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return [];
+    }
+    $raw = get_post_meta($word_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, true);
+    return ll_tools_normalize_specific_wrong_answer_ids($raw, $word_id, false);
+}
+
+/**
+ * Build and persist reverse ownership map: wrong-answer word ID => owner word IDs.
+ *
+ * @return array
+ */
+function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
+    $owner_ids = get_posts([
+        'post_type'        => 'words',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+        'meta_query'       => [
+            [
+                'key'     => LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY,
+                'compare' => 'EXISTS',
+            ],
+        ],
+    ]);
+
+    $owner_to_wrong_ids = [];
+    $all_wrong_ids = [];
+    foreach ((array) $owner_ids as $owner_id_raw) {
+        $owner_id = (int) $owner_id_raw;
+        if ($owner_id <= 0) {
+            continue;
+        }
+        $wrong_ids = ll_tools_get_word_specific_wrong_answer_ids($owner_id);
+        if (empty($wrong_ids)) {
+            continue;
+        }
+        $owner_to_wrong_ids[$owner_id] = $wrong_ids;
+        foreach ($wrong_ids as $wrong_id) {
+            $all_wrong_ids[(int) $wrong_id] = true;
+        }
+    }
+
+    $existing_wrong_lookup = [];
+    if (!empty($all_wrong_ids)) {
+        $existing_wrong_ids = get_posts([
+            'post_type'        => 'words',
+            'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+            'post__in'         => array_map('intval', array_keys($all_wrong_ids)),
+            'posts_per_page'   => -1,
+            'fields'           => 'ids',
+            'orderby'          => 'post__in',
+            'no_found_rows'    => true,
+            'suppress_filters' => true,
+        ]);
+        foreach ((array) $existing_wrong_ids as $wrong_id_raw) {
+            $existing_wrong_lookup[(int) $wrong_id_raw] = true;
+        }
+    }
+
+    $map = [];
+    foreach ($owner_to_wrong_ids as $owner_id => $wrong_ids) {
+        foreach ((array) $wrong_ids as $wrong_id_raw) {
+            $wrong_id = (int) $wrong_id_raw;
+            if ($wrong_id <= 0 || !isset($existing_wrong_lookup[$wrong_id])) {
+                continue;
+            }
+            if (!isset($map[$wrong_id])) {
+                $map[$wrong_id] = [];
+            }
+            $map[$wrong_id][$owner_id] = true;
+        }
+    }
+
+    $normalized = [];
+    foreach ($map as $wrong_id => $owners_lookup) {
+        $owners = array_map('intval', array_keys((array) $owners_lookup));
+        sort($owners, SORT_NUMERIC);
+        if (!empty($owners)) {
+            $normalized[(int) $wrong_id] = $owners;
+        }
+    }
+    ksort($normalized, SORT_NUMERIC);
+
+    update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $normalized, false);
+    return $normalized;
+}
+
+/**
+ * Read reverse ownership map for specific wrong answers.
+ *
+ * @return array
+ */
+function ll_tools_get_specific_wrong_answer_owner_map(): array {
+    $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (!is_array($raw)) {
+        return ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+
+    $normalized = [];
+    foreach ($raw as $wrong_id_raw => $owners_raw) {
+        $wrong_id = (int) $wrong_id_raw;
+        if ($wrong_id <= 0 || !is_array($owners_raw)) {
+            continue;
+        }
+        $owners_lookup = [];
+        foreach ($owners_raw as $owner_id_raw) {
+            $owner_id = (int) $owner_id_raw;
+            if ($owner_id > 0) {
+                $owners_lookup[$owner_id] = true;
+            }
+        }
+        if (empty($owners_lookup)) {
+            continue;
+        }
+        $owners = array_map('intval', array_keys($owners_lookup));
+        sort($owners, SORT_NUMERIC);
+        $normalized[$wrong_id] = $owners;
+    }
+    ksort($normalized, SORT_NUMERIC);
+    return $normalized;
+}
+
+/**
+ * Collect related category IDs for cache invalidation.
+ *
+ * @param int $owner_word_id
+ * @param array $related_word_ids
+ * @return array
+ */
+function ll_tools_collect_specific_wrong_answer_related_category_ids($owner_word_id, array $related_word_ids = []): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', array_merge([(int) $owner_word_id], $related_word_ids)), function ($id) {
+        return $id > 0;
+    })));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $category_lookup = [];
+    foreach ($word_ids as $word_id) {
+        $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($term_ids) || empty($term_ids)) {
+            continue;
+        }
+        foreach ((array) $term_ids as $term_id_raw) {
+            $term_id = (int) $term_id_raw;
+            if ($term_id > 0) {
+                $category_lookup[$term_id] = true;
+            }
+        }
+    }
+
+    return array_map('intval', array_keys($category_lookup));
+}
+
+/**
+ * Add metabox for configuring per-word specific wrong answers.
+ */
+function ll_tools_add_specific_wrong_answers_metabox() {
+    add_meta_box(
+        'll-tools-specific-wrong-answers',
+        __('Specific Wrong Answers', 'll-tools-text-domain'),
+        'll_tools_render_specific_wrong_answers_metabox',
+        'words',
+        'side',
+        'default'
+    );
+}
+add_action('add_meta_boxes_words', 'll_tools_add_specific_wrong_answers_metabox');
+
+/**
+ * Render metabox UI for specific wrong answers.
+ *
+ * @param WP_Post $post
+ * @return void
+ */
+function ll_tools_render_specific_wrong_answers_metabox($post): void {
+    if (!$post || $post->post_type !== 'words') {
+        return;
+    }
+
+    wp_nonce_field('ll_tools_specific_wrong_answers_meta', 'll_tools_specific_wrong_answers_meta_nonce');
+
+    $selected_ids = ll_tools_get_word_specific_wrong_answer_ids((int) $post->ID);
+    $selected_lookup = array_fill_keys($selected_ids, true);
+
+    $category_ids = wp_get_post_terms((int) $post->ID, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($category_ids)) {
+        $category_ids = [];
+    }
+    $category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), function ($id) {
+        return $id > 0;
+    }));
+
+    $candidate_args = [
+        'post_type'        => 'words',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'   => 250,
+        'fields'           => 'ids',
+        'orderby'          => 'title',
+        'order'            => 'ASC',
+        'post__not_in'     => [(int) $post->ID],
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+    ];
+    if (!empty($category_ids)) {
+        $candidate_args['tax_query'] = [[
+            'taxonomy' => 'word-category',
+            'field'    => 'term_id',
+            'terms'    => $category_ids,
+        ]];
+    }
+
+    $candidate_ids = get_posts($candidate_args);
+    $candidate_lookup = [];
+    foreach ((array) $candidate_ids as $candidate_id_raw) {
+        $candidate_id = (int) $candidate_id_raw;
+        if ($candidate_id > 0) {
+            $candidate_lookup[$candidate_id] = true;
+        }
+    }
+    foreach ($selected_ids as $selected_id) {
+        $candidate_lookup[(int) $selected_id] = true;
+    }
+
+    $all_candidate_ids = array_map('intval', array_keys($candidate_lookup));
+    sort($all_candidate_ids, SORT_NUMERIC);
+
+    echo '<p>' . esc_html__('Choose words that should appear only as wrong answers for this word.', 'll-tools-text-domain') . '</p>';
+    echo '<select name="ll_specific_wrong_answer_ids[]" multiple size="10" class="widefat">';
+
+    foreach ($all_candidate_ids as $candidate_id) {
+        if ($candidate_id <= 0 || $candidate_id === (int) $post->ID) {
+            continue;
+        }
+
+        $display = '';
+        if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+            $resolved = ll_tools_word_grid_resolve_display_text($candidate_id);
+            $word_text = trim((string) ($resolved['word_text'] ?? ''));
+            $translation_text = trim((string) ($resolved['translation_text'] ?? ''));
+            if ($word_text !== '' && $translation_text !== '') {
+                $display = $word_text . ' - ' . $translation_text;
+            } elseif ($word_text !== '') {
+                $display = $word_text;
+            } elseif ($translation_text !== '') {
+                $display = $translation_text;
+            }
+        }
+        if ($display === '') {
+            $title = get_the_title($candidate_id);
+            $display = $title !== '' ? $title : sprintf(__('Word #%d', 'll-tools-text-domain'), $candidate_id);
+        }
+
+        echo '<option value="' . esc_attr($candidate_id) . '" ' . selected(isset($selected_lookup[$candidate_id]), true, false) . '>';
+        echo esc_html($display . ' (#' . $candidate_id . ')');
+        echo '</option>';
+    }
+
+    echo '</select>';
+    echo '<p class="description">' . esc_html__('Selected words are excluded from prompt rounds across quiz modes and only appear as wrong answers for this word.', 'll-tools-text-domain') . '</p>';
+}
+
+/**
+ * Save specific wrong-answer selections from the word edit screen.
+ *
+ * @param int $post_id
+ * @param WP_Post $post
+ * @param bool $update
+ * @return void
+ */
+function ll_tools_save_specific_wrong_answers_metabox($post_id, $post, $update): void {
+    if (!$post || $post->post_type !== 'words') {
+        return;
+    }
+    if (wp_is_post_autosave($post_id) || wp_is_post_revision($post_id)) {
+        return;
+    }
+    if (!isset($_POST['ll_tools_specific_wrong_answers_meta_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ll_tools_specific_wrong_answers_meta_nonce'])), 'll_tools_specific_wrong_answers_meta')) {
+        return;
+    }
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    $previous_ids = ll_tools_get_word_specific_wrong_answer_ids((int) $post_id);
+    $incoming = isset($_POST['ll_specific_wrong_answer_ids']) ? (array) wp_unslash($_POST['ll_specific_wrong_answer_ids']) : [];
+    $next_ids = ll_tools_normalize_specific_wrong_answer_ids($incoming, (int) $post_id, true);
+
+    if (!empty($next_ids)) {
+        update_post_meta($post_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, $next_ids);
+    } else {
+        delete_post_meta($post_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY);
+    }
+
+    $changed = (count($previous_ids) !== count($next_ids));
+    if (!$changed) {
+        foreach ($previous_ids as $idx => $value) {
+            if (!isset($next_ids[$idx]) || (int) $next_ids[$idx] !== (int) $value) {
+                $changed = true;
+                break;
+            }
+        }
+    }
+    if (!$changed) {
+        return;
+    }
+
+    ll_tools_rebuild_specific_wrong_answer_owner_map();
+    if (function_exists('ll_tools_bump_category_cache_version')) {
+        $related_category_ids = ll_tools_collect_specific_wrong_answer_related_category_ids((int) $post_id, array_merge($previous_ids, $next_ids));
+        if (!empty($related_category_ids)) {
+            ll_tools_bump_category_cache_version($related_category_ids);
+        }
+    }
+}
+add_action('save_post_words', 'll_tools_save_specific_wrong_answers_metabox', 20, 3);
+
+/**
+ * Capture specific wrong-answer relationships before deleting a word.
+ *
+ * @param int $post_id
+ * @return void
+ */
+function ll_tools_before_delete_word_specific_wrong_answers($post_id): void {
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== 'words') {
+        return;
+    }
+
+    $related_word_ids = ll_tools_get_word_specific_wrong_answer_ids((int) $post_id);
+    $category_ids = ll_tools_collect_specific_wrong_answer_related_category_ids((int) $post_id, $related_word_ids);
+    $GLOBALS['ll_tools_specific_wrong_answer_delete_ctx'][(int) $post_id] = [
+        'category_ids' => $category_ids,
+    ];
+}
+add_action('before_delete_post', 'll_tools_before_delete_word_specific_wrong_answers', 10, 1);
+
+/**
+ * Rebuild reverse map and invalidate related category caches after a word is deleted.
+ *
+ * @param int $post_id
+ * @return void
+ */
+function ll_tools_after_delete_word_specific_wrong_answers($post_id): void {
+    $post_id = (int) $post_id;
+    $ctx_all = isset($GLOBALS['ll_tools_specific_wrong_answer_delete_ctx']) && is_array($GLOBALS['ll_tools_specific_wrong_answer_delete_ctx'])
+        ? $GLOBALS['ll_tools_specific_wrong_answer_delete_ctx']
+        : [];
+    if (!isset($ctx_all[$post_id]) || !is_array($ctx_all[$post_id])) {
+        return;
+    }
+    $ctx = $ctx_all[$post_id];
+    unset($ctx_all[$post_id]);
+    $GLOBALS['ll_tools_specific_wrong_answer_delete_ctx'] = $ctx_all;
+
+    ll_tools_rebuild_specific_wrong_answer_owner_map();
+    if (!function_exists('ll_tools_bump_category_cache_version')) {
+        return;
+    }
+
+    $category_ids = isset($ctx['category_ids']) && is_array($ctx['category_ids'])
+        ? array_values(array_filter(array_map('intval', $ctx['category_ids']), function ($id) { return $id > 0; }))
+        : [];
+    if (!empty($category_ids)) {
+        ll_tools_bump_category_cache_version($category_ids);
+    }
+}
+add_action('deleted_post', 'll_tools_after_delete_word_specific_wrong_answers', 10, 1);
 
 /**
  * Displays the content of custom fields on the "words" posts.

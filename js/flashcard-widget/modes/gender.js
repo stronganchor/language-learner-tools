@@ -370,8 +370,19 @@
         return { requiresAudio, requiresImage };
     }
 
+    function isPromptEligibleWord(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Selection && typeof Selection.isWordBlockedFromPromptRounds === 'function') {
+            try {
+                if (Selection.isWordBlockedFromPromptRounds(word)) return false;
+            } catch (_) { /* no-op */ }
+        }
+        return true;
+    }
+
     function isEligibleWord(word, genderOptions) {
         if (!word || !genderOptions.length) return false;
+        if (!isPromptEligibleWord(word)) return false;
         const posRaw = word.part_of_speech;
         const pos = Array.isArray(posRaw) ? posRaw : (posRaw ? [posRaw] : []);
         const isNoun = pos.some(function (entry) { return String(entry).toLowerCase() === 'noun'; });

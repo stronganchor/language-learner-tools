@@ -410,7 +410,48 @@ function ll_tools_validate_recording_upload_file(array $file, bool $require_uplo
     $ext = sanitize_key((string) ($detected['ext'] ?? ''));
     $mime = strtolower(trim((string) ($detected['type'] ?? '')));
 
-    if ($ext === '' || $mime === '') {
+    // Some hosts/browsers report sparse MIME metadata for media blobs; fall back
+    // to client-reported values while still enforcing our allowed map + audio probe.
+    $original_ext = sanitize_key((string) pathinfo($original_name, PATHINFO_EXTENSION));
+    if ($ext === '' && $original_ext !== '' && isset($allowed_mimes[$original_ext])) {
+        $ext = $original_ext;
+    }
+
+    $client_mime = strtolower(trim((string) ($file['type'] ?? '')));
+    if ($client_mime !== '') {
+        $client_mime = strtolower((string) preg_replace('/[^a-z0-9+.\-\/]/i', '', $client_mime));
+    }
+    if ($mime === '' && $client_mime !== '') {
+        $mime = $client_mime;
+    }
+
+    if ($ext === '' && $mime !== '') {
+        foreach ($allowed_mimes as $candidate_ext => $candidate_pattern) {
+            $candidate_ext = sanitize_key((string) $candidate_ext);
+            if ($candidate_ext === '') {
+                continue;
+            }
+            $candidate_mimes = array_values(array_filter(array_map(static function ($value) {
+                return strtolower(trim((string) $value));
+            }, explode('|', (string) $candidate_pattern))));
+            if (!empty($candidate_mimes) && wp_match_mime_types($candidate_mimes, $mime)) {
+                $ext = $candidate_ext;
+                break;
+            }
+        }
+    }
+
+    $allowed_for_ext = [];
+    if ($ext !== '' && isset($allowed_mimes[$ext])) {
+        $allowed_for_ext = array_values(array_filter(array_map(static function ($value) {
+            return strtolower(trim((string) $value));
+        }, explode('|', (string) $allowed_mimes[$ext]))));
+        if ($mime === '' && !empty($allowed_for_ext)) {
+            $mime = (string) $allowed_for_ext[0];
+        }
+    }
+
+    if ($ext === '' || $mime === '' || empty($allowed_for_ext) || !wp_match_mime_types($allowed_for_ext, $mime)) {
         $result['error'] = __('Uploaded file type is not allowed.', 'll-tools-text-domain');
         return $result;
     }
@@ -2537,6 +2578,9 @@ function ll_verify_recording_handler() {
     $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
     $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
+    $posted_ids     = ll_tools_get_recording_wordset_ids_from_request();
+    $type_filters   = ll_tools_get_recording_type_filters_from_request();
+    $filtered_types = $type_filters['filtered_types'];
     $wordset_ids    = ll_tools_get_recording_wordset_ids_from_request();
     $type_filters   = ll_tools_get_recording_type_filters_from_request();
     $filtered_types = $type_filters['filtered_types'];
@@ -3947,7 +3991,18 @@ function ll_handle_recording_upload() {
     if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
         $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
         error_log('Upload step: Failed to save file' . ($upload_error !== '' ? ': ' . $upload_error : ''));
-        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'));
+        $status = ($upload_error !== '' && stripos($upload_error, 'file type') !== false) ? 415 : 400;
+        if ($upload_error !== '') {
+            wp_send_json_error(
+                sprintf(
+                    /* translators: %s: upload subsystem error message */
+                    __('Failed to save file: %s', 'll-tools-text-domain'),
+                    $upload_error
+                ),
+                $status
+            );
+        }
+        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'), $status);
     }
     $filepath = (string) $upload_result['file'];
 
