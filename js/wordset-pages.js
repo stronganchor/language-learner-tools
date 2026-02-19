@@ -1958,18 +1958,9 @@
             starredLookup[id] = true;
         });
         const hardLookup = getHardWordLookup();
-        const rows = Array.isArray(analytics.words) ? analytics.words : [];
         const seen = {};
-
-        rows.forEach(function (row) {
-            const wordId = parseInt(row && row.id, 10) || 0;
+        const applyWord = function (wordId) {
             if (!wordId || seen[wordId]) { return; }
-            const rowCategoryIds = uniqueIntList((row && row.category_ids) || []);
-            const inSelection = rowCategoryIds.some(function (id) {
-                return !!categoryLookup[id];
-            });
-            if (!inSelection) { return; }
-
             seen[wordId] = true;
             metrics.total += 1;
 
@@ -1984,7 +1975,49 @@
             if (isStarred && isHard) {
                 metrics.starredHard += 1;
             }
+        };
+
+        // Logged-in dashboards usually have this ready; keep it as the primary source.
+        const analyticsRows = Array.isArray(analytics.words) ? analytics.words : [];
+        analyticsRows.forEach(function (row) {
+            const wordId = parseInt(row && row.id, 10) || 0;
+            if (!wordId || seen[wordId]) { return; }
+            const rowCategoryIds = uniqueIntList((row && row.category_ids) || []);
+            if (!rowCategoryIds.length) {
+                const categoryId = parseInt(row && row.category_id, 10) || 0;
+                if (categoryId > 0) {
+                    rowCategoryIds.push(categoryId);
+                }
+            }
+            const inSelection = rowCategoryIds.some(function (id) {
+                return !!categoryLookup[id];
+            });
+            if (!inSelection) { return; }
+            applyWord(wordId);
         });
+        if (metrics.total > 0) {
+            return metrics;
+        }
+
+        // Fallback for logged-out selection flows where analytics words are often empty.
+        let usedLoadedCategoryWords = false;
+        ids.forEach(function (categoryId) {
+            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
+            if (!rows.length) { return; }
+            usedLoadedCategoryWords = true;
+            rows.forEach(function (row) {
+                applyWord(parseInt(row && row.id, 10) || 0);
+            });
+        });
+        if (usedLoadedCategoryWords && metrics.total > 0) {
+            return metrics;
+        }
+
+        // Last resort: estimate from category totals so selection actions stay usable.
+        metrics.total = ids.reduce(function (sum, id) {
+            const cat = getCategoryById(id);
+            return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
+        }, 0);
 
         return metrics;
     }
@@ -3527,6 +3560,7 @@
     }
 
     function launchSelectionMode(mode) {
+        const normalizedMode = normalizeMode(mode) || 'practice';
         const ids = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
@@ -3556,6 +3590,16 @@
                 return;
             }
 
+            if (normalizedMode === 'listening') {
+                chunkSession = null;
+                launchFlashcards(normalizedMode, ids, (starredOnlyActive || hardOnlyActive) ? wordIds : [], {
+                    source: 'wordset_selection_start',
+                    chunked: false,
+                    sessionStarMode: starredOnlyActive ? 'only' : 'normal'
+                });
+                return;
+            }
+
             const chunks = buildChunkList(wordIds);
             if (!chunks.length) {
                 alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
@@ -3564,7 +3608,7 @@
 
             if (chunks.length > 1) {
                 chunkSession = {
-                    mode: normalizeMode(mode) || 'practice',
+                    mode: normalizedMode,
                     category_ids: ids.slice(),
                     chunks: chunks,
                     index: 0,
@@ -3579,7 +3623,7 @@
             }
 
             chunkSession = null;
-            launchFlashcards(mode, ids, chunks[0], {
+            launchFlashcards(normalizedMode, ids, chunks[0], {
                 source: 'wordset_selection_start',
                 chunked: false,
                 sessionStarMode: starredOnlyActive ? 'only' : 'normal'
@@ -3589,6 +3633,14 @@
 
     function launchRecommendedMode(mode) {
         const preferredMode = normalizeMode(mode) || 'practice';
+        if (preferredMode === 'listening') {
+            chunkSession = null;
+            launchFlashcards(preferredMode, getRecommendationScopeIds(), [], {
+                source: 'wordset_top_start_listening_full',
+                chunked: false
+            });
+            return;
+        }
         const launchWithActivity = function (activity, source) {
             const item = normalizeNextActivity(activity);
             const categoryIds = item && item.category_ids && item.category_ids.length

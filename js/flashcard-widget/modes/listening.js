@@ -54,12 +54,17 @@
         return Math.max(10, Math.min(20, size));
     })();
     const LISTENING_PREFETCH_TRIGGER_RATIO = 0.5;
-    const LISTENING_PREFETCH_CONCURRENCY = 2;
+    const LISTENING_PREFETCH_CONCURRENCY = 1;
+    const LISTENING_PREFETCH_DELAY_MS = 120;
+    const LISTENING_PREFETCH_FIRST_BATCH_DELAY_MS = 600;
 
     let listeningPrefetchQueue = Promise.resolve();
     let listeningPrefetchWindowStart = 0;
     let listeningPrefetchWindowEnd = 0;
     let listeningPrefetchCursor = 0;
+    let listeningPrefetchSeenWordIds = {};
+    let listeningPrefetchRoundSerial = 0;
+    let listeningCategoryOrder = [];
 
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
@@ -352,7 +357,11 @@
     const pendingCategoryLoads = {};
 
     function hasWordsReady() {
-        return Array.isArray(State.wordsLinear) && State.wordsLinear.length > 0;
+        if (!Array.isArray(State.wordsLinear) || !State.wordsLinear.length) {
+            return false;
+        }
+        const pointer = Math.max(0, parseInt(State.listenIndex, 10) || 0);
+        return pointer < State.wordsLinear.length;
     }
 
     function getWordsetCacheKey() {
@@ -396,34 +405,101 @@
         return seq;
     }
 
+    function shuffleArray(values) {
+        const out = Array.isArray(values) ? values.slice() : [];
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = out[i];
+            out[i] = out[j];
+            out[j] = tmp;
+        }
+        return out;
+    }
+
+    function getSelectedCategoryNames() {
+        const seen = {};
+        const names = [];
+        (Array.isArray(State.categoryNames) ? State.categoryNames : []).forEach(function (rawName) {
+            const name = String(rawName || '');
+            if (!name || seen[name]) { return; }
+            seen[name] = true;
+            names.push(name);
+        });
+        return names;
+    }
+
+    function resolveListeningCategoryOrder(forceReshuffle) {
+        const names = getSelectedCategoryNames();
+        if (!names.length) {
+            listeningCategoryOrder = [];
+            return [];
+        }
+
+        if (forceReshuffle || !Array.isArray(listeningCategoryOrder) || !listeningCategoryOrder.length) {
+            listeningCategoryOrder = shuffleArray(names);
+            return listeningCategoryOrder.slice();
+        }
+
+        const nameLookup = {};
+        names.forEach(function (name) {
+            nameLookup[name] = true;
+        });
+
+        const next = listeningCategoryOrder.filter(function (name) {
+            return !!nameLookup[name];
+        });
+        const seen = {};
+        next.forEach(function (name) {
+            seen[name] = true;
+        });
+        const missing = names.filter(function (name) {
+            return !seen[name];
+        });
+        if (missing.length) {
+            next.push.apply(next, shuffleArray(missing));
+        }
+        listeningCategoryOrder = next;
+        return listeningCategoryOrder.slice();
+    }
+
+    function resetListeningCategoryOrder() {
+        listeningCategoryOrder = [];
+    }
+
     function rebuildWordsLinear() {
         const seq = [];
         if (State.categoryNames && State.wordsByCategory) {
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
-            const uniqueWordsById = {};
-            const uniqueWordIds = [];
-            for (const name of State.categoryNames) {
-                const list = State.wordsByCategory[name] || [];
+            const globalSeenWordIds = {};
+            const categoryOrder = resolveListeningCategoryOrder(false);
+
+            for (const name of categoryOrder) {
+                const list = Array.isArray(State.wordsByCategory[name]) ? State.wordsByCategory[name] : [];
+                if (!list.length) {
+                    continue;
+                }
+                const categoryWords = [];
+                const categorySeenWordIds = {};
+
                 for (const w of list) {
                     if (!w) continue;
                     const wordId = parseInt(w.id, 10);
                     if (!wordId) continue;
-                    try { if (!w.__categoryName) { w.__categoryName = name; } } catch (_) { /* no-op */ }
-                    if (!uniqueWordsById[wordId]) {
-                        uniqueWordsById[wordId] = w;
-                        uniqueWordIds.push(wordId);
-                    }
+                    if (globalSeenWordIds[wordId] || categorySeenWordIds[wordId]) continue;
+                    if (starMode === 'only' && !starredLookup[wordId]) continue;
+                    try { w.__categoryName = name; } catch (_) { /* no-op */ }
+                    categorySeenWordIds[wordId] = true;
+                    globalSeenWordIds[wordId] = true;
+                    categoryWords.push(w);
                 }
-            }
 
-            if (uniqueWordIds.length) {
-                const uniqueWords = uniqueWordIds.map(function (id) {
-                    return uniqueWordsById[id];
-                }).filter(Boolean);
-                const weightedSeq = buildWeightedSequence(uniqueWords, starredLookup, starMode);
-                if (weightedSeq.length) {
-                    weightedSeq.forEach(function (word) { seq.push(word); });
+                if (!categoryWords.length) {
+                    continue;
+                }
+                const weightedCategory = buildWeightedSequence(categoryWords, starredLookup, starMode);
+                if (weightedCategory.length) {
+                    weightedCategory.forEach(function (word) { seq.push(word); });
                 }
             }
         }
@@ -584,6 +660,8 @@
         listeningPrefetchWindowStart = 0;
         listeningPrefetchWindowEnd = 0;
         listeningPrefetchCursor = 0;
+        listeningPrefetchSeenWordIds = {};
+        listeningPrefetchRoundSerial += 1;
     }
 
     function getListeningCategoryConfig(categoryName) {
@@ -615,7 +693,7 @@
             if (!word || !wordId) {
                 continue;
             }
-            if (seen[wordId]) {
+            if (seen[wordId] || listeningPrefetchSeenWordIds[wordId]) {
                 continue;
             }
             seen[wordId] = true;
@@ -625,10 +703,11 @@
         return out;
     }
 
-    function queueListeningPrefetchBatch(loader, words) {
+    function queueListeningPrefetchBatch(loader, words, roundSerial) {
         if (!loader || typeof loader.loadResourcesForWord !== 'function' || !Array.isArray(words) || !words.length) {
             return;
         }
+        const batchSerial = (typeof roundSerial === 'number') ? roundSerial : listeningPrefetchRoundSerial;
 
         listeningPrefetchQueue = listeningPrefetchQueue.then(function () {
             let cursor = 0;
@@ -636,18 +715,29 @@
             const workers = [];
 
             const runWorker = function () {
+                if (batchSerial !== listeningPrefetchRoundSerial) {
+                    return Promise.resolve();
+                }
                 if (cursor >= words.length) {
                     return Promise.resolve();
                 }
                 const index = cursor;
                 cursor += 1;
                 const word = words[index];
+                const wordId = parseInt(word && word.id, 10);
+                if (wordId > 0) {
+                    listeningPrefetchSeenWordIds[wordId] = true;
+                }
                 const categoryName = String((word && word.__categoryName) || State.currentCategoryName || '');
                 const categoryConfig = getListeningCategoryConfig(categoryName);
                 const optionType = String(categoryConfig.option_type || 'image');
+                const promptType = String(categoryConfig.prompt_type || 'audio');
+                const skipImagePreload = (promptType === 'audio');
 
                 return Promise.resolve(
-                    loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig)
+                    loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig, {
+                        skipImagePreload: skipImagePreload
+                    })
                 ).catch(function () {
                     return [];
                 }).then(runWorker);
@@ -662,8 +752,11 @@
         });
     }
 
-    function maybeQueueListeningPrefetch(loader, force) {
+    function maybeQueueListeningPrefetch(loader, force, roundSerial) {
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
+            return;
+        }
+        if (typeof roundSerial === 'number' && roundSerial !== listeningPrefetchRoundSerial) {
             return;
         }
         const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
@@ -690,7 +783,7 @@
         listeningPrefetchWindowStart = startIndex;
         listeningPrefetchWindowEnd = startIndex + batchWords.length;
         listeningPrefetchCursor = listeningPrefetchWindowEnd;
-        queueListeningPrefetchBatch(loader, batchWords);
+        queueListeningPrefetchBatch(loader, batchWords, roundSerial);
     }
 
     function initialize() {
@@ -701,8 +794,10 @@
         resetListeningHistory();
         resetListeningPrefetchPlanner();
         try { ListeningPlayback.clear(); } catch (_) { }
-        State.listeningLoop = (typeof State.listeningLoop === 'boolean') ? State.listeningLoop : true;
+        State.listeningLoop = false;
         Object.keys(pendingCategoryLoads).forEach(function (k) { delete pendingCategoryLoads[k]; });
+        resetListeningCategoryOrder();
+        resolveListeningCategoryOrder(true);
         rebuildWordsLinear();
         queueAllSelectedCategories(FlashcardLoader);
         State.listenIndex = 0;
@@ -739,19 +834,25 @@
             State.listenIndex = 0;
         }
         if (!State.wordsLinear.length) return null;
+        if ((State.listenIndex || 0) >= State.wordsLinear.length) return null;
 
         let attempts = 0;
-        let word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+        let word = State.wordsLinear[State.listenIndex] || null;
         while (
             State.wordsLinear.length > 1 &&
             attempts < State.wordsLinear.length &&
             word &&
             State.lastWordShownId === word.id
         ) {
-            State.listenIndex++;
+            const nextIndex = (State.listenIndex || 0) + 1;
+            if (nextIndex >= State.wordsLinear.length) {
+                return null;
+            }
+            State.listenIndex = nextIndex;
             attempts++;
-            word = State.wordsLinear[State.listenIndex % State.wordsLinear.length];
+            word = State.wordsLinear[State.listenIndex] || null;
         }
+        if (!word) return null;
 
         State.listenIndex++;
         if (word && word.id) {
@@ -1019,6 +1120,21 @@
         const $jq = getJQuery();
         const roundToken = ListeningPlayback.startNewRound();
         const setRoundResume = function (fn) { ListeningPlayback.setResume(fn, roundToken); };
+        const restartRound = function (reason) {
+            State.forceTransitionTo(STATES.QUIZ_READY, reason || 'Listening retry');
+            if (typeof utils.runQuizRound === 'function') {
+                utils.runQuizRound();
+            } else if (typeof utils.startQuizRound === 'function') {
+                utils.startQuizRound();
+            }
+        };
+        const scheduleRoundRetry = function (reason, delayMs) {
+            const retryDelay = Math.max(180, (typeof delayMs === 'number') ? delayMs : 260);
+            const retryId = scheduleTimeout(utils, function () {
+                restartRound(reason || 'Listening waiting for pending categories');
+            }, retryDelay);
+            State.addTimeout && State.addTimeout(retryId);
+        };
 
         if ($jq) {
             $jq('#ll-tools-prompt').hide();
@@ -1044,15 +1160,20 @@
             if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
             waitForNextAvailableWords(loader).then(function (hasWords) {
                 rebuildWordsLinear();
-                if (!hasWords || !State.wordsLinear || !State.wordsLinear.length) {
+                const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+                const hasMore = !!hasWords && total > 0 && (Math.max(0, State.listenIndex || 0) < total);
+                const stillPending = hasPendingCategoryLoads(loader);
+                if (!hasMore && stillPending) {
+                    scheduleRoundRetry('Listening pending categories still loading');
+                    return;
+                }
+                if (!hasMore) {
                     State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
                     resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
                     try { WakeLock.update(); } catch (_) { }
                     return;
                 }
-                State.forceTransitionTo(STATES.QUIZ_READY, 'Listening data loaded');
-                if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
-                else if (typeof utils.startQuizRound === 'function') utils.startQuizRound();
+                restartRound('Listening data loaded');
             });
             try { WakeLock.update(); } catch (_) { }
             return true;
@@ -1065,16 +1186,28 @@
                 if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
                 waitForNextAvailableWords(loader).then(function (hasWords) {
                     rebuildWordsLinear();
-                    if (!hasWords || !State.wordsLinear || !State.wordsLinear.length) {
+                    const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+                    const hasMore = !!hasWords && total > 0 && (Math.max(0, State.listenIndex || 0) < total);
+                    const stillPending = hasPendingCategoryLoads(loader);
+                    if (!hasMore && stillPending) {
+                        scheduleRoundRetry('Listening waiting for more words');
+                        return;
+                    }
+                    if (!hasMore) {
                         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
                         resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
                         try { WakeLock.update(); } catch (_) { }
                         return;
                     }
-                    State.forceTransitionTo(STATES.QUIZ_READY, 'Listening delayed until data ready');
-                    if (typeof utils.runQuizRound === 'function') utils.runQuizRound();
-                    else if (typeof utils.startQuizRound === 'function') utils.startQuizRound();
+                    restartRound('Listening delayed until data ready');
                 });
+                return true;
+            }
+            if (State.listeningLoop && Array.isArray(State.wordsLinear) && State.wordsLinear.length > 0) {
+                resetListeningHistory();
+                resetListeningPrefetchPlanner();
+                State.listenIndex = 0;
+                restartRound('Loop listening after reaching end');
                 return true;
             }
             if (State.isFirstRound) {
@@ -1249,6 +1382,7 @@
         } catch (_) { /* no-op */ }
 
         const deferImagePreload = (promptType === 'audio');
+        const prefetchRoundSerial = (listeningPrefetchRoundSerial += 1);
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
             skipImagePreload: deferImagePreload
         }).then(function () {
@@ -1289,9 +1423,13 @@
             Dom.disableRepeatButton && Dom.disableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
             // Keep media preloading ahead in small batches so current playback is never blocked.
+            const isFirstListeningWord = (State.listenIndex || 0) <= 1;
+            const prefetchDelayMs = isFirstListeningWord
+                ? LISTENING_PREFETCH_FIRST_BATCH_DELAY_MS
+                : LISTENING_PREFETCH_DELAY_MS;
             const prefetchDelayId = scheduleTimeout(utils, function () {
-                maybeQueueListeningPrefetch(loader, (State.listenIndex || 0) <= 1);
-            }, 120);
+                maybeQueueListeningPrefetch(loader, isFirstListeningWord, prefetchRoundSerial);
+            }, prefetchDelayMs);
             State.addTimeout && State.addTimeout(prefetchDelayId);
 
             // Determine sequence. For image->audio (or audio+text), play intro then isolation only.
@@ -1381,7 +1519,15 @@
                         waitForNextAvailableWords(loader).then(function (hasWords) {
                             rebuildWordsLinear();
                             const hasMore = hasWords && (State.wordsLinear || []).length > 0 && (State.listenIndex || 0) < (State.wordsLinear || []).length;
-                            if (!hasMore && !hasPendingCategoryLoads(loader)) {
+                            const stillPending = hasPendingCategoryLoads(loader);
+                            if (!hasMore && stillPending) {
+                                const retryAdvanceId = scheduleTimeout(utils, function () {
+                                    scheduleAdvance(320);
+                                }, 320);
+                                State.addTimeout && State.addTimeout(retryAdvanceId);
+                                return;
+                            }
+                            if (!hasMore && !stillPending) {
                                 if (State.listeningLoop) {
                                     try {
                                         rebuildWordsLinear();

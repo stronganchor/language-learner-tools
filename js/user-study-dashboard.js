@@ -3899,6 +3899,20 @@
             $btn.prop('disabled', true).addClass('loading');
         }
 
+        // Manual listening launches should cover the full selected set.
+        // Chunk plans (8-15 words) are still used for recommendation-driven followups.
+        if (requestedMode === 'listening') {
+            startFlashcards(requestedMode, {
+                category_ids: requestedCategoryIds,
+                session_word_ids: [],
+                source: 'dashboard_manual_full'
+            });
+            if ($btn.length) {
+                $btn.prop('disabled', false).removeClass('loading');
+            }
+            return;
+        }
+
         resolveChunkPlanForMode(requestedMode, requestedCategoryIds, {
             prefer_different: true,
             source: 'dashboard_chunk_manual'

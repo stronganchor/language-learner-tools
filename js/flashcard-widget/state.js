@@ -91,6 +91,7 @@
         listeningLastAspectRatio: 0,
         listeningCurrentTarget: null,
         listeningHistory: [],
+        listeningLoop: false,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,
@@ -306,6 +307,7 @@
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;
             this.listeningHistory = [];
+            this.listeningLoop = false;
             this.introducedWordIDs = [];
             this.wordIntroductionProgress = {};
             this.wordCorrectCounts = {};
