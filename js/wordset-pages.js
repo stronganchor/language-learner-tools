@@ -17,11 +17,13 @@
     const modeUi = (cfg.modeUi && typeof cfg.modeUi === 'object') ? cfg.modeUi : {};
     const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
     const genderCfg = (cfg.gender && typeof cfg.gender === 'object') ? cfg.gender : {};
+    const progressResetCfg = (cfg.progressReset && typeof cfg.progressReset === 'object') ? cfg.progressReset : {};
     const progressIncludeHidden = !!cfg.progressIncludeHidden;
     const sortLocales = buildSortLocales(cfg.sortLocale || document.documentElement.lang || '');
     const turkishSortLocales = withTurkishSortLocales(sortLocales);
 
     const CHUNK_SIZE = 15;
+    const LEARNING_MIN_CHUNK_SIZE = Math.max(8, parseInt(cfg.learningMinChunkSize, 10) || 8);
     const HARD_WORD_DIFFICULTY_THRESHOLD = Math.max(1, parseInt(cfg.hardWordDifficultyThreshold, 10) || 4);
 
     let categories = normalizeCategories(cfg.categories || []);
@@ -81,12 +83,18 @@
     let pendingPerfectCelebrationAt = 0;
     let categoryProgressVisibilityObserver = null;
     let categoryProgressVisibilityRaf = 0;
+    let categoryProgressPostMetricsTimer = 0;
+    let categoryProgressHoldForMetrics = false;
     let categoryProgressFallbackBound = false;
     let categoryProgressVisibilityEventBound = false;
     const pendingCategoryProgressUpdates = {};
 
     const SUMMARY_COUNT_KEYS = ['mastered', 'studied', 'new', 'starred', 'hard'];
     const PERFECT_CELEBRATION_MAX_AGE_MS = 15000;
+    const CATEGORY_PROGRESS_ANIMATION_DURATION_MS = 1520;
+    const CATEGORY_PROGRESS_CENTER_BAND_RATIO = 0.3;
+    const CATEGORY_PROGRESS_CENTER_MIN_BAND_PX = 120;
+    const CATEGORY_PROGRESS_POST_METRICS_DELAY_MS = 650;
 
     const $nextCard = $root.find('[data-ll-wordset-next]');
     const $nextShell = $root.find('[data-ll-wordset-next-shell]');
@@ -750,6 +758,24 @@
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + progressHardIconSvgMarkup() + '</span>';
         }
         return '';
+    }
+
+    function progressResetIsEnabled() {
+        const nonceValue = String(progressResetCfg.nonce || '').trim();
+        const actionUrl = String(progressResetCfg.actionUrl || '').trim();
+        const resetWordsetId = parseInt(progressResetCfg.wordsetId, 10) || 0;
+        return !!progressResetCfg.enabled && nonceValue !== '' && actionUrl !== '' && resetWordsetId > 0;
+    }
+
+    function buildProgressResetIconMarkup(className) {
+        const cls = String(className || 'll-wordset-progress-category-reset-icon');
+        return '<svg class="' + escapeHtml(cls) + '" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"'
+            + ' fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"'
+            + ' aria-hidden="true" focusable="false">'
+            + '<circle cx="12" cy="12" r="9"></circle>'
+            + '<path d="M9 9l6 6"></path>'
+            + '<path d="M15 9l-6 6"></path>'
+            + '</svg>';
     }
 
     function buildProgressSortIconMarkup(direction) {
@@ -1764,6 +1790,20 @@
         };
     }
 
+    function analyticsCategoryHasRecordedProgress(row) {
+        if (!row || typeof row !== 'object') {
+            return false;
+        }
+        const metrics = analyticsCategoryWordProgress(row);
+        if (metrics.mastered > 0 || metrics.studied > 0) {
+            return true;
+        }
+        if (analyticsCategoryActivityTotal(row) > 0) {
+            return true;
+        }
+        return String(row.last_seen_at || '').trim() !== '';
+    }
+
     function analyticsCategoryProgressScore(row) {
         const metrics = analyticsCategoryWordProgress(row);
         if (metrics.total <= 0) {
@@ -1957,6 +1997,47 @@
                 }).appendTo($categoryWrap);
             } else {
                 $('<span>', { dir: 'auto', text: categoryLabel }).appendTo($categoryWrap);
+            }
+
+            if (progressResetIsEnabled() && row.id > 0 && analyticsCategoryHasRecordedProgress(row)) {
+                const resetActionUrl = String(progressResetCfg.actionUrl || '').trim();
+                const resetNonce = String(progressResetCfg.nonce || '').trim();
+                const resetWordsetId = parseInt(progressResetCfg.wordsetId, 10) || 0;
+                const resetCategoryId = parseInt(row.id, 10) || 0;
+                if (resetActionUrl && resetNonce && resetWordsetId > 0 && resetCategoryId > 0) {
+                    const categoryNameForMessages = String(categoryLabel || (i18n.categoriesLabel || 'category')).trim() || 'category';
+                    const resetConfirmMessage = formatTemplate(
+                        i18n.progressResetCategoryConfirm || 'This will permanently delete your progress for %s. This cannot be undone. Continue?',
+                        [categoryNameForMessages]
+                    );
+                    const resetAriaLabel = formatTemplate(
+                        i18n.progressResetCategoryAria || 'Reset progress for %s',
+                        [categoryNameForMessages]
+                    );
+
+                    const $categoryResetForm = $('<form>', {
+                        class: 'll-wordset-progress-category-reset-form',
+                        method: 'post',
+                        action: resetActionUrl,
+                        'data-ll-wordset-progress-reset-form': '1',
+                        'data-confirm': resetConfirmMessage
+                    });
+
+                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_action', value: 'category' }).appendTo($categoryResetForm);
+                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_nonce', value: resetNonce }).appendTo($categoryResetForm);
+                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_wordset_id', value: String(resetWordsetId) }).appendTo($categoryResetForm);
+                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_category_id', value: String(resetCategoryId) }).appendTo($categoryResetForm);
+
+                    $('<button>', {
+                        type: 'submit',
+                        class: 'll-wordset-progress-category-reset-button',
+                        title: resetAriaLabel,
+                        'aria-label': resetAriaLabel,
+                        html: buildProgressResetIconMarkup('ll-wordset-progress-category-reset-icon')
+                    }).appendTo($categoryResetForm);
+
+                    $categoryWrap.append($categoryResetForm);
+                }
             }
             $categoryCell.append($categoryWrap).appendTo($tr);
 
@@ -2412,6 +2493,42 @@
         return bucket || 'no-image';
     }
 
+    function normalizePromptTypeForCompatibility(value) {
+        const key = String(value || '').trim().toLowerCase();
+        if (key === 'text_title' || key === 'text_translation') {
+            return 'text';
+        }
+        return key || 'audio';
+    }
+
+    function normalizeOptionTypeForCompatibility(value) {
+        const key = String(value || '').trim().toLowerCase();
+        if (key === 'text_title' || key === 'text_translation') {
+            return 'text';
+        }
+        return key || 'image';
+    }
+
+    function getCategoryQuizPresentationKey(catId) {
+        const cat = getCategoryById(catId);
+        if (!cat) {
+            return 'audio->image';
+        }
+        const promptType = normalizePromptTypeForCompatibility(cat.prompt_type || 'audio');
+        const optionType = normalizeOptionTypeForCompatibility(cat.option_type || cat.mode || 'image');
+        return promptType + '->' + optionType;
+    }
+
+    function getCategoryCompatibilityKey(catId, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const requireMatchingPresentation = !!opts.requireMatchingPresentation;
+        const aspectBucket = getCategoryAspectBucket(catId);
+        if (!requireMatchingPresentation) {
+            return aspectBucket;
+        }
+        return aspectBucket + '|' + getCategoryQuizPresentationKey(catId);
+    }
+
     function filterCategoryIdsByAspectBucket(categoryIds, options) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
@@ -2424,7 +2541,7 @@
         const bucketGroups = {};
         const bucketById = {};
         ids.forEach(function (id) {
-            const bucket = getCategoryAspectBucket(id);
+            const bucket = getCategoryCompatibilityKey(id, opts);
             bucketById[id] = bucket;
             if (!bucketGroups[bucket]) {
                 bucketGroups[bucket] = [];
@@ -2451,6 +2568,83 @@
         });
     }
 
+    function selectCompatibleCategoryIdsByWordCounts(categoryIds, options) {
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
+            return !isCategoryHidden(id);
+        });
+        if (ids.length < 2) {
+            return ids;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const priorityCounts = (opts.priorityCounts && typeof opts.priorityCounts === 'object') ? opts.priorityCounts : {};
+        const totalCounts = (opts.totalCounts && typeof opts.totalCounts === 'object') ? opts.totalCounts : {};
+        const groups = {};
+        const keyById = {};
+
+        ids.forEach(function (id, index) {
+            const key = getCategoryCompatibilityKey(id, opts);
+            keyById[id] = key;
+            if (!groups[key]) {
+                groups[key] = {
+                    key: key,
+                    ids: [],
+                    order: index,
+                    priorityCount: 0,
+                    totalCount: 0
+                };
+            }
+            groups[key].ids.push(id);
+            groups[key].priorityCount += Math.max(0, parseInt(priorityCounts[id], 10) || 0);
+            groups[key].totalCount += Math.max(0, parseInt(totalCounts[id], 10) || 0);
+        });
+
+        const groupList = Object.keys(groups).map(function (key) { return groups[key]; });
+        if (groupList.length < 2) {
+            return ids;
+        }
+
+        const preferredCategoryId = parseInt(opts.preferCategoryId, 10) || ids[0] || 0;
+        let best = null;
+        groupList.forEach(function (group) {
+            group.hasPreferred = group.ids.indexOf(preferredCategoryId) !== -1;
+            if (!best) {
+                best = group;
+                return;
+            }
+
+            if (group.priorityCount !== best.priorityCount) {
+                if (group.priorityCount > best.priorityCount) {
+                    best = group;
+                }
+                return;
+            }
+            if (group.hasPreferred !== best.hasPreferred) {
+                if (group.hasPreferred) {
+                    best = group;
+                }
+                return;
+            }
+            if (group.totalCount !== best.totalCount) {
+                if (group.totalCount > best.totalCount) {
+                    best = group;
+                }
+                return;
+            }
+            if (group.order < best.order) {
+                best = group;
+            }
+        });
+
+        if (!best || !Array.isArray(best.ids) || !best.ids.length) {
+            return ids;
+        }
+
+        return ids.filter(function (id) {
+            return keyById[id] === best.key;
+        });
+    }
+
     function getCategoryLabel(catId) {
         const cat = getCategoryById(catId);
         if (!cat) { return ''; }
@@ -2465,6 +2659,43 @@
         if (key === 'starred') { return String(i18n.priorityFocusStarred || 'Starred words'); }
         if (key === 'hard') { return String(i18n.priorityFocusHard || 'Hard words'); }
         return '';
+    }
+
+    function resolveSelectionCriteriaKey(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const starOnly = !!opts.starOnly;
+        const hardOnly = !!opts.hardOnly;
+        if (starOnly && hardOnly) { return 'starred'; }
+        if (starOnly) { return 'starred'; }
+        if (hardOnly) { return 'hard'; }
+        return '';
+    }
+
+    function resolveSelectionCriteriaLabel(criteriaKey) {
+        const key = normalizePriorityFocus(criteriaKey);
+        if (!key) {
+            return '';
+        }
+        return priorityFocusLabel(key);
+    }
+
+    function resolveLearningCategoryLabelOverride(mode, categoryIds, details, fallbackFocus) {
+        const normalizedMode = normalizeMode(mode);
+        if (normalizedMode !== 'learning') {
+            return '';
+        }
+
+        const ids = uniqueIntList(categoryIds || []);
+        if (ids.length < 2) {
+            return '';
+        }
+
+        const detailData = (details && typeof details === 'object') ? details : {};
+        const focus = normalizePriorityFocus(detailData.priority_focus || fallbackFocus || '');
+        if (!focus) {
+            return '';
+        }
+        return priorityFocusLabel(focus);
     }
 
     function activityCategoryText(activity) {
@@ -2504,8 +2735,10 @@
         if (!baseIds.length) {
             return [];
         }
+        const launchMode = normalizeMode(opts.mode || '');
         return filterCategoryIdsByAspectBucket(baseIds, {
-            preferCategoryId: parseInt(opts.preferCategoryId, 10) || baseIds[0] || 0
+            preferCategoryId: parseInt(opts.preferCategoryId, 10) || baseIds[0] || 0,
+            requireMatchingPresentation: launchMode === 'learning'
         });
     }
 
@@ -2523,6 +2756,10 @@
 
     function getSelectionMinimumWordCount() {
         return Math.max(1, parseInt(genderCfg.min_count, 10) || 1);
+    }
+
+    function getSelectionFilteredMinimumWordCount() {
+        return Math.max(getSelectionMinimumWordCount(), LEARNING_MIN_CHUNK_SIZE);
     }
 
     function hasActiveCategorySelection() {
@@ -3068,6 +3305,13 @@
         const after = normalizeSummaryCounts(nextCounts || {});
         const shouldAnimate = !!opts.animate && !prefersReducedMotion();
         const celebratePerfect = !!opts.celebratePerfect && !prefersReducedMotion();
+        const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        const signalComplete = function () {
+            if (!onComplete) { return; }
+            try {
+                onComplete();
+            } catch (_) { /* no-op */ }
+        };
         const elements = getMiniCountElements();
         const pills = {};
         SUMMARY_COUNT_KEYS.forEach(function (key) {
@@ -3107,8 +3351,11 @@
                     $progressMiniChip.removeClass('is-perfect-burst');
                     clearMiniProgressBurstParticles();
                     progressMiniCountCleanupTimer = null;
+                    signalComplete();
                 }, 980);
+                return;
             }
+            signalComplete();
             return;
         }
 
@@ -3170,6 +3417,7 @@
                 });
                 clearMiniProgressBurstParticles();
                 progressMiniCountCleanupTimer = null;
+                signalComplete();
             }, settleDelay);
         };
 
@@ -3286,7 +3534,8 @@
         const nextCounts = normalizeSummaryCounts(summaryCounts || {});
         animateMiniCountTransition(previousCounts, nextCounts, {
             animate: !!opts.animate,
-            celebratePerfect: !!opts.celebratePerfect
+            celebratePerfect: !!opts.celebratePerfect,
+            onComplete: (typeof opts.onComplete === 'function') ? opts.onComplete : null
         });
     }
 
@@ -3440,6 +3689,20 @@
         return rect.bottom >= 0 && rect.top <= viewportHeight && rect.right >= 0 && rect.left <= viewportWidth;
     }
 
+    function isRectNearViewportCenter(rect) {
+        if (!rect) { return false; }
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (viewportHeight <= 0) { return false; }
+        const centerY = rect.top + (rect.height * 0.5);
+        const viewportCenterY = viewportHeight * 0.5;
+        const allowedDistance = Math.max(CATEGORY_PROGRESS_CENTER_MIN_BAND_PX, viewportHeight * CATEGORY_PROGRESS_CENTER_BAND_RATIO);
+        return Math.abs(centerY - viewportCenterY) <= allowedDistance;
+    }
+
+    function isRectInCategoryProgressFocusZone(rect) {
+        return isRectInViewport(rect) && isRectNearViewportCenter(rect);
+    }
+
     function clampProgressPercent(value) {
         const numeric = Number(value);
         if (!Number.isFinite(numeric)) { return 0; }
@@ -3584,12 +3847,14 @@
         const raf = window.requestAnimationFrame || function (cb) {
             return window.setTimeout(function () { cb(); }, 16);
         };
-        raf(applyNow);
+        raf(function () {
+            raf(applyNow);
+        });
 
         trackEl.__llProgressAnimTimer = window.setTimeout(function () {
             segments.track.removeClass('is-progress-updating');
             trackEl.__llProgressAnimTimer = 0;
-        }, 980);
+        }, CATEGORY_PROGRESS_ANIMATION_DURATION_MS);
     }
 
     function schedulePendingCategoryProgressVisibilityCheck() {
@@ -3629,7 +3894,9 @@
         };
     }
 
-    function applyPendingCategoryProgressForCard($card) {
+    function applyPendingCategoryProgressForCard($card, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const force = !!opts.force;
         const cardEl = $card && $card.length ? $card.get(0) : null;
         if (!cardEl || typeof cardEl.getBoundingClientRect !== 'function') { return false; }
 
@@ -3645,7 +3912,11 @@
             return false;
         }
 
-        if (!isRectInViewport(cardEl.getBoundingClientRect())) {
+        if (categoryProgressHoldForMetrics && !force) {
+            return false;
+        }
+
+        if (!isRectInCategoryProgressFocusZone(cardEl.getBoundingClientRect())) {
             return false;
         }
 
@@ -3694,6 +3965,83 @@
         });
     }
 
+    function getTopRowCategoryCardEntries() {
+        const entries = [];
+        let minTop = null;
+
+        $root.find('.ll-wordset-card[data-cat-id]').each(function () {
+            const cardEl = this;
+            if (!cardEl || typeof cardEl.getBoundingClientRect !== 'function') { return; }
+
+            const categoryId = parseInt(cardEl.getAttribute('data-cat-id'), 10) || 0;
+            if (!categoryId) { return; }
+
+            const rect = cardEl.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) { return; }
+
+            minTop = (minTop === null) ? rect.top : Math.min(minTop, rect.top);
+            entries.push({
+                id: categoryId,
+                rect: rect
+            });
+        });
+
+        if (!entries.length || minTop === null) {
+            return [];
+        }
+
+        const topRowTolerancePx = 18;
+        return entries.filter(function (entry) {
+            return Math.abs(entry.rect.top - minTop) <= topRowTolerancePx;
+        });
+    }
+
+    function scheduleTopRowCategoryProgressAfterMetrics() {
+        if (categoryProgressPostMetricsTimer) {
+            window.clearTimeout(categoryProgressPostMetricsTimer);
+            categoryProgressPostMetricsTimer = 0;
+        }
+
+        // Defer briefly so the metrics chip animation can finish before firing the card update.
+        categoryProgressPostMetricsTimer = window.setTimeout(function () {
+            categoryProgressPostMetricsTimer = 0;
+
+            const topRowEntries = getTopRowCategoryCardEntries();
+            if (topRowEntries.length) {
+                topRowEntries.forEach(function (entry) {
+                    const categoryId = parseInt(entry && entry.id, 10) || 0;
+                    if (!categoryId || !isRectInCategoryProgressFocusZone(entry.rect)) {
+                        return;
+                    }
+
+                    const pending = normalizePendingCategoryProgressEntry(pendingCategoryProgressUpdates[categoryId]);
+                    if (!pending || !pending.awaitNextView) {
+                        return;
+                    }
+
+                    pending.awaitNextView = false;
+                    pendingCategoryProgressUpdates[categoryId] = pending;
+                    applyPendingCategoryProgressForCard(getWordsetCardByCategoryId(categoryId), { force: true });
+                });
+            }
+
+            // Release "next view" deferrals so cards do not get stuck waiting for a full leave/re-enter cycle.
+            Object.keys(pendingCategoryProgressUpdates).forEach(function (rawId) {
+                const categoryId = parseInt(rawId, 10) || 0;
+                if (!categoryId) { return; }
+                const pending = normalizePendingCategoryProgressEntry(pendingCategoryProgressUpdates[categoryId]);
+                if (!pending || !pending.awaitNextView) {
+                    return;
+                }
+                pending.awaitNextView = false;
+                pendingCategoryProgressUpdates[categoryId] = pending;
+            });
+
+            categoryProgressHoldForMetrics = false;
+            schedulePendingCategoryProgressVisibilityCheck();
+        }, CATEGORY_PROGRESS_POST_METRICS_DELAY_MS);
+    }
+
     function observeCategoryCardsForProgressVisibility() {
         if (!categoryProgressVisibilityObserver || typeof categoryProgressVisibilityObserver.observe !== 'function') {
             return;
@@ -3714,6 +4062,15 @@
                     schedulePendingCategoryProgressVisibilityCheck();
                 }
             });
+        }
+
+        if (!categoryProgressFallbackBound) {
+            categoryProgressFallbackBound = true;
+            $(window)
+                .off('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility')
+                .on('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility', function () {
+                    schedulePendingCategoryProgressVisibilityCheck();
+                });
         }
 
         if (categoryProgressVisibilityObserver) {
@@ -3747,16 +4104,6 @@
             observeCategoryCardsForProgressVisibility();
             return;
         }
-
-        if (categoryProgressFallbackBound) {
-            return;
-        }
-        categoryProgressFallbackBound = true;
-        $(window)
-            .off('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility')
-            .on('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility', function () {
-                schedulePendingCategoryProgressVisibilityCheck();
-            });
     }
 
     function queueCategoryProgressUpdatesFromAnalytics(analyticsPayload, options) {
@@ -3764,7 +4111,9 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const deferVisible = !!opts.deferVisible;
         const rows = Array.isArray(analyticsData.categories) ? analyticsData.categories : [];
-        if (!rows.length) { return; }
+        if (!rows.length) { return false; }
+
+        let hasCategoryProgressChanges = false;
 
         ensureCategoryProgressVisibilityTracking();
 
@@ -3785,10 +4134,15 @@
                 delete pendingCategoryProgressUpdates[categoryId];
                 return;
             }
+            hasCategoryProgressChanges = true;
 
             const cardEl = $card.get(0);
-            const isVisible = !!(cardEl && typeof cardEl.getBoundingClientRect === 'function' && isRectInViewport(cardEl.getBoundingClientRect()));
-            if (isVisible && !deferVisible) {
+            const cardRect = (cardEl && typeof cardEl.getBoundingClientRect === 'function')
+                ? cardEl.getBoundingClientRect()
+                : null;
+            const isVisible = isRectInViewport(cardRect);
+            const isInFocusZone = isRectInCategoryProgressFocusZone(cardRect);
+            if (isInFocusZone && !deferVisible) {
                 setWordsetCardProgressPercents($card, nextValues, { animate: true });
                 delete pendingCategoryProgressUpdates[categoryId];
             } else {
@@ -3799,6 +4153,7 @@
         });
 
         schedulePendingCategoryProgressVisibilityCheck();
+        return hasCategoryProgressChanges;
     }
 
     function scrollToHiddenChipForHideFlight() {
@@ -3981,7 +4336,9 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const animate = opts.animate !== false;
         const celebratePerfect = !!opts.celebratePerfect;
-        const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress;
+        const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress
+            || categoryProgressHoldForMetrics
+            || !!categoryProgressPostMetricsTimer;
         const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
         const complete = function (detail) {
             if (!onComplete) { return; }
@@ -3989,7 +4346,13 @@
                 onComplete((detail && typeof detail === 'object') ? detail : {});
             } catch (_) { /* no-op */ }
         };
+        if (categoryProgressPostMetricsTimer) {
+            window.clearTimeout(categoryProgressPostMetricsTimer);
+            categoryProgressPostMetricsTimer = 0;
+        }
+        categoryProgressHoldForMetrics = deferVisibleCategoryProgress;
         if (!isLoggedIn || !ajaxUrl || !nonce) {
+            categoryProgressHoldForMetrics = false;
             complete({ hasCountChanges: false, skipped: true });
             return;
         }
@@ -4008,10 +4371,11 @@
                 ? res.data.analytics
                 : null;
             if (!analytics || !analytics.summary || typeof analytics.summary !== 'object') {
+                categoryProgressHoldForMetrics = false;
                 complete({ hasCountChanges: false, skipped: true });
                 return;
             }
-            queueCategoryProgressUpdatesFromAnalytics(analytics, {
+            const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
                 deferVisible: deferVisibleCategoryProgress
             });
             const summary = analytics.summary;
@@ -4029,18 +4393,27 @@
             };
             const stableChanged = summaryCountsChanged(stableCountsBefore, nextCounts);
             const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
-            const hasCountChanges = stableChanged && renderedChanged;
+            const hasCountChanges = stableChanged || renderedChanged;
             summaryCounts = nextCounts;
             renderMiniCounts({
                 previousCounts: renderedCountsBefore,
-                animate: animate && hasCountChanges,
-                celebratePerfect: celebratePerfect && hasCountChanges
+                animate: animate && renderedChanged,
+                celebratePerfect: celebratePerfect && hasCountChanges,
+                onComplete: function () {
+                    if (deferVisibleCategoryProgress) {
+                        scheduleTopRowCategoryProgressAfterMetrics();
+                    }
+                }
             });
             if (celebratePerfect) {
                 clearPerfectCelebrationPending();
             }
-            complete({ hasCountChanges: hasCountChanges });
+            complete({
+                hasCountChanges: hasCountChanges,
+                hasCategoryProgressChanges: !!hasCategoryProgressChanges
+            });
         }).fail(function () {
+            categoryProgressHoldForMetrics = false;
             complete({ hasCountChanges: false, failed: true });
         });
     }
@@ -4707,10 +5080,10 @@
         }
 
         const metrics = buildSelectionWordMetrics(selectedIds);
-        const minimumWords = getSelectionMinimumWordCount();
+        const filteredMinimumWords = getSelectionFilteredMinimumWordCount();
         // Starred/hard filters are user-specific and should stay unavailable for guests.
-        const showStarredOnly = isLoggedIn && metrics.starred >= minimumWords;
-        const showHardOnly = isLoggedIn && metrics.hard >= minimumWords;
+        const showStarredOnly = isLoggedIn && metrics.starred >= filteredMinimumWords;
+        const showHardOnly = isLoggedIn && metrics.hard >= filteredMinimumWords;
 
         if (!showStarredOnly) {
             selectionStarredOnly = false;
@@ -4761,11 +5134,15 @@
         const allowGender = selectionHasGenderSupport(ids);
         const effectiveWordCount = Math.max(0, parseInt(opts.effectiveWordCount, 10) || 0);
         const hasEnoughWords = effectiveWordCount >= getSelectionMinimumWordCount();
+        const hasEnoughLearningWords = effectiveWordCount >= Math.max(3, getSelectionMinimumWordCount());
 
         $root.find('[data-ll-wordset-selection-mode]').each(function () {
             const $btn = $(this);
             const mode = normalizeMode($btn.attr('data-mode') || '');
-            const disabled = !hasSelection || !hasEnoughWords || (mode === 'gender' && !allowGender);
+            const disabled = !hasSelection ||
+                !hasEnoughWords ||
+                (mode === 'learning' && !hasEnoughLearningWords) ||
+                (mode === 'gender' && !allowGender);
             $btn
                 .prop('disabled', disabled)
                 .attr('aria-disabled', disabled ? 'true' : 'false')
@@ -4922,39 +5299,292 @@
     }
 
     function collectWordIdsForCategories(categoryIds, options) {
+        const lists = buildWordIdListsByCategory(categoryIds, options);
+        return lists.filteredWordIds;
+    }
+
+    function buildWordIdListsByCategory(categoryIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []);
-        const out = [];
-        const seen = {};
+        const starOnly = !!opts.starOnly;
+        const hardOnly = !!opts.hardOnly;
         const starredLookup = {};
         uniqueIntList(state.starred_word_ids || []).forEach(function (id) {
             starredLookup[id] = true;
         });
-        const starOnly = !!opts.starOnly;
-        const hardOnly = !!opts.hardOnly;
         const hardLookup = hardOnly ? getHardWordLookup() : {};
+
+        const out = {
+            categoryIds: ids,
+            allByCategory: {},
+            filteredByCategory: {},
+            totalCountByCategory: {},
+            filteredCountByCategory: {},
+            allWordIds: [],
+            filteredWordIds: []
+        };
+
+        const seenAllGlobal = {};
+        const seenFilteredGlobal = {};
 
         ids.forEach(function (categoryId) {
             const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
+            const allIds = [];
+            const filteredIds = [];
+            const seenLocal = {};
+
             rows.forEach(function (word) {
                 const wordId = parseInt(word && word.id, 10) || 0;
-                if (!wordId || seen[wordId]) { return; }
+                if (!wordId || seenLocal[wordId]) { return; }
+                seenLocal[wordId] = true;
+                allIds.push(wordId);
+
                 if (starOnly && !starredLookup[wordId]) { return; }
                 if (hardOnly && !hardLookup[wordId]) { return; }
-                seen[wordId] = true;
-                out.push(wordId);
+                filteredIds.push(wordId);
+            });
+
+            out.allByCategory[categoryId] = allIds;
+            out.filteredByCategory[categoryId] = filteredIds;
+            out.totalCountByCategory[categoryId] = allIds.length;
+            out.filteredCountByCategory[categoryId] = filteredIds.length;
+
+            allIds.forEach(function (wordId) {
+                if (!seenAllGlobal[wordId]) {
+                    seenAllGlobal[wordId] = true;
+                    out.allWordIds.push(wordId);
+                }
+            });
+            filteredIds.forEach(function (wordId) {
+                if (!seenFilteredGlobal[wordId]) {
+                    seenFilteredGlobal[wordId] = true;
+                    out.filteredWordIds.push(wordId);
+                }
             });
         });
 
         return out;
     }
 
-    function buildChunkList(wordIds) {
+    function filterWordIdsByCategories(wordIds, categoryIds, allByCategory) {
+        const ids = uniqueIntList(wordIds || []);
+        const categoriesForWords = uniqueIntList(categoryIds || []);
+        if (!ids.length || !categoriesForWords.length) {
+            return [];
+        }
+
+        const allowedLookup = {};
+        categoriesForWords.forEach(function (categoryId) {
+            const words = (allByCategory && Array.isArray(allByCategory[categoryId])) ? allByCategory[categoryId] : [];
+            words.forEach(function (wordId) {
+                const wid = parseInt(wordId, 10) || 0;
+                if (wid > 0) {
+                    allowedLookup[wid] = true;
+                }
+            });
+        });
+
+        return ids.filter(function (wordId) {
+            return !!allowedLookup[wordId];
+        });
+    }
+
+    function collectUniqueWordIdsFromCategoryLists(categoryIds, wordsByCategoryMap) {
+        const out = [];
+        const seen = {};
+        uniqueIntList(categoryIds || []).forEach(function (categoryId) {
+            const ids = (wordsByCategoryMap && Array.isArray(wordsByCategoryMap[categoryId])) ? wordsByCategoryMap[categoryId] : [];
+            ids.forEach(function (wordId) {
+                const wid = parseInt(wordId, 10) || 0;
+                if (!wid || seen[wid]) { return; }
+                seen[wid] = true;
+                out.push(wid);
+            });
+        });
+        return out;
+    }
+
+    function appendUniqueWordIds(baseWordIds, candidateWordIds, minimumCount) {
+        const target = uniqueIntList(baseWordIds || []);
+        const limit = Math.max(0, parseInt(minimumCount, 10) || 0);
+        if (!limit || target.length >= limit) {
+            return target;
+        }
+
+        const seen = {};
+        target.forEach(function (id) {
+            seen[id] = true;
+        });
+
+        const candidates = Array.isArray(candidateWordIds) ? candidateWordIds : [];
+        for (let idx = 0; idx < candidates.length; idx += 1) {
+            const wordId = parseInt(candidates[idx], 10) || 0;
+            if (!wordId || seen[wordId]) {
+                continue;
+            }
+            seen[wordId] = true;
+            target.push(wordId);
+            if (target.length >= limit) {
+                break;
+            }
+        }
+
+        return target;
+    }
+
+    function pickBestCategoryIdByCounts(categoryIds, options) {
+        const ids = uniqueIntList(categoryIds || []);
+        if (!ids.length) {
+            return 0;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const priorityCounts = (opts.priorityCounts && typeof opts.priorityCounts === 'object') ? opts.priorityCounts : {};
+        const totalCounts = (opts.totalCounts && typeof opts.totalCounts === 'object') ? opts.totalCounts : {};
+        const preferredCategoryId = parseInt(opts.preferCategoryId, 10) || ids[0] || 0;
+        let bestId = ids[0];
+        let bestPriority = -1;
+        let bestTotal = -1;
+
+        ids.forEach(function (id) {
+            const priority = Math.max(0, parseInt(priorityCounts[id], 10) || 0);
+            const total = Math.max(0, parseInt(totalCounts[id], 10) || 0);
+            if (priority > bestPriority) {
+                bestPriority = priority;
+                bestTotal = total;
+                bestId = id;
+                return;
+            }
+            if (priority === bestPriority) {
+                if (total > bestTotal) {
+                    bestTotal = total;
+                    bestId = id;
+                    return;
+                }
+                if (total === bestTotal && id === preferredCategoryId) {
+                    bestId = id;
+                }
+            }
+        });
+
+        return bestId;
+    }
+
+    function buildLearningSelectionLaunchPlan(categoryIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
+            return !isCategoryHidden(id);
+        });
+        const minimumWords = Math.max(3, parseInt(opts.minimumWords, 10) || LEARNING_MIN_CHUNK_SIZE);
+        const criteriaKey = resolveSelectionCriteriaKey(opts);
+        if (!ids.length) {
+            return {
+                categoryIds: [],
+                sessionWordIds: [],
+                criteriaKey: criteriaKey,
+                categoryLabelOverride: ''
+            };
+        }
+
+        const wordLists = buildWordIdListsByCategory(ids, opts);
+        let compatibleCategoryIds = selectCompatibleCategoryIdsByWordCounts(ids, {
+            preferCategoryId: parseInt(opts.preferCategoryId, 10) || ids[0] || 0,
+            requireMatchingPresentation: true,
+            priorityCounts: wordLists.filteredCountByCategory,
+            totalCounts: wordLists.totalCountByCategory
+        });
+        if (!compatibleCategoryIds.length) {
+            compatibleCategoryIds = ids.slice();
+        }
+
+        let sessionWordIds = filterWordIdsByCategories(
+            wordLists.filteredWordIds,
+            compatibleCategoryIds,
+            wordLists.allByCategory
+        );
+
+        if (sessionWordIds.length && sessionWordIds.length < minimumWords) {
+            const allCompatibleWords = collectUniqueWordIdsFromCategoryLists(compatibleCategoryIds, wordLists.allByCategory);
+            sessionWordIds = appendUniqueWordIds(sessionWordIds, allCompatibleWords, minimumWords);
+        }
+
+        if (sessionWordIds.length && sessionWordIds.length < minimumWords) {
+            const anchorCategoryId = pickBestCategoryIdByCounts(compatibleCategoryIds, {
+                preferCategoryId: parseInt(opts.preferCategoryId, 10) || compatibleCategoryIds[0] || 0,
+                priorityCounts: wordLists.filteredCountByCategory,
+                totalCounts: wordLists.totalCountByCategory
+            });
+            if (anchorCategoryId > 0) {
+                sessionWordIds = appendUniqueWordIds(
+                    sessionWordIds,
+                    wordLists.allByCategory[anchorCategoryId] || [],
+                    minimumWords
+                );
+            }
+        }
+
+        const categoryWordLookup = {};
+        sessionWordIds.forEach(function (wordId) {
+            categoryWordLookup[wordId] = true;
+        });
+        const effectiveCategoryIds = compatibleCategoryIds.filter(function (categoryId) {
+            const idsForCategory = (wordLists.allByCategory && Array.isArray(wordLists.allByCategory[categoryId]))
+                ? wordLists.allByCategory[categoryId]
+                : [];
+            return idsForCategory.some(function (wordId) {
+                return !!categoryWordLookup[wordId];
+            });
+        });
+
+        const resolvedCategoryIds = effectiveCategoryIds.length ? effectiveCategoryIds : compatibleCategoryIds;
+        const categoryLabelOverride = resolveLearningCategoryLabelOverride(
+            'learning',
+            resolvedCategoryIds,
+            { priority_focus: criteriaKey },
+            criteriaKey
+        ) || resolveSelectionCriteriaLabel(criteriaKey);
+
+        return {
+            categoryIds: resolvedCategoryIds,
+            sessionWordIds: sessionWordIds,
+            criteriaKey: criteriaKey,
+            categoryLabelOverride: categoryLabelOverride
+        };
+    }
+
+    function buildChunkList(wordIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || CHUNK_SIZE);
+        const minimumChunkSize = Math.max(0, parseInt(opts.minChunkSize, 10) || 0);
         const ids = shuffleList(uniqueIntList(wordIds || []));
         if (!ids.length) { return []; }
         const chunks = [];
-        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-            chunks.push(ids.slice(i, i + CHUNK_SIZE));
+        for (let i = 0; i < ids.length; i += chunkSize) {
+            chunks.push(ids.slice(i, i + chunkSize));
+        }
+
+        if (minimumChunkSize > 1 && chunks.length > 1) {
+            const lastChunk = chunks[chunks.length - 1];
+            if (lastChunk.length < minimumChunkSize) {
+                for (let chunkIndex = chunks.length - 2; chunkIndex >= 0 && lastChunk.length < minimumChunkSize; chunkIndex -= 1) {
+                    const sourceChunk = chunks[chunkIndex];
+                    while (sourceChunk.length > minimumChunkSize && lastChunk.length < minimumChunkSize) {
+                        const movedWordId = sourceChunk.pop();
+                        if (!movedWordId) {
+                            break;
+                        }
+                        lastChunk.unshift(movedWordId);
+                    }
+                }
+
+                if (lastChunk.length < minimumChunkSize) {
+                    const merged = [];
+                    chunks.forEach(function (chunk) {
+                        merged.push.apply(merged, chunk);
+                    });
+                    return [merged];
+                }
+            }
         }
         return chunks;
     }
@@ -5009,7 +5639,8 @@
             return categorySupportsMode(key, id);
         });
         return filterCategoryIdsByAspectBucket(byMode, {
-            preferCategoryId: byMode[0] || ids[0] || 0
+            preferCategoryId: byMode[0] || ids[0] || 0,
+            requireMatchingPresentation: key === 'learning'
         });
     }
 
@@ -5052,13 +5683,15 @@
             return null;
         }
         const sessionWordIds = uniqueIntList(launch.session_word_ids || data.session_word_ids || data.sessionWordIds || []);
+        const launchDetails = (launch.details && typeof launch.details === 'object') ? launch.details : {};
         return {
             mode: mode,
             category_ids: categoryIds,
             session_word_ids: sessionWordIds,
-            details: {},
+            details: launchDetails,
             source: String(launch.source || ''),
-            session_star_mode: normalizeStarMode(launch.session_star_mode || launch.sessionStarMode || 'normal')
+            session_star_mode: normalizeStarMode(launch.session_star_mode || launch.sessionStarMode || 'normal'),
+            category_label_override: String(launch.category_label_override || launch.categoryLabelOverride || '')
         };
     }
 
@@ -5212,11 +5845,19 @@
         }
         const includeSessionWords = !opts.ignoreSessionWords;
         const sessionWordIds = includeSessionWords ? uniqueIntList(item.session_word_ids || []) : [];
+        const details = (item.details && typeof item.details === 'object') ? item.details : {};
+        const categoryLabelOverride = String(
+            opts.categoryLabelOverride ||
+            item.category_label_override ||
+            resolveLearningCategoryLabelOverride(item.mode, categoryIds, details, '')
+        ).trim();
         chunkSession = null;
         launchFlashcards(item.mode, categoryIds, sessionWordIds, {
             source: String(opts.source || item.source || 'wordset_results_action'),
             chunked: false,
-            sessionStarMode: normalizeStarMode(opts.sessionStarMode || item.session_star_mode || 'normal')
+            sessionStarMode: normalizeStarMode(opts.sessionStarMode || item.session_star_mode || 'normal'),
+            details: details,
+            categoryLabelOverride: categoryLabelOverride
         });
     }
 
@@ -5397,7 +6038,8 @@
                 launchFlashcards(chunkSession.mode, chunkSession.category_ids, currentChunk, {
                     source: 'wordset_chunk_repeat',
                     chunked: true,
-                    sessionStarMode: chunkSession.star_mode || 'normal'
+                    sessionStarMode: chunkSession.star_mode || 'normal',
+                    categoryLabelOverride: String(chunkSession.category_label_override || '').trim()
                 });
             });
 
@@ -5417,7 +6059,8 @@
                 launchFlashcards(chunkSession.mode, chunkSession.category_ids, nextChunk, {
                     source: 'wordset_chunk_continue',
                     chunked: true,
-                    sessionStarMode: chunkSession.star_mode || 'normal'
+                    sessionStarMode: chunkSession.star_mode || 'normal',
+                    categoryLabelOverride: String(chunkSession.category_label_override || '').trim()
                 });
             });
         } else {
@@ -5428,15 +6071,72 @@
         return true;
     }
 
+    function openFlashcardLaunchLoadingState() {
+        const $popup = $('#ll-tools-flashcard-popup');
+        const $quizPopup = $('#ll-tools-flashcard-quiz-popup');
+        const wasVisible = $popup.is(':visible') || $quizPopup.is(':visible');
+        const $loading = $('#ll-tools-loading-animation');
+
+        $('body').addClass('ll-tools-flashcard-open');
+        $popup.show();
+        $quizPopup
+            .show()
+            .addClass('ll-round-loading-active ll-round-loading-instant')
+            .attr('aria-busy', 'true');
+
+        if ($loading.length) {
+            const $body = $('body');
+            if ($body.length && $loading.parent()[0] !== $body[0]) {
+                $loading.appendTo($body);
+            }
+            $loading.show();
+        }
+
+        if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.showLoading === 'function') {
+            try { window.LLFlashcards.Dom.showLoading(); } catch (_) { /* no-op */ }
+        }
+
+        return {
+            $popup: $popup,
+            $quizPopup: $quizPopup,
+            wasVisible: wasVisible
+        };
+    }
+
+    function closeFlashcardLaunchLoadingState(launchUi) {
+        const ui = (launchUi && typeof launchUi === 'object') ? launchUi : {};
+        const $popup = (ui.$popup && ui.$popup.length) ? ui.$popup : $('#ll-tools-flashcard-popup');
+        const $quizPopup = (ui.$quizPopup && ui.$quizPopup.length) ? ui.$quizPopup : $('#ll-tools-flashcard-quiz-popup');
+
+        if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.hideLoading === 'function') {
+            try { window.LLFlashcards.Dom.hideLoading(); } catch (_) { /* no-op */ }
+        }
+
+        $('#ll-tools-loading-animation').hide();
+        $quizPopup
+            .removeClass('ll-round-loading-active ll-round-loading-instant')
+            .removeAttr('aria-busy');
+
+        if (!ui.wasVisible) {
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
+            $('html').css('overflow', '');
+            $quizPopup.hide();
+            $popup.hide();
+        }
+    }
+
     function launchFlashcards(mode, categoryIds, sessionWordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const normalizedMode = normalizeMode(mode) || 'practice';
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');
         const randomizeSessionCategoryOrder = !!opts.randomizeSessionCategoryOrder;
+        const launchDetails = (opts.details && typeof opts.details === 'object') ? Object.assign({}, opts.details) : {};
+        const requestedCategoryLabelOverride = String(opts.categoryLabelOverride || '').trim();
         const requestedIds = uniqueIntList(categoryIds || []);
         const ids = resolveLaunchCategoryIds(requestedIds, {
             preferCategoryId: requestedIds[0] || 0,
-            fallbackCategoryIds: opts.fallbackCategoryIds || []
+            fallbackCategoryIds: opts.fallbackCategoryIds || [],
+            mode: normalizedMode
         });
 
         if (!ids.length) {
@@ -5446,17 +6146,55 @@
 
         const finalMode = (normalizedMode === 'gender' && !selectionHasGenderSupport(ids)) ? 'practice' : normalizedMode;
         const sessionIds = uniqueIntList(sessionWordIds || []);
+        const launchUi = openFlashcardLaunchLoadingState();
+        const abortLaunch = function (message) {
+            closeFlashcardLaunchLoadingState(launchUi);
+            if (message) {
+                alert(message);
+            }
+        };
 
         ensureWordsForCategories(ids).always(function () {
+            let launchCategoryIds = ids.slice();
+            let effectiveSessionIds = sessionIds.slice();
+            let effectiveRequestedCategoryLabelOverride = requestedCategoryLabelOverride;
+            if (finalMode === 'learning') {
+                const criteriaKey = normalizePriorityFocus(launchDetails.priority_focus || '');
+                const isCriteriaFiltered = criteriaKey === 'starred' || criteriaKey === 'hard';
+                const minimumWords = isCriteriaFiltered ? LEARNING_MIN_CHUNK_SIZE : 3;
+                const shouldRebuildLearningPlan = isCriteriaFiltered || (
+                    effectiveSessionIds.length > 0 && effectiveSessionIds.length < minimumWords
+                );
+
+                if (shouldRebuildLearningPlan) {
+                    const learningPlan = buildLearningSelectionLaunchPlan(launchCategoryIds, {
+                        starOnly: criteriaKey === 'starred',
+                        hardOnly: criteriaKey === 'hard',
+                        preferCategoryId: launchCategoryIds[0] || 0,
+                        minimumWords: minimumWords
+                    });
+                    const plannedCategoryIds = uniqueIntList(learningPlan.categoryIds || []);
+                    const plannedSessionWordIds = uniqueIntList(learningPlan.sessionWordIds || []);
+                    if (plannedCategoryIds.length) {
+                        launchCategoryIds = plannedCategoryIds;
+                    }
+                    if (plannedSessionWordIds.length) {
+                        effectiveSessionIds = plannedSessionWordIds;
+                    }
+                    if (!effectiveRequestedCategoryLabelOverride) {
+                        effectiveRequestedCategoryLabelOverride = String(learningPlan.categoryLabelOverride || '').trim();
+                    }
+                }
+            }
+
             let selectedCats = categories.filter(function (cat) {
-                return ids.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
+                return launchCategoryIds.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
             });
             if (!selectedCats.length) {
-                alert(i18n.noCategoriesSelected || 'Select at least one category.');
+                abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
                 return;
             }
 
-            let effectiveSessionIds = sessionIds.slice();
             const getWordRowsForCategory = function (categoryId, lookup) {
                 const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
                 if (!rows.length) { return []; }
@@ -5515,13 +6253,30 @@
             if (!selectedCats.length && effectiveSessionIds.length) {
                 effectiveSessionIds = [];
                 selectedCats = categories.filter(function (cat) {
-                    return ids.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id) && hasWordRowsForCategory(cat.id, null);
+                    return launchCategoryIds.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id) && hasWordRowsForCategory(cat.id, null);
                 });
             }
 
             if (!selectedCats.length) {
-                alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
                 return;
+            }
+
+            if (finalMode === 'learning') {
+                if (effectiveSessionIds.length > 0 && effectiveSessionIds.length <= 2) {
+                    abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                    return;
+                }
+                if (!effectiveSessionIds.length) {
+                    let availableWordCount = 0;
+                    selectedCats.forEach(function (cat) {
+                        availableWordCount += getWordRowsForCategory(cat.id, null).length;
+                    });
+                    if (availableWordCount <= 2) {
+                        abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                        return;
+                    }
+                }
             }
 
             if (effectiveSessionIds.length && !randomizeSessionCategoryOrder) {
@@ -5549,13 +6304,17 @@
             const effectiveCategoryIds = uniqueIntList(selectedCats.map(function (cat) {
                 return parseInt(cat.id, 10) || 0;
             }));
+            const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
+                resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
 
             lastFlashcardLaunch = {
                 mode: finalMode,
                 category_ids: effectiveCategoryIds.slice(),
                 session_word_ids: effectiveSessionIds.slice(),
                 source: String(opts.source || ''),
-                session_star_mode: sessionStarModeOverride
+                session_star_mode: sessionStarModeOverride,
+                details: launchDetails,
+                category_label_override: resolvedCategoryLabelOverride
             };
 
             const firstCategory = selectedCats[0];
@@ -5593,6 +6352,13 @@
             flashData.session_word_ids = effectiveSessionIds.slice();
             flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
             flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
+            if (resolvedCategoryLabelOverride) {
+                flashData.categoryDisplayOverride = resolvedCategoryLabelOverride;
+                flashData.category_display_override = resolvedCategoryLabelOverride;
+            } else {
+                delete flashData.categoryDisplayOverride;
+                delete flashData.category_display_override;
+            }
             flashData.userStudyState = flashData.userStudyState || {};
             flashData.userStudyState.wordset_id = wordsetId;
             flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
@@ -5614,9 +6380,8 @@
                 return String(cat.name || '');
             }).filter(Boolean);
 
-            const $popup = $('#ll-tools-flashcard-popup');
-            const $quizPopup = $('#ll-tools-flashcard-quiz-popup');
-            $('body').addClass('ll-tools-flashcard-open');
+            const $popup = launchUi.$popup;
+            const $quizPopup = launchUi.$quizPopup;
             $popup.show();
             $quizPopup.show();
 
@@ -5624,12 +6389,11 @@
                 const initRes = window.initFlashcardWidget(catNames, finalMode);
                 if (initRes && typeof initRes.catch === 'function') {
                     initRes.catch(function () {
-                        $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
-                        $('html').css('overflow', '');
-                        $quizPopup.hide();
-                        $popup.hide();
+                        closeFlashcardLaunchLoadingState(launchUi);
                     });
                 }
+            } else {
+                closeFlashcardLaunchLoadingState(launchUi);
             }
         });
     }
@@ -5639,32 +6403,111 @@
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
-        const ids = filterCategoryIdsByAspectBucket(selectedIds, {
-            preferCategoryId: selectedIds[0] || 0
-        });
         const starredOnlyActive = !!selectionStarredOnly;
         const hardOnlyActive = !!selectionHardOnly;
+        const criteriaKey = resolveSelectionCriteriaKey({
+            starOnly: starredOnlyActive,
+            hardOnly: hardOnlyActive
+        });
+        const resolveEmptyMessage = function () {
+            if (starredOnlyActive && hardOnlyActive) {
+                return i18n.noStarredHardWordsInSelection || 'No starred hard words are available for this selection.';
+            }
+            if (starredOnlyActive) {
+                return i18n.noStarredWordsInSelection || 'No starred words are available for this selection.';
+            }
+            if (hardOnlyActive) {
+                return i18n.noHardWordsInSelection || 'No hard words are available for this selection.';
+            }
+            return i18n.noWordsInSelection || 'No quiz words are available for this selection.';
+        };
 
-        if (!ids.length) {
+        if (!selectedIds.length) {
             alert(i18n.noCategoriesSelected || 'Select at least one category.');
             return;
         }
 
-        ensureWordsForCategories(ids).always(function () {
+        ensureWordsForCategories(selectedIds).always(function () {
+            if (normalizedMode === 'learning') {
+                const learningPlan = buildLearningSelectionLaunchPlan(selectedIds, {
+                    starOnly: starredOnlyActive,
+                    hardOnly: hardOnlyActive,
+                    preferCategoryId: selectedIds[0] || 0,
+                    minimumWords: LEARNING_MIN_CHUNK_SIZE
+                });
+                const learningCategoryIds = uniqueIntList(learningPlan.categoryIds || []);
+                const learningWordIds = uniqueIntList(learningPlan.sessionWordIds || []);
+                if (!learningCategoryIds.length || !learningWordIds.length) {
+                    alert(resolveEmptyMessage());
+                    return;
+                }
+                if (learningWordIds.length <= 2) {
+                    alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                    return;
+                }
+
+                const chunks = buildChunkList(learningWordIds, {
+                    minChunkSize: LEARNING_MIN_CHUNK_SIZE
+                });
+                if (!chunks.length) {
+                    alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                    return;
+                }
+
+                const categoryLabelOverride = resolveLearningCategoryLabelOverride(
+                    normalizedMode,
+                    learningCategoryIds,
+                    { priority_focus: criteriaKey },
+                    criteriaKey
+                ) || String(learningPlan.categoryLabelOverride || '').trim();
+                const launchDetails = criteriaKey ? { priority_focus: criteriaKey } : {};
+
+                if (chunks.length > 1) {
+                    chunkSession = {
+                        mode: normalizedMode,
+                        category_ids: learningCategoryIds.slice(),
+                        chunks: chunks,
+                        index: 0,
+                        star_mode: starredOnlyActive ? 'only' : 'normal',
+                        category_label_override: categoryLabelOverride
+                    };
+                    launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], {
+                        source: 'wordset_chunk_start',
+                        chunked: true,
+                        sessionStarMode: chunkSession.star_mode,
+                        randomizeSessionCategoryOrder: true,
+                        details: launchDetails,
+                        categoryLabelOverride: chunkSession.category_label_override
+                    });
+                    return;
+                }
+
+                chunkSession = null;
+                launchFlashcards(normalizedMode, learningCategoryIds, chunks[0], {
+                    source: 'wordset_selection_start',
+                    chunked: false,
+                    sessionStarMode: starredOnlyActive ? 'only' : 'normal',
+                    randomizeSessionCategoryOrder: true,
+                    details: launchDetails,
+                    categoryLabelOverride: categoryLabelOverride
+                });
+                return;
+            }
+
+            const ids = filterCategoryIdsByAspectBucket(selectedIds, {
+                preferCategoryId: selectedIds[0] || 0
+            });
+            if (!ids.length) {
+                alert(i18n.noCategoriesSelected || 'Select at least one category.');
+                return;
+            }
+
             const wordIds = collectWordIdsForCategories(ids, {
                 starOnly: starredOnlyActive,
                 hardOnly: hardOnlyActive
             });
             if (!wordIds.length) {
-                let emptyMessage = i18n.noWordsInSelection || 'No quiz words are available for this selection.';
-                if (starredOnlyActive && hardOnlyActive) {
-                    emptyMessage = i18n.noStarredHardWordsInSelection || 'No starred hard words are available for this selection.';
-                } else if (starredOnlyActive) {
-                    emptyMessage = i18n.noStarredWordsInSelection || 'No starred words are available for this selection.';
-                } else if (hardOnlyActive) {
-                    emptyMessage = i18n.noHardWordsInSelection || 'No hard words are available for this selection.';
-                }
-                alert(emptyMessage);
+                alert(resolveEmptyMessage());
                 return;
             }
 
@@ -5692,7 +6535,8 @@
                     category_ids: ids.slice(),
                     chunks: chunks,
                     index: 0,
-                    star_mode: starredOnlyActive ? 'only' : 'normal'
+                    star_mode: starredOnlyActive ? 'only' : 'normal',
+                    category_label_override: ''
                 };
                 launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], {
                     source: 'wordset_chunk_start',
@@ -5733,11 +6577,13 @@
             const sessionWordIds = item && item.session_word_ids && item.session_word_ids.length
                 ? uniqueIntList(item.session_word_ids)
                 : [];
+            const details = (item && item.details && typeof item.details === 'object') ? item.details : {};
             chunkSession = null;
             launchFlashcards(preferredMode, categoryIds, sessionWordIds, {
                 source: source || 'wordset_top_start_recommended',
                 chunked: false,
-                fallbackCategoryIds: recommendationScopeIds
+                fallbackCategoryIds: recommendationScopeIds,
+                details: details
             });
         };
 
@@ -6055,11 +6901,13 @@
                     ? next.category_ids
                     : getRecommendationScopeIds());
                 const recommendationScopeIds = getRecommendationScopeIds();
+                const nextDetails = (next.details && typeof next.details === 'object') ? next.details : {};
                 chunkSession = null;
                 launchFlashcards(next.mode, nextIds, next.session_word_ids || [], {
                     source: 'wordset_next_start',
                     chunked: false,
-                    fallbackCategoryIds: recommendationScopeIds
+                    fallbackCategoryIds: recommendationScopeIds,
+                    details: nextDetails
                 });
             });
         }
@@ -6106,7 +6954,7 @@
                     celebratePerfect: hasPendingPerfectCelebration(),
                     deferVisibleCategoryProgress: true,
                     onComplete: function (result) {
-                        if (result && result.hasCountChanges) {
+                        if (result && (result.hasCountChanges || result.hasCategoryProgressChanges)) {
                             scrollWordsetPageToTop();
                         }
                     }
@@ -6127,7 +6975,8 @@
             }
             refreshSummaryCounts({
                 animate: true,
-                celebratePerfect: hasPendingPerfectCelebration()
+                celebratePerfect: hasPendingPerfectCelebration(),
+                deferVisibleCategoryProgress: true
             });
         });
     }
@@ -6164,6 +7013,16 @@
         if ($progressCategorySearchInput.length) {
             $progressCategorySearchInput.val(analyticsCategorySearchQuery);
         }
+
+        $root.on('submit', '[data-ll-wordset-progress-reset-form]', function (evt) {
+            const message = String($(this).attr('data-confirm') || '').trim();
+            if (!message) {
+                return;
+            }
+            if (!window.confirm(message)) {
+                evt.preventDefault();
+            }
+        });
 
         $root.on('click', '[data-ll-wordset-progress-tab]', function () {
             const tab = String($(this).attr('data-ll-wordset-progress-tab') || '');

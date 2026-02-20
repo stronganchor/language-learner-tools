@@ -6,8 +6,6 @@
     --ll-vlp-text: #2e2a24;
     --ll-vlp-muted: #6b6256;
     --ll-vlp-accent: #1f6b5c;
-    background: radial-gradient(1000px 360px at 20% 0%, var(--ll-vlp-bg-accent), transparent 65%),
-        linear-gradient(180deg, var(--ll-vlp-bg), #fbfaf7 70%);
     color: var(--ll-vlp-text);
     padding: clamp(24px, 4vw, 48px) clamp(18px, 5vw, 60px) clamp(40px, 6vw, 70px);
     min-height: 70vh;

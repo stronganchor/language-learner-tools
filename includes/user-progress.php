@@ -3292,6 +3292,218 @@ function ll_tools_user_study_analytics_ajax() {
 }
 add_action('wp_ajax_ll_user_study_analytics', 'll_tools_user_study_analytics_ajax');
 
+/**
+ * Resolve word IDs for a progress reset scope.
+ *
+ * This intentionally resolves scope from current taxonomy relationships so
+ * reset actions remain accurate even if legacy rows have stale wordset/category
+ * columns.
+ *
+ * @param int   $wordset_id   Optional wordset scope.
+ * @param int[] $category_ids Optional category scope.
+ * @return int[]
+ */
+function ll_tools_user_progress_resolve_scope_word_ids(int $wordset_id = 0, array $category_ids = []): array {
+    $wordset_id = max(0, $wordset_id);
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function ($id) {
+        return $id > 0;
+    })));
+
+    if ($wordset_id <= 0 && empty($category_ids)) {
+        return [];
+    }
+
+    $tax_query = [];
+    if (!empty($category_ids)) {
+        $tax_query[] = [
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => $category_ids,
+            'operator' => 'IN',
+            'include_children' => false,
+        ];
+    }
+    if ($wordset_id > 0) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => [$wordset_id],
+            'operator' => 'IN',
+            'include_children' => false,
+        ];
+    }
+
+    $query_args = [
+        'post_type' => 'words',
+        'post_status' => 'any',
+        'fields' => 'ids',
+        'posts_per_page' => -1,
+        'no_found_rows' => true,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+    ];
+    if (!empty($tax_query)) {
+        $query_args['tax_query'] = (count($tax_query) > 1)
+            ? array_merge(['relation' => 'AND'], $tax_query)
+            : $tax_query;
+    }
+
+    $ids_raw = get_posts($query_args);
+    if (empty($ids_raw) || !is_array($ids_raw)) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $ids_raw), static function ($id) {
+        return $id > 0;
+    })));
+    sort($word_ids, SORT_NUMERIC);
+    return $word_ids;
+}
+
+/**
+ * Delete user progress rows with optional wordset/category scope.
+ *
+ * @param int   $user_id User ID.
+ * @param array $args {
+ *     Optional. Reset scope.
+ *
+ *     @type int   $wordset_id   Optional wordset scope.
+ *     @type int[] $category_ids Optional category scope.
+ * }
+ * @return array<string,mixed>
+ */
+function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
+    global $wpdb;
+
+    $uid = (int) $user_id;
+    $wordset_id = isset($args['wordset_id']) ? max(0, (int) $args['wordset_id']) : 0;
+    $category_ids = isset($args['category_ids']) ? (array) $args['category_ids'] : [];
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), function ($id) {
+        return $id > 0;
+    })));
+
+    $result = [
+        'user_id' => $uid,
+        'wordset_id' => $wordset_id,
+        'category_ids' => $category_ids,
+        'deleted_word_rows' => 0,
+        'deleted_event_rows' => 0,
+        'cleared_category_meta_entries' => 0,
+    ];
+
+    if ($uid <= 0) {
+        return $result;
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $scope_word_ids = ll_tools_user_progress_resolve_scope_word_ids($wordset_id, $category_ids);
+
+    $word_where = ['user_id = %d'];
+    $word_params = [$uid];
+    $event_where = ['user_id = %d'];
+    $event_params = [$uid];
+
+    if ($wordset_id > 0) {
+        $word_where[] = 'wordset_id = %d';
+        $word_params[] = $wordset_id;
+        $event_where[] = 'wordset_id = %d';
+        $event_params[] = $wordset_id;
+    }
+
+    if (!empty($category_ids)) {
+        $placeholders = implode(', ', array_fill(0, count($category_ids), '%d'));
+        $word_where[] = "category_id IN ({$placeholders})";
+        $event_where[] = "category_id IN ({$placeholders})";
+        $word_params = array_merge($word_params, $category_ids);
+        $event_params = array_merge($event_params, $category_ids);
+    }
+
+    $word_sql = 'DELETE FROM ' . $tables['words'] . ' WHERE ' . implode(' AND ', $word_where);
+    $event_sql = 'DELETE FROM ' . $tables['events'] . ' WHERE ' . implode(' AND ', $event_where);
+
+    $prepared_word_sql = $wpdb->prepare($word_sql, $word_params);
+    $prepared_event_sql = $wpdb->prepare($event_sql, $event_params);
+
+    if (is_string($prepared_word_sql) && $prepared_word_sql !== '') {
+        $deleted_words = $wpdb->query($prepared_word_sql);
+        if ($deleted_words !== false) {
+            $result['deleted_word_rows'] = max(0, (int) $deleted_words);
+        }
+    }
+
+    if (is_string($prepared_event_sql) && $prepared_event_sql !== '') {
+        $deleted_events = $wpdb->query($prepared_event_sql);
+        if ($deleted_events !== false) {
+            $result['deleted_event_rows'] = max(0, (int) $deleted_events);
+        }
+    }
+
+    if (!empty($scope_word_ids)) {
+        foreach (array_chunk($scope_word_ids, 300) as $chunk_ids) {
+            $placeholders = implode(', ', array_fill(0, count($chunk_ids), '%d'));
+
+            $word_sql_by_id = "DELETE FROM {$tables['words']} WHERE user_id = %d AND word_id IN ({$placeholders})";
+            $word_params_by_id = array_merge([$uid], $chunk_ids);
+            $prepared_word_sql_by_id = $wpdb->prepare($word_sql_by_id, $word_params_by_id);
+            if (is_string($prepared_word_sql_by_id) && $prepared_word_sql_by_id !== '') {
+                $deleted_words_by_id = $wpdb->query($prepared_word_sql_by_id);
+                if ($deleted_words_by_id !== false) {
+                    $result['deleted_word_rows'] += max(0, (int) $deleted_words_by_id);
+                }
+            }
+
+            $event_sql_by_id = "DELETE FROM {$tables['events']} WHERE user_id = %d AND word_id IN ({$placeholders})";
+            $event_params_by_id = array_merge([$uid], $chunk_ids);
+            $prepared_event_sql_by_id = $wpdb->prepare($event_sql_by_id, $event_params_by_id);
+            if (is_string($prepared_event_sql_by_id) && $prepared_event_sql_by_id !== '') {
+                $deleted_events_by_id = $wpdb->query($prepared_event_sql_by_id);
+                if ($deleted_events_by_id !== false) {
+                    $result['deleted_event_rows'] += max(0, (int) $deleted_events_by_id);
+                }
+            }
+        }
+    }
+
+    $category_progress = ll_tools_get_user_category_progress($uid);
+    if (!empty($category_progress)) {
+        $should_remove_by_category = !empty($category_ids);
+        $category_lookup = $should_remove_by_category ? array_fill_keys($category_ids, true) : [];
+        foreach ($category_progress as $progress_category_id => $entry) {
+            $cid = (int) $progress_category_id;
+            if ($cid <= 0 || !is_array($entry)) {
+                continue;
+            }
+
+            $entry_wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+            $matches_category = $should_remove_by_category && !empty($category_lookup[$cid]);
+            $matches_wordset = !$should_remove_by_category && $wordset_id > 0 && $entry_wordset_id === $wordset_id;
+
+            if (!$matches_category && !$matches_wordset) {
+                continue;
+            }
+
+            unset($category_progress[$cid]);
+            $result['cleared_category_meta_entries']++;
+        }
+
+        if ($result['cleared_category_meta_entries'] > 0) {
+            if (empty($category_progress)) {
+                delete_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META);
+            } else {
+                update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $category_progress);
+            }
+        }
+    }
+
+    if ($wordset_id > 0) {
+        ll_tools_save_user_recommendation_queue([], $uid, $wordset_id);
+        ll_tools_save_user_last_recommendation_activity(null, $uid, $wordset_id);
+        ll_tools_save_user_recommendation_dismissed_signatures([], $uid, $wordset_id);
+    }
+
+    return $result;
+}
+
 function ll_tools_cleanup_user_progress_for_deleted_user($user_id): void {
     global $wpdb;
     $uid = (int) $user_id;

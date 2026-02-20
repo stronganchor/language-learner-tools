@@ -44,6 +44,7 @@ function buildWordsetMarkup() {
           <span data-ll-wordset-selection-hard-icon></span>
           <span data-ll-wordset-selection-hard-label>Hard words only</span>
         </label>
+        <button type="button" data-ll-wordset-selection-mode data-mode="learning">Selection Learn</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="listening">Selection Listen</button>
         <button type="button" data-ll-wordset-selection-clear>Clear</button>
       </div>
@@ -109,6 +110,7 @@ function buildPageConfig({ isLoggedIn }) {
         option_type: 'image',
         learning_supported: true,
         gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
         hidden: false,
         preview: []
       },
@@ -124,6 +126,7 @@ function buildPageConfig({ isLoggedIn }) {
         option_type: 'image',
         learning_supported: true,
         gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
         hidden: false,
         preview: []
       },
@@ -139,6 +142,7 @@ function buildPageConfig({ isLoggedIn }) {
         option_type: 'image',
         learning_supported: true,
         gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
         hidden: false,
         preview: []
       }
@@ -195,6 +199,8 @@ function buildPageConfig({ isLoggedIn }) {
       deselectAll: 'Deselect all',
       noCategoriesSelected: 'Select at least one category.',
       noWordsInSelection: 'No quiz words are available for this selection.',
+      priorityFocusStarred: 'Starred words',
+      priorityFocusHard: 'Hard words',
       continueLabel: 'Continue',
       repeatLabel: 'Repeat',
       categoriesLabel: 'Categories'
@@ -204,16 +210,22 @@ function buildPageConfig({ isLoggedIn }) {
 
 async function mountWordsetPage(page, options = {}) {
   const isLoggedIn = !!options.isLoggedIn;
-  const wordsByCategory = buildCategoryWords();
+  const wordsByCategory = (options.wordsByCategory && typeof options.wordsByCategory === 'object')
+    ? options.wordsByCategory
+    : buildCategoryWords();
   let config = buildPageConfig({ isLoggedIn });
   if (options.configPatch && typeof options.configPatch === 'object') {
     config = Object.assign({}, config, options.configPatch);
   }
-  const wordsByCategoryName = {
-    'Cat A': wordsByCategory[11],
-    'Cat B': wordsByCategory[22],
-    'Cat C': wordsByCategory[33]
-  };
+  const wordsByCategoryName = {};
+  (Array.isArray(config.categories) ? config.categories : []).forEach((cat) => {
+    const cid = Number(cat && cat.id) || 0;
+    const name = String((cat && cat.name) || '');
+    if (!cid || !name) {
+      return;
+    }
+    wordsByCategoryName[name] = Array.isArray(wordsByCategory[cid]) ? wordsByCategory[cid] : [];
+  });
 
   await page.goto('about:blank');
   await page.setContent(buildWordsetMarkup());
@@ -401,4 +413,286 @@ test('logged-in practice top launch falls back to visible categories when recomm
   expect(launch.sessionWordIds).toEqual([]);
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
   expect(alerts).toEqual([]);
+});
+
+test('next learning recommendation with two starred words is expanded to a minimum-size compatible session', async ({ page }) => {
+  const wordsByCategory = {
+    11: [
+      { id: 1101, title: 'A1', translation: 'A1', label: 'A1', audio: '', image: '', audio_files: [] },
+      { id: 1102, title: 'A2', translation: 'A2', label: 'A2', audio: '', image: '', audio_files: [] },
+      { id: 1103, title: 'A3', translation: 'A3', label: 'A3', audio: '', image: '', audio_files: [] },
+      { id: 1104, title: 'A4', translation: 'A4', label: 'A4', audio: '', image: '', audio_files: [] },
+      { id: 1105, title: 'A5', translation: 'A5', label: 'A5', audio: '', image: '', audio_files: [] }
+    ],
+    22: [
+      { id: 2201, title: 'B1', translation: 'B1', label: 'B1', audio: '', image: '', audio_files: [] },
+      { id: 2202, title: 'B2', translation: 'B2', label: 'B2', audio: '', image: '', audio_files: [] },
+      { id: 2203, title: 'B3', translation: 'B3', label: 'B3', audio: '', image: '', audio_files: [] },
+      { id: 2204, title: 'B4', translation: 'B4', label: 'B4', audio: '', image: '', audio_files: [] },
+      { id: 2205, title: 'B5', translation: 'B5', label: 'B5', audio: '', image: '', audio_files: [] }
+    ],
+    33: [
+      { id: 3301, title: 'C1', translation: 'C1', label: 'C1', audio: '', image: '', audio_files: [] },
+      { id: 3302, title: 'C2', translation: 'C2', label: 'C2', audio: '', image: '', audio_files: [] },
+      { id: 3303, title: 'C3', translation: 'C3', label: 'C3', audio: '', image: '', audio_files: [] },
+      { id: 3304, title: 'C4', translation: 'C4', label: 'C4', audio: '', image: '', audio_files: [] },
+      { id: 3305, title: 'C5', translation: 'C5', label: 'C5', audio: '', image: '', audio_files: [] }
+    ]
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 30,
+          url: '#',
+          mode: 'text',
+          prompt_type: 'audio',
+          option_type: 'text_translation',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: [1101, 2201],
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      nextActivity: {
+        mode: 'learning',
+        category_ids: [11, 22, 33],
+        session_word_ids: [1101, 2201],
+        type: 'review_chunk',
+        reason_code: 'review_chunk_balanced',
+        details: { chunk_size: 2, priority_focus: 'starred' }
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-next]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('learning');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launch.sessionWordIds.length).toBeGreaterThanOrEqual(8);
+  expect(launch.sessionWordIds.every((id) => (id >= 1101 && id <= 1105) || (id >= 2201 && id <= 2205))).toBeTruthy();
+
+  const categoryDisplayOverride = await page.evaluate(() => {
+    const flash = window.llToolsFlashcardsData || {};
+    return String(flash.categoryDisplayOverride || flash.category_display_override || '');
+  });
+  expect(categoryDisplayOverride).toBe('Starred words');
+});
+
+test('selection keeps starred-only hidden when fewer than eight starred words are available', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: [1101, 1102, 1103, 2201, 2202, 2203, 3301],
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+
+  await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
+});
+
+test('learning starred selection mixes only compatible categories and fills to eight words', async ({ page }) => {
+  const wordsByCategory = {
+    11: [
+      { id: 1101, title: 'A1', translation: 'A1', label: 'A1', audio: '', image: '', audio_files: [] },
+      { id: 1102, title: 'A2', translation: 'A2', label: 'A2', audio: '', image: '', audio_files: [] },
+      { id: 1103, title: 'A3', translation: 'A3', label: 'A3', audio: '', image: '', audio_files: [] },
+      { id: 1104, title: 'A4', translation: 'A4', label: 'A4', audio: '', image: '', audio_files: [] },
+      { id: 1105, title: 'A5', translation: 'A5', label: 'A5', audio: '', image: '', audio_files: [] },
+      { id: 1106, title: 'A6', translation: 'A6', label: 'A6', audio: '', image: '', audio_files: [] },
+      { id: 1107, title: 'A7', translation: 'A7', label: 'A7', audio: '', image: '', audio_files: [] },
+      { id: 1108, title: 'A8', translation: 'A8', label: 'A8', audio: '', image: '', audio_files: [] },
+      { id: 1109, title: 'A9', translation: 'A9', label: 'A9', audio: '', image: '', audio_files: [] },
+      { id: 1110, title: 'A10', translation: 'A10', label: 'A10', audio: '', image: '', audio_files: [] }
+    ],
+    22: [
+      { id: 2201, title: 'B1', translation: 'B1', label: 'B1', audio: '', image: '', audio_files: [] },
+      { id: 2202, title: 'B2', translation: 'B2', label: 'B2', audio: '', image: '', audio_files: [] },
+      { id: 2203, title: 'B3', translation: 'B3', label: 'B3', audio: '', image: '', audio_files: [] },
+      { id: 2204, title: 'B4', translation: 'B4', label: 'B4', audio: '', image: '', audio_files: [] },
+      { id: 2205, title: 'B5', translation: 'B5', label: 'B5', audio: '', image: '', audio_files: [] },
+      { id: 2206, title: 'B6', translation: 'B6', label: 'B6', audio: '', image: '', audio_files: [] },
+      { id: 2207, title: 'B7', translation: 'B7', label: 'B7', audio: '', image: '', audio_files: [] },
+      { id: 2208, title: 'B8', translation: 'B8', label: 'B8', audio: '', image: '', audio_files: [] },
+      { id: 2209, title: 'B9', translation: 'B9', label: 'B9', audio: '', image: '', audio_files: [] },
+      { id: 2210, title: 'B10', translation: 'B10', label: 'B10', audio: '', image: '', audio_files: [] }
+    ],
+    33: [
+      { id: 3301, title: 'C1', translation: 'C1', label: 'C1', audio: '', image: '', audio_files: [] },
+      { id: 3302, title: 'C2', translation: 'C2', label: 'C2', audio: '', image: '', audio_files: [] }
+    ]
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:16_9',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 10,
+          url: '#',
+          mode: 'text',
+          prompt_type: 'audio',
+          option_type: 'text_translation',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: [1101, 1102, 1103, 1104, 1105, 1106, 2201, 2202, 2203, 2204],
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      analytics: {
+        scope: {},
+        summary: {},
+        daily_activity: { days: [], max_events: 0, window_days: 14 },
+        categories: [],
+        words: [
+          { id: 1101, title: 'A1', translation: 'A1', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 1102, title: 'A2', translation: 'A2', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 1103, title: 'A3', translation: 'A3', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 1104, title: 'A4', translation: 'A4', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 1105, title: 'A5', translation: 'A5', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 1106, title: 'A6', translation: 'A6', category_id: 11, category_ids: [11], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 2201, title: 'B1', translation: 'B1', category_id: 22, category_ids: [22], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 2202, title: 'B2', translation: 'B2', category_id: 22, category_ids: [22], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 2203, title: 'B3', translation: 'B3', category_id: 22, category_ids: [22], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true },
+          { id: 2204, title: 'B4', translation: 'B4', category_id: 22, category_ids: [22], status: 'studied', difficulty_score: 0, total_coverage: 1, incorrect: 0, lapse_count: 0, last_seen_at: '', is_starred: true }
+        ]
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
+  await page.locator('[data-ll-wordset-selection-starred-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="learning"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('learning');
+  expect(launch.categoryIds).toEqual([11]);
+  expect(launch.sessionWordIds.length).toBeGreaterThanOrEqual(8);
+  expect(launch.sessionWordIds.every((id) => id >= 1101 && id <= 1110)).toBeTruthy();
+  expect(launch.sessionWordIds.some((id) => id > 1106)).toBeTruthy();
+
+  const categoryDisplayOverride = await page.evaluate(() => {
+    const flash = window.llToolsFlashcardsData || {};
+    return String(flash.categoryDisplayOverride || flash.category_display_override || '');
+  });
+  expect(categoryDisplayOverride).toBe('Starred words');
 });

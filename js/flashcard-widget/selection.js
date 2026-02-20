@@ -838,6 +838,17 @@
         return id > 0 ? id : 0;
     }
 
+    function normalizeWordIdSet(raw) {
+        const out = new Set();
+        (Array.isArray(raw) ? raw : []).forEach(function (value) {
+            const id = normalizeWordId(value);
+            if (id) {
+                out.add(id);
+            }
+        });
+        return out;
+    }
+
     function extractMaskedImageAttachmentId(rawUrl) {
         if (!rawUrl || typeof rawUrl !== 'string') return 0;
         const url = rawUrl.trim();
@@ -1323,7 +1334,9 @@
 
     function buildMinimumOptionsError(targetWord, targetCategoryName, promptType, optionType, chosenCount, desiredCount) {
         const targetId = parseInt(targetWord && targetWord.id, 10) || targetWord && targetWord.id || null;
-        const err = new Error('Quiz round requires at least two options.');
+        const msgs = root.llToolsFlashcardsMessages || {};
+        const errorText = msgs.minimumOptionsInvariantMessage || 'Quiz round requires at least two options.';
+        const err = new Error(errorText);
         err.code = MINIMUM_OPTIONS_ERROR_CODE;
         err.details = {
             targetId: targetId,
@@ -1477,11 +1490,13 @@
         let availableWords = [];
 
         if (State.isLearningMode) {
+            const introducedIds = normalizeWordIdSet(State.introducedWordIDs);
             // Collect all introduced words from all categories
             State.categoryNames.forEach(catName => {
                 const catWords = activeWordsByCategory[catName] || [];
                 catWords.forEach(word => {
-                    if (State.introducedWordIDs.includes(word.id)) {
+                    const wordId = normalizeWordId(word && word.id);
+                    if (wordId && introducedIds.has(wordId)) {
                         availableWords.push(word);
                     }
                 });

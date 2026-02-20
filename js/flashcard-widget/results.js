@@ -38,6 +38,14 @@
     }
 
     function getCategoryNamesForDisplay(preferredNames) {
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        const override = String(flashData.categoryDisplayOverride || flashData.category_display_override || '').trim();
+        if (override) {
+            return [override];
+        }
+
         const preferred = Array.isArray(preferredNames) ? preferredNames.filter(function (name) {
             return String(name || '').trim() !== '';
         }) : [];
@@ -52,8 +60,8 @@
 
         const translationLookup = {};
         try {
-            const cats = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
-                ? root.llToolsFlashcardsData.categories
+            const cats = Array.isArray(flashData.categories)
+                ? flashData.categories
                 : [];
             cats.forEach(cat => {
                 if (cat && cat.name) {

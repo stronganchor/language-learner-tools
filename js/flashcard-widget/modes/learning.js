@@ -23,6 +23,8 @@
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
     const INTRO_AUDIO_RETRY_LIMIT = 2;
+    const INTRO_CLICK_CONFETTI_COOLDOWN_MS = 180;
+    const INTRO_CLICK_DUPLICATE_GUARD_MS = 450;
     const LEARNING_SET_SPLIT_THRESHOLD = 15;
     const LEARNING_SET_MAX_SIZE = 12;
 
@@ -212,11 +214,33 @@
         return { id: null, fallbackId: pick ? pick.id : null };
     }
 
+    function getLearningCategoryScanOrder() {
+        const ordered = [];
+        const seen = {};
+        const fromState = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        fromState.forEach(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            ordered.push(key);
+        });
+        const byCategory = (State.wordsByCategory && typeof State.wordsByCategory === 'object')
+            ? Object.keys(State.wordsByCategory)
+            : [];
+        byCategory.forEach(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            ordered.push(key);
+        });
+        return ordered;
+    }
+
     function wordObjectById(wordId) {
         const normalizedId = normalizeWordId(wordId);
         if (!normalizedId) return null;
 
-        for (let name of (State.categoryNames || [])) {
+        for (let name of getLearningCategoryScanOrder()) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             const word = words.find(function (item) {
                 return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
@@ -234,7 +258,7 @@
         const normalizedId = normalizeWordId(wordId);
         if (!normalizedId) return null;
 
-        for (let name of (State.categoryNames || [])) {
+        for (let name of getLearningCategoryScanOrder()) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             const word = words.find(function (item) {
                 return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
@@ -410,7 +434,7 @@
 
         if (selected.length) return selected;
         // Keep learning flow moving even when every remaining intro word conflicts.
-        return [orderedIds[0]];
+        return orderedIds.slice(0, Math.max(1, take));
     }
 
     function pickNextIntroId(notYetIntroduced, avoidId) {
@@ -749,6 +773,113 @@
         return setTimeout(fn, delay);
     }
 
+    function unbindIntroductionTapConfetti($jq) {
+        if (!$jq || typeof $jq !== 'function') return;
+        const $container = $jq('#ll-tools-flashcard');
+        if ($container && $container.length) {
+            $container.off('.llIntroTapConfetti');
+        }
+    }
+
+    function startIntroductionTapConfetti($card, event) {
+        const effectsApi = root.LLFlashcards && root.LLFlashcards.Effects;
+        if (!effectsApi || typeof effectsApi.startConfetti !== 'function') return;
+
+        const viewportWidth = Math.max(1, root.innerWidth || 1);
+        const viewportHeight = Math.max(1, root.innerHeight || 1);
+        const sourceEvent = event && event.originalEvent ? event.originalEvent : event;
+        const touchPoint = sourceEvent && sourceEvent.changedTouches && sourceEvent.changedTouches[0];
+
+        let clientX = null;
+        let clientY = null;
+        if (touchPoint) {
+            clientX = touchPoint.clientX;
+            clientY = touchPoint.clientY;
+        } else if (sourceEvent && typeof sourceEvent.clientX === 'number' && typeof sourceEvent.clientY === 'number') {
+            clientX = sourceEvent.clientX;
+            clientY = sourceEvent.clientY;
+        }
+
+        if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+            const cardEl = $card && typeof $card.get === 'function' ? $card.get(0) : null;
+            const rect = cardEl && typeof cardEl.getBoundingClientRect === 'function'
+                ? cardEl.getBoundingClientRect()
+                : null;
+            if (rect) {
+                clientX = rect.left + (rect.width / 2);
+                clientY = rect.top + (rect.height / 2);
+            } else {
+                clientX = viewportWidth / 2;
+                clientY = viewportHeight * 0.45;
+            }
+        }
+
+        const origin = {
+            x: Math.max(0, Math.min(1, clientX / viewportWidth)),
+            y: Math.max(0, Math.min(1, clientY / viewportHeight))
+        };
+
+        effectsApi.startConfetti({
+            particleCount: 4,
+            spread: 24,
+            angle: 90,
+            origin: origin,
+            duration: 20
+        });
+    }
+
+    function bindIntroductionTapConfetti($jq) {
+        if (!$jq || typeof $jq !== 'function') return;
+        const $container = $jq('#ll-tools-flashcard');
+        if (!$container.length) return;
+
+        let lastPointerHandledAt = 0;
+        let lastConfettiAt = 0;
+        const maybeCelebrateTap = function (e) {
+            if (State.abortAllOperations || !State.isIntroducing || !State.isIntroducing()) return;
+            if ($jq(e.target).closest('.ll-audio-play').length) return;
+            const $card = $jq(this);
+            if (!$card.hasClass('introducing-active')) return;
+            const now = Date.now();
+            if ((now - lastConfettiAt) < INTRO_CLICK_CONFETTI_COOLDOWN_MS) return;
+            lastConfettiAt = now;
+            startIntroductionTapConfetti($card, e);
+        };
+
+        unbindIntroductionTapConfetti($jq);
+        $container
+            .on('pointerdown.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                e.stopPropagation();
+            })
+            .on('pointerup.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                lastPointerHandledAt = Date.now();
+                maybeCelebrateTap.call(this, e);
+            })
+            .on('click.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                if (lastPointerHandledAt > 0 && (Date.now() - lastPointerHandledAt) < INTRO_CLICK_DUPLICATE_GUARD_MS) {
+                    return;
+                }
+                maybeCelebrateTap.call(this, e);
+            });
+    }
+
+    function restartIntroductionPulseAnimation($allCards, $card) {
+        if (!$card || !$card.length) return;
+        if ($allCards && $allCards.length) {
+            $allCards.removeClass('introducing-active');
+        } else {
+            $card.removeClass('introducing-active');
+        }
+
+        // Force a reflow so the CSS animation restarts for repeated clips on the same card.
+        const cardEl = $card.get(0);
+        if (cardEl) {
+            try { void cardEl.offsetWidth; } catch (_) { /* no-op */ }
+        }
+
+        $card.addClass('introducing-active');
+    }
+
     function releaseIntroLoading() {
         if (State.learningIntroLoadingReleased) return;
         State.learningIntroLoadingReleased = true;
@@ -820,6 +951,7 @@
         State.learningIntroLoadingReleased = false;
 
         if ($jq) {
+            unbindIntroductionTapConfetti($jq);
             $jq('#ll-tools-flashcard').removeClass('audio-line-layout').empty();
             $jq('#ll-tools-flashcard-content').removeClass('audio-line-mode');
         } else if (typeof document !== 'undefined') {
@@ -876,8 +1008,10 @@
             });
 
             if ($jq) {
-                $jq('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
-                $jq('.flashcard-container').fadeIn(600);
+                const $introCards = $jq('.flashcard-container');
+                $introCards.addClass('introducing');
+                $introCards.fadeIn(600);
+                bindIntroductionTapConfetti($jq);
             }
 
             const timeoutId = scheduleTimeout(context, function () {
@@ -886,6 +1020,16 @@
             State.addTimeout(timeoutId);
         }).catch(function (err) {
             console.error('Error preparing introductions:', err);
+            if ($jq) {
+                unbindIntroductionTapConfetti($jq);
+            }
+            if (context && typeof context.showLoadingError === 'function') {
+                context.showLoadingError({
+                    reason: 'learning-introduction',
+                    errorMessage: (err && err.message) ? String(err.message) : ''
+                });
+                return;
+            }
             State.forceTransitionTo(STATES.QUIZ_READY, 'Introduction error');
         });
     }
@@ -927,12 +1071,16 @@
         const $jq = getJQuery();
 
         if (State.abortAllOperations || !State.isIntroducing()) {
+            if ($jq) {
+                unbindIntroductionTapConfetti($jq);
+            }
             return;
         }
 
         if (wordIndex >= words.length) {
             Dom.enableRepeatButton && Dom.enableRepeatButton();
             if ($jq) {
+                unbindIntroductionTapConfetti($jq);
                 $jq('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
             }
             State.isIntroducingWord = false;
@@ -951,15 +1099,16 @@
 
         const currentWord = words[wordIndex];
         let $currentCard = null;
+        let $introCards = null;
         if ($jq) {
+            $introCards = $jq('.flashcard-container');
             $currentCard = $jq('.flashcard-container[data-word-index="' + wordIndex + '"]');
             if (!$currentCard.length) {
                 console.warn('Card disappeared during introduction');
                 return;
             }
 
-            $jq('.flashcard-container').removeClass('introducing-active');
-            $currentCard.addClass('introducing-active');
+            restartIntroductionPulseAnimation($introCards, $currentCard);
         }
 
         const timeoutId = scheduleTimeout(context, function () {

@@ -466,6 +466,59 @@ test('falls back to category distractors when specific wrong-answer IDs are brok
   expect(pickedIds).toEqual([701, 702]);
 });
 
+test('learning mode matches introduced IDs even when word payload IDs are strings', async ({ page }) => {
+  const category = 'Learning string IDs';
+  const targetWord = {
+    id: '801',
+    title: 'Target',
+    label: 'Target'
+  };
+  const introducedDistractor = {
+    id: '802',
+    title: 'Distractor',
+    label: 'Distractor'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord, introducedDistractor]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, introducedDistractor]
+    },
+    state: {
+      isLearningMode: true,
+      categoryNames: [category],
+      introducedWordIDs: [801, 802],
+      wordsByCategory: {
+        [category]: [targetWord, introducedDistractor]
+      }
+    }
+  });
+
+  const result = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Learning string IDs' }, word);
+    try {
+      window.LLFlashcards.Selection.fillQuizOptions(target);
+      const ids = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+        .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+        .filter((id) => id > 0);
+      return { threw: false, ids };
+    } catch (error) {
+      return {
+        threw: true,
+        code: String((error && error.code) || '')
+      };
+    }
+  }, targetWord);
+
+  expect(result.threw).toBe(false);
+  expect(result.ids).toEqual([801, 802]);
+});
+
 test('throws a hard error when fewer than two options are truly available', async ({ page }) => {
   const category = 'Unrecoverable overrides';
   const targetWord = {

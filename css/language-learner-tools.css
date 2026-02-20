@@ -1052,14 +1052,19 @@ p:has(.ll-word-audio) {
     100% { transform: scaleY(1); }
 }
 
-.word-grid.ll-word-grid .ll-word-star {
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star {
+    all: unset !important;
+    box-sizing: border-box !important;
     width: 32px !important;
     height: 32px !important;
     min-width: 32px !important;
     min-height: 32px !important;
     border-radius: 8px !important;
     border: 1px solid #e2e8f0 !important;
+    border-style: solid !important;
+    border-image: none !important;
     background: #ffffff !important;
+    background-color: #ffffff !important;
     background-image: none !important;
     color: #111827 !important;
     padding: 0 !important;
@@ -1068,40 +1073,59 @@ p:has(.ll-word-audio) {
     align-items: center !important;
     justify-content: center !important;
     font-size: 16px !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    white-space: nowrap !important;
     box-shadow: none !important;
     text-shadow: none !important;
     cursor: pointer !important;
+    float: none !important;
+    vertical-align: middle !important;
     -webkit-appearance: none !important;
     appearance: none !important;
-    text-transform: none !important;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
-    transition: all 0.15s ease !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
     align-self: center;
-    vertical-align: middle;
     flex: 0 0 auto;
 }
 
-.word-grid.ll-word-grid .ll-word-star::before {
-    content: "\2606";
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star::after {
+    content: none !important;
+    display: none !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star.active::before {
-    content: "\2605";
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star::before {
+    content: "\2606" !important;
+    display: block !important;
+    line-height: 1 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star.active {
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star.active::before,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"]::before {
+    content: "\2605" !important;
+}
+
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star.active,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"] {
     background: #D39A00 !important;
+    background-color: #D39A00 !important;
+    background-image: none !important;
     border-color: #D39A00 !important;
     color: #111827 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star:not(.active):hover {
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star:not(.active):hover,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="false"]:hover {
     border-color: #94a3b8 !important;
     background: #f1f5f9 !important;
+    background-color: #f1f5f9 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star:focus-visible {
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star:focus-visible {
     outline: 3px solid #D39A00 !important;
     outline-offset: 2px;
 }

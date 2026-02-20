@@ -2311,9 +2311,18 @@
                 ? { earlyCallback: true, skipCategoryPreload: true }
                 : { earlyCallback: true };
 
-            if (State.isGenderMode) {
-                // Gender planning needs words from every selected category before first round.
-                const allCategories = State.categoryNames.slice().filter(Boolean);
+            const activeSessionWordIds = getSessionWordIdsFromData(root.llToolsFlashcardsData || {});
+            const shouldLoadAllCategoriesBeforeBootstrap = State.isGenderMode || (
+                State.isLearningMode &&
+                activeSessionWordIds.length > 0 &&
+                Array.isArray(State.categoryNames) &&
+                State.categoryNames.filter(Boolean).length > 1
+            );
+
+            if (shouldLoadAllCategoriesBeforeBootstrap) {
+                // Gender mode and session-filtered learning mode need every selected category loaded
+                // before first round, otherwise learning can start on a partial subset (e.g. 5 then 2).
+                const allCategories = Array.from(new Set(State.categoryNames.slice().filter(Boolean)));
                 if (!allCategories.length) {
                     bootstrapFirstRound();
                     return;
@@ -2663,6 +2672,15 @@
         return true;
     }
 
+    function escapeErrorText(raw) {
+        return String(raw === null || raw === undefined ? '' : raw)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function runQuizRound() {
         if (!State.canStartQuizRound()) {
             console.warn('Cannot start quiz round in state:', State.getState());
@@ -2813,7 +2831,9 @@
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
             }
-            const optionMediaPromise = Promise.resolve(Selection.fillQuizOptions(target)).catch(function (err) {
+            const optionMediaPromise = Promise.resolve().then(function () {
+                return Selection.fillQuizOptions(target);
+            }).catch(function (err) {
                 if (err && err.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
                     return {
                         ready: false,
@@ -2826,7 +2846,10 @@
                 console.error('Error while building quiz options:', err);
                 return {
                     ready: false,
-                    failedWordIds: []
+                    failedWordIds: [],
+                    errorCode: 'LL_OPTIONS_BUILD_FAILED',
+                    errorMessage: (err && err.message) ? String(err.message) : '',
+                    details: (err && err.details && typeof err.details === 'object') ? err.details : {}
                 };
             });
             try {
@@ -2885,6 +2908,16 @@
                     console.error('Minimum options invariant violated for quiz round:', optionStatus.details || optionStatus);
                     showLoadingError({
                         reason: 'minimum-options',
+                        errorMessage: optionStatus.errorMessage || '',
+                        details: optionStatus.details || {}
+                    });
+                    return;
+                }
+                if (optionStatus && optionStatus.errorCode) {
+                    console.error('Failed to build quiz options for round:', optionStatus);
+                    showLoadingError({
+                        reason: 'options-build',
+                        errorMessage: optionStatus.errorMessage || '',
                         details: optionStatus.details || {}
                     });
                     return;
@@ -2928,7 +2961,11 @@
             });
         }).catch(function (err) {
             console.error('Error in runQuizRound:', err);
-            State.forceTransitionTo(STATES.QUIZ_READY, 'Error recovery');
+            showLoadingError({
+                reason: 'round-runtime',
+                errorMessage: (err && err.message) ? String(err.message) : '',
+                details: (err && err.details && typeof err.details === 'object') ? err.details : {}
+            });
         });
     }
 
@@ -2954,15 +2991,31 @@
             ? (msgs.optionsInvariantErrorTitle || msgs.loadingError || 'Loading Error')
             : (msgs.loadingError || 'Loading Error');
         $('#quiz-results-title').text(title);
+        const detailLine = String(opts.errorMessage || '').trim();
+        const detailPrefix = String(msgs.errorDetailsLabel || 'Error details');
+        let detailHtml = '';
+        if (detailLine) {
+            detailHtml = '<strong>' + escapeErrorText(detailPrefix) + ':</strong> ' + escapeErrorText(detailLine) + '<br>';
+        }
 
         let errorMessage = '';
         if (isMinimumOptionsError) {
+            const details = (opts.details && typeof opts.details === 'object') ? opts.details : {};
+            const chosenCount = Math.max(0, parseInt(details.chosenCount, 10) || 0);
+            const minimumRequired = Math.max(2, parseInt(details.minimumRequired, 10) || 2);
+            const summaryTemplate = String(msgs.minimumOptionsRoundSummary || 'Round setup: %1$d of %2$d required options are available.');
+            const summaryLine = summaryTemplate
+                .replace('%1$d', String(chosenCount))
+                .replace('%2$d', String(minimumRequired));
             const minimumOptionsBullets = [
                 msgs.checkCategoryExists || 'The category exists and has words',
                 msgs.checkWordsAssigned || 'Words are properly assigned to the category',
                 msgs.checkSpecificWrongAnswers || 'Any specific wrong-answer words are available for this target'
             ];
-            errorMessage = (msgs.minimumOptionsError || 'This quiz round has fewer than two answer options, so the quiz cannot continue.') +
+            errorMessage = detailHtml +
+                escapeErrorText(summaryLine) +
+                '<br>' +
+                (msgs.minimumOptionsError || 'This quiz round has fewer than two answer options, so the quiz cannot continue.') +
                 '<br>• ' + minimumOptionsBullets.join('<br>• ');
         } else {
             const errorBullets = [
@@ -2970,7 +3023,8 @@
                 msgs.checkWordsAssigned || 'Words are properly assigned to the category',
                 msgs.checkWordsetFilter || 'If using wordsets, the wordset contains words for this category'
             ];
-            errorMessage = (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
+            errorMessage = detailHtml +
+                (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
                 '<br>• ' + errorBullets.join('<br>• ');
         }
 

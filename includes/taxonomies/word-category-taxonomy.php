@@ -932,7 +932,104 @@ function ll_tools_resolve_audio_file_url($audio_path): string {
 }
 
 /**
- * Normalize audio URLs in cached word payload rows.
+ * Resolve a stored image URL to a browser-safe URL for the current site origin.
+ *
+ * Handles cached absolute URLs that point to an old host/port and keeps
+ * query arguments for masked image proxy links intact.
+ */
+function ll_tools_resolve_image_file_url($image_url): string {
+    $image_url = trim((string) $image_url);
+    if ($image_url === '') {
+        return '';
+    }
+
+    if (strpos($image_url, '//') === 0) {
+        $image_url = (is_ssl() ? 'https:' : 'http:') . $image_url;
+    }
+
+    static $resolved_cache = [];
+    if (isset($resolved_cache[$image_url])) {
+        return $resolved_cache[$image_url];
+    }
+
+    // Already relative; keep it as-is.
+    if (!preg_match('#^https?://#i', $image_url)) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $parsed = wp_parse_url($image_url);
+    $path   = is_array($parsed) && !empty($parsed['path']) ? '/' . ltrim((string) $parsed['path'], '/') : '';
+    if ($path === '') {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $query = (is_array($parsed) && isset($parsed['query'])) ? (string) $parsed['query'] : '';
+    $fragment = (is_array($parsed) && isset($parsed['fragment'])) ? (string) $parsed['fragment'] : '';
+    $append_query_fragment = static function (string $base_url) use ($query, $fragment): string {
+        if ($query !== '') {
+            $base_url .= (strpos($base_url, '?') === false ? '?' : '&') . $query;
+        }
+        if ($fragment !== '') {
+            $base_url .= '#' . $fragment;
+        }
+        return $base_url;
+    };
+
+    $home = wp_parse_url(home_url('/'));
+    if (!is_array($home) || empty($home['host'])) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $url_host = strtolower((string) ($parsed['host'] ?? ''));
+    $home_host = strtolower((string) $home['host']);
+    $url_scheme = strtolower((string) ($parsed['scheme'] ?? 'http'));
+    $home_scheme = strtolower((string) ($home['scheme'] ?? 'http'));
+    $url_port = isset($parsed['port']) ? (int) $parsed['port'] : (($url_scheme === 'https') ? 443 : 80);
+    $home_port = isset($home['port']) ? (int) $home['port'] : (($home_scheme === 'https') ? 443 : 80);
+
+    if ($url_host !== '' && $url_host === $home_host && $url_port === $home_port && $url_scheme === $home_scheme) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $query_args = [];
+    if ($query !== '') {
+        wp_parse_str($query, $query_args);
+    }
+    $is_masked_proxy = isset($query_args['lltools-img'], $query_args['lltools-size'], $query_args['lltools-sig']);
+    if ($is_masked_proxy) {
+        $resolved_cache[$image_url] = $append_query_fragment(home_url($path));
+        return $resolved_cache[$image_url];
+    }
+
+    // If the path maps to a local file, force current-site origin.
+    $local_path = ABSPATH . ltrim($path, '/');
+    if (is_file($local_path) && is_readable($local_path)) {
+        $resolved_cache[$image_url] = $append_query_fragment(home_url($path));
+        return $resolved_cache[$image_url];
+    }
+
+    // Fallback: if the URL path is under uploads, prefer current uploads origin.
+    $uploads = wp_get_upload_dir();
+    if (empty($uploads['error']) && !empty($uploads['baseurl'])) {
+        $uploads_base_path = (string) wp_parse_url($uploads['baseurl'], PHP_URL_PATH);
+        if ($uploads_base_path !== '' && strpos($path, $uploads_base_path) === 0) {
+            $relative = ltrim(substr($path, strlen($uploads_base_path)), '/');
+            $rebased = trailingslashit((string) $uploads['baseurl']) . $relative;
+            $resolved_cache[$image_url] = $append_query_fragment($rebased);
+            return $resolved_cache[$image_url];
+        }
+    }
+
+    $resolved_cache[$image_url] = $image_url;
+    return $resolved_cache[$image_url];
+}
+
+/**
+ * Normalize media URLs in cached word payload rows.
  *
  * @param array $rows Array of quiz word rows.
  * @return array
@@ -958,6 +1055,10 @@ function ll_tools_normalize_words_audio_urls(array $rows): array {
                 }
                 $rows[$idx]['audio_files'][$aidx]['url'] = ll_tools_resolve_audio_file_url($url);
             }
+        }
+
+        if (!empty($row['image'])) {
+            $rows[$idx]['image'] = ll_tools_resolve_image_file_url($row['image']);
         }
     }
 

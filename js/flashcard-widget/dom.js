@@ -271,14 +271,22 @@
             setSelfCheckLayout(selfCheckActive);
         },
         updateCategoryNameDisplay(name) {
-            if (!name) return;
             const $el = $('#ll-tools-category-display');
             if (!$el.length) return;
+            const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+                ? root.llToolsFlashcardsData
+                : {};
+            const override = String(flashData.categoryDisplayOverride || flashData.category_display_override || '').trim();
+            if (override) {
+                $el.text(override);
+                return;
+            }
+            if (!name) return;
 
             // Look up translation if available
             let displayName = name;
-            if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.categories) {
-                const category = root.llToolsFlashcardsData.categories.find(c => c.name === name);
+            if (flashData.categories) {
+                const category = flashData.categories.find(c => c.name === name);
                 if (category && category.translation) {
                     displayName = category.translation;
                 }
