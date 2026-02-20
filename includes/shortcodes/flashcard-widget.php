@@ -492,12 +492,33 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
  *  ---------------------------
  */
 
+function ll_tools_flashcard_widget_reset_render_guard(): void {
+    $GLOBALS['ll_tools_flashcard_widget_rendered_once'] = false;
+}
+
+function ll_tools_flashcard_widget_is_rendered_once(): bool {
+    return !empty($GLOBALS['ll_tools_flashcard_widget_rendered_once']);
+}
+
+function ll_tools_flashcard_widget_mark_rendered_once(): void {
+    $GLOBALS['ll_tools_flashcard_widget_rendered_once'] = true;
+}
+
+ll_tools_flashcard_widget_reset_render_guard();
+
 /**
  * [flashcard_widget] handler
  * @param array $atts
  * @return string
  */
 function ll_tools_flashcard_widget($atts) {
+    if (ll_tools_flashcard_widget_is_rendered_once()) {
+        // The widget template uses fixed IDs and must only be emitted once per request.
+        // Additional launches on the page reuse the same popup container.
+        return '';
+    }
+    ll_tools_flashcard_widget_mark_rendered_once();
+
     $atts = shortcode_atts([
         'category'  => '',
         'mode'      => 'random',
