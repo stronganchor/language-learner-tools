@@ -125,6 +125,67 @@
         $el.hide();
     }
 
+    function waitForNextPaint() {
+        return new Promise(function (resolve) {
+            if (typeof root.requestAnimationFrame === 'function') {
+                root.requestAnimationFrame(function () { resolve(); });
+                return;
+            }
+            setTimeout(resolve, 16);
+        });
+    }
+
+    function hideLoadingInternal(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const forceImmediate = !!opts.forceImmediate;
+        const viz = namespace.AudioVisualizer;
+        if (viz && typeof viz.stop === 'function') {
+            viz.stop();
+        }
+        loadingRequested = false;
+        clearLoadingShowTimer();
+
+        return new Promise(function (resolve) {
+            let settled = false;
+            const settle = function () {
+                if (settled) return;
+                settled = true;
+                waitForNextPaint().then(resolve);
+            };
+
+            const finishHide = function () {
+                clearLoadingHideTimer();
+                if (loadingRequested) {
+                    settle();
+                    return;
+                }
+                loadingVisible = false;
+                loadingVisibleAt = 0;
+                applyLoadingVisibility(false);
+                settle();
+            };
+
+            if (!loadingVisible) {
+                finishHide();
+                return;
+            }
+
+            if (forceImmediate) {
+                finishHide();
+                return;
+            }
+
+            const elapsed = Math.max(0, Date.now() - (loadingVisibleAt || 0));
+            const remaining = Math.max(0, loadingSettings.minVisibleMs - elapsed);
+            clearLoadingHideTimer();
+            if (remaining > 0) {
+                loadingHideTimer = setTimeout(finishHide, remaining);
+                return;
+            }
+            finishHide();
+        });
+    }
+
     function ensureRepeatButtonContent() {
         const $btn = $('#ll-tools-repeat-flashcard');
         if (!$btn.length) return null;
@@ -327,34 +388,10 @@
             }, loadingSettings.showDelayMs);
         },
         hideLoading() {
-            const viz = namespace.AudioVisualizer;
-            if (viz && typeof viz.stop === 'function') {
-                viz.stop();
-            }
-            loadingRequested = false;
-            clearLoadingShowTimer();
-
-            const finishHide = function () {
-                clearLoadingHideTimer();
-                if (loadingRequested) return;
-                loadingVisible = false;
-                loadingVisibleAt = 0;
-                applyLoadingVisibility(false);
-            };
-
-            if (!loadingVisible) {
-                finishHide();
-                return;
-            }
-
-            const elapsed = Math.max(0, Date.now() - (loadingVisibleAt || 0));
-            const remaining = Math.max(0, loadingSettings.minVisibleMs - elapsed);
-            clearLoadingHideTimer();
-            if (remaining > 0) {
-                loadingHideTimer = setTimeout(finishHide, remaining);
-                return;
-            }
-            finishHide();
+            return hideLoadingInternal();
+        },
+        hideLoadingImmediately() {
+            return hideLoadingInternal({ forceImmediate: true });
         },
         updateLearningProgress(introducedCount, totalCount, wordCorrectCounts, wordIntroductionProgress) {
             const $progress = $('#ll-tools-learning-progress');

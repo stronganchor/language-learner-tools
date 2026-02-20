@@ -64,6 +64,27 @@ final class LiveLinkAttachmentUrlRebaseTest extends LL_Tools_TestCase
         $this->assertSame($external, ll_tools_rebase_local_media_url_to_request_origin($external));
     }
 
+    public function test_non_live_link_request_does_not_rebase_when_forwarded_host_differs(): void
+    {
+        $home = wp_parse_url(home_url('/'));
+        $this->assertIsArray($home);
+
+        $_SERVER['HTTP_HOST'] = (string) ($home['host'] ?? 'example.org');
+        $_SERVER['HTTPS'] = (((string) ($home['scheme'] ?? 'http')) === 'https') ? 'on' : '';
+        $_SERVER['HTTP_X_FORWARDED_HOST'] = 'internal-lb.invalid';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = (string) ($home['scheme'] ?? 'http');
+        $_SERVER['HTTP_X_FORWARDED_PORT'] = (string) ($home['port'] ?? ((((string) ($home['scheme'] ?? 'http')) === 'https') ? 443 : 80));
+        unset($_SERVER['HTTP_X_TUNNEL_UUID'], $_SERVER['HTTP_X_LOCAL_HOST']);
+
+        $uploads = wp_get_upload_dir();
+        $uploads_path = (string) wp_parse_url((string) ($uploads['baseurl'] ?? ''), PHP_URL_PATH);
+        $this->assertNotSame('', $uploads_path);
+
+        $legacy = 'http://legacy-origin.invalid' . rtrim($uploads_path, '/') . '/2026/02/no-rebase.jpg';
+        $this->assertSame($legacy, ll_tools_rebase_local_media_url_to_request_origin($legacy));
+        $this->assertFalse(ll_tools_should_rebase_media_urls_to_request_origin());
+    }
+
     public function test_live_link_request_detection_uses_host_and_tunnel_headers(): void
     {
         $_SERVER['HTTP_HOST'] = 'preview.localsite.io';

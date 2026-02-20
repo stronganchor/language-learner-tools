@@ -1478,12 +1478,16 @@
             }
 
             let loadingReleasedForRound = false;
+            let loadingReleasePromise = null;
             const releaseRoundLoading = function () {
-                if (loadingReleasedForRound) return;
+                if (loadingReleasePromise) return loadingReleasePromise;
                 loadingReleasedForRound = true;
                 if (Dom && typeof Dom.hideLoading === 'function') {
-                    Dom.hideLoading();
+                    loadingReleasePromise = Promise.resolve(Dom.hideLoading()).catch(function () { return; });
+                    return loadingReleasePromise;
                 }
+                loadingReleasePromise = Promise.resolve();
+                return loadingReleasePromise;
             };
 
             const followCurrentTarget = function () {
@@ -1498,44 +1502,60 @@
 
             const setAndPlayUntilEnd = function (url) {
                 target.audio = url;
-                const p = (audioApi && typeof audioApi.setTargetWordAudio === 'function')
-                    ? audioApi.setTargetWordAudio(target)
-                    : Promise.resolve();
-                return Promise.resolve(p).then(function () {
-                    const a = followCurrentTarget();
-                    return new Promise(function (resolve) {
-                        if (!a) {
-                            releaseRoundLoading();
-                            resolve();
-                            return;
-                        }
-                        // Start unblur as soon as the first clip actually starts.
-                        if (!a.paused && !a.ended) {
-                            releaseRoundLoading();
-                        } else {
-                            let releasedFromEvent = false;
-                            const releaseOnStart = function () {
-                                if (releasedFromEvent) return;
-                                releasedFromEvent = true;
-                                releaseRoundLoading();
+                return Promise.resolve(releaseRoundLoading()).then(function () {
+                    const p = (audioApi && typeof audioApi.setTargetWordAudio === 'function')
+                        ? audioApi.setTargetWordAudio(target, { autoplay: false })
+                        : Promise.resolve();
+                    return Promise.resolve(p).then(function () {
+                        const a = followCurrentTarget();
+                        return new Promise(function (resolve) {
+                            if (!a) {
+                                resolve();
+                                return;
+                            }
+
+                            let settled = false;
+                            let onEnded = null;
+                            let onError = null;
+                            const cleanup = function () {
+                                if (onEnded) {
+                                    try { a.removeEventListener('ended', onEnded); } catch (_) { /* no-op */ }
+                                }
+                                if (onError) {
+                                    try { a.removeEventListener('error', onError); } catch (_) { /* no-op */ }
+                                }
+                                onEnded = null;
+                                onError = null;
                             };
-                            try { a.addEventListener('playing', releaseOnStart, { once: true }); } catch (_) { /* no-op */ }
+                            const finish = function () {
+                                if (settled) return;
+                                settled = true;
+                                cleanup();
+                                resolve();
+                            };
+
+                            onEnded = finish;
+                            onError = finish;
+                            try { a.addEventListener('ended', onEnded, { once: true }); } catch (_) { /* no-op */ }
+                            try { a.addEventListener('error', onError, { once: true }); } catch (_) { /* no-op */ }
+
+                            if (audioApi && typeof audioApi.playAudio === 'function') {
+                                Promise.resolve(audioApi.playAudio(a)).catch(function () { finish(); });
+                                return;
+                            }
+
                             try {
-                                a.addEventListener('timeupdate', function onStartFrame() {
-                                    if ((typeof a.currentTime === 'number') && a.currentTime > 0.02) {
-                                        try { a.removeEventListener('timeupdate', onStartFrame); } catch (_) { /* no-op */ }
-                                        releaseOnStart();
-                                    }
-                                });
-                            } catch (_) { /* no-op */ }
-                            setTimeout(releaseOnStart, 1200);
-                        }
-                        a.onended = resolve;
-                        a.addEventListener('error', resolve, { once: true });
+                                const fallbackPlay = a.play();
+                                if (fallbackPlay && typeof fallbackPlay.catch === 'function') {
+                                    fallbackPlay.catch(function () { finish(); });
+                                }
+                            } catch (_) {
+                                finish();
+                            }
+                        });
                     });
                 }).catch(function (e) {
                     console.warn('Listening: failed to set/play audio', e);
-                    releaseRoundLoading();
                     return Promise.resolve();
                 });
             };

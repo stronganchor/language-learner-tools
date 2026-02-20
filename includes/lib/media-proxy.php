@@ -190,6 +190,12 @@ function ll_tools_should_rebase_media_urls_to_request_origin(): bool {
         return false;
     }
 
+    // Restrict host rebasing to Local Live Link/tunnel traffic only.
+    // Production proxy stacks often set forwarded hosts that don't match the public origin.
+    if (!ll_tools_is_live_link_request()) {
+        return false;
+    }
+
     $request = ll_tools_get_request_origin_for_media();
     $home = wp_parse_url(home_url('/'));
     if (!is_array($home) || empty($home['host']) || empty($request['host'])) {

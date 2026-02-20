@@ -1330,11 +1330,12 @@
         const $content = $('#ll-tools-flashcard-content');
         let introLoadingReleased = false;
         const releaseIntroLoading = function () {
-            if (introLoadingReleased) return;
+            if (introLoadingReleased) return Promise.resolve();
             introLoadingReleased = true;
             if (Dom && typeof Dom.hideLoading === 'function') {
-                Dom.hideLoading();
+                return Promise.resolve(Dom.hideLoading()).catch(function () { return; });
             }
+            return Promise.resolve();
         };
         const categoryNames = words
             .map(function (word) { return getCategoryNameForWord(word); })
@@ -1372,6 +1373,11 @@
 
         $('.ll-gender-intro-card').fadeIn(260);
         Dom.disableRepeatButton && Dom.disableRepeatButton();
+        await releaseIntroLoading();
+        if (token !== round.sequenceToken || State.abortAllOperations) {
+            setIntroCategoryLabelHidden(false);
+            return;
+        }
 
         for (let idx = 0; idx < words.length; idx++) {
             if (token !== round.sequenceToken || State.abortAllOperations) break;
@@ -1389,7 +1395,7 @@
 
             const clipPattern = getIntroClipPattern(word);
             if (!clipPattern.length) {
-                releaseIntroLoading();
+                await releaseIntroLoading();
             }
 
             for (let clipIndex = 0; clipIndex < clipPattern.length; clipIndex++) {

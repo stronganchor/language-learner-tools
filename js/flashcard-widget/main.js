@@ -423,85 +423,60 @@
         State.addTimeout && State.addTimeout(fallback);
     }
 
-    function shouldDelayLoadingHideUntilAudioStart(promptType) {
-        if (promptType !== 'audio') return false;
-        // Listening mode manages its own gated loading release timing.
-        if (State && State.isListeningMode) return false;
-        return true;
-    }
-
-    function hideLoadingAfterPromptAudioStarts(promptType, isStaleRound) {
-        if (!shouldDelayLoadingHideUntilAudioStart(promptType)) {
-            Dom.hideLoading();
-            return;
-        }
-
+    function hideLoadingThenPlayPromptAudio(promptType, isStaleRound) {
         const audioApi = root.FlashcardAudio;
-        if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
-            Dom.hideLoading();
-            return;
+        const expectedAudio = (promptType === 'audio' && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
+            ? audioApi.getCurrentTargetAudio()
+            : null;
+        const hidePromise = (Dom && typeof Dom.hideLoading === 'function')
+            ? Promise.resolve(Dom.hideLoading()).catch(function () { return; })
+            : Promise.resolve();
+
+        if (promptType !== 'audio') {
+            return hidePromise;
         }
 
-        const audio = audioApi.getCurrentTargetAudio();
-        const hasPlayed = (typeof audioApi.getTargetAudioHasPlayed === 'function')
-            ? !!audioApi.getTargetAudioHasPlayed()
-            : false;
-        const alreadyStarted = !!(
-            audio &&
-            (
-                hasPlayed ||
-                (!audio.paused && !audio.ended) ||
-                ((typeof audio.currentTime === 'number') && audio.currentTime > 0.02)
-            )
-        );
-
-        if (!audio || alreadyStarted) {
-            Dom.hideLoading();
-            return;
-        }
-
-        let finished = false;
-        let timeoutId = null;
-
-        function onTimeUpdate() {
-            const current = (typeof audio.currentTime === 'number') ? audio.currentTime : 0;
-            if (current > 0.02) {
-                finish();
-            }
-        }
-
-        function removeListeners() {
-            try { audio.removeEventListener('playing', finish); } catch (_) { /* no-op */ }
-            try { audio.removeEventListener('ended', finish); } catch (_) { /* no-op */ }
-            try { audio.removeEventListener('error', finish); } catch (_) { /* no-op */ }
-            try { audio.removeEventListener('emptied', finish); } catch (_) { /* no-op */ }
-            try { audio.removeEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
-        }
-
-        function finish() {
-            if (finished) return;
-            finished = true;
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-            removeListeners();
+        return hidePromise.then(function () {
             if (typeof isStaleRound === 'function' && isStaleRound()) {
                 return;
             }
-            Dom.hideLoading();
-        }
 
-        try { audio.addEventListener('playing', finish, { once: true }); } catch (_) { /* no-op */ }
-        try { audio.addEventListener('ended', finish, { once: true }); } catch (_) { /* no-op */ }
-        try { audio.addEventListener('error', finish, { once: true }); } catch (_) { /* no-op */ }
-        try { audio.addEventListener('emptied', finish, { once: true }); } catch (_) { /* no-op */ }
-        try { audio.addEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+            if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
+                return;
+            }
 
-        timeoutId = setTimeout(finish, 2200);
-        if (State && typeof State.addTimeout === 'function') {
-            State.addTimeout(timeoutId);
-        }
+            const audio = audioApi.getCurrentTargetAudio();
+            if (!audio) {
+                return;
+            }
+            if (expectedAudio && audio !== expectedAudio) {
+                return;
+            }
+
+            const hasPlayed = (typeof audioApi.getTargetAudioHasPlayed === 'function')
+                ? !!audioApi.getTargetAudioHasPlayed()
+                : false;
+            const alreadyStarted = !!(
+                hasPlayed ||
+                (!audio.paused && !audio.ended) ||
+                ((typeof audio.currentTime === 'number') && audio.currentTime > 0.02)
+            );
+            if (alreadyStarted) {
+                return;
+            }
+
+            if (typeof audioApi.playAudio === 'function') {
+                return Promise.resolve(audioApi.playAudio(audio)).catch(function () { return; });
+            }
+
+            try {
+                const fallbackPlay = audio.play();
+                if (fallbackPlay && typeof fallbackPlay.catch === 'function') {
+                    return fallbackPlay.catch(function () { return; });
+                }
+            } catch (_) { /* no-op */ }
+            return;
+        });
     }
 
     function parseBool(val) {
@@ -2627,7 +2602,7 @@
             if (!root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
                 return true;
             }
-            return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord))
+            return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord, { autoplay: false }))
                 .then(function () {
                     try {
                         const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
@@ -2858,7 +2833,7 @@
 
             if (promptType === 'audio') {
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
-                root.FlashcardAudio.setTargetWordAudio(target);
+                root.FlashcardAudio.setTargetWordAudio(target, { autoplay: false });
                 Dom.enableRepeatButton();
                 try {
                     const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
@@ -2874,7 +2849,7 @@
 
             const finalizeQuestionDisplay = function () {
                 if (isStaleRound()) { return; }
-                hideLoadingAfterPromptAudioStarts(promptType, isStaleRound);
+                hideLoadingThenPlayPromptAudio(promptType, isStaleRound);
                 clearRoundMediaFailure(target && target.id);
                 State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
                 const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
