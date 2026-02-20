@@ -80,7 +80,7 @@ function ll_tools_enqueue_image_aspect_normalizer_admin_assets($hook): void {
             'worklistOffending' => __('%1$d of %2$d images need fixes', 'll-tools-text-domain'),
             'worklistRatios' => __('%d aspect ratios detected', 'll-tools-text-domain'),
             'loadingCategory' => __('Loading category details...', 'll-tools-text-domain'),
-            'chooseCategory' => __('Select a category from the left to preview and apply crops.', 'll-tools-text-domain'),
+            'chooseCategory' => __('Select a category from the left to preview crops and white-padding updates.', 'll-tools-text-domain'),
             'categorySummary' => __('%1$d images need fixes out of %2$d tracked images.', 'll-tools-text-domain'),
             'ratioLabel' => __('Canonical ratio', 'll-tools-text-domain'),
             'ratioCustom' => __('Custom ratio', 'll-tools-text-domain'),
@@ -90,13 +90,20 @@ function ll_tools_enqueue_image_aspect_normalizer_admin_assets($hook): void {
             'applyConfirm' => __('Apply these crops and update affected posts in this category?', 'll-tools-text-domain'),
             'applyWorking' => __('Applying crops...', 'll-tools-text-domain'),
             'applySuccess' => __('Applied %1$d crop(s), updated %2$d post thumbnail(s).', 'll-tools-text-domain'),
-            'applyError' => __('Unable to apply crops right now.', 'll-tools-text-domain'),
+            'applyPadButton' => __('Apply White Padding', 'll-tools-text-domain'),
+            'applyPadButtonAria' => __('Apply white padding to image %s using the current canonical ratio.', 'll-tools-text-domain'),
+            'applyPadConfirm' => __('Apply white padding to this image and update affected posts that use it?', 'll-tools-text-domain'),
+            'applyPadWorking' => __('Applying white padding to image...', 'll-tools-text-domain'),
+            'applyPadSuccess' => __('Applied white padding to %1$d image(s), updated %2$d post thumbnail(s).', 'll-tools-text-domain'),
+            'applyError' => __('Unable to apply image updates right now.', 'll-tools-text-domain'),
             'invalidRatio' => __('Enter a valid ratio like 4:3.', 'll-tools-text-domain'),
             'noOffenders' => __('All category images already match this ratio.', 'll-tools-text-domain'),
             'offendingTitle' => __('Images needing updates', 'll-tools-text-domain'),
             'wordsLabel' => __('Words', 'll-tools-text-domain'),
             'wordImagesLabel' => __('Word Images', 'll-tools-text-domain'),
             'ratioDetectedFrom' => __('Current ratio: %s', 'll-tools-text-domain'),
+            'useRatioButton' => __('Use as canonical', 'll-tools-text-domain'),
+            'useRatioButtonAria' => __('Use ratio %s as the canonical ratio and refresh preview.', 'll-tools-text-domain'),
             'cropReadout' => __('Crop: x:%1$d y:%2$d w:%3$d h:%4$d', 'll-tools-text-domain'),
             'statusWarnings' => __('Completed with %d warning(s). Check the error list below.', 'll-tools-text-domain'),
         ],
@@ -112,7 +119,7 @@ function ll_tools_render_image_aspect_normalizer_admin_page(): void {
     <div class="wrap ll-aspect-normalizer-wrap">
         <h1><?php echo esc_html__('Image Aspect Normalizer', 'll-tools-text-domain'); ?></h1>
         <p class="description">
-            <?php echo esc_html__('Find mixed-aspect categories, preview fixed-ratio crops, adjust crop boxes, and apply updates to affected posts.', 'll-tools-text-domain'); ?>
+            <?php echo esc_html__('Find mixed-aspect categories, preview fixed-ratio crops, adjust crop boxes, or apply white-padding updates to affected posts.', 'll-tools-text-domain'); ?>
         </p>
 
         <div class="ll-aspect-normalizer" data-ll-aspect-normalizer-root>
@@ -129,7 +136,7 @@ function ll_tools_render_image_aspect_normalizer_admin_page(): void {
                     <div>
                         <h2 data-ll-aspect-category-title><?php echo esc_html__('Select a category', 'll-tools-text-domain'); ?></h2>
                         <p class="description" data-ll-aspect-category-summary>
-                            <?php echo esc_html__('Select a category from the left to preview and apply crops.', 'll-tools-text-domain'); ?>
+                            <?php echo esc_html__('Select a category from the left to preview crops and white-padding updates.', 'll-tools-text-domain'); ?>
                         </p>
                     </div>
                     <div class="ll-aspect-normalizer__controls" data-ll-aspect-controls hidden>
@@ -311,6 +318,7 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
         $canonical_key = $canonical_ratio_key;
     }
     $canonical_value = ll_tools_aspect_ratio_value_from_key($canonical_key);
+    $tolerance = ll_tools_aspect_ratio_tolerance();
 
     $offending = [];
     $attachments = (array) ($stats['attachments'] ?? []);
@@ -327,15 +335,35 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
             continue;
         }
 
+        $ratio_key = ll_tools_aspect_normalizer_normalize_ratio_key((string) ($attachment['ratio_key'] ?? ''));
+        if ($ratio_key === '') {
+            $ratio_key = ll_tools_aspect_ratio_key_from_dimensions($width, $height);
+        }
+        $ratio_label = ll_tools_aspect_ratio_label_from_key($ratio_key);
+        if ($ratio_label === '') {
+            $ratio_label = (string) ($attachment['ratio_label'] ?? '');
+        }
+        $ratio_value = ll_tools_aspect_ratio_value_from_key($ratio_key);
+        if ($ratio_value <= 0.0) {
+            $ratio_value = (float) ($attachment['ratio_value'] ?? 0.0);
+        }
+
+        if ($canonical_value > 0.0 && $ratio_value > 0.0) {
+            $diff = abs($ratio_value - $canonical_value) / $canonical_value;
+            if ($diff <= $tolerance) {
+                continue;
+            }
+        }
+
         $offending[] = [
             'attachment_id' => $attachment_id,
             'title' => (string) ($attachment['title'] ?? ''),
             'url' => (string) ($attachment['url'] ?? ''),
             'width' => $width,
             'height' => $height,
-            'ratio_key' => (string) ($attachment['ratio_key'] ?? ''),
-            'ratio_label' => (string) ($attachment['ratio_label'] ?? ''),
-            'ratio_value' => (float) ($attachment['ratio_value'] ?? 0.0),
+            'ratio_key' => $ratio_key,
+            'ratio_label' => $ratio_label,
+            'ratio_value' => $ratio_value,
             'word_count' => max(0, (int) ($attachment['word_count'] ?? 0)),
             'word_image_count' => max(0, (int) ($attachment['word_image_count'] ?? 0)),
             'usage_count' => max(0, (int) ($attachment['usage_count'] ?? 0)),
@@ -358,7 +386,7 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
         return ((int) ($left['attachment_id'] ?? 0)) <=> ((int) ($right['attachment_id'] ?? 0));
     });
 
-    $ratios = [];
+    $ratios_by_key = [];
     foreach ((array) ($stats['ratios'] ?? []) as $ratio_row) {
         if (!is_array($ratio_row)) {
             continue;
@@ -367,14 +395,36 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
         if ($key === '') {
             continue;
         }
-        $ratios[] = [
-            'key' => $key,
-            'label' => ll_tools_aspect_ratio_label_from_key($key),
-            'value' => ll_tools_aspect_ratio_value_from_key($key),
-            'attachment_count' => max(0, (int) ($ratio_row['attachment_count'] ?? 0)),
-            'word_count' => max(0, (int) ($ratio_row['word_count'] ?? 0)),
-            'word_image_count' => max(0, (int) ($ratio_row['word_image_count'] ?? 0)),
-        ];
+        if (!isset($ratios_by_key[$key])) {
+            $ratios_by_key[$key] = [
+                'key' => $key,
+                'label' => ll_tools_aspect_ratio_label_from_key($key),
+                'value' => ll_tools_aspect_ratio_value_from_key($key),
+                'attachment_count' => 0,
+                'word_count' => 0,
+                'word_image_count' => 0,
+            ];
+        }
+        $ratios_by_key[$key]['attachment_count'] += max(0, (int) ($ratio_row['attachment_count'] ?? 0));
+        $ratios_by_key[$key]['word_count'] += max(0, (int) ($ratio_row['word_count'] ?? 0));
+        $ratios_by_key[$key]['word_image_count'] += max(0, (int) ($ratio_row['word_image_count'] ?? 0));
+    }
+
+    $ratios = array_values($ratios_by_key);
+    if (!empty($ratios)) {
+        usort($ratios, static function ($left, $right) {
+            $left_attach = (int) ($left['attachment_count'] ?? 0);
+            $right_attach = (int) ($right['attachment_count'] ?? 0);
+            if ($left_attach !== $right_attach) {
+                return ($right_attach <=> $left_attach);
+            }
+            $left_words = (int) ($left['word_count'] ?? 0);
+            $right_words = (int) ($right['word_count'] ?? 0);
+            if ($left_words !== $right_words) {
+                return ($right_words <=> $left_words);
+            }
+            return strcmp((string) ($left['key'] ?? ''), (string) ($right['key'] ?? ''));
+        });
     }
 
     return [
@@ -399,60 +449,49 @@ function ll_tools_aspect_normalizer_build_category_payload($category_id, $canoni
     ];
 }
 
-function ll_tools_aspect_normalizer_create_cropped_attachment($source_attachment_id, array $crop, $category_id, string $ratio_key) {
-    $source_attachment_id = (int) $source_attachment_id;
-    $category_id = (int) $category_id;
-    if ($source_attachment_id <= 0 || $category_id <= 0) {
-        return new WP_Error('invalid_input', __('Invalid attachment or category.', 'll-tools-text-domain'));
+function ll_tools_aspect_normalizer_normalize_apply_operation($operation): string {
+    $operation = sanitize_key((string) $operation);
+    if ($operation === 'pad') {
+        return 'pad';
     }
+    return 'crop';
+}
 
-    $source_path = get_attached_file($source_attachment_id, true);
-    if (!is_string($source_path) || $source_path === '' || !file_exists($source_path)) {
-        return new WP_Error('missing_source_file', __('Source image file is missing.', 'll-tools-text-domain'));
-    }
-
-    $editor = wp_get_image_editor($source_path);
-    if (is_wp_error($editor)) {
-        return $editor;
-    }
-
-    $crop_x = max(0, (int) ($crop['x'] ?? 0));
-    $crop_y = max(0, (int) ($crop['y'] ?? 0));
-    $crop_width = max(1, (int) ($crop['width'] ?? 0));
-    $crop_height = max(1, (int) ($crop['height'] ?? 0));
-
-    $crop_result = $editor->crop($crop_x, $crop_y, $crop_width, $crop_height);
-    if (is_wp_error($crop_result)) {
-        return $crop_result;
-    }
-
+function ll_tools_aspect_normalizer_build_target_path(
+    string $source_path,
+    int $category_id,
+    string $ratio_key,
+    string $mode = 'crop',
+    string $output_ext = ''
+): string {
     $source_dir = dirname($source_path);
-    $source_ext = pathinfo($source_path, PATHINFO_EXTENSION);
+    $source_ext = strtolower(trim($output_ext));
+    if ($source_ext === '') {
+        $source_ext = strtolower((string) pathinfo($source_path, PATHINFO_EXTENSION));
+    }
     if ($source_ext === '') {
         $source_ext = 'jpg';
     }
-    $source_name = pathinfo($source_path, PATHINFO_FILENAME);
+    $source_name = (string) pathinfo($source_path, PATHINFO_FILENAME);
     $ratio_suffix = sanitize_file_name(str_replace(':', 'x', $ratio_key));
     if ($ratio_suffix === '') {
         $ratio_suffix = 'ratio';
     }
-    $target_name = wp_unique_filename(
-        $source_dir,
-        $source_name . '-ll-aspect-' . $category_id . '-' . $ratio_suffix . '.' . $source_ext
-    );
-    $target_path = trailingslashit($source_dir) . $target_name;
+    $mode_suffix = ll_tools_aspect_normalizer_normalize_apply_operation($mode);
+    $file_stub = ($mode_suffix === 'pad')
+        ? ($source_name . '-ll-aspect-pad-' . $category_id . '-' . $ratio_suffix)
+        : ($source_name . '-ll-aspect-' . $category_id . '-' . $ratio_suffix);
+    $target_name = wp_unique_filename($source_dir, $file_stub . '.' . $source_ext);
 
-    $saved = $editor->save($target_path);
-    if (is_wp_error($saved)) {
-        return $saved;
-    }
+    return trailingslashit($source_dir) . $target_name;
+}
 
-    $saved_path = isset($saved['path']) ? (string) $saved['path'] : '';
+function ll_tools_aspect_normalizer_finalize_generated_attachment(int $source_attachment_id, string $saved_path, string $saved_mime = '') {
+    $saved_path = trim($saved_path);
     if ($saved_path === '') {
-        return new WP_Error('save_failed', __('Could not save cropped image.', 'll-tools-text-domain'));
+        return new WP_Error('save_failed', __('Could not save the generated image.', 'll-tools-text-domain'));
     }
 
-    $saved_mime = isset($saved['mime-type']) ? (string) $saved['mime-type'] : '';
     if ($saved_mime === '') {
         $filetype = wp_check_filetype($saved_path);
         $saved_mime = (string) ($filetype['type'] ?? 'image/jpeg');
@@ -497,6 +536,193 @@ function ll_tools_aspect_normalizer_create_cropped_attachment($source_attachment
     }
 
     return $new_attachment_id;
+}
+
+function ll_tools_aspect_normalizer_compute_padding_box(int $image_width, int $image_height, string $ratio_key): array {
+    $image_width = max(1, (int) $image_width);
+    $image_height = max(1, (int) $image_height);
+
+    $ratio = ll_tools_aspect_ratio_value_from_key($ratio_key);
+    if ($ratio <= 0.0) {
+        return [
+            'canvas_width' => $image_width,
+            'canvas_height' => $image_height,
+            'offset_x' => 0,
+            'offset_y' => 0,
+        ];
+    }
+
+    $image_ratio = (float) $image_width / (float) $image_height;
+    $canvas_width = $image_width;
+    $canvas_height = $image_height;
+
+    if ($image_ratio > $ratio) {
+        $canvas_height = max($image_height, (int) ceil((float) $image_width / $ratio));
+    } elseif ($image_ratio < $ratio) {
+        $canvas_width = max($image_width, (int) ceil((float) $image_height * $ratio));
+    }
+
+    return [
+        'canvas_width' => $canvas_width,
+        'canvas_height' => $canvas_height,
+        'offset_x' => (int) floor(($canvas_width - $image_width) / 2),
+        'offset_y' => (int) floor(($canvas_height - $image_height) / 2),
+    ];
+}
+
+function ll_tools_aspect_normalizer_save_gd_image_to_path($image, string $target_path, string $extension): bool {
+    $ext = strtolower(trim($extension));
+    if ($ext === '') {
+        $ext = 'jpg';
+    }
+    if ($ext === 'jpeg') {
+        $ext = 'jpg';
+    }
+
+    if ($ext === 'png') {
+        if (!function_exists('imagepng')) {
+            return false;
+        }
+        return (bool) @imagepng($image, $target_path, 6);
+    }
+    if ($ext === 'gif') {
+        if (!function_exists('imagegif')) {
+            return false;
+        }
+        return (bool) @imagegif($image, $target_path);
+    }
+    if ($ext === 'webp') {
+        if (!function_exists('imagewebp')) {
+            return false;
+        }
+        return (bool) @imagewebp($image, $target_path, 90);
+    }
+    if (!function_exists('imagejpeg')) {
+        return false;
+    }
+    return (bool) @imagejpeg($image, $target_path, 90);
+}
+
+function ll_tools_aspect_normalizer_create_cropped_attachment($source_attachment_id, array $crop, $category_id, string $ratio_key) {
+    $source_attachment_id = (int) $source_attachment_id;
+    $category_id = (int) $category_id;
+    if ($source_attachment_id <= 0 || $category_id <= 0) {
+        return new WP_Error('invalid_input', __('Invalid attachment or category.', 'll-tools-text-domain'));
+    }
+
+    $source_path = get_attached_file($source_attachment_id, true);
+    if (!is_string($source_path) || $source_path === '' || !file_exists($source_path)) {
+        return new WP_Error('missing_source_file', __('Source image file is missing.', 'll-tools-text-domain'));
+    }
+
+    $editor = wp_get_image_editor($source_path);
+    if (is_wp_error($editor)) {
+        return $editor;
+    }
+
+    $crop_x = max(0, (int) ($crop['x'] ?? 0));
+    $crop_y = max(0, (int) ($crop['y'] ?? 0));
+    $crop_width = max(1, (int) ($crop['width'] ?? 0));
+    $crop_height = max(1, (int) ($crop['height'] ?? 0));
+
+    $crop_result = $editor->crop($crop_x, $crop_y, $crop_width, $crop_height);
+    if (is_wp_error($crop_result)) {
+        return $crop_result;
+    }
+
+    $target_path = ll_tools_aspect_normalizer_build_target_path($source_path, $category_id, $ratio_key, 'crop');
+    $saved = $editor->save($target_path);
+    if (is_wp_error($saved)) {
+        return $saved;
+    }
+
+    $saved_path = isset($saved['path']) ? (string) $saved['path'] : '';
+    if ($saved_path === '') {
+        return new WP_Error('save_failed', __('Could not save cropped image.', 'll-tools-text-domain'));
+    }
+
+    $saved_mime = isset($saved['mime-type']) ? (string) $saved['mime-type'] : '';
+    return ll_tools_aspect_normalizer_finalize_generated_attachment($source_attachment_id, $saved_path, $saved_mime);
+}
+
+function ll_tools_aspect_normalizer_create_padded_attachment($source_attachment_id, $category_id, string $ratio_key) {
+    $source_attachment_id = (int) $source_attachment_id;
+    $category_id = (int) $category_id;
+    if ($source_attachment_id <= 0 || $category_id <= 0) {
+        return new WP_Error('invalid_input', __('Invalid attachment or category.', 'll-tools-text-domain'));
+    }
+
+    $source_path = get_attached_file($source_attachment_id, true);
+    if (!is_string($source_path) || $source_path === '' || !file_exists($source_path)) {
+        return new WP_Error('missing_source_file', __('Source image file is missing.', 'll-tools-text-domain'));
+    }
+
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagecreatetruecolor')) {
+        return new WP_Error('image_lib_missing', __('GD image library is not available for white-padding.', 'll-tools-text-domain'));
+    }
+
+    $raw = @file_get_contents($source_path);
+    if ($raw === false || $raw === '') {
+        return new WP_Error('source_read_failed', __('Could not read source image data.', 'll-tools-text-domain'));
+    }
+
+    $source_image = @imagecreatefromstring($raw);
+    if (!$source_image) {
+        return new WP_Error('source_decode_failed', __('Could not decode source image data.', 'll-tools-text-domain'));
+    }
+
+    $source_width = max(0, (int) imagesx($source_image));
+    $source_height = max(0, (int) imagesy($source_image));
+    if ($source_width <= 0 || $source_height <= 0) {
+        imagedestroy($source_image);
+        return new WP_Error('source_size_failed', __('Source image dimensions are invalid.', 'll-tools-text-domain'));
+    }
+
+    $box = ll_tools_aspect_normalizer_compute_padding_box($source_width, $source_height, $ratio_key);
+    $canvas_width = max($source_width, (int) ($box['canvas_width'] ?? 0));
+    $canvas_height = max($source_height, (int) ($box['canvas_height'] ?? 0));
+    $offset_x = max(0, (int) ($box['offset_x'] ?? 0));
+    $offset_y = max(0, (int) ($box['offset_y'] ?? 0));
+
+    $target_image = imagecreatetruecolor($canvas_width, $canvas_height);
+    if (!$target_image) {
+        imagedestroy($source_image);
+        return new WP_Error('canvas_create_failed', __('Could not create a padded image canvas.', 'll-tools-text-domain'));
+    }
+
+    $white = imagecolorallocate($target_image, 255, 255, 255);
+    imagefill($target_image, 0, 0, $white);
+    $copied = imagecopy($target_image, $source_image, $offset_x, $offset_y, 0, 0, $source_width, $source_height);
+    if (!$copied) {
+        imagedestroy($source_image);
+        imagedestroy($target_image);
+        return new WP_Error('canvas_copy_failed', __('Could not place the source image on the padded canvas.', 'll-tools-text-domain'));
+    }
+
+    $extension = strtolower((string) pathinfo($source_path, PATHINFO_EXTENSION));
+    if ($extension === 'jpeg') {
+        $extension = 'jpg';
+    }
+    if (!in_array($extension, ['jpg', 'png', 'gif', 'webp'], true)) {
+        $extension = 'jpg';
+    }
+
+    $target_path = ll_tools_aspect_normalizer_build_target_path($source_path, $category_id, $ratio_key, 'pad', $extension);
+    $saved = ll_tools_aspect_normalizer_save_gd_image_to_path($target_image, $target_path, $extension);
+    imagedestroy($source_image);
+    imagedestroy($target_image);
+
+    if (!$saved || !file_exists($target_path)) {
+        return new WP_Error('save_failed', __('Could not save white-padded image.', 'll-tools-text-domain'));
+    }
+
+    $filetype = wp_check_filetype($target_path);
+    $saved_mime = (string) ($filetype['type'] ?? '');
+    if ($saved_mime === '') {
+        $saved_mime = 'image/jpeg';
+    }
+
+    return ll_tools_aspect_normalizer_finalize_generated_attachment($source_attachment_id, $target_path, $saved_mime);
 }
 
 function ll_tools_aspect_normalizer_verify_ajax_request(): void {
@@ -603,13 +829,37 @@ function ll_tools_aspect_normalizer_parse_crop_map($raw): array {
     return $map;
 }
 
+function ll_tools_aspect_normalizer_parse_attachment_id_list($raw): array {
+    if (is_string($raw)) {
+        $decoded = json_decode(wp_unslash($raw), true);
+        $raw = is_array($decoded) ? $decoded : [];
+    }
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $raw), static function ($id) {
+        return $id > 0;
+    })));
+
+    return $ids;
+}
+
 function ll_tools_aspect_normalizer_apply_ajax(): void {
     ll_tools_aspect_normalizer_verify_ajax_request();
 
     $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
     $canonical_ratio_key = isset($_POST['canonical_ratio_key']) ? wp_unslash((string) $_POST['canonical_ratio_key']) : '';
     $canonical_ratio_key = ll_tools_aspect_normalizer_normalize_ratio_key($canonical_ratio_key);
+    $apply_operation = ll_tools_aspect_normalizer_normalize_apply_operation(
+        isset($_POST['operation']) ? wp_unslash((string) $_POST['operation']) : 'crop'
+    );
     $crop_map = ll_tools_aspect_normalizer_parse_crop_map($_POST['crops'] ?? []);
+    $target_attachment_ids = ll_tools_aspect_normalizer_parse_attachment_id_list($_POST['target_attachment_ids'] ?? []);
+    $target_attachment_lookup = [];
+    foreach ($target_attachment_ids as $target_attachment_id) {
+        $target_attachment_lookup[(int) $target_attachment_id] = true;
+    }
 
     $payload = ll_tools_aspect_normalizer_build_category_payload($category_id, $canonical_ratio_key);
     if (empty($payload)) {
@@ -631,6 +881,7 @@ function ll_tools_aspect_normalizer_apply_ajax(): void {
             'updated_post_count' => 0,
             'warning_messages' => [],
             'canonical_ratio_key' => $canonical_ratio_key,
+            'operation' => $apply_operation,
         ]);
     }
 
@@ -651,26 +902,38 @@ function ll_tools_aspect_normalizer_apply_ajax(): void {
         if ($attachment_id <= 0 || $image_width <= 0 || $image_height <= 0) {
             continue;
         }
-
-        $raw_crop = isset($crop_map[$attachment_id]) && is_array($crop_map[$attachment_id])
-            ? $crop_map[$attachment_id]
-            : (array) ($row['suggested_crop'] ?? []);
-        $crop = ll_tools_aspect_normalizer_sanitize_crop_box($raw_crop, $image_width, $image_height, $canonical_ratio_key);
-        if ((int) ($crop['width'] ?? 0) <= 0 || (int) ($crop['height'] ?? 0) <= 0) {
-            $warning_messages[] = sprintf(
-                /* translators: %d attachment ID */
-                __('Skipped attachment %d because crop data was invalid.', 'll-tools-text-domain'),
-                $attachment_id
-            );
+        if (!empty($target_attachment_lookup) && empty($target_attachment_lookup[$attachment_id])) {
             continue;
         }
 
-        $new_attachment_id = ll_tools_aspect_normalizer_create_cropped_attachment(
-            $attachment_id,
-            $crop,
-            $category_id,
-            $canonical_ratio_key
-        );
+        $new_attachment_id = 0;
+        if ($apply_operation === 'pad') {
+            $new_attachment_id = ll_tools_aspect_normalizer_create_padded_attachment(
+                $attachment_id,
+                $category_id,
+                $canonical_ratio_key
+            );
+        } else {
+            $raw_crop = isset($crop_map[$attachment_id]) && is_array($crop_map[$attachment_id])
+                ? $crop_map[$attachment_id]
+                : (array) ($row['suggested_crop'] ?? []);
+            $crop = ll_tools_aspect_normalizer_sanitize_crop_box($raw_crop, $image_width, $image_height, $canonical_ratio_key);
+            if ((int) ($crop['width'] ?? 0) <= 0 || (int) ($crop['height'] ?? 0) <= 0) {
+                $warning_messages[] = sprintf(
+                    /* translators: %d attachment ID */
+                    __('Skipped attachment %d because crop data was invalid.', 'll-tools-text-domain'),
+                    $attachment_id
+                );
+                continue;
+            }
+            $new_attachment_id = ll_tools_aspect_normalizer_create_cropped_attachment(
+                $attachment_id,
+                $crop,
+                $category_id,
+                $canonical_ratio_key
+            );
+        }
+
         if (is_wp_error($new_attachment_id)) {
             $warning_messages[] = sprintf(
                 /* translators: 1: attachment ID, 2: error message */
@@ -727,6 +990,7 @@ function ll_tools_aspect_normalizer_apply_ajax(): void {
         'updated_word_image_count' => $updated_word_image_count,
         'warning_messages' => array_values($warning_messages),
         'canonical_ratio_key' => $canonical_ratio_key,
+        'operation' => $apply_operation,
     ]);
 }
 add_action('wp_ajax_ll_tools_aspect_normalizer_apply', 'll_tools_aspect_normalizer_apply_ajax');

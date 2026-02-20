@@ -41,7 +41,7 @@ function buildWordsetMarkup() {
         </label>
         <label class="ll-wordset-selection-bar__hard-toggle" hidden>
           <input type="checkbox" data-ll-wordset-selection-hard-only />
-          <span data-ll-wordset-selection-hard-icon>△</span>
+          <span data-ll-wordset-selection-hard-icon></span>
           <span data-ll-wordset-selection-hard-label>Hard words only</span>
         </label>
         <button type="button" data-ll-wordset-selection-mode data-mode="listening">Selection Listen</button>

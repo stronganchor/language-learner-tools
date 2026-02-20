@@ -36,6 +36,7 @@
     let selectionHardOnly = false;
     let wordsByCategory = {};
     let saveStateTimer = null;
+    let goalsSaveRequestToken = 0;
     let analyticsTimer = null;
     let analyticsRequestToken = 0;
     let analyticsTab = 'categories';
@@ -68,6 +69,24 @@
     let selectAllAlignmentTimer = null;
     let progressKpiFeedbackTimer = null;
     let progressWordTableFxTimer = null;
+    let nextCardRevealTimer = null;
+    let nextCardWidthReleaseTimer = null;
+    let progressMiniCountRaf = 0;
+    let progressMiniCountCleanupTimer = null;
+    let progressMiniBurstCleanupTimer = null;
+    let progressMiniCountToken = 0;
+    let isFlashcardOpen = false;
+    let pendingSummaryRefreshAfterClose = false;
+    let pendingPerfectCelebration = false;
+    let pendingPerfectCelebrationAt = 0;
+    let categoryProgressVisibilityObserver = null;
+    let categoryProgressVisibilityRaf = 0;
+    let categoryProgressFallbackBound = false;
+    let categoryProgressVisibilityEventBound = false;
+    const pendingCategoryProgressUpdates = {};
+
+    const SUMMARY_COUNT_KEYS = ['mastered', 'studied', 'new', 'starred', 'hard'];
+    const PERFECT_CELEBRATION_MAX_AGE_MS = 15000;
 
     const $nextCard = $root.find('[data-ll-wordset-next]');
     const $nextShell = $root.find('[data-ll-wordset-next-shell]');
@@ -92,6 +111,9 @@
     const $miniMastered = $root.find('[data-ll-progress-mini-mastered]');
     const $miniStudied = $root.find('[data-ll-progress-mini-studied]');
     const $miniNew = $root.find('[data-ll-progress-mini-new]');
+    const $miniStarred = $root.find('[data-ll-progress-mini-starred]');
+    const $miniHard = $root.find('[data-ll-progress-mini-hard]');
+    const $progressMiniChip = $root.find('[data-ll-wordset-progress-mini-root]').first();
     const $hiddenCount = $root.find('[data-ll-wordset-hidden-count]');
     const $hiddenLink = $root.find('[data-ll-wordset-hidden-link]');
     const $progressRoot = $root.find('[data-ll-wordset-progress-root]');
@@ -221,7 +243,9 @@
         return {
             mastered: Math.max(0, parseInt(source.mastered, 10) || 0),
             studied: Math.max(0, parseInt(source.studied, 10) || 0),
-            new: Math.max(0, parseInt(source.new, 10) || 0)
+            new: Math.max(0, parseInt(source.new, 10) || 0),
+            starred: Math.max(0, parseInt(source.starred, 10) || 0),
+            hard: Math.max(0, parseInt(source.hard, 10) || 0)
         };
     }
 
@@ -527,6 +551,13 @@
         return '<span class="' + escapeHtml(cls) + '" aria-hidden="true" data-emoji="' + escapeHtml(emoji) + '"></span>';
     }
 
+    function getLoadingModeIconMarkup(className) {
+        const cls = String(className || 'll-vocab-lesson-mode-icon').trim() || 'll-vocab-lesson-mode-icon';
+        return '<span class="' + escapeHtml(cls + ' ll-vocab-lesson-mode-icon--loading') + '" aria-hidden="true">'
+            + '<span class="ll-wordset-inline-skeleton"></span>'
+            + '</span>';
+    }
+
     function escapeHtml(text) {
         return String(text || '').replace(/[&<>"']/g, function (char) {
             if (char === '&') { return '&amp;'; }
@@ -692,9 +723,11 @@
             '</svg>';
     }
 
-    function starredIconSvgMarkup() {
-        return '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-            '<path d="M12 3.2L14.86 9L21.25 9.93L16.62 14.45L17.72 20.82L12 17.81L6.28 20.82L7.38 14.45L2.75 9.93L9.14 9Z" fill="currentColor" stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"></path>' +
+    function progressHardIconSvgMarkup() {
+        return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path>' +
+            '<line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line>' +
+            '<circle cx="32" cy="45" r="3.2" fill="currentColor"></circle>' +
             '</svg>';
     }
 
@@ -711,10 +744,10 @@
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span>';
         }
         if (key === 'starred') {
-            return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + starredIconSvgMarkup() + '</span>';
+            return '<span class="' + escapeHtml(cls) + ' ll-wordset-progress-star-glyph-icon" aria-hidden="true">★</span>';
         }
         if (key === 'hard') {
-            return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + hardWordsIconSvgMarkup() + '</span>';
+            return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + progressHardIconSvgMarkup() + '</span>';
         }
         return '';
     }
@@ -965,7 +998,7 @@
             return String(i18n.analyticsStarred || 'Starred');
         }
         if (normalized === 'hard') {
-            return String(i18n.analyticsHard || 'Difficult');
+            return String(i18n.analyticsHard || 'Hard');
         }
         return '';
     }
@@ -1097,7 +1130,13 @@
             const value = String(item.value || '').trim();
             const label = String(item.label || value).trim();
             if (!value || !label) { return null; }
-            return { value: value, label: label };
+            return {
+                value: value,
+                label: label,
+                iconHtml: String(item.iconHtml || '').trim(),
+                ariaLabel: String(item.ariaLabel || label).trim(),
+                optionClass: String(item.optionClass || '').trim()
+            };
         }).filter(Boolean);
 
         const allowed = {};
@@ -1116,7 +1155,7 @@
         list.forEach(function (item, index) {
             const inputId = 'll-wordset-progress-filter-' + key + '-' + String(index + 1);
             const $row = $('<label>', {
-                class: 'll-wordset-progress-filter-option',
+                class: 'll-wordset-progress-filter-option' + (item.optionClass ? (' ' + item.optionClass) : ''),
                 for: inputId
             });
             $('<input>', {
@@ -1124,9 +1163,20 @@
                 type: 'checkbox',
                 'data-ll-wordset-progress-column-filter-check': key,
                 'data-ll-wordset-progress-filter-value': item.value,
-                checked: !!selectedLookup[item.value]
+                checked: !!selectedLookup[item.value],
+                'aria-label': item.ariaLabel
             }).appendTo($row);
-            $('<span>', { text: item.label }).appendTo($row);
+            if (item.iconHtml) {
+                $('<span>', {
+                    class: 'll-wordset-progress-filter-option__icon',
+                    'aria-hidden': 'true',
+                    html: item.iconHtml
+                }).appendTo($row);
+            }
+            $('<span>', {
+                class: 'll-wordset-progress-filter-option__label',
+                text: item.label
+            }).appendTo($row);
             $container.append($row);
         });
         return selected;
@@ -1280,7 +1330,23 @@
             { value: 'older', label: i18n.analyticsFilterLastOlder || 'Older' },
             { value: 'never', label: i18n.analyticsFilterLastNever || 'Never' }
         ];
-        const difficultyRanges = analyticsBuildNumericRanges(rows.map(analyticsWordDifficulty), 5);
+        const hardRows = rows.filter(function (row) {
+            return analyticsWordIsDifficult(row);
+        });
+        const hardValues = hardRows.map(analyticsWordDifficulty);
+        let nonHardValues = rows.filter(function (row) {
+            return !analyticsWordIsDifficult(row);
+        }).map(analyticsWordDifficulty);
+        let hardMin = 0;
+        let hardMax = 0;
+        if (hardValues.length) {
+            hardMin = Math.min.apply(null, hardValues);
+            hardMax = Math.max.apply(null, hardValues);
+            nonHardValues = nonHardValues.filter(function (value) {
+                return value < hardMin || value > hardMax;
+            });
+        }
+        const difficultyRanges = analyticsBuildNumericRanges(nonHardValues, 4);
         const seenRanges = analyticsBuildNumericRanges(rows.map(analyticsWordSeen), 5);
         const wrongRanges = analyticsBuildNumericRanges(rows.map(analyticsWordWrong), 5);
         const rangeToOptions = function (ranges) {
@@ -1309,10 +1375,17 @@
             } else if (key === 'last') {
                 options = lastOptions;
             } else if (key === 'difficulty') {
-                options = [{
-                    value: 'hard',
-                    label: i18n.analyticsFilterDifficultyHard || 'Hard words'
-                }].concat(rangeToOptions(difficultyRanges));
+                options = rangeToOptions(difficultyRanges);
+                if (hardValues.length) {
+                    const hardWordsLabel = String(i18n.analyticsFilterDifficultyHard || 'Hard words');
+                    options.push({
+                        value: 'hard',
+                        label: hardWordsLabel,
+                        iconHtml: hardWordsIconSvgMarkup(),
+                        ariaLabel: hardWordsLabel,
+                        optionClass: 'll-wordset-progress-filter-option--hard-range'
+                    });
+                }
             } else if (key === 'seen') {
                 options = rangeToOptions(seenRanges);
             } else if (key === 'wrong') {
@@ -1745,7 +1818,9 @@
         summaryCounts = {
             mastered: counts.mastered,
             studied: counts.studied,
-            new: counts.newWords
+            new: counts.newWords,
+            starred: counts.starred,
+            hard: counts.hard
         };
         renderMiniCounts();
 
@@ -1754,7 +1829,7 @@
             { key: 'studied', value: counts.studied, label: i18n.analyticsStudied || 'In progress', icon: buildProgressIconMarkup('studied', 'll-wordset-progress-kpi-icon') },
             { key: 'new', value: counts.newWords, label: i18n.analyticsNew || 'New', icon: buildProgressIconMarkup('new', 'll-wordset-progress-kpi-icon') },
             { key: 'starred', value: counts.starred, label: i18n.analyticsStarred || 'Starred', icon: buildProgressIconMarkup('starred', 'll-wordset-progress-kpi-icon') },
-            { key: 'hard', value: counts.hard, label: i18n.analyticsHard || 'Difficult', icon: buildProgressIconMarkup('hard', 'll-wordset-progress-kpi-icon') }
+            { key: 'hard', value: counts.hard, label: i18n.analyticsHard || 'Hard', icon: buildProgressIconMarkup('hard', 'll-wordset-progress-kpi-icon') }
         ];
 
         items.forEach(function (item) {
@@ -2751,18 +2826,29 @@
         saveStateTimer = setTimeout(saveNow, 250);
     }
 
+    function isLatestGoalsSaveRequest(token) {
+        const requestToken = parseInt(token, 10) || 0;
+        return requestToken > 0 && requestToken === goalsSaveRequestToken;
+    }
+
     function saveGoalsNow() {
         if (!isLoggedIn || !ajaxUrl || !nonce) {
-            return $.Deferred().reject().promise();
+            const rejected = $.Deferred().reject().promise();
+            rejected.llToolsRequestToken = 0;
+            return rejected;
         }
 
-        return $.post(ajaxUrl, {
+        const requestToken = ++goalsSaveRequestToken;
+        const request = $.post(ajaxUrl, {
             action: 'll_user_study_save_goals',
             nonce: nonce,
             wordset_id: wordsetId,
             category_ids: getVisibleCategoryIds(),
             goals: JSON.stringify(goals)
         }).done(function (res) {
+            if (!isLatestGoalsSaveRequest(requestToken)) {
+                return;
+            }
             if (res && res.success && res.data) {
                 if (res.data.goals && typeof res.data.goals === 'object') {
                     goals = normalizeGoals(Object.assign({}, goals, res.data.goals));
@@ -2772,17 +2858,513 @@
                 syncSettingsButtons();
             }
         });
+        request.llToolsRequestToken = requestToken;
+        return request;
     }
 
-    function renderMiniCounts() {
-        if ($miniMastered.length) {
-            $miniMastered.text(String(summaryCounts.mastered));
+    function getMiniCountElements() {
+        return {
+            mastered: $miniMastered,
+            studied: $miniStudied,
+            new: $miniNew,
+            starred: $miniStarred,
+            hard: $miniHard
+        };
+    }
+
+    function getRenderedMiniCountValues() {
+        const elements = getMiniCountElements();
+        const fallback = normalizeSummaryCounts(summaryCounts || {});
+        const current = {};
+
+        SUMMARY_COUNT_KEYS.forEach(function (key) {
+            const $target = elements[key];
+            if (!$target || !$target.length) {
+                current[key] = fallback[key];
+                return;
+            }
+
+            const rawText = String($target.text() || '').trim();
+            const parsed = parseInt(rawText.replace(/[^\d-]/g, ''), 10);
+            if (!Number.isFinite(parsed)) {
+                current[key] = fallback[key];
+                return;
+            }
+            current[key] = Math.max(0, parsed);
+        });
+
+        return normalizeSummaryCounts(current);
+    }
+
+    function clearMiniCountAnimationState() {
+        if (progressMiniCountRaf) {
+            const cancelFrame = window.cancelAnimationFrame || window.clearTimeout;
+            cancelFrame(progressMiniCountRaf);
+            progressMiniCountRaf = 0;
         }
-        if ($miniStudied.length) {
-            $miniStudied.text(String(summaryCounts.studied));
+        if (progressMiniCountCleanupTimer) {
+            window.clearTimeout(progressMiniCountCleanupTimer);
+            progressMiniCountCleanupTimer = null;
         }
-        if ($miniNew.length) {
-            $miniNew.text(String(summaryCounts.new));
+        if (progressMiniBurstCleanupTimer) {
+            window.clearTimeout(progressMiniBurstCleanupTimer);
+            progressMiniBurstCleanupTimer = null;
+        }
+    }
+
+    function clearMiniProgressBurstParticles() {
+        if (!$progressMiniChip.length) { return; }
+        $progressMiniChip.find('.ll-wordset-progress-burst-dot').remove();
+    }
+
+    function buildMiniCountAnimationPlan(from, to, celebratePerfect) {
+        const start = Math.max(0, parseInt(from, 10) || 0);
+        const end = Math.max(0, parseInt(to, 10) || 0);
+        const delta = Math.abs(end - start);
+        if (!delta) {
+            return null;
+        }
+
+        let maxVisibleSteps = 12;
+        if (delta <= 6) {
+            maxVisibleSteps = delta;
+        } else if (delta <= 20) {
+            maxVisibleSteps = 8;
+        } else if (delta <= 80) {
+            maxVisibleSteps = 10;
+        }
+
+        const stepSize = Math.max(1, Math.ceil(delta / Math.max(1, maxVisibleSteps)));
+        const stepCount = Math.max(1, Math.ceil(delta / stepSize));
+        const perStepMs = (delta <= 6) ? 190 : ((delta <= 20) ? 145 : 100);
+        const maxDuration = celebratePerfect ? 1060 : 920;
+        const duration = Math.max(460, Math.min(maxDuration, stepCount * perStepMs));
+
+        return {
+            from: start,
+            to: end,
+            delta: delta,
+            stepSize: stepSize,
+            stepCount: stepCount,
+            direction: end > start ? 1 : -1,
+            duration: duration,
+            lastStep: 0,
+            lastValue: start
+        };
+    }
+
+    function triggerMiniCountTickPop($target) {
+        if (!$target || !$target.length || prefersReducedMotion()) { return; }
+        const el = $target.get(0);
+        if (!el) { return; }
+        $target.removeClass('is-count-tick');
+        void el.offsetWidth;
+        $target.addClass('is-count-tick');
+    }
+
+    function applyMiniCountValues(counts) {
+        const normalized = normalizeSummaryCounts(counts || {});
+        const elements = getMiniCountElements();
+        SUMMARY_COUNT_KEYS.forEach(function (key) {
+            const $target = elements[key];
+            if ($target && $target.length) {
+                $target.text(String(normalized[key]));
+            }
+        });
+    }
+
+    function launchMiniProgressConfetti() {
+        if (!$progressMiniChip.length || prefersReducedMotion() || typeof window.confetti !== 'function') {
+            return;
+        }
+        const chipEl = $progressMiniChip.get(0);
+        if (!chipEl || typeof chipEl.getBoundingClientRect !== 'function') {
+            return;
+        }
+        const rect = chipEl.getBoundingClientRect();
+        const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+        const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+        const clamp = function (value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        };
+        const origin = {
+            x: clamp((rect.left + (rect.width * 0.5)) / viewportWidth, 0.04, 0.96),
+            y: clamp((rect.top + (rect.height * 0.55)) / viewportHeight, 0.04, 0.9)
+        };
+
+        try {
+            window.confetti({
+                particleCount: 34,
+                spread: 62,
+                startVelocity: 36,
+                gravity: 1.05,
+                scalar: 0.84,
+                ticks: 90,
+                zIndex: 1001,
+                origin: origin
+            });
+            window.confetti({
+                particleCount: 20,
+                angle: 78,
+                spread: 48,
+                startVelocity: 31,
+                gravity: 1.1,
+                scalar: 0.68,
+                ticks: 84,
+                zIndex: 1001,
+                origin: { x: Math.max(0.02, origin.x - 0.09), y: origin.y }
+            });
+            window.confetti({
+                particleCount: 20,
+                angle: 102,
+                spread: 48,
+                startVelocity: 31,
+                gravity: 1.1,
+                scalar: 0.68,
+                ticks: 84,
+                zIndex: 1001,
+                origin: { x: Math.min(0.98, origin.x + 0.09), y: origin.y }
+            });
+        } catch (_) { /* no-op */ }
+    }
+
+    function spawnMiniProgressBurstParticles() {
+        if (!$progressMiniChip.length || prefersReducedMotion()) { return; }
+        const chipEl = $progressMiniChip.get(0);
+        if (!chipEl) { return; }
+
+        clearMiniProgressBurstParticles();
+
+        const count = 14;
+        for (let idx = 0; idx < count; idx += 1) {
+            const dot = document.createElement('span');
+            const angle = ((Math.PI * 2) * (idx / count)) + ((Math.random() - 0.5) * 0.32);
+            const distance = 18 + (Math.random() * 24);
+            const offsetX = Math.cos(angle) * distance;
+            const offsetY = Math.sin(angle) * distance;
+            const delay = Math.random() * 0.12;
+            const size = 4 + (Math.random() * 4.6);
+
+            dot.className = 'll-wordset-progress-burst-dot';
+            dot.style.setProperty('--ll-burst-x', offsetX.toFixed(2) + 'px');
+            dot.style.setProperty('--ll-burst-y', offsetY.toFixed(2) + 'px');
+            dot.style.setProperty('--ll-burst-delay', delay.toFixed(3) + 's');
+            dot.style.setProperty('--ll-burst-size', size.toFixed(2) + 'px');
+            chipEl.appendChild(dot);
+        }
+
+        if (progressMiniBurstCleanupTimer) {
+            window.clearTimeout(progressMiniBurstCleanupTimer);
+        }
+        progressMiniBurstCleanupTimer = window.setTimeout(function () {
+            clearMiniProgressBurstParticles();
+            progressMiniBurstCleanupTimer = null;
+        }, 1180);
+    }
+
+    function animateMiniCountTransition(previousCounts, nextCounts, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const before = normalizeSummaryCounts(previousCounts || {});
+        const after = normalizeSummaryCounts(nextCounts || {});
+        const shouldAnimate = !!opts.animate && !prefersReducedMotion();
+        const celebratePerfect = !!opts.celebratePerfect && !prefersReducedMotion();
+        const elements = getMiniCountElements();
+        const pills = {};
+        SUMMARY_COUNT_KEYS.forEach(function (key) {
+            const $target = elements[key];
+            pills[key] = ($target && $target.length)
+                ? $target.closest('.ll-wordset-progress-pill').first()
+                : $();
+        });
+
+        clearMiniCountAnimationState();
+        clearMiniProgressBurstParticles();
+
+        if ($progressMiniChip.length) {
+            $progressMiniChip.removeClass('is-syncing is-perfect-burst');
+        }
+        SUMMARY_COUNT_KEYS.forEach(function (key) {
+            const $pill = pills[key];
+            if ($pill && $pill.length) {
+                $pill.removeClass('is-updating is-rising is-falling is-steady');
+            }
+            const $target = elements[key];
+            if ($target && $target.length) {
+                $target.removeClass('is-count-tick');
+            }
+        });
+
+        if (!shouldAnimate) {
+            applyMiniCountValues(after);
+            if (celebratePerfect && $progressMiniChip.length) {
+                if ($progressMiniChip[0]) {
+                    void $progressMiniChip[0].offsetWidth;
+                }
+                $progressMiniChip.addClass('is-perfect-burst');
+                spawnMiniProgressBurstParticles();
+                launchMiniProgressConfetti();
+                progressMiniCountCleanupTimer = window.setTimeout(function () {
+                    $progressMiniChip.removeClass('is-perfect-burst');
+                    clearMiniProgressBurstParticles();
+                    progressMiniCountCleanupTimer = null;
+                }, 980);
+            }
+            return;
+        }
+
+        const settleDelay = celebratePerfect ? 980 : 340;
+        const token = ++progressMiniCountToken;
+        const raf = window.requestAnimationFrame || function (cb) {
+            return window.setTimeout(function () { cb(Date.now()); }, 16);
+        };
+        const nowMs = function () {
+            if (window.performance && typeof window.performance.now === 'function') {
+                return window.performance.now();
+            }
+            return Date.now();
+        };
+
+        applyMiniCountValues(before);
+
+        if ($progressMiniChip.length) {
+            if ($progressMiniChip[0]) {
+                void $progressMiniChip[0].offsetWidth;
+            }
+            $progressMiniChip.addClass('is-syncing');
+        }
+
+        const finalizeSequence = function () {
+            if (token !== progressMiniCountToken) { return; }
+            progressMiniCountRaf = 0;
+            applyMiniCountValues(after);
+            SUMMARY_COUNT_KEYS.forEach(function (key) {
+                const $target = elements[key];
+                if ($target && $target.length) {
+                    $target.removeClass('is-count-tick');
+                }
+            });
+
+            if (celebratePerfect && $progressMiniChip.length) {
+                if ($progressMiniChip[0]) {
+                    void $progressMiniChip[0].offsetWidth;
+                }
+                $progressMiniChip.addClass('is-perfect-burst');
+                spawnMiniProgressBurstParticles();
+                launchMiniProgressConfetti();
+            }
+
+            progressMiniCountCleanupTimer = window.setTimeout(function () {
+                if (token !== progressMiniCountToken) { return; }
+                if ($progressMiniChip.length) {
+                    $progressMiniChip.removeClass('is-syncing is-perfect-burst');
+                }
+                SUMMARY_COUNT_KEYS.forEach(function (key) {
+                    const $pill = pills[key];
+                    if ($pill && $pill.length) {
+                        $pill.removeClass('is-updating is-rising is-falling is-steady');
+                    }
+                    const $target = elements[key];
+                    if ($target && $target.length) {
+                        $target.removeClass('is-count-tick');
+                    }
+                });
+                clearMiniProgressBurstParticles();
+                progressMiniCountCleanupTimer = null;
+            }, settleDelay);
+        };
+
+        const plans = {};
+        const orderedKeys = [];
+        SUMMARY_COUNT_KEYS.forEach(function (key) {
+            const $target = elements[key];
+            const $pill = pills[key];
+            const from = before[key];
+            const to = after[key];
+
+            if (!$target || !$target.length) {
+                return;
+            }
+
+            if (!$pill || !$pill.length || from === to) {
+                $target.text(String(to));
+                return;
+            }
+
+            const plan = buildMiniCountAnimationPlan(from, to, celebratePerfect);
+            if (!plan) {
+                $target.text(String(to));
+                return;
+            }
+
+            plans[key] = plan;
+            orderedKeys.push(key);
+        });
+
+        if (!orderedKeys.length) {
+            finalizeSequence();
+            return;
+        }
+
+        const runPlanAtIndex = function (index) {
+            if (token !== progressMiniCountToken) { return; }
+            if (index >= orderedKeys.length) {
+                finalizeSequence();
+                return;
+            }
+
+            const key = orderedKeys[index];
+            const plan = plans[key];
+            const $target = elements[key];
+            const $pill = pills[key];
+            if (!plan || !$target || !$target.length || !$pill || !$pill.length) {
+                runPlanAtIndex(index + 1);
+                return;
+            }
+
+            $pill.removeClass('is-updating is-rising is-falling is-steady');
+            $pill.addClass('is-updating').addClass(plan.direction > 0 ? 'is-rising' : 'is-falling');
+
+            const planStartTs = nowMs();
+            const tick = function (timestamp) {
+                if (token !== progressMiniCountToken) { return; }
+                const ts = Number.isFinite(timestamp) ? timestamp : nowMs();
+                const elapsed = Math.max(0, ts - planStartTs);
+                const progress = Math.max(0, Math.min(1, elapsed / plan.duration));
+                let desiredStep = Math.floor(progress * plan.stepCount);
+                if (progress >= 1) {
+                    desiredStep = plan.stepCount;
+                }
+
+                if (desiredStep > plan.lastStep) {
+                    const moved = Math.min(plan.delta, desiredStep * plan.stepSize);
+                    let value = plan.from + (plan.direction * moved);
+                    if (plan.direction > 0) {
+                        value = Math.min(plan.to, value);
+                    } else {
+                        value = Math.max(plan.to, value);
+                    }
+
+                    if (value !== plan.lastValue) {
+                        plan.lastValue = value;
+                        $target.text(String(value));
+                        triggerMiniCountTickPop($target);
+                    }
+                    plan.lastStep = desiredStep;
+                }
+
+                if (progress < 1) {
+                    progressMiniCountRaf = raf(tick);
+                    return;
+                }
+
+                progressMiniCountRaf = 0;
+                if (plan.lastValue !== plan.to) {
+                    plan.lastValue = plan.to;
+                    $target.text(String(plan.to));
+                    triggerMiniCountTickPop($target);
+                }
+
+                const nextDelay = celebratePerfect ? 170 : 130;
+                window.setTimeout(function () {
+                    if (token !== progressMiniCountToken) { return; }
+                    $pill.removeClass('is-updating is-rising is-falling is-steady');
+                    runPlanAtIndex(index + 1);
+                }, nextDelay);
+            };
+
+            progressMiniCountRaf = raf(tick);
+        };
+
+        runPlanAtIndex(0);
+    }
+
+    function renderMiniCounts(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const previousCounts = Object.prototype.hasOwnProperty.call(opts, 'previousCounts')
+            ? normalizeSummaryCounts(opts.previousCounts || {})
+            : normalizeSummaryCounts(summaryCounts || {});
+        const nextCounts = normalizeSummaryCounts(summaryCounts || {});
+        animateMiniCountTransition(previousCounts, nextCounts, {
+            animate: !!opts.animate,
+            celebratePerfect: !!opts.celebratePerfect
+        });
+    }
+
+    function summaryCountsChanged(leftCounts, rightCounts) {
+        const left = normalizeSummaryCounts(leftCounts || {});
+        const right = normalizeSummaryCounts(rightCounts || {});
+        return SUMMARY_COUNT_KEYS.some(function (key) {
+            return left[key] !== right[key];
+        });
+    }
+
+    function hasPendingPerfectCelebration() {
+        if (!pendingPerfectCelebration) {
+            return false;
+        }
+        if (!pendingPerfectCelebrationAt) {
+            return true;
+        }
+        if ((Date.now() - pendingPerfectCelebrationAt) > PERFECT_CELEBRATION_MAX_AGE_MS) {
+            clearPerfectCelebrationPending();
+            return false;
+        }
+        return true;
+    }
+
+    function markPerfectCelebrationPending() {
+        pendingPerfectCelebration = true;
+        pendingPerfectCelebrationAt = Date.now();
+    }
+
+    function clearPerfectCelebrationPending() {
+        pendingPerfectCelebration = false;
+        pendingPerfectCelebrationAt = 0;
+    }
+
+    function normalizeFlashcardResultSummary(detail) {
+        if (!detail || typeof detail !== 'object') {
+            return null;
+        }
+        const mode = normalizeMode(detail.mode || '');
+        if (!mode) {
+            return null;
+        }
+        const total = Math.max(0, parseInt(detail.total, 10) || 0);
+        const correct = Math.max(0, parseInt(detail.correct, 10) || 0);
+        return {
+            mode: mode,
+            total: total,
+            correct: correct
+        };
+    }
+
+    function isPerfectFlashcardResult(summary) {
+        if (!summary || typeof summary !== 'object') {
+            return false;
+        }
+        const mode = normalizeMode(summary.mode || '');
+        if (mode !== 'practice' && mode !== 'self-check') {
+            return false;
+        }
+        const total = Math.max(0, parseInt(summary.total, 10) || 0);
+        const correct = Math.max(0, parseInt(summary.correct, 10) || 0);
+        return total > 0 && correct >= total;
+    }
+
+    function scrollWordsetPageToTop() {
+        if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') {
+            return;
+        }
+        const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+        try {
+            window.scrollTo({
+                top: 0,
+                left: 0,
+                behavior: behavior
+            });
+        } catch (_) {
+            window.scrollTo(0, 0);
         }
     }
 
@@ -2798,7 +3380,9 @@
         return count;
     }
 
-    function pulseHiddenLinkAttention() {
+    function pulseHiddenLinkAttention(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const allowScroll = opts.scrollIntoView !== false;
         if (!$hiddenLink.length) { return; }
 
         const el = $hiddenLink.get(0);
@@ -2806,8 +3390,8 @@
 
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
         const rect = el.getBoundingClientRect();
-        const inView = rect.top >= 0 && rect.bottom <= viewportHeight;
-        if (!inView && typeof el.scrollIntoView === 'function') {
+        const inView = rect.bottom >= 0 && rect.top <= viewportHeight;
+        if (allowScroll && !inView && typeof el.scrollIntoView === 'function') {
             el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         }
 
@@ -2834,14 +3418,584 @@
         if ($hiddenLink.length) {
             const labelTemplate = i18n.hiddenCountLabel || 'Hidden categories: %d';
             $hiddenLink.attr('aria-label', formatTemplate(labelTemplate, [count]));
+            const hasHiddenCategories = count > 0;
+            $hiddenLink.prop('hidden', !hasHiddenCategories);
+            if (!hasHiddenCategories) {
+                $hiddenLink.removeClass('is-updated');
+            }
         }
-        if (opts.pulse) {
-            pulseHiddenLinkAttention();
+        if (opts.pulse && count > 0) {
+            pulseHiddenLinkAttention({ scrollIntoView: opts.scrollIntoView });
         }
     }
 
-    function refreshSummaryCounts() {
-        if (!isLoggedIn || !ajaxUrl || !nonce) { return; }
+    function prefersReducedMotion() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function isRectInViewport(rect) {
+        if (!rect) { return false; }
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        return rect.bottom >= 0 && rect.top <= viewportHeight && rect.right >= 0 && rect.left <= viewportWidth;
+    }
+
+    function clampProgressPercent(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) { return 0; }
+        return Math.max(0, Math.min(100, numeric));
+    }
+
+    function roundProgressPercent(value) {
+        return Math.round(clampProgressPercent(value) * 100) / 100;
+    }
+
+    function formatProgressPercent(value) {
+        return roundProgressPercent(value).toFixed(2) + '%';
+    }
+
+    function parseCardProgressSegmentPercent($segment) {
+        if (!$segment || !$segment.length) { return 0; }
+        const segmentEl = $segment.get(0);
+        if (!segmentEl) { return 0; }
+
+        const cached = parseFloat(segmentEl.getAttribute('data-ll-progress-pct') || '');
+        if (Number.isFinite(cached)) {
+            return roundProgressPercent(cached);
+        }
+
+        const inline = String(segmentEl.style.width || '').trim();
+        if (inline.slice(-1) === '%') {
+            const parsedInline = parseFloat(inline.slice(0, -1));
+            if (Number.isFinite(parsedInline)) {
+                return roundProgressPercent(parsedInline);
+            }
+        }
+
+        const styleAttr = String($segment.attr('style') || '');
+        const match = styleAttr.match(/width\s*:\s*([0-9.]+)%/i);
+        if (match && Number.isFinite(parseFloat(match[1]))) {
+            return roundProgressPercent(parseFloat(match[1]));
+        }
+        return 0;
+    }
+
+    function setCardProgressSegmentPercent($segment, value) {
+        if (!$segment || !$segment.length) { return; }
+        const segmentEl = $segment.get(0);
+        if (!segmentEl) { return; }
+        const normalized = roundProgressPercent(value);
+        segmentEl.style.width = formatProgressPercent(normalized);
+        segmentEl.setAttribute('data-ll-progress-pct', normalized.toFixed(2));
+    }
+
+    function getWordsetCardByCategoryId(categoryId) {
+        const id = parseInt(categoryId, 10) || 0;
+        if (!id) { return $(); }
+        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]').first();
+    }
+
+    function getWordsetCardProgressSegments($card) {
+        const $source = ($card && $card.length) ? $card : $();
+        const $track = $source.find('.ll-wordset-card__progress-track').first();
+        return {
+            track: $track,
+            mastered: $track.find('.ll-wordset-card__progress-segment--mastered').first(),
+            studied: $track.find('.ll-wordset-card__progress-segment--studied').first(),
+            new: $track.find('.ll-wordset-card__progress-segment--new').first()
+        };
+    }
+
+    function readWordsetCardProgressPercents($card) {
+        const segments = getWordsetCardProgressSegments($card);
+        return {
+            mastered: parseCardProgressSegmentPercent(segments.mastered),
+            studied: parseCardProgressSegmentPercent(segments.studied),
+            new: parseCardProgressSegmentPercent(segments.new)
+        };
+    }
+
+    function buildWordsetCardProgressPercentsFromAnalyticsRow(row) {
+        const source = (row && typeof row === 'object') ? row : {};
+        const masteredWords = Math.max(0, parseInt(source.mastered_words, 10) || 0);
+        const studiedTotal = Math.max(masteredWords, parseInt(source.studied_words, 10) || 0);
+        const studiedWords = Math.max(0, studiedTotal - masteredWords);
+        const totalFromRow = Math.max(0, parseInt(source.word_count, 10) || 0);
+        const explicitNewWords = parseInt(source.new_words, 10);
+        const newWords = Number.isFinite(explicitNewWords)
+            ? Math.max(0, explicitNewWords)
+            : Math.max(0, totalFromRow - studiedTotal);
+        const fallbackTotal = masteredWords + studiedWords + newWords;
+        const totalWords = Math.max(1, totalFromRow, fallbackTotal);
+
+        const masteredPct = roundProgressPercent((masteredWords * 100) / totalWords);
+        const studiedPct = roundProgressPercent(Math.min(100 - masteredPct, (studiedWords * 100) / totalWords));
+        const newPct = roundProgressPercent(Math.max(0, 100 - masteredPct - studiedPct));
+
+        return {
+            mastered: masteredPct,
+            studied: studiedPct,
+            new: newPct
+        };
+    }
+
+    function hasWordsetCardProgressDelta(current, next) {
+        const left = (current && typeof current === 'object') ? current : {};
+        const right = (next && typeof next === 'object') ? next : {};
+        const tolerance = 0.09;
+        return ['mastered', 'studied', 'new'].some(function (key) {
+            const from = roundProgressPercent(left[key]);
+            const to = roundProgressPercent(right[key]);
+            return Math.abs(to - from) > tolerance;
+        });
+    }
+
+    function setWordsetCardProgressPercents($card, values, options) {
+        const segments = getWordsetCardProgressSegments($card);
+        if (!segments.track.length) { return; }
+
+        const next = (values && typeof values === 'object') ? values : {};
+        const opts = (options && typeof options === 'object') ? options : {};
+        const shouldAnimate = !!opts.animate && !prefersReducedMotion();
+        const trackEl = segments.track.get(0);
+        if (!trackEl) { return; }
+
+        if (trackEl.__llProgressAnimTimer) {
+            window.clearTimeout(trackEl.__llProgressAnimTimer);
+            trackEl.__llProgressAnimTimer = 0;
+        }
+
+        const applyNow = function () {
+            setCardProgressSegmentPercent(segments.mastered, next.mastered);
+            setCardProgressSegmentPercent(segments.studied, next.studied);
+            setCardProgressSegmentPercent(segments.new, next.new);
+        };
+
+        if (!shouldAnimate) {
+            segments.track.removeClass('is-progress-updating');
+            applyNow();
+            return;
+        }
+
+        segments.track.removeClass('is-progress-updating');
+        void trackEl.offsetWidth;
+        segments.track.addClass('is-progress-updating');
+
+        const raf = window.requestAnimationFrame || function (cb) {
+            return window.setTimeout(function () { cb(); }, 16);
+        };
+        raf(applyNow);
+
+        trackEl.__llProgressAnimTimer = window.setTimeout(function () {
+            segments.track.removeClass('is-progress-updating');
+            trackEl.__llProgressAnimTimer = 0;
+        }, 980);
+    }
+
+    function schedulePendingCategoryProgressVisibilityCheck() {
+        if (categoryProgressVisibilityRaf) { return; }
+        const raf = window.requestAnimationFrame || function (cb) {
+            return window.setTimeout(function () { cb(); }, 16);
+        };
+        categoryProgressVisibilityRaf = raf(function () {
+            categoryProgressVisibilityRaf = 0;
+            processVisiblePendingCategoryProgressUpdates();
+        });
+    }
+
+    function normalizePendingCategoryProgressEntry(rawEntry) {
+        if (!rawEntry || typeof rawEntry !== 'object') {
+            return null;
+        }
+        if (rawEntry.values && typeof rawEntry.values === 'object') {
+            return {
+                values: rawEntry.values,
+                awaitNextView: !!rawEntry.awaitNextView
+            };
+        }
+        return {
+            values: rawEntry,
+            awaitNextView: false
+        };
+    }
+
+    function setPendingCategoryProgressEntry(categoryId, values, options) {
+        const id = parseInt(categoryId, 10) || 0;
+        if (!id || !values || typeof values !== 'object') { return; }
+        const opts = (options && typeof options === 'object') ? options : {};
+        pendingCategoryProgressUpdates[id] = {
+            values: values,
+            awaitNextView: !!opts.awaitNextView
+        };
+    }
+
+    function applyPendingCategoryProgressForCard($card) {
+        const cardEl = $card && $card.length ? $card.get(0) : null;
+        if (!cardEl || typeof cardEl.getBoundingClientRect !== 'function') { return false; }
+
+        const categoryId = parseInt($card.attr('data-cat-id'), 10) || 0;
+        if (!categoryId) { return false; }
+
+        const pending = normalizePendingCategoryProgressEntry(pendingCategoryProgressUpdates[categoryId]);
+        if (!pending || !pending.values || typeof pending.values !== 'object') {
+            return false;
+        }
+
+        if (pending.awaitNextView) {
+            return false;
+        }
+
+        if (!isRectInViewport(cardEl.getBoundingClientRect())) {
+            return false;
+        }
+
+        const current = readWordsetCardProgressPercents($card);
+        if (!hasWordsetCardProgressDelta(current, pending.values)) {
+            delete pendingCategoryProgressUpdates[categoryId];
+            return false;
+        }
+
+        setWordsetCardProgressPercents($card, pending.values, { animate: true });
+        delete pendingCategoryProgressUpdates[categoryId];
+        return true;
+    }
+
+    function processVisiblePendingCategoryProgressUpdates() {
+        const ids = Object.keys(pendingCategoryProgressUpdates);
+        if (!ids.length) { return; }
+
+        ids.forEach(function (rawId) {
+            const categoryId = parseInt(rawId, 10) || 0;
+            if (!categoryId) {
+                delete pendingCategoryProgressUpdates[rawId];
+                return;
+            }
+            const $card = getWordsetCardByCategoryId(categoryId);
+            if (!$card.length) {
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
+
+            const pending = normalizePendingCategoryProgressEntry(pendingCategoryProgressUpdates[categoryId]);
+            if (!pending) {
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
+
+            const cardEl = $card.get(0);
+            const isVisible = !!(cardEl && typeof cardEl.getBoundingClientRect === 'function' && isRectInViewport(cardEl.getBoundingClientRect()));
+            if (pending.awaitNextView && !isVisible) {
+                pending.awaitNextView = false;
+                pendingCategoryProgressUpdates[categoryId] = pending;
+                return;
+            }
+
+            applyPendingCategoryProgressForCard($card);
+        });
+    }
+
+    function observeCategoryCardsForProgressVisibility() {
+        if (!categoryProgressVisibilityObserver || typeof categoryProgressVisibilityObserver.observe !== 'function') {
+            return;
+        }
+        $root.find('.ll-wordset-card[data-cat-id]').each(function () {
+            if (!this) { return; }
+            try {
+                categoryProgressVisibilityObserver.observe(this);
+            } catch (_) { /* no-op */ }
+        });
+    }
+
+    function ensureCategoryProgressVisibilityTracking() {
+        if (!categoryProgressVisibilityEventBound && typeof document !== 'undefined' && document.addEventListener) {
+            categoryProgressVisibilityEventBound = true;
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                    schedulePendingCategoryProgressVisibilityCheck();
+                }
+            });
+        }
+
+        if (categoryProgressVisibilityObserver) {
+            observeCategoryCardsForProgressVisibility();
+            return;
+        }
+
+        if (typeof window.IntersectionObserver === 'function') {
+            categoryProgressVisibilityObserver = new window.IntersectionObserver(function (entries) {
+                (Array.isArray(entries) ? entries : []).forEach(function (entry) {
+                    if (!entry || !entry.target) { return; }
+                    const $card = $(entry.target);
+                    if (!$card.length) { return; }
+
+                    const categoryId = parseInt($card.attr('data-cat-id'), 10) || 0;
+                    const pending = normalizePendingCategoryProgressEntry(pendingCategoryProgressUpdates[categoryId]);
+                    if (categoryId && pending && !entry.isIntersecting && (entry.intersectionRatio || 0) <= 0) {
+                        if (pending.awaitNextView) {
+                            pending.awaitNextView = false;
+                            pendingCategoryProgressUpdates[categoryId] = pending;
+                        }
+                        return;
+                    }
+                    if (!entry.isIntersecting && (entry.intersectionRatio || 0) <= 0) { return; }
+                    applyPendingCategoryProgressForCard($card);
+                });
+            }, {
+                root: null,
+                threshold: [0, 0.12, 0.35]
+            });
+            observeCategoryCardsForProgressVisibility();
+            return;
+        }
+
+        if (categoryProgressFallbackBound) {
+            return;
+        }
+        categoryProgressFallbackBound = true;
+        $(window)
+            .off('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility')
+            .on('scroll.llWordsetProgressVisibility resize.llWordsetProgressVisibility', function () {
+                schedulePendingCategoryProgressVisibilityCheck();
+            });
+    }
+
+    function queueCategoryProgressUpdatesFromAnalytics(analyticsPayload, options) {
+        const analyticsData = (analyticsPayload && typeof analyticsPayload === 'object') ? analyticsPayload : {};
+        const opts = (options && typeof options === 'object') ? options : {};
+        const deferVisible = !!opts.deferVisible;
+        const rows = Array.isArray(analyticsData.categories) ? analyticsData.categories : [];
+        if (!rows.length) { return; }
+
+        ensureCategoryProgressVisibilityTracking();
+
+        rows.forEach(function (row) {
+            const source = (row && typeof row === 'object') ? row : {};
+            const categoryId = parseInt(source.id, 10) || 0;
+            if (!categoryId) { return; }
+
+            const $card = getWordsetCardByCategoryId(categoryId);
+            if (!$card.length) {
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
+
+            const nextValues = buildWordsetCardProgressPercentsFromAnalyticsRow(source);
+            const currentValues = readWordsetCardProgressPercents($card);
+            if (!hasWordsetCardProgressDelta(currentValues, nextValues)) {
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
+
+            const cardEl = $card.get(0);
+            const isVisible = !!(cardEl && typeof cardEl.getBoundingClientRect === 'function' && isRectInViewport(cardEl.getBoundingClientRect()));
+            if (isVisible && !deferVisible) {
+                setWordsetCardProgressPercents($card, nextValues, { animate: true });
+                delete pendingCategoryProgressUpdates[categoryId];
+            } else {
+                setPendingCategoryProgressEntry(categoryId, nextValues, {
+                    awaitNextView: deferVisible && isVisible
+                });
+            }
+        });
+
+        schedulePendingCategoryProgressVisibilityCheck();
+    }
+
+    function scrollToHiddenChipForHideFlight() {
+        if (!$hiddenLink.length) { return; }
+        const linkEl = $hiddenLink.get(0);
+        if (!linkEl || typeof linkEl.getBoundingClientRect !== 'function') { return; }
+        const rect = linkEl.getBoundingClientRect();
+        if (!rect || isRectInViewport(rect)) { return; }
+        if (typeof linkEl.scrollIntoView !== 'function') { return; }
+        linkEl.scrollIntoView({
+            behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+            block: 'start',
+            inline: 'nearest'
+        });
+    }
+
+    function getHiddenChipAnimationTargetRect() {
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const fallbackWidth = 44;
+        const fallbackHeight = 36;
+        const fallbackLeft = Math.max(14, viewportWidth - fallbackWidth - 14);
+        const fallbackTop = 14;
+
+        if ($hiddenLink.length) {
+            const linkEl = $hiddenLink.get(0);
+            if (linkEl && typeof linkEl.getBoundingClientRect === 'function') {
+                const rect = linkEl.getBoundingClientRect();
+                if (rect && rect.width > 0 && rect.height > 0) {
+                    const width = rect.width;
+                    const height = rect.height;
+                    const minLeft = 14;
+                    const minTop = 14;
+                    const maxLeft = Math.max(minLeft, viewportWidth - width - 14);
+                    const maxTop = Math.max(minTop, viewportHeight - height - 14);
+                    return {
+                        left: Math.min(maxLeft, Math.max(minLeft, rect.left)),
+                        top: Math.min(maxTop, Math.max(minTop, rect.top)),
+                        width: width,
+                        height: height
+                    };
+                }
+            }
+        }
+
+        return {
+            left: fallbackLeft,
+            top: fallbackTop,
+            width: fallbackWidth,
+            height: fallbackHeight
+        };
+    }
+
+    function animateGridReflowAfterCardRemoval($card) {
+        const $remainingCards = $grid.find('.ll-wordset-card').not($card);
+        if (!$card.length) {
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        if (prefersReducedMotion()) {
+            $card.remove();
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        const firstRects = new Map();
+        $remainingCards.each(function () {
+            if (this && typeof this.getBoundingClientRect === 'function') {
+                firstRects.set(this, this.getBoundingClientRect());
+            }
+        });
+
+        $card.remove();
+        scheduleSelectAllAlignment();
+
+        const movingCards = [];
+        $remainingCards.each(function () {
+            const first = firstRects.get(this);
+            if (!first || !this || !this.isConnected || typeof this.getBoundingClientRect !== 'function') {
+                return;
+            }
+            const last = this.getBoundingClientRect();
+            const deltaX = first.left - last.left;
+            const deltaY = first.top - last.top;
+            if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
+                return;
+            }
+            this.style.transition = 'none';
+            this.style.transform = 'translate(' + deltaX + 'px, ' + deltaY + 'px)';
+            this.style.willChange = 'transform';
+            movingCards.push(this);
+        });
+
+        if (!movingCards.length) {
+            return;
+        }
+
+        const raf = window.requestAnimationFrame || function (cb) { return window.setTimeout(cb, 0); };
+        raf(function () {
+            movingCards.forEach(function (el) {
+                el.style.transition = 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)';
+                el.style.transform = 'translate(0px, 0px)';
+            });
+            window.setTimeout(function () {
+                movingCards.forEach(function (el) {
+                    el.style.transition = '';
+                    el.style.transform = '';
+                    el.style.willChange = '';
+                });
+            }, 390);
+        });
+    }
+
+    function animateHiddenCardRemoval($card) {
+        if (!$card.length) {
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        const cardEl = $card.get(0);
+        if (!cardEl || typeof cardEl.getBoundingClientRect !== 'function') {
+            $card.remove();
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        const reducedMotion = prefersReducedMotion();
+        const sourceRect = cardEl.getBoundingClientRect();
+        let cloneEl = null;
+
+        if (!reducedMotion && sourceRect.width > 0 && sourceRect.height > 0) {
+            scrollToHiddenChipForHideFlight();
+            const targetRect = getHiddenChipAnimationTargetRect();
+            const sourceCenterX = sourceRect.left + (sourceRect.width / 2);
+            const sourceCenterY = sourceRect.top + (sourceRect.height / 2);
+            const targetCenterX = targetRect.left + (targetRect.width / 2);
+            const targetCenterY = targetRect.top + (targetRect.height / 2);
+            const flightX = Math.round(targetCenterX - sourceCenterX);
+            const flightY = Math.round(targetCenterY - sourceCenterY);
+            const midX = Math.round(flightX * 0.58);
+            const lift = Math.max(44, Math.min(120, sourceRect.height * 0.8));
+            const midY = Math.round((flightY * 0.5) - lift);
+
+            cloneEl = cardEl.cloneNode(true);
+            cloneEl.classList.add('ll-wordset-card--hide-flight-clone');
+            cloneEl.setAttribute('aria-hidden', 'true');
+            cloneEl.removeAttribute('id');
+            cloneEl.style.left = sourceRect.left + 'px';
+            cloneEl.style.top = sourceRect.top + 'px';
+            cloneEl.style.width = sourceRect.width + 'px';
+            cloneEl.style.height = sourceRect.height + 'px';
+            cloneEl.style.setProperty('--ll-wordset-hide-flight-x', flightX + 'px');
+            cloneEl.style.setProperty('--ll-wordset-hide-flight-y', flightY + 'px');
+            cloneEl.style.setProperty('--ll-wordset-hide-flight-x-mid', midX + 'px');
+            cloneEl.style.setProperty('--ll-wordset-hide-flight-y-mid', midY + 'px');
+            document.body.appendChild(cloneEl);
+
+            const raf = window.requestAnimationFrame || function (cb) { return window.setTimeout(cb, 0); };
+            raf(function () {
+                if (cloneEl) {
+                    cloneEl.classList.add('is-animating');
+                }
+            });
+
+            window.setTimeout(function () {
+                if (cloneEl && cloneEl.parentNode) {
+                    cloneEl.parentNode.removeChild(cloneEl);
+                }
+            }, 700);
+        }
+
+        $card.addClass('is-removing');
+        window.setTimeout(function () {
+            animateGridReflowAfterCardRemoval($card);
+        }, reducedMotion ? 0 : 140);
+    }
+
+    function refreshSummaryCounts(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const animate = opts.animate !== false;
+        const celebratePerfect = !!opts.celebratePerfect;
+        const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress;
+        const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        const complete = function (detail) {
+            if (!onComplete) { return; }
+            try {
+                onComplete((detail && typeof detail === 'object') ? detail : {});
+            } catch (_) { /* no-op */ }
+        };
+        if (!isLoggedIn || !ajaxUrl || !nonce) {
+            complete({ hasCountChanges: false, skipped: true });
+            return;
+        }
+
+        const stableCountsBefore = normalizeSummaryCounts(summaryCounts || {});
+        const renderedCountsBefore = getRenderedMiniCountValues();
 
         $.post(ajaxUrl, {
             action: 'll_user_study_analytics',
@@ -2854,18 +4008,40 @@
                 ? res.data.analytics
                 : null;
             if (!analytics || !analytics.summary || typeof analytics.summary !== 'object') {
+                complete({ hasCountChanges: false, skipped: true });
                 return;
             }
+            queueCategoryProgressUpdatesFromAnalytics(analytics, {
+                deferVisible: deferVisibleCategoryProgress
+            });
             const summary = analytics.summary;
             const mastered = Math.max(0, parseInt(summary.mastered_words, 10) || 0);
             const studiedTotal = Math.max(0, parseInt(summary.studied_words, 10) || 0);
             const newWords = Math.max(0, parseInt(summary.new_words, 10) || 0);
-            summaryCounts = {
+            const starredWords = Math.max(0, parseInt(summary.starred_words, 10) || 0);
+            const hardWords = Math.max(0, parseInt(summary.hard_words, 10) || 0);
+            const nextCounts = {
                 mastered: mastered,
                 studied: Math.max(0, studiedTotal - mastered),
-                new: newWords
+                new: newWords,
+                starred: starredWords,
+                hard: hardWords
             };
-            renderMiniCounts();
+            const stableChanged = summaryCountsChanged(stableCountsBefore, nextCounts);
+            const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
+            const hasCountChanges = stableChanged && renderedChanged;
+            summaryCounts = nextCounts;
+            renderMiniCounts({
+                previousCounts: renderedCountsBefore,
+                animate: animate && hasCountChanges,
+                celebratePerfect: celebratePerfect && hasCountChanges
+            });
+            if (celebratePerfect) {
+                clearPerfectCelebrationPending();
+            }
+            complete({ hasCountChanges: hasCountChanges });
+        }).fail(function () {
+            complete({ hasCountChanges: false, failed: true });
         });
     }
 
@@ -2988,8 +4164,267 @@
         $nextText.html('<span class="ll-wordset-next-card__line" dir="auto">' + escapeHtml(primary) + '</span>');
     }
 
+    function setNextCardLoadingSkeletonText() {
+        if (!$nextText.length) { return; }
+        $nextText.html(
+            '<span class="ll-wordset-next-card__line ll-wordset-next-card__line--skeleton ll-wordset-next-card__line--skeleton-primary" aria-hidden="true"></span>'
+            + '<span class="ll-wordset-next-card__line ll-wordset-next-card__line--skeleton ll-wordset-next-card__line--skeleton-secondary" aria-hidden="true"></span>'
+        );
+    }
+
+    function clearNextCardLoadingSkeletonWidths() {
+        if (!$nextText.length) { return; }
+        $nextText.css('--ll-wordset-next-skeleton-primary-width', '');
+        $nextText.css('--ll-wordset-next-skeleton-secondary-width', '');
+    }
+
+    function setNextCardLoadingSkeletonWidths() {
+        if (!$nextCard.length || !$nextText.length) { return; }
+        const cardEl = $nextCard[0];
+        const textEl = $nextText[0];
+        if (!cardEl || !textEl || !cardEl.getBoundingClientRect || !textEl.getBoundingClientRect) {
+            clearNextCardLoadingSkeletonWidths();
+            return;
+        }
+
+        const cardRect = cardEl.getBoundingClientRect();
+        const textRect = textEl.getBoundingClientRect();
+        if (!cardRect.width || !textRect.width) {
+            clearNextCardLoadingSkeletonWidths();
+            return;
+        }
+
+        const styles = window.getComputedStyle ? window.getComputedStyle(cardEl) : null;
+        const paddingRight = styles ? (parseFloat(styles.paddingRight) || 0) : 0;
+        const textStart = textRect.left - cardRect.left;
+        const availableRaw = cardRect.width - paddingRight - textStart - 10;
+        const available = Math.max(48, Math.floor(availableRaw));
+        const primary = Math.max(42, Math.floor(available * 0.84));
+        const secondary = Math.max(34, Math.floor(Math.min(primary - 10, available * 0.62)));
+
+        $nextText.css('--ll-wordset-next-skeleton-primary-width', String(primary) + 'px');
+        $nextText.css('--ll-wordset-next-skeleton-secondary-width', String(secondary) + 'px');
+    }
+
+    function buildLoadingNextPreviewMarkup() {
+        return '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--empty ll-wordset-next-thumb--loading" aria-hidden="true"></span>'
+            + '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--empty ll-wordset-next-thumb--loading" aria-hidden="true"></span>';
+    }
+
+    function clearNextCardTransitionTimers() {
+        if (nextCardRevealTimer) {
+            clearTimeout(nextCardRevealTimer);
+            nextCardRevealTimer = null;
+        }
+        if (nextCardWidthReleaseTimer) {
+            clearTimeout(nextCardWidthReleaseTimer);
+            nextCardWidthReleaseTimer = null;
+        }
+    }
+
+    function lockNextCardDimensions() {
+        if (!$nextCard.length) { return; }
+        const shellWidth = Math.ceil(($nextShell.length ? $nextShell.outerWidth() : 0) || $nextCard.outerWidth() || 0);
+        const cardHeight = Math.ceil($nextCard.outerHeight() || 0);
+
+        if ($nextShell.length && shellWidth > 0) {
+            $nextShell
+                .attr('data-ll-wordset-next-lock', '1')
+                .attr('data-ll-wordset-next-lock-width', String(shellWidth))
+                .addClass('is-dimension-locked')
+                .css({
+                    width: String(shellWidth) + 'px',
+                    minWidth: String(shellWidth) + 'px',
+                    maxWidth: String(shellWidth) + 'px'
+                });
+        }
+        if (cardHeight > 0) {
+            $nextCard.css('min-height', String(cardHeight) + 'px');
+        }
+        $nextCard.css({
+            width: '100%',
+            maxWidth: '100%'
+        });
+    }
+
+    function measureNaturalNextCardWidth() {
+        if (!$nextCard.length) { return 0; }
+        const $probe = $nextCard.clone(false);
+        $probe
+            .removeClass('is-loading')
+            .css({
+                position: 'absolute',
+                visibility: 'hidden',
+                left: '-9999px',
+                top: '-9999px',
+                width: 'auto',
+                maxWidth: 'none',
+                minWidth: '0',
+                minHeight: '0',
+                display: 'inline-flex'
+            });
+        $('body').append($probe);
+        const naturalWidth = Math.ceil($probe.outerWidth() || 0);
+        $probe.remove();
+        return naturalWidth;
+    }
+
+    function triggerNextCardReadyPulse() {
+        if (!$nextShell.length) { return; }
+        $nextShell.removeClass('is-ready-pulse');
+        try { void $nextShell[0].offsetWidth; } catch (_) { /* no-op */ }
+        $nextShell.addClass('is-ready-pulse');
+        clearNextCardTransitionTimers();
+        nextCardRevealTimer = setTimeout(function () {
+            $nextShell.removeClass('is-ready-pulse');
+            nextCardRevealTimer = null;
+        }, 380);
+    }
+
+    function releaseNextCardDimensionLockWithMotion() {
+        if (!$nextShell.length || !$nextCard.length) { return; }
+        if (String($nextShell.attr('data-ll-wordset-next-lock') || '') !== '1') { return; }
+
+        const lockedWidth = parseInt($nextShell.attr('data-ll-wordset-next-lock-width') || '0', 10) || 0;
+        const parentWidth = Math.ceil(($nextShell.parent().innerWidth && $nextShell.parent().innerWidth()) || 0);
+        const isNearParentWidth = parentWidth > 0 && lockedWidth >= (parentWidth - 2);
+        const naturalWidthRaw = measureNaturalNextCardWidth();
+        const naturalWidth = (parentWidth > 0)
+            ? Math.min(naturalWidthRaw || lockedWidth, parentWidth)
+            : (naturalWidthRaw || lockedWidth);
+
+        const finalizeUnlock = function () {
+            clearNextCardTransitionTimers();
+            $nextShell
+                .removeClass('is-width-transition is-dimension-locked')
+                .removeAttr('data-ll-wordset-next-lock')
+                .removeAttr('data-ll-wordset-next-lock-width')
+                .css({
+                    width: '',
+                    minWidth: '',
+                    maxWidth: ''
+                });
+            $nextCard.css({
+                width: '',
+                maxWidth: '',
+                minWidth: '',
+                minHeight: ''
+            });
+            triggerNextCardReadyPulse();
+        };
+
+        if (!lockedWidth || !naturalWidth || isNearParentWidth || Math.abs(naturalWidth - lockedWidth) < 2) {
+            finalizeUnlock();
+            return;
+        }
+
+        clearNextCardTransitionTimers();
+        $nextShell
+            .addClass('is-width-transition')
+            .css({
+                width: String(lockedWidth) + 'px',
+                minWidth: '',
+                maxWidth: ''
+            });
+        try { void $nextShell[0].offsetWidth; } catch (_) { /* no-op */ }
+        $nextShell.css('width', String(naturalWidth) + 'px');
+        nextCardWidthReleaseTimer = setTimeout(finalizeUnlock, 280);
+    }
+
+    function clearNextCardLoadingState(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const preserveLock = !!opts.preserveLock;
+        clearNextCardLoadingSkeletonWidths();
+        if ($nextShell.length) {
+            $nextShell.removeClass('is-loading').removeAttr('aria-busy');
+            if (!preserveLock) {
+                clearNextCardTransitionTimers();
+                $nextShell
+                    .removeClass('is-dimension-locked is-width-transition is-ready-pulse')
+                    .removeAttr('data-ll-wordset-next-lock')
+                    .removeAttr('data-ll-wordset-next-lock-width')
+                    .css({
+                        width: '',
+                        minWidth: '',
+                        maxWidth: ''
+                    });
+            }
+        }
+        if ($nextCard.length) {
+            $nextCard.removeClass('is-loading');
+            if (preserveLock) {
+                $nextCard.css({
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: ''
+                });
+            } else {
+                $nextCard.css({
+                    minWidth: '',
+                    minHeight: '',
+                    width: '',
+                    maxWidth: ''
+                });
+            }
+        }
+        if ($nextRemove.length) {
+            $nextRemove.removeClass('is-loading');
+        }
+    }
+
+    function setNextCardLoadingState(options) {
+        if (!$nextCard.length) { return; }
+        const opts = (options && typeof options === 'object') ? options : {};
+        const lockDimensions = !!opts.lockDimensions;
+        const loadingText = String(i18n.nextLoading || 'Loading next recommendation...');
+        clearNextCardTransitionTimers();
+        if (lockDimensions) {
+            lockNextCardDimensions();
+        } else if ($nextShell.length) {
+            $nextShell
+                .removeAttr('data-ll-wordset-next-lock')
+                .removeAttr('data-ll-wordset-next-lock-width')
+                .removeClass('is-dimension-locked is-width-transition is-ready-pulse')
+                .css({ width: '', minWidth: '', maxWidth: '' });
+            $nextCard.css({ width: '', maxWidth: '', minHeight: '' });
+        }
+        if ($nextShell.length) {
+            $nextShell.addClass('is-loading').attr('aria-busy', 'true');
+        }
+        $nextCard
+            .addClass('is-loading is-disabled')
+            .attr('aria-disabled', 'true')
+            .prop('disabled', true)
+            .attr('aria-label', loadingText);
+        setNextCardLoadingSkeletonText();
+        if ($nextIcon.length) {
+            $nextIcon.html(getLoadingModeIconMarkup('ll-vocab-lesson-mode-icon'));
+        }
+        if ($nextPreview.length) {
+            $nextPreview.html(buildLoadingNextPreviewMarkup());
+        }
+        if ($nextCount.length) {
+            $nextCount.prop('hidden', true).text('');
+        }
+        if ($nextRemove.length) {
+            $nextRemove
+                .prop('hidden', false)
+                .prop('disabled', true)
+                .removeClass('is-loading');
+        }
+        if (window.requestAnimationFrame) {
+            window.requestAnimationFrame(function () {
+                setNextCardLoadingSkeletonWidths();
+            });
+        } else {
+            setNextCardLoadingSkeletonWidths();
+        }
+    }
+
     function renderNextCard() {
         if (!$nextCard.length || !$nextText.length) { return; }
+        const releaseLockedDimensions = $nextShell.length && String($nextShell.attr('data-ll-wordset-next-lock') || '') === '1';
+        clearNextCardLoadingState({ preserveLock: releaseLockedDimensions });
         const selectionActive = hasActiveCategorySelection();
         if (selectionActive) {
             $nextCard
@@ -3001,6 +4436,9 @@
             }
             if ($nextRemove.length) {
                 $nextRemove.prop('hidden', true).prop('disabled', true).attr('data-queue-id', '');
+            }
+            if (releaseLockedDimensions) {
+                releaseNextCardDimensionLockWithMotion();
             }
             return;
         }
@@ -3019,6 +4457,9 @@
                 $nextRemove.prop('hidden', true).prop('disabled', true).attr('data-queue-id', '');
             }
             renderNextPreview(null);
+            if (releaseLockedDimensions) {
+                releaseNextCardDimensionLockWithMotion();
+            }
             return;
         }
 
@@ -3057,6 +4498,9 @@
                 .attr('data-queue-id', queueId);
         }
         renderNextPreview(next);
+        if (releaseLockedDimensions) {
+            releaseNextCardDimensionLockWithMotion();
+        }
     }
 
     function renderSettingsQueue() {
@@ -3515,13 +4959,20 @@
         return chunks;
     }
 
-    function setResultsButtonContent($button, iconMarkup, label) {
+    function setResultsButtonContent($button, iconMarkup, label, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         if (!$button || !$button.length) { return; }
         $button
             .removeClass('quiz-mode-button')
             .removeClass('ghost')
+            .removeClass('is-loading')
             .addClass('ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button')
             .html((iconMarkup || '') + '<span class="ll-vocab-lesson-mode-label">' + escapeHtml(label) + '</span>');
+        if (opts.loading) {
+            $button.addClass('is-loading').attr('aria-busy', 'true');
+        } else {
+            $button.removeAttr('aria-busy');
+        }
     }
 
     function isModeEnabledForResultsActions(mode) {
@@ -3797,7 +5248,8 @@
         hideWordsetResultsActions();
     }
 
-    function updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan) {
+    function updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const $actions = $('#ll-study-results-actions');
         const $same = $('#ll-study-results-same-chunk');
         const $different = $('#ll-study-results-different-chunk');
@@ -3816,6 +5268,7 @@
             normalizeMode(nextPlan.mode) !== normalizeMode(currentPlan && currentPlan.mode) &&
             !arePlansDuplicate(nextPlan, currentPlan) &&
             !(showDifferent && arePlansDuplicate(nextPlan, differentPlan));
+        const showNextLoading = !showNext && !!opts.showNextLoading;
 
         if (showSame) {
             setResultsButtonContent(
@@ -3853,6 +5306,14 @@
                 evt.stopImmediatePropagation();
                 launchResultsPlan(nextPlan, { source: 'wordset_results_recommended' });
             });
+        } else if (showNextLoading) {
+            setResultsButtonContent(
+                $next,
+                getLoadingModeIconMarkup('ll-vocab-lesson-mode-icon'),
+                String(i18n.resultsRecommendedActivity || 'Recommended'),
+                { loading: true }
+            );
+            $next.show().prop('disabled', true).off('click.llWordsetResults');
         } else {
             $next.hide().off('click.llWordsetResults');
         }
@@ -3861,7 +5322,7 @@
             $suggestion.text('').hide();
         }
 
-        if (showSame || showDifferent || showNext) {
+        if (showSame || showDifferent || showNext || showNextLoading) {
             $('#quiz-mode-buttons').hide();
             $('#ll-gender-results-actions').hide();
             $('#restart-quiz').hide();
@@ -3887,7 +5348,9 @@
 
         let differentPlan = buildDifferentCategoryResultsPlan(currentPlan);
         let nextPlan = buildRecommendedResultsPlan(currentPlan);
-        updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan);
+        updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan, {
+            showNextLoading: !nextPlan
+        });
 
         const refreshToken = ++resultsFollowupRefreshToken;
         refreshRecommendation({
@@ -3897,7 +5360,9 @@
             if (refreshToken !== resultsFollowupRefreshToken) { return; }
             differentPlan = buildDifferentCategoryResultsPlan(currentPlan);
             nextPlan = buildRecommendedResultsPlan(currentPlan);
-            updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan);
+            updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan, {
+                showNextLoading: false
+            });
         });
 
         return true;
@@ -4305,7 +5770,7 @@
         const ignored = previousIgnored.slice();
         ignored.push(id);
         goals.ignored_category_ids = uniqueIntList(ignored);
-        renderHiddenCount({ pulse: true });
+        renderHiddenCount();
 
         saveGoalsNow().done(function () {
             categories = categories.map(function (cat) {
@@ -4321,8 +5786,11 @@
             removeHiddenCategoryFromSelection(id);
             const $card = $root.find('.ll-wordset-card[data-cat-id="' + id + '"]');
             if ($card.length) {
-                $card.remove();
+                animateHiddenCardRemoval($card);
             }
+            window.setTimeout(function () {
+                renderHiddenCount({ pulse: true, scrollIntoView: false });
+            }, prefersReducedMotion() ? 0 : 430);
             renderSelectionBar();
         }).fail(function () {
             goals.ignored_category_ids = previousIgnored;
@@ -4384,20 +5852,19 @@
         if (!queueId) {
             return;
         }
-        const $fadeTarget = $nextShell.length ? $nextShell : $nextCard;
-        if (!$fadeTarget.length || $fadeTarget.hasClass('is-fading') || $fadeTarget.is(':animated')) {
+        if (($nextShell.length && $nextShell.hasClass('is-loading')) || $nextCard.hasClass('is-loading')) {
             return;
         }
-        $fadeTarget.addClass('is-fading');
-        $fadeTarget.stop(true, true).fadeOut(130, function () {
-            removeQueueActivity(queueId).fail(function () {
-                alert(i18n.saveError || 'Unable to save right now.');
-            }).always(function () {
+        setNextCardLoadingState({ lockDimensions: true });
+        removeQueueActivity(queueId).done(function (res) {
+            if (!(res && res.success && res.data)) {
+                clearNextCardLoadingState();
                 renderNextCard();
-                $fadeTarget.fadeIn(150, function () {
-                    $fadeTarget.removeClass('is-fading');
-                });
-            });
+            }
+        }).fail(function () {
+            clearNextCardLoadingState();
+            renderNextCard();
+            alert(i18n.saveError || 'Unable to save right now.');
         });
     }
 
@@ -4431,7 +5898,12 @@
 
             goals.enabled_modes = uniqueModeList(nextEnabledModes);
             syncSettingsButtons();
-            saveGoalsNow().fail(function () {
+            const saveRequest = saveGoalsNow();
+            const saveToken = parseInt(saveRequest && saveRequest.llToolsRequestToken, 10) || 0;
+            saveRequest.fail(function () {
+                if (saveToken > 0 && !isLatestGoalsSaveRequest(saveToken)) {
+                    return;
+                }
                 goals.enabled_modes = prevEnabledModes;
                 syncSettingsButtons();
                 alert(i18n.saveError || 'Unable to save right now.');
@@ -4446,7 +5918,12 @@
             const nextChoice = (value === previousChoice) ? '' : value;
             applyFocusChoice(nextChoice);
             syncSettingsButtons();
-            saveGoalsNow().fail(function () {
+            const saveRequest = saveGoalsNow();
+            const saveToken = parseInt(saveRequest && saveRequest.llToolsRequestToken, 10) || 0;
+            saveRequest.fail(function () {
+                if (saveToken > 0 && !isLatestGoalsSaveRequest(saveToken)) {
+                    return;
+                }
                 applyFocusChoice(previousChoice);
                 syncSettingsButtons();
                 alert(i18n.saveError || 'Unable to save right now.');
@@ -4469,6 +5946,8 @@
         renderSettingsQueue();
         renderMiniCounts();
         renderHiddenCount();
+        ensureCategoryProgressVisibilityTracking();
+        schedulePendingCategoryProgressVisibilityCheck();
         clearCategorySelection({ refreshRecommendation: false });
         syncGlobalPrefs();
         scheduleSelectAllAlignment();
@@ -4592,7 +6071,15 @@
         });
 
         $(document).on('lltools:flashcard-results-shown.llWordsetPage', function (_evt, detail) {
-            const mode = normalizeMode(detail && detail.mode ? detail.mode : '');
+            const summary = normalizeFlashcardResultSummary(detail);
+            if (summary) {
+                if (isPerfectFlashcardResult(summary)) {
+                    markPerfectCelebrationPending();
+                } else {
+                    clearPerfectCelebrationPending();
+                }
+            }
+            const mode = normalizeMode(summary && summary.mode ? summary.mode : (detail && detail.mode ? detail.mode : ''));
             if (renderChunkResultsActions()) {
                 return;
             }
@@ -4600,13 +6087,30 @@
         });
 
         $(document).on('lltools:flashcard-opened.llWordsetPage', function () {
+            isFlashcardOpen = true;
+            pendingSummaryRefreshAfterClose = false;
+            clearPerfectCelebrationPending();
             hideChunkResultsActions();
         });
 
         $(document).on('lltools:flashcard-closed.llWordsetPage', function () {
+            isFlashcardOpen = false;
             hideChunkResultsActions();
             if (selectedCategoryIds.length || $root.find('[data-ll-wordset-select]:checked').length) {
                 clearCategorySelection({ refreshRecommendation: true });
+            }
+            if (pendingSummaryRefreshAfterClose) {
+                pendingSummaryRefreshAfterClose = false;
+                refreshSummaryCounts({
+                    animate: true,
+                    celebratePerfect: hasPendingPerfectCelebration(),
+                    deferVisibleCategoryProgress: true,
+                    onComplete: function (result) {
+                        if (result && result.hasCountChanges) {
+                            scrollWordsetPageToTop();
+                        }
+                    }
+                });
             }
         });
 
@@ -4617,7 +6121,14 @@
             } else {
                 refreshRecommendation({ forceRefresh: true });
             }
-            refreshSummaryCounts();
+            if (isFlashcardOpen) {
+                pendingSummaryRefreshAfterClose = true;
+                return;
+            }
+            refreshSummaryCounts({
+                animate: true,
+                celebratePerfect: hasPendingPerfectCelebration()
+            });
         });
     }
 

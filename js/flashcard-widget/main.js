@@ -119,9 +119,23 @@
         }
     }
 
-    function clearPrompt() {
+    function clearPrompt(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const preserveStarSlot = !!opts.preserveStarSlot;
         try {
-            $('#ll-tools-prompt').hide().empty();
+            const $prompt = $('#ll-tools-prompt');
+            if (!$prompt.length) return;
+
+            if (preserveStarSlot) {
+                const $starRow = $prompt.children('.ll-prompt-star-row').first();
+                if ($starRow.length) {
+                    $starRow.children().not('.ll-quiz-star-inline.image-inline, .ll-quiz-star-spacer').remove();
+                    $prompt.show();
+                    return;
+                }
+            }
+
+            $prompt.hide().empty();
         } catch (_) {
             try {
                 const el = document.getElementById('ll-tools-prompt');
@@ -407,6 +421,87 @@
         $(document).off('.llAutoplayReady').on('ll-tools-options-ready.llAutoplayReady', start);
         const fallback = setTimeout(start, 1500);
         State.addTimeout && State.addTimeout(fallback);
+    }
+
+    function shouldDelayLoadingHideUntilAudioStart(promptType) {
+        if (promptType !== 'audio') return false;
+        // Listening mode manages its own gated loading release timing.
+        if (State && State.isListeningMode) return false;
+        return true;
+    }
+
+    function hideLoadingAfterPromptAudioStarts(promptType, isStaleRound) {
+        if (!shouldDelayLoadingHideUntilAudioStart(promptType)) {
+            Dom.hideLoading();
+            return;
+        }
+
+        const audioApi = root.FlashcardAudio;
+        if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
+            Dom.hideLoading();
+            return;
+        }
+
+        const audio = audioApi.getCurrentTargetAudio();
+        const hasPlayed = (typeof audioApi.getTargetAudioHasPlayed === 'function')
+            ? !!audioApi.getTargetAudioHasPlayed()
+            : false;
+        const alreadyStarted = !!(
+            audio &&
+            (
+                hasPlayed ||
+                (!audio.paused && !audio.ended) ||
+                ((typeof audio.currentTime === 'number') && audio.currentTime > 0.02)
+            )
+        );
+
+        if (!audio || alreadyStarted) {
+            Dom.hideLoading();
+            return;
+        }
+
+        let finished = false;
+        let timeoutId = null;
+
+        function onTimeUpdate() {
+            const current = (typeof audio.currentTime === 'number') ? audio.currentTime : 0;
+            if (current > 0.02) {
+                finish();
+            }
+        }
+
+        function removeListeners() {
+            try { audio.removeEventListener('playing', finish); } catch (_) { /* no-op */ }
+            try { audio.removeEventListener('ended', finish); } catch (_) { /* no-op */ }
+            try { audio.removeEventListener('error', finish); } catch (_) { /* no-op */ }
+            try { audio.removeEventListener('emptied', finish); } catch (_) { /* no-op */ }
+            try { audio.removeEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+        }
+
+        function finish() {
+            if (finished) return;
+            finished = true;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            removeListeners();
+            if (typeof isStaleRound === 'function' && isStaleRound()) {
+                return;
+            }
+            Dom.hideLoading();
+        }
+
+        try { audio.addEventListener('playing', finish, { once: true }); } catch (_) { /* no-op */ }
+        try { audio.addEventListener('ended', finish, { once: true }); } catch (_) { /* no-op */ }
+        try { audio.addEventListener('error', finish, { once: true }); } catch (_) { /* no-op */ }
+        try { audio.addEventListener('emptied', finish, { once: true }); } catch (_) { /* no-op */ }
+        try { audio.addEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+
+        timeoutId = setTimeout(finish, 2200);
+        if (State && typeof State.addTimeout === 'function') {
+            State.addTimeout(timeoutId);
+        }
     }
 
     function parseBool(val) {
@@ -862,8 +957,19 @@
             }
         }
 
+        function setLoadingState(isLoading) {
+            const $btn = getStarButton();
+            if (!$btn || !$btn.length) return;
+            const loading = !!isLoading;
+            $btn
+                .toggleClass('ll-round-loading', loading)
+                .prop('disabled', loading)
+                .attr('aria-disabled', loading ? 'true' : 'false');
+        }
+
         function hide() {
             stopListeningSlotObserver();
+            setLoadingState(false);
             if ($starRow && $starRow.length) { $starRow.hide(); }
             if ($listeningSlot && $listeningSlot.length) { $listeningSlot.hide(); }
             try {
@@ -1114,6 +1220,7 @@
                 .text(active ? '★' : '☆')
                 .toggleClass('active', active)
                 .attr('data-word-id', word.id);
+            setLoadingState(false);
             $btn.show();
             if (isListening) {
                 $container.show();
@@ -1128,6 +1235,7 @@
         return {
             updateForWord,
             hide,
+            setLoadingState,
             isStarred,
             applyStarChange,
             getStarMode,
@@ -2013,6 +2121,9 @@
             recordWordResult(targetWord.id, State.hadWrongAnswerThisTurn);
         };
 
+        if (!State.hadWrongAnswerThisTurn) {
+            trackWordExposureForProgress(targetWord, State.currentCategoryName);
+        }
         trackWordOutcomeForProgress(targetWord, true, State.hadWrongAnswerThisTurn, State.currentCategoryName);
 
         callModeHook('onCorrectAnswer', {
@@ -2101,6 +2212,7 @@
             $wrong
         });
 
+        const hadWrongAlready = !!State.hadWrongAnswerThisTurn;
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
         const isAudioLineLayout = (State.currentPromptType === 'image') &&
@@ -2125,6 +2237,9 @@
         const wrongId = parseInt(targetWord.id, 10) || targetWord.id;
         if (!State.quizResults.incorrect.includes(wrongId)) State.quizResults.incorrect.push(wrongId);
         State.wrongIndexes.push(index);
+        if (!hadWrongAlready) {
+            trackWordExposureForProgress(targetWord, State.currentCategoryName);
+        }
         trackWordOutcomeForProgress(targetWord, false, false, State.currentCategoryName);
 
         if (!isAudioLineLayout && State.wrongIndexes.length === 2) {
@@ -2557,8 +2672,8 @@
         updateProgressTrackerContext();
 
         State.clearActiveTimeouts();
-        clearPrompt();
-        try { StarManager && StarManager.hide(); } catch (_) { /* no-op */ }
+        clearPrompt({ preserveStarSlot: true });
+        try { StarManager && StarManager.setLoadingState && StarManager.setLoadingState(true); } catch (_) { /* no-op */ }
         const $flashcardContainer = $('#ll-tools-flashcard');
 
         // Preserve listening-mode footprint between skips to prevent control/button jumps
@@ -2673,7 +2788,6 @@
             try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
         }
         updateProgressTrackerContext(getCurrentModeKey());
-        trackWordExposureForProgress(target, categoryNameForRound);
 
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(categoryNameForRound)
@@ -2737,7 +2851,7 @@
 
             const finalizeQuestionDisplay = function () {
                 if (isStaleRound()) { return; }
-                Dom.hideLoading();
+                hideLoadingAfterPromptAudioStarts(promptType, isStaleRound);
                 clearRoundMediaFailure(target && target.id);
                 State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
                 const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'

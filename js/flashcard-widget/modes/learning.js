@@ -749,6 +749,66 @@
         return setTimeout(fn, delay);
     }
 
+    function releaseIntroLoading() {
+        if (State.learningIntroLoadingReleased) return;
+        State.learningIntroLoadingReleased = true;
+        if (Dom && typeof Dom.hideLoading === 'function') {
+            Dom.hideLoading();
+        }
+    }
+
+    function releaseIntroLoadingOnAudioStart(audioEl) {
+        if (State.learningIntroLoadingReleased) return;
+        if (!audioEl) {
+            releaseIntroLoading();
+            return;
+        }
+
+        const alreadyStarted = (
+            (!audioEl.paused && !audioEl.ended) ||
+            ((typeof audioEl.currentTime === 'number') && audioEl.currentTime > 0.02)
+        );
+        if (alreadyStarted) {
+            releaseIntroLoading();
+            return;
+        }
+
+        let settled = false;
+        let fallbackId = null;
+        const cleanup = function () {
+            try { audioEl.removeEventListener('playing', onStart); } catch (_) { /* no-op */ }
+            try { audioEl.removeEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+            try { audioEl.removeEventListener('error', onStart); } catch (_) { /* no-op */ }
+            try { audioEl.removeEventListener('ended', onStart); } catch (_) { /* no-op */ }
+            if (fallbackId) {
+                clearTimeout(fallbackId);
+                fallbackId = null;
+            }
+        };
+        const onStart = function () {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            releaseIntroLoading();
+        };
+        const onTimeUpdate = function () {
+            const t = (typeof audioEl.currentTime === 'number') ? audioEl.currentTime : 0;
+            if (t > 0.02) {
+                onStart();
+            }
+        };
+
+        try { audioEl.addEventListener('playing', onStart, { once: true }); } catch (_) { /* no-op */ }
+        try { audioEl.addEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+        try { audioEl.addEventListener('error', onStart, { once: true }); } catch (_) { /* no-op */ }
+        try { audioEl.addEventListener('ended', onStart, { once: true }); } catch (_) { /* no-op */ }
+
+        fallbackId = setTimeout(onStart, 1200);
+        if (State && typeof State.addTimeout === 'function') {
+            State.addTimeout(fallbackId);
+        }
+    }
+
     function introduceWords(words, context) {
         if (!State.isIntroducing()) {
             console.warn('introduceWords called but not in INTRODUCING_WORDS state');
@@ -757,6 +817,7 @@
 
         const wordsArray = Array.isArray(words) ? words : [words];
         const $jq = getJQuery();
+        State.learningIntroLoadingReleased = false;
 
         if ($jq) {
             $jq('#ll-tools-flashcard').removeClass('audio-line-layout').empty();
@@ -816,10 +877,7 @@
 
             if ($jq) {
                 $jq('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
-                Dom.hideLoading && Dom.hideLoading();
                 $jq('.flashcard-container').fadeIn(600);
-            } else {
-                Dom.hideLoading && Dom.hideLoading();
             }
 
             const timeoutId = scheduleTimeout(context, function () {
@@ -920,6 +978,7 @@
 
             if (!managedAudio) {
                 console.error('Failed to create introduction audio');
+                releaseIntroLoading();
                 continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
                 return;
             }
@@ -928,6 +987,8 @@
                 Dom.bindRepeatButtonAudio(managedAudio.audio || null);
                 if (Dom.setRepeatButton) Dom.setRepeatButton('stop');
             }
+
+            releaseIntroLoadingOnAudioStart(managedAudio.audio || null);
 
             managedAudio.playUntilEnd()
                 .then(() => {

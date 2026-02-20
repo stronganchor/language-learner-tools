@@ -23,17 +23,15 @@
     const ZERO_ENERGY_FALLBACK_FRAMES = 90;
 
     function getContainer() {
-        // Prefer a dedicated listening-mode visualizer if present
+        // Use only the dedicated listening-mode visualizer container.
+        // The global #ll-tools-loading-animation is reserved for generic loading.
         if (root.document) {
             const listeningEl = root.document.getElementById('ll-tools-listening-visualizer');
-            if (listeningEl) return listeningEl;
+            if (listeningEl) {
+                return listeningEl;
+            }
         }
-        if (!container) {
-            container = root.document
-                ? root.document.getElementById('ll-tools-loading-animation')
-                : null;
-        }
-        return container;
+        return null;
     }
 
     function ensureBars() {

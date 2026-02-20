@@ -151,6 +151,34 @@
         return normalizeRatioKey(selected);
     }
 
+    function setRatioControlsFromKey(ratioKey) {
+        const normalized = normalizeRatioKey(ratioKey || '');
+        if (!normalized) {
+            return false;
+        }
+
+        let hasOption = false;
+        $ratioSelect.find('option').each(function () {
+            if (String($(this).val() || '') === normalized) {
+                hasOption = true;
+                return false;
+            }
+            return undefined;
+        });
+
+        if (hasOption) {
+            $ratioSelect.val(normalized);
+            $ratioCustomWrap.prop('hidden', true);
+            $ratioCustom.val('');
+            return true;
+        }
+
+        $ratioSelect.val('__custom__');
+        $ratioCustomWrap.prop('hidden', false);
+        $ratioCustom.val(normalized);
+        return true;
+    }
+
     function renderWorklist() {
         if (!worklist.length) {
             $worklist.text(i18n.emptyWorklist || 'No categories currently need image aspect normalization.');
@@ -209,8 +237,8 @@
         dragState = null;
         $controls.prop('hidden', true);
         $offenders.empty();
-        $title.text(i18n.chooseCategory || 'Select a category from the left to preview and apply crops.');
-        $summary.text(i18n.chooseCategory || 'Select a category from the left to preview and apply crops.');
+        $title.text(i18n.chooseCategory || 'Select a category from the left to preview crops and white-padding updates.');
+        $summary.text(i18n.chooseCategory || 'Select a category from the left to preview crops and white-padding updates.');
         setWarnings([]);
     }
 
@@ -270,14 +298,8 @@
         }).join('');
         $ratioSelect.html(optionsHtml + '<option value="__custom__">' + escapeHtml(i18n.ratioCustom || 'Custom ratio') + '</option>');
 
-        if (canonicalKey && ratioOptions[canonicalKey]) {
-            $ratioSelect.val(canonicalKey);
-            $ratioCustomWrap.prop('hidden', true);
-            $ratioCustom.val('');
-        } else if (canonicalKey) {
-            $ratioSelect.val('__custom__');
-            $ratioCustomWrap.prop('hidden', false);
-            $ratioCustom.val(canonicalKey);
+        if (canonicalKey) {
+            setRatioControlsFromKey(canonicalKey);
         } else {
             $ratioSelect.val('__custom__');
             $ratioCustomWrap.prop('hidden', false);
@@ -524,13 +546,25 @@
         });
     }
 
-    function buildEditorCard(row, ratioValue) {
+    function buildEditorCard(row) {
         const attachmentId = parseInt(row && row.attachment_id, 10) || 0;
         if (!attachmentId) {
             return '';
         }
         const label = String(row && row.title ? row.title : ('#' + attachmentId));
         const ratioLabel = String((row && row.ratio_label) || (row && row.ratio_key) || '');
+        const ratioKey = normalizeRatioKey((row && row.ratio_key) || ratioLabel);
+        const useRatioLabel = String(i18n.useRatioButton || 'Use as canonical');
+        const useRatioAria = formatTemplate(
+            i18n.useRatioButtonAria || 'Use ratio %s as the canonical ratio and refresh preview.',
+            [ratioKey || ratioLabel]
+        );
+        const padButtonLabel = String(i18n.applyPadButton || 'Apply White Padding');
+        const padButtonAria = formatTemplate(
+            i18n.applyPadButtonAria || 'Apply white padding to image %s using the current canonical ratio.',
+            [label]
+        );
+        const useRatioDisabled = ratioKey ? '' : ' disabled';
         const wordsLabel = formatTemplate((i18n.wordsLabel || 'Words') + ': %d', [Math.max(0, parseInt(row && row.word_count, 10) || 0)]);
         const wordImagesLabel = formatTemplate((i18n.wordImagesLabel || 'Word Images') + ': %d', [Math.max(0, parseInt(row && row.word_image_count, 10) || 0)]);
         const detectedRatioLabel = formatTemplate(i18n.ratioDetectedFrom || 'Current ratio: %s', [ratioLabel || '']);
@@ -542,6 +576,14 @@
             + '<div class="ll-aspect-card__counts">'
             + '<span>' + escapeHtml(wordsLabel) + '</span>'
             + '<span>' + escapeHtml(wordImagesLabel) + '</span>'
+            + '</div>'
+            + '<div class="ll-aspect-card__actions">'
+            + '<button type="button" class="button button-secondary button-small ll-aspect-card__use-ratio" data-ll-aspect-use-ratio="' + escapeHtml(ratioKey) + '" aria-label="' + escapeHtml(useRatioAria) + '"' + useRatioDisabled + '>'
+            + escapeHtml(useRatioLabel)
+            + '</button>'
+            + '<button type="button" class="button button-secondary button-small ll-aspect-card__apply-pad" data-ll-aspect-pad-single="' + attachmentId + '" aria-label="' + escapeHtml(padButtonAria) + '">'
+            + escapeHtml(padButtonLabel)
+            + '</button>'
             + '</div>'
             + '</header>'
             + '<div class="ll-aspect-stage" data-ll-aspect-stage>'
@@ -571,7 +613,7 @@
         }
 
         const cardsHtml = rows.map(function (row) {
-            return buildEditorCard(row, ratioValue);
+            return buildEditorCard(row);
         }).join('');
         $offenders.html(cardsHtml);
 
@@ -699,6 +741,12 @@
         return cropMap;
     }
 
+    function setActionButtonsDisabled(disabled) {
+        const state = !!disabled;
+        $applyButton.prop('disabled', state);
+        $offenders.find('[data-ll-aspect-pad-single]').prop('disabled', state);
+    }
+
     function applyCrops() {
         if (!activeCategoryId || !activePayload) {
             return;
@@ -717,15 +765,16 @@
 
         setWarnings([]);
         setStatus(i18n.applyWorking || 'Applying crops...', 'loading');
-        $applyButton.prop('disabled', true);
+        setActionButtonsDisabled(true);
 
         request('apply', {
             category_id: activeCategoryId,
             canonical_ratio_key: ratioKey,
+            operation: 'crop',
             crops: JSON.stringify(collectCropPayload())
         }).done(function (res) {
             if (!res || !res.success || !res.data) {
-                setStatus(i18n.applyError || 'Unable to apply crops right now.', 'error');
+                setStatus(i18n.applyError || 'Unable to apply image updates right now.', 'error');
                 return;
             }
 
@@ -748,9 +797,66 @@
 
             loadWorklist(activeCategoryId);
         }).fail(function () {
-            setStatus(i18n.applyError || 'Unable to apply crops right now.', 'error');
+            setStatus(i18n.applyError || 'Unable to apply image updates right now.', 'error');
         }).always(function () {
-            $applyButton.prop('disabled', false);
+            setActionButtonsDisabled(false);
+        });
+    }
+
+    function applySinglePadding(attachmentId) {
+        const targetAttachmentId = parseInt(attachmentId, 10) || 0;
+        if (!activeCategoryId || !activePayload || !targetAttachmentId) {
+            return;
+        }
+
+        const ratioKey = getRequestedRatioFromControls();
+        if (!ratioKey) {
+            setStatus(i18n.invalidRatio || 'Enter a valid ratio like 4:3.', 'error');
+            return;
+        }
+
+        const confirmMessage = i18n.applyPadConfirm || 'Apply white padding to this image and update affected posts that use it?';
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        setWarnings([]);
+        setStatus(i18n.applyPadWorking || 'Applying white padding to image...', 'loading');
+        setActionButtonsDisabled(true);
+
+        request('apply', {
+            category_id: activeCategoryId,
+            canonical_ratio_key: ratioKey,
+            operation: 'pad',
+            target_attachment_ids: JSON.stringify([targetAttachmentId])
+        }).done(function (res) {
+            if (!res || !res.success || !res.data) {
+                setStatus(i18n.applyError || 'Unable to apply image updates right now.', 'error');
+                return;
+            }
+
+            const processedCount = Math.max(0, parseInt(res.data.processed_count, 10) || 0);
+            const updatedPostCount = Math.max(0, parseInt(res.data.updated_post_count, 10) || 0);
+            const successText = formatTemplate(
+                i18n.applyPadSuccess || 'Applied white padding to %1$d image(s), updated %2$d post thumbnail(s).',
+                [processedCount, updatedPostCount]
+            );
+            setStatus(successText, 'success');
+
+            const warnings = Array.isArray(res.data.warning_messages) ? res.data.warning_messages : [];
+            if (warnings.length) {
+                setWarnings(warnings);
+                setStatus(formatTemplate(
+                    i18n.statusWarnings || 'Completed with %d warning(s). Check the error list below.',
+                    [warnings.length]
+                ), 'info');
+            }
+
+            loadWorklist(activeCategoryId);
+        }).fail(function () {
+            setStatus(i18n.applyError || 'Unable to apply image updates right now.', 'error');
+        }).always(function () {
+            setActionButtonsDisabled(false);
         });
     }
 
@@ -802,6 +908,23 @@
 
         $applyButton.on('click', function () {
             applyCrops();
+        });
+
+        $offenders.on('click', '[data-ll-aspect-use-ratio]', function () {
+            const ratioKey = normalizeRatioKey($(this).attr('data-ll-aspect-use-ratio') || '');
+            if (!ratioKey || !activeCategoryId) {
+                return;
+            }
+            setRatioControlsFromKey(ratioKey);
+            loadCategory(activeCategoryId, ratioKey);
+        });
+
+        $offenders.on('click', '[data-ll-aspect-pad-single]', function () {
+            const attachmentId = parseInt($(this).attr('data-ll-aspect-pad-single'), 10) || 0;
+            if (!attachmentId) {
+                return;
+            }
+            applySinglePadding(attachmentId);
         });
 
         $(document).on('pointermove.llAspectCrop', function (event) {

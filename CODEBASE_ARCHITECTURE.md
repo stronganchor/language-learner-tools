@@ -317,6 +317,46 @@ Core settings live in `includes/admin/settings.php`:
 - If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
 - All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
 
+# UI color standards (canonical)
+Use one shared status palette across user-facing plugin UI so progress states always mean the same thing.
+
+## Canonical status colors
+- Learned / success green (dark): `#15803d`
+- In-progress / primary blue (dark): `#1d4d99`
+- New / neutral gray (dark): `#64748b`
+
+## Supporting light tint colors
+- Learned tint: `#d7f8dd`
+- In-progress tint: `#d8e8ff`
+- Neutral tint: `#eceff3`
+
+## Secondary action colors
+- Caution / close / partial: `#D39A00`
+- Wrong / hard / danger: `#C64545`
+
+## Source of truth tokens
+- `css/wordset-pages.css` in `.ll-wordset-page`:
+  - `--ll-wp-pill-green-text` (`#15803d`)
+  - `--ll-wp-pill-blue-text` (`#1d4d99`)
+  - `--ll-wp-pill-slate-text` (`#64748b`)
+  - Light tints: `--ll-wp-pill-green`, `--ll-wp-pill-blue`, `--ll-wp-pill-slate`
+
+## Required usage rules moving forward
+- Do not introduce near-duplicate "standard" shades for learned/in-progress/new states.
+- Prefer the canonical tokens above; if CSS variables are not available in that scope, use the exact canonical hex values.
+- Status mappings must stay consistent:
+  - Learned/success/check/right/know -> green `#15803d`
+  - In-progress/primary/focus/audio visualizer -> blue `#1d4d99`
+  - New/neutral/inactive state chips -> dark gray `#64748b`
+  - Close/partial -> yellow `#D39A00`
+  - Wrong/hard/danger -> red `#C64545`
+- Inline SVG mode icons that must keep fixed colors across themes should set explicit stroke/fill colors (and use inline `style` when needed) rather than relying only on `currentColor`.
+
+## Review checklist for UI color changes
+- Confirm no old conflicting shades were reintroduced.
+- Confirm new user-facing status colors map to the canonical palette above.
+- Confirm related surfaces (wordset page, flashcard modes, self-check, user-study dashboard) stay aligned.
+
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.
 - Update quiz mode logic: `js/flashcard-widget/modes/*.js`, `js/flashcard-widget/selection.js`.

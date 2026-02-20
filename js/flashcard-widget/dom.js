@@ -22,10 +22,108 @@
 
     const playIconHTML = createPlayIcon();
     const stopIconHTML = createStopIcon();
+    const loadingSettings = (function () {
+        const cfg = (root && root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        const showDelayRaw = parseInt(cfg.roundLoadingShowDelayMs, 10);
+        const minVisibleRaw = parseInt(cfg.roundLoadingMinVisibleMs, 10);
+        const showDelayMs = Number.isFinite(showDelayRaw) ? Math.max(0, Math.min(800, showDelayRaw)) : 140;
+        const minVisibleMs = Number.isFinite(minVisibleRaw) ? Math.max(0, Math.min(1200, minVisibleRaw)) : 260;
+        return {
+            showDelayMs: showDelayMs,
+            minVisibleMs: minVisibleMs
+        };
+    })();
 
     let repeatAudio = null;
     let repeatAudioListeners = [];
     let repeatMiniViz = null;
+    let loadingShowTimer = null;
+    let loadingHideTimer = null;
+    let loadingRequested = false;
+    let loadingVisible = false;
+    let loadingVisibleAt = 0;
+
+    function clearLoadingShowTimer() {
+        if (!loadingShowTimer) return;
+        clearTimeout(loadingShowTimer);
+        loadingShowTimer = null;
+    }
+
+    function clearLoadingHideTimer() {
+        if (!loadingHideTimer) return;
+        clearTimeout(loadingHideTimer);
+        loadingHideTimer = null;
+    }
+
+    function shouldShowLoadingImmediately() {
+        const states = (State && State.STATES) ? State.STATES : {};
+        const current = (State && typeof State.getState === 'function') ? State.getState() : '';
+        if (State && State.isFirstRound) {
+            return true;
+        }
+        if (current && (current === states.LOADING || current === states.SWITCHING_MODE)) {
+            return true;
+        }
+        return false;
+    }
+
+    function applyLoadingVisibility(visible, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const instant = !!opts.instant;
+        const $popup = $('#ll-tools-flashcard-quiz-popup');
+        const $body = $('body');
+        const $content = $('#ll-tools-flashcard-content');
+        const $listeningViz = $('#ll-tools-listening-visualizer');
+        const $el = $('#ll-tools-loading-animation');
+
+        // Keep loader at document root so it cannot be trapped under popup blur layers.
+        if ($body.length && $el.length && $el.parent()[0] !== $body[0]) {
+            $el.appendTo($body);
+        }
+
+        if (visible) {
+            if ($el.length) {
+                // This loader is the generic round-transition indicator.
+                // Ensure leftover visualizer classes never leak into it.
+                $el.removeClass(
+                    'll-tools-loading-animation--visualizer ll-tools-loading-animation--active ll-tools-loading-animation--js ll-tools-loading-animation--fallback'
+                );
+                $el.find('.ll-tools-visualizer-bar').remove();
+            }
+            $content.removeClass('ll-round-loading');
+            if ($popup.length) {
+                if (instant) {
+                    $popup.addClass('ll-round-loading-instant');
+                } else {
+                    $popup.removeClass('ll-round-loading-instant');
+                }
+                $popup.addClass('ll-round-loading-active').attr('aria-busy', 'true');
+                if (instant) {
+                    const clearInstant = function () {
+                        try { $popup.removeClass('ll-round-loading-instant'); } catch (_) { /* no-op */ }
+                    };
+                    if (typeof root.requestAnimationFrame === 'function') {
+                        root.requestAnimationFrame(clearInstant);
+                    } else {
+                        setTimeout(clearInstant, 0);
+                    }
+                }
+            }
+            if ($listeningViz.length) {
+                // Keep listening visualizer in layout but hidden while loading
+                // so countdown/audio rendering can restore it without reflow.
+                $listeningViz.removeClass('countdown-active').css('visibility', 'hidden');
+            }
+            $el.css('display', 'block');
+            return;
+        }
+
+        $popup.removeClass('ll-round-loading-active ll-round-loading-instant').removeAttr('aria-busy');
+        $content.removeClass('ll-round-loading');
+        $el.hide();
+    }
 
     function ensureRepeatButtonContent() {
         const $btn = $('#ll-tools-repeat-flashcard');
@@ -33,7 +131,9 @@
         if (!$btn.data('llRepeatUi')) {
             const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
             const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });
-            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }).appendTo($iconWrap);
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true' })
+                .append('<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true"><path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/></svg>')
+                .appendTo($iconWrap);
             const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
             for (let i = 0; i < 6; i++) {
                 $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
@@ -188,27 +288,65 @@
         },
         showLoading() {
             const viz = namespace.AudioVisualizer;
-            // If we're in listening mode and a dedicated visualizer exists in the content area,
-            // show that instead of the header spinner.
-            if (State && State.isListeningMode) {
-                const $listeningViz = $('#ll-tools-listening-visualizer');
-                if ($listeningViz.length) {
-                    if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
-                    $listeningViz.css('display', 'flex');
-                    $('#ll-tools-loading-animation').hide();
-                    return;
-                }
-            }
-            const $el = $('#ll-tools-loading-animation');
             if (viz && typeof viz.reset === 'function') viz.reset();
-            $el.css('display', 'block');
+
+            loadingRequested = true;
+            clearLoadingHideTimer();
+
+            if (loadingVisible) {
+                return;
+            }
+
+            if (loadingShowTimer) {
+                return;
+            }
+            const startVisibleLoading = function (instant) {
+                loadingShowTimer = null;
+                if (!loadingRequested || loadingVisible) return;
+                loadingVisible = true;
+                loadingVisibleAt = Date.now();
+                applyLoadingVisibility(true, { instant: !!instant });
+            };
+
+            const showImmediately = shouldShowLoadingImmediately();
+            if (showImmediately || loadingSettings.showDelayMs <= 0) {
+                startVisibleLoading(showImmediately);
+                return;
+            }
+
+            loadingShowTimer = setTimeout(function () {
+                startVisibleLoading(false);
+            }, loadingSettings.showDelayMs);
         },
         hideLoading() {
             const viz = namespace.AudioVisualizer;
             if (viz && typeof viz.stop === 'function') {
                 viz.stop();
             }
-            $('#ll-tools-loading-animation').hide();
+            loadingRequested = false;
+            clearLoadingShowTimer();
+
+            const finishHide = function () {
+                clearLoadingHideTimer();
+                if (loadingRequested) return;
+                loadingVisible = false;
+                loadingVisibleAt = 0;
+                applyLoadingVisibility(false);
+            };
+
+            if (!loadingVisible) {
+                finishHide();
+                return;
+            }
+
+            const elapsed = Math.max(0, Date.now() - (loadingVisibleAt || 0));
+            const remaining = Math.max(0, loadingSettings.minVisibleMs - elapsed);
+            clearLoadingHideTimer();
+            if (remaining > 0) {
+                loadingHideTimer = setTimeout(finishHide, remaining);
+                return;
+            }
+            finishHide();
         },
         updateLearningProgress(introducedCount, totalCount, wordCorrectCounts, wordIntroductionProgress) {
             const $progress = $('#ll-tools-learning-progress');

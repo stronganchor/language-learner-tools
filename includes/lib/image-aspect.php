@@ -379,8 +379,9 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
 
     $include_word_images = !empty($args['include_word_images']);
     $forced_canonical_key = trim((string) $args['canonical_ratio_key']);
-    $forced_canonical_key = ll_tools_aspect_ratio_label_from_key($forced_canonical_key) !== ''
-        ? $forced_canonical_key
+    [$forced_width, $forced_height] = ll_tools_aspect_ratio_dimensions_from_key($forced_canonical_key);
+    $forced_canonical_key = ($forced_width > 0 && $forced_height > 0)
+        ? ll_tools_aspect_ratio_key_from_dimensions($forced_width, $forced_height)
         : '';
     $cache_version = ll_tools_get_category_aspect_cache_version($category_id);
 
@@ -419,6 +420,17 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
         }
 
         $aspect = ll_tools_get_attachment_aspect_data($attachment_id);
+        $ratio_key = ll_tools_aspect_ratio_key_from_dimensions((int) ($aspect['width'] ?? 0), (int) ($aspect['height'] ?? 0));
+        if ($ratio_key === '') {
+            [$ratio_width, $ratio_height] = ll_tools_aspect_ratio_dimensions_from_key((string) ($aspect['ratio_key'] ?? ''));
+            if ($ratio_width > 0 && $ratio_height > 0) {
+                $ratio_key = ll_tools_aspect_ratio_key_from_dimensions($ratio_width, $ratio_height);
+            }
+        }
+        $aspect['ratio_key'] = $ratio_key;
+        $aspect['ratio_label'] = ll_tools_aspect_ratio_label_from_key($ratio_key);
+        $aspect['ratio_value'] = ll_tools_aspect_ratio_value_from_key($ratio_key);
+
         $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($row['word_ids'] ?? [])), function ($id) {
             return $id > 0;
         })));
@@ -457,8 +469,11 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
     }
 
     $stored_canonical = trim((string) get_term_meta($category_id, LL_TOOLS_CATEGORY_CANONICAL_ASPECT_META_KEY, true));
-    if ($stored_canonical !== '' && ll_tools_aspect_ratio_label_from_key($stored_canonical) === '') {
-        $stored_canonical = '';
+    if ($stored_canonical !== '') {
+        [$stored_width, $stored_height] = ll_tools_aspect_ratio_dimensions_from_key($stored_canonical);
+        $stored_canonical = ($stored_width > 0 && $stored_height > 0)
+            ? ll_tools_aspect_ratio_key_from_dimensions($stored_width, $stored_height)
+            : '';
     }
 
     $canonical_key = '';

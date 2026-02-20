@@ -316,17 +316,17 @@
         }
 
         const colors = {
-            masculine: '#2563EB',
+            masculine: '#1D4D99',
             feminine: '#EC4899',
             other: '#6B7280'
         };
         const color = colors[role] || colors.other;
         let style = '--ll-gender-accent:' + color + ';';
         style += '--ll-gender-bg:' + (role === 'masculine'
-            ? 'rgba(37,99,235,0.14);'
+            ? 'rgba(29,77,153,0.14);'
             : (role === 'feminine' ? 'rgba(236,72,153,0.14);' : 'rgba(107,114,128,0.14);'));
         style += '--ll-gender-border:' + (role === 'masculine'
-            ? 'rgba(37,99,235,0.38);'
+            ? 'rgba(29,77,153,0.38);'
             : (role === 'feminine' ? 'rgba(236,72,153,0.38);' : 'rgba(107,114,128,0.38);'));
 
         return {
@@ -915,18 +915,33 @@
     }
 
     function playManagedAudio(url, token, options) {
-        if (!url) return Promise.resolve(false);
+        const opts = (options && typeof options === 'object') ? options : {};
+        let playbackStartNotified = false;
+        const notifyPlaybackStart = function () {
+            if (playbackStartNotified) return;
+            playbackStartNotified = true;
+            if (typeof opts.onPlaybackStart === 'function') {
+                try { opts.onPlaybackStart(); } catch (_) { /* no-op */ }
+            }
+        };
+
+        if (!url) {
+            notifyPlaybackStart();
+            return Promise.resolve(false);
+        }
         if (!FlashcardAudio || typeof FlashcardAudio.createIntroductionAudio !== 'function') {
+            notifyPlaybackStart();
             return Promise.resolve(false);
         }
         if (token !== round.sequenceToken) {
+            notifyPlaybackStart();
             return Promise.resolve(false);
         }
 
-        const opts = (options && typeof options === 'object') ? options : {};
         const managed = FlashcardAudio.createIntroductionAudio(url);
         if (!managed || typeof managed.playUntilEnd !== 'function') {
             cleanupManagedAudio(managed);
+            notifyPlaybackStart();
             return Promise.resolve(false);
         }
         round.managedAudio = managed;
@@ -941,6 +956,55 @@
             } catch (_) { /* no-op */ }
         }
 
+        const audioEl = managed.audio || null;
+        let startWatchdogId = null;
+        let onPlaybackEvent = null;
+        let onTimeUpdate = null;
+        const clearPlaybackStartWatch = function () {
+            if (audioEl) {
+                if (onPlaybackEvent) {
+                    try { audioEl.removeEventListener('playing', onPlaybackEvent); } catch (_) { /* no-op */ }
+                    try { audioEl.removeEventListener('ended', onPlaybackEvent); } catch (_) { /* no-op */ }
+                    try { audioEl.removeEventListener('error', onPlaybackEvent); } catch (_) { /* no-op */ }
+                    onPlaybackEvent = null;
+                }
+                if (onTimeUpdate) {
+                    try { audioEl.removeEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+                    onTimeUpdate = null;
+                }
+            }
+            if (startWatchdogId) {
+                clearTimeout(startWatchdogId);
+                startWatchdogId = null;
+            }
+        };
+        const markPlaybackStarted = function () {
+            clearPlaybackStartWatch();
+            notifyPlaybackStart();
+        };
+        if (!audioEl) {
+            markPlaybackStarted();
+        } else {
+            const alreadyStarted = (
+                (!audioEl.paused && !audioEl.ended) ||
+                ((typeof audioEl.currentTime === 'number') && audioEl.currentTime > 0.02)
+            );
+            if (alreadyStarted) {
+                markPlaybackStarted();
+            } else {
+                onPlaybackEvent = function () { markPlaybackStarted(); };
+                onTimeUpdate = function () {
+                    const t = (typeof audioEl.currentTime === 'number') ? audioEl.currentTime : 0;
+                    if (t > 0.02) markPlaybackStarted();
+                };
+                try { audioEl.addEventListener('playing', onPlaybackEvent, { once: true }); } catch (_) { /* no-op */ }
+                try { audioEl.addEventListener('ended', onPlaybackEvent, { once: true }); } catch (_) { /* no-op */ }
+                try { audioEl.addEventListener('error', onPlaybackEvent, { once: true }); } catch (_) { /* no-op */ }
+                try { audioEl.addEventListener('timeupdate', onTimeUpdate); } catch (_) { /* no-op */ }
+                startWatchdogId = scheduleRoundTimeout(markPlaybackStarted, 1200);
+            }
+        }
+
         let watchdogId = null;
         const watchdog = new Promise(function (resolve) {
             watchdogId = setTimeout(function () { resolve('watchdog'); }, INTRO_WATCHDOG_MS);
@@ -949,6 +1013,8 @@
         return Promise.race([managed.playUntilEnd().then(function () { return 'played'; }), watchdog])
             .then(function () {
                 if (watchdogId) clearTimeout(watchdogId);
+                clearPlaybackStartWatch();
+                notifyPlaybackStart();
                 if (round.managedAudio === managed) {
                     round.managedAudio = null;
                 }
@@ -960,6 +1026,8 @@
             })
             .catch(function () {
                 if (watchdogId) clearTimeout(watchdogId);
+                clearPlaybackStartWatch();
+                notifyPlaybackStart();
                 if (round.managedAudio === managed) {
                     round.managedAudio = null;
                 }
@@ -1260,6 +1328,14 @@
         const token = round.sequenceToken;
         const $container = $('#ll-tools-flashcard');
         const $content = $('#ll-tools-flashcard-content');
+        let introLoadingReleased = false;
+        const releaseIntroLoading = function () {
+            if (introLoadingReleased) return;
+            introLoadingReleased = true;
+            if (Dom && typeof Dom.hideLoading === 'function') {
+                Dom.hideLoading();
+            }
+        };
         const categoryNames = words
             .map(function (word) { return getCategoryNameForWord(word); })
             .filter(function (name) { return !!String(name || '').trim(); });
@@ -1295,7 +1371,6 @@
         }
 
         $('.ll-gender-intro-card').fadeIn(260);
-        Dom.hideLoading && Dom.hideLoading();
         Dom.disableRepeatButton && Dom.disableRepeatButton();
 
         for (let idx = 0; idx < words.length; idx++) {
@@ -1313,11 +1388,16 @@
             }
 
             const clipPattern = getIntroClipPattern(word);
+            if (!clipPattern.length) {
+                releaseIntroLoading();
+            }
 
             for (let clipIndex = 0; clipIndex < clipPattern.length; clipIndex++) {
                 pulseActiveIntroCard($active);
                 const clipUrl = clipPattern[clipIndex];
-                await playManagedAudio(clipUrl, token);
+                await playManagedAudio(clipUrl, token, {
+                    onPlaybackStart: releaseIntroLoading
+                });
                 if (token !== round.sequenceToken) break;
                 if (clipIndex < clipPattern.length - 1) {
                     await waitRound(INTRO_GAP_MS, token);

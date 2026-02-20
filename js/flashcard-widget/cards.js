@@ -126,7 +126,11 @@
             type: 'button',
             class: 'll-audio-play',
             'aria-label': 'Play option audio'
-        }).append($('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }));
+        }).append(
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true' }).append(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true"><path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/></svg>'
+            )
+        );
         $btn.on('click', function (e) {
             e.stopPropagation();
             playOptionAudio(word, $c);

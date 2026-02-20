@@ -800,6 +800,10 @@ function ll_tools_wordset_page_render_hard_words_icon(string $class = ''): strin
 
 function ll_tools_wordset_page_render_progress_icon(string $status, string $class = 'll-wordset-progress-pill__icon'): string {
     $status = sanitize_key($status);
+    if ($status === 'starred') {
+        return '<span class="' . esc_attr(trim($class . ' ll-wordset-progress-star-glyph-icon')) . '" aria-hidden="true">★</span>';
+    }
+
     $svg = '';
     if ($status === 'mastered') {
         $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
@@ -814,6 +818,12 @@ function ll_tools_wordset_page_render_progress_icon(string $status, string $clas
         $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
             . '<line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>'
             . '<line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>'
+            . '</svg>';
+    } elseif ($status === 'hard') {
+        $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+            . '<path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path>'
+            . '<line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line>'
+            . '<circle cx="32" cy="45" r="3.2" fill="currentColor"></circle>'
             . '</svg>';
     }
 
@@ -836,20 +846,10 @@ function ll_tools_wordset_page_render_priority_focus_icon(string $focus, string 
         return ll_tools_wordset_page_render_progress_icon('mastered', $class);
     }
     if ($focus === 'starred') {
-        return '<span class="' . esc_attr($class) . '" aria-hidden="true">'
-            . '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
-            . '<path d="M32 8 L39.9 24.2 L58 26.6 L45 39.1 L48.3 56.8 L32 48.1 L15.7 56.8 L19 39.1 L6 26.6 L24.1 24.2 Z" fill="#facc15" stroke="#111827" stroke-width="3.2" stroke-linejoin="round"></path>'
-            . '</svg>'
-            . '</span>';
+        return ll_tools_wordset_page_render_progress_icon('starred', $class);
     }
     if ($focus === 'hard') {
-        return '<span class="' . esc_attr($class) . '" aria-hidden="true">'
-            . '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
-            . '<path d="M32 8 L58 52 H6 Z" fill="#f97316" stroke="#7c2d12" stroke-width="3.4" stroke-linejoin="round"></path>'
-            . '<line x1="32" y1="23" x2="32" y2="37" stroke="#1f2937" stroke-width="5" stroke-linecap="round"></line>'
-            . '<circle cx="32" cy="45" r="3.2" fill="#1f2937"></circle>'
-            . '</svg>'
-            . '</span>';
+        return ll_tools_wordset_page_render_progress_icon('hard', $class);
     }
     return '';
 }
@@ -859,11 +859,15 @@ function ll_tools_wordset_page_summary_counts(array $analytics): array {
     $mastered = max(0, (int) ($summary['mastered_words'] ?? 0));
     $studied_total = max(0, (int) ($summary['studied_words'] ?? 0));
     $new_words = max(0, (int) ($summary['new_words'] ?? 0));
+    $starred_words = max(0, (int) ($summary['starred_words'] ?? 0));
+    $hard_words = max(0, (int) ($summary['hard_words'] ?? 0));
     $studied_only = max(0, $studied_total - $mastered);
     return [
         'mastered' => $mastered,
         'studied' => $studied_only,
         'new' => $new_words,
+        'starred' => $starred_words,
+        'hard' => $hard_words,
     ];
 }
 
@@ -1062,6 +1066,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $visible_categories[] = $enhanced;
         }
     }
+    $hidden_category_count = count($hidden_categories);
 
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $visible_category_count = count($visible_category_ids);
@@ -1116,6 +1121,44 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'studied' => $studied_words,
             'new' => $new_words,
         ];
+    }
+    $category_starred_lookup = [];
+    $category_starred_word_lookup = [];
+    $analytics_word_rows = (isset($analytics['words']) && is_array($analytics['words'])) ? $analytics['words'] : [];
+    foreach ($analytics_word_rows as $analytics_word_row) {
+        if (!is_array($analytics_word_row) || empty($analytics_word_row['is_starred'])) {
+            continue;
+        }
+
+        $word_id = isset($analytics_word_row['id']) ? (int) $analytics_word_row['id'] : 0;
+        $word_category_ids = [];
+        foreach ((array) ($analytics_word_row['category_ids'] ?? []) as $word_category_id) {
+            $cid = (int) $word_category_id;
+            if ($cid > 0) {
+                $word_category_ids[] = $cid;
+            }
+        }
+        if (empty($word_category_ids)) {
+            $fallback_category_id = isset($analytics_word_row['category_id']) ? (int) $analytics_word_row['category_id'] : 0;
+            if ($fallback_category_id > 0) {
+                $word_category_ids[] = $fallback_category_id;
+            }
+        }
+        $word_category_ids = array_values(array_unique($word_category_ids));
+
+        foreach ($word_category_ids as $word_category_id) {
+            if (!isset($category_starred_word_lookup[$word_category_id]) || !is_array($category_starred_word_lookup[$word_category_id])) {
+                $category_starred_word_lookup[$word_category_id] = [];
+            }
+            if ($word_id > 0) {
+                $category_starred_word_lookup[$word_category_id][$word_id] = true;
+            } else {
+                $category_starred_word_lookup[$word_category_id][] = true;
+            }
+        }
+    }
+    foreach ($category_starred_word_lookup as $word_category_id => $word_lookup) {
+        $category_starred_lookup[(int) $word_category_id] = count((array) $word_lookup);
     }
 
     $script_categories = array_map(function (array $cat): array {
@@ -1198,6 +1241,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'hardWordDifficultyThreshold' => 4,
         'i18n' => [
             'nextNone' => __('No recommendation yet. Do one round first.', 'll-tools-text-domain'),
+            'nextLoading' => __('Loading next recommendation...', 'll-tools-text-domain'),
             'nextReady' => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
             'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
             'categoriesLabel' => __('Categories', 'll-tools-text-domain'),
@@ -1207,6 +1251,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'resultsDifferentChunk' => __('Categories', 'll-tools-text-domain'),
             'resultsDifferentChunkCount' => __('Categories (%2$d)', 'll-tools-text-domain'),
             'resultsRecommendedActivity' => __('Recommended', 'll-tools-text-domain'),
+            'resultsRecommendedLoading' => __('Loading recommendation...', 'll-tools-text-domain'),
             'resultsRecommendedActivityCount' => __('Recommended (%2$d)', 'll-tools-text-domain'),
             'selectionLabel' => __('Select categories to study together', 'll-tools-text-domain'),
             'selectionCount' => __('%d selected', 'll-tools-text-domain'),
@@ -1242,7 +1287,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsStudied' => __('In progress', 'll-tools-text-domain'),
             'analyticsNew' => __('New', 'll-tools-text-domain'),
             'analyticsStarred' => __('Starred', 'll-tools-text-domain'),
-            'analyticsHard' => __('Difficult', 'll-tools-text-domain'),
+            'analyticsHard' => __('Hard', 'll-tools-text-domain'),
             'analyticsDaily' => __('Last 14 days', 'll-tools-text-domain'),
             'analyticsDailyEmpty' => __('No activity yet.', 'll-tools-text-domain'),
             'analyticsTabCategories' => __('Categories', 'll-tools-text-domain'),
@@ -1502,7 +1547,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="difficulty">
-                                                    <span><?php echo esc_html__('Difficulty Score', 'll-tools-text-domain'); ?></span>
+                                                    <span class="screen-reader-text"><?php echo esc_html__('Difficulty Score', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-difficulty-icon-wrap" aria-hidden="true">
+                                                        <?php echo ll_tools_wordset_page_render_hard_words_icon('ll-wordset-progress-sort-difficulty-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                    </span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
@@ -1521,7 +1569,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="seen">
-                                                    <span><?php echo esc_html__('Seen', 'll-tools-text-domain'); ?></span>
+                                                    <span class="screen-reader-text"><?php echo esc_html__('Seen', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-seen-icon-wrap" aria-hidden="true">
+                                                        <?php echo ll_tools_wordset_page_render_unhide_icon('ll-wordset-progress-sort-seen-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                    </span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
@@ -1540,7 +1591,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="wrong">
-                                                    <span><?php echo esc_html__('Wrong', 'll-tools-text-domain'); ?></span>
+                                                    <span class="screen-reader-text"><?php echo esc_html__('Wrong', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-wrong-icon-wrap" aria-hidden="true">
+                                                        <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-sort-wrong-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                    </span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
@@ -1581,7 +1635,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </div>
                         <div class="ll-wordset-selection-bar ll-wordset-progress-selection-bar" data-ll-wordset-progress-selection-bar hidden>
                             <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html__('0 selected words', 'll-tools-text-domain'); ?></span>
-                            <button type="button" class="ll-wordset-selection-bar__clear" data-ll-wordset-progress-selection-clear><?php echo esc_html__('Clear', 'll-tools-text-domain'); ?></button>
                             <div class="ll-wordset-selection-bar__actions">
                                 <?php
                                 $progress_selection_modes = ['learning', 'practice', 'listening'];
@@ -1597,6 +1650,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     </button>
                                 <?php endforeach; ?>
                             </div>
+                            <button type="button" class="ll-wordset-selection-bar__clear" data-ll-wordset-progress-selection-clear aria-label="<?php echo esc_attr__('Clear selection', 'll-tools-text-domain'); ?>">
+                                <span class="ll-wordset-selection-bar__clear-icon" aria-hidden="true">x</span>
+                            </button>
                         </div>
                     </div>
                 </section>
@@ -1913,13 +1969,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
                             data-ll-wordset-hidden-link
                             href="<?php echo esc_url($hidden_categories_url); ?>"
-                            aria-label="<?php echo esc_attr(sprintf(__('Hidden categories: %d', 'll-tools-text-domain'), count($hidden_categories))); ?>">
+                            aria-label="<?php echo esc_attr(sprintf(__('Hidden categories: %d', 'll-tools-text-domain'), $hidden_category_count)); ?>"
+                            <?php if ($hidden_category_count < 1) : ?>hidden<?php endif; ?>>
                             <span class="ll-wordset-link-chip__icon" aria-hidden="true">
                                 <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hidden-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                             </span>
-                            <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count><?php echo (int) count($hidden_categories); ?></span>
+                            <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count><?php echo (int) $hidden_category_count; ?></span>
                         </a>
-                        <a class="ll-wordset-progress-mini" href="<?php echo esc_url($progress_url); ?>" aria-label="<?php echo esc_attr__('Open progress', 'll-tools-text-domain'); ?>">
+                        <a class="ll-wordset-progress-mini" data-ll-wordset-progress-mini-root href="<?php echo esc_url($progress_url); ?>" aria-label="<?php echo esc_attr__('Open progress', 'll-tools-text-domain'); ?>">
                             <span class="ll-wordset-progress-pill ll-wordset-progress-pill--mastered">
                                 <?php echo ll_tools_wordset_page_render_progress_icon('mastered'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                 <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-mastered><?php echo (int) $summary_counts['mastered']; ?></span>
@@ -1931,6 +1988,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-progress-pill ll-wordset-progress-pill--new">
                                 <?php echo ll_tools_wordset_page_render_progress_icon('new'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                 <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-new><?php echo (int) $summary_counts['new']; ?></span>
+                            </span>
+                            <span class="ll-wordset-progress-pill ll-wordset-progress-pill--starred">
+                                <?php echo ll_tools_wordset_page_render_progress_icon('starred'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-starred><?php echo (int) $summary_counts['starred']; ?></span>
+                            </span>
+                            <span class="ll-wordset-progress-pill ll-wordset-progress-pill--hard">
+                                <?php echo ll_tools_wordset_page_render_progress_icon('hard'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-hard><?php echo (int) $summary_counts['hard']; ?></span>
                             </span>
                         </a>
                         <?php if ($is_study_user) : ?>
@@ -1990,7 +2055,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php else : ?>
                 <?php if ($visible_category_count > 1) : ?>
                     <div class="ll-wordset-grid-tools">
-                        <button type="button" class="ll-wordset-select-all" data-ll-wordset-select-all aria-pressed="false">
+                        <button type="button" class="ll-wordset-select-all ll-wordset-progress-select-all" data-ll-wordset-select-all aria-pressed="false">
                             <?php echo esc_html__('Select all', 'll-tools-text-domain'); ?>
                         </button>
                     </div>
@@ -2014,6 +2079,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         $card_mastered_pct = max(0, min(100, (($card_progress['mastered'] ?? 0) * 100) / $card_progress_total));
                         $card_studied_pct = max(0, min(100 - $card_mastered_pct, (($card_progress['studied'] ?? 0) * 100) / $card_progress_total));
                         $card_new_pct = max(0, 100 - $card_mastered_pct - $card_studied_pct);
+                        $card_starred_count = max(0, (int) ($category_starred_lookup[$cat_id] ?? 0));
                         ?>
                         <article class="ll-wordset-card" role="listitem" data-cat-id="<?php echo esc_attr($cat_id); ?>" data-word-count="<?php echo esc_attr((int) ($cat['count'] ?? 0)); ?>">
                             <div class="ll-wordset-card__top">
@@ -2034,6 +2100,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             </div>
                             <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($cat['url']); ?>" aria-label="<?php echo esc_attr($cat['name']); ?>">
                                 <div class="ll-wordset-card__preview <?php echo $cat['has_images'] ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
+                                    <?php if ($card_starred_count > 0) : ?>
+                                        <span
+                                            class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred"
+                                            aria-label="<?php echo esc_attr(sprintf(_n('%1$d starred word in %2$s', '%1$d starred words in %2$s', $card_starred_count, 'll-tools-text-domain'), $card_starred_count, $cat['name'])); ?>">
+                                            <?php echo ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                            <span class="ll-wordset-progress-pill__value ll-wordset-card__starred-value"><?php echo (int) $card_starred_count; ?></span>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($cat['preview'])) : ?>
                                         <?php
                                         $preview_items = array_values((array) $cat['preview']);
@@ -2129,7 +2203,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </button>
                     <?php endforeach; ?>
                 </div>
-                <button type="button" class="ll-wordset-selection-bar__clear" data-ll-wordset-selection-clear><?php echo esc_html__('Clear', 'll-tools-text-domain'); ?></button>
+                <button type="button" class="ll-wordset-selection-bar__clear" data-ll-wordset-selection-clear aria-label="<?php echo esc_attr__('Clear selection', 'll-tools-text-domain'); ?>">
+                    <span class="ll-wordset-selection-bar__clear-icon" aria-hidden="true">x</span>
+                </button>
             </div>
 
             <div class="ll-wordset-flashcard-host" data-ll-wordset-flashcard-host>

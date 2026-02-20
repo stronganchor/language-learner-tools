@@ -244,7 +244,7 @@
             optionVisual = configOptions[index];
         }
 
-        const defaultColors = { masculine: '#2563EB', feminine: '#EC4899', other: '#6B7280' };
+        const defaultColors = { masculine: '#1D4D99', feminine: '#EC4899', other: '#6B7280' };
         const colors = Object.assign({}, defaultColors, (visualConfig.colors && typeof visualConfig.colors === 'object') ? visualConfig.colors : {});
         const role = normalizeGenderRole((optionVisual && optionVisual.role) || inferGenderRoleFromValue(normalizedValue || value, index));
 
@@ -948,8 +948,30 @@
             $prompt = $('<div>', { id: 'll-tools-prompt', class: 'll-tools-prompt', style: 'display:none;' });
             $('#ll-tools-flashcard-content').prepend($prompt);
         }
+        const patchPromptWithinStarRow = function ($content, hidePrompt) {
+            const $starRow = $prompt.children('.ll-prompt-star-row').first();
+            if (!$starRow.length) return false;
+            $starRow.children().not('.ll-quiz-star-inline.image-inline, .ll-quiz-star-spacer').remove();
+            if ($content && $content.length) {
+                const $inline = $starRow.children('.ll-quiz-star-inline.image-inline').first();
+                if ($inline.length) {
+                    $inline.after($content);
+                } else {
+                    $starRow.prepend($content);
+                }
+                if (!$starRow.children('.ll-quiz-star-spacer').length) {
+                    $starRow.append($('<div>', { class: 'll-quiz-star-spacer' }));
+                }
+                $prompt.show();
+            } else if (hidePrompt) {
+                $prompt.hide();
+            }
+            return true;
+        };
         if (!targetWord) {
-            $prompt.hide().empty();
+            if (!patchPromptWithinStarRow(null, true)) {
+                $prompt.hide().empty();
+            }
             return;
         }
         const labelText = showText ? getPromptTextValue(targetWord, promptType) : '';
@@ -957,10 +979,11 @@
         const hasText = showText && !!labelText;
         const hasAudio = showAudio && !!targetWord.audio;
         if (!hasImage && !hasText && !hasAudio) {
-            $prompt.hide().empty();
+            if (!patchPromptWithinStarRow(null, true)) {
+                $prompt.hide().empty();
+            }
             return;
         }
-        $prompt.show().empty();
         const $stack = $('<div>', { class: 'll-prompt-stack' });
         if (hasImage) {
             const $wrap = $('<div>', { class: 'll-prompt-image-wrap' });
@@ -982,7 +1005,9 @@
             });
             const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
             const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });
-            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }).appendTo($iconWrap);
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true' })
+                .append('<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true"><path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/></svg>')
+                .appendTo($iconWrap);
             const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
             for (let i = 0; i < 6; i++) {
                 $('<span>', { class: 'bar', 'data-bar': i + 1 }).appendTo($viz);
@@ -997,7 +1022,10 @@
             });
             $stack.append($btn);
         }
-        $prompt.append($stack);
+        if (patchPromptWithinStarRow($stack, false)) {
+            return;
+        }
+        $prompt.show().empty().append($stack);
     }
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {

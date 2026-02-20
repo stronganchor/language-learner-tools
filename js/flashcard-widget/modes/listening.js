@@ -1373,8 +1373,7 @@
             const viz = namespace.AudioVisualizer;
             if (viz && typeof viz.prepareForListening === 'function') viz.prepareForListening();
         } catch (_) {}
-        // Hide header spinner if present
-        if ($jq) $jq('#ll-tools-loading-animation').hide();
+        // Loading overlay is controlled globally by Dom.showLoading()/hideLoading().
         // Ensure controls appear at the bottom (after placeholder and visualizer)
         ensureControls(utils);
         updateControlsState();
@@ -1478,6 +1477,15 @@
                 }
             }
 
+            let loadingReleasedForRound = false;
+            const releaseRoundLoading = function () {
+                if (loadingReleasedForRound) return;
+                loadingReleasedForRound = true;
+                if (Dom && typeof Dom.hideLoading === 'function') {
+                    Dom.hideLoading();
+                }
+            };
+
             const followCurrentTarget = function () {
                 const a = (audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
                     ? audioApi.getCurrentTargetAudio() : null;
@@ -1496,12 +1504,38 @@
                 return Promise.resolve(p).then(function () {
                     const a = followCurrentTarget();
                     return new Promise(function (resolve) {
-                        if (!a) { resolve(); return; }
+                        if (!a) {
+                            releaseRoundLoading();
+                            resolve();
+                            return;
+                        }
+                        // Start unblur as soon as the first clip actually starts.
+                        if (!a.paused && !a.ended) {
+                            releaseRoundLoading();
+                        } else {
+                            let releasedFromEvent = false;
+                            const releaseOnStart = function () {
+                                if (releasedFromEvent) return;
+                                releasedFromEvent = true;
+                                releaseRoundLoading();
+                            };
+                            try { a.addEventListener('playing', releaseOnStart, { once: true }); } catch (_) { /* no-op */ }
+                            try {
+                                a.addEventListener('timeupdate', function onStartFrame() {
+                                    if ((typeof a.currentTime === 'number') && a.currentTime > 0.02) {
+                                        try { a.removeEventListener('timeupdate', onStartFrame); } catch (_) { /* no-op */ }
+                                        releaseOnStart();
+                                    }
+                                });
+                            } catch (_) { /* no-op */ }
+                            setTimeout(releaseOnStart, 1200);
+                        }
                         a.onended = resolve;
                         a.addEventListener('error', resolve, { once: true });
                     });
                 }).catch(function (e) {
                     console.warn('Listening: failed to set/play audio', e);
+                    releaseRoundLoading();
                     return Promise.resolve();
                 });
             };
@@ -1513,7 +1547,6 @@
                     $overlay.fadeOut(200, function () { $jq(this).remove(); });
                 }
                 try { $ph && $ph.addClass('listening-final'); } catch (_) {}
-                Dom.hideLoading && Dom.hideLoading();
             };
 
             const scheduleAdvance = function (delayMs) {
@@ -1756,6 +1789,7 @@
                 if (optionHasAudio && sequence.length) {
                     playSequenceFrom(0);
                 } else {
+                    releaseRoundLoading();
                     const finishNoAudio = function () {
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
                         scheduleAdvance();
@@ -1808,6 +1842,9 @@
             console.error('Error in listening run:', err);
             if (audioVisualizer && typeof audioVisualizer.stop === 'function') {
                 audioVisualizer.stop();
+            }
+            if (Dom && typeof Dom.hideLoading === 'function') {
+                Dom.hideLoading();
             }
             State.forceTransitionTo(STATES.QUIZ_READY, 'Listening error recovery');
             try { WakeLock.update(); } catch (_) { }

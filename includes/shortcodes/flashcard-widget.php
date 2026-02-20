@@ -224,12 +224,12 @@ function ll_flashcards_get_mode_ui_config(): array {
     $gender_svg = <<<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
-    <g stroke="#FF4FA3">
+    <g stroke="#C64545" style="stroke:#C64545!important">
       <circle cx="184" cy="284" r="92"/>
       <path d="M184 376 L184 470"/>
       <path d="M140 430 L228 430"/>
     </g>
-    <g stroke="#1E73FF">
+    <g stroke="#1D4D99" style="stroke:#1D4D99!important">
       <circle cx="328" cy="292" r="92"/>
       <path d="M402 218 L480 148"/>
       <path d="M480 148 L480 196"/>
@@ -245,9 +245,9 @@ SVG;
     }
     if ($self_check_svg === '') {
         $self_check_svg = '<svg viewBox="0 0 96 96" fill="none" aria-hidden="true" focusable="false">'
-            . '<path d="M12 50L31 68L58 22" stroke="#2BAE4A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#E63946" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M12 50L31 68L58 22" stroke="#15803D" style="stroke:#15803D!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" style="stroke:#FFFFFF!important" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#C64545" style="stroke:#C64545!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
             . '</svg>';
     }
 
