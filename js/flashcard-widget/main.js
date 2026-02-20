@@ -772,7 +772,7 @@
             if ($starButton && $starButton.length) return $starButton;
             $starButton = $('<button>', {
                 type: 'button',
-                class: 'll-word-star ll-quiz-star-btn',
+                class: 'll-word-star ll-quiz-star-btn ll-tools-star-button',
                 'aria-pressed': 'false',
                 'aria-label': 'Star word'
             }).text('☆');

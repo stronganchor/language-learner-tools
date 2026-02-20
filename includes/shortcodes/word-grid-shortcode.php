@@ -2218,7 +2218,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     $star_label = $is_starred
                         ? __('Unstar word', 'll-tools-text-domain')
                         : __('Star word', 'll-tools-text-domain');
-                    $actions_row_html .= '<button type="button" class="ll-word-star ll-word-grid-star' . ($is_starred ? ' active' : '') . '" data-word-id="' . esc_attr($word_id) . '" aria-pressed="' . ($is_starred ? 'true' : 'false') . '" aria-label="' . esc_attr($star_label) . '" title="' . esc_attr($star_label) . '"></button>';
+                    $actions_row_html .= '<button type="button" class="ll-word-star ll-word-grid-star ll-tools-star-button' . ($is_starred ? ' active' : '') . '" data-word-id="' . esc_attr($word_id) . '" aria-pressed="' . ($is_starred ? 'true' : 'false') . '" aria-label="' . esc_attr($star_label) . '" title="' . esc_attr($star_label) . '"></button>';
                 }
                 if ($can_edit_words) {
                     $actions_row_html .= '<button type="button" class="ll-word-edit-toggle" data-ll-word-edit-toggle aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';

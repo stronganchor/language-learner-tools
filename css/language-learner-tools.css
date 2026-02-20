@@ -1052,6 +1052,69 @@ p:has(.ll-word-audio) {
     100% { transform: scaleY(1); }
 }
 
+/* Shared baseline so star toggles keep their shape/colors across aggressive themes. */
+button.ll-tools-star-button.ll-tools-star-button {
+    all: unset !important;
+    box-sizing: border-box !important;
+    width: var(--ll-star-btn-size, 32px) !important;
+    height: var(--ll-star-btn-size, 32px) !important;
+    min-width: var(--ll-star-btn-size, 32px) !important;
+    min-height: var(--ll-star-btn-size, 32px) !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: var(--ll-star-btn-radius, 8px) !important;
+    border: 1px solid var(--ll-star-btn-border, #e2e8f0) !important;
+    border-style: solid !important;
+    border-image: none !important;
+    background: var(--ll-star-btn-bg, #ffffff) !important;
+    background-color: var(--ll-star-btn-bg, #ffffff) !important;
+    background-image: none !important;
+    color: var(--ll-star-btn-color, #111827) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: var(--ll-star-btn-font-size, 16px) !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    cursor: pointer !important;
+    float: none !important;
+    vertical-align: middle !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    font-family: var(--ll-star-btn-font-family, "Segoe UI Symbol", system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif) !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button:not(.active):hover,
+button.ll-tools-star-button.ll-tools-star-button[aria-pressed="false"]:hover {
+    border-color: var(--ll-star-btn-hover-border, #94a3b8) !important;
+    background: var(--ll-star-btn-hover-bg, #f8fafc) !important;
+    background-color: var(--ll-star-btn-hover-bg, #f8fafc) !important;
+    color: var(--ll-star-btn-color, #111827) !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button.active,
+button.ll-tools-star-button.ll-tools-star-button[aria-pressed="true"] {
+    background: var(--ll-star-btn-active-bg, #D39A00) !important;
+    background-color: var(--ll-star-btn-active-bg, #D39A00) !important;
+    background-image: none !important;
+    border-color: var(--ll-star-btn-active-border, #D39A00) !important;
+    color: var(--ll-star-btn-active-color, #ffffff) !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button:focus-visible {
+    outline: 3px solid var(--ll-star-btn-focus, #D39A00) !important;
+    outline-offset: 2px !important;
+}
+
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star {
     all: unset !important;
     box-sizing: border-box !important;

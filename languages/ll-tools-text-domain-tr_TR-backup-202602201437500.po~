@@ -3052,7 +3052,7 @@ msgstr ""
 #, php-format
 msgid "Round setup: %1$d of %2$d required options are available."
 msgstr ""
-"Yuvarlak kurulum: %2$d gerekli seçeneğin %1$d'si kullanılabilir durumda."
+"Yuvarlak kurulum: 2$d gerekli seçeneğin %1$d'si kullanılabilir durumda."
 
 #: includes/admin/word-option-rules-admin.php:905
 msgid "Same image"

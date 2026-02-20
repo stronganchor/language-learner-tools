@@ -3198,7 +3198,7 @@
                     });
                     $('<button>', {
                         type: 'button',
-                        class: 'll-word-star' + (isStarred ? ' active' : ''),
+                        class: 'll-word-star ll-tools-star-button' + (isStarred ? ' active' : ''),
                         'aria-pressed': isStarred ? 'true' : 'false',
                         text: isStarred ? '★' : '☆'
                     }).appendTo(row);
@@ -3585,7 +3585,7 @@
             const $starCell = $('<td>');
             $('<button>', {
                 type: 'button',
-                class: 'll-study-analytics-star' + (isStarred ? ' active' : ''),
+                class: 'll-study-analytics-star ll-tools-star-button' + (isStarred ? ' active' : ''),
                 'data-ll-analytics-word-star': row.id,
                 'aria-pressed': isStarred ? 'true' : 'false',
                 'aria-label': starLabel,

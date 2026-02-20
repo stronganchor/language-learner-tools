@@ -1150,6 +1150,17 @@ body.ll-study-check-open {
 }
 
 .ll-study-analytics-star {
+  --ll-star-btn-size: 30px;
+  --ll-star-btn-radius: 8px;
+  --ll-star-btn-border: #e2e8f0;
+  --ll-star-btn-bg: #ffffff;
+  --ll-star-btn-color: #111827;
+  --ll-star-btn-hover-border: #cbd5e1;
+  --ll-star-btn-hover-bg: #f8fafc;
+  --ll-star-btn-active-bg: #D39A00;
+  --ll-star-btn-active-border: #D39A00;
+  --ll-star-btn-active-color: #111827;
+  --ll-star-btn-font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
   width: 30px;
   height: 30px;
   min-width: 30px;

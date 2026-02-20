@@ -2262,7 +2262,7 @@
             const $starCell = $('<td>');
             $('<button>', {
                 type: 'button',
-                class: 'll-wordset-progress-star' + (isStarred ? ' active' : ''),
+                class: 'll-wordset-progress-star ll-tools-star-button' + (isStarred ? ' active' : ''),
                 'data-ll-wordset-progress-word-star': row.id,
                 'aria-pressed': isStarred ? 'true' : 'false',
                 'aria-label': starLabel,
