@@ -543,11 +543,26 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
     <?php
 }
 
+function ll_qpg_flashcard_shell_reset_render_guard(): void {
+    $GLOBALS['ll_qpg_flashcard_shell_rendered_once'] = false;
+}
+
+function ll_qpg_flashcard_shell_is_rendered_once(): bool {
+    return !empty($GLOBALS['ll_qpg_flashcard_shell_rendered_once']);
+}
+
+function ll_qpg_flashcard_shell_mark_rendered_once(): void {
+    $GLOBALS['ll_qpg_flashcard_shell_rendered_once'] = true;
+}
+
+ll_qpg_flashcard_shell_reset_render_guard();
+
 /** Prints the flashcard overlay DOM (same IDs the widget expects) once. */
 function ll_qpg_print_flashcard_shell_once() {
-    static $printed = false;
-    if ($printed) { return; }
-    $printed = true;
+    if (ll_qpg_flashcard_shell_is_rendered_once()) { return; }
+    ll_qpg_flashcard_shell_mark_rendered_once();
+    $widget_rendered = function_exists('ll_tools_flashcard_widget_is_rendered_once')
+        && ll_tools_flashcard_widget_is_rendered_once();
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $practice_mode_ui = $mode_ui['practice'] ?? [];
     $learning_mode_ui = $mode_ui['learning'] ?? [];
@@ -562,6 +577,7 @@ function ll_qpg_print_flashcard_shell_once() {
         $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
         echo '<span class="' . esc_attr($class) . '" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
     };
+    if (!$widget_rendered) :
     ?>
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
       <div id="ll-tools-flashcard-popup" style="display:none;">
@@ -682,6 +698,7 @@ function ll_qpg_print_flashcard_shell_once() {
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <script>
     (function($){
