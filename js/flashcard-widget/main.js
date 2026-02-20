@@ -1047,6 +1047,7 @@
                 adjustLearning(wordId, starredNow, starMode);
             }
             broadcastStarChange(wordId, starredNow);
+            persistStudyPrefsDebounced();
             updateForWord(currentWord, { variant: State.isListeningMode ? 'listening' : 'content' });
         }
 
@@ -1226,6 +1227,89 @@
             out.push(id);
         });
         return out;
+    }
+
+    function normalizeCategoryNameList(categoryNames) {
+        const list = Array.isArray(categoryNames)
+            ? categoryNames
+            : (categoryNames ? [categoryNames] : []);
+        const seen = {};
+        const out = [];
+        list.forEach(function (name) {
+            const normalized = String(name || '').trim();
+            if (!normalized) { return; }
+            const dedupeKey = normalized.toLowerCase();
+            if (seen[dedupeKey]) { return; }
+            seen[dedupeKey] = true;
+            out.push(normalized);
+        });
+        return out;
+    }
+
+    function findCategoryConfigByName(categoryName) {
+        const target = String(categoryName || '').trim();
+        if (!target) {
+            return null;
+        }
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const lowered = target.toLowerCase();
+        return categories.find(function (cat) {
+            if (!cat) { return false; }
+            const name = String(cat.name || '').trim();
+            const slug = String(cat.slug || '').trim();
+            if (!name && !slug) { return false; }
+            if (name === target || slug === target) { return true; }
+            return (name && name.toLowerCase() === lowered) || (slug && slug.toLowerCase() === lowered);
+        }) || null;
+    }
+
+    function getCategoryAspectBucketByName(categoryName) {
+        const cat = findCategoryConfigByName(categoryName);
+        if (!cat) {
+            return 'no-image';
+        }
+        const bucket = String(cat.aspect_bucket || cat.aspectBucket || '').trim();
+        return bucket || 'no-image';
+    }
+
+    function filterCategoryNamesByAspectBucket(categoryNames, options) {
+        const names = normalizeCategoryNameList(categoryNames);
+        if (names.length < 2) {
+            return names;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const bucketByName = {};
+        const groups = {};
+        names.forEach(function (name) {
+            const bucket = getCategoryAspectBucketByName(name);
+            bucketByName[name] = bucket;
+            if (!groups[bucket]) {
+                groups[bucket] = [];
+            }
+            groups[bucket].push(name);
+        });
+
+        const bucketKeys = Object.keys(groups);
+        if (bucketKeys.length < 2) {
+            return names;
+        }
+
+        const preferredName = String(opts.preferCategoryName || names[0] || '').trim();
+        let preferredBucket = preferredName ? (bucketByName[preferredName] || '') : '';
+        if (!preferredBucket || !groups[preferredBucket] || !groups[preferredBucket].length) {
+            preferredBucket = bucketKeys[0] || '';
+        }
+        if (!preferredBucket || !groups[preferredBucket] || !groups[preferredBucket].length) {
+            return names;
+        }
+
+        const filtered = names.filter(function (name) {
+            return bucketByName[name] === preferredBucket;
+        });
+        return filtered.length ? filtered : names;
     }
 
     function resolveWordsetIdForProgress() {
@@ -2021,11 +2105,21 @@
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
         const isAudioLineLayout = (State.currentPromptType === 'image') &&
             (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
+        const removeWrongCard = function () {
+            let removed = false;
+            const finalizeRemove = function () {
+                if (removed) return;
+                removed = true;
+                $wrong.remove();
+            };
+            $wrong.addClass('fade-out').one('transitionend webkitTransitionEnd oTransitionEnd', finalizeRemove);
+            setGuardedTimeout(finalizeRemove, 360);
+        };
 
         if (isAudioLineLayout) {
-            $wrong.addClass('ll-option-disabled').attr('aria-disabled', 'true');
+            $wrong.addClass('ll-option-disabled').attr('aria-disabled', 'true').off('.llCardSelect');
         } else {
-            $wrong.addClass('fade-out').one('transitionend', function () { $wrong.remove(); });
+            removeWrongCard();
         }
 
         const wrongId = parseInt(targetWord.id, 10) || targetWord.id;
@@ -2605,7 +2699,17 @@
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
             }
-            const optionMediaPromise = Promise.resolve(Selection.fillQuizOptions(target)).catch(function () {
+            const optionMediaPromise = Promise.resolve(Selection.fillQuizOptions(target)).catch(function (err) {
+                if (err && err.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
+                    return {
+                        ready: false,
+                        failedWordIds: [],
+                        errorCode: err.code,
+                        errorMessage: err.message || '',
+                        details: (err && err.details && typeof err.details === 'object') ? err.details : {}
+                    };
+                }
+                console.error('Error while building quiz options:', err);
                 return {
                     ready: false,
                     failedWordIds: []
@@ -2663,6 +2767,14 @@
                 if (isStaleRound()) { return; }
                 const optionStatus = roundStatuses[0] || {};
                 const renderedStatus = roundStatuses[1] || {};
+                if (optionStatus && optionStatus.errorCode === 'LL_MINIMUM_OPTIONS_VIOLATION') {
+                    console.error('Minimum options invariant violated for quiz round:', optionStatus.details || optionStatus);
+                    showLoadingError({
+                        reason: 'minimum-options',
+                        details: optionStatus.details || {}
+                    });
+                    return;
+                }
                 const targetPreloadedAudioReady = !!(targetMediaStatus && targetMediaStatus.audioReady);
                 const targetElementAudioReady = !!renderedStatus.targetAudioReady;
                 const promptAudioReady = !needsPromptAudio || (targetPreloadedAudioReady && targetElementAudioReady);
@@ -2706,7 +2818,9 @@
         });
     }
 
-    function showLoadingError() {
+    function showLoadingError(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const reason = String(opts.reason || '').toLowerCase();
         const msgs = root.llToolsFlashcardsMessages || {};
         try { State.clearActiveTimeouts(); } catch (_) { /* no-op */ }
         try {
@@ -2721,16 +2835,30 @@
                 root.FlashcardAudio.suspendPlayback();
             }
         } catch (_) { /* no-op */ }
-        $('#quiz-results-title').text(msgs.loadingError || 'Loading Error');
+        const isMinimumOptionsError = reason === 'minimum-options';
+        const title = isMinimumOptionsError
+            ? (msgs.optionsInvariantErrorTitle || msgs.loadingError || 'Loading Error')
+            : (msgs.loadingError || 'Loading Error');
+        $('#quiz-results-title').text(title);
 
-        const errorBullets = [
-            msgs.checkCategoryExists || 'The category exists and has words',
-            msgs.checkWordsAssigned || 'Words are properly assigned to the category',
-            msgs.checkWordsetFilter || 'If using wordsets, the wordset contains words for this category'
-        ];
-
-        const errorMessage = (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
-            '<br>• ' + errorBullets.join('<br>• ');
+        let errorMessage = '';
+        if (isMinimumOptionsError) {
+            const minimumOptionsBullets = [
+                msgs.checkCategoryExists || 'The category exists and has words',
+                msgs.checkWordsAssigned || 'Words are properly assigned to the category',
+                msgs.checkSpecificWrongAnswers || 'Any specific wrong-answer words are available for this target'
+            ];
+            errorMessage = (msgs.minimumOptionsError || 'This quiz round has fewer than two answer options, so the quiz cannot continue.') +
+                '<br>• ' + minimumOptionsBullets.join('<br>• ');
+        } else {
+            const errorBullets = [
+                msgs.checkCategoryExists || 'The category exists and has words',
+                msgs.checkWordsAssigned || 'Words are properly assigned to the category',
+                msgs.checkWordsetFilter || 'If using wordsets, the wordset contains words for this category'
+            ];
+            errorMessage = (msgs.noWordsFound || 'No words could be loaded for this quiz. Please check that:') +
+                '<br>• ' + errorBullets.join('<br>• ');
+        }
 
         $('#quiz-results-message').html(errorMessage).show();
         $('#quiz-results').show();
@@ -2784,9 +2912,10 @@
             }
 
             return root.FlashcardAudio.startNewSession().then(function () {
-                const requestedCategories = Array.isArray(selectedCategories)
-                    ? selectedCategories.filter(Boolean)
-                    : (selectedCategories ? [selectedCategories] : []);
+                const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
+                const requestedCategories = filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
+                    preferCategoryName: requestedCategoriesRaw[0] || ''
+                });
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
                     requestedMode = 'self-check';
@@ -2839,9 +2968,7 @@
                     root.LLFlashcards.Results.hideResults();
                 }
 
-                const cleanedCategories = Array.isArray(selectedCategories)
-                    ? selectedCategories.filter(Boolean)
-                    : (selectedCategories ? [selectedCategories] : []);
+                const cleanedCategories = requestedCategories.slice();
                 State.initialCategoryNames = Util.randomlySort(cleanedCategories);
                 State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;

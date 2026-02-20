@@ -445,6 +445,28 @@
 
             const cfg = getCategoryConfig(categoryName);
             const needsAudio = categoryRequiresAudio(cfg);
+            const optionType = cfg.option_type || cfg.mode || '';
+            const optionRequiresAudio = optionType === 'audio' || optionType === 'text_audio';
+            const parseBool = function (raw) {
+                if (typeof raw === 'boolean') return raw;
+                if (typeof raw === 'number') return raw > 0;
+                if (typeof raw === 'string') {
+                    const normalized = raw.trim().toLowerCase();
+                    if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+                    if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
+                }
+                return !!raw;
+            };
+            const isSpecificWrongOnlyWord = function (word) {
+                if (!word || typeof word !== 'object') return false;
+                if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
+                    return parseBool(word.is_specific_wrong_answer_only);
+                }
+                const ownerIds = Array.isArray(word.specific_wrong_answer_owner_ids) ? word.specific_wrong_answer_owner_ids.filter(Boolean) : [];
+                const ownIds = Array.isArray(word.specific_wrong_answer_ids) ? word.specific_wrong_answer_ids.filter(Boolean) : [];
+                const ownTexts = Array.isArray(word.specific_wrong_answer_texts) ? word.specific_wrong_answer_texts.filter(Boolean) : [];
+                return ownerIds.length > 0 && ownIds.length === 0 && ownTexts.length === 0;
+            };
 
             // Filter out words that do not have a resolvable audio URL
             const filteredByCategory = Array.isArray(wordData) ? wordData.map(function (w) {
@@ -458,7 +480,10 @@
                 w.has_image = w.has_image || !!w.image;
                 return w;
             }).filter(function (w) {
-                if (needsAudio && !w.audio) return false;
+                if (needsAudio && !w.audio) {
+                    const allowWrongOnlyNoAudio = !optionRequiresAudio && isSpecificWrongOnlyWord(w);
+                    if (!allowWrongOnlyNoAudio) return false;
+                }
                 if (hasWordsetFilter) {
                     const ids = Array.isArray(w.wordset_ids) ? w.wordset_ids : [];
                     const match = ids.some(function (id) { return allowedWordsetIds.indexOf(parseInt(id, 10)) !== -1; });

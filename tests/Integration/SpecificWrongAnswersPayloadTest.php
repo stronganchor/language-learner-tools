@@ -78,6 +78,7 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         $other_id = $this->createWord($category_id, 'Other Word');
 
         update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$reserved_id]);
+        update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Typed Wrong']);
         ll_tools_rebuild_specific_wrong_answer_owner_map();
 
         $rows = ll_get_words_by_category(
@@ -99,6 +100,7 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
 
         $owner_row = $by_id[$owner_id];
         $this->assertSame([$reserved_id], $this->normalizeIds((array) ($owner_row['specific_wrong_answer_ids'] ?? [])));
+        $this->assertSame(['Typed Wrong'], array_values(array_map('strval', (array) ($owner_row['specific_wrong_answer_texts'] ?? []))));
         $this->assertSame([], $this->normalizeIds((array) ($owner_row['specific_wrong_answer_owner_ids'] ?? [])));
         $this->assertFalse((bool) ($owner_row['is_specific_wrong_answer_only'] ?? false));
 
@@ -130,6 +132,7 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         wp_set_post_terms($reserved_id, [$wordset_id], 'wordset', false);
 
         update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$reserved_id]);
+        update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Typed Wrong']);
         ll_tools_rebuild_specific_wrong_answer_owner_map();
 
         $words_by_category = ll_tools_user_study_words([$category_id], $wordset_id);
@@ -142,6 +145,7 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
 
         $owner_row = $by_id[$owner_id];
         $this->assertSame([$reserved_id], $this->normalizeIds((array) ($owner_row['specific_wrong_answer_ids'] ?? [])));
+        $this->assertSame(['Typed Wrong'], array_values(array_map('strval', (array) ($owner_row['specific_wrong_answer_texts'] ?? []))));
         $this->assertSame([], $this->normalizeIds((array) ($owner_row['specific_wrong_answer_owner_ids'] ?? [])));
         $this->assertFalse((bool) ($owner_row['is_specific_wrong_answer_only'] ?? false));
 

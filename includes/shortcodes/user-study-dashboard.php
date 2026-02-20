@@ -157,6 +157,7 @@ SVG;
     wp_localize_script('ll-tools-study-dashboard', 'llToolsStudyData', [
         'ajaxUrl'  => admin_url('admin-ajax.php'),
         'nonce'    => $nonce,
+        'sortLocale' => get_locale(),
         'payload'  => $payload,
         'modeUi'   => $mode_ui,
         'i18n'     => $i18n,

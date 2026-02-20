@@ -1118,6 +1118,10 @@ p:has(.ll-word-audio) {
     margin-top: 6px !important;
 }
 
+.word-grid.ll-word-grid--text .ll-word-title-row + .ll-word-actions-row {
+    margin-top: 6px !important;
+}
+
 .word-grid.ll-word-grid--text .word-example {
     margin-top: 6px !important;
 }

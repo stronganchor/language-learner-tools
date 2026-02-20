@@ -2,6 +2,8 @@
     'use strict';
     const { Util, State } = root.LLFlashcards;
     let genderFitResizeBound = false;
+    const MINIMUM_QUIZ_OPTIONS = 2;
+    const MINIMUM_OPTIONS_ERROR_CODE = 'LL_MINIMUM_OPTIONS_VIOLATION';
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -715,9 +717,30 @@
         return out;
     }
 
+    function normalizeSpecificWrongTextList(raw, excludeText) {
+        const out = [];
+        const seen = {};
+        const excludeKey = normalizeTextForComparison(excludeText || '');
+        (Array.isArray(raw) ? raw : []).forEach(function (value) {
+            const text = (value === null || value === undefined) ? '' : String(value).trim();
+            if (!text) return;
+            const key = normalizeTextForComparison(text);
+            if (!key || key === excludeKey || seen[key]) return;
+            seen[key] = true;
+            out.push(text);
+        });
+        return out;
+    }
+
     function getWordSpecificWrongAnswerIds(word) {
         if (!word || typeof word !== 'object') return [];
         return normalizeIdList(word.specific_wrong_answer_ids);
+    }
+
+    function getWordSpecificWrongAnswerTexts(word) {
+        if (!word || typeof word !== 'object') return [];
+        const exclude = (typeof word.title === 'string') ? word.title : '';
+        return normalizeSpecificWrongTextList(word.specific_wrong_answer_texts, exclude);
     }
 
     function getWordSpecificWrongAnswerOwnerIds(word) {
@@ -730,7 +753,9 @@
         if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
             if (parseBooleanFlag(word.is_specific_wrong_answer_only)) return true;
         }
-        return getWordSpecificWrongAnswerOwnerIds(word).length > 0;
+        return getWordSpecificWrongAnswerOwnerIds(word).length > 0
+            && getWordSpecificWrongAnswerIds(word).length === 0
+            && getWordSpecificWrongAnswerTexts(word).length === 0;
     }
 
     function isWordAllowedAsWrongAnswerForTarget(word, targetWord) {
@@ -771,6 +796,30 @@
 
     function isTextPromptType(promptType) {
         return promptType === 'text' || promptType === 'text_title' || promptType === 'text_translation';
+    }
+
+    function isPlainTextOptionType(optionType) {
+        return optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation';
+    }
+
+    function syncPromptTextFontSize(promptType, optionType) {
+        const $ = root.jQuery;
+        if (!$ || !isTextPromptType(promptType) || !isPlainTextOptionType(optionType)) return;
+
+        const $promptText = $('#ll-tools-prompt .ll-prompt-text').first();
+        if (!$promptText.length) return;
+
+        let matchedFontSize = 0;
+        $('#ll-tools-flashcard .flashcard-container.text-based .quiz-text').each(function () {
+            const inlineSize = parseFloat(this && this.style ? this.style.fontSize : '') || 0;
+            const computedSize = parseFloat((window.getComputedStyle && window.getComputedStyle(this).fontSize) || '') || 0;
+            const fontSize = inlineSize || computedSize;
+            if (fontSize > matchedFontSize) matchedFontSize = fontSize;
+        });
+
+        if (matchedFontSize > 0) {
+            $promptText.css('font-size', matchedFontSize + 'px');
+        }
     }
 
     function getPromptTextValue(word, promptType) {
@@ -919,7 +968,11 @@
             $stack.append($wrap);
         }
         if (hasText) {
-            $('<div>', { class: 'll-prompt-text', text: labelText }).appendTo($stack);
+            $('<div>', {
+                class: 'll-prompt-text',
+                text: labelText,
+                dir: 'auto'
+            }).appendTo($stack);
         }
         if (hasAudio) {
             const $btn = $('<button>', {
@@ -1240,6 +1293,22 @@
             : false;
     }
 
+    function buildMinimumOptionsError(targetWord, targetCategoryName, promptType, optionType, chosenCount, desiredCount) {
+        const targetId = parseInt(targetWord && targetWord.id, 10) || targetWord && targetWord.id || null;
+        const err = new Error('Quiz round requires at least two options.');
+        err.code = MINIMUM_OPTIONS_ERROR_CODE;
+        err.details = {
+            targetId: targetId,
+            categoryName: targetCategoryName || '',
+            promptType: promptType || '',
+            optionType: optionType || '',
+            chosenCount: parseInt(chosenCount, 10) || 0,
+            desiredCount: parseInt(desiredCount, 10) || 0,
+            minimumRequired: MINIMUM_QUIZ_OPTIONS
+        };
+        return err;
+    }
+
     function fillGenderQuizOptions(targetWord, config, targetCategoryName) {
         const $ = root.jQuery;
         if (!$ || !targetWord) return false;
@@ -1454,17 +1523,18 @@
             }
         }
 
-        const MIN_OPTIONS = 2;
-        const desiredCount = Math.max(MIN_OPTIONS, parseInt(targetCount, 10) || MIN_OPTIONS);
+        const desiredCount = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetCount, 10) || MINIMUM_QUIZ_OPTIONS);
         const addCandidate = function (candidate, rules) {
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
             if (!candidateId) return false;
-            if (!isWordAllowedAsWrongAnswerForTarget(candidate, targetWord)) return false;
 
             const enforceSimilarity = !rules || rules.enforceSimilarity !== false;
             const enforceTextUniqueness = !rules || rules.enforceTextUniqueness !== false;
             const enforceConflict = !rules || rules.enforceConflict !== false;
+            const enforceOwnerScope = !rules || rules.enforceOwnerScope !== false;
+
+            if (enforceOwnerScope && !isWordAllowedAsWrongAnswerForTarget(candidate, targetWord)) return false;
 
             const isDup = chosen.some(function (word) {
                 return String(word && word.id) === candidateId;
@@ -1500,10 +1570,37 @@
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
         };
+        const fillFromAvailableWords = function (targetLength, rules) {
+            const maxLength = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetLength, 10) || MINIMUM_QUIZ_OPTIONS);
+            for (let candidate of availableWords) {
+                if (chosen.length >= maxLength) break;
+                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                addCandidate(candidate, rules);
+            }
+        };
 
+        const specificWrongAnswerTexts = getWordSpecificWrongAnswerTexts(targetWord);
+        const hasSpecificWrongAnswerTexts = isTextOptionMode && specificWrongAnswerTexts.length > 0;
         const specificWrongAnswerIds = getWordSpecificWrongAnswerIds(targetWord);
-        const hasSpecificWrongAnswers = specificWrongAnswerIds.length > 0;
-        if (hasSpecificWrongAnswers) {
+        const hasSpecificWrongAnswerIds = specificWrongAnswerIds.length > 0;
+        if (hasSpecificWrongAnswerTexts) {
+            specificWrongAnswerTexts.forEach(function (wrongText, index) {
+                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                const syntheticId = String(targetWord.id) + '-wrong-text-' + String(index + 1);
+                const syntheticOption = {
+                    id: syntheticId,
+                    title: wrongText,
+                    label: wrongText,
+                    prompt_label: wrongText
+                };
+                addCandidate(syntheticOption, {
+                    enforceSimilarity: false,
+                    enforceTextUniqueness: true,
+                    enforceConflict: false,
+                    enforceOwnerScope: false
+                });
+            });
+        } else if (hasSpecificWrongAnswerIds) {
             const lookup = buildWordLookupById();
             specificWrongAnswerIds.forEach(function (wrongId) {
                 if (!root.FlashcardOptions.canAddMoreCards()) return;
@@ -1512,20 +1609,56 @@
                 addCandidate(candidate, {
                     enforceSimilarity: false,
                     enforceTextUniqueness: false,
-                    enforceConflict: false
+                    enforceConflict: false,
+                    enforceOwnerScope: true
                 });
             });
         } else {
             // Fill remaining options with strict conflict checks.
-            for (let candidate of availableWords) {
-                if (chosen.length >= desiredCount) break;
-                if (!root.FlashcardOptions.canAddMoreCards()) break;
-                addCandidate(candidate, {
-                    enforceSimilarity: true,
-                    enforceTextUniqueness: true,
-                    enforceConflict: true
-                });
-            }
+            fillFromAvailableWords(desiredCount, {
+                enforceSimilarity: true,
+                enforceTextUniqueness: true,
+                enforceConflict: true,
+                enforceOwnerScope: true
+            });
+        }
+
+        // Keep specific wrong-answer overrides as preferred behavior, but never allow a one-option round.
+        // When imported mappings are incomplete, recover from category words before failing hard.
+        if (chosen.length < MINIMUM_QUIZ_OPTIONS) {
+            fillFromAvailableWords(MINIMUM_QUIZ_OPTIONS, {
+                enforceSimilarity: true,
+                enforceTextUniqueness: true,
+                enforceConflict: true,
+                enforceOwnerScope: true
+            });
+        }
+        if (chosen.length < MINIMUM_QUIZ_OPTIONS) {
+            fillFromAvailableWords(MINIMUM_QUIZ_OPTIONS, {
+                enforceSimilarity: true,
+                enforceTextUniqueness: true,
+                enforceConflict: true,
+                enforceOwnerScope: false
+            });
+        }
+        if (chosen.length < MINIMUM_QUIZ_OPTIONS) {
+            fillFromAvailableWords(MINIMUM_QUIZ_OPTIONS, {
+                enforceSimilarity: false,
+                enforceTextUniqueness: false,
+                enforceConflict: false,
+                enforceOwnerScope: false
+            });
+        }
+
+        if (chosen.length < MINIMUM_QUIZ_OPTIONS) {
+            throw buildMinimumOptionsError(
+                targetWord,
+                targetCategoryName,
+                promptType,
+                mode,
+                chosen.length,
+                desiredCount
+            );
         }
 
         jQuery('.flashcard-container').each(function (idx) {
@@ -1582,6 +1715,7 @@
             const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
+                syncPromptTextFontSize(promptType, mode);
                 $all.hide().fadeIn(600, publishOptionsReady);
                 return;
             }

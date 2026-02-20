@@ -12,11 +12,24 @@ function buildWordsetMarkup() {
   return `
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="main" data-ll-wordset-id="77">
       <div class="ll-wordset-grid">
+        <button type="button" data-ll-wordset-start-mode data-mode="practice">Practice</button>
         <button type="button" data-ll-wordset-start-mode data-mode="listening">Listen</button>
         <button type="button" data-ll-wordset-select-all>Select all</button>
         <label><input type="checkbox" data-ll-wordset-select value="11" />Cat A</label>
         <label><input type="checkbox" data-ll-wordset-select value="22" />Cat B</label>
         <label><input type="checkbox" data-ll-wordset-select value="33" />Cat C</label>
+      </div>
+
+      <div data-ll-wordset-next-shell>
+        <button type="button" data-ll-wordset-next>
+          <span data-ll-wordset-next-icon></span>
+          <span data-ll-wordset-next-preview></span>
+          <span data-ll-wordset-next-text></span>
+        </button>
+        <span>
+          <span data-ll-wordset-next-count hidden></span>
+          <button type="button" data-ll-wordset-next-remove hidden>Remove</button>
+        </span>
       </div>
 
       <div data-ll-wordset-selection-bar hidden>
@@ -192,7 +205,10 @@ function buildPageConfig({ isLoggedIn }) {
 async function mountWordsetPage(page, options = {}) {
   const isLoggedIn = !!options.isLoggedIn;
   const wordsByCategory = buildCategoryWords();
-  const config = buildPageConfig({ isLoggedIn });
+  let config = buildPageConfig({ isLoggedIn });
+  if (options.configPatch && typeof options.configPatch === 'object') {
+    config = Object.assign({}, config, options.configPatch);
+  }
   const wordsByCategoryName = {
     'Cat A': wordsByCategory[11],
     'Cat B': wordsByCategory[22],
@@ -347,4 +363,42 @@ test('logged-in listening launches ignore recommendation chunk IDs for top and s
   expect(selectionLaunch.mode).toBe('listening');
   expect(selectionLaunch.sessionWordIds).toEqual([]);
   expect(selectionLaunch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+});
+
+test('logged-in practice top launch falls back to visible categories when recommendation categories are stale', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      nextActivity: {
+        mode: 'practice',
+        category_ids: [9999],
+        session_word_ids: [999901],
+        type: 'review_chunk',
+        reason_code: 'review_chunk_balanced',
+        details: { chunk_size: 1 }
+      },
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      return Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0;
+    });
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+  const alerts = await page.evaluate(() => {
+    return Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(alerts).toEqual([]);
 });

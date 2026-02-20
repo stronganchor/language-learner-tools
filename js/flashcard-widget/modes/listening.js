@@ -1080,7 +1080,7 @@
     function renderTextIntoPlaceholder($ph, labelText) {
         const $jq = getJQuery();
         if (!$jq || !$ph || !$ph.length) return null;
-        const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text' });
+        const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text', dir: 'auto' });
 
         // Measure text to fit within the placeholder box using the same aspect ratio
         // as practice mode's text card, but scaled slightly larger for listening.

@@ -976,6 +976,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
     $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
+    $option_requires_audio = in_array($option_type, ['audio', 'text_audio'], true);
     $require_prompt_image = ($prompt_type === 'image');
     $require_option_image = ($option_type === 'image');
     $wordset_terms = [];
@@ -1172,9 +1173,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $specific_wrong_answer_ids = function_exists('ll_tools_get_word_specific_wrong_answer_ids')
             ? ll_tools_get_word_specific_wrong_answer_ids($word_id)
             : [];
+        $specific_wrong_answer_texts = function_exists('ll_tools_get_word_specific_wrong_answer_texts')
+            ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
+            : [];
         $specific_wrong_answer_owner_ids = isset($specific_wrong_owner_map[$word_id]) && is_array($specific_wrong_owner_map[$word_id])
             ? array_values(array_filter(array_map('intval', $specific_wrong_owner_map[$word_id]), function ($id) { return $id > 0; }))
             : [];
+        $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
+            && empty($specific_wrong_answer_ids)
+            && empty($specific_wrong_answer_texts);
 
         $word_data = [
             'id'              => $word_id,
@@ -1182,8 +1189,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'label'           => $label,
             'prompt_label'    => $prompt_label,
             'specific_wrong_answer_ids' => $specific_wrong_answer_ids,
+            'specific_wrong_answer_texts' => $specific_wrong_answer_texts,
             'specific_wrong_answer_owner_ids' => $specific_wrong_answer_owner_ids,
-            'is_specific_wrong_answer_only' => !empty($specific_wrong_answer_owner_ids),
+            'is_specific_wrong_answer_only' => $is_specific_wrong_answer_only,
             'audio'           => $primary_audio,
             'audio_files'     => $audio_files,
             'preferred_speaker_user_id' => $preferred_speaker,
@@ -1202,7 +1210,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
         // Enforce required assets based on prompt + option selections
         if ($require_audio && !$has_audio) {
-            continue;
+            // Wrong-answer-only words can still be used in audio-prompt quizzes when options are text-only.
+            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
+                continue;
+            }
         }
         if (($require_prompt_image || $require_option_image) && (!$image_id || empty($image))) {
             continue;
@@ -1520,14 +1531,21 @@ function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
 
     // Handle string-only responses safely.
     if ( $fields === 'names' ) {
-        // Natural, case-insensitive sort of the names array (preserves keys).
-        natcasesort( $terms );
+        uasort( $terms, static function ( $a, $b ) {
+            if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+                return ll_tools_locale_compare_strings( (string) $a, (string) $b );
+            }
+            return strnatcasecmp( (string) $a, (string) $b );
+        } );
         return $terms;
     }
 
     // Handle associative map of id => name.
     if ( $fields === 'id=>name' ) {
         uasort( $terms, static function( $a, $b ) {
+            if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+                return ll_tools_locale_compare_strings( (string) $a, (string) $b );
+            }
             return strnatcasecmp( (string) $a, (string) $b );
         } );
         return $terms;
@@ -1547,6 +1565,9 @@ function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
     usort( $terms, static function( $a, $b ) {
         $an = isset( $a->name ) ? (string) $a->name : '';
         $bn = isset( $b->name ) ? (string) $b->name : '';
+        if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+            return ll_tools_locale_compare_strings( $an, $bn );
+        }
         return strnatcasecmp( $an, $bn );
     } );
 

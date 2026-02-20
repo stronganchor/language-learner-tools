@@ -7,6 +7,10 @@ const selectionSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
 );
+const optionsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
+  'utf8'
+);
 
 async function mountSelectionHarness(page, options = {}) {
   const maxCards = Number.isFinite(Number(options.maxCards))
@@ -142,6 +146,34 @@ test('practice options stay within the target category pool', async ({ page }) =
   }, targetWord);
 
   expect(pickedIds).toEqual([101, 102]);
+});
+
+test('option count never drops below two after wrong answers', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      maxOptionsOverride: 9
+    };
+    window.categoryNames = ['Audio text'];
+    window.wordsByCategory = {
+      'Audio text': [{ id: 1 }, { id: 2 }]
+    };
+    window.optionWordsByCategory = {
+      'Audio text': [{ id: 1 }, { id: 2 }]
+    };
+  });
+  await page.addScriptTag({ content: optionsSource });
+
+  const nextCount = await page.evaluate(() => {
+    window.FlashcardOptions.initializeOptionsCount(2);
+    const wrongIndexes = [0];
+    return window.FlashcardOptions.calculateNumberOfOptions(wrongIndexes, false, 'Audio text');
+  });
+
+  expect(nextCount).toBe(2);
 });
 
 test('practice options never include duplicate images', async ({ page }) => {
@@ -360,4 +392,115 @@ test('text-to-text mode respects specific wrong-answer overrides', async ({ page
 
   expect(pickedIds).toEqual([651, 652, 653]);
   expect(pickedIds.includes(654)).toBe(false);
+});
+
+test('text-to-text mode uses specific wrong-answer texts without backing word posts', async ({ page }) => {
+  const category = 'Text meta override category';
+  const targetWord = {
+    id: 661,
+    title: 'Correct',
+    label: 'Correct',
+    specific_wrong_answer_texts: ['Wrong One', 'Wrong Two']
+  };
+  const normalDistractor = { id: 662, title: 'Normal distractor', label: 'Normal distractor' };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'text_translation', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 6,
+    wordsByCategory: {
+      [category]: [targetWord, normalDistractor]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, normalDistractor]
+    }
+  });
+
+  const picked = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Text meta override category' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => String(el.getAttribute('data-word-id') || ''));
+  }, targetWord);
+
+  expect(picked).toContain('661');
+  expect(picked).toContain('661-wrong-text-1');
+  expect(picked).toContain('661-wrong-text-2');
+  expect(picked).not.toContain('662');
+});
+
+test('falls back to category distractors when specific wrong-answer IDs are broken', async ({ page }) => {
+  const category = 'Broken overrides';
+  const targetWord = {
+    id: 701,
+    title: 'Owner',
+    label: 'Owner',
+    specific_wrong_answer_ids: [999]
+  };
+  const availableDistractor = {
+    id: 702,
+    title: 'Available',
+    label: 'Available'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord, availableDistractor]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, availableDistractor]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Broken overrides' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([701, 702]);
+});
+
+test('throws a hard error when fewer than two options are truly available', async ({ page }) => {
+  const category = 'Unrecoverable overrides';
+  const targetWord = {
+    id: 711,
+    title: 'Solo',
+    label: 'Solo',
+    specific_wrong_answer_ids: [999]
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord]
+    }
+  });
+
+  const result = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Unrecoverable overrides' }, word);
+    try {
+      window.LLFlashcards.Selection.fillQuizOptions(target);
+      return { threw: false, code: '' };
+    } catch (error) {
+      return {
+        threw: true,
+        code: String((error && error.code) || ''),
+        message: String((error && error.message) || '')
+      };
+    }
+  }, targetWord);
+
+  expect(result.threw).toBe(true);
+  expect(result.code).toBe('LL_MINIMUM_OPTIONS_VIOLATION');
 });

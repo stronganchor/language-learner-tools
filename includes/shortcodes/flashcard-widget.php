@@ -210,9 +210,12 @@ function ll_flashcards_get_messages(): array {
         'loadingError'            => __('Loading Error', 'll-tools-text-domain'),
         'somethingWentWrong'      => __('Something went wrong', 'll-tools-text-domain'),
         'noWordsFound'            => __('No words could be loaded for this quiz. Please check that:', 'll-tools-text-domain'),
+        'optionsInvariantErrorTitle' => __('Quiz Configuration Error', 'll-tools-text-domain'),
+        'minimumOptionsError'     => __('This quiz round has fewer than two answer options, so the quiz cannot continue. Please check that:', 'll-tools-text-domain'),
         'checkCategoryExists'     => __('The category exists and has words', 'll-tools-text-domain'),
         'checkWordsAssigned'      => __('Words are properly assigned to the category', 'll-tools-text-domain'),
         'checkWordsetFilter'      => __('If using wordsets, the wordset contains words for this category', 'll-tools-text-domain'),
+        'checkSpecificWrongAnswers' => __('Any specific wrong-answer words are available for this target', 'll-tools-text-domain'),
     ];
 }
 
@@ -465,6 +468,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
         'launchContext'        => $launch_context,
         'launch_context'       => $launch_context,
+        'sortLocale'           => get_locale(),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -636,6 +640,12 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
         $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+        $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
+            ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
+            : '';
+        if ($aspect_bucket === '') {
+            $aspect_bucket = 'no-image';
+        }
 
         $gender_word_count = 0;
         if ($gender_enabled && !empty($words_in_mode)) {
@@ -677,6 +687,7 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'word_count'  => count($words_in_mode),
             'gender_word_count' => $gender_word_count,
             'gender_supported' => ($gender_enabled && $gender_word_count >= $min_word_count),
+            'aspect_bucket' => $aspect_bucket,
         ];
     }
     return $processed;

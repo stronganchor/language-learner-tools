@@ -1311,6 +1311,9 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             return $right_incorrect <=> $left_incorrect;
         }
 
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($left['title'] ?? ''), (string) ($right['title'] ?? ''));
+        }
         return strcasecmp((string) ($left['title'] ?? ''), (string) ($right['title'] ?? ''));
     });
 
@@ -1364,6 +1367,9 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     }
 
     usort($category_rows, function ($left, $right) {
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+        }
         return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
     });
 
@@ -2242,7 +2248,67 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
         }
     }
 
-    $finalize = static function (array $activity) use ($excluded_queue_lookup): ?array {
+    $activity_has_category_scope_changed = static function (array $before, array $after): bool {
+        $left = array_values(array_unique(array_filter(array_map('intval', $before), function ($id) {
+            return $id > 0;
+        })));
+        $right = array_values(array_unique(array_filter(array_map('intval', $after), function ($id) {
+            return $id > 0;
+        })));
+        sort($left, SORT_NUMERIC);
+        sort($right, SORT_NUMERIC);
+        if (count($left) !== count($right)) {
+            return true;
+        }
+        foreach ($left as $idx => $id) {
+            if (!isset($right[$idx]) || (int) $right[$idx] !== (int) $id) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    $enforce_single_aspect_bucket = static function (array $activity) use ($categories_payload, $activity_has_category_scope_changed): array {
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($activity['category_ids'] ?? [])), function ($id) {
+            return $id > 0;
+        })));
+        if (count($category_ids) < 2) {
+            $activity['category_ids'] = $category_ids;
+            return $activity;
+        }
+
+        $preferred_category_id = (int) ($category_ids[0] ?? 0);
+        $filtered_ids = function_exists('ll_tools_filter_category_ids_by_aspect_bucket')
+            ? ll_tools_filter_category_ids_by_aspect_bucket($category_ids, [
+                'categories_payload' => (array) $categories_payload,
+                'prefer_category_id' => $preferred_category_id,
+            ])
+            : $category_ids;
+
+        $filtered_ids = array_values(array_unique(array_filter(array_map('intval', (array) $filtered_ids), function ($id) {
+            return $id > 0;
+        })));
+        if (empty($filtered_ids)) {
+            $filtered_ids = [(int) $category_ids[0]];
+        }
+
+        $activity['category_ids'] = $filtered_ids;
+
+        if ($activity_has_category_scope_changed($category_ids, $filtered_ids)) {
+            $activity['session_word_ids'] = [];
+            if (!isset($activity['details']) || !is_array($activity['details'])) {
+                $activity['details'] = [];
+            }
+            $activity['details']['aspect_bucket_filtered'] = true;
+            $activity['details']['aspect_categories_before'] = count($category_ids);
+            $activity['details']['aspect_categories_after'] = count($filtered_ids);
+        }
+
+        return $activity;
+    };
+
+    $finalize = static function (array $activity) use ($excluded_queue_lookup, $enforce_single_aspect_bucket): ?array {
+        $activity = $enforce_single_aspect_bucket($activity);
         $normalized = ll_tools_normalize_recommendation_activity($activity);
         if (!$normalized) {
             return null;
@@ -2275,6 +2341,13 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
                 $selected[] = $cid;
             }
         }
+    }
+
+    if (count($selected) > 1 && function_exists('ll_tools_filter_category_ids_by_aspect_bucket')) {
+        $selected = ll_tools_filter_category_ids_by_aspect_bucket($selected, [
+            'categories_payload' => (array) $categories_payload,
+            'prefer_category_id' => (int) ($selected[0] ?? 0),
+        ]);
     }
 
     if (empty($selected)) {

@@ -89,6 +89,14 @@ function ll_tools_user_study_wordsets(): array {
             'slug' => (string) $term->slug,
         ];
     }
+    if (!empty($out)) {
+        usort($out, static function ($left, $right) {
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                return ll_tools_locale_compare_strings((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+            }
+            return strnatcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        });
+    }
     return $out;
 }
 
@@ -108,6 +116,10 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
         $cat['slug']  = (string) $cat['slug'];
         $cat['word_count'] = isset($cat['word_count']) ? (int) $cat['word_count'] : 0;
         $cat['gender_supported'] = !empty($cat['gender_supported']);
+        $cat['aspect_bucket'] = isset($cat['aspect_bucket']) ? (string) $cat['aspect_bucket'] : '';
+        if ($cat['aspect_bucket'] === '') {
+            $cat['aspect_bucket'] = 'no-image';
+        }
         return $cat;
     }, $categories);
 }
@@ -228,6 +240,7 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'label'          => isset($w['label']) ? (string) $w['label'] : '',
                 'prompt_label'   => isset($w['prompt_label']) ? (string) $w['prompt_label'] : '',
                 'specific_wrong_answer_ids' => isset($w['specific_wrong_answer_ids']) ? array_values(array_map('intval', (array) $w['specific_wrong_answer_ids'])) : [],
+                'specific_wrong_answer_texts' => isset($w['specific_wrong_answer_texts']) ? array_values(array_map('strval', (array) $w['specific_wrong_answer_texts'])) : [],
                 'specific_wrong_answer_owner_ids' => isset($w['specific_wrong_answer_owner_ids']) ? array_values(array_map('intval', (array) $w['specific_wrong_answer_owner_ids'])) : [],
                 'is_specific_wrong_answer_only' => !empty($w['is_specific_wrong_answer_only']),
                 'image'          => isset($w['image']) ? (string) $w['image'] : '',

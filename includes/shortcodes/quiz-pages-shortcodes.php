@@ -310,7 +310,10 @@ function ll_get_all_quiz_pages_data($opts = []) {
     }
 
     usort($items, function ($a, $b) {
-        return strnatcasecmp($a['display_name'], $b['display_name']);
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
+        }
+        return strnatcasecmp((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
     });
 
     return $items;

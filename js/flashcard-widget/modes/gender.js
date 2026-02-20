@@ -1223,7 +1223,8 @@
         } else {
             $('<div>', {
                 class: 'quiz-text',
-                text: word.label || word.title || ''
+                text: word.label || word.title || '',
+                dir: 'auto'
             }).appendTo($card);
         }
 
