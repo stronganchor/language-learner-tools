@@ -12,6 +12,101 @@ function ll_tools_normalize_image_size($size) {
 }
 
 /**
+ * Parse tri-state flag values used by media proxy mode resolution.
+ *
+ * @return bool|null True/false when recognized, null when undecidable.
+ */
+function ll_tools_parse_media_proxy_flag_value($raw): ?bool {
+    if (is_bool($raw)) {
+        return $raw;
+    }
+
+    if (is_int($raw) || is_float($raw)) {
+        return ((int) $raw) === 1;
+    }
+
+    if (!is_string($raw)) {
+        return null;
+    }
+
+    $value = strtolower(trim($raw));
+    if ($value === '') {
+        return null;
+    }
+
+    if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+        return true;
+    }
+    if (in_array($value, ['0', 'false', 'no', 'off'], true)) {
+        return false;
+    }
+
+    return null;
+}
+
+/**
+ * Determine whether a host should be treated as a local development hostname.
+ */
+function ll_tools_is_local_media_host($host): bool {
+    $host = strtolower(trim((string) $host));
+    if ($host === '') {
+        return false;
+    }
+
+    if (strpos($host, ':') !== false) {
+        $host = (string) preg_replace('/:\d+$/', '', $host);
+    }
+    $host = trim($host, '.');
+    if ($host === '') {
+        return false;
+    }
+
+    if ($host === 'localhost') {
+        return true;
+    }
+    if (substr($host, -6) === '.local') {
+        return true;
+    }
+    if ($host === 'localsite.io' || substr($host, -13) === '.localsite.io') {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Auto-detect whether this installation/request context should use masked proxy URLs.
+ */
+function ll_tools_should_use_masked_image_proxy(): bool {
+    // Optional hard override from wp-config.php.
+    if (defined('LL_TOOLS_USE_MASKED_IMAGE_PROXY')) {
+        $constant_choice = ll_tools_parse_media_proxy_flag_value(LL_TOOLS_USE_MASKED_IMAGE_PROXY);
+        if ($constant_choice !== null) {
+            return (bool) apply_filters('ll_tools_use_masked_image_proxy', $constant_choice);
+        }
+    }
+
+    // Optional site-level flag (e.g. set via WP-CLI / DB).
+    $raw_option = get_option('ll_tools_use_masked_image_proxy', '__ll_tools_proxy_auto__');
+    if ($raw_option !== '__ll_tools_proxy_auto__') {
+        $option_choice = ll_tools_parse_media_proxy_flag_value($raw_option);
+        if ($option_choice !== null) {
+            return (bool) apply_filters('ll_tools_use_masked_image_proxy', $option_choice);
+        }
+    }
+
+    $home_host = (string) wp_parse_url(home_url('/'), PHP_URL_HOST);
+    $request_host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $request_origin = ll_tools_get_request_origin_for_media();
+
+    $auto_enabled = ll_tools_is_local_media_host($home_host)
+        || ll_tools_is_local_media_host($request_host)
+        || ll_tools_is_local_media_host((string) ($request_origin['host'] ?? ''));
+
+    return (bool) apply_filters('ll_tools_use_masked_image_proxy', $auto_enabled);
+}
+
+/**
  * Generate a signed URL that hides the original attachment filename.
  */
 function ll_tools_get_masked_image_url($attachment_id, $size = 'full') {
@@ -21,6 +116,10 @@ function ll_tools_get_masked_image_url($attachment_id, $size = 'full') {
     }
 
     $size = ll_tools_normalize_image_size($size);
+    if (!ll_tools_should_use_masked_image_proxy()) {
+        return (string) (wp_get_attachment_image_url($attachment_id, $size) ?: '');
+    }
+
     $sig  = hash_hmac(
         'sha256',
         $attachment_id . '|' . $size,

@@ -977,6 +977,33 @@ function ll_tools_resolve_image_file_url($image_url): string {
         return $base_url;
     };
 
+    $query_args = [];
+    if ($query !== '') {
+        wp_parse_str($query, $query_args);
+    }
+    $is_masked_proxy = isset($query_args['lltools-img'], $query_args['lltools-size'], $query_args['lltools-sig']);
+    if ($is_masked_proxy) {
+        $use_masked_proxy = function_exists('ll_tools_should_use_masked_image_proxy')
+            ? ll_tools_should_use_masked_image_proxy()
+            : true;
+        if (!$use_masked_proxy) {
+            $attachment_id = absint($query_args['lltools-img']);
+            $proxy_size = isset($query_args['lltools-size'])
+                ? sanitize_key((string) $query_args['lltools-size'])
+                : 'full';
+            if ($proxy_size === '') {
+                $proxy_size = 'full';
+            }
+            if ($attachment_id > 0) {
+                $direct_url = wp_get_attachment_image_url($attachment_id, $proxy_size);
+                if (!empty($direct_url)) {
+                    $resolved_cache[$image_url] = (string) $direct_url;
+                    return $resolved_cache[$image_url];
+                }
+            }
+        }
+    }
+
     $home = wp_parse_url(home_url('/'));
     if (!is_array($home) || empty($home['host'])) {
         $resolved_cache[$image_url] = $image_url;
@@ -994,12 +1021,6 @@ function ll_tools_resolve_image_file_url($image_url): string {
         $resolved_cache[$image_url] = $image_url;
         return $resolved_cache[$image_url];
     }
-
-    $query_args = [];
-    if ($query !== '') {
-        wp_parse_str($query, $query_args);
-    }
-    $is_masked_proxy = isset($query_args['lltools-img'], $query_args['lltools-size'], $query_args['lltools-sig']);
     if ($is_masked_proxy) {
         $resolved_cache[$image_url] = $append_query_fragment(home_url($path));
         return $resolved_cache[$image_url];
@@ -1092,7 +1113,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
-        'masked_image_url'     => true,
+        'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
+            ? ll_tools_should_use_masked_image_proxy()
+            : true,
         'include_pos'          => true,
         'include_gender'       => true,
         'include_plurality'    => true,
