@@ -95,6 +95,38 @@ final class LiveLinkAttachmentUrlRebaseTest extends LL_Tools_TestCase
         $this->assertFalse(ll_tools_is_live_link_request());
 
         $_SERVER['HTTP_X_TUNNEL_UUID'] = 'abc123';
-        $this->assertTrue(ll_tools_is_live_link_request());
+        $this->assertFalse(ll_tools_is_live_link_request());
+    }
+
+    public function test_live_link_request_detection_can_trust_tunnel_headers_via_filter(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'example.com';
+        $_SERVER['HTTP_X_TUNNEL_UUID'] = 'abc123';
+
+        $allow_tunnel_headers = static function (bool $trusted, string $host): bool {
+            return true;
+        };
+        add_filter('ll_tools_media_proxy_trust_tunnel_headers', $allow_tunnel_headers, 10, 2);
+
+        try {
+            $this->assertTrue(ll_tools_is_live_link_request());
+        } finally {
+            remove_filter('ll_tools_media_proxy_trust_tunnel_headers', $allow_tunnel_headers, 10);
+        }
+    }
+
+    public function test_request_origin_ignores_forwarded_headers_when_not_trusted(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'example.com';
+        $_SERVER['HTTPS'] = '';
+        $_SERVER['HTTP_X_FORWARDED_HOST'] = 'spoofed.invalid';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['HTTP_X_FORWARDED_PORT'] = '443';
+
+        $origin = ll_tools_get_request_origin_for_media();
+
+        $this->assertSame('example.com', (string) ($origin['host'] ?? ''));
+        $this->assertSame('http', (string) ($origin['scheme'] ?? ''));
+        $this->assertSame(80, (int) ($origin['port'] ?? 0));
     }
 }

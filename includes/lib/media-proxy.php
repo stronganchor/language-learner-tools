@@ -75,6 +75,51 @@ function ll_tools_is_local_media_host($host): bool {
 }
 
 /**
+ * Detect Local Live Link tunnel hostname by host alone (no header trust).
+ */
+function ll_tools_is_localsite_tunnel_host($host): bool {
+    $host = strtolower(trim((string) $host));
+    if ($host === '') {
+        return false;
+    }
+
+    if (strpos($host, ':') !== false) {
+        $host = (string) preg_replace('/:\d+$/', '', $host);
+    }
+    $host = trim($host, '.');
+    if ($host === '') {
+        return false;
+    }
+
+    return ($host === 'localsite.io' || substr($host, -13) === '.localsite.io');
+}
+
+/**
+ * Whether forwarded headers should be trusted for media URL rebasing/proxying.
+ *
+ * Default is intentionally narrow: only trust forwarded headers when the
+ * request host is already a Local Live Link hostname. This avoids letting
+ * arbitrary requests spoof X-Forwarded-* into rewritten media URLs.
+ */
+function ll_tools_media_proxy_trust_forwarded_headers(): bool {
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $default = ll_tools_is_localsite_tunnel_host($host);
+    return (bool) apply_filters('ll_tools_media_proxy_trust_forwarded_headers', $default, $host);
+}
+
+/**
+ * Whether tunnel-identifying headers (X_TUNNEL_UUID / X_LOCAL_HOST) are trusted.
+ *
+ * Disabled by default unless the request host is already a Local Live Link host.
+ * Sites can opt in (for custom trusted proxy setups) via filter.
+ */
+function ll_tools_media_proxy_trust_tunnel_headers(): bool {
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $default = ll_tools_is_localsite_tunnel_host($host);
+    return (bool) apply_filters('ll_tools_media_proxy_trust_tunnel_headers', $default, $host);
+}
+
+/**
  * Auto-detect whether this installation/request context should use masked proxy URLs.
  */
 function ll_tools_should_use_masked_image_proxy(): bool {
@@ -230,7 +275,11 @@ function ll_tools_get_request_origin_for_media(): array {
     $host = '';
     $port = 0;
 
-    $proto_header = isset($_SERVER['HTTP_X_FORWARDED_PROTO']) ? (string) $_SERVER['HTTP_X_FORWARDED_PROTO'] : '';
+    $trust_forwarded_headers = ll_tools_media_proxy_trust_forwarded_headers();
+
+    $proto_header = $trust_forwarded_headers && isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+        ? (string) $_SERVER['HTTP_X_FORWARDED_PROTO']
+        : '';
     if ($proto_header !== '') {
         $parts = explode(',', $proto_header);
         $candidate = strtolower(trim((string) ($parts[0] ?? '')));
@@ -243,7 +292,7 @@ function ll_tools_get_request_origin_for_media(): array {
     }
 
     $host_header = '';
-    if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+    if ($trust_forwarded_headers && !empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
         $host_header = (string) $_SERVER['HTTP_X_FORWARDED_HOST'];
     } elseif (!empty($_SERVER['HTTP_HOST'])) {
         $host_header = (string) $_SERVER['HTTP_HOST'];
@@ -263,7 +312,9 @@ function ll_tools_get_request_origin_for_media(): array {
     }
 
     if ($port <= 0) {
-        $port_header = isset($_SERVER['HTTP_X_FORWARDED_PORT']) ? (string) $_SERVER['HTTP_X_FORWARDED_PORT'] : '';
+        $port_header = $trust_forwarded_headers && isset($_SERVER['HTTP_X_FORWARDED_PORT'])
+            ? (string) $_SERVER['HTTP_X_FORWARDED_PORT']
+            : '';
         if ($port_header !== '' && ctype_digit($port_header)) {
             $port = (int) $port_header;
         }
@@ -431,8 +482,11 @@ function ll_tools_filter_attachment_srcset_for_request_origin($sources) {
  */
 function ll_tools_is_live_link_request(): bool {
     $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
-    if ($host !== '' && (substr($host, -13) === '.localsite.io' || $host === 'localsite.io')) {
+    if (ll_tools_is_localsite_tunnel_host($host)) {
         return true;
+    }
+    if (!ll_tools_media_proxy_trust_tunnel_headers()) {
+        return false;
     }
     if (!empty($_SERVER['HTTP_X_TUNNEL_UUID'])) {
         return true;

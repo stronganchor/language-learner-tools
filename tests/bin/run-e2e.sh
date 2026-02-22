@@ -9,6 +9,10 @@ if [[ -f "$TESTS_DIR/.env" ]]; then
     # shellcheck disable=SC1091
     source "$TESTS_DIR/.env"
 fi
+if [[ -f "$TESTS_DIR/.env.local" ]]; then
+    # shellcheck disable=SC1091
+    source "$TESTS_DIR/.env.local"
+fi
 
 if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
@@ -19,6 +23,12 @@ if [[ -n "${LL_E2E_BASE_URL:-}" ]]; then
 fi
 if [[ -n "${LL_E2E_LEARN_PATH:-}" ]]; then
     export LL_E2E_LEARN_PATH
+fi
+if [[ -n "${LL_E2E_ADMIN_USER:-}" ]]; then
+    export LL_E2E_ADMIN_USER
+fi
+if [[ -n "${LL_E2E_ADMIN_PASS:-}" ]]; then
+    export LL_E2E_ADMIN_PASS
 fi
 
 append_wslenv_var() {
@@ -37,6 +47,8 @@ append_wslenv_var() {
 # WSLENV so Playwright receives base URL/path config.
 append_wslenv_var "LL_E2E_BASE_URL"
 append_wslenv_var "LL_E2E_LEARN_PATH"
+append_wslenv_var "LL_E2E_ADMIN_USER"
+append_wslenv_var "LL_E2E_ADMIN_PASS"
 
 if [[ ! -d "$E2E_DIR" ]]; then
     echo "E2E directory was not found: $E2E_DIR" >&2

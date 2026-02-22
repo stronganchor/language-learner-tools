@@ -387,12 +387,21 @@ test('level-one introduces the third word after one successful pass on the first
 
     const firstIntro = Gender.selectTargetWord();
     Gender.handlePostSelection(firstIntro, { startQuizRound: function () {} });
-    await wait(4300);
+    let pendingPick = null;
+    for (let i = 0; i < 240; i++) {
+      const probe = Gender.selectTargetWord();
+      if (!Array.isArray(probe)) {
+        pendingPick = probe;
+        break;
+      }
+      await wait(50);
+    }
 
     let answersBeforeThirdIntro = 0;
     let thirdIntroLength = 0;
     for (let i = 0; i < 8; i++) {
-      const pick = Gender.selectTargetWord();
+      const pick = pendingPick || Gender.selectTargetWord();
+      pendingPick = null;
       if (Array.isArray(pick)) {
         thirdIntroLength = pick.length;
         break;
@@ -456,7 +465,10 @@ test('level-one intro sequence plays three clips when only one recording is avai
       startQuizRound: function () {}
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 2800));
+    const startedAt = Date.now();
+    while ((Number(window.__llIntroPlayCount) || 0) < 3 && (Date.now() - startedAt) < 12000) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     return {
       introCalls: Number(window.__llIntroPlayCount || 0)
     };
@@ -503,9 +515,22 @@ test('level-one requires three correct answers before a word is marked complete'
 
     const intro = Gender.selectTargetWord();
     Gender.handlePostSelection(intro, { startQuizRound: function () {} });
-    await wait(2600);
-
-    const one = Gender.selectTargetWord();
+    let one = null;
+    for (let i = 0; i < 240; i++) {
+      const probe = Gender.selectTargetWord();
+      if (!Array.isArray(probe)) {
+        one = probe;
+        break;
+      }
+      await wait(50);
+    }
+    if (!one) {
+      return {
+        firstCompleted: false,
+        secondCompleted: false,
+        thirdCompleted: false
+      };
+    }
     const first = await Gender.handleAnswer({
       targetWord: one,
       isCorrect: true,
@@ -581,7 +606,13 @@ test('level-one does not introduce the next word immediately after the first cor
 
     const firstIntro = Gender.selectTargetWord();
     Gender.handlePostSelection(firstIntro, { startQuizRound: function () {} });
-    await wait(4300);
+    for (let i = 0; i < 240; i++) {
+      const probe = Gender.selectTargetWord();
+      if (!Array.isArray(probe)) {
+        break;
+      }
+      await wait(50);
+    }
 
     let thirdIntroSelection = null;
     for (let i = 0; i < 40; i++) {

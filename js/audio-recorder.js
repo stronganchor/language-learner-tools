@@ -2141,8 +2141,6 @@
                 throw new Error('Browser does not support required audio formats for recording');
             }
 
-            console.log('Using MIME type:', options.mimeType);
-
             mediaRecorder = new MediaRecorder(stream, options);
 
             audioChunks = [];
@@ -2364,9 +2362,7 @@
             el.submitBtn.innerHTML = icons.check;
         }
 
-        controls.playbackAudio.play().catch(err => {
-            console.log('Auto-play prevented by browser:', err);
-        });
+        controls.playbackAudio.play().catch(() => {});
     }
 
     function showProcessingReview() {
@@ -2711,7 +2707,6 @@
         // Extension detection - prioritize quality formats
         const extension = getBlobExtension(uploadBlob.type);
 
-        console.log('Blob type:', uploadBlob.type, 'Extension:', extension);
         formData.append('audio', uploadBlob, `${img.title}${extension}`);
         if (autoProcessed) {
             formData.append('auto_processed', '1');

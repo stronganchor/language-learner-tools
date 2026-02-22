@@ -4739,7 +4739,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         if ($slug === '' || !isset($slug_to_term_id[$slug])) {
             continue;
         }
-        ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : []);
+        ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
     }
 
     // Import word images.
@@ -4793,7 +4793,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
             wp_set_object_terms($post_id, $term_ids, 'word-category', false);
         }
 
-        ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
+        ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : [], 'word_images');
         ll_tools_import_apply_featured_image((int) $post_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word_image', $is_new_word_image);
         $word_image_slug_to_id[$slug] = (int) $post_id;
     }
@@ -4867,14 +4867,96 @@ function ll_tools_sanitize_import_post_status($status, $fallback = 'draft') {
  * @param array $meta
  * @return void
  */
-function ll_tools_import_replace_post_meta_values(int $post_id, array $meta): void {
+function ll_tools_import_should_replace_post_meta_key(string $key, string $post_type = ''): bool {
+    $key = trim($key);
+    $post_type = sanitize_key($post_type);
+    if ($key === '') {
+        return false;
+    }
+
+    // Public custom meta keys are allowed by default.
+    if ($key[0] !== '_') {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+    }
+
+    $allowed_protected_prefixes = ['_ll_'];
+    $allowed_protected_exact = [
+        '_ll_similar_word_id',
+        '_ll_autopicked_image_id',
+        '_ll_needs_audio_processing',
+    ];
+
+    foreach ($allowed_protected_prefixes as $prefix) {
+        if (strpos($key, $prefix) === 0) {
+            return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+        }
+    }
+    if (in_array($key, $allowed_protected_exact, true)) {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+    }
+
+    $blocked_exact = [
+        '_edit_lock',
+        '_edit_last',
+        '_thumbnail_id',
+        '_wp_attached_file',
+        '_wp_attachment_metadata',
+        '_wp_attachment_backup_sizes',
+        '_wp_old_slug',
+        '_wp_desired_post_slug',
+        '_wp_trash_meta_status',
+        '_wp_trash_meta_time',
+        '_wp_trash_meta_comments_status',
+    ];
+    if (in_array($key, $blocked_exact, true)) {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+    }
+
+    $blocked_prefixes = [
+        '_wp_',
+        '_edit_',
+        '_oembed_',
+    ];
+    foreach ($blocked_prefixes as $prefix) {
+        if (strpos($key, $prefix) === 0) {
+            return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+        }
+    }
+
+    // Unknown protected keys are denied by default; allow via filter when needed.
+    return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+}
+
+function ll_tools_import_should_replace_term_meta_key(string $key, string $taxonomy = ''): bool {
+    $key = trim($key);
+    $taxonomy = sanitize_key($taxonomy);
+    if ($key === '') {
+        return false;
+    }
+
+    if ($key[0] !== '_') {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', true, $key, $taxonomy);
+    }
+
+    if (strpos($key, '_ll_') === 0) {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', true, $key, $taxonomy);
+    }
+
+    if (strpos($key, '_wp_') === 0 || strpos($key, '_edit_') === 0) {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', false, $key, $taxonomy);
+    }
+
+    return (bool) apply_filters('ll_tools_import_allow_term_meta_key', false, $key, $taxonomy);
+}
+
+function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, string $post_type = ''): void {
     if ($post_id <= 0 || empty($meta)) {
         return;
     }
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '') {
+        if (!ll_tools_import_should_replace_post_meta_key($key, $post_type)) {
             continue;
         }
         delete_post_meta($post_id, $key);
@@ -4891,14 +4973,14 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta): vo
  * @param array $meta
  * @return void
  */
-function ll_tools_import_replace_term_meta_values(int $term_id, array $meta): void {
+function ll_tools_import_replace_term_meta_values(int $term_id, array $meta, string $taxonomy = ''): void {
     if ($term_id <= 0 || empty($meta)) {
         return;
     }
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '') {
+        if (!ll_tools_import_should_replace_term_meta_key($key, $taxonomy)) {
             continue;
         }
         delete_term_meta($term_id, $key);
@@ -5089,7 +5171,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             wp_set_object_terms($word_id, $part_of_speech_ids, 'part_of_speech', false);
         }
 
-        ll_tools_import_replace_post_meta_values($word_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
+        ll_tools_import_replace_post_meta_values($word_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : [], 'words');
         ll_tools_import_apply_featured_image($word_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word', $is_new_word);
 
         $word_label = isset($item['title']) ? (string) $item['title'] : (string) $postarr['post_title'];
@@ -5192,7 +5274,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             }
 
             $audio_post_id = (int) $audio_post_id;
-            ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : []);
+            ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : [], 'word_audio');
 
             $recording_type_ids = ll_tools_import_resolve_taxonomy_term_ids_by_slugs((array) ($audio_item['recording_types'] ?? []), 'recording_type', true, $result['errors']);
             if (!empty($recording_type_ids)) {
@@ -5449,7 +5531,7 @@ function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, ar
             ll_tools_import_track_undo_id($result, 'wordset_term_ids', $term_id);
         }
 
-        ll_tools_import_replace_term_meta_values($term_id, isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : []);
+        ll_tools_import_replace_term_meta_values($term_id, isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : [], 'wordset');
         if (get_current_user_id() > 0) {
             delete_term_meta($term_id, 'manager_user_id');
             add_term_meta($term_id, 'manager_user_id', get_current_user_id());
