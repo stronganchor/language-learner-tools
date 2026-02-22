@@ -936,6 +936,52 @@ function ll_tools_wordset_page_progress_reset_notice(array $category_options): ?
     ];
 }
 
+function ll_tools_wordset_page_lesson_enable_notice(): ?array {
+    $status = isset($_GET['ll_wordset_lesson_enable'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_lesson_enable']))
+        : '';
+    if ($status === '') {
+        return null;
+    }
+
+    if ($status === 'ok') {
+        return [
+            'type' => 'success',
+            'message' => __('Lesson pages are now enabled for this word set.', 'll-tools-text-domain'),
+        ];
+    }
+
+    $error = isset($_GET['ll_wordset_lesson_enable_error'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_lesson_enable_error']))
+        : '';
+
+    if ($error === 'permission') {
+        return [
+            'type' => 'error',
+            'message' => __('You do not have permission to enable lesson pages.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($error === 'nonce') {
+        return [
+            'type' => 'error',
+            'message' => __('Your session expired. Please try again.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($error === 'wordset') {
+        return [
+            'type' => 'error',
+            'message' => __('Unable to find that word set.', 'll-tools-text-domain'),
+        ];
+    }
+
+    return [
+        'type' => 'error',
+        'message' => __('Unable to enable lesson pages right now.', 'll-tools-text-domain'),
+    ];
+}
+
 function ll_tools_wordset_page_handle_progress_reset_action(): void {
     if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
         return;
@@ -1544,6 +1590,23 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $progress_reset_all_confirm = __('This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?', 'll-tools-text-domain');
             $progress_reset_category_confirm_template = __('This will permanently delete your progress for %s. This cannot be undone. Continue?', 'll-tools-text-domain');
             $progress_reset_category_aria_template = __('Reset progress for %s', 'll-tools-text-domain');
+        }
+    }
+
+    $lesson_enable_notice = ($view === '') ? ll_tools_wordset_page_lesson_enable_notice() : null;
+    $can_manage_vocab_lessons = current_user_can('view_ll_tools');
+    $show_enable_lessons_button = false;
+    $enable_lessons_button_label = __('Enable lesson pages', 'll-tools-text-domain');
+    if ($view === '' && $can_manage_vocab_lessons && empty($categories)) {
+        $candidate_rows = ll_tools_get_wordset_page_category_rows($wordset_id);
+        if (!empty($candidate_rows)) {
+            $show_enable_lessons_button = true;
+            if (function_exists('ll_tools_get_vocab_lesson_wordset_ids')) {
+                $enabled_wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
+                if (in_array($wordset_id, $enabled_wordset_ids, true)) {
+                    $enable_lessons_button_label = __('Generate lesson pages', 'll-tools-text-domain');
+                }
+            }
         }
     }
 
@@ -2455,6 +2518,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </header>
             <?php endif; ?>
 
+            <?php if (is_array($lesson_enable_notice) && !empty($lesson_enable_notice['message'])) : ?>
+                <div
+                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($lesson_enable_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
+                    role="<?php echo esc_attr(($lesson_enable_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
+                    <?php echo esc_html((string) $lesson_enable_notice['message']); ?>
+                </div>
+            <?php endif; ?>
+
             <section class="ll-wordset-top-actions">
                 <div class="ll-wordset-mode-buttons" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                     <?php
@@ -2493,7 +2564,27 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
             <?php if (empty($visible_categories)) : ?>
                 <div class="ll-wordset-empty">
-                    <?php echo esc_html__('No lesson categories yet.', 'll-tools-text-domain'); ?>
+                    <?php if ($show_enable_lessons_button) : ?>
+                        <p class="ll-wordset-empty__message">
+                            <?php echo esc_html__('Lesson pages are not enabled for this word set yet.', 'll-tools-text-domain'); ?>
+                        </p>
+                        <div class="ll-wordset-empty__actions">
+                            <form
+                                class="ll-wordset-enable-lessons-form"
+                                method="post"
+                                action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                <input type="hidden" name="action" value="ll_tools_enable_vocab_lessons_for_wordset" />
+                                <input type="hidden" name="ll_tools_enable_vocab_lesson_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                                <input type="hidden" name="redirect_to" value="<?php echo esc_attr($wordset_url); ?>" />
+                                <?php wp_nonce_field('ll_tools_enable_vocab_lessons_for_wordset_' . $wordset_id, 'll_tools_enable_vocab_lessons_nonce'); ?>
+                                <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-enable-lessons-button">
+                                    <?php echo esc_html($enable_lessons_button_label); ?>
+                                </button>
+                            </form>
+                        </div>
+                    <?php else : ?>
+                        <?php echo esc_html__('No lesson categories yet.', 'll-tools-text-domain'); ?>
+                    <?php endif; ?>
                 </div>
             <?php else : ?>
                 <?php if ($visible_category_count > 1) : ?>

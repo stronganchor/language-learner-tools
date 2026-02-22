@@ -926,6 +926,72 @@ function ll_tools_vocab_lesson_post_link($post_link, $post) {
 }
 add_filter('post_type_link', 'll_tools_vocab_lesson_post_link', 10, 2);
 
+function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
+    $wordset_id = isset($_POST['ll_tools_enable_vocab_lesson_wordset_id'])
+        ? (int) wp_unslash((string) $_POST['ll_tools_enable_vocab_lesson_wordset_id'])
+        : 0;
+    $nonce = isset($_POST['ll_tools_enable_vocab_lessons_nonce'])
+        ? wp_unslash((string) $_POST['ll_tools_enable_vocab_lessons_nonce'])
+        : '';
+    $redirect_to = isset($_POST['redirect_to'])
+        ? wp_unslash((string) $_POST['redirect_to'])
+        : '';
+
+    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    $default_redirect = admin_url('edit.php?post_type=ll_vocab_lesson');
+    if ($wordset instanceof WP_Term && !is_wp_error($wordset) && function_exists('ll_tools_get_wordset_page_view_url')) {
+        $default_redirect = ll_tools_get_wordset_page_view_url($wordset);
+    }
+
+    $redirect_to = wp_validate_redirect($redirect_to, '');
+    if (!is_string($redirect_to) || $redirect_to === '') {
+        $redirect_to = $default_redirect;
+    }
+
+    $redirect_with_status = static function (string $status, string $error = '') use ($redirect_to): void {
+        $args = ['ll_wordset_lesson_enable' => $status];
+        if ($error !== '') {
+            $args['ll_wordset_lesson_enable_error'] = $error;
+        }
+        wp_safe_redirect(add_query_arg($args, $redirect_to));
+        exit;
+    };
+
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+        $redirect_with_status('error', 'request');
+    }
+
+    if (!current_user_can('view_ll_tools')) {
+        $redirect_with_status('error', 'permission');
+    }
+
+    if ($wordset_id <= 0 || !($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        $redirect_with_status('error', 'wordset');
+    }
+
+    if (!wp_verify_nonce($nonce, 'll_tools_enable_vocab_lessons_for_wordset_' . $wordset_id)) {
+        $redirect_with_status('error', 'nonce');
+    }
+
+    $enabled_wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
+    if (!in_array($wordset_id, $enabled_wordset_ids, true)) {
+        $enabled_wordset_ids[] = $wordset_id;
+        sort($enabled_wordset_ids, SORT_NUMERIC);
+    }
+
+    $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+    update_option('ll_vocab_lesson_wordsets', array_values($enabled_wordset_ids), false);
+    $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = false;
+
+    set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 5 * MINUTE_IN_SECONDS);
+    $result = ll_tools_sync_vocab_lesson_pages($enabled_wordset_ids);
+    set_transient('ll_tools_vocab_lesson_sync_notice', $result, 30);
+
+    $redirect_with_status('ok');
+}
+add_action('admin_post_ll_tools_enable_vocab_lessons_for_wordset', 'll_tools_handle_enable_vocab_lessons_for_wordset_request');
+add_action('admin_post_nopriv_ll_tools_enable_vocab_lessons_for_wordset', 'll_tools_handle_enable_vocab_lessons_for_wordset_request');
+
 function ll_tools_handle_vocab_lesson_settings_submit() {
     if (!is_admin()) {
         return;

@@ -188,6 +188,7 @@ function ll_add_wordset_language_field($term) {
     $term_id = $is_edit ? (int) $term->term_id : 0;
 
     $language = '';
+    $hide_lesson_text_for_non_text_quiz = false;
     $has_gender = false;
     $has_plurality = false;
     $has_verb_tense = false;
@@ -216,6 +217,7 @@ function ll_add_wordset_language_field($term) {
 
     if ($term_id > 0) {
         $language = (string) get_term_meta($term_id, 'll_language', true);
+        $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
         $has_gender = (bool) get_term_meta($term_id, 'll_wordset_has_gender', true);
         $has_plurality = (bool) get_term_meta($term_id, 'll_wordset_has_plurality', true);
         $has_verb_tense = (bool) get_term_meta($term_id, 'll_wordset_has_verb_tense', true);
@@ -255,6 +257,15 @@ function ll_add_wordset_language_field($term) {
         '<input type="text" id="wordset-language" name="wordset_language" value="' . esc_attr($language) . '" required>',
         'wordset-language',
         __('Enter the language for this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-hide-lesson-text-wrap',
+        __('Lesson/grid text visibility', 'll-tools-text-domain'),
+        '<label><input type="checkbox" id="ll-wordset-hide-lesson-text" name="ll_wordset_hide_lesson_text_for_non_text_quiz" value="1" ' . checked($hide_lesson_text_for_non_text_quiz, true, false) . ' /> ' . esc_html__('Hide word text on lesson pages/word grids when the category quiz shows only images/audio.', 'll-tools-text-domain') . '</label>',
+        'll-wordset-hide-lesson-text',
+        __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -422,6 +433,7 @@ add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
+        || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_has_gender'])
         || isset($_POST['ll_wordset_gender_options'])
         || isset($_POST['ll_wordset_gender_symbol_masculine'])
@@ -450,6 +462,9 @@ function ll_save_wordset_language($term_id) {
     }
 
     if ($has_meta_input) {
+        $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
+        update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+
         $has_gender = isset($_POST['ll_wordset_has_gender']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_has_gender', $has_gender);
 
@@ -1168,6 +1183,13 @@ function ll_tools_wordset_has_grammatical_gender(int $wordset_id): bool {
         return false;
     }
     return (bool) get_term_meta($wordset_id, 'll_wordset_has_gender', true);
+}
+
+function ll_tools_wordset_hide_lesson_text_for_non_text_quiz(int $wordset_id): bool {
+    if ($wordset_id <= 0) {
+        return false;
+    }
+    return (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
 }
 
 function ll_tools_wordset_get_gender_options(int $wordset_id): array {

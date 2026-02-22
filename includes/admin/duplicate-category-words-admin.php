@@ -317,6 +317,7 @@ function ll_tools_duplicate_category_words_copy_source_category_settings($source
     $meta_keys = [
         'll_quiz_prompt_type',
         'll_quiz_option_type',
+        'll_lesson_grid_text_visibility_override',
         'use_word_titles_for_audio',
         'll_desired_recording_types',
     ];

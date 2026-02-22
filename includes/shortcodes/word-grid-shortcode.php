@@ -1683,6 +1683,7 @@ function ll_tools_word_grid_shortcode($atts) {
 
     $category_term = null;
     $is_text_based = false;
+    $hide_lesson_grid_text = false;
     if ($sanitized_category !== '') {
         $category_term = get_term_by('slug', $sanitized_category, 'word-category');
     }
@@ -1705,6 +1706,9 @@ function ll_tools_word_grid_shortcode($atts) {
         } else {
             $wordset_term = null;
         }
+    }
+    if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_should_hide_lesson_grid_text')) {
+        $hide_lesson_grid_text = ll_tools_should_hide_lesson_grid_text($category_term, $wordset_id);
     }
     $wordset_has_gender = false;
     if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
@@ -2052,6 +2056,9 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($is_text_based) {
             $grid_classes .= ' ll-word-grid--text';
         }
+        if ($hide_lesson_grid_text) {
+            $grid_classes .= ' ll-word-grid--hide-text';
+        }
         $grid_attrs = 'data-ll-word-grid';
         if ($wordset_id > 0) {
             $grid_attrs .= ' data-ll-wordset-id="' . esc_attr($wordset_id) . '"';
@@ -2237,7 +2244,11 @@ function ll_tools_word_grid_shortcode($atts) {
             $title_row_html .= '</h3>';
             $title_row_html .= '</div>';
 
-            if ($is_text_based) {
+            if ($hide_lesson_grid_text) {
+                if ($actions_row_html !== '') {
+                    echo $actions_row_html;
+                }
+            } elseif ($is_text_based) {
                 echo $title_row_html;
                 if ($actions_row_html !== '') {
                     echo $actions_row_html;
@@ -2248,36 +2259,38 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
                 echo $title_row_html;
             }
-            $meta_row_class = 'll-word-meta-row';
-            if ($pos_label === '' && $gender_label === '' && $plurality_label === '' && $verb_tense_label === '' && $verb_mood_label === '') {
-                $meta_row_class .= ' ll-word-meta-row--empty';
+            if (!$hide_lesson_grid_text) {
+                $meta_row_class = 'll-word-meta-row';
+                if ($pos_label === '' && $gender_label === '' && $plurality_label === '' && $verb_tense_label === '' && $verb_mood_label === '') {
+                    $meta_row_class .= ' ll-word-meta-row--empty';
+                }
+                echo '<div class="' . esc_attr($meta_row_class) . '" data-ll-word-meta>';
+                echo '<span class="ll-word-meta-tag ll-word-meta-tag--pos" data-ll-word-pos>' . esc_html($pos_label) . '</span>';
+                $gender_tag_class = 'll-word-meta-tag ll-word-meta-tag--gender';
+                $gender_role = (string) ($gender_display['role'] ?? '');
+                if ($gender_role !== '') {
+                    $gender_tag_class .= ' ll-word-meta-tag--gender-' . sanitize_html_class($gender_role);
+                }
+                $gender_style = (string) ($gender_display['style'] ?? '');
+                $gender_style_attr = ($gender_style !== '') ? ' style="' . esc_attr($gender_style) . '"' : '';
+                $gender_aria_label = (string) ($gender_display['label'] ?? $gender_label);
+                echo '<span class="' . esc_attr($gender_tag_class) . '" data-ll-word-gender data-ll-gender-role="' . esc_attr($gender_role) . '"' . $gender_style_attr . ' aria-label="' . esc_attr($gender_aria_label) . '" title="' . esc_attr($gender_aria_label) . '">';
+                if (!empty($gender_display['html'])) {
+                    echo $gender_display['html'];
+                } else {
+                    echo esc_html($gender_label);
+                }
+                echo '</span>';
+                echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
+                echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-tense" data-ll-word-verb-tense>' . esc_html($verb_tense_label) . '</span>';
+                echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-mood" data-ll-word-verb-mood>' . esc_html($verb_mood_label) . '</span>';
+                echo '</div>';
+                $note_class = 'll-word-note';
+                if ($word_note === '') {
+                    $note_class .= ' ll-word-note--empty';
+                }
+                echo '<div class="' . esc_attr($note_class) . '" data-ll-word-note>' . esc_html($word_note) . '</div>';
             }
-            echo '<div class="' . esc_attr($meta_row_class) . '" data-ll-word-meta>';
-            echo '<span class="ll-word-meta-tag ll-word-meta-tag--pos" data-ll-word-pos>' . esc_html($pos_label) . '</span>';
-            $gender_tag_class = 'll-word-meta-tag ll-word-meta-tag--gender';
-            $gender_role = (string) ($gender_display['role'] ?? '');
-            if ($gender_role !== '') {
-                $gender_tag_class .= ' ll-word-meta-tag--gender-' . sanitize_html_class($gender_role);
-            }
-            $gender_style = (string) ($gender_display['style'] ?? '');
-            $gender_style_attr = ($gender_style !== '') ? ' style="' . esc_attr($gender_style) . '"' : '';
-            $gender_aria_label = (string) ($gender_display['label'] ?? $gender_label);
-            echo '<span class="' . esc_attr($gender_tag_class) . '" data-ll-word-gender data-ll-gender-role="' . esc_attr($gender_role) . '"' . $gender_style_attr . ' aria-label="' . esc_attr($gender_aria_label) . '" title="' . esc_attr($gender_aria_label) . '">';
-            if (!empty($gender_display['html'])) {
-                echo $gender_display['html'];
-            } else {
-                echo esc_html($gender_label);
-            }
-            echo '</span>';
-            echo '<span class="ll-word-meta-tag ll-word-meta-tag--plurality" data-ll-word-plurality>' . esc_html($plurality_label) . '</span>';
-            echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-tense" data-ll-word-verb-tense>' . esc_html($verb_tense_label) . '</span>';
-            echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-mood" data-ll-word-verb-mood>' . esc_html($verb_mood_label) . '</span>';
-            echo '</div>';
-            $note_class = 'll-word-note';
-            if ($word_note === '') {
-                $note_class .= ' ll-word-note--empty';
-            }
-            echo '<div class="' . esc_attr($note_class) . '" data-ll-word-note>' . esc_html($word_note) . '</div>';
 
             if ($can_edit_words) {
                 $word_input_id = 'll-word-edit-word-' . $word_id;
@@ -2519,7 +2532,7 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Audio buttons
             if ($has_recordings) {
-                if ($has_recording_caption) {
+                if ($has_recording_caption && !$hide_lesson_grid_text) {
                     $recordings_html .= '<div class="ll-word-recordings ll-word-recordings--with-text" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';
                     foreach ($recording_rows as $row) {
                         $row_id_attr = !empty($row['id']) ? ' data-recording-id="' . esc_attr((int) $row['id']) . '"' : '';
