@@ -320,6 +320,34 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 6px;
 }
 
+.ll-wordset-page .ll-wordset-next-card,
+.ll-wordset-page .ll-wordset-next-remove {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    box-shadow: none;
+    font: inherit !important;
+    letter-spacing: normal !important;
+    line-height: normal !important;
+    margin: 0 !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    text-transform: none !important;
+}
+
+.ll-wordset-page .ll-wordset-next-card::-moz-focus-inner,
+.ll-wordset-page .ll-wordset-next-remove::-moz-focus-inner {
+    border: 0;
+    padding: 0;
+}
+
+.ll-wordset-page .ll-wordset-next-card,
+.ll-wordset-page .ll-wordset-next-card *,
+.ll-wordset-page .ll-wordset-next-remove,
+.ll-wordset-page .ll-wordset-next-remove * {
+    box-sizing: border-box;
+}
+
 .ll-wordset-next-heading {
     margin: 0;
     font-size: 12px;
@@ -360,62 +388,71 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     animation: ll-wordset-next-card-pulse 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.ll-wordset-next-card {
+.ll-wordset-page .ll-wordset-next-card {
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--ll-wp-border);
-    border-radius: 14px;
-    background: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
+    border: 1px solid var(--ll-wp-border) !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
     gap: 0;
     min-height: 74px;
-    padding: 11px 88px 11px 14px;
+    padding: 11px 88px 11px 14px !important;
     cursor: pointer;
-    text-align: left;
+    text-align: left !important;
     width: fit-content;
     max-width: 100%;
-    color: var(--ll-wp-text);
-    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08);
+    color: var(--ll-wp-text) !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
 }
 
-.ll-wordset-next-card:hover,
-.ll-wordset-next-card:focus-visible {
-    border-color: rgba(31, 107, 92, 0.45);
-    box-shadow: 0 12px 22px rgba(46, 42, 36, 0.14), 0 0 0 2px rgba(31, 107, 92, 0.14);
-    background: #ffffff;
+.ll-wordset-page .ll-wordset-next-card:hover,
+.ll-wordset-page .ll-wordset-next-card:focus-visible {
+    border-color: rgba(31, 107, 92, 0.45) !important;
+    box-shadow: 0 12px 22px rgba(46, 42, 36, 0.14), 0 0 0 2px rgba(31, 107, 92, 0.14) !important;
+    background: #ffffff !important;
+    color: var(--ll-wp-text) !important;
     transform: translateY(-2px);
     outline: none;
 }
 
-.ll-wordset-next-card.is-loading {
+.ll-wordset-page .ll-wordset-next-card.is-loading {
     cursor: progress;
-    border-color: #d8dee7;
-    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08);
+    border-color: #d8dee7 !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
     transform: none;
 }
 
-.ll-wordset-next-card.is-loading:hover,
-.ll-wordset-next-card.is-loading:focus-visible {
-    border-color: #d8dee7;
-    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08);
+.ll-wordset-page .ll-wordset-next-card.is-loading:hover,
+.ll-wordset-page .ll-wordset-next-card.is-loading:focus-visible {
+    border-color: #d8dee7 !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
     transform: none;
-    background: #fff;
+    background: #fff !important;
 }
 
-.ll-wordset-next-card.is-disabled {
+.ll-wordset-page .ll-wordset-next-card.is-disabled {
     opacity: 0.72;
     cursor: default;
 }
 
-.ll-wordset-next-card.is-disabled:hover,
-.ll-wordset-next-card.is-disabled:focus-visible {
-    border-color: var(--ll-wp-border);
-    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08);
+.ll-wordset-page .ll-wordset-next-card.is-disabled:hover,
+.ll-wordset-page .ll-wordset-next-card.is-disabled:focus-visible {
+    border-color: var(--ll-wp-border) !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
     transform: none;
-    background: #fff;
+    background: #fff !important;
+}
+
+.ll-wordset-page .ll-wordset-next-card:disabled {
+    background: #fff !important;
+    color: var(--ll-wp-text) !important;
 }
 
 .ll-wordset-next-card__main {
@@ -473,14 +510,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: transparent;
 }
 
-.ll-wordset-next-thumb--image img {
+.ll-wordset-page .ll-wordset-next-thumb--image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    display: block;
-    border-radius: 10px;
-    border: 1px solid #e2dace;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    border: 1px solid #e2dace !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+    background: transparent !important;
 }
 
 .ll-wordset-next-thumb--text {
@@ -489,10 +530,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding: 5px;
 }
 
-.ll-wordset-next-thumb__text {
+.ll-wordset-page .ll-wordset-next-thumb__text {
     font-size: 11px;
     line-height: 1.15;
     font-weight: 700;
+    font-family: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
     text-align: center;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -517,20 +561,24 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: 0;
 }
 
-.ll-wordset-next-card__line {
+.ll-wordset-page .ll-wordset-next-card__line {
     display: block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 0.86rem;
     line-height: 1.2;
-    color: #0f172a;
+    color: #0f172a !important;
     font-weight: 600;
+    font-family: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    margin: 0 !important;
 }
 
-.ll-wordset-next-card__line--muted {
+.ll-wordset-page .ll-wordset-next-card__line--muted {
     font-size: 0.76rem;
-    color: var(--ll-wp-muted);
+    color: var(--ll-wp-muted) !important;
     font-weight: 500;
 }
 
@@ -1344,6 +1392,24 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-align: center;
 }
 
+.ll-wordset-empty__message {
+    margin: 0;
+}
+
+.ll-wordset-empty__actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: center;
+}
+
+.ll-wordset-enable-lessons-form {
+    margin: 0;
+}
+
+.ll-wordset-page .ll-wordset-enable-lessons-button {
+    min-height: 42px !important;
+}
+
 .ll-wordset-empty.ll-wordset-login-window {
     max-width: 920px;
     padding: 0;
@@ -1780,41 +1846,45 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-weight: 500;
 }
 
-.ll-wordset-queue-item__count {
+.ll-wordset-page .ll-wordset-queue-item__count {
     min-width: 24px;
     height: 22px;
     border-radius: 999px;
-    background: var(--ll-wp-pill-slate);
-    color: var(--ll-wp-pill-slate-text);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    background: var(--ll-wp-pill-slate) !important;
+    color: var(--ll-wp-pill-slate-text) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     font-size: 11px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     padding: 0 6px;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
 }
 
-.ll-wordset-queue-item__remove {
+.ll-wordset-page .ll-wordset-queue-item__remove {
     width: 26px;
     height: 26px;
-    border: 1px solid #cdd5e1;
-    border-radius: 8px;
-    background: #ffffff;
-    color: #475569;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    border: 1px solid #cdd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #475569 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     cursor: pointer;
-    padding: 0;
+    padding: 0 !important;
+    box-shadow: none !important;
     transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
-.ll-wordset-queue-item__remove:hover,
-.ll-wordset-queue-item__remove:focus-visible {
-    border-color: #8fa0b7;
-    color: #1f2937;
-    background: #f8fafc;
+.ll-wordset-page .ll-wordset-queue-item__remove:hover,
+.ll-wordset-page .ll-wordset-queue-item__remove:focus-visible {
+    border-color: #8fa0b7 !important;
+    color: #1f2937 !important;
+    background: #f8fafc !important;
     outline: none;
 }
 
@@ -3613,11 +3683,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         max-width: 100%;
     }
 
-    .ll-wordset-next-card {
+    .ll-wordset-page .ll-wordset-next-card {
         width: 100%;
         min-height: 66px;
-        border-radius: 12px;
-        padding: 9px 76px 9px 10px;
+        border-radius: 12px !important;
+        padding: 9px 76px 9px 10px !important;
     }
 
     .ll-wordset-next-card__main {
@@ -3640,11 +3710,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         height: 20px !important;
     }
 
-    .ll-wordset-next-card__line {
+    .ll-wordset-page .ll-wordset-next-card__line {
         font-size: 0.81rem;
     }
 
-    .ll-wordset-next-card__line--muted {
+    .ll-wordset-page .ll-wordset-next-card__line--muted {
         font-size: 0.72rem;
     }
 
@@ -4432,8 +4502,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         display: none;
     }
 
-    .ll-wordset-next-card {
-        padding-right: 70px;
+    .ll-wordset-page .ll-wordset-next-card {
+        padding-right: 70px !important;
     }
 
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"]::before,

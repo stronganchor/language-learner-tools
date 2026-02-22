@@ -380,6 +380,56 @@ function ll_tools_quiz_requires_audio(array $config, string $display_mode = ''):
     return $needs_option_audio || $needs_prompt_audio;
 }
 
+function ll_tools_get_category_lesson_grid_text_visibility_override($term): string {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term)) {
+        return 'inherit';
+    }
+
+    $value = sanitize_key((string) get_term_meta($term->term_id, 'll_lesson_grid_text_visibility_override', true));
+    if (in_array($value, ['show', 'hide'], true)) {
+        return $value;
+    }
+
+    return 'inherit';
+}
+
+function ll_tools_category_quiz_shows_text($term): bool {
+    $config = ll_tools_get_category_quiz_config($term);
+    $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
+    $option_type = (string) ($config['option_type'] ?? '');
+
+    if (strpos($prompt_type, 'text') === 0) {
+        return true;
+    }
+    if (strpos($option_type, 'text') === 0) {
+        return true;
+    }
+
+    return false;
+}
+
+function ll_tools_should_hide_lesson_grid_text($term, int $wordset_id = 0): bool {
+    $override = ll_tools_get_category_lesson_grid_text_visibility_override($term);
+    if ($override === 'show') {
+        return false;
+    }
+    if ($override === 'hide') {
+        return true;
+    }
+
+    if ($wordset_id <= 0 || !function_exists('ll_tools_wordset_hide_lesson_text_for_non_text_quiz')) {
+        return false;
+    }
+    if (!ll_tools_wordset_hide_lesson_text_for_non_text_quiz($wordset_id)) {
+        return false;
+    }
+
+    return !ll_tools_category_quiz_shows_text($term);
+}
+
 /**
  * Field to capture prompt + answer option preferences (add screen)
  */
@@ -411,6 +461,15 @@ function ll_add_quiz_prompt_option_fields($term) {
         </select>
         <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
     </div>
+    <div class="form-field term-lesson-grid-text-visibility-wrap">
+        <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
+        <select name="ll_lesson_grid_text_visibility_override" id="ll_lesson_grid_text_visibility_override">
+            <option value="inherit"><?php esc_html_e('Use word set default', 'll-tools-text-domain'); ?></option>
+            <option value="show"><?php esc_html_e('Always show text', 'll-tools-text-domain'); ?></option>
+            <option value="hide"><?php esc_html_e('Always hide text', 'll-tools-text-domain'); ?></option>
+        </select>
+        <p class="description"><?php esc_html_e('Controls lesson pages and [word_grid] displays. "Hide" shows images/audio buttons only. "Use word set default" follows the word set setting for non-text quiz categories.', 'll-tools-text-domain'); ?></p>
+    </div>
     <script>
       (function(){
         const prompt = document.getElementById('ll_quiz_prompt_type');
@@ -439,6 +498,7 @@ function ll_add_quiz_prompt_option_fields($term) {
  */
 function ll_edit_quiz_prompt_option_fields($term) {
     $config = ll_tools_get_category_quiz_config($term);
+    $lesson_grid_text_visibility_override = ll_tools_get_category_lesson_grid_text_visibility_override($term);
     ?>
     <tr class="form-field term-quiz-prompt-wrap">
         <th scope="row" valign="top">
@@ -468,6 +528,19 @@ function ll_edit_quiz_prompt_option_fields($term) {
                 <option value="text_audio" <?php selected($config['option_type'], 'text_audio'); ?>><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
             </select>
             <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <tr class="form-field term-lesson-grid-text-visibility-wrap">
+        <th scope="row" valign="top">
+            <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <select name="ll_lesson_grid_text_visibility_override" id="ll_lesson_grid_text_visibility_override">
+                <option value="inherit" <?php selected($lesson_grid_text_visibility_override, 'inherit'); ?>><?php esc_html_e('Use word set default', 'll-tools-text-domain'); ?></option>
+                <option value="show" <?php selected($lesson_grid_text_visibility_override, 'show'); ?>><?php esc_html_e('Always show text', 'll-tools-text-domain'); ?></option>
+                <option value="hide" <?php selected($lesson_grid_text_visibility_override, 'hide'); ?>><?php esc_html_e('Always hide text', 'll-tools-text-domain'); ?></option>
+            </select>
+            <p class="description"><?php esc_html_e('Controls lesson pages and [word_grid] displays. "Hide" shows images/audio buttons only. "Use word set default" follows the word set setting for non-text quiz categories.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
     <script>
@@ -519,6 +592,14 @@ function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
             update_term_meta($term_id, 'use_word_titles_for_audio', '1');
         } else {
             delete_term_meta($term_id, 'use_word_titles_for_audio');
+        }
+    }
+    if (isset($_POST['ll_lesson_grid_text_visibility_override'])) {
+        $visibility_override = sanitize_key((string) $_POST['ll_lesson_grid_text_visibility_override']);
+        if (!in_array($visibility_override, ['show', 'hide'], true)) {
+            delete_term_meta($term_id, 'll_lesson_grid_text_visibility_override');
+        } else {
+            update_term_meta($term_id, 'll_lesson_grid_text_visibility_override', $visibility_override);
         }
     }
 }
