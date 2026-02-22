@@ -31,6 +31,16 @@ function ll_tools_get_legacy_export_import_page_slug(): string {
     return 'll-export-import';
 }
 
+function ll_tools_get_export_import_page_url(string $page_slug, array $args = []): string {
+    $page_slug = sanitize_key($page_slug);
+    if (function_exists('ll_tools_get_tools_page_url')) {
+        return ll_tools_get_tools_page_url($page_slug, $args);
+    }
+
+    $query_args = array_merge(['page' => $page_slug], $args);
+    return (string) add_query_arg($query_args, admin_url('tools.php'));
+}
+
 function ll_tools_current_user_can_export_import() {
     return current_user_can(ll_tools_get_export_import_capability());
 }
@@ -91,7 +101,9 @@ function ll_tools_prime_import_admin_title(): void {
 add_action('admin_post_ll_tools_export_bundle', 'll_tools_handle_export_bundle');
 add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bundle');
 add_action('admin_post_ll_tools_preview_import_bundle', 'll_tools_handle_preview_import_bundle');
+add_action('admin_post_ll_tools_import_preview_media', 'll_tools_handle_import_preview_media');
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
+add_action('admin_post_ll_tools_undo_import', 'll_tools_handle_undo_import');
 add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_export_import_assets');
 
@@ -108,6 +120,16 @@ function ll_tools_enqueue_export_import_assets($hook) {
 
     ll_enqueue_asset_by_timestamp('/css/export-import-admin.css', 'll-tools-export-import-admin', [], false);
     ll_enqueue_asset_by_timestamp('/js/export-import-admin.js', 'll-tools-export-import-admin-js', [], true);
+    wp_localize_script('ll-tools-export-import-admin-js', 'llToolsImportUi', [
+        'importPageUrl' => ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()),
+        'processingTitle' => __('Import in progress', 'll-tools-text-domain'),
+        'processingMessageKeepOpen' => __('Keep this window open while import runs. Closing it can interrupt the request.', 'll-tools-text-domain'),
+        'processingMessageBackground' => __('You can switch tabs, but do not close this tab until it finishes.', 'll-tools-text-domain'),
+        'processingProgressLabel' => __('Processing import bundle...', 'll-tools-text-domain'),
+        'processingDone' => __('Import finished. Loading results...', 'll-tools-text-domain'),
+        'processingFailed' => __('Import request did not complete. Return to the import page and try again.', 'll-tools-text-domain'),
+        'processingReload' => __('Back to import page', 'll-tools-text-domain'),
+    ]);
 }
 
 function ll_tools_export_get_soft_limit_bytes(): int {
@@ -125,11 +147,314 @@ function ll_tools_export_get_hard_limit_files(): int {
     return max(0, (int) apply_filters('ll_tools_export_hard_limit_files', $default));
 }
 
+function ll_tools_import_get_soft_limit_files(): int {
+    $default = 200;
+    return max(0, (int) apply_filters('ll_tools_import_soft_limit_files', $default));
+}
+
+function ll_tools_import_get_soft_limit_bytes(): int {
+    $default = 256 * MB_IN_BYTES;
+    return max(0, (int) apply_filters('ll_tools_import_soft_limit_bytes', $default));
+}
+
 function ll_tools_import_preview_transient_key($token): string {
     $uid = get_current_user_id();
     $uid = $uid > 0 ? $uid : 0;
     $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
     return 'll_tools_import_preview_' . $uid . '_' . $token;
+}
+
+function ll_tools_import_preview_media_nonce_action(string $token, string $relative_path): string {
+    return 'll_tools_import_preview_media_' . $token . '|' . $relative_path;
+}
+
+function ll_tools_build_import_preview_media_url(string $preview_token, string $relative_path): string {
+    $preview_token = sanitize_text_field($preview_token);
+    $relative_path = ll_tools_normalize_import_relative_path($relative_path);
+    if ($preview_token === '' || $relative_path === '') {
+        return '';
+    }
+
+    return add_query_arg([
+        'action' => 'll_tools_import_preview_media',
+        'll_import_preview' => $preview_token,
+        'll_import_file' => $relative_path,
+        '_wpnonce' => wp_create_nonce(ll_tools_import_preview_media_nonce_action($preview_token, $relative_path)),
+    ], admin_url('admin-post.php'));
+}
+
+function ll_tools_detect_preview_media_mime_type(string $relative_path): string {
+    $filetype = wp_check_filetype(basename($relative_path), null);
+    $mime = isset($filetype['type']) ? (string) $filetype['type'] : '';
+    if ($mime !== '') {
+        return $mime;
+    }
+
+    $extension = strtolower((string) pathinfo($relative_path, PATHINFO_EXTENSION));
+    $map = [
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'bmp' => 'image/bmp',
+        'svg' => 'image/svg+xml',
+        'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav',
+        'ogg' => 'audio/ogg',
+        'oga' => 'audio/ogg',
+        'm4a' => 'audio/mp4',
+        'aac' => 'audio/aac',
+        'flac' => 'audio/flac',
+    ];
+
+    return $map[$extension] ?? 'application/octet-stream';
+}
+
+function ll_tools_import_preview_detect_audio_type(string $path): string {
+    $filename = strtolower((string) basename($path));
+    if ($filename === '') {
+        return 'audio';
+    }
+
+    $patterns = [
+        'question' => '/(^|[_\-.])question([_\-.]|$)/',
+        'isolation' => '/(^|[_\-.])isolation([_\-.]|$)/',
+        'introduction' => '/(^|[_\-.])introduction([_\-.]|$)/',
+        'sentence' => '/(^|[_\-.])sentence([_\-.]|$)/',
+    ];
+
+    foreach ($patterns as $type => $pattern) {
+        if (preg_match($pattern, $filename)) {
+            return $type;
+        }
+    }
+
+    return 'audio';
+}
+
+function ll_tools_import_preview_audio_type_label(string $audio_type): string {
+    $audio_type = sanitize_key($audio_type);
+    $labels = [
+        'question' => __('Question', 'll-tools-text-domain'),
+        'isolation' => __('Isolation', 'll-tools-text-domain'),
+        'introduction' => __('Introduction', 'll-tools-text-domain'),
+        'sentence' => __('Sentence', 'll-tools-text-domain'),
+        'audio' => __('Audio', 'll-tools-text-domain'),
+    ];
+
+    return isset($labels[$audio_type]) ? (string) $labels[$audio_type] : (string) $labels['audio'];
+}
+
+function ll_tools_handle_import_preview_media(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to access LL Tools import preview media.', 'll-tools-text-domain'));
+    }
+
+    $preview_token = isset($_GET['ll_import_preview'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview']))
+        : '';
+    $relative_path = isset($_GET['ll_import_file'])
+        ? ll_tools_normalize_import_relative_path(wp_unslash((string) $_GET['ll_import_file']))
+        : '';
+    $nonce = isset($_GET['_wpnonce']) ? wp_unslash((string) $_GET['_wpnonce']) : '';
+
+    if ($preview_token === '' || $relative_path === '') {
+        wp_die(__('Preview media request is invalid.', 'll-tools-text-domain'));
+    }
+
+    if (!wp_verify_nonce($nonce, ll_tools_import_preview_media_nonce_action($preview_token, $relative_path))) {
+        wp_die(__('Preview media request failed nonce verification.', 'll-tools-text-domain'));
+    }
+
+    $preview_data = get_transient(ll_tools_import_preview_transient_key($preview_token));
+    if (!is_array($preview_data) || empty($preview_data['zip_path'])) {
+        wp_die(__('Preview media request failed because the import preview expired.', 'll-tools-text-domain'));
+    }
+
+    $zip_path = (string) $preview_data['zip_path'];
+    if ($zip_path === '' || !is_file($zip_path)) {
+        wp_die(__('Preview media request failed because the source zip is missing.', 'll-tools-text-domain'));
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zip_path) !== true) {
+        wp_die(__('Preview media request failed because the source zip could not be opened.', 'll-tools-text-domain'));
+    }
+
+    $entry_index = $zip->locateName($relative_path);
+    if ($entry_index === false) {
+        $zip->close();
+        wp_die(__('Preview media file was not found in the source zip.', 'll-tools-text-domain'));
+    }
+
+    $stat = $zip->statIndex((int) $entry_index);
+    if (!is_array($stat) || !isset($stat['name'])) {
+        $zip->close();
+        wp_die(__('Preview media metadata is invalid.', 'll-tools-text-domain'));
+    }
+
+    $entry_name = ll_tools_normalize_import_relative_path((string) $stat['name']);
+    if ($entry_name === '' || $entry_name !== $relative_path) {
+        $zip->close();
+        wp_die(__('Preview media path validation failed.', 'll-tools-text-domain'));
+    }
+
+    $stream = $zip->getStream((string) $stat['name']);
+    if (!$stream) {
+        $zip->close();
+        wp_die(__('Preview media stream could not be opened.', 'll-tools-text-domain'));
+    }
+
+    $mime_type = ll_tools_detect_preview_media_mime_type($relative_path);
+    $is_allowed_media = (
+        strpos($mime_type, 'image/') === 0 ||
+        strpos($mime_type, 'audio/') === 0
+    );
+    if (!$is_allowed_media) {
+        fclose($stream);
+        $zip->close();
+        wp_die(__('Preview media type is not supported.', 'll-tools-text-domain'));
+    }
+
+    nocache_headers();
+    header('Content-Type: ' . $mime_type);
+    if (isset($stat['size']) && (int) $stat['size'] >= 0) {
+        header('Content-Length: ' . (int) $stat['size']);
+    }
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: inline; filename="' . rawurlencode(basename($relative_path)) . '"');
+
+    fpassthru($stream);
+    fclose($stream);
+    $zip->close();
+    exit;
+}
+
+function ll_tools_import_history_option_name(): string {
+    return 'll_tools_import_history';
+}
+
+function ll_tools_import_history_max_entries(): int {
+    return max(5, (int) apply_filters('ll_tools_import_history_max_entries', 25));
+}
+
+function ll_tools_import_default_undo_payload(): array {
+    return [
+        'category_term_ids' => [],
+        'wordset_term_ids' => [],
+        'word_image_post_ids' => [],
+        'word_post_ids' => [],
+        'word_audio_post_ids' => [],
+        'attachment_ids' => [],
+        'audio_paths' => [],
+    ];
+}
+
+function ll_tools_import_normalize_id_list(array $values): array {
+    return array_values(array_unique(array_filter(array_map('intval', $values), static function (int $id): bool {
+        return $id > 0;
+    })));
+}
+
+function ll_tools_import_track_undo_id(array &$result, string $bucket, int $id): void {
+    if ($id <= 0) {
+        return;
+    }
+
+    if (!isset($result['undo']) || !is_array($result['undo'])) {
+        $result['undo'] = ll_tools_import_default_undo_payload();
+    }
+    if (!array_key_exists($bucket, $result['undo']) || !is_array($result['undo'][$bucket])) {
+        $result['undo'][$bucket] = [];
+    }
+
+    $result['undo'][$bucket][] = $id;
+    $result['undo'][$bucket] = ll_tools_import_normalize_id_list($result['undo'][$bucket]);
+}
+
+function ll_tools_import_track_undo_path(array &$result, string $bucket, string $path): void {
+    $path = trim($path);
+    if ($path === '') {
+        return;
+    }
+
+    if (!isset($result['undo']) || !is_array($result['undo'])) {
+        $result['undo'] = ll_tools_import_default_undo_payload();
+    }
+    if (!array_key_exists($bucket, $result['undo']) || !is_array($result['undo'][$bucket])) {
+        $result['undo'][$bucket] = [];
+    }
+    if (!in_array($path, $result['undo'][$bucket], true)) {
+        $result['undo'][$bucket][] = $path;
+    }
+}
+
+function ll_tools_import_has_undo_targets(array $undo): bool {
+    foreach ([
+        'category_term_ids',
+        'wordset_term_ids',
+        'word_image_post_ids',
+        'word_post_ids',
+        'word_audio_post_ids',
+        'attachment_ids',
+        'audio_paths',
+    ] as $bucket) {
+        if (!empty($undo[$bucket]) && is_array($undo[$bucket])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_import_read_history(): array {
+    $raw = get_option(ll_tools_import_history_option_name(), []);
+    return is_array($raw) ? array_values($raw) : [];
+}
+
+function ll_tools_import_write_history(array $entries): void {
+    update_option(
+        ll_tools_import_history_option_name(),
+        array_slice(array_values($entries), 0, ll_tools_import_history_max_entries()),
+        false
+    );
+}
+
+function ll_tools_import_append_history_entry(array $entry): void {
+    if (empty($entry['id'])) {
+        $entry['id'] = wp_generate_uuid4();
+    }
+
+    $entries = ll_tools_import_read_history();
+    array_unshift($entries, $entry);
+    ll_tools_import_write_history($entries);
+}
+
+function ll_tools_import_get_recent_history_entries(): array {
+    $entries = ll_tools_import_read_history();
+    if (empty($entries)) {
+        return [];
+    }
+
+    $timezone = wp_timezone();
+    $now = new DateTimeImmutable('now', $timezone);
+    $start_of_today = $now->setTime(0, 0, 0);
+    $start_of_yesterday = $start_of_today->modify('-1 day')->getTimestamp();
+    $recent = [];
+
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $finished_at = isset($entry['finished_at']) ? (int) $entry['finished_at'] : 0;
+        if ($finished_at <= 0 || $finished_at < $start_of_yesterday) {
+            continue;
+        }
+        $recent[] = $entry;
+    }
+
+    return $recent;
 }
 
 function ll_tools_export_download_transient_key($token): string {
@@ -328,12 +653,10 @@ function ll_tools_handle_legacy_export_import_redirect() {
 
     $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
     $target_page = $import_preview_token !== '' ? ll_tools_get_import_page_slug() : ll_tools_get_export_page_slug();
-    $redirect_args = ['page' => $target_page];
-    if ($import_preview_token !== '') {
-        $redirect_args['ll_import_preview'] = $import_preview_token;
-    }
 
-    $redirect_url = add_query_arg($redirect_args, admin_url('tools.php'));
+    $redirect_url = ll_tools_get_export_import_page_url($target_page, $import_preview_token !== '' ? [
+        'll_import_preview' => $import_preview_token,
+    ] : []);
     if ($import_preview_token !== '') {
         $redirect_url .= '#ll-tools-import-preview';
     }
@@ -344,6 +667,125 @@ function ll_tools_handle_legacy_export_import_redirect() {
 
 function ll_tools_render_legacy_export_import_page() {
     ll_tools_render_export_import_page();
+}
+
+function ll_tools_import_history_created_summary(array $stats): string {
+    $summary = [];
+    $map = [
+        'categories_created' => __('Categories: %d', 'll-tools-text-domain'),
+        'wordsets_created' => __('Word sets: %d', 'll-tools-text-domain'),
+        'word_images_created' => __('Word images: %d', 'll-tools-text-domain'),
+        'words_created' => __('Words: %d', 'll-tools-text-domain'),
+        'word_audio_created' => __('Audio entries: %d', 'll-tools-text-domain'),
+    ];
+
+    foreach ($map as $key => $label) {
+        $value = isset($stats[$key]) ? (int) $stats[$key] : 0;
+        if ($value > 0) {
+            $summary[] = sprintf($label, $value);
+        }
+    }
+
+    if (empty($summary)) {
+        return __('No new items created.', 'll-tools-text-domain');
+    }
+
+    return implode(' | ', $summary);
+}
+
+function ll_tools_render_recent_imports_section(array $recent_imports): void {
+    ?>
+    <div class="ll-tools-recent-imports">
+        <h2><?php esc_html_e('Recent Imports', 'll-tools-text-domain'); ?></h2>
+        <p class="description"><?php esc_html_e('Shows imports completed today and yesterday. Undo removes items created by one import; existing items updated by that import are not reverted.', 'll-tools-text-domain'); ?></p>
+
+        <?php if (empty($recent_imports)) : ?>
+            <p class="description"><?php esc_html_e('No recent imports found for today or yesterday.', 'll-tools-text-domain'); ?></p>
+        <?php else : ?>
+            <table class="widefat striped ll-tools-recent-imports-table">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e('Time', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Source', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Result', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Created', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Action', 'll-tools-text-domain'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recent_imports as $entry) : ?>
+                        <?php
+                        $entry_id = isset($entry['id']) ? sanitize_text_field((string) $entry['id']) : '';
+                        if ($entry_id === '') {
+                            continue;
+                        }
+                        $finished_at = isset($entry['finished_at']) ? (int) $entry['finished_at'] : 0;
+                        $source_zip = isset($entry['source_zip']) ? (string) $entry['source_zip'] : '';
+                        $source_type = isset($entry['source_type']) ? sanitize_key((string) $entry['source_type']) : 'server';
+                        $is_ok = !empty($entry['ok']);
+                        $errors_count = isset($entry['errors_count']) ? (int) $entry['errors_count'] : 0;
+                        $stats = isset($entry['stats']) && is_array($entry['stats']) ? $entry['stats'] : [];
+                        $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : [];
+                        $undone_at = isset($entry['undone_at']) ? (int) $entry['undone_at'] : 0;
+                        $can_undo = ($undone_at <= 0 && ll_tools_import_has_undo_targets($undo));
+                        $time_text = $finished_at > 0
+                            ? wp_date(get_option('date_format') . ' ' . get_option('time_format'), $finished_at)
+                            : __('Unknown', 'll-tools-text-domain');
+                        $source_label = $source_zip !== '' ? $source_zip : __('Uploaded zip', 'll-tools-text-domain');
+                        if ($source_type === 'server') {
+                            $source_label = sprintf(
+                                /* translators: %s zip filename */
+                                __('Server zip: %s', 'll-tools-text-domain'),
+                                $source_label
+                            );
+                        }
+
+                        $status_label = $is_ok
+                            ? __('Completed', 'll-tools-text-domain')
+                            : __('Completed with errors', 'll-tools-text-domain');
+                        if ($undone_at > 0) {
+                            $status_label = __('Undone', 'll-tools-text-domain');
+                        } elseif ($errors_count > 0) {
+                            $status_label = sprintf(
+                                /* translators: 1 status label, 2 number of errors */
+                                __('%1$s (%2$d errors)', 'll-tools-text-domain'),
+                                $status_label,
+                                $errors_count
+                            );
+                        }
+                        ?>
+                        <tr>
+                            <td><?php echo esc_html($time_text); ?></td>
+                            <td><?php echo esc_html($source_label); ?></td>
+                            <td><?php echo esc_html($status_label); ?></td>
+                            <td><?php echo esc_html(ll_tools_import_history_created_summary($stats)); ?></td>
+                            <td>
+                                <?php if ($can_undo) : ?>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <?php wp_nonce_field('ll_tools_undo_import', 'll_tools_undo_import_nonce'); ?>
+                                        <input type="hidden" name="action" value="ll_tools_undo_import">
+                                        <input type="hidden" name="ll_import_history_id" value="<?php echo esc_attr($entry_id); ?>">
+                                        <button
+                                            type="submit"
+                                            class="button button-secondary ll-tools-undo-import-button"
+                                            onclick="return confirm('<?php echo esc_attr(__('Undo this import? This removes items created by this import and cannot be undone.', 'll-tools-text-domain')); ?>');"
+                                        >
+                                            <?php esc_html_e('Undo import', 'll-tools-text-domain'); ?>
+                                        </button>
+                                    </form>
+                                <?php elseif ($undone_at > 0) : ?>
+                                    <span class="ll-tools-import-undone-label"><?php esc_html_e('Already undone', 'll-tools-text-domain'); ?></span>
+                                <?php else : ?>
+                                    <span class="ll-tools-import-undone-label"><?php esc_html_e('No undo data', 'll-tools-text-domain'); ?></span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+    <?php
 }
 
 /**
@@ -386,6 +828,13 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     'word_audio_updated',
                     'attachments_imported',
                     'audio_files_imported',
+                    'word_audio_deleted',
+                    'words_deleted',
+                    'word_images_deleted',
+                    'attachments_deleted',
+                    'categories_deleted',
+                    'wordsets_deleted',
+                    'audio_files_deleted',
                 ] as $key) {
                     if (!empty($stats[$key])) {
                         $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
@@ -451,9 +900,13 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     $soft_export_limit_bytes = ll_tools_export_get_soft_limit_bytes();
     $hard_export_limit_bytes = ll_tools_export_get_hard_limit_bytes();
     $hard_export_limit_files = ll_tools_export_get_hard_limit_files();
+    $soft_import_limit_files = ll_tools_import_get_soft_limit_files();
+    $soft_import_limit_bytes = ll_tools_import_get_soft_limit_bytes();
     $soft_limit_label = $soft_export_limit_bytes > 0 ? size_format($soft_export_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $hard_limit_label = $hard_export_limit_bytes > 0 ? size_format($hard_export_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $hard_files_label = $hard_export_limit_files > 0 ? (string) $hard_export_limit_files : __('disabled', 'll-tools-text-domain');
+    $import_soft_files_label = $soft_import_limit_files > 0 ? (string) $soft_import_limit_files : __('disabled', 'll-tools-text-domain');
+    $import_soft_bytes_label = $soft_import_limit_bytes > 0 ? size_format($soft_import_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $import_preview_token = '';
     $import_preview = null;
     if ($show_import) {
@@ -470,6 +923,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             }
         }
     }
+    $recent_imports = $show_import ? ll_tools_import_get_recent_history_entries() : [];
 
     $page_title = __('LL Tools Export/Import', 'll-tools-text-domain');
     if ($mode === 'export') {
@@ -636,8 +1090,19 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 <hr>
             <?php endif; ?>
 
-        <p><?php esc_html_e('Import category bundles from a zip generated by LL Tools export.', 'll-tools-text-domain'); ?></p>
+        <?php ll_tools_render_recent_imports_section($recent_imports); ?>
+        <p><?php esc_html_e('Import category bundles from a zip generated by LL Tools export, or from a zip with top-level CSV files plus media folders such as /images and /audio.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('Preview an import first, then confirm to apply it.', 'll-tools-text-domain'); ?></p>
+        <p class="description">
+            <?php
+            echo esc_html(sprintf(
+                /* translators: 1: media file warning threshold, 2: media size warning threshold */
+                __('Large import warning thresholds: %1$s media files or %2$s of media.', 'll-tools-text-domain'),
+                $import_soft_files_label,
+                $import_soft_bytes_label
+            ));
+            ?>
+        </p>
         <h2><?php esc_html_e('Import', 'll-tools-text-domain'); ?></h2>
         <form method="post" action="<?php echo esc_url($import_action); ?>" enctype="multipart/form-data">
             <?php wp_nonce_field('ll_tools_preview_import_bundle'); ?>
@@ -645,7 +1110,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
 
             <p><label for="ll_import_file"><strong><?php esc_html_e('Upload export zip (optional)', 'll-tools-text-domain'); ?></strong></label></p>
             <input type="file" name="ll_import_file" id="ll_import_file" accept=".zip">
-            <p class="description"><?php esc_html_e('Use a zip generated by the exporter above. Legacy bundles import categories + word images. Full bundles also import words and audio.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('Supported zip formats: (1) LL Tools export bundles, and (2) top-level CSV files with a "quiz" column plus external media folders (/images and/or /audio). CSV mode supports image->text, text->image, text->text, and audio->text mappings.', 'll-tools-text-domain'); ?></p>
 
             <p><label for="ll_import_existing"><strong><?php esc_html_e('Or select a zip already on the server', 'll-tools-text-domain'); ?></strong></label></p>
             <select name="ll_import_existing" id="ll_import_existing">
@@ -677,7 +1142,16 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <?php
             $preview_summary = isset($import_preview['summary']) && is_array($import_preview['summary']) ? $import_preview['summary'] : [];
             $preview_wordsets = isset($import_preview['wordsets']) && is_array($import_preview['wordsets']) ? $import_preview['wordsets'] : [];
+            $preview_warnings = isset($import_preview['warnings']) && is_array($import_preview['warnings']) ? array_values(array_filter(array_map('strval', $import_preview['warnings']))) : [];
             $preview_bundle_type = isset($import_preview['bundle_type']) ? (string) $import_preview['bundle_type'] : 'images';
+            $preview_category_names = isset($import_preview['category_names']) && is_array($import_preview['category_names'])
+                ? array_values(array_filter(array_map('strval', $import_preview['category_names']), static function (string $name): bool {
+                    return trim($name) !== '';
+                }))
+                : [];
+            $preview_sample_word = isset($import_preview['sample_word']) && is_array($import_preview['sample_word'])
+                ? $import_preview['sample_word']
+                : [];
             $preview_default_mode = isset($import_preview['options']['wordset_mode']) ? sanitize_key((string) $import_preview['options']['wordset_mode']) : 'create_from_export';
             if (!in_array($preview_default_mode, ['create_from_export', 'assign_existing'], true)) {
                 $preview_default_mode = 'create_from_export';
@@ -686,9 +1160,19 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             $preview_has_full_bundle = ($preview_bundle_type === 'category_full');
             ?>
             <hr>
-            <h3 id="ll-tools-import-preview" tabindex="-1"><?php esc_html_e('Import Preview', 'll-tools-text-domain'); ?></h3>
+            <h3 id="ll-tools-import-preview"><?php esc_html_e('Import Preview', 'll-tools-text-domain'); ?></h3>
             <div class="ll-tools-import-preview">
                 <p><strong><?php esc_html_e('Bundle type:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html($preview_bundle_type === 'category_full' ? __('Full category bundle', 'll-tools-text-domain') : __('Images bundle', 'll-tools-text-domain')); ?></p>
+                <?php if (!empty($preview_warnings)) : ?>
+                    <div class="notice notice-warning inline">
+                        <p><strong><?php esc_html_e('Large import warning:', 'll-tools-text-domain'); ?></strong></p>
+                        <ul>
+                            <?php foreach ($preview_warnings as $preview_warning) : ?>
+                                <li><?php echo esc_html($preview_warning); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
                 <ul>
                     <li><?php echo esc_html(sprintf(__('Categories: %d', 'll-tools-text-domain'), (int) ($preview_summary['categories'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Word images: %d', 'll-tools-text-domain'), (int) ($preview_summary['word_images'] ?? 0))); ?></li>
@@ -697,6 +1181,131 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     <li><?php echo esc_html(sprintf(__('Source word sets: %d', 'll-tools-text-domain'), (int) ($preview_summary['wordsets'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Media files: %d (%s)', 'll-tools-text-domain'), (int) ($preview_summary['media_files'] ?? 0), size_format((int) ($preview_summary['media_bytes'] ?? 0)))); ?></li>
                 </ul>
+
+                <?php if (!empty($preview_category_names)) : ?>
+                    <p><strong><?php esc_html_e('Categories to import:', 'll-tools-text-domain'); ?></strong></p>
+                    <ul class="ll-tools-import-category-list">
+                        <?php foreach ($preview_category_names as $preview_category_name) : ?>
+                            <li><?php echo esc_html($preview_category_name); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+
+                <?php if (!empty($preview_sample_word)) : ?>
+                    <?php
+                    $preview_sample_type = isset($preview_sample_word['type']) ? sanitize_key((string) $preview_sample_word['type']) : 'word';
+                    $preview_sample_title = isset($preview_sample_word['title']) ? (string) $preview_sample_word['title'] : '';
+                    $preview_sample_translation = isset($preview_sample_word['translation']) ? (string) $preview_sample_word['translation'] : '';
+                    $preview_sample_image = isset($preview_sample_word['image']) ? (string) $preview_sample_word['image'] : '';
+                    $preview_sample_categories = isset($preview_sample_word['categories']) && is_array($preview_sample_word['categories'])
+                        ? array_values(array_filter(array_map('strval', $preview_sample_word['categories']), static function (string $name): bool {
+                            return trim($name) !== '';
+                        }))
+                        : [];
+                    $preview_sample_wordsets = isset($preview_sample_word['wordsets']) && is_array($preview_sample_word['wordsets'])
+                        ? array_values(array_filter(array_map('strval', $preview_sample_word['wordsets']), static function (string $slug): bool {
+                            return trim($slug) !== '';
+                        }))
+                        : [];
+                    $preview_sample_audio = isset($preview_sample_word['audio']) && is_array($preview_sample_word['audio'])
+                        ? array_values(array_filter(array_map('strval', $preview_sample_word['audio']), static function (string $file): bool {
+                            return trim($file) !== '';
+                        }))
+                        : [];
+                    $preview_sample_image_url = ($preview_sample_image !== '' && $import_preview_token !== '')
+                        ? ll_tools_build_import_preview_media_url($import_preview_token, $preview_sample_image)
+                        : '';
+                    $preview_sample_audio_urls = [];
+                    if ($import_preview_token !== '') {
+                        foreach ($preview_sample_audio as $preview_audio_file) {
+                            $preview_audio_url = ll_tools_build_import_preview_media_url($import_preview_token, $preview_audio_file);
+                            if ($preview_audio_url !== '') {
+                                $preview_audio_type = ll_tools_import_preview_detect_audio_type($preview_audio_file);
+                                $preview_sample_audio_urls[] = [
+                                    'file' => $preview_audio_file,
+                                    'url' => $preview_audio_url,
+                                    'type' => $preview_audio_type,
+                                    'label' => ll_tools_import_preview_audio_type_label($preview_audio_type),
+                                ];
+                            }
+                        }
+                    }
+                    ?>
+                    <p><strong><?php esc_html_e('Example imported item', 'll-tools-text-domain'); ?></strong></p>
+                    <div class="word-grid ll-word-grid ll-tools-import-sample-grid">
+                        <div class="word-item ll-tools-import-sample-word-item">
+                            <?php if ($preview_sample_image_url !== '') : ?>
+                                <div class="word-image-container">
+                                    <img
+                                        class="word-image"
+                                        src="<?php echo esc_url($preview_sample_image_url); ?>"
+                                        alt="<?php echo esc_attr($preview_sample_title !== '' ? $preview_sample_title : __('Imported preview image', 'll-tools-text-domain')); ?>"
+                                    >
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="ll-word-title-row">
+                                <h3 class="word-title">
+                                    <span class="ll-word-text"><?php echo esc_html($preview_sample_title); ?></span>
+                                    <?php if ($preview_sample_translation !== '') : ?>
+                                        <span class="ll-word-translation" dir="auto"><?php echo esc_html($preview_sample_translation); ?></span>
+                                    <?php endif; ?>
+                                </h3>
+                            </div>
+
+                            <div class="ll-word-meta-row">
+                                <span class="ll-word-meta-tag ll-word-meta-tag--type">
+                                    <?php echo esc_html($preview_sample_type === 'word_image' ? __('Word image', 'll-tools-text-domain') : __('Word', 'll-tools-text-domain')); ?>
+                                </span>
+                                <?php foreach ($preview_sample_categories as $preview_category_name) : ?>
+                                    <span class="ll-word-meta-tag ll-word-meta-tag--category"><?php echo esc_html($preview_category_name); ?></span>
+                                <?php endforeach; ?>
+                                <?php foreach ($preview_sample_wordsets as $preview_wordset_name) : ?>
+                                    <span class="ll-word-meta-tag ll-word-meta-tag--wordset"><?php echo esc_html($preview_wordset_name); ?></span>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <?php if (!empty($preview_sample_audio_urls)) : ?>
+                                <div class="ll-word-recordings ll-word-recordings--with-text">
+                                    <?php foreach ($preview_sample_audio_urls as $preview_audio) : ?>
+                                        <?php
+                                        $preview_audio_type = isset($preview_audio['type']) ? sanitize_key((string) $preview_audio['type']) : 'audio';
+                                        $preview_audio_label = isset($preview_audio['label']) ? (string) $preview_audio['label'] : __('Audio', 'll-tools-text-domain');
+                                        $preview_audio_play_label = sprintf(
+                                            /* translators: %s recording type label */
+                                            __('Play %s recording', 'll-tools-text-domain'),
+                                            $preview_audio_label
+                                        );
+                                        ?>
+                                        <div class="ll-word-recording-row">
+                                            <button
+                                                type="button"
+                                                class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--<?php echo esc_attr($preview_audio_type); ?>"
+                                                data-ll-import-preview-audio="<?php echo esc_url((string) $preview_audio['url']); ?>"
+                                                data-recording-type="<?php echo esc_attr($preview_audio_type); ?>"
+                                                aria-pressed="false"
+                                                aria-label="<?php echo esc_attr($preview_audio_play_label); ?>"
+                                                title="<?php echo esc_attr($preview_audio_play_label); ?>"
+                                            >
+                                                <span class="ll-study-recording-icon" aria-hidden="true"></span>
+                                                <span class="ll-study-recording-visualizer" aria-hidden="true">
+                                                    <span class="bar"></span>
+                                                    <span class="bar"></span>
+                                                    <span class="bar"></span>
+                                                    <span class="bar"></span>
+                                                </span>
+                                            </button>
+                                            <span class="ll-word-recording-text">
+                                                <span class="ll-word-recording-text-main"><?php echo esc_html($preview_audio_label); ?></span>
+                                                <span class="ll-word-recording-file"><?php echo esc_html((string) $preview_audio['file']); ?></span>
+                                            </span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <form method="post" action="<?php echo esc_url($import_action); ?>">
                     <?php wp_nonce_field('ll_tools_import_bundle'); ?>
@@ -1172,6 +1781,148 @@ function ll_tools_resolve_import_request_zip(bool $allow_missing = false) {
 }
 
 /**
+ * Resolve imported category labels for preview display.
+ *
+ * @param array $category_refs
+ * @param array $category_names_by_slug
+ * @return array
+ */
+function ll_tools_import_preview_resolve_category_names(array $category_refs, array $category_names_by_slug): array {
+    $resolved = [];
+    foreach ($category_refs as $category_ref_raw) {
+        $raw = trim((string) $category_ref_raw);
+        if ($raw === '') {
+            continue;
+        }
+
+        $slug = sanitize_title($raw);
+        $name = '';
+        if ($slug !== '' && isset($category_names_by_slug[$slug])) {
+            $name = (string) $category_names_by_slug[$slug];
+        } else {
+            $name = $raw;
+        }
+
+        if ($name === '' || isset($resolved[$name])) {
+            continue;
+        }
+        $resolved[$name] = true;
+    }
+
+    return array_keys($resolved);
+}
+
+/**
+ * Resolve imported wordset labels for preview display.
+ *
+ * @param array $wordset_refs
+ * @param array $wordset_names_by_slug
+ * @return array
+ */
+function ll_tools_import_preview_resolve_wordset_names(array $wordset_refs, array $wordset_names_by_slug): array {
+    $resolved = [];
+    foreach ($wordset_refs as $wordset_ref_raw) {
+        $raw = trim((string) $wordset_ref_raw);
+        if ($raw === '') {
+            continue;
+        }
+
+        $slug = sanitize_title($raw);
+        $name = '';
+        if ($slug !== '' && isset($wordset_names_by_slug[$slug])) {
+            $name = (string) $wordset_names_by_slug[$slug];
+        } else {
+            $name = $raw;
+        }
+
+        if ($name === '' || isset($resolved[$name])) {
+            continue;
+        }
+        $resolved[$name] = true;
+    }
+
+    return array_keys($resolved);
+}
+
+/**
+ * Build one sample imported item for preview display.
+ *
+ * @param array $payload
+ * @param array $category_names_by_slug
+ * @param array $wordset_names_by_slug
+ * @return array
+ */
+function ll_tools_build_import_preview_sample_item(array $payload, array $category_names_by_slug, array $wordset_names_by_slug): array {
+    foreach ((array) ($payload['words'] ?? []) as $word_item) {
+        if (!is_array($word_item)) {
+            continue;
+        }
+
+        $title = trim((string) ($word_item['title'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) ($word_item['slug'] ?? ''));
+        }
+
+        $translation = '';
+        $word_meta = isset($word_item['meta']) && is_array($word_item['meta']) ? $word_item['meta'] : [];
+        foreach (['word_translation', 'word_english_meaning'] as $meta_key) {
+            if (!array_key_exists($meta_key, $word_meta)) {
+                continue;
+            }
+            $meta_value = is_array($word_meta[$meta_key]) ? reset($word_meta[$meta_key]) : $word_meta[$meta_key];
+            $translation = trim((string) $meta_value);
+            if ($translation !== '') {
+                break;
+            }
+        }
+
+        $audio_files = [];
+        foreach ((array) ($word_item['audio_entries'] ?? []) as $audio_item) {
+            if (!is_array($audio_item)) {
+                continue;
+            }
+            $audio_file = isset($audio_item['audio_file']['file']) ? ltrim((string) $audio_item['audio_file']['file'], '/') : '';
+            if ($audio_file !== '') {
+                $audio_files[$audio_file] = true;
+            }
+        }
+
+        return [
+            'type' => 'word',
+            'title' => $title,
+            'translation' => $translation,
+            'categories' => ll_tools_import_preview_resolve_category_names((array) ($word_item['categories'] ?? []), $category_names_by_slug),
+            'wordsets' => ll_tools_import_preview_resolve_wordset_names((array) ($word_item['wordsets'] ?? []), $wordset_names_by_slug),
+            'image' => isset($word_item['featured_image']['file']) ? ltrim((string) $word_item['featured_image']['file'], '/') : '',
+            'audio' => array_keys($audio_files),
+        ];
+    }
+
+    foreach ((array) ($payload['word_images'] ?? []) as $word_image_item) {
+        if (!is_array($word_image_item)) {
+            continue;
+        }
+
+        $title = trim((string) ($word_image_item['title'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) ($word_image_item['slug'] ?? ''));
+        }
+
+        return [
+            'type' => 'word_image',
+            'title' => $title,
+            'translation' => '',
+            'categories' => ll_tools_import_preview_resolve_category_names((array) ($word_image_item['categories'] ?? []), $category_names_by_slug),
+            'wordsets' => [],
+            'image' => isset($word_image_item['featured_image']['file']) ? ltrim((string) $word_image_item['featured_image']['file'], '/') : '',
+            'audio' => [],
+        ];
+    }
+
+    return [];
+}
+
+/**
  * Build import preview summary data from payload.
  *
  * @param array $payload
@@ -1190,18 +1941,71 @@ function ll_tools_build_import_preview_data_from_payload(array $payload): array 
     }
 
     $media_estimate = isset($payload['media_estimate']) && is_array($payload['media_estimate']) ? $payload['media_estimate'] : [];
+    $media_files = isset($media_estimate['attachment_count']) ? (int) $media_estimate['attachment_count'] : 0;
+    $media_bytes = isset($media_estimate['attachment_bytes']) ? (int) $media_estimate['attachment_bytes'] : 0;
+    $warnings = [];
+
+    $soft_limit_files = ll_tools_import_get_soft_limit_files();
+    if ($soft_limit_files > 0 && $media_files >= $soft_limit_files) {
+        $warnings[] = sprintf(
+            /* translators: 1: detected media files count, 2: warning threshold count */
+            __('Detected %1$d media files (warning threshold: %2$d). Large imports can hit server time or memory limits.', 'll-tools-text-domain'),
+            $media_files,
+            $soft_limit_files
+        );
+    }
+
+    $soft_limit_bytes = ll_tools_import_get_soft_limit_bytes();
+    if ($soft_limit_bytes > 0 && $media_bytes >= $soft_limit_bytes) {
+        $warnings[] = sprintf(
+            /* translators: 1: detected media size, 2: warning threshold size */
+            __('Detected %1$s of media files (warning threshold: %2$s). Large imports can hit server time or memory limits.', 'll-tools-text-domain'),
+            size_format($media_bytes),
+            size_format($soft_limit_bytes)
+        );
+    }
 
     $preview_wordsets = [];
+    $wordset_names_by_slug = [];
     foreach ((array) ($payload['wordsets'] ?? []) as $wordset) {
         $slug = isset($wordset['slug']) ? sanitize_title((string) $wordset['slug']) : '';
         if ($slug === '') {
             continue;
         }
+        $name = isset($wordset['name']) ? (string) $wordset['name'] : $slug;
+        if (!isset($wordset_names_by_slug[$slug])) {
+            $wordset_names_by_slug[$slug] = $name;
+        }
         $preview_wordsets[] = [
             'slug' => $slug,
-            'name' => isset($wordset['name']) ? (string) $wordset['name'] : $slug,
+            'name' => $name,
         ];
     }
+
+    $category_names = [];
+    $category_names_by_slug = [];
+    foreach ((array) ($payload['categories'] ?? []) as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+        $slug = isset($category['slug']) ? sanitize_title((string) $category['slug']) : '';
+        $name = trim((string) ($category['name'] ?? ''));
+        if ($name === '' && $slug !== '') {
+            $name = $slug;
+        }
+        if ($name === '') {
+            continue;
+        }
+        if ($slug !== '') {
+            if (isset($category_names_by_slug[$slug])) {
+                continue;
+            }
+            $category_names_by_slug[$slug] = $name;
+        }
+        $category_names[] = $name;
+    }
+
+    $sample_word = ll_tools_build_import_preview_sample_item($payload, $category_names_by_slug, $wordset_names_by_slug);
 
     return [
         'bundle_type' => $bundle_type,
@@ -1211,10 +2015,13 @@ function ll_tools_build_import_preview_data_from_payload(array $payload): array 
             'words'       => count($words),
             'word_audio'  => $word_audio_count,
             'wordsets'    => count($preview_wordsets),
-            'media_files' => isset($media_estimate['attachment_count']) ? (int) $media_estimate['attachment_count'] : 0,
-            'media_bytes' => isset($media_estimate['attachment_bytes']) ? (int) $media_estimate['attachment_bytes'] : 0,
+            'media_files' => $media_files,
+            'media_bytes' => $media_bytes,
         ],
+        'category_names' => $category_names,
+        'sample_word' => $sample_word,
         'wordsets' => $preview_wordsets,
+        'warnings' => $warnings,
     ];
 }
 
@@ -1351,6 +2158,31 @@ function ll_tools_build_import_preview_default_options(array $payload): array {
     }
 
     $source_wordsets = isset($payload['wordsets']) && is_array($payload['wordsets']) ? array_values($payload['wordsets']) : [];
+    if (empty($source_wordsets) && !empty($payload['words'])) {
+        $fallback_wordset_id = 0;
+        if (function_exists('ll_get_default_wordset_term_id')) {
+            $fallback_wordset_id = (int) ll_get_default_wordset_term_id();
+        }
+        if ($fallback_wordset_id <= 0) {
+            $existing_wordsets = get_terms([
+                'taxonomy' => 'wordset',
+                'hide_empty' => false,
+                'orderby' => 'term_id',
+                'order' => 'ASC',
+                'number' => 1,
+                'fields' => 'ids',
+            ]);
+            if (!is_wp_error($existing_wordsets) && !empty($existing_wordsets)) {
+                $fallback_wordset_id = (int) $existing_wordsets[0];
+            }
+        }
+        if ($fallback_wordset_id > 0) {
+            $defaults['wordset_mode'] = 'assign_existing';
+            $defaults['target_wordset_id'] = $fallback_wordset_id;
+        }
+        return $defaults;
+    }
+
     if (count($source_wordsets) !== 1) {
         return $defaults;
     }
@@ -1383,6 +2215,1000 @@ function ll_tools_build_import_preview_default_options(array $payload): array {
 }
 
 /**
+ * Normalize text for import-side matching (used for explicit wrong-answer links).
+ *
+ * @param mixed $value
+ * @return string
+ */
+function ll_tools_import_normalize_match_text($value): string {
+    $text = html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8');
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($text, Normalizer::FORM_C);
+        if (is_string($normalized) && $normalized !== '') {
+            $text = $normalized;
+        }
+    }
+
+    $text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($text)));
+    if ($text === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($text, 'UTF-8');
+    }
+
+    return strtolower($text);
+}
+
+/**
+ * Collect top-level CSV files from an extracted import bundle.
+ *
+ * @param string $extract_dir
+ * @return array
+ */
+function ll_tools_import_collect_external_csv_files($extract_dir): array {
+    $files = [];
+    if (!is_dir($extract_dir)) {
+        return $files;
+    }
+
+    try {
+        foreach (new DirectoryIterator($extract_dir) as $entry) {
+            if (!$entry->isFile()) {
+                continue;
+            }
+            if (strtolower($entry->getExtension()) !== 'csv') {
+                continue;
+            }
+            $path = wp_normalize_path($entry->getPathname());
+            if ($path !== '') {
+                $files[] = $path;
+            }
+        }
+    } catch (Exception $e) {
+        return [];
+    }
+
+    sort($files, SORT_NATURAL | SORT_FLAG_CASE);
+    return $files;
+}
+
+/**
+ * Build lookup maps for images under /images in an extracted bundle.
+ *
+ * @param string $extract_dir
+ * @return array
+ */
+function ll_tools_import_build_external_image_catalog($extract_dir): array {
+    $catalog = [
+        'exact' => [],
+        'stems' => [],
+        'paths' => [],
+    ];
+
+    $images_dir = trailingslashit((string) $extract_dir) . 'images';
+    if (!is_dir($images_dir)) {
+        return $catalog;
+    }
+
+    $root = trailingslashit(wp_normalize_path((string) $extract_dir));
+    try {
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($images_dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($iter as $file_info) {
+            if (!$file_info instanceof SplFileInfo || !$file_info->isFile()) {
+                continue;
+            }
+
+            $absolute = wp_normalize_path($file_info->getPathname());
+            if ($absolute === '' || strpos($absolute, $root) !== 0) {
+                continue;
+            }
+            if (is_wp_error(ll_tools_validate_import_image_file($absolute))) {
+                continue;
+            }
+
+            $relative = substr($absolute, strlen($root));
+            $relative = ll_tools_normalize_import_relative_path($relative);
+            if ($relative === '') {
+                continue;
+            }
+
+            $basename = strtolower((string) basename($relative));
+            $stem = strtolower((string) pathinfo($basename, PATHINFO_FILENAME));
+            $ext = strtolower((string) pathinfo($basename, PATHINFO_EXTENSION));
+            if ($basename === '' || $stem === '') {
+                continue;
+            }
+
+            if (!isset($catalog['exact'][$basename])) {
+                $catalog['exact'][$basename] = $relative;
+            }
+            if (!isset($catalog['stems'][$stem])) {
+                $catalog['stems'][$stem] = [];
+            }
+            $catalog['stems'][$stem][] = [
+                'relative' => $relative,
+                'ext' => $ext,
+            ];
+            $catalog['paths'][$relative] = $absolute;
+        }
+    } catch (Exception $e) {
+        return [
+            'exact' => [],
+            'stems' => [],
+            'paths' => [],
+        ];
+    }
+
+    foreach ($catalog['stems'] as $stem => $entries) {
+        usort($entries, static function (array $left, array $right): int {
+            if (($left['ext'] ?? '') === ($right['ext'] ?? '')) {
+                return strcmp((string) ($left['relative'] ?? ''), (string) ($right['relative'] ?? ''));
+            }
+            if (($left['ext'] ?? '') === 'webp') {
+                return -1;
+            }
+            if (($right['ext'] ?? '') === 'webp') {
+                return 1;
+            }
+            return strcmp((string) ($left['ext'] ?? ''), (string) ($right['ext'] ?? ''));
+        });
+        $catalog['stems'][$stem] = $entries;
+    }
+
+    return $catalog;
+}
+
+/**
+ * Build lookup maps for audio files in /audio (or top-level fallback) in an extracted bundle.
+ *
+ * @param string $extract_dir
+ * @return array
+ */
+function ll_tools_import_build_external_audio_catalog($extract_dir): array {
+    $catalog = [
+        'exact' => [],
+        'stems' => [],
+        'paths' => [],
+    ];
+
+    $candidate_roots = [];
+    foreach (['audio', 'audios'] as $dir_name) {
+        $candidate = trailingslashit((string) $extract_dir) . $dir_name;
+        if (is_dir($candidate)) {
+            $candidate_roots[] = $candidate;
+        }
+    }
+    if (empty($candidate_roots)) {
+        $candidate_roots[] = (string) $extract_dir;
+    }
+
+    $root = trailingslashit(wp_normalize_path((string) $extract_dir));
+    foreach ($candidate_roots as $scan_root) {
+        try {
+            $iter = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($scan_root, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($iter as $file_info) {
+                if (!$file_info instanceof SplFileInfo || !$file_info->isFile()) {
+                    continue;
+                }
+
+                $absolute = wp_normalize_path($file_info->getPathname());
+                if ($absolute === '' || strpos($absolute, $root) !== 0) {
+                    continue;
+                }
+
+                $basename = strtolower((string) basename($absolute));
+                if ($basename === 'data.json' || strtolower((string) pathinfo($basename, PATHINFO_EXTENSION)) === 'csv') {
+                    continue;
+                }
+                if (is_wp_error(ll_tools_validate_import_audio_file($absolute))) {
+                    continue;
+                }
+
+                $relative = substr($absolute, strlen($root));
+                $relative = ll_tools_normalize_import_relative_path($relative);
+                if ($relative === '') {
+                    continue;
+                }
+
+                $basename = strtolower((string) basename($relative));
+                $stem = strtolower((string) pathinfo($basename, PATHINFO_FILENAME));
+                $ext = strtolower((string) pathinfo($basename, PATHINFO_EXTENSION));
+                if ($basename === '' || $stem === '') {
+                    continue;
+                }
+
+                if (!isset($catalog['exact'][$basename])) {
+                    $catalog['exact'][$basename] = $relative;
+                }
+                if (!isset($catalog['stems'][$stem])) {
+                    $catalog['stems'][$stem] = [];
+                }
+                $catalog['stems'][$stem][] = [
+                    'relative' => $relative,
+                    'ext' => $ext,
+                ];
+                $catalog['paths'][$relative] = $absolute;
+            }
+        } catch (Exception $e) {
+            continue;
+        }
+    }
+
+    foreach ($catalog['stems'] as $stem => $entries) {
+        usort($entries, static function (array $left, array $right): int {
+            if (($left['ext'] ?? '') === ($right['ext'] ?? '')) {
+                return strcmp((string) ($left['relative'] ?? ''), (string) ($right['relative'] ?? ''));
+            }
+            return strcmp((string) ($left['ext'] ?? ''), (string) ($right['ext'] ?? ''));
+        });
+        $catalog['stems'][$stem] = $entries;
+    }
+
+    return $catalog;
+}
+
+/**
+ * Resolve a CSV media reference to an extracted file path relative to bundle root.
+ *
+ * Supports extension drift (e.g. CSV says .jpg, file is actually .webp).
+ *
+ * @param string $reference
+ * @param array $catalog
+ * @return string
+ */
+function ll_tools_import_choose_external_catalog_match(string $reference, array $catalog): string {
+    $reference = trim($reference);
+    if ($reference === '') {
+        return '';
+    }
+
+    $reference = str_replace('\\', '/', $reference);
+    $reference = preg_replace('/[?#].*$/', '', $reference);
+    $filename = strtolower((string) basename((string) $reference));
+    if ($filename === '') {
+        return '';
+    }
+
+    if (isset($catalog['exact'][$filename])) {
+        return (string) $catalog['exact'][$filename];
+    }
+
+    $stem = strtolower((string) pathinfo($filename, PATHINFO_FILENAME));
+    if ($stem === '') {
+        return '';
+    }
+
+    $candidates = isset($catalog['stems'][$stem]) && is_array($catalog['stems'][$stem])
+        ? $catalog['stems'][$stem]
+        : [];
+    if (empty($candidates)) {
+        return '';
+    }
+
+    $requested_ext = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+    if ($requested_ext !== '') {
+        foreach ($candidates as $candidate) {
+            if (($candidate['ext'] ?? '') === $requested_ext) {
+                return (string) ($candidate['relative'] ?? '');
+            }
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        if (($candidate['ext'] ?? '') === 'webp') {
+            return (string) ($candidate['relative'] ?? '');
+        }
+    }
+
+    return (string) ($candidates[0]['relative'] ?? '');
+}
+
+/**
+ * Resolve a CSV image reference to an extracted image path relative to bundle root.
+ *
+ * @param string $reference
+ * @param array $catalog
+ * @return string
+ */
+function ll_tools_import_choose_external_image_match(string $reference, array $catalog): string {
+    return ll_tools_import_choose_external_catalog_match($reference, $catalog);
+}
+
+/**
+ * Resolve a CSV audio reference to an extracted audio path relative to bundle root.
+ *
+ * @param string $reference
+ * @param array $catalog
+ * @return string
+ */
+function ll_tools_import_choose_external_audio_match(string $reference, array $catalog): string {
+    return ll_tools_import_choose_external_catalog_match($reference, $catalog);
+}
+
+/**
+ * Convert external CSV text values to UTF-8 when possible.
+ *
+ * @param mixed $value
+ * @return string
+ */
+function ll_tools_import_decode_external_csv_text($value): string {
+    $text = (string) $value;
+    if ($text === '') {
+        return '';
+    }
+
+    $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
+    if ($text === '') {
+        return '';
+    }
+
+    if ((function_exists('mb_check_encoding') && mb_check_encoding($text, 'UTF-8')) || preg_match('//u', $text) === 1) {
+        return $text;
+    }
+
+    $encodings = ['CP1255', 'Windows-1255', 'ISO-8859-8', 'Windows-1252', 'ISO-8859-1'];
+
+    if (function_exists('mb_detect_encoding')) {
+        $detect_encodings = $encodings;
+        if (function_exists('mb_list_encodings')) {
+            $available = array_map('strtoupper', (array) mb_list_encodings());
+            $detect_encodings = array_values(array_filter($detect_encodings, static function (string $encoding) use ($available): bool {
+                return in_array(strtoupper($encoding), $available, true);
+            }));
+        }
+        if (empty($detect_encodings)) {
+            $detect_encodings = ['ISO-8859-1'];
+        }
+        try {
+            $detected = mb_detect_encoding($text, array_merge(['UTF-8'], $detect_encodings), true);
+        } catch (Throwable $e) {
+            $detected = false;
+        }
+        if (is_string($detected) && $detected !== '' && strcasecmp($detected, 'UTF-8') !== 0) {
+            array_unshift($encodings, $detected);
+            $encodings = array_values(array_unique($encodings));
+        }
+    }
+
+    foreach ($encodings as $encoding) {
+        $converted = '';
+        if (function_exists('mb_convert_encoding')) {
+            try {
+                $converted = (string) mb_convert_encoding($text, 'UTF-8', (string) $encoding);
+            } catch (Throwable $e) {
+                $converted = '';
+            }
+        }
+        if ($converted === '' && function_exists('iconv')) {
+            $iconv = @iconv((string) $encoding, 'UTF-8//IGNORE', $text);
+            $converted = is_string($iconv) ? $iconv : '';
+        }
+
+        if ($converted === '') {
+            continue;
+        }
+        if (!function_exists('mb_check_encoding') || mb_check_encoding($converted, 'UTF-8')) {
+            return $converted;
+        }
+    }
+
+    return $text;
+}
+
+/**
+ * Convert raw CSV bytes to UTF-8 for robust parsing (supports BOM/UTF-16 bundles).
+ *
+ * @param string $contents
+ * @return string
+ */
+function ll_tools_import_convert_external_csv_bytes_to_utf8(string $contents): string {
+    if ($contents === '') {
+        return '';
+    }
+
+    // UTF-8 BOM
+    if (strncmp($contents, "\xEF\xBB\xBF", 3) === 0) {
+        $contents = substr($contents, 3);
+    }
+
+    $bom_source_encoding = '';
+    if (strncmp($contents, "\xFF\xFE\x00\x00", 4) === 0) {
+        $bom_source_encoding = 'UTF-32LE';
+    } elseif (strncmp($contents, "\x00\x00\xFE\xFF", 4) === 0) {
+        $bom_source_encoding = 'UTF-32BE';
+    } elseif (strncmp($contents, "\xFF\xFE", 2) === 0) {
+        $bom_source_encoding = 'UTF-16LE';
+    } elseif (strncmp($contents, "\xFE\xFF", 2) === 0) {
+        $bom_source_encoding = 'UTF-16BE';
+    }
+
+    if ($bom_source_encoding !== '') {
+        if (function_exists('mb_convert_encoding')) {
+            try {
+                return (string) mb_convert_encoding($contents, 'UTF-8', $bom_source_encoding);
+            } catch (Throwable $e) {
+                // fall through to additional detection/conversion paths.
+            }
+        }
+        if (function_exists('iconv')) {
+            $iconv = @iconv($bom_source_encoding, 'UTF-8//IGNORE', $contents);
+            if (is_string($iconv) && $iconv !== '') {
+                return $iconv;
+            }
+        }
+    }
+
+    if ((function_exists('mb_check_encoding') && mb_check_encoding($contents, 'UTF-8')) || preg_match('//u', $contents) === 1) {
+        return $contents;
+    }
+
+    $candidates = [
+        'UTF-16LE',
+        'UTF-16BE',
+        'UTF-32LE',
+        'UTF-32BE',
+        'CP1255',
+        'Windows-1255',
+        'ISO-8859-8',
+        'Windows-1252',
+        'ISO-8859-1',
+    ];
+
+    foreach ($candidates as $source_encoding) {
+        $converted = '';
+        if (function_exists('mb_convert_encoding')) {
+            try {
+                $converted = (string) mb_convert_encoding($contents, 'UTF-8', (string) $source_encoding);
+            } catch (Throwable $e) {
+                $converted = '';
+            }
+        }
+        if ($converted === '' && function_exists('iconv')) {
+            $iconv = @iconv($source_encoding, 'UTF-8//IGNORE', $contents);
+            $converted = is_string($iconv) ? $iconv : '';
+        }
+        if ($converted !== '' && (!function_exists('mb_check_encoding') || mb_check_encoding($converted, 'UTF-8'))) {
+            return $converted;
+        }
+    }
+
+    return $contents;
+}
+
+/**
+ * Normalize a CSV header name for loose matching.
+ *
+ * @param mixed $header
+ * @return string
+ */
+function ll_tools_import_normalize_external_csv_header($header): string {
+    $header = ll_tools_import_decode_external_csv_text($header);
+    $header = trim((string) $header);
+    if ($header === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strtolower')) {
+        $header = mb_strtolower($header, 'UTF-8');
+    } else {
+        $header = strtolower($header);
+    }
+
+    $header = str_replace(['_', '-', '.'], ' ', $header);
+    $header = preg_replace('/\s+/', ' ', $header);
+    return trim((string) $header);
+}
+
+/**
+ * Detect CSV delimiter from the first line.
+ *
+ * @param string $line
+ * @return string
+ */
+function ll_tools_import_detect_external_csv_delimiter(string $line): string {
+    $line = ll_tools_import_decode_external_csv_text($line);
+    $line = preg_replace('/^\xEF\xBB\xBF/', '', (string) $line);
+    $scores = [
+        ',' => substr_count($line, ','),
+        ';' => substr_count($line, ';'),
+        "\t" => substr_count($line, "\t"),
+        '|' => substr_count($line, '|'),
+    ];
+    arsort($scores);
+    $candidate = (string) key($scores);
+    if ($candidate === '' || (int) ($scores[$candidate] ?? 0) <= 0) {
+        return ',';
+    }
+    return $candidate;
+}
+
+/**
+ * Get a CSV cell value by index.
+ *
+ * @param array $row
+ * @param int $index
+ * @return string
+ */
+function ll_tools_import_get_external_csv_cell(array $row, int $index): string {
+    if ($index < 0 || !array_key_exists($index, $row)) {
+        return '';
+    }
+    return trim(ll_tools_import_decode_external_csv_text($row[$index]));
+}
+
+/**
+ * Find a header index by candidate normalized names.
+ *
+ * @param array $headers
+ * @param array $candidates
+ * @return int
+ */
+function ll_tools_import_find_external_csv_header_index(array $headers, array $candidates): int {
+    $normalized_candidates = [];
+    foreach ($candidates as $candidate) {
+        $normalized = ll_tools_import_normalize_external_csv_header($candidate);
+        if ($normalized !== '') {
+            $normalized_candidates[$normalized] = true;
+        }
+    }
+    if (empty($normalized_candidates)) {
+        return -1;
+    }
+
+    foreach ($headers as $index => $header) {
+        if (isset($normalized_candidates[(string) $header])) {
+            return (int) $index;
+        }
+    }
+
+    return -1;
+}
+
+/**
+ * Build a compatible import payload from an external CSV + media bundle.
+ *
+ * Supported CSV modes:
+ * - image -> text: quiz,image,correct answer,wrong answer...
+ * - text -> image: quiz,image,correct answer
+ * - text -> text:  quiz,prompt_text,correct_answer,wrong_answer...
+ * - audio -> text: quiz,audio_file,correct_answer,wrong_answer...
+ *
+ * @param string $extract_dir
+ * @return array|WP_Error
+ */
+function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
+    $csv_files = ll_tools_import_collect_external_csv_files($extract_dir);
+    if (empty($csv_files)) {
+        return new WP_Error(
+            'll_tools_preview_missing_payload',
+            __('Import failed: no top-level CSV files were found in the zip.', 'll-tools-text-domain')
+        );
+    }
+
+    $image_catalog = ll_tools_import_build_external_image_catalog($extract_dir);
+    $audio_catalog = ll_tools_import_build_external_audio_catalog($extract_dir);
+
+    $category_map = [];
+    $word_map = [];
+    $used_slugs = [];
+    $used_image_files = [];
+    $used_audio_files = [];
+    $errors = [];
+
+    foreach ($csv_files as $csv_path) {
+        $raw_csv = @file_get_contents((string) $csv_path);
+        if (!is_string($raw_csv)) {
+            $errors[] = sprintf(
+                __('Could not read CSV file "%s".', 'll-tools-text-domain'),
+                basename((string) $csv_path)
+            );
+            continue;
+        }
+
+        $csv_contents = ll_tools_import_convert_external_csv_bytes_to_utf8($raw_csv);
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            $errors[] = sprintf(
+                __('Could not read CSV file "%s".', 'll-tools-text-domain'),
+                basename((string) $csv_path)
+            );
+            continue;
+        }
+        fwrite($handle, $csv_contents);
+        rewind($handle);
+
+        $first_line = fgets($handle);
+        if ($first_line === false) {
+            fclose($handle);
+            continue;
+        }
+        $delimiter = ll_tools_import_detect_external_csv_delimiter((string) $first_line);
+        rewind($handle);
+
+        $header_row = fgetcsv($handle, 0, $delimiter, '"', '\\');
+        if (!is_array($header_row) || empty($header_row)) {
+            fclose($handle);
+            continue;
+        }
+
+        $headers = array_map('ll_tools_import_normalize_external_csv_header', $header_row);
+        $quiz_index = ll_tools_import_find_external_csv_header_index($headers, ['quiz']);
+        $image_index = ll_tools_import_find_external_csv_header_index($headers, [
+            'image',
+            'image file',
+            'image filename',
+            'image name',
+            'image prompt',
+            'prompt image',
+            'picture',
+            'picture file',
+            'photo',
+        ]);
+        $audio_index = ll_tools_import_find_external_csv_header_index($headers, [
+            'audio',
+            'audio file',
+            'audio filename',
+            'audio name',
+            'prompt audio',
+            'recording',
+            'recording file',
+            'sound file',
+        ]);
+        $prompt_text_index = ll_tools_import_find_external_csv_header_index($headers, [
+            'prompt text',
+            'prompt_text',
+            'prompt',
+            'prompt label',
+            'question text',
+        ]);
+        $correct_index = ll_tools_import_find_external_csv_header_index($headers, [
+            'correct answer',
+            'correct_answer',
+            'correct',
+            'answer',
+            'correct text',
+            'text',
+            'word',
+            'label',
+        ]);
+
+        $wrong_indexes = [];
+        foreach ($headers as $index => $header) {
+            $header = (string) $header;
+            if ($header === '') {
+                continue;
+            }
+            if (strpos($header, 'wrong') !== false && (strpos($header, 'answer') !== false || preg_match('/^wrong(\b|\s*\d+)/', $header))) {
+                $wrong_indexes[] = (int) $index;
+            }
+        }
+
+        $mode = '';
+        if ($image_index >= 0) {
+            $mode = !empty($wrong_indexes) ? 'image_to_text' : 'text_to_image';
+        } elseif ($audio_index >= 0) {
+            $mode = 'audio_to_text';
+        } elseif ($prompt_text_index >= 0) {
+            $mode = 'text_to_text';
+        }
+
+        if ($quiz_index < 0 || $correct_index < 0 || $mode === '') {
+            fclose($handle);
+            $errors[] = sprintf(
+                __('Skipped CSV "%s" because required columns were not found.', 'll-tools-text-domain'),
+                basename((string) $csv_path)
+            );
+            continue;
+        }
+
+        while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $category_name = ll_tools_import_get_external_csv_cell($row, $quiz_index);
+            $correct_answer = ll_tools_import_get_external_csv_cell($row, $correct_index);
+            $image_reference = ($image_index >= 0) ? ll_tools_import_get_external_csv_cell($row, $image_index) : '';
+            $audio_reference = ($audio_index >= 0) ? ll_tools_import_get_external_csv_cell($row, $audio_index) : '';
+            $prompt_text = ($prompt_text_index >= 0) ? ll_tools_import_get_external_csv_cell($row, $prompt_text_index) : '';
+
+            if ($category_name === '' && $correct_answer === '' && $image_reference === '' && $audio_reference === '' && $prompt_text === '') {
+                continue;
+            }
+            if ($category_name === '' || $correct_answer === '') {
+                continue;
+            }
+            if ($mode === 'text_to_text' && $prompt_text === '') {
+                continue;
+            }
+
+            $category_slug = sanitize_title($category_name);
+            if ($category_slug === '') {
+                continue;
+            }
+
+            if (!isset($category_map[$category_slug])) {
+                $category_map[$category_slug] = [
+                    'slug' => $category_slug,
+                    'name' => $category_name,
+                    'mode' => $mode,
+                ];
+            } elseif (($category_map[$category_slug]['mode'] ?? '') !== $mode) {
+                $errors[] = sprintf(
+                    __('Skipped row in CSV "%1$s": category "%2$s" mixes incompatible quiz formats.', 'll-tools-text-domain'),
+                    basename((string) $csv_path),
+                    $category_name
+                );
+                continue;
+            }
+
+            $word_key = $category_slug . '|' . ll_tools_import_normalize_match_text($correct_answer);
+            if (!isset($word_map[$word_key])) {
+                $base_slug = sanitize_title($correct_answer);
+                if ($base_slug === '') {
+                    $base_slug = 'item';
+                }
+                $slug_seed = sanitize_title($category_slug . '-' . $base_slug);
+                $slug = $slug_seed;
+                $slug_index = 2;
+                while ($slug === '' || isset($used_slugs[$slug])) {
+                    $slug = sanitize_title($slug_seed . '-' . $slug_index);
+                    $slug_index++;
+                }
+                $used_slugs[$slug] = true;
+
+                $meta = [];
+                if ($mode === 'text_to_text' && $prompt_text !== '') {
+                    $meta['word_translation'] = [$prompt_text];
+                } elseif ($mode === 'text_to_image') {
+                    // Text->image CSVs define only a title label; clear legacy translation fields
+                    // so prior imports/edits do not leak into the new import result.
+                    $meta['word_translation'] = [];
+                    $meta['word_english_meaning'] = [];
+                }
+
+                $word_map[$word_key] = [
+                    'origin_id'       => 0,
+                    'slug'            => $slug,
+                    'title'           => $correct_answer,
+                    'content'         => '',
+                    'excerpt'         => '',
+                    'status'          => 'publish',
+                    'meta'            => $meta,
+                    'categories'      => [$category_slug],
+                    'wordsets'        => [],
+                    'linked_word_image_slug' => '',
+                    'languages'       => [],
+                    'parts_of_speech' => [],
+                    'featured_image'  => [],
+                    'audio_entries' => [],
+                    'specific_wrong_answer_texts' => [],
+                ];
+            }
+
+            if ($mode === 'image_to_text' || $mode === 'text_to_image') {
+                $image_relative = ll_tools_import_choose_external_image_match($image_reference, $image_catalog);
+                if ($image_relative === '') {
+                    $errors[] = sprintf(
+                        __('Skipped row in CSV "%1$s": image "%2$s" was not found in /images.', 'll-tools-text-domain'),
+                        basename((string) $csv_path),
+                        $image_reference
+                    );
+                    continue;
+                }
+
+                $used_image_files[$image_relative] = true;
+                if (empty($word_map[$word_key]['featured_image']['file'])) {
+                    $word_map[$word_key]['featured_image'] = [
+                        'file'      => $image_relative,
+                        'mime_type' => '',
+                        'alt'       => $correct_answer,
+                        'title'     => $correct_answer,
+                    ];
+                }
+            } elseif ($mode === 'audio_to_text') {
+                $audio_relative = ll_tools_import_choose_external_audio_match($audio_reference, $audio_catalog);
+                if ($audio_relative === '') {
+                    $errors[] = sprintf(
+                        __('Skipped row in CSV "%1$s": audio "%2$s" was not found.', 'll-tools-text-domain'),
+                        basename((string) $csv_path),
+                        $audio_reference
+                    );
+                    continue;
+                }
+
+                $used_audio_files[$audio_relative] = true;
+
+                $existing_audio_entries = isset($word_map[$word_key]['audio_entries']) && is_array($word_map[$word_key]['audio_entries'])
+                    ? $word_map[$word_key]['audio_entries']
+                    : [];
+                $already_added = false;
+                foreach ($existing_audio_entries as $existing_audio) {
+                    $existing_file = isset($existing_audio['audio_file']['file']) ? (string) $existing_audio['audio_file']['file'] : '';
+                    if ($existing_file === $audio_relative) {
+                        $already_added = true;
+                        break;
+                    }
+                }
+                if (!$already_added) {
+                    $audio_count = count($existing_audio_entries) + 1;
+                    $audio_slug = sanitize_title((string) ($word_map[$word_key]['slug'] ?? '') . '-audio-' . $audio_count);
+                    if ($audio_slug === '') {
+                        $audio_slug = 'imported-audio-' . wp_generate_password(8, false, false);
+                    }
+                    $word_map[$word_key]['audio_entries'][] = [
+                        'origin_id' => 0,
+                        'slug' => $audio_slug,
+                        'title' => $correct_answer,
+                        'status' => 'publish',
+                        'meta' => [],
+                        'recording_types' => ['isolation'],
+                        'audio_file' => [
+                            'file' => $audio_relative,
+                            'mime_type' => '',
+                            'title' => $correct_answer,
+                        ],
+                    ];
+                }
+            } elseif ($mode === 'text_to_text') {
+                $existing_prompt = isset($word_map[$word_key]['meta']['word_translation'][0])
+                    ? (string) $word_map[$word_key]['meta']['word_translation'][0]
+                    : '';
+                if ($existing_prompt === '' && $prompt_text !== '') {
+                    $word_map[$word_key]['meta']['word_translation'] = [$prompt_text];
+                }
+            }
+
+            if (in_array($mode, ['image_to_text', 'audio_to_text', 'text_to_text'], true) && !empty($wrong_indexes)) {
+                $existing_wrong = isset($word_map[$word_key]['specific_wrong_answer_texts']) && is_array($word_map[$word_key]['specific_wrong_answer_texts'])
+                    ? $word_map[$word_key]['specific_wrong_answer_texts']
+                    : [];
+                $wrong_lookup = [];
+                foreach ($existing_wrong as $wrong_text) {
+                    $normalized = ll_tools_import_normalize_match_text($wrong_text);
+                    if ($normalized !== '') {
+                        $wrong_lookup[$normalized] = (string) $wrong_text;
+                    }
+                }
+                $correct_normalized = ll_tools_import_normalize_match_text($correct_answer);
+                foreach ($wrong_indexes as $wrong_index) {
+                    $wrong_text = ll_tools_import_get_external_csv_cell($row, (int) $wrong_index);
+                    if ($wrong_text === '') {
+                        continue;
+                    }
+                    $wrong_normalized = ll_tools_import_normalize_match_text($wrong_text);
+                    if ($wrong_normalized === '' || $wrong_normalized === $correct_normalized) {
+                        continue;
+                    }
+                    if (!isset($wrong_lookup[$wrong_normalized])) {
+                        $wrong_lookup[$wrong_normalized] = $wrong_text;
+                    }
+                }
+                $word_map[$word_key]['specific_wrong_answer_texts'] = array_values($wrong_lookup);
+            }
+        }
+
+        fclose($handle);
+    }
+
+    if (empty($word_map) || empty($category_map)) {
+        $message = __('Import failed: no valid quiz rows were found in the CSV files.', 'll-tools-text-domain');
+        if (!empty($errors)) {
+            $message .= ' ' . implode(' ', array_slice($errors, 0, 3));
+        }
+        return new WP_Error('ll_tools_preview_missing_payload', $message);
+    }
+
+    $categories = [];
+    foreach ($category_map as $category_slug => $category) {
+        $mode = (string) ($category['mode'] ?? 'text_to_image');
+        $prompt_type = 'text_title';
+        $option_type = 'image';
+        if ($mode === 'image_to_text') {
+            $prompt_type = 'image';
+            $option_type = 'text_title';
+        } elseif ($mode === 'text_to_text') {
+            $prompt_type = 'text_translation';
+            $option_type = 'text_title';
+        } elseif ($mode === 'audio_to_text') {
+            $prompt_type = 'audio';
+            $option_type = 'text_title';
+        }
+        $categories[] = [
+            'slug' => (string) $category_slug,
+            'name' => (string) ($category['name'] ?? $category_slug),
+            'description' => '',
+            'parent_slug' => '',
+            'meta' => [
+                'll_quiz_prompt_type' => [$prompt_type],
+                'll_quiz_option_type' => [$option_type],
+            ],
+        ];
+    }
+    usort($categories, static function (array $left, array $right): int {
+        return strcmp((string) ($left['slug'] ?? ''), (string) ($right['slug'] ?? ''));
+    });
+
+    $words = array_values($word_map);
+    usort($words, static function (array $left, array $right): int {
+        return strcmp((string) ($left['slug'] ?? ''), (string) ($right['slug'] ?? ''));
+    });
+
+    $attachment_count = 0;
+    $attachment_bytes = 0;
+    foreach (array_keys($used_image_files) as $relative) {
+        $absolute = isset($image_catalog['paths'][$relative]) ? (string) $image_catalog['paths'][$relative] : '';
+        if ($absolute === '' || !is_file($absolute)) {
+            continue;
+        }
+        $attachment_count++;
+        $size = @filesize($absolute);
+        if ($size !== false && $size > 0) {
+            $attachment_bytes += (int) $size;
+        }
+    }
+    foreach (array_keys($used_audio_files) as $relative) {
+        $absolute = isset($audio_catalog['paths'][$relative]) ? (string) $audio_catalog['paths'][$relative] : '';
+        if ($absolute === '' || !is_file($absolute)) {
+            continue;
+        }
+        $attachment_count++;
+        $size = @filesize($absolute);
+        if ($size !== false && $size > 0) {
+            $attachment_bytes += (int) $size;
+        }
+    }
+
+    return [
+        'bundle_type' => 'category_full',
+        'source_format' => 'external_csv_mappings',
+        'categories' => $categories,
+        'word_images' => [],
+        'wordsets' => [],
+        'words' => $words,
+        'media_estimate' => [
+            'attachment_count' => $attachment_count,
+            'attachment_bytes' => $attachment_bytes,
+        ],
+    ];
+}
+
+/**
+ * Read import payload from extracted bundle directory.
+ *
+ * Supports:
+ * - native LL bundle (data.json + media files)
+ * - external CSV/media bundle (top-level CSV files with /images and/or /audio)
+ *
+ * @param string $extract_dir
+ * @return array|WP_Error
+ */
+function ll_tools_import_read_payload_from_extract_dir($extract_dir) {
+    $data_path = trailingslashit((string) $extract_dir) . 'data.json';
+    if (file_exists($data_path)) {
+        $data_contents = file_get_contents($data_path);
+        $payload = json_decode((string) $data_contents, true);
+        if (!is_array($payload)) {
+            return new WP_Error('ll_tools_preview_invalid_json', __('Import failed: data.json is not valid JSON.', 'll-tools-text-domain'));
+        }
+        if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
+            return new WP_Error('ll_tools_preview_missing_payload', __('Import failed: payload missing categories or word images.', 'll-tools-text-domain'));
+        }
+        return $payload;
+    }
+
+    return ll_tools_import_build_payload_from_external_csv_bundle($extract_dir);
+}
+
+/**
  * Read and validate bundle payload from a zip for preview purposes.
  *
  * @param string $zip_path
@@ -1412,22 +3238,11 @@ function ll_tools_read_import_preview_from_zip($zip_path) {
         return $extract_result;
     }
 
-    $data_path = trailingslashit($extract_dir) . 'data.json';
-    if (!file_exists($data_path)) {
-        ll_tools_rrmdir($extract_dir);
-        return new WP_Error('ll_tools_preview_missing_data', __('Import failed: data.json not found inside the zip.', 'll-tools-text-domain'));
-    }
-
-    $data_contents = file_get_contents($data_path);
-    $payload = json_decode($data_contents, true);
+    $payload = ll_tools_import_read_payload_from_extract_dir($extract_dir);
     ll_tools_rrmdir($extract_dir);
 
-    if (!is_array($payload)) {
-        return new WP_Error('ll_tools_preview_invalid_json', __('Import failed: data.json is not valid JSON.', 'll-tools-text-domain'));
-    }
-
-    if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
-        return new WP_Error('ll_tools_preview_missing_payload', __('Import failed: payload missing categories or word images.', 'll-tools-text-domain'));
+    if (is_wp_error($payload)) {
+        return $payload;
     }
 
     return [
@@ -1481,6 +3296,8 @@ function ll_tools_handle_preview_import_bundle() {
     $preview_options = ll_tools_build_import_preview_default_options($payload_for_defaults);
     $preview_data = is_array($preview_result['preview'] ?? null) ? $preview_result['preview'] : [];
     $preview_data['zip_path'] = $zip_path;
+    $preview_data['zip_name'] = basename($zip_path);
+    $preview_data['source_type'] = !empty($zip_info['uploaded_file']) ? 'uploaded' : 'server';
     $preview_data['cleanup_zip'] = !empty($zip_info['cleanup_zip']);
     $preview_data['options'] = $preview_options;
     $preview_data['created_by'] = get_current_user_id();
@@ -1489,10 +3306,9 @@ function ll_tools_handle_preview_import_bundle() {
     $token = wp_generate_password(20, false, false);
     set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
 
-    $redirect_url = add_query_arg([
-        'page' => ll_tools_get_import_page_slug(),
+    $redirect_url = ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
         'll_import_preview' => $token,
-    ], admin_url('tools.php'));
+    ]);
     $redirect_url .= '#ll-tools-import-preview';
     wp_safe_redirect($redirect_url);
     exit;
@@ -1529,6 +3345,8 @@ function ll_tools_handle_import_bundle() {
     $zip_path = '';
     $cleanup_zip = false;
     $preview_defaults = [];
+    $history_source_type = 'server';
+    $history_source_zip = '';
     if ($preview_token !== '') {
         $preview_key = ll_tools_import_preview_transient_key($preview_token);
         $preview_data = get_transient($preview_key);
@@ -1540,6 +3358,8 @@ function ll_tools_handle_import_bundle() {
         $zip_path = (string) $preview_data['zip_path'];
         $cleanup_zip = !empty($preview_data['cleanup_zip']);
         $preview_defaults = isset($preview_data['options']) && is_array($preview_data['options']) ? $preview_data['options'] : [];
+        $history_source_type = isset($preview_data['source_type']) ? sanitize_key((string) $preview_data['source_type']) : 'server';
+        $history_source_zip = isset($preview_data['zip_name']) ? (string) $preview_data['zip_name'] : basename($zip_path);
     } else {
         // Fallback path for direct imports (legacy flow).
         $zip_info = ll_tools_resolve_import_request_zip();
@@ -1550,6 +3370,8 @@ function ll_tools_handle_import_bundle() {
         }
         $zip_path = (string) $zip_info['zip_path'];
         $cleanup_zip = !empty($zip_info['cleanup_zip']);
+        $history_source_type = !empty($zip_info['uploaded_file']) ? 'uploaded' : 'server';
+        $history_source_zip = basename($zip_path);
     }
 
     if ($zip_path === '' || !file_exists($zip_path)) {
@@ -1566,7 +3388,242 @@ function ll_tools_handle_import_bundle() {
         delete_transient(ll_tools_import_preview_transient_key($preview_token));
     }
 
+    ll_tools_import_append_history_entry([
+        'id' => wp_generate_uuid4(),
+        'finished_at' => time(),
+        'user_id' => get_current_user_id(),
+        'ok' => !empty($processed['ok']),
+        'message' => isset($processed['message']) ? (string) $processed['message'] : '',
+        'errors_count' => isset($processed['errors']) && is_array($processed['errors']) ? count($processed['errors']) : 0,
+        'stats' => isset($processed['stats']) && is_array($processed['stats']) ? $processed['stats'] : [],
+        'source_type' => $history_source_type === 'uploaded' ? 'uploaded' : 'server',
+        'source_zip' => $history_source_zip !== '' ? $history_source_zip : basename($zip_path),
+        'undo' => isset($processed['undo']) && is_array($processed['undo']) ? $processed['undo'] : ll_tools_import_default_undo_payload(),
+        'undone_at' => 0,
+    ]);
+
     ll_tools_store_import_result_and_redirect($processed);
+}
+
+function ll_tools_import_delete_audio_file_if_safe(string $audio_path): bool {
+    $audio_path = trim($audio_path);
+    if ($audio_path === '') {
+        return true;
+    }
+
+    $absolute = ll_tools_export_resolve_audio_source_path($audio_path);
+    if ($absolute === '' || !is_file($absolute)) {
+        return true;
+    }
+
+    $upload_dir = wp_upload_dir();
+    $uploads_base = wp_normalize_path((string) ($upload_dir['basedir'] ?? ''));
+    $absolute_normalized = wp_normalize_path($absolute);
+    if ($uploads_base === '' || strpos($absolute_normalized, $uploads_base) !== 0) {
+        return false;
+    }
+
+    return @unlink($absolute) !== false;
+}
+
+function ll_tools_undo_import_entry(array $entry): array {
+    $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : ll_tools_import_default_undo_payload();
+    $result = [
+        'ok' => true,
+        'message' => __('Undo complete.', 'll-tools-text-domain'),
+        'errors' => [],
+        'stats' => [
+            'word_audio_deleted' => 0,
+            'words_deleted' => 0,
+            'word_images_deleted' => 0,
+            'attachments_deleted' => 0,
+            'categories_deleted' => 0,
+            'wordsets_deleted' => 0,
+            'audio_files_deleted' => 0,
+        ],
+    ];
+
+    $word_audio_ids = ll_tools_import_normalize_id_list((array) ($undo['word_audio_post_ids'] ?? []));
+    $word_ids = ll_tools_import_normalize_id_list((array) ($undo['word_post_ids'] ?? []));
+    $word_image_ids = ll_tools_import_normalize_id_list((array) ($undo['word_image_post_ids'] ?? []));
+    $attachment_ids = ll_tools_import_normalize_id_list((array) ($undo['attachment_ids'] ?? []));
+    $category_ids = ll_tools_import_normalize_id_list((array) ($undo['category_term_ids'] ?? []));
+    $wordset_ids = ll_tools_import_normalize_id_list((array) ($undo['wordset_term_ids'] ?? []));
+    $audio_paths = array_values(array_unique(array_filter(array_map('strval', (array) ($undo['audio_paths'] ?? [])), static function (string $path): bool {
+        return trim($path) !== '';
+    })));
+
+    foreach ($word_audio_ids as $post_id) {
+        $post = get_post($post_id);
+        if (!$post) {
+            continue;
+        }
+        if ($post->post_type !== 'word_audio') {
+            $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not word_audio.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $deleted = wp_delete_post($post_id, true);
+        if (!$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete word_audio post %d during undo.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $result['stats']['word_audio_deleted']++;
+    }
+
+    foreach ($word_ids as $post_id) {
+        $post = get_post($post_id);
+        if (!$post) {
+            continue;
+        }
+        if ($post->post_type !== 'words') {
+            $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not a word.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $deleted = wp_delete_post($post_id, true);
+        if (!$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete word post %d during undo.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $result['stats']['words_deleted']++;
+    }
+
+    foreach ($word_image_ids as $post_id) {
+        $post = get_post($post_id);
+        if (!$post) {
+            continue;
+        }
+        if ($post->post_type !== 'word_images') {
+            $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not a word image.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $deleted = wp_delete_post($post_id, true);
+        if (!$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete word image post %d during undo.', 'll-tools-text-domain'), $post_id);
+            continue;
+        }
+        $result['stats']['word_images_deleted']++;
+    }
+
+    foreach ($attachment_ids as $attachment_id) {
+        $attachment = get_post($attachment_id);
+        if (!$attachment) {
+            continue;
+        }
+        if ($attachment->post_type !== 'attachment') {
+            $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not an attachment.', 'll-tools-text-domain'), $attachment_id);
+            continue;
+        }
+        $deleted = wp_delete_attachment($attachment_id, true);
+        if (!$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete attachment %d during undo.', 'll-tools-text-domain'), $attachment_id);
+            continue;
+        }
+        $result['stats']['attachments_deleted']++;
+    }
+
+    foreach ($audio_paths as $audio_path) {
+        if (!ll_tools_import_delete_audio_file_if_safe($audio_path)) {
+            $result['errors'][] = sprintf(__('Skipped deleting audio file "%s" during undo because the path was outside uploads or invalid.', 'll-tools-text-domain'), $audio_path);
+            continue;
+        }
+        $result['stats']['audio_files_deleted']++;
+    }
+
+    foreach ($category_ids as $term_id) {
+        $term = get_term($term_id, 'word-category');
+        if (!$term || is_wp_error($term)) {
+            continue;
+        }
+        $deleted = wp_delete_term($term_id, 'word-category');
+        if (is_wp_error($deleted) || !$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete category term %d during undo.', 'll-tools-text-domain'), $term_id);
+            continue;
+        }
+        $result['stats']['categories_deleted']++;
+    }
+
+    foreach ($wordset_ids as $term_id) {
+        $term = get_term($term_id, 'wordset');
+        if (!$term || is_wp_error($term)) {
+            continue;
+        }
+        $deleted = wp_delete_term($term_id, 'wordset');
+        if (is_wp_error($deleted) || !$deleted) {
+            $result['errors'][] = sprintf(__('Failed to delete word set term %d during undo.', 'll-tools-text-domain'), $term_id);
+            continue;
+        }
+        $result['stats']['wordsets_deleted']++;
+    }
+
+    if (function_exists('ll_tools_rebuild_specific_wrong_answer_owner_map')) {
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version($category_ids);
+    }
+
+    if (!empty($result['errors'])) {
+        $result['ok'] = false;
+        $result['message'] = __('Undo finished with some errors.', 'll-tools-text-domain');
+    }
+
+    return $result;
+}
+
+function ll_tools_handle_undo_import() {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to undo LL Tools imports.', 'll-tools-text-domain'));
+    }
+    check_admin_referer('ll_tools_undo_import', 'll_tools_undo_import_nonce');
+
+    $entry_id = isset($_POST['ll_import_history_id']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_import_history_id'])) : '';
+    $history = ll_tools_import_read_history();
+    $entry_index = -1;
+    foreach ($history as $index => $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        if ((string) ($entry['id'] ?? '') === $entry_id) {
+            $entry_index = (int) $index;
+            break;
+        }
+    }
+
+    if ($entry_index < 0) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => __('Undo failed: import record not found.', 'll-tools-text-domain'),
+            'errors' => [],
+            'stats' => [],
+        ]);
+    }
+
+    $entry = is_array($history[$entry_index]) ? $history[$entry_index] : [];
+    $undone_at = isset($entry['undone_at']) ? (int) $entry['undone_at'] : 0;
+    $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : ll_tools_import_default_undo_payload();
+    if ($undone_at > 0) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => __('Undo skipped: this import was already undone.', 'll-tools-text-domain'),
+            'errors' => [],
+            'stats' => [],
+        ]);
+    }
+    if (!ll_tools_import_has_undo_targets($undo)) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => __('Undo is unavailable for this import record.', 'll-tools-text-domain'),
+            'errors' => [],
+            'stats' => [],
+        ]);
+    }
+
+    $undo_result = ll_tools_undo_import_entry($entry);
+    $history[$entry_index]['undone_at'] = time();
+    $history[$entry_index]['undo_result'] = $undo_result;
+    ll_tools_import_write_history($history);
+
+    ll_tools_store_import_result_and_redirect($undo_result);
 }
 
 /**
@@ -2551,6 +4608,7 @@ function ll_tools_process_import_zip($zip_path, array $options = []) {
         'message' => '',
         'errors'  => [],
         'stats'   => ll_tools_import_default_stats(),
+        'undo'    => ll_tools_import_default_undo_payload(),
     ];
 
     if (!file_exists($zip_path)) {
@@ -2580,17 +4638,9 @@ function ll_tools_process_import_zip($zip_path, array $options = []) {
         return $result;
     }
 
-    $data_path = trailingslashit($extract_dir) . 'data.json';
-    if (!file_exists($data_path)) {
-        $result['message'] = __('Import failed: data.json not found inside the zip.', 'll-tools-text-domain');
-        ll_tools_rrmdir($extract_dir);
-        return $result;
-    }
-
-    $data_contents = file_get_contents($data_path);
-    $payload = json_decode($data_contents, true);
-    if (!is_array($payload)) {
-        $result['message'] = __('Import failed: data.json is not valid JSON.', 'll-tools-text-domain');
+    $payload = ll_tools_import_read_payload_from_extract_dir($extract_dir);
+    if (is_wp_error($payload)) {
+        $result['message'] = $payload->get_error_message();
         ll_tools_rrmdir($extract_dir);
         return $result;
     }
@@ -2616,6 +4666,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         'message' => '',
         'errors'  => [],
         'stats'   => ll_tools_import_default_stats(),
+        'undo'    => ll_tools_import_default_undo_payload(),
     ];
 
     if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
@@ -2665,6 +4716,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
 
         $slug_to_term_id[$slug] = (int) $insert['term_id'];
         $result['stats']['categories_created']++;
+        ll_tools_import_track_undo_id($result, 'category_term_ids', (int) $insert['term_id']);
     }
 
     // Apply parents now that all slugs are mapped.
@@ -2687,7 +4739,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         if ($slug === '' || !isset($slug_to_term_id[$slug])) {
             continue;
         }
-        ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : []);
+        ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
     }
 
     // Import word images.
@@ -2714,6 +4766,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
                 continue;
             }
             $result['stats']['word_images_updated']++;
+            $is_new_word_image = false;
         } else {
             $postarr['post_author'] = get_current_user_id();
             $post_id = wp_insert_post($postarr, true);
@@ -2722,6 +4775,8 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
                 continue;
             }
             $result['stats']['word_images_created']++;
+            $is_new_word_image = true;
+            ll_tools_import_track_undo_id($result, 'word_image_post_ids', (int) $post_id);
         }
 
         $term_ids = [];
@@ -2738,8 +4793,8 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
             wp_set_object_terms($post_id, $term_ids, 'word-category', false);
         }
 
-        ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
-        ll_tools_import_apply_featured_image((int) $post_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word_image');
+        ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : [], 'word_images');
+        ll_tools_import_apply_featured_image((int) $post_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word_image', $is_new_word_image);
         $word_image_slug_to_id[$slug] = (int) $post_id;
     }
 
@@ -2762,6 +4817,20 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
             );
         } finally {
             remove_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999);
+        }
+    }
+
+    $imported_category_ids = array_values(array_unique(array_filter(array_map('intval', array_values($slug_to_term_id)))));
+    if (!empty($imported_category_ids)) {
+        if (function_exists('ll_tools_handle_category_sync')) {
+            foreach ($imported_category_ids as $category_id) {
+                ll_tools_handle_category_sync((int) $category_id);
+            }
+        }
+        if (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+            foreach ($imported_category_ids as $category_id) {
+                ll_tools_sync_vocab_lessons_for_category((int) $category_id);
+            }
         }
     }
 
@@ -2798,14 +4867,96 @@ function ll_tools_sanitize_import_post_status($status, $fallback = 'draft') {
  * @param array $meta
  * @return void
  */
-function ll_tools_import_replace_post_meta_values(int $post_id, array $meta): void {
+function ll_tools_import_should_replace_post_meta_key(string $key, string $post_type = ''): bool {
+    $key = trim($key);
+    $post_type = sanitize_key($post_type);
+    if ($key === '') {
+        return false;
+    }
+
+    // Public custom meta keys are allowed by default.
+    if ($key[0] !== '_') {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+    }
+
+    $allowed_protected_prefixes = ['_ll_'];
+    $allowed_protected_exact = [
+        '_ll_similar_word_id',
+        '_ll_autopicked_image_id',
+        '_ll_needs_audio_processing',
+    ];
+
+    foreach ($allowed_protected_prefixes as $prefix) {
+        if (strpos($key, $prefix) === 0) {
+            return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+        }
+    }
+    if (in_array($key, $allowed_protected_exact, true)) {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', true, $key, $post_type);
+    }
+
+    $blocked_exact = [
+        '_edit_lock',
+        '_edit_last',
+        '_thumbnail_id',
+        '_wp_attached_file',
+        '_wp_attachment_metadata',
+        '_wp_attachment_backup_sizes',
+        '_wp_old_slug',
+        '_wp_desired_post_slug',
+        '_wp_trash_meta_status',
+        '_wp_trash_meta_time',
+        '_wp_trash_meta_comments_status',
+    ];
+    if (in_array($key, $blocked_exact, true)) {
+        return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+    }
+
+    $blocked_prefixes = [
+        '_wp_',
+        '_edit_',
+        '_oembed_',
+    ];
+    foreach ($blocked_prefixes as $prefix) {
+        if (strpos($key, $prefix) === 0) {
+            return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+        }
+    }
+
+    // Unknown protected keys are denied by default; allow via filter when needed.
+    return (bool) apply_filters('ll_tools_import_allow_post_meta_key', false, $key, $post_type);
+}
+
+function ll_tools_import_should_replace_term_meta_key(string $key, string $taxonomy = ''): bool {
+    $key = trim($key);
+    $taxonomy = sanitize_key($taxonomy);
+    if ($key === '') {
+        return false;
+    }
+
+    if ($key[0] !== '_') {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', true, $key, $taxonomy);
+    }
+
+    if (strpos($key, '_ll_') === 0) {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', true, $key, $taxonomy);
+    }
+
+    if (strpos($key, '_wp_') === 0 || strpos($key, '_edit_') === 0) {
+        return (bool) apply_filters('ll_tools_import_allow_term_meta_key', false, $key, $taxonomy);
+    }
+
+    return (bool) apply_filters('ll_tools_import_allow_term_meta_key', false, $key, $taxonomy);
+}
+
+function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, string $post_type = ''): void {
     if ($post_id <= 0 || empty($meta)) {
         return;
     }
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '') {
+        if (!ll_tools_import_should_replace_post_meta_key($key, $post_type)) {
             continue;
         }
         delete_post_meta($post_id, $key);
@@ -2822,14 +4973,14 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta): vo
  * @param array $meta
  * @return void
  */
-function ll_tools_import_replace_term_meta_values(int $term_id, array $meta): void {
+function ll_tools_import_replace_term_meta_values(int $term_id, array $meta, string $taxonomy = ''): void {
     if ($term_id <= 0 || empty($meta)) {
         return;
     }
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '') {
+        if (!ll_tools_import_should_replace_term_meta_key($key, $taxonomy)) {
             continue;
         }
         delete_term_meta($term_id, $key);
@@ -2848,9 +4999,10 @@ function ll_tools_import_replace_term_meta_values(int $term_id, array $meta): vo
  * @param string $item_slug
  * @param array $result
  * @param string $context
+ * @param bool $track_for_undo
  * @return void
  */
-function ll_tools_import_apply_featured_image(int $post_id, array $featured_image, $extract_dir, string $item_slug, array &$result, string $context = 'post'): void {
+function ll_tools_import_apply_featured_image(int $post_id, array $featured_image, $extract_dir, string $item_slug, array &$result, string $context = 'post', bool $track_for_undo = false): void {
     if ($post_id <= 0 || empty($featured_image['file'])) {
         return;
     }
@@ -2875,6 +5027,9 @@ function ll_tools_import_apply_featured_image(int $post_id, array $featured_imag
 
     set_post_thumbnail($post_id, $attachment_id);
     $result['stats']['attachments_imported']++;
+    if ($track_for_undo) {
+        ll_tools_import_track_undo_id($result, 'attachment_ids', (int) $attachment_id);
+    }
 }
 
 /**
@@ -2928,6 +5083,9 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
         : [];
 
     $origin_word_id_to_imported = [];
+    $word_label_index_by_category = [];
+    $word_label_index_global = [];
+    $pending_specific_wrong_answers = [];
     foreach ((array) ($payload['words'] ?? []) as $item) {
         $slug = isset($item['slug']) ? sanitize_title($item['slug']) : '';
         $origin_id = isset($item['origin_id']) ? (int) $item['origin_id'] : 0;
@@ -2953,6 +5111,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                 continue;
             }
             $result['stats']['words_updated']++;
+            $is_new_word = false;
         } else {
             $postarr['post_author'] = get_current_user_id();
             $word_id = wp_insert_post($postarr, true);
@@ -2961,6 +5120,8 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                 continue;
             }
             $result['stats']['words_created']++;
+            $is_new_word = true;
+            ll_tools_import_track_undo_id($result, 'word_post_ids', (int) $word_id);
         }
 
         $word_id = (int) $word_id;
@@ -3010,8 +5171,49 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             wp_set_object_terms($word_id, $part_of_speech_ids, 'part_of_speech', false);
         }
 
-        ll_tools_import_replace_post_meta_values($word_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : []);
-        ll_tools_import_apply_featured_image($word_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word');
+        ll_tools_import_replace_post_meta_values($word_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : [], 'words');
+        ll_tools_import_apply_featured_image($word_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word', $is_new_word);
+
+        $word_label = isset($item['title']) ? (string) $item['title'] : (string) $postarr['post_title'];
+        $word_label_key = ll_tools_import_normalize_match_text($word_label);
+        if ($word_label_key !== '') {
+            if (!isset($word_label_index_global[$word_label_key])) {
+                $word_label_index_global[$word_label_key] = [];
+            }
+            $word_label_index_global[$word_label_key][$word_id] = true;
+
+            foreach ($category_ids as $category_id) {
+                $category_id = (int) $category_id;
+                if ($category_id <= 0) {
+                    continue;
+                }
+                if (!isset($word_label_index_by_category[$category_id])) {
+                    $word_label_index_by_category[$category_id] = [];
+                }
+                if (!isset($word_label_index_by_category[$category_id][$word_label_key])) {
+                    $word_label_index_by_category[$category_id][$word_label_key] = [];
+                }
+                $word_label_index_by_category[$category_id][$word_label_key][$word_id] = true;
+            }
+        }
+
+        if (!empty($item['specific_wrong_answer_texts']) && is_array($item['specific_wrong_answer_texts'])) {
+            $wrong_texts = [];
+            foreach ($item['specific_wrong_answer_texts'] as $wrong_text_raw) {
+                $wrong_text = sanitize_text_field((string) $wrong_text_raw);
+                if ($wrong_text !== '') {
+                    $wrong_texts[] = $wrong_text;
+                }
+            }
+            if (!empty($wrong_texts)) {
+                $pending_specific_wrong_answers[$word_id] = [
+                    'word_slug' => $slug,
+                    'category_ids' => $category_ids,
+                    'wrong_texts' => $wrong_texts,
+                ];
+            }
+        }
+
         $word_image_link = ll_tools_import_resolve_word_image_link_for_word($item, $word_image_slug_to_id);
         $linked_word_image_id = (int) ($word_image_link['word_image_id'] ?? 0);
         $linked_word_image_source = (string) ($word_image_link['source'] ?? '');
@@ -3058,6 +5260,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                     continue;
                 }
                 $result['stats']['word_audio_updated']++;
+                $is_new_word_audio = false;
             } else {
                 $audio_postarr['post_author'] = get_current_user_id();
                 $audio_post_id = wp_insert_post($audio_postarr, true);
@@ -3066,10 +5269,12 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                     continue;
                 }
                 $result['stats']['word_audio_created']++;
+                $is_new_word_audio = true;
+                ll_tools_import_track_undo_id($result, 'word_audio_post_ids', (int) $audio_post_id);
             }
 
             $audio_post_id = (int) $audio_post_id;
-            ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : []);
+            ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : [], 'word_audio');
 
             $recording_type_ids = ll_tools_import_resolve_taxonomy_term_ids_by_slugs((array) ($audio_item['recording_types'] ?? []), 'recording_type', true, $result['errors']);
             if (!empty($recording_type_ids)) {
@@ -3083,13 +5288,181 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                 isset($audio_item['audio_file']) ? (array) $audio_item['audio_file'] : [],
                 $extract_dir,
                 $slug,
-                $result
+                $result,
+                $is_new_word_audio
             );
         }
     }
 
     if (!empty($origin_word_id_to_imported)) {
         ll_tools_import_remap_similar_word_ids($origin_word_id_to_imported);
+    }
+
+    if (!empty($pending_specific_wrong_answers)) {
+        ll_tools_import_apply_specific_wrong_answers_from_texts(
+            $pending_specific_wrong_answers,
+            $word_label_index_by_category,
+            $word_label_index_global,
+            $result
+        );
+    }
+}
+
+/**
+ * Apply specific wrong-answer mappings from imported text labels.
+ *
+ * @param array $pending
+ * @param array $word_label_index_by_category
+ * @param array $word_label_index_global
+ * @param array $result
+ * @return void
+ */
+function ll_tools_import_apply_specific_wrong_answers_from_texts(
+    array $pending,
+    array $word_label_index_by_category,
+    array $word_label_index_global,
+    array &$result
+): void {
+    if (empty($pending)) {
+        return;
+    }
+
+    $id_meta_key = defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY')
+        ? (string) LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY
+        : '_ll_specific_wrong_answer_ids';
+    $text_meta_key = defined('LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY')
+        ? (string) LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY
+        : '_ll_specific_wrong_answer_texts';
+    $touched_category_ids = [];
+    $word_category_cache = [];
+
+    foreach ($pending as $owner_word_id_raw => $config) {
+        $owner_word_id = (int) $owner_word_id_raw;
+        if ($owner_word_id <= 0 || !is_array($config)) {
+            continue;
+        }
+
+        $category_ids = isset($config['category_ids']) && is_array($config['category_ids'])
+            ? array_values(array_filter(array_map('intval', $config['category_ids']), static function ($id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $wrong_texts_raw = isset($config['wrong_texts']) && is_array($config['wrong_texts'])
+            ? $config['wrong_texts']
+            : [];
+        $owner_title = (string) get_the_title($owner_word_id);
+        if (function_exists('ll_tools_normalize_specific_wrong_answer_texts')) {
+            $wrong_texts = ll_tools_normalize_specific_wrong_answer_texts($wrong_texts_raw, $owner_title);
+        } else {
+            $owner_key = ll_tools_import_normalize_match_text($owner_title);
+            $lookup = [];
+            foreach ($wrong_texts_raw as $wrong_text_raw) {
+                $wrong_text = sanitize_text_field((string) $wrong_text_raw);
+                $wrong_key = ll_tools_import_normalize_match_text($wrong_text);
+                if ($wrong_key === '' || $wrong_key === $owner_key || isset($lookup[$wrong_key])) {
+                    continue;
+                }
+                $lookup[$wrong_key] = $wrong_text;
+            }
+            $wrong_texts = array_values($lookup);
+        }
+
+        if (!empty($wrong_texts)) {
+            update_post_meta($owner_word_id, $text_meta_key, $wrong_texts);
+        } else {
+            delete_post_meta($owner_word_id, $text_meta_key);
+        }
+
+        $resolved_lookup = [];
+        foreach ($wrong_texts as $wrong_text_raw) {
+            $wrong_text = sanitize_text_field((string) $wrong_text_raw);
+            $wrong_key = ll_tools_import_normalize_match_text($wrong_text);
+            if ($wrong_key === '') {
+                continue;
+            }
+
+            $candidate_ids = [];
+            foreach ($category_ids as $category_id) {
+                if (!isset($word_label_index_by_category[$category_id][$wrong_key])) {
+                    continue;
+                }
+                $candidate_ids = array_merge($candidate_ids, array_map('intval', array_keys((array) $word_label_index_by_category[$category_id][$wrong_key])));
+            }
+
+            if (empty($candidate_ids) && isset($word_label_index_global[$wrong_key])) {
+                $candidate_ids = array_map('intval', array_keys((array) $word_label_index_global[$wrong_key]));
+            }
+
+            $candidate_ids = array_values(array_unique(array_filter($candidate_ids, static function ($candidate_id) use ($owner_word_id): bool {
+                return $candidate_id > 0 && $candidate_id !== $owner_word_id;
+            })));
+            if (!empty($candidate_ids) && !empty($category_ids)) {
+                $owner_category_lookup = array_fill_keys($category_ids, true);
+                $candidate_ids = array_values(array_filter($candidate_ids, function ($candidate_id) use (&$word_category_cache, $owner_category_lookup): bool {
+                    $candidate_id = (int) $candidate_id;
+                    if ($candidate_id <= 0) {
+                        return false;
+                    }
+
+                    if (!array_key_exists($candidate_id, $word_category_cache)) {
+                        $candidate_category_ids = wp_get_post_terms($candidate_id, 'word-category', ['fields' => 'ids']);
+                        if (is_wp_error($candidate_category_ids)) {
+                            $candidate_category_ids = [];
+                        }
+                        $word_category_cache[$candidate_id] = array_values(array_unique(array_filter(array_map('intval', (array) $candidate_category_ids), static function ($category_id): bool {
+                            return $category_id > 0;
+                        })));
+                    }
+
+                    foreach ((array) $word_category_cache[$candidate_id] as $candidate_category_id) {
+                        if (isset($owner_category_lookup[(int) $candidate_category_id])) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }));
+            }
+
+            if (empty($candidate_ids)) {
+                continue;
+            }
+
+            foreach ($candidate_ids as $candidate_id) {
+                $resolved_lookup[$candidate_id] = true;
+            }
+        }
+
+        $resolved_ids = array_values(array_map('intval', array_keys($resolved_lookup)));
+        sort($resolved_ids, SORT_NUMERIC);
+
+        if (!empty($resolved_ids)) {
+            update_post_meta($owner_word_id, $id_meta_key, $resolved_ids);
+        } else {
+            delete_post_meta($owner_word_id, $id_meta_key);
+        }
+
+        if (!empty($category_ids)) {
+            foreach ($category_ids as $category_id) {
+                $touched_category_ids[$category_id] = true;
+            }
+        } elseif (function_exists('ll_tools_collect_specific_wrong_answer_related_category_ids')) {
+            $related = ll_tools_collect_specific_wrong_answer_related_category_ids($owner_word_id, $resolved_ids);
+            foreach ((array) $related as $category_id_raw) {
+                $category_id = (int) $category_id_raw;
+                if ($category_id > 0) {
+                    $touched_category_ids[$category_id] = true;
+                }
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_rebuild_specific_wrong_answer_owner_map')) {
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+
+    if (!empty($touched_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version(array_map('intval', array_keys($touched_category_ids)));
     }
 }
 
@@ -3155,9 +5528,10 @@ function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, ar
             }
             $term_id = (int) $insert['term_id'];
             $result['stats']['wordsets_created']++;
+            ll_tools_import_track_undo_id($result, 'wordset_term_ids', $term_id);
         }
 
-        ll_tools_import_replace_term_meta_values($term_id, isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : []);
+        ll_tools_import_replace_term_meta_values($term_id, isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : [], 'wordset');
         if (get_current_user_id() > 0) {
             delete_term_meta($term_id, 'manager_user_id');
             add_term_meta($term_id, 'manager_user_id', get_current_user_id());
@@ -3251,9 +5625,10 @@ function ll_tools_import_find_word_audio_id_by_slug(int $word_id, string $slug):
  * @param string $extract_dir
  * @param string $word_slug
  * @param array $result
+ * @param bool $track_for_undo
  * @return void
  */
-function ll_tools_import_apply_audio_file(int $audio_post_id, array $audio_file, $extract_dir, string $word_slug, array &$result): void {
+function ll_tools_import_apply_audio_file(int $audio_post_id, array $audio_file, $extract_dir, string $word_slug, array &$result, bool $track_for_undo = false): void {
     if ($audio_post_id <= 0 || empty($audio_file['file'])) {
         return;
     }
@@ -3277,6 +5652,9 @@ function ll_tools_import_apply_audio_file(int $audio_post_id, array $audio_file,
 
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     $result['stats']['audio_files_imported']++;
+    if ($track_for_undo) {
+        ll_tools_import_track_undo_path($result, 'audio_paths', (string) $relative_path);
+    }
 }
 
 /**
@@ -3435,8 +5813,23 @@ function ll_tools_import_attachment_from_file($file_path, array $info, $parent_p
         return $attach_id;
     }
 
-    $metadata = wp_generate_attachment_metadata($attach_id, $target);
-    wp_update_attachment_metadata($attach_id, $metadata);
+    $metadata = [];
+    try {
+        $generated = wp_generate_attachment_metadata($attach_id, $target);
+        if (is_array($generated)) {
+            $metadata = $generated;
+            wp_update_attachment_metadata($attach_id, $metadata);
+        }
+    } catch (Throwable $e) {
+        // Some test environments omit image editor classes; keep the attachment.
+    }
+
+    if (function_exists('_wp_relative_upload_path')) {
+        $relative_file = (string) _wp_relative_upload_path($target);
+        if ($relative_file !== '') {
+            update_post_meta($attach_id, '_wp_attached_file', $relative_file);
+        }
+    }
 
     if (!empty($info['alt'])) {
         update_post_meta($attach_id, '_wp_attachment_image_alt', sanitize_text_field($info['alt']));
@@ -3453,7 +5846,7 @@ function ll_tools_import_attachment_from_file($file_path, array $info, $parent_p
  */
 function ll_tools_store_import_result_and_redirect(array $result) {
     set_transient('ll_tools_import_result', $result, 5 * MINUTE_IN_SECONDS);
-    wp_safe_redirect(add_query_arg('page', ll_tools_get_import_page_slug(), admin_url('tools.php')));
+    wp_safe_redirect(ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()));
     exit;
 }
 

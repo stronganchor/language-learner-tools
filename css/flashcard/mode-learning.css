@@ -48,12 +48,22 @@
 /* Learning mode: dim cards during introduction */
 .flashcard-container.introducing {
     opacity: 0.9;
-    cursor: pointer;
+    cursor: default;
+    pointer-events: none;
 }
 
 .flashcard-container.introducing:hover {
     opacity: 1;
     transform: scale(1.02);
+}
+
+.flashcard-container.introducing.introducing-active {
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.flashcard-container.introducing .ll-audio-play {
+    pointer-events: none;
 }
 
 /* Learning mode: card being actively introduced */

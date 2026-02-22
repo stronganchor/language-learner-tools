@@ -154,9 +154,9 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--gender-masculine {
-    --ll-gender-accent: #2563eb;
-    --ll-gender-bg: rgba(37, 99, 235, 0.14);
-    --ll-gender-border: rgba(37, 99, 235, 0.38);
+    --ll-gender-accent: #1d4d99;
+    --ll-gender-bg: rgba(29, 77, 153, 0.14);
+    --ll-gender-border: rgba(29, 77, 153, 0.38);
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--gender-feminine {
@@ -203,7 +203,7 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-meta-tag--verb-tense {
     border-color: #bbf7d0;
     background: #f0fdf4;
-    color: #166534;
+    color: #15803d;
     letter-spacing: 0;
     text-transform: none;
 }
@@ -438,7 +438,7 @@ p:has(.ll-word-audio) {
     width: 100%;
     display: block;
     border-radius: 6px;
-    accent-color: #6366f1;
+    accent-color: #1d4d99;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-waveform {
@@ -765,11 +765,11 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-edit-save {
     border-color: #86efac !important;
     background: #f0fdf4 !important;
-    color: #166534 !important;
+    color: #15803d !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-save:hover {
-    border-color: #22c55e !important;
+    border-color: #15803d !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-cancel {
@@ -1020,8 +1020,8 @@ p:has(.ll-word-audio) {
     max-width: 4px;
     height: calc(var(--base, 8px) + 12px * var(--level, 0));
     border-radius: 2px;
-    background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
-    opacity: 0.55;
+    background: #1d4d99;
+    opacity: 1;
     transform-origin: center bottom;
     transition: height 0.12s ease-out, opacity 0.2s ease-out;
     box-sizing: border-box;
@@ -1032,12 +1032,12 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-study-recording-visualizer .bar:nth-child(4) { --base: 14px; }
 
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing {
-    border-color: #6366f1 !important;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+    border-color: #1d4d99 !important;
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.15) !important;
 }
 
 .word-grid.ll-word-grid .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
-    opacity: 0.95;
+    opacity: 1;
     animation: ll-audio-mini-eq 1s ease-in-out infinite;
 }
 
@@ -1052,14 +1052,82 @@ p:has(.ll-word-audio) {
     100% { transform: scaleY(1); }
 }
 
-.word-grid.ll-word-grid .ll-word-star {
+/* Shared baseline so star toggles keep their shape/colors across aggressive themes. */
+button.ll-tools-star-button.ll-tools-star-button {
+    all: unset !important;
+    box-sizing: border-box !important;
+    width: var(--ll-star-btn-size, 32px) !important;
+    height: var(--ll-star-btn-size, 32px) !important;
+    min-width: var(--ll-star-btn-size, 32px) !important;
+    min-height: var(--ll-star-btn-size, 32px) !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: var(--ll-star-btn-radius, 8px) !important;
+    border: 1px solid var(--ll-star-btn-border, #e2e8f0) !important;
+    border-style: solid !important;
+    border-image: none !important;
+    background: var(--ll-star-btn-bg, #ffffff) !important;
+    background-color: var(--ll-star-btn-bg, #ffffff) !important;
+    background-image: none !important;
+    color: var(--ll-star-btn-color, #111827) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: var(--ll-star-btn-font-size, 16px) !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    cursor: pointer !important;
+    float: none !important;
+    vertical-align: middle !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    font-family: var(--ll-star-btn-font-family, "Segoe UI Symbol", system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif) !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button:not(.active):hover,
+button.ll-tools-star-button.ll-tools-star-button[aria-pressed="false"]:hover {
+    border-color: var(--ll-star-btn-hover-border, #94a3b8) !important;
+    background: var(--ll-star-btn-hover-bg, #f8fafc) !important;
+    background-color: var(--ll-star-btn-hover-bg, #f8fafc) !important;
+    color: var(--ll-star-btn-color, #111827) !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button.active,
+button.ll-tools-star-button.ll-tools-star-button[aria-pressed="true"] {
+    background: var(--ll-star-btn-active-bg, #D39A00) !important;
+    background-color: var(--ll-star-btn-active-bg, #D39A00) !important;
+    background-image: none !important;
+    border-color: var(--ll-star-btn-active-border, #D39A00) !important;
+    color: var(--ll-star-btn-active-color, #ffffff) !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button:focus-visible {
+    outline: 3px solid var(--ll-star-btn-focus, #D39A00) !important;
+    outline-offset: 2px !important;
+}
+
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star {
+    all: unset !important;
+    box-sizing: border-box !important;
     width: 32px !important;
     height: 32px !important;
     min-width: 32px !important;
     min-height: 32px !important;
     border-radius: 8px !important;
     border: 1px solid #e2e8f0 !important;
+    border-style: solid !important;
+    border-image: none !important;
     background: #ffffff !important;
+    background-color: #ffffff !important;
     background-image: none !important;
     color: #111827 !important;
     padding: 0 !important;
@@ -1068,41 +1136,60 @@ p:has(.ll-word-audio) {
     align-items: center !important;
     justify-content: center !important;
     font-size: 16px !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    white-space: nowrap !important;
     box-shadow: none !important;
     text-shadow: none !important;
     cursor: pointer !important;
+    float: none !important;
+    vertical-align: middle !important;
     -webkit-appearance: none !important;
     appearance: none !important;
-    text-transform: none !important;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
-    transition: all 0.15s ease !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
     align-self: center;
-    vertical-align: middle;
     flex: 0 0 auto;
 }
 
-.word-grid.ll-word-grid .ll-word-star::before {
-    content: "\2606";
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star::after {
+    content: none !important;
+    display: none !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star.active::before {
-    content: "\2605";
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star::before {
+    content: "\2606" !important;
+    display: block !important;
+    line-height: 1 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star.active {
-    background: #fde68a !important;
-    border-color: #f59e0b !important;
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star.active::before,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"]::before {
+    content: "\2605" !important;
+}
+
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star.active,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"] {
+    background: #D39A00 !important;
+    background-color: #D39A00 !important;
+    background-image: none !important;
+    border-color: #D39A00 !important;
     color: #111827 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star:not(.active):hover {
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star:not(.active):hover,
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="false"]:hover {
     border-color: #94a3b8 !important;
     background: #f1f5f9 !important;
+    background-color: #f1f5f9 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-star:focus-visible {
-    outline: 3px solid #f59e0b !important;
+.word-grid.ll-word-grid button.ll-word-star.ll-word-star:focus-visible {
+    outline: 3px solid #D39A00 !important;
     outline-offset: 2px;
 }
 
@@ -1115,6 +1202,10 @@ p:has(.ll-word-audio) {
 }
 
 .word-grid.ll-word-grid--text .ll-word-actions-row + .ll-word-title-row {
+    margin-top: 6px !important;
+}
+
+.word-grid.ll-word-grid--text .ll-word-title-row + .ll-word-actions-row {
     margin-top: 6px !important;
 }
 

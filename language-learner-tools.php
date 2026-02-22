@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.2.4
+Version: 5.3.6
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -183,6 +183,21 @@ function ll_embed_template_include($template) {
     return $template;
 }
 add_filter('template_include', 'll_embed_template_include');
+
+/**
+ * Hide the admin bar on embed quiz pages for all users/roles.
+ *
+ * @param bool $show Whether to show the admin bar.
+ * @return bool
+ */
+function ll_hide_admin_bar_on_embed_pages($show) {
+    if (get_query_var('embed_category')) {
+        return false;
+    }
+
+    return $show;
+}
+add_filter('show_admin_bar', 'll_hide_admin_bar_on_embed_pages', 1000);
 
 /**
  * Add a "Settings" link on the Plugins screen row for this plugin.

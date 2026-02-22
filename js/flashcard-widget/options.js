@@ -218,7 +218,7 @@
             // Learning mode uses its own counter
             if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.isLearningMode) {
                 wrongIndexes.length = 0;
-                return window.LLFlashcards.State.learningModeOptionsCount || 2;
+                return Math.max(MINIMUM_NUMBER_OF_OPTIONS, window.LLFlashcards.State.learningModeOptionsCount || 2);
             }
 
             let numberOfOptions = categoryOptionsCount[currentCategoryName];
@@ -233,8 +233,9 @@
             }
 
             wrongIndexes.length = 0; // Reset wrongIndexes for the next round
-            categoryOptionsCount[currentCategoryName] = checkMinMax(numberOfOptions, currentCategoryName);
-            return numberOfOptions;
+            const clampedCount = checkMinMax(numberOfOptions, currentCategoryName);
+            categoryOptionsCount[currentCategoryName] = clampedCount;
+            return clampedCount;
         }
 
         /**

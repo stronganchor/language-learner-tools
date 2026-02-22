@@ -161,6 +161,10 @@
   font-size: 0.85rem;
 }
 
+.ll-tools-login-window__assist--muted {
+  color: var(--ll-login-muted);
+}
+
 .ll-tools-login-window__assist a {
   color: var(--ll-login-accent);
   text-decoration: underline;
@@ -171,6 +175,142 @@
 .ll-tools-login-window__assist a:hover,
 .ll-tools-login-window__assist a:focus {
   color: var(--ll-login-accent-hover);
+}
+
+.ll-tools-login-window__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 1rem 0 0.9rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ll-tools-login-window__divider::before,
+.ll-tools-login-window__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #d8dde5;
+}
+
+.ll-tools-login-window__register {
+  text-align: left;
+}
+
+.ll-tools-login-window__register-title {
+  margin: 0;
+  color: var(--ll-login-text);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.ll-tools-login-window__register-message {
+  margin: 0.42rem 0 0.9rem;
+  color: var(--ll-login-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.ll-tools-login-window__register form {
+  margin: 0;
+}
+
+.ll-tools-login-window__register form p {
+  margin: 0 0 0.75rem;
+}
+
+.ll-tools-login-window__register label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ll-login-text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ll-tools-login-window__register input[type="text"],
+.ll-tools-login-window__register input[type="email"],
+.ll-tools-login-window__register input[type="password"] {
+  width: 100%;
+  min-height: 2.6rem;
+  margin: 0;
+  border: 1px solid #b9c0cb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  box-shadow: none;
+}
+
+.ll-tools-login-window__register input[type="text"]:focus,
+.ll-tools-login-window__register input[type="email"]:focus,
+.ll-tools-login-window__register input[type="password"]:focus {
+  outline: 2px solid rgba(15, 107, 77, 0.35);
+  outline-offset: 1px;
+  border-color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__register-submit {
+  margin: 0.75rem 0 0;
+}
+
+.ll-tools-login-window__register button,
+.ll-tools-login-window__register [type="submit"] {
+  appearance: none;
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #c2c9d2;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.ll-tools-login-window__register button:hover,
+.ll-tools-login-window__register button:focus,
+.ll-tools-login-window__register [type="submit"]:hover,
+.ll-tools-login-window__register [type="submit"]:focus {
+  background: #f8fafc;
+  border-color: #9aa4b2;
+  color: #0f172a;
+}
+
+.ll-tools-login-window__notice {
+  border-radius: 10px;
+  border: 1px solid #f5c2c7;
+  background: #fff1f2;
+  color: #991b1b;
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.ll-tools-login-window__notice--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.ll-tools-login-window__notice p {
+  margin: 0;
+}
+
+.ll-tools-login-window__notice ul {
+  margin: 0;
+  padding-left: 1.1rem;
 }
 
 @media (max-width: 640px) {

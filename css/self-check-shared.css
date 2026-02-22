@@ -266,8 +266,8 @@
   max-width: 4px;
   height: calc(var(--base, 8px) + 12px * var(--level, 0));
   border-radius: 2px;
-  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
-  opacity: 0.55;
+  background: #1d4d99;
+  opacity: 1;
   transform-origin: center bottom;
   transition: height 0.12s ease-out, opacity 0.2s ease-out;
   box-sizing: border-box;
@@ -280,12 +280,12 @@
 .ll-study-check-prompt .ll-study-recording-visualizer .bar:nth-child(6) { --base: 15px; }
 
 .ll-study-check-prompt .ll-study-recording-btn.is-playing {
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+  border-color: #1d4d99 !important;
+  box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.15) !important;
 }
 
 .ll-study-check-prompt .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
-  opacity: 0.95;
+  opacity: 1;
   animation: ll-audio-mini-eq 1s ease-in-out infinite;
 }
 
@@ -420,8 +420,8 @@
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--know {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff !important;
 }
 
@@ -438,46 +438,46 @@
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--right:hover {
-  background: #166534;
-  border-color: #166534;
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--think,
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--close {
-  background: #ca8a04;
-  border-color: #ca8a04;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--think:hover,
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--close:hover {
-  background: #a16207;
-  border-color: #a16207;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--idk {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--idk:hover {
-  background: #b91c1c;
-  border-color: #b91c1c;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--wrong {
-  background: #be123c;
-  border-color: #be123c;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 #ll-tools-flashcard-quiz-popup.ll-self-check-active #ll-tools-flashcard .ll-study-check-btn--wrong:hover {
-  background: #9f1239;
-  border-color: #9f1239;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 

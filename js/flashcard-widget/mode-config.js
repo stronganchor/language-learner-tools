@@ -24,13 +24,13 @@
             icon: '🎧',
             className: 'listening-mode',
             switchLabel: 'Switch to Listening Mode',
-            resultsButtonText: 'Replay Listening',
+            resultsButtonText: 'Listen',
         },
         gender: {
             icon: '',
             className: 'gender-mode',
-            switchLabel: 'Switch to Gender Mode',
-            resultsButtonText: 'Gender Mode',
+            switchLabel: 'Switch to Gender',
+            resultsButtonText: 'Gender',
         },
     };
 

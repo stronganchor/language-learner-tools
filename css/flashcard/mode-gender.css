@@ -10,9 +10,9 @@
 .ll-gender-option--masculine,
 .ll-gender-intro-card--masculine,
 .ll-gender-intro-badge[data-ll-gender-role="masculine"] {
-    --ll-gender-accent: #2563eb;
-    --ll-gender-bg: rgba(37, 99, 235, 0.14);
-    --ll-gender-border: rgba(37, 99, 235, 0.38);
+    --ll-gender-accent: #1d4d99;
+    --ll-gender-bg: rgba(29, 77, 153, 0.14);
+    --ll-gender-border: rgba(29, 77, 153, 0.38);
 }
 
 .ll-gender-option--feminine,
@@ -216,8 +216,8 @@
 }
 
 .ll-gender-correct-reveal {
-    border-color: #16a34a !important;
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+    border-color: #15803d !important;
+    box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15) !important;
 }
 
 /* Level-1 introduction visuals */

@@ -142,6 +142,9 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     ]);
 
     $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), function ($id) { return $id > 0; }));
+    if (function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
+    }
     if (empty($word_ids)) {
         $result = ['all' => [], 'with_images' => []];
         wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);

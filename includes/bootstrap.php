@@ -3,11 +3,13 @@ if (!defined('WPINC')) { die; }
 
 // Include asset management
 require_once(__DIR__ . '/assets.php');
+require_once __DIR__ . '/lib/sort.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
 require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
+require_once __DIR__ . '/lib/image-aspect.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
 
@@ -49,6 +51,7 @@ require_once(__DIR__ . '/admin/word-images-fixer.php');
 require_once(__DIR__ . '/admin/example-sentence-migration.php');
 require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
 require_once(__DIR__ . '/admin/word-option-rules-admin.php');
+require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
 require_once(__DIR__ . '/admin/split-word-admin.php');
 require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
 require_once(__DIR__ . '/user-progress.php');

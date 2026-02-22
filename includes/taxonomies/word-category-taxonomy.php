@@ -279,7 +279,7 @@ function ll_tools_is_category_translation_enabled() {
  * Allowed prompt + answer option types for quizzes.
  */
 function ll_tools_get_quiz_prompt_types(): array {
-    return ['audio', 'image'];
+    return ['audio', 'image', 'text_translation', 'text_title'];
 }
 function ll_tools_get_quiz_option_types(): array {
     return ['image', 'text_translation', 'text_title', 'audio', 'text_audio'];
@@ -288,15 +288,37 @@ function ll_tools_get_quiz_option_types(): array {
 /**
  * Normalize stored prompt/option values with safe fallbacks.
  */
-function ll_tools_normalize_quiz_prompt_type($value): string {
-    $val = is_string($value) ? strtolower($value) : '';
-    return in_array($val, ll_tools_get_quiz_prompt_types(), true) ? $val : 'audio';
-}
-function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false): string {
+function ll_tools_normalize_quiz_prompt_type($value, bool $use_titles = false): string {
     $val = is_string($value) ? strtolower($value) : '';
     // Map legacy value "text" to the appropriate new variant
     if ($val === 'text') {
         return $use_titles ? 'text_title' : 'text_translation';
+    }
+    return in_array($val, ll_tools_get_quiz_prompt_types(), true) ? $val : 'audio';
+}
+/**
+ * Resolve a text option type so it can follow text prompt selection when requested.
+ *
+ * @param string $prompt_type
+ * @param bool   $use_titles
+ * @return string
+ */
+function ll_tools_resolve_text_option_type_for_prompt($prompt_type, bool $use_titles = false): string {
+    $normalized_prompt = ll_tools_normalize_quiz_prompt_type($prompt_type, $use_titles);
+    if ($normalized_prompt === 'text_title') {
+        return 'text_title';
+    }
+    if ($normalized_prompt === 'text_translation') {
+        return 'text_translation';
+    }
+    return $use_titles ? 'text_title' : 'text_translation';
+}
+
+function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false, string $prompt_type = ''): string {
+    $val = is_string($value) ? strtolower(trim($value)) : '';
+    // Map legacy value "text" and UI aliases to the appropriate text variant.
+    if (in_array($val, ['text', 'text_match_prompt', 'text_only'], true)) {
+        return ll_tools_resolve_text_option_type_for_prompt($prompt_type, $use_titles);
     }
     return in_array($val, ll_tools_get_quiz_option_types(), true)
         ? $val
@@ -324,11 +346,11 @@ function ll_tools_get_category_quiz_config($term): array {
 
     $use_titles_legacy  = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
     $stored_option_type = get_term_meta($term->term_id, 'll_quiz_option_type', true);
-    $prompt_type = ll_tools_normalize_quiz_prompt_type(get_term_meta($term->term_id, 'll_quiz_prompt_type', true));
+    $prompt_type = ll_tools_normalize_quiz_prompt_type(get_term_meta($term->term_id, 'll_quiz_prompt_type', true), $use_titles_legacy);
 
     // Back-compat: derive an option type if none stored yet (older categories)
     $option_type = $stored_option_type !== ''
-        ? ll_tools_normalize_quiz_option_type($stored_option_type, $use_titles_legacy)
+        ? ll_tools_normalize_quiz_option_type($stored_option_type, $use_titles_legacy, $prompt_type)
         : ll_tools_default_option_type_for_category($term);
 
     // If legacy flag is present, prefer title-based text option
@@ -372,19 +394,22 @@ function ll_add_quiz_prompt_option_fields($term) {
         <select name="ll_quiz_prompt_type" id="ll_quiz_prompt_type">
             <option value="audio" <?php selected($defaults['prompt_type'], 'audio'); ?>><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
             <option value="image" <?php selected($defaults['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+            <option value="text_translation" <?php selected($defaults['prompt_type'], 'text_translation'); ?>><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
+            <option value="text_title" <?php selected($defaults['prompt_type'], 'text_title'); ?>><?php esc_html_e('Show text (title)', 'll-tools-text-domain'); ?></option>
         </select>
-        <p class="description"><?php esc_html_e('Choose whether the quiz starts with audio or an image for this category.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Choose whether the quiz starts with audio, an image, or text for this category.', 'll-tools-text-domain'); ?></p>
     </div>
     <div class="form-field term-quiz-option-wrap">
         <label for="ll_quiz_option_type"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?></label>
         <select name="ll_quiz_option_type" id="ll_quiz_option_type">
             <option value="image" <?php selected($defaults['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+            <option value="text"><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
             <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
             <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
             <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
             <option value="text_audio"><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
         </select>
-        <p class="description"><?php esc_html_e('Text can use either translation or title; audio options play the word audio.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
     </div>
     <script>
       (function(){
@@ -423,8 +448,10 @@ function ll_edit_quiz_prompt_option_fields($term) {
             <select name="ll_quiz_prompt_type" id="ll_quiz_prompt_type">
                 <option value="audio" <?php selected($config['prompt_type'], 'audio'); ?>><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
                 <option value="image" <?php selected($config['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                <option value="text_translation" <?php selected($config['prompt_type'], 'text_translation'); ?>><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
+                <option value="text_title" <?php selected($config['prompt_type'], 'text_title'); ?>><?php esc_html_e('Show text (title)', 'll-tools-text-domain'); ?></option>
             </select>
-            <p class="description"><?php esc_html_e('Whether to start rounds with audio or with the word image.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('Whether to start rounds with audio, with the word image, or with text.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
     <tr class="form-field term-quiz-option-wrap">
@@ -434,12 +461,13 @@ function ll_edit_quiz_prompt_option_fields($term) {
         <td>
             <select name="ll_quiz_option_type" id="ll_quiz_option_type">
                 <option value="image" <?php selected($config['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+                <option value="text" <?php selected((in_array($config['prompt_type'], ['text_translation', 'text_title'], true) && $config['option_type'] === $config['prompt_type']), true); ?>><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
                 <option value="text_translation" <?php selected($config['option_type'], 'text_translation'); ?>><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
                 <option value="text_title" <?php selected($config['option_type'], 'text_title'); ?>><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
                 <option value="audio" <?php selected($config['option_type'], 'audio'); ?>><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
                 <option value="text_audio" <?php selected($config['option_type'], 'text_audio'); ?>><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
             </select>
-            <p class="description"><?php esc_html_e('Text can use either translation or title; audio options play the word audio.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
     <script>
@@ -470,12 +498,21 @@ function ll_edit_quiz_prompt_option_fields($term) {
  */
 function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
     $use_titles = get_term_meta($term_id, 'use_word_titles_for_audio', true) === '1';
+    $prompt_for_option = ll_tools_normalize_quiz_prompt_type(
+        get_term_meta($term_id, 'll_quiz_prompt_type', true),
+        $use_titles
+    );
     if (isset($_POST['ll_quiz_prompt_type'])) {
-        $prompt = ll_tools_normalize_quiz_prompt_type(sanitize_text_field($_POST['ll_quiz_prompt_type']));
+        $prompt = ll_tools_normalize_quiz_prompt_type(sanitize_text_field($_POST['ll_quiz_prompt_type']), $use_titles);
         update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);
+        $prompt_for_option = $prompt;
     }
     if (isset($_POST['ll_quiz_option_type'])) {
-        $option = ll_tools_normalize_quiz_option_type(sanitize_text_field($_POST['ll_quiz_option_type']), $use_titles);
+        $option = ll_tools_normalize_quiz_option_type(
+            sanitize_text_field($_POST['ll_quiz_option_type']),
+            $use_titles,
+            $prompt_for_option
+        );
         update_term_meta($term_id, 'll_quiz_option_type', $option);
         // Keep legacy meta in sync for compatibility
         if ($option === 'text_title') {
@@ -895,7 +932,125 @@ function ll_tools_resolve_audio_file_url($audio_path): string {
 }
 
 /**
- * Normalize audio URLs in cached word payload rows.
+ * Resolve a stored image URL to a browser-safe URL for the current site origin.
+ *
+ * Handles cached absolute URLs that point to an old host/port and keeps
+ * query arguments for masked image proxy links intact.
+ */
+function ll_tools_resolve_image_file_url($image_url): string {
+    $image_url = trim((string) $image_url);
+    if ($image_url === '') {
+        return '';
+    }
+
+    if (strpos($image_url, '//') === 0) {
+        $image_url = (is_ssl() ? 'https:' : 'http:') . $image_url;
+    }
+
+    static $resolved_cache = [];
+    if (isset($resolved_cache[$image_url])) {
+        return $resolved_cache[$image_url];
+    }
+
+    // Already relative; keep it as-is.
+    if (!preg_match('#^https?://#i', $image_url)) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $parsed = wp_parse_url($image_url);
+    $path   = is_array($parsed) && !empty($parsed['path']) ? '/' . ltrim((string) $parsed['path'], '/') : '';
+    if ($path === '') {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $query = (is_array($parsed) && isset($parsed['query'])) ? (string) $parsed['query'] : '';
+    $fragment = (is_array($parsed) && isset($parsed['fragment'])) ? (string) $parsed['fragment'] : '';
+    $append_query_fragment = static function (string $base_url) use ($query, $fragment): string {
+        if ($query !== '') {
+            $base_url .= (strpos($base_url, '?') === false ? '?' : '&') . $query;
+        }
+        if ($fragment !== '') {
+            $base_url .= '#' . $fragment;
+        }
+        return $base_url;
+    };
+
+    $query_args = [];
+    if ($query !== '') {
+        wp_parse_str($query, $query_args);
+    }
+    $is_masked_proxy = isset($query_args['lltools-img'], $query_args['lltools-size'], $query_args['lltools-sig']);
+    if ($is_masked_proxy) {
+        $use_masked_proxy = function_exists('ll_tools_should_use_masked_image_proxy')
+            ? ll_tools_should_use_masked_image_proxy()
+            : true;
+        if (!$use_masked_proxy) {
+            $attachment_id = absint($query_args['lltools-img']);
+            $proxy_size = isset($query_args['lltools-size'])
+                ? sanitize_key((string) $query_args['lltools-size'])
+                : 'full';
+            if ($proxy_size === '') {
+                $proxy_size = 'full';
+            }
+            if ($attachment_id > 0) {
+                $direct_url = wp_get_attachment_image_url($attachment_id, $proxy_size);
+                if (!empty($direct_url)) {
+                    $resolved_cache[$image_url] = (string) $direct_url;
+                    return $resolved_cache[$image_url];
+                }
+            }
+        }
+    }
+
+    $home = wp_parse_url(home_url('/'));
+    if (!is_array($home) || empty($home['host'])) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+
+    $url_host = strtolower((string) ($parsed['host'] ?? ''));
+    $home_host = strtolower((string) $home['host']);
+    $url_scheme = strtolower((string) ($parsed['scheme'] ?? 'http'));
+    $home_scheme = strtolower((string) ($home['scheme'] ?? 'http'));
+    $url_port = isset($parsed['port']) ? (int) $parsed['port'] : (($url_scheme === 'https') ? 443 : 80);
+    $home_port = isset($home['port']) ? (int) $home['port'] : (($home_scheme === 'https') ? 443 : 80);
+
+    if ($url_host !== '' && $url_host === $home_host && $url_port === $home_port && $url_scheme === $home_scheme) {
+        $resolved_cache[$image_url] = $image_url;
+        return $resolved_cache[$image_url];
+    }
+    if ($is_masked_proxy) {
+        $resolved_cache[$image_url] = $append_query_fragment(home_url($path));
+        return $resolved_cache[$image_url];
+    }
+
+    // If the path maps to a local file, force current-site origin.
+    $local_path = ABSPATH . ltrim($path, '/');
+    if (is_file($local_path) && is_readable($local_path)) {
+        $resolved_cache[$image_url] = $append_query_fragment(home_url($path));
+        return $resolved_cache[$image_url];
+    }
+
+    // Fallback: if the URL path is under uploads, prefer current uploads origin.
+    $uploads = wp_get_upload_dir();
+    if (empty($uploads['error']) && !empty($uploads['baseurl'])) {
+        $uploads_base_path = (string) wp_parse_url($uploads['baseurl'], PHP_URL_PATH);
+        if ($uploads_base_path !== '' && strpos($path, $uploads_base_path) === 0) {
+            $relative = ltrim(substr($path, strlen($uploads_base_path)), '/');
+            $rebased = trailingslashit((string) $uploads['baseurl']) . $relative;
+            $resolved_cache[$image_url] = $append_query_fragment($rebased);
+            return $resolved_cache[$image_url];
+        }
+    }
+
+    $resolved_cache[$image_url] = $image_url;
+    return $resolved_cache[$image_url];
+}
+
+/**
+ * Normalize media URLs in cached word payload rows.
  *
  * @param array $rows Array of quiz word rows.
  * @return array
@@ -922,6 +1077,10 @@ function ll_tools_normalize_words_audio_urls(array $rows): array {
                 $rows[$idx]['audio_files'][$aidx]['url'] = ll_tools_resolve_audio_file_url($url);
             }
         }
+
+        if (!empty($row['image'])) {
+            $rows[$idx]['image'] = ll_tools_resolve_image_file_url($row['image']);
+        }
     }
 
     return $rows;
@@ -939,6 +1098,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : $displayMode;
     $require_audio = ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type);
+    $option_requires_audio = in_array($option_type, ['audio', 'text_audio'], true);
     $require_prompt_image = ($prompt_type === 'image');
     $require_option_image = ($option_type === 'image');
     $wordset_terms = [];
@@ -953,7 +1113,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
-        'masked_image_url'     => true,
+        'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
+            ? ll_tools_should_use_masked_image_proxy()
+            : true,
         'include_pos'          => true,
         'include_gender'       => true,
         'include_plurality'    => true,
@@ -1016,6 +1178,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
     $group_map = $group_maps['group_map'] ?? [];
     $blocked_map = $group_maps['blocked_map'] ?? [];
+    $specific_wrong_owner_map = function_exists('ll_tools_get_specific_wrong_answer_owner_map')
+        ? ll_tools_get_specific_wrong_answer_owner_map()
+        : [];
 
     foreach ($query->posts as $post) {
         if (get_post_status($post->ID) !== 'publish') {
@@ -1076,23 +1241,30 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
         $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
+        $candidate_keys = [
+            'word_english_meaning',
+            'word_translation',
+            'translation',
+            'meaning',
+        ];
+        $translation = '';
+        foreach ($candidate_keys as $key) {
+            $val = trim((string) get_post_meta($word_id, $key, true));
+            if ($val !== '') { $translation = $val; break; }
+        }
+        $translation_label = ($translation !== '') ? html_entity_decode($translation, ENT_QUOTES, 'UTF-8') : '';
+
         $label = $title;
         $use_translation_label = in_array($option_type, ['text_translation', 'text_audio'], true);
-        if ($use_translation_label) {
-            $candidate_keys = [
-                'word_english_meaning',
-                'word_translation',
-                'translation',
-                'meaning',
-            ];
-            $translation = '';
-            foreach ($candidate_keys as $key) {
-                $val = trim((string) get_post_meta($word_id, $key, true));
-                if ($val !== '') { $translation = $val; break; }
-            }
-            if ($translation !== '') {
-                $label = html_entity_decode($translation, ENT_QUOTES, 'UTF-8');
-            }
+        if ($use_translation_label && $translation_label !== '') {
+            $label = $translation_label;
+        }
+
+        $prompt_label = $title;
+        if ($prompt_type === 'text_translation' && $translation_label !== '') {
+            $prompt_label = $translation_label;
+        } elseif ($prompt_type === 'text_title') {
+            $prompt_label = $title;
         }
 
         $all_categories  = wp_get_post_terms($word_id, 'word-category', ['fields' => 'names']);
@@ -1113,19 +1285,37 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $group_labels = isset($group_map[$word_id]) && is_array($group_map[$word_id]) ? $group_map[$word_id] : [];
         $option_groups = [];
         if ($term_id > 0 && !empty($group_labels)) {
-            foreach ($group_labels as $label) {
-                $label = trim((string) $label);
-                if ($label === '') {
+            foreach ($group_labels as $group_label) {
+                $group_label = trim((string) $group_label);
+                if ($group_label === '') {
                     continue;
                 }
-                $option_groups[] = $term_id . ':' . $label;
+                $option_groups[] = $term_id . ':' . $group_label;
             }
         }
+
+        $specific_wrong_answer_ids = function_exists('ll_tools_get_word_specific_wrong_answer_ids')
+            ? ll_tools_get_word_specific_wrong_answer_ids($word_id)
+            : [];
+        $specific_wrong_answer_texts = function_exists('ll_tools_get_word_specific_wrong_answer_texts')
+            ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
+            : [];
+        $specific_wrong_answer_owner_ids = isset($specific_wrong_owner_map[$word_id]) && is_array($specific_wrong_owner_map[$word_id])
+            ? array_values(array_filter(array_map('intval', $specific_wrong_owner_map[$word_id]), function ($id) { return $id > 0; }))
+            : [];
+        $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
+            && empty($specific_wrong_answer_ids)
+            && empty($specific_wrong_answer_texts);
 
         $word_data = [
             'id'              => $word_id,
             'title'           => $title,
             'label'           => $label,
+            'prompt_label'    => $prompt_label,
+            'specific_wrong_answer_ids' => $specific_wrong_answer_ids,
+            'specific_wrong_answer_texts' => $specific_wrong_answer_texts,
+            'specific_wrong_answer_owner_ids' => $specific_wrong_answer_owner_ids,
+            'is_specific_wrong_answer_only' => $is_specific_wrong_answer_only,
             'audio'           => $primary_audio,
             'audio_files'     => $audio_files,
             'preferred_speaker_user_id' => $preferred_speaker,
@@ -1144,12 +1334,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
         // Enforce required assets based on prompt + option selections
         if ($require_audio && !$has_audio) {
-            continue;
+            // Wrong-answer-only words can still be used in audio-prompt quizzes when options are text-only.
+            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
+                continue;
+            }
         }
         if (($require_prompt_image || $require_option_image) && (!$image_id || empty($image))) {
             continue;
         }
         if (in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true) && $label === '') {
+            continue;
+        }
+        if (in_array($prompt_type, ['text_translation', 'text_title'], true) && $prompt_label === '') {
             continue;
         }
 
@@ -1459,14 +1655,21 @@ function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
 
     // Handle string-only responses safely.
     if ( $fields === 'names' ) {
-        // Natural, case-insensitive sort of the names array (preserves keys).
-        natcasesort( $terms );
+        uasort( $terms, static function ( $a, $b ) {
+            if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+                return ll_tools_locale_compare_strings( (string) $a, (string) $b );
+            }
+            return strnatcasecmp( (string) $a, (string) $b );
+        } );
         return $terms;
     }
 
     // Handle associative map of id => name.
     if ( $fields === 'id=>name' ) {
         uasort( $terms, static function( $a, $b ) {
+            if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+                return ll_tools_locale_compare_strings( (string) $a, (string) $b );
+            }
             return strnatcasecmp( (string) $a, (string) $b );
         } );
         return $terms;
@@ -1486,6 +1689,9 @@ function ll_tools_nat_sort_word_category_terms( $terms, $taxonomies, $args ) {
     usort( $terms, static function( $a, $b ) {
         $an = isset( $a->name ) ? (string) $a->name : '';
         $bn = isset( $b->name ) ? (string) $b->name : '';
+        if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+            return ll_tools_locale_compare_strings( $an, $bn );
+        }
         return strnatcasecmp( $an, $bn );
     } );
 

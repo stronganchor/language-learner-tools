@@ -23,7 +23,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 - **Audio recording & processing**
   - **Audio Recorder Role**: Dedicated user role for contributors to record audio.
-  - **Recording Interface**: `[audio_recording]` shortcode provides a browser-based recording interface.
+  - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
   - **Audio Review**: Admin page to review and manage audio quality.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
@@ -33,7 +33,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
   - `[image_copyright_grid posts_per_page="12"]` – paginated grid of `word_images`.
   - Quiz listings: `[quiz_pages_grid]` and `[quiz_pages_dropdown]`, both support wordset filtering and popup mode.
-  - `[audio_recording]` – browser-based audio recording interface.
+  - `[audio_recording_interface]` – browser-based audio recording interface.
 
 - **Admin UX**
   - Bulk **audio** and **image** uploaders that can create/update posts and try to match media to posts by name.
@@ -74,7 +74,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    ```text
    [flashcard_widget category="animals" quiz_mode="learning"]
    ```
-   - `quiz_mode="standard"` for traditional adaptive quizzing (default)
+   - `quiz_mode="practice"` for traditional adaptive quizzing (default)
    - `quiz_mode="learning"` for guided learning with word introduction
    - To embed a minimal page for a category, link to `/embed/animals` or `/embed/animals?mode=learning`.
 
@@ -101,7 +101,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 8. Audio recording interface for contributors:
    ```text
-   [audio_recording]
+   [audio_recording_interface]
    ```
 
 ---
@@ -113,7 +113,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `category`: target `word-category` term **slug** (CSV accepted).
   - `mode`: `random` (default), `image`, or `text`.
   - `embed`: `true|false` (use `true` for compact UI on `/embed/<slug>` pages).
-  - `quiz_mode`: `standard` (default) or `learning`.
+  - `quiz_mode`: `practice` (default), `learning`, `listening`, `gender`, or `self-check`.
   - `wordset`: filter words by wordset slug/name/id.
 
 ### `[word_grid]`
@@ -130,10 +130,10 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `posts_per_page`: default `12`.
 
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
-- **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`standard` or `learning`).
+- **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).
 - **Attributes (dropdown)**: `wordset`, `placeholder`, `button` (`yes` to show a Go button).
 
-### `[audio_recording]`
+### `[audio_recording_interface]`
 - Provides a browser-based interface for recording audio.
 - Best used with the Audio Recorder role for contributors.
 
@@ -163,7 +163,7 @@ Or link to: `/quiz/animals?mode=learning`
 
 ### For Contributors (Audio Recorder Role)
 
-1. **Recording Interface**: Use the `[audio_recording]` shortcode on a page.
+1. **Recording Interface**: Use the `[audio_recording_interface]` shortcode on a page.
 2. **Browser Recording**: Record directly in the browser with playback preview.
 3. **Upload**: Submit recordings for processing.
 
@@ -200,7 +200,7 @@ Audio files can be categorized by recording type:
 - **Question**: Word used in a question
 - **Sentence**: Word used in a sentence
 
-The flashcard widget intelligently selects the appropriate recording type based on context (learning mode uses introduction audio, standard quiz uses question audio).
+The flashcard widget intelligently selects the appropriate recording type based on context (learning mode uses introduction audio, practice mode uses question audio).
 
 ---
 
@@ -220,6 +220,14 @@ The flashcard widget intelligently selects the appropriate recording type based 
   - Lightweight capability **`view_ll_tools`** gates certain admin pages.
 
 Find the settings via the plugin's **Settings** link on the Plugins page or under **Settings → Language Learner Tools**.
+
+### Local Dev / Media Proxy Notes
+
+- Local Live Link (`*.localsite.io`) is auto-detected for media URL rebasing/proxy behavior.
+- `X-Forwarded-*` and Local tunnel headers are now trusted only in narrow contexts by default (to reduce header spoofing risk).
+- If you run behind a custom trusted proxy/tunnel in development, you can opt in with:
+  - `ll_tools_media_proxy_trust_forwarded_headers`
+  - `ll_tools_media_proxy_trust_tunnel_headers`
 
 ---
 

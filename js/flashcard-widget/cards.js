@@ -25,7 +25,7 @@
     function createTextCard(word) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
         const $c = $('<div>', { class: `flashcard-container text-based ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
-        const $label = $('<div>', { text: word.label, class: 'quiz-text' }).appendTo($c);
+        const $label = $('<div>', { text: word.label, class: 'quiz-text', dir: 'auto' }).appendTo($c);
 
         $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' }).appendTo('body');
         const boxH = $c.innerHeight() - 15, boxW = $c.innerWidth() - 15;
@@ -126,7 +126,11 @@
             type: 'button',
             class: 'll-audio-play',
             'aria-label': 'Play option audio'
-        }).append($('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true', text: '▶' }));
+        }).append(
+            $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true' }).append(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true"><path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/></svg>'
+            )
+        );
         $btn.on('click', function (e) {
             e.stopPropagation();
             playOptionAudio(word, $c);
@@ -147,7 +151,7 @@
 
         if (includeText) {
             const labelText = word.label || word.title || '';
-            $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText }).appendTo($c);
+            $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText, dir: 'auto' }).appendTo($c);
         } else {
             const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
             for (let i = 0; i < barCount; i++) {
@@ -198,6 +202,10 @@
             }
 
             const $clicked = $(this);
+            const ariaDisabled = String($clicked.attr('aria-disabled') || '').toLowerCase();
+            if ($clicked.hasClass('ll-option-disabled') || ariaDisabled === 'true') {
+                return;
+            }
             const isGenderMode = !!(root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.isGenderMode);
             const isPracticeMode = !!(root.LLFlashcards && root.LLFlashcards.State) &&
                 !root.LLFlashcards.State.isLearningMode &&

@@ -22,6 +22,9 @@
         ? root.llToolsFlashcardsData.introSilenceMs : 800;
     const INTRO_WORD_GAP_MS = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData.introWordSilenceMs === 'number')
         ? root.llToolsFlashcardsData.introWordSilenceMs : 800;
+    const INTRO_AUDIO_RETRY_LIMIT = 2;
+    const INTRO_CLICK_CONFETTI_COOLDOWN_MS = 180;
+    const INTRO_CLICK_DUPLICATE_GUARD_MS = 450;
     const LEARNING_SET_SPLIT_THRESHOLD = 15;
     const LEARNING_SET_MAX_SIZE = 12;
 
@@ -45,6 +48,21 @@
         const modeFromFlash = (root.llToolsFlashcardsData && (root.llToolsFlashcardsData.starMode || root.llToolsFlashcardsData.star_mode)) || null;
         const mode = modeFromPrefs || modeFromFlash || 'normal';
         return normalizeStarMode(mode);
+    }
+
+    function normalizeWordId(value) {
+        const id = parseInt(value, 10);
+        return id > 0 ? id : 0;
+    }
+
+    function isPromptEligibleWord(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Selection && typeof Selection.isWordBlockedFromPromptRounds === 'function') {
+            try {
+                if (Selection.isWordBlockedFromPromptRounds(word)) return false;
+            } catch (_) { /* no-op */ }
+        }
+        return true;
     }
 
     function pickWeightedId(ids, avoidId) {
@@ -196,10 +214,37 @@
         return { id: null, fallbackId: pick ? pick.id : null };
     }
 
+    function getLearningCategoryScanOrder() {
+        const ordered = [];
+        const seen = {};
+        const fromState = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        fromState.forEach(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            ordered.push(key);
+        });
+        const byCategory = (State.wordsByCategory && typeof State.wordsByCategory === 'object')
+            ? Object.keys(State.wordsByCategory)
+            : [];
+        byCategory.forEach(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            ordered.push(key);
+        });
+        return ordered;
+    }
+
     function wordObjectById(wordId) {
-        for (let name of (State.categoryNames || [])) {
+        const normalizedId = normalizeWordId(wordId);
+        if (!normalizedId) return null;
+
+        for (let name of getLearningCategoryScanOrder()) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
-            const word = words.find(w => w.id === wordId);
+            const word = words.find(function (item) {
+                return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
+            });
             if (word) {
                 State.currentCategoryName = name;
                 State.currentCategory = words;
@@ -210,13 +255,13 @@
     }
 
     function findWordObjectById(wordId) {
-        const normalizedId = parseInt(wordId, 10);
+        const normalizedId = normalizeWordId(wordId);
         if (!normalizedId) return null;
 
-        for (let name of (State.categoryNames || [])) {
+        for (let name of getLearningCategoryScanOrder()) {
             const words = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             const word = words.find(function (item) {
-                return parseInt(item && item.id, 10) === normalizedId;
+                return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
             });
             if (word) {
                 return word;
@@ -243,7 +288,8 @@
         for (const name of (State.categoryNames || [])) {
             const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             for (const w of list) {
-                const id = parseInt(w && w.id, 10);
+                if (!isPromptEligibleWord(w)) continue;
+                const id = normalizeWordId(w && w.id);
                 if (!id || seen.has(id)) continue;
                 seen.add(id);
                 allIds.push(id);
@@ -388,7 +434,7 @@
 
         if (selected.length) return selected;
         // Keep learning flow moving even when every remaining intro word conflicts.
-        return [orderedIds[0]];
+        return orderedIds.slice(0, Math.max(1, take));
     }
 
     function pickNextIntroId(notYetIntroduced, avoidId) {
@@ -435,6 +481,45 @@
 
         State.wordsToIntroduce = getCurrentLearningWordSetIds();
         State.totalWordCount = State.wordsToIntroduce.length;
+
+        const eligibleLookup = {};
+        filteredAllIds.forEach(function (id) {
+            const normalizedId = normalizeWordId(id);
+            if (normalizedId) eligibleLookup[normalizedId] = true;
+        });
+        const isEligibleWordId = function (value) {
+            const normalizedId = normalizeWordId(value);
+            return !!(normalizedId && eligibleLookup[normalizedId]);
+        };
+        State.introducedWordIDs = (State.introducedWordIDs || []).filter(isEligibleWordId);
+        State.wrongAnswerQueue = (State.wrongAnswerQueue || []).filter(function (item) {
+            return !!(item && isEligibleWordId(item.id));
+        });
+        State.wordsToIntroduce = (State.wordsToIntroduce || []).filter(isEligibleWordId);
+        State.totalWordCount = State.wordsToIntroduce.length;
+
+        if (State.wordsAnsweredSinceLastIntro && typeof State.wordsAnsweredSinceLastIntro.forEach === 'function') {
+            const nextAnswered = [];
+            State.wordsAnsweredSinceLastIntro.forEach(function (id) {
+                if (isEligibleWordId(id)) nextAnswered.push(normalizeWordId(id));
+            });
+            State.wordsAnsweredSinceLastIntro = new Set(nextAnswered);
+        }
+
+        if (State.wordCorrectCounts && typeof State.wordCorrectCounts === 'object') {
+            Object.keys(State.wordCorrectCounts).forEach(function (rawId) {
+                if (!isEligibleWordId(rawId)) {
+                    delete State.wordCorrectCounts[rawId];
+                }
+            });
+        }
+        if (State.wordIntroductionProgress && typeof State.wordIntroductionProgress === 'object') {
+            Object.keys(State.wordIntroductionProgress).forEach(function (rawId) {
+                if (!isEligibleWordId(rawId)) {
+                    delete State.wordIntroductionProgress[rawId];
+                }
+            });
+        }
 
         // When in starred-only mode, purge any unstarred items from in-progress tracking.
         if (starMode === 'only') {
@@ -688,6 +773,122 @@
         return setTimeout(fn, delay);
     }
 
+    function unbindIntroductionTapConfetti($jq) {
+        if (!$jq || typeof $jq !== 'function') return;
+        const $container = $jq('#ll-tools-flashcard');
+        if ($container && $container.length) {
+            $container.off('.llIntroTapConfetti');
+        }
+    }
+
+    function startIntroductionTapConfetti($card, event) {
+        const effectsApi = root.LLFlashcards && root.LLFlashcards.Effects;
+        if (!effectsApi || typeof effectsApi.startConfetti !== 'function') return;
+
+        const viewportWidth = Math.max(1, root.innerWidth || 1);
+        const viewportHeight = Math.max(1, root.innerHeight || 1);
+        const sourceEvent = event && event.originalEvent ? event.originalEvent : event;
+        const touchPoint = sourceEvent && sourceEvent.changedTouches && sourceEvent.changedTouches[0];
+
+        let clientX = null;
+        let clientY = null;
+        if (touchPoint) {
+            clientX = touchPoint.clientX;
+            clientY = touchPoint.clientY;
+        } else if (sourceEvent && typeof sourceEvent.clientX === 'number' && typeof sourceEvent.clientY === 'number') {
+            clientX = sourceEvent.clientX;
+            clientY = sourceEvent.clientY;
+        }
+
+        if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+            const cardEl = $card && typeof $card.get === 'function' ? $card.get(0) : null;
+            const rect = cardEl && typeof cardEl.getBoundingClientRect === 'function'
+                ? cardEl.getBoundingClientRect()
+                : null;
+            if (rect) {
+                clientX = rect.left + (rect.width / 2);
+                clientY = rect.top + (rect.height / 2);
+            } else {
+                clientX = viewportWidth / 2;
+                clientY = viewportHeight * 0.45;
+            }
+        }
+
+        const origin = {
+            x: Math.max(0, Math.min(1, clientX / viewportWidth)),
+            y: Math.max(0, Math.min(1, clientY / viewportHeight))
+        };
+
+        effectsApi.startConfetti({
+            particleCount: 4,
+            spread: 24,
+            angle: 90,
+            origin: origin,
+            duration: 20
+        });
+    }
+
+    function bindIntroductionTapConfetti($jq) {
+        if (!$jq || typeof $jq !== 'function') return;
+        const $container = $jq('#ll-tools-flashcard');
+        if (!$container.length) return;
+
+        let lastPointerHandledAt = 0;
+        let lastConfettiAt = 0;
+        const maybeCelebrateTap = function (e) {
+            if (State.abortAllOperations || !State.isIntroducing || !State.isIntroducing()) return;
+            if ($jq(e.target).closest('.ll-audio-play').length) return;
+            const $card = $jq(this);
+            if (!$card.hasClass('introducing-active')) return;
+            const now = Date.now();
+            if ((now - lastConfettiAt) < INTRO_CLICK_CONFETTI_COOLDOWN_MS) return;
+            lastConfettiAt = now;
+            startIntroductionTapConfetti($card, e);
+        };
+
+        unbindIntroductionTapConfetti($jq);
+        $container
+            .on('pointerdown.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                e.stopPropagation();
+            })
+            .on('pointerup.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                lastPointerHandledAt = Date.now();
+                maybeCelebrateTap.call(this, e);
+            })
+            .on('click.llIntroTapConfetti', '.flashcard-container.introducing', function (e) {
+                if (lastPointerHandledAt > 0 && (Date.now() - lastPointerHandledAt) < INTRO_CLICK_DUPLICATE_GUARD_MS) {
+                    return;
+                }
+                maybeCelebrateTap.call(this, e);
+            });
+    }
+
+    function restartIntroductionPulseAnimation($allCards, $card) {
+        if (!$card || !$card.length) return;
+        if ($allCards && $allCards.length) {
+            $allCards.removeClass('introducing-active');
+        } else {
+            $card.removeClass('introducing-active');
+        }
+
+        // Force a reflow so the CSS animation restarts for repeated clips on the same card.
+        const cardEl = $card.get(0);
+        if (cardEl) {
+            try { void cardEl.offsetWidth; } catch (_) { /* no-op */ }
+        }
+
+        $card.addClass('introducing-active');
+    }
+
+    function releaseIntroLoading() {
+        if (State.learningIntroLoadingReleased) return Promise.resolve();
+        State.learningIntroLoadingReleased = true;
+        if (Dom && typeof Dom.hideLoading === 'function') {
+            return Promise.resolve(Dom.hideLoading()).catch(function () { return; });
+        }
+        return Promise.resolve();
+    }
+
     function introduceWords(words, context) {
         if (!State.isIntroducing()) {
             console.warn('introduceWords called but not in INTRODUCING_WORDS state');
@@ -696,8 +897,10 @@
 
         const wordsArray = Array.isArray(words) ? words : [words];
         const $jq = getJQuery();
+        State.learningIntroLoadingReleased = false;
 
         if ($jq) {
+            unbindIntroductionTapConfetti($jq);
             $jq('#ll-tools-flashcard').removeClass('audio-line-layout').empty();
             $jq('#ll-tools-flashcard-content').removeClass('audio-line-mode');
         } else if (typeof document !== 'undefined') {
@@ -754,33 +957,79 @@
             });
 
             if ($jq) {
-                $jq('.flashcard-container').addClass('introducing').css('pointer-events', 'none');
-                Dom.hideLoading && Dom.hideLoading();
-                $jq('.flashcard-container').fadeIn(600);
-            } else {
-                Dom.hideLoading && Dom.hideLoading();
+                const $introCards = $jq('.flashcard-container');
+                $introCards.addClass('introducing');
+                $introCards.fadeIn(600);
+                bindIntroductionTapConfetti($jq);
             }
 
             const timeoutId = scheduleTimeout(context, function () {
-                playIntroductionSequence(wordsArray, 0, 0, context);
+                playIntroductionSequence(wordsArray, 0, 0, context, 0);
             }, 650);
             State.addTimeout(timeoutId);
         }).catch(function (err) {
             console.error('Error preparing introductions:', err);
+            if ($jq) {
+                unbindIntroductionTapConfetti($jq);
+            }
+            if (context && typeof context.showLoadingError === 'function') {
+                context.showLoadingError({
+                    reason: 'learning-introduction',
+                    errorMessage: (err && err.message) ? String(err.message) : ''
+                });
+                return;
+            }
             State.forceTransitionTo(STATES.QUIZ_READY, 'Introduction error');
         });
     }
 
-    function playIntroductionSequence(words, wordIndex, repetition, context) {
+    function continueIntroductionSequence(words, wordIndex, repetition, context, options) {
+        const opts = options || {};
+        const currentWord = words[wordIndex];
+        const countProgress = opts.countProgress !== false;
+        const normalizedCurrentId = parseInt(currentWord && currentWord.id, 10) || (currentWord && currentWord.id);
+
+        if (countProgress && normalizedCurrentId) {
+            State.wordIntroductionProgress[normalizedCurrentId] =
+                (State.wordIntroductionProgress[normalizedCurrentId] || 0) + 1;
+            syncProgressUI();
+        }
+
+        if (repetition < State.AUDIO_REPETITIONS - 1) {
+            const nextTimeoutId = scheduleTimeout(context, function () {
+                if (!State.abortAllOperations) {
+                    playIntroductionSequence(words, wordIndex, repetition + 1, context, 0);
+                }
+            }, INTRO_GAP_MS);
+            State.addTimeout(nextTimeoutId);
+            return;
+        }
+
+        if (normalizedCurrentId && !State.introducedWordIDs.includes(normalizedCurrentId)) {
+            State.introducedWordIDs.push(normalizedCurrentId);
+        }
+        const nextTimeoutId = scheduleTimeout(context, function () {
+            if (!State.abortAllOperations) {
+                playIntroductionSequence(words, wordIndex + 1, 0, context, 0);
+            }
+        }, INTRO_WORD_GAP_MS);
+        State.addTimeout(nextTimeoutId);
+    }
+
+    function playIntroductionSequence(words, wordIndex, repetition, context, retryCount) {
         const $jq = getJQuery();
 
         if (State.abortAllOperations || !State.isIntroducing()) {
+            if ($jq) {
+                unbindIntroductionTapConfetti($jq);
+            }
             return;
         }
 
         if (wordIndex >= words.length) {
             Dom.enableRepeatButton && Dom.enableRepeatButton();
             if ($jq) {
+                unbindIntroductionTapConfetti($jq);
                 $jq('.flashcard-container').removeClass('introducing introducing-active').addClass('fade-out');
             }
             State.isIntroducingWord = false;
@@ -799,15 +1048,16 @@
 
         const currentWord = words[wordIndex];
         let $currentCard = null;
+        let $introCards = null;
         if ($jq) {
+            $introCards = $jq('.flashcard-container');
             $currentCard = $jq('.flashcard-container[data-word-index="' + wordIndex + '"]');
             if (!$currentCard.length) {
                 console.warn('Card disappeared during introduction');
                 return;
             }
 
-            $jq('.flashcard-container').removeClass('introducing-active');
-            $currentCard.addClass('introducing-active');
+            restartIntroductionPulseAnimation($introCards, $currentCard);
         }
 
         const timeoutId = scheduleTimeout(context, function () {
@@ -819,12 +1069,15 @@
                 try { audioPattern = JSON.parse(raw); } catch (_) { audioPattern = []; }
             }
             const audioUrl = audioPattern[repetition] || audioPattern[0];
+            const retriesUsed = Math.max(0, parseInt(retryCount, 10) || 0);
             const managedAudio = FlashcardAudio.createIntroductionAudio
                 ? FlashcardAudio.createIntroductionAudio(audioUrl)
                 : null;
 
             if (!managedAudio) {
                 console.error('Failed to create introduction audio');
+                releaseIntroLoading();
+                continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
                 return;
             }
 
@@ -833,49 +1086,35 @@
                 if (Dom.setRepeatButton) Dom.setRepeatButton('stop');
             }
 
-            managedAudio.playUntilEnd()
+            releaseIntroLoading().then(function () {
+                return managedAudio.playUntilEnd();
+            })
                 .then(() => {
                     if (State.abortAllOperations || !managedAudio.isValid() || !State.isIntroducing()) {
                         managedAudio.cleanup();
                         return;
                     }
-
-                    const normalizedCurrentId = parseInt(currentWord && currentWord.id, 10) || (currentWord && currentWord.id);
-                    if (!normalizedCurrentId) {
-                        managedAudio.cleanup();
-                        return;
-                    }
-
-                    State.wordIntroductionProgress[normalizedCurrentId] =
-                        (State.wordIntroductionProgress[normalizedCurrentId] || 0) + 1;
-
-                    syncProgressUI();
-
                     managedAudio.cleanup();
-
-                    if (repetition < State.AUDIO_REPETITIONS - 1) {
-                        if ($currentCard) $currentCard.removeClass('introducing-active');
-                        const nextTimeoutId = scheduleTimeout(context, function () {
-                            if (!State.abortAllOperations) {
-                                playIntroductionSequence(words, wordIndex, repetition + 1, context);
-                            }
-                        }, INTRO_GAP_MS);
-                        State.addTimeout(nextTimeoutId);
-                    } else {
-                        if (!State.introducedWordIDs.includes(normalizedCurrentId)) {
-                            State.introducedWordIDs.push(normalizedCurrentId);
-                        }
-                        const nextTimeoutId = scheduleTimeout(context, function () {
-                            if (!State.abortAllOperations) {
-                                playIntroductionSequence(words, wordIndex + 1, 0, context);
-                            }
-                        }, INTRO_WORD_GAP_MS);
-                        State.addTimeout(nextTimeoutId);
-                    }
+                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: true });
                 })
                 .catch(err => {
-                    console.error('Audio play failed:', err);
+                    console.warn('Audio play failed during introduction:', err);
                     managedAudio.cleanup();
+                    if (retriesUsed < INTRO_AUDIO_RETRY_LIMIT) {
+                        const retryDelay = 180 * (retriesUsed + 1);
+                        const retryTimeoutId = scheduleTimeout(context, function () {
+                            if (!State.abortAllOperations) {
+                                playIntroductionSequence(words, wordIndex, repetition, context, retriesUsed + 1);
+                            }
+                        }, retryDelay);
+                        State.addTimeout(retryTimeoutId);
+                        return;
+                    }
+                    console.warn('Skipping failed introduction clip after retries', {
+                        wordId: currentWord && currentWord.id ? currentWord.id : null,
+                        repetition: repetition
+                    });
+                    continueIntroductionSequence(words, wordIndex, repetition, context, { countProgress: false });
                 });
         }, 100);
         State.addTimeout(timeoutId);

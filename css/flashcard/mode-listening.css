@@ -1,11 +1,11 @@
 /* flashcard/mode-listening.css */
 
 .ll-tools-mode-switcher.listening-mode {
-    background: #6366f1;
+    background: #1d4d99;
 }
 
 .ll-tools-mode-switcher.listening-mode:hover {
-    background: #4f46e5;
+    background: #2f67ba;
 }
 
 .flashcard-container.listening-placeholder {
@@ -176,9 +176,9 @@
 }
 
 .ll-listening-controls .ll-listen-btn:focus-visible {
-    background: #eef2ff;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    background: #d8e8ff;
+    border-color: #1d4d99;
+    box-shadow: 0 0 0 3px rgba(29, 77, 153, 0.18);
 }
 
 .ll-listening-controls .ll-listen-btn svg {
@@ -222,9 +222,9 @@
 }
 
 .ll-listening-controls .ll-listen-btn:focus-visible {
-    background: #eef2ff !important;
-    border-color: #6366f1 !important;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+    background: #d8e8ff !important;
+    border-color: #1d4d99 !important;
+    box-shadow: 0 0 0 3px rgba(29, 77, 153, 0.18) !important;
 }
 
 .ll-listening-controls .ll-listen-btn svg {
@@ -245,10 +245,10 @@
 }
 
 .ll-listening-controls #ll-listen-loop.active {
-    color: #4f46e5 !important;
+    color: #1d4d99 !important;
     /* ensure visible active color */
-    border-color: #6366f1 !important;
-    background: rgba(99, 102, 241, 0.10) !important;
+    border-color: #1d4d99 !important;
+    background: rgba(29, 77, 153, 0.10) !important;
 }
 
 .ll-listening-controls .ll-listen-btn.disabled {

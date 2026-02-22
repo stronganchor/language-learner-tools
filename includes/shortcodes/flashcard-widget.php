@@ -210,9 +210,15 @@ function ll_flashcards_get_messages(): array {
         'loadingError'            => __('Loading Error', 'll-tools-text-domain'),
         'somethingWentWrong'      => __('Something went wrong', 'll-tools-text-domain'),
         'noWordsFound'            => __('No words could be loaded for this quiz. Please check that:', 'll-tools-text-domain'),
+        'optionsInvariantErrorTitle' => __('Quiz Configuration Error', 'll-tools-text-domain'),
+        'minimumOptionsInvariantMessage' => __('Quiz round requires at least two options.', 'll-tools-text-domain'),
+        'minimumOptionsRoundSummary' => __('Round setup: %1$d of %2$d required options are available.', 'll-tools-text-domain'),
+        'minimumOptionsError'     => __('This quiz round has fewer than two answer options, so the quiz cannot continue. Please check that:', 'll-tools-text-domain'),
+        'errorDetailsLabel'       => __('Error details', 'll-tools-text-domain'),
         'checkCategoryExists'     => __('The category exists and has words', 'll-tools-text-domain'),
         'checkWordsAssigned'      => __('Words are properly assigned to the category', 'll-tools-text-domain'),
         'checkWordsetFilter'      => __('If using wordsets, the wordset contains words for this category', 'll-tools-text-domain'),
+        'checkSpecificWrongAnswers' => __('Any specific wrong-answer words are available for this target', 'll-tools-text-domain'),
     ];
 }
 
@@ -221,12 +227,12 @@ function ll_flashcards_get_mode_ui_config(): array {
     $gender_svg = <<<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
-    <g stroke="#FF4FA3">
+    <g stroke="#C64545" style="stroke:#C64545!important">
       <circle cx="184" cy="284" r="92"/>
       <path d="M184 376 L184 470"/>
       <path d="M140 430 L228 430"/>
     </g>
-    <g stroke="#1E73FF">
+    <g stroke="#1D4D99" style="stroke:#1D4D99!important">
       <circle cx="328" cy="292" r="92"/>
       <path d="M402 218 L480 148"/>
       <path d="M480 148 L480 196"/>
@@ -242,9 +248,9 @@ SVG;
     }
     if ($self_check_svg === '') {
         $self_check_svg = '<svg viewBox="0 0 96 96" fill="none" aria-hidden="true" focusable="false">'
-            . '<path d="M12 50L31 68L58 22" stroke="#2BAE4A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#E63946" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M12 50L31 68L58 22" stroke="#15803D" style="stroke:#15803D!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" style="stroke:#FFFFFF!important" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
+            . '<path d="M52 43L82 73M82 43L52 73" stroke="#C64545" style="stroke:#C64545!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
             . '</svg>';
     }
 
@@ -272,14 +278,14 @@ SVG;
             'icon'              => '🎧',
             'className'         => 'listening-mode',
             'switchLabel'       => __('Switch to Listening Mode', 'll-tools-text-domain'),
-            'resultsButtonText' => __('Replay Listening', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Listen', 'll-tools-text-domain'),
         ],
         'gender' => [
             'icon'              => '',
             'svg'               => $gender_svg,
             'className'         => 'gender-mode',
-            'switchLabel'       => __('Switch to Gender Mode', 'll-tools-text-domain'),
-            'resultsButtonText' => __('Gender Mode', 'll-tools-text-domain'),
+            'switchLabel'       => __('Switch to Gender', 'll-tools-text-domain'),
+            'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
 }
@@ -465,6 +471,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
         'launchContext'        => $launch_context,
         'launch_context'       => $launch_context,
+        'sortLocale'           => get_locale(),
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -485,12 +492,33 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
  *  ---------------------------
  */
 
+function ll_tools_flashcard_widget_reset_render_guard(): void {
+    $GLOBALS['ll_tools_flashcard_widget_rendered_once'] = false;
+}
+
+function ll_tools_flashcard_widget_is_rendered_once(): bool {
+    return !empty($GLOBALS['ll_tools_flashcard_widget_rendered_once']);
+}
+
+function ll_tools_flashcard_widget_mark_rendered_once(): void {
+    $GLOBALS['ll_tools_flashcard_widget_rendered_once'] = true;
+}
+
+ll_tools_flashcard_widget_reset_render_guard();
+
 /**
  * [flashcard_widget] handler
  * @param array $atts
  * @return string
  */
 function ll_tools_flashcard_widget($atts) {
+    if (ll_tools_flashcard_widget_is_rendered_once()) {
+        // The widget template uses fixed IDs and must only be emitted once per request.
+        // Additional launches on the page reuse the same popup container.
+        return '';
+    }
+    ll_tools_flashcard_widget_mark_rendered_once();
+
     $atts = shortcode_atts([
         'category'  => '',
         'mode'      => 'random',
@@ -636,6 +664,12 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
         $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+        $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
+            ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
+            : '';
+        if ($aspect_bucket === '') {
+            $aspect_bucket = 'no-image';
+        }
 
         $gender_word_count = 0;
         if ($gender_enabled && !empty($words_in_mode)) {
@@ -677,6 +711,7 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'word_count'  => count($words_in_mode),
             'gender_word_count' => $gender_word_count,
             'gender_supported' => ($gender_enabled && $gender_word_count >= $min_word_count),
+            'aspect_bucket' => $aspect_bucket,
         ];
     }
     return $processed;
@@ -734,9 +769,17 @@ function ll_get_words_by_category_ajax() {
 
     $term = get_term_by('name', $category, 'word-category');
     $meta_config = ($term && !is_wp_error($term)) ? ll_tools_get_category_quiz_config($term) : [];
+    $normalized_prompt_type = ll_tools_normalize_quiz_prompt_type(
+        $prompt_type ?: ($meta_config['prompt_type'] ?? 'audio'),
+        !empty($meta_config['use_titles'])
+    );
     $base_config = [
-        'prompt_type' => ll_tools_normalize_quiz_prompt_type($prompt_type ?: ($meta_config['prompt_type'] ?? 'audio')),
-        'option_type' => ll_tools_normalize_quiz_option_type($option_type ?: $display_mode, !empty($meta_config['use_titles'])),
+        'prompt_type' => $normalized_prompt_type,
+        'option_type' => ll_tools_normalize_quiz_option_type(
+            $option_type ?: $display_mode,
+            !empty($meta_config['use_titles']),
+            $normalized_prompt_type
+        ),
     ];
     if (!empty($meta_config)) {
         $base_config = array_merge($meta_config, $base_config);

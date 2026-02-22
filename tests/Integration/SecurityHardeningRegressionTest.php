@@ -265,6 +265,85 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame(400, (int) ($result['status'] ?? 0));
     }
 
+    public function test_recording_upload_validation_accepts_valid_wav_file(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, $this->build_silent_wav_bytes());
+
+        try {
+            $result = ll_tools_validate_recording_upload_file([
+                'name' => 'valid.wav',
+                'tmp_name' => $tmp,
+                'type' => 'audio/wav',
+                'error' => UPLOAD_ERR_OK,
+                'size' => (int) filesize($tmp),
+            ], false);
+        } finally {
+            @unlink($tmp);
+        }
+
+        $this->assertTrue((bool) ($result['valid'] ?? false));
+        $this->assertSame('wav', (string) ($result['ext'] ?? ''));
+        $this->assertNotSame('', (string) ($result['mime'] ?? ''));
+    }
+
+    public function test_recording_upload_mime_normalization_strips_codec_parameters(): void
+    {
+        $this->assertSame(
+            'audio/webm',
+            ll_tools_normalize_recording_upload_mime('audio/webm;codecs=opus')
+        );
+    }
+
+    public function test_recording_upload_mime_normalization_maps_common_aliases(): void
+    {
+        $this->assertSame('audio/mpeg', ll_tools_normalize_recording_upload_mime('audio/mp3'));
+        $this->assertSame('audio/mp4', ll_tools_normalize_recording_upload_mime('audio/x-m4a'));
+    }
+
+    public function test_skip_recording_type_handler_returns_success_payload(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $user_id = self::factory()->user->create(['role' => 'author']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Skip Handler Word',
+            'post_author' => $user_id,
+        ]);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'),
+            'word_id' => $word_id,
+            'recording_type' => 'isolation',
+            'wordset_ids' => wp_json_encode([]),
+            'include_types' => '',
+            'exclude_types' => '',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_skip_recording_type_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertIsArray($response['data'] ?? null);
+        $this->assertIsArray($response['data']['remaining_types'] ?? null);
+    }
+
     public function test_manage_word_sets_shortcode_uses_ll_tools_handler(): void
     {
         global $shortcode_tags;
@@ -420,5 +499,33 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         @unlink($target);
         rename($base, $target);
         return $target;
+    }
+
+    private function build_silent_wav_bytes(): string
+    {
+        $sample_rate = 8000;
+        $channels = 1;
+        $bits_per_sample = 16;
+        $sample_count = 800; // 0.1s of silence at 8kHz
+        $block_align = (int) ($channels * ($bits_per_sample / 8));
+        $byte_rate = $sample_rate * $block_align;
+        $data_size = $sample_count * $block_align;
+        $riff_size = 36 + $data_size;
+
+        $header = 'RIFF'
+            . pack('V', $riff_size)
+            . 'WAVE'
+            . 'fmt '
+            . pack('V', 16)          // PCM fmt chunk size
+            . pack('v', 1)           // audio format PCM
+            . pack('v', $channels)
+            . pack('V', $sample_rate)
+            . pack('V', $byte_rate)
+            . pack('v', $block_align)
+            . pack('v', $bits_per_sample)
+            . 'data'
+            . pack('V', $data_size);
+
+        return $header . str_repeat("\0", $data_size);
     }
 }

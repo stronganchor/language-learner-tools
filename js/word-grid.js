@@ -761,10 +761,10 @@
         }
     }
 
-    function saveStateDebounced() {
+    function saveStateDebounced(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         if (!ajaxUrl || !nonce) { return; }
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(function () {
+        const saveNow = function () {
             $.post(ajaxUrl, {
                 action: 'll_user_study_save',
                 nonce: nonce,
@@ -774,7 +774,13 @@
                 star_mode: state.star_mode,
                 fast_transitions: state.fast_transitions ? 1 : 0
             });
-        }, 300);
+        };
+        clearTimeout(saveTimer);
+        if (opts.immediate) {
+            saveNow();
+            return;
+        }
+        saveTimer = setTimeout(saveNow, 300);
     }
 
     if ($starToggles.length) {
@@ -819,7 +825,7 @@
                 updateStarButtons(entry.wordId, entry.starred);
             });
             setStudyPrefsGlobal();
-            saveStateDebounced();
+            saveStateDebounced({ immediate: true });
 
             internalStarChange = true;
             try {
@@ -918,7 +924,7 @@
         setStarredIds(starredIds);
         updateStarButtons(wordId, shouldStar);
         setStudyPrefsGlobal();
-        saveStateDebounced();
+        saveStateDebounced({ immediate: true });
         updateAllStarToggles();
         updateStarModeButtons();
 
@@ -948,7 +954,7 @@
         setStarredIds(starredIds);
         updateStarButtons(wordId, shouldStar);
         setStudyPrefsGlobal();
-        saveStateDebounced();
+        saveStateDebounced({ immediate: true });
         updateAllStarToggles();
         updateStarModeButtons();
     });
@@ -1388,8 +1394,9 @@
         let $main = $textWrap.find('.ll-word-recording-text-main').first();
         if (parts.text) {
             if (!$main.length) {
-                $main = $('<span>', { class: 'll-word-recording-text-main' }).appendTo($textWrap);
+                $main = $('<span>', { class: 'll-word-recording-text-main', dir: 'auto' }).appendTo($textWrap);
             }
+            $main.attr('dir', 'auto');
             $main.text(parts.text);
         } else {
             $main.remove();
@@ -1398,8 +1405,9 @@
         let $translation = $textWrap.find('.ll-word-recording-text-translation').first();
         if (parts.translation) {
             if (!$translation.length) {
-                $translation = $('<span>', { class: 'll-word-recording-text-translation' }).appendTo($textWrap);
+                $translation = $('<span>', { class: 'll-word-recording-text-translation', dir: 'auto' }).appendTo($textWrap);
             }
+            $translation.attr('dir', 'auto');
             $translation.text(parts.translation);
         } else {
             $translation.remove();
@@ -3195,11 +3203,11 @@
                 }
                 const data = response.data || {};
                 if (typeof data.word_text === 'string') {
-                    $item.find('[data-ll-word-text]').text(data.word_text);
+                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(data.word_text);
                     $item.find('[data-ll-word-input="word"]').val(data.word_text);
                 }
                 if (typeof data.word_translation === 'string') {
-                    $item.find('[data-ll-word-translation]').text(data.word_translation);
+                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(data.word_translation);
                     $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
                 }
                 if (typeof data.word_note === 'string') {
@@ -3298,11 +3306,11 @@
             const $item = $grids.find('.word-item[data-word-id="' + wordId + '"]').first();
             if (!$item.length) { return; }
             if (typeof word.word_text === 'string') {
-                $item.find('[data-ll-word-text]').text(word.word_text);
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(word.word_text);
                 $item.find('[data-ll-word-input="word"]').val(word.word_text);
             }
             if (typeof word.word_translation === 'string') {
-                $item.find('[data-ll-word-translation]').text(word.word_translation);
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(word.word_translation);
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
             }
             if (word.dictionary_entry) {

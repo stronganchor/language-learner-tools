@@ -74,6 +74,7 @@
         practiceForcedReplays: {},
         userClickedCorrectAnswer: false,
         quizResults: { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} },
+        modeSessionCompleteTracked: false,
 
         // Learning/listening mode data
         isLearningMode: false,
@@ -90,6 +91,7 @@
         listeningLastAspectRatio: 0,
         listeningCurrentTarget: null,
         listeningHistory: [],
+        listeningLoop: false,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
         isIntroducingWord: false,
@@ -294,6 +296,7 @@
             this.practiceForcedReplays = {};
             this.userClickedCorrectAnswer = false;
             this.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+            this.modeSessionCompleteTracked = false;
 
             // Reset learning mode data
             this.isLearningMode = false;
@@ -304,6 +307,7 @@
             this.listenIndex = 0;
             this.listeningCurrentTarget = null;
             this.listeningHistory = [];
+            this.listeningLoop = false;
             this.introducedWordIDs = [];
             this.wordIntroductionProgress = {};
             this.wordCorrectCounts = {};

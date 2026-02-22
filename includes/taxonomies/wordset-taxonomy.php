@@ -209,7 +209,7 @@ function ll_add_wordset_language_field($term) {
     $gender_colors = function_exists('ll_tools_wordset_get_gender_color_defaults')
         ? ll_tools_wordset_get_gender_color_defaults()
         : [
-            'masculine' => '#2563EB',
+            'masculine' => '#1D4D99',
             'feminine' => '#EC4899',
             'other' => '#6B7280',
         ];
@@ -296,7 +296,7 @@ function ll_add_wordset_language_field($term) {
         $is_edit,
         'term-grammatical-gender-color-masculine-wrap',
         __('Masculine color', 'll-tools-text-domain'),
-        '<input type="color" id="ll-wordset-gender-color-masculine" name="ll_wordset_gender_color_masculine" value="' . esc_attr((string) ($gender_colors['masculine'] ?? '#2563EB')) . '">',
+        '<input type="color" id="ll-wordset-gender-color-masculine" name="ll_wordset_gender_color_masculine" value="' . esc_attr((string) ($gender_colors['masculine'] ?? '#1D4D99')) . '">',
         'll-wordset-gender-color-masculine',
         __('Color used for masculine gender badges.', 'll-tools-text-domain')
     );
@@ -708,7 +708,7 @@ function ll_tools_wordset_get_gender_default_options(): array {
 
 function ll_tools_wordset_get_gender_color_defaults(): array {
     return [
-        'masculine' => '#2563EB',
+        'masculine' => '#1D4D99',
         'feminine' => '#EC4899',
         'other' => '#6B7280',
     ];

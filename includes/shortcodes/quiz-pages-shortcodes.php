@@ -310,7 +310,10 @@ function ll_get_all_quiz_pages_data($opts = []) {
     }
 
     usort($items, function ($a, $b) {
-        return strnatcasecmp($a['display_name'], $b['display_name']);
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
+        }
+        return strnatcasecmp((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
     });
 
     return $items;
@@ -540,11 +543,26 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
     <?php
 }
 
+function ll_qpg_flashcard_shell_reset_render_guard(): void {
+    $GLOBALS['ll_qpg_flashcard_shell_rendered_once'] = false;
+}
+
+function ll_qpg_flashcard_shell_is_rendered_once(): bool {
+    return !empty($GLOBALS['ll_qpg_flashcard_shell_rendered_once']);
+}
+
+function ll_qpg_flashcard_shell_mark_rendered_once(): void {
+    $GLOBALS['ll_qpg_flashcard_shell_rendered_once'] = true;
+}
+
+ll_qpg_flashcard_shell_reset_render_guard();
+
 /** Prints the flashcard overlay DOM (same IDs the widget expects) once. */
 function ll_qpg_print_flashcard_shell_once() {
-    static $printed = false;
-    if ($printed) { return; }
-    $printed = true;
+    if (ll_qpg_flashcard_shell_is_rendered_once()) { return; }
+    ll_qpg_flashcard_shell_mark_rendered_once();
+    $widget_rendered = function_exists('ll_tools_flashcard_widget_is_rendered_once')
+        && ll_tools_flashcard_widget_is_rendered_once();
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $practice_mode_ui = $mode_ui['practice'] ?? [];
     $learning_mode_ui = $mode_ui['learning'] ?? [];
@@ -559,6 +577,7 @@ function ll_qpg_print_flashcard_shell_once() {
         $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
         echo '<span class="' . esc_attr($class) . '" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
     };
+    if (!$widget_rendered) :
     ?>
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
       <div id="ll-tools-flashcard-popup" style="display:none;">
@@ -575,8 +594,9 @@ function ll_qpg_print_flashcard_shell_once() {
               </button>
             </div>
 
-            <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
           </div>
+
+          <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
 
           <div id="ll-tools-flashcard-content">
             <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
@@ -590,55 +610,25 @@ function ll_qpg_print_flashcard_shell_once() {
             $learning_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
             $self_check_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
             $listening_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
-            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
-            $settings_label = __('Study Settings', 'll-tools-text-domain');
+            $gender_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender', 'll-tools-text-domain');
           ?>
           <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
-            <?php if (is_user_logged_in()): ?>
-              <div id="ll-tools-settings-control" class="ll-tools-settings-control">
-                <button id="ll-tools-settings-button" class="ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr($settings_label); ?>">
-                  <span class="mode-icon" aria-hidden="true">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </span>
-                </button>
-                <div id="ll-tools-settings-panel" class="ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr($settings_label); ?>" aria-hidden="true">
-                  <div class="ll-tools-settings-section">
-                    <div class="ll-tools-settings-heading"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></div>
-                    <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Word inclusion', 'll-tools-text-domain'); ?>">
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="normal"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="weighted"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
-                      <button type="button" class="ll-tools-settings-option" data-star-mode="only"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
-                    </div>
-                  </div>
-                  <div class="ll-tools-settings-section">
-                    <div class="ll-tools-settings-heading"><?php echo esc_html__('Transition speed', 'll-tools-text-domain'); ?></div>
-                    <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
-                      <button type="button" class="ll-tools-settings-option" data-speed="normal"><?php echo esc_html__('Standard pace', 'll-tools-text-domain'); ?></button>
-                      <button type="button" class="ll-tools-settings-option" data-speed="fast"><?php echo esc_html__('Faster transitions', 'll-tools-text-domain'); ?></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <?php endif; ?>
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-              <!-- Fixed order: learning, practice, self-check, gender, listening -->
+              <!-- Fixed order: learning, practice, listening, gender, self-check -->
               <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
                 <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
                 <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
-                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
+              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
+                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
               </button>
               <button class="ll-tools-mode-option gender hidden" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" aria-hidden="true">
                 <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
-                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
+              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
               </button>
             </div>
             <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
@@ -658,8 +648,8 @@ function ll_qpg_print_flashcard_shell_once() {
                 $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
                 $learning_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
                 $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
-                $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
-                $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
+                $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
+                $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
               ?>
               <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
                 <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>
@@ -708,6 +698,7 @@ function ll_qpg_print_flashcard_shell_once() {
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <script>
     (function($){

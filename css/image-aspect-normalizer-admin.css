@@ -1,0 +1,378 @@
+.taxonomy-word-category .row-actions .ll-tools-aspect-normalize-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 10px;
+    border: 1px solid #f3b6b6;
+    border-radius: 999px;
+    background: #fff5f5;
+    color: #b42318 !important;
+    font-weight: 600;
+    line-height: 1.8;
+}
+
+.taxonomy-word-category .row-actions .ll-tools-aspect-normalize-link:hover,
+.taxonomy-word-category .row-actions .ll-tools-aspect-normalize-link:focus {
+    border-color: #dc2626;
+    background: #fee2e2;
+    color: #7f1d1d !important;
+}
+
+.taxonomy-word-category .row-actions .ll-tools-aspect-normalize-link__icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #b42318;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.taxonomy-word-category .row-actions .ll-tools-aspect-normalize-link__attention {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.ll-aspect-normalizer-wrap .description {
+    max-width: 980px;
+}
+
+.ll-aspect-normalizer {
+    --ll-aspect-border: #d0d7de;
+    --ll-aspect-surface: #ffffff;
+    --ll-aspect-subtle: #f6f8fa;
+    --ll-aspect-danger: #b42318;
+    --ll-aspect-info: #0f4c81;
+    --ll-aspect-success: #15803d;
+    --ll-aspect-text: #1f2937;
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    gap: 18px;
+}
+
+.ll-aspect-normalizer__worklist {
+    border: 1px solid var(--ll-aspect-border);
+    border-radius: 12px;
+    background: var(--ll-aspect-surface);
+    overflow: hidden;
+}
+
+.ll-aspect-normalizer__worklist h2 {
+    margin: 0;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--ll-aspect-border);
+    font-size: 15px;
+}
+
+.ll-aspect-normalizer__worklist-body {
+    max-height: 72vh;
+    overflow: auto;
+    padding: 8px;
+}
+
+.ll-aspect-worklist-item {
+    width: 100%;
+    display: block;
+    text-align: left;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ll-aspect-text);
+    padding: 10px 10px 9px;
+    cursor: pointer;
+    margin-bottom: 7px;
+}
+
+.ll-aspect-worklist-item:hover {
+    border-color: var(--ll-aspect-border);
+    background: var(--ll-aspect-subtle);
+}
+
+.ll-aspect-worklist-item.is-active {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.ll-aspect-worklist-item__label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.ll-aspect-worklist-item__stats,
+.ll-aspect-worklist-item__ratios {
+    display: block;
+    color: #4b5563;
+    font-size: 12px;
+}
+
+.ll-aspect-normalizer__detail {
+    border: 1px solid var(--ll-aspect-border);
+    border-radius: 12px;
+    background: var(--ll-aspect-surface);
+    padding: 14px;
+}
+
+.ll-aspect-normalizer__detail-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.ll-aspect-normalizer__detail-header h2 {
+    margin: 0 0 4px;
+}
+
+.ll-aspect-normalizer__controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ll-aspect-normalizer__controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 130px;
+}
+
+.ll-aspect-normalizer__controls select,
+.ll-aspect-normalizer__controls input[type="text"] {
+    min-width: 118px;
+}
+
+.ll-aspect-normalizer__status {
+    display: none;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
+.ll-aspect-normalizer__status.is-loading {
+    display: block;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.ll-aspect-normalizer__status.is-success {
+    display: block;
+    border-color: #bbf7d0;
+    background: #ecfdf3;
+    color: var(--ll-aspect-success);
+}
+
+.ll-aspect-normalizer__status.is-error {
+    display: block;
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: var(--ll-aspect-danger);
+}
+
+.ll-aspect-normalizer__status.is-info {
+    display: block;
+    border-color: #bfdbfe;
+    background: #f0f7ff;
+    color: var(--ll-aspect-info);
+}
+
+.ll-aspect-normalizer__errors {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #7f1d1d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+}
+
+.ll-aspect-normalizer__errors ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.ll-aspect-normalizer__offenders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 14px;
+}
+
+.ll-aspect-empty {
+    border: 1px dashed var(--ll-aspect-border);
+    border-radius: 10px;
+    padding: 16px;
+    color: #4b5563;
+    background: #f9fafb;
+}
+
+.ll-aspect-card {
+    border: 1px solid var(--ll-aspect-border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #ffffff;
+}
+
+.ll-aspect-card.is-dragging {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.ll-aspect-card__header {
+    margin-bottom: 8px;
+}
+
+.ll-aspect-card__title {
+    margin: 0 0 4px;
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.ll-aspect-card__meta {
+    margin: 0 0 4px;
+    color: #4b5563;
+    font-size: 12px;
+}
+
+.ll-aspect-card__counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.ll-aspect-card__actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ll-aspect-card__use-ratio.button {
+    margin: 0;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid #94a3b8;
+    background: #f8fafc;
+    color: #0f172a;
+    box-shadow: none;
+    text-shadow: none;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 26px;
+}
+
+.ll-aspect-card__use-ratio.button:hover,
+.ll-aspect-card__use-ratio.button:focus {
+    border-color: #1d4ed8;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.ll-aspect-card__use-ratio.button[disabled] {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #94a3b8;
+}
+
+.ll-aspect-card__apply-pad.button {
+    margin: 0;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid #0f766e;
+    background: #ecfeff;
+    color: #0f766e;
+    box-shadow: none;
+    text-shadow: none;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 26px;
+}
+
+.ll-aspect-card__apply-pad.button:hover,
+.ll-aspect-card__apply-pad.button:focus {
+    border-color: #115e59;
+    background: #ccfbf1;
+    color: #134e4a;
+}
+
+.ll-aspect-card__apply-pad.button[disabled] {
+    border-color: #99f6e4;
+    background: #f0fdfa;
+    color: #6b7280;
+}
+
+.ll-aspect-stage {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #111827;
+    border: 1px solid #111827;
+}
+
+.ll-aspect-stage img {
+    display: block;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ll-aspect-crop-box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 0 0 9999px rgba(17, 24, 39, 0.62);
+    border: 2px solid #f8fafc;
+    cursor: move;
+    touch-action: none;
+}
+
+.ll-aspect-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #1d4ed8;
+    border: 2px solid #ffffff;
+    box-sizing: border-box;
+}
+
+.ll-aspect-handle--nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.ll-aspect-handle--n { left: calc(50% - 6px); top: -6px; cursor: ns-resize; }
+.ll-aspect-handle--ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.ll-aspect-handle--e { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.ll-aspect-handle--se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.ll-aspect-handle--s { left: calc(50% - 6px); bottom: -6px; cursor: ns-resize; }
+.ll-aspect-handle--sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.ll-aspect-handle--w { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+
+.ll-aspect-card__readout {
+    margin: 8px 0 0;
+    font-size: 11px;
+    color: #4b5563;
+}
+
+@media (max-width: 1024px) {
+    .ll-aspect-normalizer {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-aspect-normalizer__worklist-body {
+        max-height: 42vh;
+    }
+}

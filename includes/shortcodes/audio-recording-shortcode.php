@@ -300,14 +300,14 @@ function ll_tools_get_recording_type_filters_from_request(?array $all_types = nu
  */
 function ll_tools_get_allowed_recording_upload_mimes(): array {
     $defaults = [
-        'mp3'  => 'audio/mpeg',
+        'mp3'  => 'audio/mpeg|audio/mp3|audio/x-mp3',
         'wav'  => 'audio/wav|audio/x-wav|audio/wave',
         'aac'  => 'audio/aac|audio/x-aac',
-        'm4a'  => 'audio/mp4|video/mp4',
+        'm4a'  => 'audio/mp4|video/mp4|audio/x-m4a',
         'mp4'  => 'audio/mp4|video/mp4',
         'ogg'  => 'audio/ogg|application/ogg',
         'oga'  => 'audio/ogg|application/ogg',
-        'webm' => 'audio/webm|video/webm',
+        'webm' => 'audio/webm|video/webm|audio/x-webm|video/x-webm',
     ];
 
     $raw_mimes = apply_filters('ll_tools_allowed_recording_upload_mimes', $defaults);
@@ -329,6 +329,40 @@ function ll_tools_get_allowed_recording_upload_mimes(): array {
     }
 
     return !empty($sanitized) ? $sanitized : $defaults;
+}
+
+/**
+ * Normalize recorder upload MIME values into canonical, comparable strings.
+ */
+function ll_tools_normalize_recording_upload_mime($mime): string {
+    $mime = strtolower(trim((string) $mime));
+    if ($mime === '') {
+        return '';
+    }
+
+    // Browsers often append codec parameters (e.g. audio/webm;codecs=opus).
+    $mime = preg_replace('/\s*;.*$/', '', $mime);
+    $mime = strtolower(trim((string) $mime));
+    if ($mime === '') {
+        return '';
+    }
+
+    $mime = (string) preg_replace('/[^a-z0-9+.\-\/]/i', '', $mime);
+    if ($mime === '') {
+        return '';
+    }
+
+    $aliases = [
+        'audio/mp3'    => 'audio/mpeg',
+        'audio/x-mp3'  => 'audio/mpeg',
+        'audio/x-m4a'  => 'audio/mp4',
+        'audio/wave'   => 'audio/wav',
+        'audio/x-wav'  => 'audio/wav',
+        'audio/x-webm' => 'audio/webm',
+        'video/x-webm' => 'video/webm',
+    ];
+
+    return isset($aliases[$mime]) ? (string) $aliases[$mime] : $mime;
 }
 
 /**
@@ -408,9 +442,47 @@ function ll_tools_validate_recording_upload_file(array $file, bool $require_uplo
 
     $detected = wp_check_filetype_and_ext($tmp_path, $original_name, $allowed_mimes);
     $ext = sanitize_key((string) ($detected['ext'] ?? ''));
-    $mime = strtolower(trim((string) ($detected['type'] ?? '')));
+    $mime = ll_tools_normalize_recording_upload_mime((string) ($detected['type'] ?? ''));
 
-    if ($ext === '' || $mime === '') {
+    // Some hosts/browsers report sparse MIME metadata for media blobs; fall back
+    // to client-reported values while still enforcing our allowed map + audio probe.
+    $original_ext = sanitize_key((string) pathinfo($original_name, PATHINFO_EXTENSION));
+    if ($ext === '' && $original_ext !== '' && isset($allowed_mimes[$original_ext])) {
+        $ext = $original_ext;
+    }
+
+    $client_mime = ll_tools_normalize_recording_upload_mime((string) ($file['type'] ?? ''));
+    if ($mime === '' && $client_mime !== '') {
+        $mime = $client_mime;
+    }
+
+    if ($ext === '' && $mime !== '') {
+        foreach ($allowed_mimes as $candidate_ext => $candidate_pattern) {
+            $candidate_ext = sanitize_key((string) $candidate_ext);
+            if ($candidate_ext === '') {
+                continue;
+            }
+            $candidate_mimes = array_values(array_filter(array_map(static function ($value) {
+                return ll_tools_normalize_recording_upload_mime((string) $value);
+            }, explode('|', (string) $candidate_pattern))));
+            if (!empty($candidate_mimes) && wp_match_mime_types($candidate_mimes, $mime)) {
+                $ext = $candidate_ext;
+                break;
+            }
+        }
+    }
+
+    $allowed_for_ext = [];
+    if ($ext !== '' && isset($allowed_mimes[$ext])) {
+        $allowed_for_ext = array_values(array_filter(array_map(static function ($value) {
+            return ll_tools_normalize_recording_upload_mime((string) $value);
+        }, explode('|', (string) $allowed_mimes[$ext]))));
+        if ($mime === '' && !empty($allowed_for_ext)) {
+            $mime = (string) $allowed_for_ext[0];
+        }
+    }
+
+    if ($ext === '' || $mime === '' || empty($allowed_for_ext) || !wp_match_mime_types($allowed_for_ext, $mime)) {
         $result['error'] = __('Uploaded file type is not allowed.', 'll-tools-text-domain');
         return $result;
     }
@@ -576,6 +648,9 @@ function ll_tools_get_hidden_recording_words(int $user_id = 0): array {
         }
         $left_title = (string) ($left['title'] ?? '');
         $right_title = (string) ($right['title'] ?? '');
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings($left_title, $right_title);
+        }
         return strnatcasecmp($left_title, $right_title);
     });
 
@@ -923,6 +998,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'language'        => $atts['language'],
         'wordset'         => $atts['wordset'],
         'wordset_ids'     => $wordset_term_ids,
+        'sort_locale'     => get_locale(),
         'hide_name'       => (bool) get_option('ll_hide_recording_titles', 0),
         'recording_types' => $dropdown_types,
         'recording_type_order' => ll_get_recording_type_prompt_order(),
@@ -3239,7 +3315,12 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
 
     uasort($items_by_category, function($a, $b) {
-        return strcasecmp($a['name'], $b['name']);
+        $left_name = isset($a['name']) ? (string) $a['name'] : '';
+        $right_name = isset($b['name']) ? (string) $b['name'] : '';
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings($left_name, $right_name);
+        }
+        return strcasecmp($left_name, $right_name);
     });
 
     if (!empty($category_slug)) {
@@ -3438,6 +3519,9 @@ function ll_skip_recording_type_handler() {
     $word_id        = intval($_POST['word_id'] ?? 0);
     $recording_type = sanitize_text_field($_POST['recording_type'] ?? '');
     $word_title     = sanitize_text_field($_POST['word_title'] ?? '');
+    $posted_ids     = ll_tools_get_recording_wordset_ids_from_request();
+    $type_filters   = ll_tools_get_recording_type_filters_from_request();
+    $filtered_types = $type_filters['filtered_types'];
 
     if (!$image_id && !$word_id) {
         if ($word_title === '') {
@@ -3942,12 +4026,27 @@ function ll_handle_recording_upload() {
 
     $upload_result = wp_handle_upload($file, [
         'test_form' => false,
+        // We already enforce extension, MIME, size, and audio-content checks above.
+        // Disable duplicate core MIME validation here to avoid false rejections
+        // for valid recorder blobs on hosts with strict/legacy MIME mappings.
+        'test_type' => false,
         'mimes' => ll_tools_get_allowed_recording_upload_mimes(),
     ]);
     if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
         $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
         error_log('Upload step: Failed to save file' . ($upload_error !== '' ? ': ' . $upload_error : ''));
-        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'));
+        $status = ($upload_error !== '' && stripos($upload_error, 'file type') !== false) ? 415 : 400;
+        if ($upload_error !== '') {
+            wp_send_json_error(
+                sprintf(
+                    /* translators: %s: upload subsystem error message */
+                    __('Failed to save file: %s', 'll-tools-text-domain'),
+                    $upload_error
+                ),
+                $status
+            );
+        }
+        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'), $status);
     }
     $filepath = (string) $upload_result['file'];
 

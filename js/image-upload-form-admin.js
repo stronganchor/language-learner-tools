@@ -43,7 +43,12 @@
             return false;
         }
 
-        return prompt === 'image' && (option === 'text_translation' || option === 'text_title');
+        var promptIsImage = (prompt === 'image');
+        var promptIsText = (prompt === 'text_translation' || prompt === 'text_title');
+        var optionIsImage = (option === 'image');
+        var optionIsText = (option === 'text' || option === 'text_translation' || option === 'text_title');
+
+        return (promptIsImage && optionIsText) || (promptIsText && optionIsImage);
     }
 
     function hasEligibleExistingCategory($form, autoCreateCategoryIds) {

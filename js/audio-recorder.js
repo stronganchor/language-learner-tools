@@ -37,6 +37,8 @@
     const requireAll = !!window.ll_recorder_data?.require_all_types;
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
+    const sortLocales = buildSortLocales(window.ll_recorder_data?.sort_locale || document.documentElement.lang || '');
+    const turkishSortLocales = withTurkishSortLocales(sortLocales);
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
     const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
     const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
@@ -86,6 +88,69 @@
     };
 
     document.addEventListener('DOMContentLoaded', init);
+
+    function buildSortLocales(rawLocale) {
+        const value = String(rawLocale || '').trim().replace('_', '-');
+        const locales = [];
+        const pushLocale = function (locale) {
+            const normalized = String(locale || '').trim();
+            if (!normalized || locales.indexOf(normalized) !== -1) { return; }
+            locales.push(normalized);
+        };
+
+        if (value) {
+            pushLocale(value);
+            const primary = value.split('-')[0];
+            if (primary) {
+                pushLocale(primary);
+                if (primary.toLowerCase() === 'tr') {
+                    pushLocale('tr-TR');
+                }
+            }
+        }
+        pushLocale('en-US');
+        return locales;
+    }
+
+    function withTurkishSortLocales(baseLocales) {
+        const combined = [];
+        const pushLocale = function (value) {
+            const normalized = String(value || '').trim();
+            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
+            combined.push(normalized);
+        };
+        pushLocale('tr-TR');
+        pushLocale('tr');
+        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
+        return combined;
+    }
+
+    function textHasTurkishCharacters(value) {
+        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
+    }
+
+    function localeTextCompare(left, right, options) {
+        const a = String(left || '');
+        const b = String(right || '');
+        if (a === b) { return 0; }
+        const opts = Object.assign({
+            numeric: true,
+            sensitivity: 'base'
+        }, (options && typeof options === 'object') ? options : {});
+        const locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
+            ? turkishSortLocales
+            : sortLocales;
+
+        try {
+            return a.localeCompare(b, locales, opts);
+        } catch (_) {
+            try {
+                return a.localeCompare(b, undefined, opts);
+            } catch (_) {
+                return a < b ? -1 : (a > b ? 1 : 0);
+            }
+        }
+    }
 
     function init() {
         setupElements();
@@ -399,7 +464,7 @@
             const leftTime = Date.parse(left.hidden_at || '') || 0;
             const rightTime = Date.parse(right.hidden_at || '') || 0;
             if (leftTime !== rightTime) return rightTime - leftTime;
-            return (left.title || '').localeCompare(right.title || '');
+            return localeTextCompare(left.title || '', right.title || '');
         });
         return normalizedList;
     }
@@ -1025,12 +1090,19 @@
     }
 
     function getBlobExtension(mimeType) {
-        const blobType = (mimeType || '').toLowerCase();
-        if (blobType.includes('wav')) return '.wav';
-        if (blobType.includes('pcm')) return '.wav';
+        const blobTypeRaw = (mimeType || '').toLowerCase();
+        const blobType = blobTypeRaw.split(';', 1)[0].trim();
+
+        // Prefer container hints over codec hints so "audio/webm;codecs=pcm"
+        // still uploads as .webm instead of being mislabeled as .wav.
+        if (blobType.includes('webm')) return '.webm';
+        if (blobType.includes('ogg')) return '.ogg';
+        if (blobType.includes('wav') || blobType.includes('wave')) return '.wav';
         if (blobType.includes('mpeg') || blobType.includes('mp3')) return '.mp3';
+        if (blobType.includes('m4a')) return '.m4a';
         if (blobType.includes('mp4')) return '.mp4';
         if (blobType.includes('aac')) return '.aac';
+        if (blobType.includes('pcm')) return '.wav';
         return '.webm';
     }
 
@@ -1315,7 +1387,7 @@
         if (orderDiff !== 0) {
             return orderDiff;
         }
-        return leftSlug.localeCompare(rightSlug);
+        return localeTextCompare(leftSlug, rightSlug);
     }
 
     function sortRecordingTypes(list) {
@@ -2069,8 +2141,6 @@
                 throw new Error('Browser does not support required audio formats for recording');
             }
 
-            console.log('Using MIME type:', options.mimeType);
-
             mediaRecorder = new MediaRecorder(stream, options);
 
             audioChunks = [];
@@ -2292,9 +2362,7 @@
             el.submitBtn.innerHTML = icons.check;
         }
 
-        controls.playbackAudio.play().catch(err => {
-            console.log('Auto-play prevented by browser:', err);
-        });
+        controls.playbackAudio.play().catch(() => {});
     }
 
     function showProcessingReview() {
@@ -2526,6 +2594,43 @@
         }
     }
 
+    function restoreUploadControls() {
+        const el = window.llRecorder;
+        if (!el) return;
+        if (el.submitBtn) el.submitBtn.disabled = false;
+        if (el.redoBtn) el.redoBtn.disabled = false;
+        if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
+        if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+        if (el.skipBtn) el.skipBtn.disabled = false;
+        if (el.hideBtn) el.hideBtn.disabled = false;
+        if (isNewWordPanelActive()) {
+            setNewWordActionState(false);
+        }
+    }
+
+    function getAjaxErrorMessage(payload, fallback = '') {
+        if (!payload || typeof payload !== 'object') return fallback;
+        if (typeof payload.data === 'string' && payload.data.trim()) {
+            return payload.data.trim();
+        }
+        if (payload.data && typeof payload.data === 'object' && typeof payload.data.message === 'string' && payload.data.message.trim()) {
+            return payload.data.message.trim();
+        }
+        if (typeof payload.message === 'string' && payload.message.trim()) {
+            return payload.message.trim();
+        }
+        return fallback;
+    }
+
+    function showUploadError(detail) {
+        const prefix = i18n.upload_failed || 'Upload failed:';
+        if (!detail) {
+            showStatus(prefix, 'error');
+            return;
+        }
+        showStatus(`${prefix} ${detail}`.trim(), 'error');
+    }
+
     async function submitAndNext() {
         if (!currentBlob) {
             const msg = newWordMode
@@ -2602,7 +2707,6 @@
         // Extension detection - prioritize quality formats
         const extension = getBlobExtension(uploadBlob.type);
 
-        console.log('Blob type:', uploadBlob.type, 'Extension:', extension);
         formData.append('audio', uploadBlob, `${img.title}${extension}`);
         if (autoProcessed) {
             formData.append('auto_processed', '1');
@@ -2611,29 +2715,57 @@
         try {
             const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
 
-            let data;
+            let data = null;
             const contentType = response.headers.get('content-type') || '';
-            if (response.ok && contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                return await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
+            if (contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    data = null;
+                }
             }
 
-            if (data.success) {
+            if (response.ok && data?.success) {
                 if (data.data?.word_id && !img.word_id) {
                     img.word_id = data.data.word_id;
                 }
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
                 handleSuccessfulUpload(recordingType, remaining, autoProcessed);
-            } else {
-                await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
+                return;
             }
+
+            const uploadErrorMessage = getAjaxErrorMessage(data);
+            if (data && uploadErrorMessage !== '' && response.status < 500) {
+                showUploadError(uploadErrorMessage);
+                restoreUploadControls();
+                return;
+            }
+
+            await verifyAfterError({
+                img,
+                recordingType,
+                wordsetIds,
+                wordsetLegacy,
+                includeTypes,
+                excludeTypes,
+                autoProcessed,
+                uploadErrorMessage
+            });
         } catch (err) {
-            await verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed });
+            await verifyAfterError({
+                img,
+                recordingType,
+                wordsetIds,
+                wordsetLegacy,
+                includeTypes,
+                excludeTypes,
+                autoProcessed,
+                uploadErrorMessage: err?.message || ''
+            });
         }
     }
 
-    async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed }) {
+    async function verifyAfterError({ img, recordingType, wordsetIds, wordsetLegacy, includeTypes, excludeTypes, autoProcessed, uploadErrorMessage = '' }) {
         const el = window.llRecorder;
         const activeCategory = isNewWordPanelActive()
             ? (img?.category_slug || el?.newWordCategory?.value || '')
@@ -2662,22 +2794,12 @@
                 return;
             }
 
-            // Really not there — show error
-            showStatus((i18n.upload_failed || 'Upload failed:') + ' HTTP 500 (no recording found)', 'error');
+            showUploadError(uploadErrorMessage || 'HTTP 500 (no recording found)');
         } catch (e) {
             console.error('Verify error:', e);
-            showStatus((i18n.upload_failed || 'Upload failed:') + ' ' + (e.message || 'Verify failed'), 'error');
+            showUploadError(uploadErrorMessage || e.message || 'Verify failed');
         } finally {
-            const el = window.llRecorder;
-            if (el.submitBtn) el.submitBtn.disabled = false;
-            if (el.redoBtn) el.redoBtn.disabled = false;
-            if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
-            if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
-            if (el.skipBtn) el.skipBtn.disabled = false;
-            if (el.hideBtn) el.hideBtn.disabled = false;
-            if (isNewWordPanelActive()) {
-                setNewWordActionState(false);
-            }
+            restoreUploadControls();
         }
     }
 

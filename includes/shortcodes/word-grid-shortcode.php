@@ -1423,6 +1423,9 @@ function ll_tools_word_grid_reorder_by_option_groups(array $posts, array $groups
     usort($sorted_groups, function ($left, $right) {
         $left_label = isset($left['label']) ? trim((string) $left['label']) : '';
         $right_label = isset($right['label']) ? trim((string) $right['label']) : '';
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings($left_label, $right_label);
+        }
         return strnatcasecmp($left_label, $right_label);
     });
 
@@ -1826,6 +1829,23 @@ function ll_tools_word_grid_shortcode($atts) {
         $query->current_post = -1;
     }
 
+    // Words reserved as specific wrong answers should not appear in lesson grids.
+    if (!empty($query->posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $visible_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, (array) $query->posts));
+        $visible_lookup = array_fill_keys($visible_word_ids, true);
+        if (count($visible_lookup) !== count((array) $query->posts)) {
+            $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && isset($visible_lookup[$post_id]);
+            }));
+            $query->posts = $visible_posts;
+            $query->post_count = count($visible_posts);
+            $query->current_post = -1;
+        }
+    }
+
     if ($category_term && $wordset_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
         $maps = ll_tools_get_word_option_maps($wordset_id, (int) $category_term->term_id);
         $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
@@ -2190,31 +2210,44 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
             }
 
+            $actions_row_html = '';
             if ($show_stars || $can_edit_words) {
-                echo '<div class="ll-word-actions-row">';
+                $actions_row_html .= '<div class="ll-word-actions-row">';
                 if ($show_stars) {
                     $is_starred = in_array((int) $word_id, $starred_ids, true);
                     $star_label = $is_starred
                         ? __('Unstar word', 'll-tools-text-domain')
                         : __('Star word', 'll-tools-text-domain');
-                    echo '<button type="button" class="ll-word-star ll-word-grid-star' . ($is_starred ? ' active' : '') . '" data-word-id="' . esc_attr($word_id) . '" aria-pressed="' . ($is_starred ? 'true' : 'false') . '" aria-label="' . esc_attr($star_label) . '" title="' . esc_attr($star_label) . '"></button>';
+                    $actions_row_html .= '<button type="button" class="ll-word-star ll-word-grid-star ll-tools-star-button' . ($is_starred ? ' active' : '') . '" data-word-id="' . esc_attr($word_id) . '" aria-pressed="' . ($is_starred ? 'true' : 'false') . '" aria-label="' . esc_attr($star_label) . '" title="' . esc_attr($star_label) . '"></button>';
                 }
                 if ($can_edit_words) {
-                    echo '<button type="button" class="ll-word-edit-toggle" data-ll-word-edit-toggle aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';
-                    echo '<span class="ll-word-edit-icon" aria-hidden="true">';
-                    echo '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-                    echo '</span>';
-                    echo '</button>';
+                    $actions_row_html .= '<button type="button" class="ll-word-edit-toggle" data-ll-word-edit-toggle aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';
+                    $actions_row_html .= '<span class="ll-word-edit-icon" aria-hidden="true">';
+                    $actions_row_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                    $actions_row_html .= '</span>';
+                    $actions_row_html .= '</button>';
                 }
-                echo '</div>';
+                $actions_row_html .= '</div>';
             }
 
-            echo '<div class="ll-word-title-row">';
-            echo '<h3 class="word-title">';
-            echo '<span class="ll-word-text" data-ll-word-text>' . esc_html($word_text) . '</span>';
-            echo '<span class="ll-word-translation" data-ll-word-translation>' . esc_html($translation_text) . '</span>';
-            echo '</h3>';
-            echo '</div>';
+            $title_row_html = '<div class="ll-word-title-row">';
+            $title_row_html .= '<h3 class="word-title">';
+            $title_row_html .= '<span class="ll-word-text" data-ll-word-text dir="auto">' . esc_html($word_text) . '</span>';
+            $title_row_html .= '<span class="ll-word-translation" data-ll-word-translation dir="auto">' . esc_html($translation_text) . '</span>';
+            $title_row_html .= '</h3>';
+            $title_row_html .= '</div>';
+
+            if ($is_text_based) {
+                echo $title_row_html;
+                if ($actions_row_html !== '') {
+                    echo $actions_row_html;
+                }
+            } else {
+                if ($actions_row_html !== '') {
+                    echo $actions_row_html;
+                }
+                echo $title_row_html;
+            }
             $meta_row_class = 'll-word-meta-row';
             if ($pos_label === '' && $gender_label === '' && $plurality_label === '' && $verb_tense_label === '' && $verb_mood_label === '') {
                 $meta_row_class .= ' ll-word-meta-row--empty';
@@ -2495,10 +2528,10 @@ function ll_tools_word_grid_shortcode($atts) {
                         if (!empty($row['text']) || !empty($row['translation']) || !empty($row['ipa'])) {
                             $recordings_html .= '<span class="ll-word-recording-text">';
                             if (!empty($row['text'])) {
-                                $recordings_html .= '<span class="ll-word-recording-text-main">' . esc_html($row['text']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-text-main" dir="auto">' . esc_html($row['text']) . '</span>';
                             }
                             if (!empty($row['translation'])) {
-                                $recordings_html .= '<span class="ll-word-recording-text-translation">' . esc_html($row['translation']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-text-translation" dir="auto">' . esc_html($row['translation']) . '</span>';
                             }
                             if (!empty($row['ipa'])) {
                                 $recordings_html .= '<span class="ll-word-recording-ipa ll-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';
@@ -2673,6 +2706,9 @@ function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $ca
             }
         }
         $word_ids = $filtered;
+    }
+    if (function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
     }
 
     return $word_ids;

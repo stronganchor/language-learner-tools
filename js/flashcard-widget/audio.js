@@ -449,7 +449,9 @@
         /**
          * Set target word audio (for quiz questions)
          */
-        function setTargetWordAudio(targetWord) {
+        function setTargetWordAudio(targetWord, options) {
+            options = options || {};
+            var shouldAutoplay = options.autoplay !== false;
             // Always clear any previous target audio to avoid stale playback
             try {
                 if (currentTargetAudio) {
@@ -487,6 +489,8 @@
             currentTargetAudio = audioElement[0];
             currentTargetAudio.__sessionId = currentSession;
             activeAudioElements.set(currentTargetAudio, currentSession);
+            try { currentTargetAudio.preload = 'auto'; } catch (_) { /* no-op */ }
+            try { currentTargetAudio.load(); } catch (_) { /* no-op */ }
 
             targetAudioHasPlayed = false;
 
@@ -504,6 +508,10 @@
                 // Unblock any feedback that waits for target audio
                 targetAudioHasPlayed = true;
             };
+
+            if (!shouldAutoplay) {
+                return Promise.resolve(currentTargetAudio);
+            }
 
             var p = playAudio(currentTargetAudio);
             if (p && typeof p.catch === 'function') {

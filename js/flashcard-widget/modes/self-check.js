@@ -684,6 +684,14 @@
 
             try {
                 const tracker = getProgressTracker();
+                if (tracker && typeof tracker.trackWordExposure === 'function') {
+                    tracker.trackWordExposure({
+                        mode: 'self-check',
+                        wordId: targetWord.id,
+                        categoryName: State.currentCategoryName || '',
+                        wordsetId: resolveWordsetIdForProgress()
+                    });
+                }
                 if (tracker && typeof tracker.trackWordOutcome === 'function') {
                     tracker.trackWordOutcome({
                         mode: 'self-check',
@@ -928,14 +936,6 @@
             if (tracker && typeof tracker.setContext === 'function') {
                 tracker.setContext({
                     mode: 'self-check',
-                    wordsetId: resolveWordsetIdForProgress()
-                });
-            }
-            if (tracker && typeof tracker.trackWordExposure === 'function') {
-                tracker.trackWordExposure({
-                    mode: 'self-check',
-                    wordId: targetWord.id,
-                    categoryName: categoryNameForRound || State.currentCategoryName || '',
                     wordsetId: resolveWordsetIdForProgress()
                 });
             }

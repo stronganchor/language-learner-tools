@@ -374,6 +374,45 @@ test('study panel practice launch applies recommended chunk word IDs', async ({ 
   expect(launch.sessionWordIds).toEqual([101]);
 });
 
+test('study panel listening launch uses full selected set instead of chunk word IDs', async ({ page }) => {
+  await mountStudyPanel(page, buildPayload(), {
+    recommendation: {
+      type: 'review_chunk',
+      reason_code: 'review_chunk_balanced',
+      mode: 'listening',
+      category_ids: [11],
+      session_word_ids: [101],
+      details: { chunk_size: 1 }
+    }
+  });
+
+  await page.evaluate(() => {
+    window.__llInitCalls = [];
+    window.initFlashcardWidget = function (catNames, mode) {
+      window.__llInitCalls.push({
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        mode: String(mode || ''),
+        sessionWordIds: Array.isArray(window.llToolsFlashcardsData && window.llToolsFlashcardsData.sessionWordIds)
+          ? window.llToolsFlashcardsData.sessionWordIds.slice()
+          : []
+      });
+      return Promise.resolve();
+    };
+  });
+
+  await page.locator('[data-ll-study-start][data-mode="listening"]').click();
+  await page.waitForTimeout(100);
+
+  const launch = await page.evaluate(() => {
+    const calls = Array.isArray(window.__llInitCalls) ? window.__llInitCalls : [];
+    return calls.length ? calls[calls.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('listening');
+  expect(launch.sessionWordIds).toEqual([]);
+});
+
 test('dashboard results actions cap visible buttons and hide legacy mode switches', async ({ page }) => {
   await mountStudyPanel(page, buildPayload(), {
     recommendation: {

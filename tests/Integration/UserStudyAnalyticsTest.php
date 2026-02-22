@@ -206,6 +206,73 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertArrayHasKey('words', $response['data']['analytics']);
     }
 
+    public function test_reset_user_progress_clears_scope_when_stored_row_scope_is_stale(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Reset Scope Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $target_category_term = wp_insert_term('Reset Scope Category ' . wp_generate_password(6, false), 'word-category');
+        $other_category_term = wp_insert_term('Reset Scope Other Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($target_category_term));
+        $this->assertFalse(is_wp_error($other_category_term));
+        $this->assertIsArray($target_category_term);
+        $this->assertIsArray($other_category_term);
+        $target_category_id = (int) $target_category_term['term_id'];
+        $other_category_id = (int) $other_category_term['term_id'];
+
+        update_term_meta($target_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($target_category_id, 'll_quiz_option_type', 'text_title');
+        update_term_meta($other_category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($other_category_id, 'll_quiz_option_type', 'text_title');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $word_ids[] = $this->createWordWithAudio(
+                'Reset Scope Word ' . $index,
+                'Reset Scope Translation ' . $index,
+                $target_category_id,
+                $wordset_id,
+                'reset-scope-' . $index . '.mp3'
+            );
+        }
+        $studied_word_id = (int) $word_ids[0];
+
+        // Give the studied word multiple categories so analytics category membership
+        // can diverge from the row's single stored category_id.
+        wp_set_post_terms($studied_word_id, [$target_category_id, $other_category_id], 'word-category', false);
+
+        // Persist a stale row that does not match the current reset scope metadata.
+        $this->seedWordProgressRow($user_id, $studied_word_id, $other_category_id, 0, [
+            'total_coverage' => 3,
+            'coverage_practice' => 3,
+            'correct_clean' => 1,
+            'incorrect' => 1,
+            'lapse_count' => 1,
+            'stage' => 1,
+        ]);
+
+        $before = ll_tools_build_user_study_analytics_payload($user_id, $wordset_id, [$target_category_id], 14, true);
+        $this->assertSame(1, (int) ($before['summary']['studied_words'] ?? 0));
+
+        $result = ll_tools_reset_user_progress($user_id, [
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$target_category_id],
+        ]);
+
+        $this->assertGreaterThanOrEqual(1, (int) ($result['deleted_word_rows'] ?? 0));
+        $remaining_rows = ll_tools_get_user_word_progress_rows($user_id, [$studied_word_id]);
+        $this->assertArrayNotHasKey($studied_word_id, $remaining_rows);
+
+        $after = ll_tools_build_user_study_analytics_payload($user_id, $wordset_id, [$target_category_id], 14, true);
+        $this->assertSame(0, (int) ($after['summary']['studied_words'] ?? 0));
+        $this->assertSame(5, (int) ($after['summary']['new_words'] ?? 0));
+    }
+
     /**
      * @return array{
      *   wordset_id:int,

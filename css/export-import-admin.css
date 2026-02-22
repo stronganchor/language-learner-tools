@@ -121,6 +121,345 @@
   margin: 8px 0 12px 18px;
 }
 
+.ll-tools-export-import .ll-tools-import-category-list {
+  columns: 2;
+  column-gap: 24px;
+  max-width: 720px;
+}
+
+.ll-tools-export-import .ll-tools-import-preview-sample-table th {
+  width: 150px;
+  white-space: nowrap;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid {
+  margin: 6px 0 16px;
+  max-width: 360px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-tools-import-sample-word-item {
+  text-align: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px;
+  box-shadow: none;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .word-image-container {
+  display: block;
+  width: 200px;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 0 auto 12px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  line-height: 0;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .word-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 6px;
+  width: 100%;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .word-title {
+  margin: 0 !important;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  max-width: 100%;
+  font-size: 18px !important;
+  line-height: 1.2 !important;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-text {
+  display: inline;
+  color: #000000;
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-translation {
+  display: inline-block;
+  color: #666666;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-translation::before {
+  content: "(";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-translation::after {
+  content: ")";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-meta-tag--type {
+  border-color: #bfdbfe;
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-meta-tag--category {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-meta-tag--wordset {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recordings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  margin: 8px auto 0;
+  text-align: left;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: auto;
+  max-width: 100%;
+  flex-wrap: nowrap;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn {
+  height: 32px;
+  min-height: 32px;
+  min-width: 74px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0 6px;
+  line-height: 1;
+  box-shadow: none;
+  text-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+  text-transform: none;
+  box-sizing: border-box;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0ea5e9;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn.is-playing {
+  border-color: #1d4d99;
+  box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.15);
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
+  line-height: 1;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-icon::before {
+  display: block;
+  font-size: 16px;
+  line-height: 1;
+  content: "\1F50A";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn--question .ll-study-recording-icon::before {
+  content: "\2753";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn--isolation .ll-study-recording-icon::before {
+  content: "\1F50D";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn--introduction .ll-study-recording-icon::before {
+  content: "\1F4AC";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn--sentence .ll-study-recording-icon::before {
+  content: "\1F4DD";
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-visualizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-height: 18px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-visualizer .bar {
+  display: block;
+  flex: 0 0 4px;
+  width: 4px;
+  min-width: 4px;
+  max-width: 4px;
+  height: var(--base, 8px);
+  border-radius: 2px;
+  background: #1d4d99;
+  opacity: 1;
+  transform-origin: center bottom;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-visualizer .bar:nth-child(2) {
+  --base: 12px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-visualizer .bar:nth-child(3) {
+  --base: 10px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-visualizer .bar:nth-child(4) {
+  --base: 14px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn.is-playing .ll-study-recording-visualizer .bar {
+  opacity: 1;
+  animation: ll-tools-import-preview-audio-eq 1s ease-in-out infinite;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn.is-playing .ll-study-recording-visualizer .bar:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn.is-playing .ll-study-recording-visualizer .bar:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn.is-playing .ll-study-recording-visualizer .bar:nth-child(4) {
+  animation-delay: 0.22s;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-text {
+  font-size: 14px;
+  color: #000000;
+  line-height: 1.3;
+  text-align: left;
+  min-width: 0;
+  align-self: center;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-text-main {
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-file {
+  display: block;
+  margin-top: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #64748b;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@keyframes ll-tools-import-preview-audio-eq {
+  0% {
+    transform: scaleY(0.7);
+  }
+  35% {
+    transform: scaleY(1.35);
+  }
+  65% {
+    transform: scaleY(0.9);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .ll-tools-export-import .ll-tools-import-sample-grid .word-image-container {
+    width: min(200px, 72vw);
+    max-height: none;
+  }
+
+  .ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-row {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .ll-tools-export-import .ll-tools-import-sample-grid .ll-study-recording-btn {
+    width: fit-content;
+  }
+
+  .ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recording-text {
+    width: 100%;
+  }
+}
+  overflow-wrap: anywhere;
+}
+
 .ll-tools-export-import .ll-tools-import-preview-table {
   margin-top: 8px;
   margin-bottom: 14px;
@@ -128,4 +467,120 @@
 
 .ll-tools-export-import .ll-tools-import-preview-table .ll-tools-input {
   max-width: 100%;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports {
+  margin: 0 0 18px;
+  padding: 14px 14px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+  max-width: 980px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports h2 {
+  margin-top: 0;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-table td {
+  vertical-align: top;
+}
+
+.ll-tools-export-import .ll-tools-undo-import-button {
+  white-space: nowrap;
+}
+
+.ll-tools-export-import .ll-tools-import-undone-label {
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.ll-tools-import-processing .wrap.ll-tools-export-import {
+  display: none;
+}
+
+.ll-tools-import-processing-screen {
+  display: none;
+}
+
+.ll-tools-import-processing .ll-tools-import-processing-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 50%, #111827 100%);
+}
+
+.ll-tools-import-processing-card {
+  width: min(640px, 100%);
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #d9e1ec;
+  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.32);
+  padding: 24px 24px 20px;
+}
+
+.ll-tools-import-processing-title {
+  margin: 0 0 10px;
+  color: #0f172a;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.ll-tools-import-processing-note {
+  margin: 0 0 8px;
+  color: #334155;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.ll-tools-import-processing-progress {
+  position: relative;
+  overflow: hidden;
+  margin: 16px 0 12px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #e2e8f0;
+}
+
+.ll-tools-import-processing-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 -45%;
+  width: 45%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 50%, #14b8a6 100%);
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.45);
+  animation: ll-tools-import-progress-slide 1.4s ease-in-out infinite;
+}
+
+.ll-tools-import-processing-status {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ll-tools-import-processing-error {
+  margin: 2px 0 12px;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.ll-tools-import-processing-reload {
+  min-height: 34px;
+}
+
+@keyframes ll-tools-import-progress-slide {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(240%);
+  }
+  100% {
+    transform: translateX(520%);
+  }
 }

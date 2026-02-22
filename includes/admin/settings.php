@@ -52,6 +52,11 @@ function ll_register_settings() {
         'sanitize_callback' => 'absint',
         'default' => 0,
     ]);
+    register_setting('language-learning-tools-options', 'll_allow_learner_self_registration', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'absint',
+        'default' => 1,
+    ]);
     // Settings for quiz font name and URL.
     register_setting('language-learning-tools-options', 'll_quiz_font', array(
         'type' => 'string',
@@ -215,6 +220,7 @@ function ll_render_settings_page() {
     $update_branch = get_option('ll_update_branch', 'main');
     $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
+    $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
 
     // Default to showing placeholders if languages are not set
     $target_language_name = $target_language ? ucfirst($target_language) : __('Target Language', 'll-tools-text-domain');
@@ -294,6 +300,18 @@ function ll_render_settings_page() {
                     <td>
                         <input type="checkbox" name="ll_hide_recording_titles" id="ll_hide_recording_titles" value="1" <?php checked(1, get_option('ll_hide_recording_titles', 0), true); ?> />
                         <p class="description">Check this box to hide word titles from audio recorders by default. This helps prevent pronunciation bias from reading the word.</p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('Allow Learner Registration:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="checkbox"
+                            name="ll_allow_learner_self_registration"
+                            id="ll_allow_learner_self_registration"
+                            value="1"
+                            <?php checked(1, $allow_learner_self_registration, true); ?> />
+                        <p class="description"><?php esc_html_e('Allow new users to create learner accounts from learner-facing progress sign-in screens.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

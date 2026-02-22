@@ -89,6 +89,14 @@ function ll_tools_user_study_wordsets(): array {
             'slug' => (string) $term->slug,
         ];
     }
+    if (!empty($out)) {
+        usort($out, static function ($left, $right) {
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                return ll_tools_locale_compare_strings((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+            }
+            return strnatcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        });
+    }
     return $out;
 }
 
@@ -108,6 +116,10 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
         $cat['slug']  = (string) $cat['slug'];
         $cat['word_count'] = isset($cat['word_count']) ? (int) $cat['word_count'] : 0;
         $cat['gender_supported'] = !empty($cat['gender_supported']);
+        $cat['aspect_bucket'] = isset($cat['aspect_bucket']) ? (string) $cat['aspect_bucket'] : '';
+        if ($cat['aspect_bucket'] === '') {
+            $cat['aspect_bucket'] = 'no-image';
+        }
         return $cat;
     }, $categories);
 }
@@ -226,6 +238,11 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'title'          => $title,
                 'translation'    => html_entity_decode((string) $translation, ENT_QUOTES, 'UTF-8'),
                 'label'          => isset($w['label']) ? (string) $w['label'] : '',
+                'prompt_label'   => isset($w['prompt_label']) ? (string) $w['prompt_label'] : '',
+                'specific_wrong_answer_ids' => isset($w['specific_wrong_answer_ids']) ? array_values(array_map('intval', (array) $w['specific_wrong_answer_ids'])) : [],
+                'specific_wrong_answer_texts' => isset($w['specific_wrong_answer_texts']) ? array_values(array_map('strval', (array) $w['specific_wrong_answer_texts'])) : [],
+                'specific_wrong_answer_owner_ids' => isset($w['specific_wrong_answer_owner_ids']) ? array_values(array_map('intval', (array) $w['specific_wrong_answer_owner_ids'])) : [],
+                'is_specific_wrong_answer_only' => !empty($w['is_specific_wrong_answer_only']),
                 'image'          => isset($w['image']) ? (string) $w['image'] : '',
                 'audio'          => isset($w['audio']) ? (string) $w['audio'] : '',
                 'audio_files'    => isset($w['audio_files']) ? (array) $w['audio_files'] : [],
@@ -257,6 +274,12 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
             'preferred_wordset_ids' => [],
             'placement_known_category_ids' => [],
             'daily_new_word_target' => 2,
+            'priority_focus' => '',
+            'prioritize_new_words' => false,
+            'prioritize_studied_words' => false,
+            'prioritize_learned_words' => false,
+            'prefer_starred_words' => false,
+            'prefer_hard_words' => false,
         ];
     $wordset_id = $requested_wordset_id ? (int) $requested_wordset_id : (int) $state['wordset_id'];
     if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
@@ -411,13 +434,21 @@ function ll_tools_user_study_save_ajax() {
     ]);
 
     $categories = ll_tools_user_study_categories_for_wordset($wordset_id);
-    $next_activity = function_exists('ll_tools_build_next_activity_recommendation')
-        ? ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories)
+    $recommendation_queue = [];
+    if (function_exists('ll_tools_refresh_user_recommendation_queue')) {
+        $recommendation_queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories, 8);
+    }
+    $next_activity = function_exists('ll_tools_recommendation_queue_pick_next')
+        ? ll_tools_recommendation_queue_pick_next($recommendation_queue)
         : null;
+    if (!$next_activity && function_exists('ll_tools_build_next_activity_recommendation')) {
+        $next_activity = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $payload['category_ids'], $categories);
+    }
 
     wp_send_json_success([
         'state' => $payload,
         'next_activity' => $next_activity,
+        'recommendation_queue' => $recommendation_queue,
     ]);
 }
 add_action('wp_ajax_ll_user_study_save', 'll_tools_user_study_save_ajax');

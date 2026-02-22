@@ -694,8 +694,8 @@ body.ll-study-check-open {
 }
 
 .ll-word-star.active {
-  background: #fde68a;
-  border-color: #f59e0b;
+  background: #D39A00;
+  border-color: #D39A00;
 }
 
 .ll-group-star {
@@ -705,9 +705,9 @@ body.ll-study-check-open {
 }
 
 .ll-group-star.active {
-  background: #fff7ed;
-  border-color: #f59e0b;
-  color: #b45309;
+  background: #D39A00;
+  border-color: #D39A00;
+  color: #111827;
 }
 
 .ll-word-thumb {
@@ -813,8 +813,8 @@ body.ll-study-check-open {
   max-width: 4px;
   height: calc(var(--base, 8px) + 12px * var(--level, 0));
   border-radius: 2px;
-  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%);
-  opacity: 0.55;
+  background: #1d4d99;
+  opacity: 1;
   transform-origin: center bottom;
   transition: height 0.12s ease-out, opacity 0.2s ease-out;
   box-sizing: border-box;
@@ -827,12 +827,12 @@ body.ll-study-check-open {
 .ll-user-study-dashboard .ll-study-recording-visualizer .bar:nth-child(6) { --base: 15px; }
 
 .ll-user-study-dashboard .ll-study-recording-btn.is-playing {
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+  border-color: #1d4d99 !important;
+  box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.15) !important;
 }
 
 .ll-user-study-dashboard .ll-study-recording-btn.is-playing:not(.ll-study-recording-btn--js) .ll-study-recording-visualizer .bar {
-  opacity: 0.95;
+  opacity: 1;
   animation: ll-audio-mini-eq 1s ease-in-out infinite;
 }
 
@@ -986,21 +986,25 @@ body.ll-study-check-open {
 }
 
 .ll-study-analytics-kpi--starred {
-  background: #fff7ed;
-  border-color: #fbd38d;
+  background: #D39A00;
+  border-color: #D39A00;
+  color: #111827;
 }
 
-.ll-study-analytics-kpi--starred .ll-study-analytics-kpi-value {
-  color: #b45309;
+.ll-study-analytics-kpi--starred .ll-study-analytics-kpi-value,
+.ll-study-analytics-kpi--starred .ll-study-analytics-kpi-label {
+  color: #111827;
 }
 
 .ll-study-analytics-kpi--hard {
-  background: #fff1f2;
-  border-color: #fecdd3;
+  background: #C64545;
+  border-color: #C64545;
+  color: #ffffff;
 }
 
-.ll-study-analytics-kpi--hard .ll-study-analytics-kpi-value {
-  color: #9f1239;
+.ll-study-analytics-kpi--hard .ll-study-analytics-kpi-value,
+.ll-study-analytics-kpi--hard .ll-study-analytics-kpi-label {
+  color: #ffffff;
 }
 
 .ll-study-analytics-graph-wrap {
@@ -1043,7 +1047,7 @@ body.ll-study-check-open {
   min-height: 8px;
   height: calc(8px + 66px * var(--ratio, 0));
   border-radius: 6px;
-  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
+  background: #15803d;
 }
 
 .ll-study-analytics-day-label {
@@ -1146,6 +1150,17 @@ body.ll-study-check-open {
 }
 
 .ll-study-analytics-star {
+  --ll-star-btn-size: 30px;
+  --ll-star-btn-radius: 8px;
+  --ll-star-btn-border: #e2e8f0;
+  --ll-star-btn-bg: #ffffff;
+  --ll-star-btn-color: #111827;
+  --ll-star-btn-hover-border: #cbd5e1;
+  --ll-star-btn-hover-bg: #f8fafc;
+  --ll-star-btn-active-bg: #D39A00;
+  --ll-star-btn-active-border: #D39A00;
+  --ll-star-btn-active-color: #111827;
+  --ll-star-btn-font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
   width: 30px;
   height: 30px;
   min-width: 30px;
@@ -1171,8 +1186,8 @@ body.ll-study-check-open {
 }
 
 .ll-study-analytics-star.active {
-  background: #fde68a;
-  border-color: #f59e0b;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #111827;
 }
 
@@ -1488,8 +1503,8 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-btn--know {
-  background: #16a34a;
-  border-color: #16a34a;
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff !important;
 }
 
@@ -1500,38 +1515,38 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-btn--unknown {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--unknown:hover {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--idk {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--idk:hover {
-  background: #b91c1c;
-  border-color: #b91c1c;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--think {
-  background: #ca8a04;
-  border-color: #ca8a04;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--think:hover {
-  background: #a16207;
-  border-color: #a16207;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
@@ -1542,32 +1557,32 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-btn--right:hover {
-  background: #166534;
-  border-color: #166534;
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--close {
-  background: #ca8a04;
-  border-color: #ca8a04;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--close:hover {
-  background: #a16207;
-  border-color: #a16207;
+  background: #D39A00;
+  border-color: #D39A00;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--wrong {
-  background: #be123c;
-  border-color: #be123c;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
 .ll-study-check .ll-study-check-btn--wrong:hover {
-  background: #9f1239;
-  border-color: #9f1239;
+  background: #C64545;
+  border-color: #C64545;
   color: #ffffff !important;
 }
 
@@ -1623,11 +1638,11 @@ body.ll-study-check-open {
 }
 
 .ll-study-check .ll-study-check-summary-pill--wrong {
-  background: #be123c;
+  background: #C64545;
 }
 
 .ll-study-check .ll-study-check-summary-pill--close {
-  background: #ca8a04;
+  background: #D39A00;
 }
 
 .ll-study-check .ll-study-check-summary-pill--right {
@@ -1687,45 +1702,91 @@ body.ll-study-check-open {
   display: none !important;
 }
 
-.ll-user-study-dashboard .ll-word-star.ll-word-star {
+/* Lock row star toggles against aggressive theme button resets (e.g., Astra). */
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star {
+  all: unset !important;
+  box-sizing: border-box !important;
   width: 32px !important;
   height: 32px !important;
   min-width: 32px !important;
   min-height: 32px !important;
   border-radius: 8px !important;
   border: 1px solid #e2e8f0 !important;
+  border-style: solid !important;
+  border-image: none !important;
   background: #ffffff !important;
+  background-color: #ffffff !important;
   background-image: none !important;
   color: #111827 !important;
-  padding: 0 !important;
   margin: 0 !important;
+  padding: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 16px !important;
   line-height: 1 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  white-space: nowrap !important;
   box-shadow: none !important;
   text-shadow: none !important;
   cursor: pointer !important;
+  float: none !important;
+  vertical-align: middle !important;
   -webkit-appearance: none !important;
   appearance: none !important;
-  text-transform: none !important;
   font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
 }
 
-.ll-user-study-dashboard .ll-word-star.ll-word-star.active {
-  background: #fde68a !important;
-  border-color: #f59e0b !important;
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star::before,
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star::after,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star::before,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star::after {
+  content: none !important;
+  display: none !important;
+}
+
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star:not(.active):hover,
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star[aria-pressed="false"]:hover,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star:not(.active):hover,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star[aria-pressed="false"]:hover {
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
   color: #111827 !important;
 }
 
-.ll-user-study-dashboard #ll-study-words .ll-word-star.active,
-.ll-user-study-dashboard .ll-word-row .ll-word-star.active {
-  background: #fde68a !important;
-  background-color: #fde68a !important;
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star.active,
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star[aria-pressed="true"],
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star.active,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star[aria-pressed="true"] {
+  background: #D39A00 !important;
+  background-color: #D39A00 !important;
   background-image: none !important;
-  border-color: #f59e0b !important;
+  border-color: #D39A00 !important;
   color: #111827 !important;
+}
+
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star:focus-visible,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star:focus-visible {
+  outline: 3px solid #D39A00 !important;
+  outline-offset: 2px !important;
+}
+
+.ll-user-study-dashboard .ll-word-star.ll-quiz-star-btn {
+  font-family: "Segoe UI Symbol", system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif !important;
+}
+
+.ll-user-study-dashboard .ll-word-star.ll-quiz-star-btn.active,
+.ll-user-study-dashboard .ll-word-star.ll-quiz-star-btn[aria-pressed="true"],
+.ll-user-study-dashboard #ll-study-words .ll-word-star.ll-quiz-star-btn.active,
+.ll-user-study-dashboard #ll-study-words .ll-word-star.ll-quiz-star-btn[aria-pressed="true"] {
+  color: #ffffff !important;
 }
 
 @media (max-width: 768px) {

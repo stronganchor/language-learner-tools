@@ -1,11 +1,11 @@
 /* flashcard/mode-practice.css */
 
 .ll-tools-mode-switcher.practice-mode {
-    background: #a2a2a2;
+    background: #1d4d99;
 }
 
 .ll-tools-mode-switcher.practice-mode:hover {
-    background: #8b8b8b;
+    background: #2f67ba;
 }
 
 #restart-practice-mode {

@@ -161,13 +161,28 @@ Current primary-flow E2E specs:
   - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
+- `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
+  - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
+- `tests/e2e/specs/listening-sequence-weighting.spec.js`
+  - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints.
+- `tests/e2e/specs/practice-option-constraints.spec.js`
+  - Verifies Practice mode answer option counts/constraints across category setups.
+- `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
+  - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
+- `tests/e2e/specs/admin-import-preview-undo.spec.js`
+  - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 
 Optional env vars (set directly or in `tests/.env`):
 
 ```bash
 LL_E2E_BASE_URL=http://127.0.0.1:10036
 LL_E2E_LEARN_PATH=/learn/
+LL_E2E_STANDALONE_PATH=/english/
+LL_E2E_ADMIN_USER=codex
+LL_E2E_ADMIN_PASS=your-temp-local-password
 ```
+
+You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 
 Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Local's nginx config for this site.
 

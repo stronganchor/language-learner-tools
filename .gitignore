@@ -1,0 +1,10 @@
+/test-results/
+/playwright-report/
+/blob-report/
+
+/languages/*backup*.po_
+/languages/*backup*.pot_
+/languages/*backup*.po~
+/languages/*.po~
+/languages/*.pot_
+/tests/.env.local
