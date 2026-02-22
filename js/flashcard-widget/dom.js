@@ -69,6 +69,11 @@
         return false;
     }
 
+    function isQuizPopupVisibleForLoading() {
+        const $popup = $('#ll-tools-flashcard-quiz-popup');
+        return !!($popup.length && $popup.is(':visible'));
+    }
+
     function applyLoadingVisibility(visible, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const instant = !!opts.instant;
@@ -372,6 +377,15 @@
             const startVisibleLoading = function (instant) {
                 loadingShowTimer = null;
                 if (!loadingRequested || loadingVisible) return;
+                // Late async callbacks can request loading after the quiz popup closes.
+                // Ignore those requests so the global loader cannot float on the page.
+                if (!isQuizPopupVisibleForLoading()) {
+                    loadingRequested = false;
+                    loadingVisible = false;
+                    loadingVisibleAt = 0;
+                    applyLoadingVisibility(false);
+                    return;
+                }
                 loadingVisible = true;
                 loadingVisibleAt = Date.now();
                 applyLoadingVisibility(true, { instant: !!instant });

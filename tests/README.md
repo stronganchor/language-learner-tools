@@ -169,6 +169,8 @@ Current primary-flow E2E specs:
   - Verifies Practice mode answer option counts/constraints across category setups.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
+- `tests/e2e/specs/admin-import-preview-undo.spec.js`
+  - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 
 Optional env vars (set directly or in `tests/.env`):
 
@@ -176,7 +178,11 @@ Optional env vars (set directly or in `tests/.env`):
 LL_E2E_BASE_URL=http://127.0.0.1:10036
 LL_E2E_LEARN_PATH=/learn/
 LL_E2E_STANDALONE_PATH=/english/
+LL_E2E_ADMIN_USER=codex
+LL_E2E_ADMIN_PASS=your-temp-local-password
 ```
+
+You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 
 Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Local's nginx config for this site.
 

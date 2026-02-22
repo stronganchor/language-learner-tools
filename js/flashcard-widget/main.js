@@ -3318,6 +3318,13 @@
         } catch (_) { }
         $('#ll-tools-flashcard-content').off('.llAutoplayKick');
         $('#ll-tools-flashcard').css('pointer-events', 'auto');
+        try {
+            if (Dom && typeof Dom.hideLoadingImmediately === 'function') {
+                Dom.hideLoadingImmediately();
+            } else if (Dom && typeof Dom.hideLoading === 'function') {
+                Dom.hideLoading();
+            }
+        } catch (_) { /* no-op */ }
 
         // Ensure any confetti canvas is removed when closing the widget
         try {

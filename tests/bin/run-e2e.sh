@@ -5,14 +5,42 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 E2E_DIR="$TESTS_DIR/e2e"
 
-if [[ -f "$TESTS_DIR/.env" ]]; then
-    # shellcheck disable=SC1091
-    source "$TESTS_DIR/.env"
-fi
-if [[ -f "$TESTS_DIR/.env.local" ]]; then
-    # shellcheck disable=SC1091
-    source "$TESTS_DIR/.env.local"
-fi
+load_env_file_literal() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        [[ -z "$line" ]] && continue
+        [[ "$line" == \#* ]] && continue
+
+        if [[ "$line" == export\ * ]]; then
+            line="${line#export }"
+        fi
+
+        [[ "$line" == *=* ]] || continue
+
+        local key="${line%%=*}"
+        local value="${line#*=}"
+
+        key="${key#"${key%%[![:space:]]*}"}"
+        key="${key%"${key##*[![:space:]]}"}"
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+
+        if [[ ${#value} -ge 2 ]]; then
+            local first_char="${value:0:1}"
+            local last_char="${value: -1}"
+            if [[ "$first_char" == '"' && "$last_char" == '"' ]] || [[ "$first_char" == "'" && "$last_char" == "'" ]]; then
+                value="${value:1:${#value}-2}"
+            fi
+        fi
+
+        export "$key=$value"
+    done < "$file"
+}
+
+load_env_file_literal "$TESTS_DIR/.env"
+load_env_file_literal "$TESTS_DIR/.env.local"
 
 if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"

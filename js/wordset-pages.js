@@ -6560,6 +6560,12 @@
     function launchRecommendedMode(mode) {
         const preferredMode = normalizeMode(mode) || 'practice';
         const recommendationScopeIds = getRecommendationScopeIds();
+        // Top mode buttons choose the mode explicitly; filter recommendation scopes to
+        // categories that can actually run that mode (prevents gender -> practice fallback).
+        const preferredFallbackCategoryIds = filterCategoryIdsForMode(
+            preferredMode,
+            recommendationScopeIds.length ? recommendationScopeIds : getVisibleCategoryIds()
+        );
         if (preferredMode === 'listening') {
             chunkSession = null;
             launchFlashcards(preferredMode, recommendationScopeIds, [], {
@@ -6571,9 +6577,16 @@
         }
         const launchWithActivity = function (activity, source) {
             const item = normalizeNextActivity(activity);
-            const categoryIds = item && item.category_ids && item.category_ids.length
+            const rawCategoryIds = item && item.category_ids && item.category_ids.length
                 ? uniqueIntList(item.category_ids)
                 : getVisibleCategoryIds();
+            let categoryIds = filterCategoryIdsForMode(preferredMode, rawCategoryIds);
+            if (!categoryIds.length && preferredFallbackCategoryIds.length) {
+                categoryIds = preferredFallbackCategoryIds.slice();
+            }
+            if (!categoryIds.length) {
+                categoryIds = getVisibleCategoryIds();
+            }
             const sessionWordIds = item && item.session_word_ids && item.session_word_ids.length
                 ? uniqueIntList(item.session_word_ids)
                 : [];
@@ -6582,7 +6595,9 @@
             launchFlashcards(preferredMode, categoryIds, sessionWordIds, {
                 source: source || 'wordset_top_start_recommended',
                 chunked: false,
-                fallbackCategoryIds: recommendationScopeIds,
+                fallbackCategoryIds: preferredFallbackCategoryIds.length
+                    ? preferredFallbackCategoryIds
+                    : recommendationScopeIds,
                 details: details
             });
         };

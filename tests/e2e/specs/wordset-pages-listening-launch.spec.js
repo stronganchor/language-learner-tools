@@ -14,6 +14,7 @@ function buildWordsetMarkup() {
       <div class="ll-wordset-grid">
         <button type="button" data-ll-wordset-start-mode data-mode="practice">Practice</button>
         <button type="button" data-ll-wordset-start-mode data-mode="listening">Listen</button>
+        <button type="button" data-ll-wordset-start-mode data-mode="gender">Gender</button>
         <button type="button" data-ll-wordset-select-all>Select all</button>
         <label><input type="checkbox" data-ll-wordset-select value="11" />Cat A</label>
         <label><input type="checkbox" data-ll-wordset-select value="22" />Cat B</label>
@@ -413,6 +414,112 @@ test('logged-in practice top launch falls back to visible categories when recomm
   expect(launch.sessionWordIds).toEqual([]);
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
   expect(alerts).toEqual([]);
+});
+
+test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 30,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: true,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'gender', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: ''
+      },
+      gender: {
+        enabled: true,
+        options: ['masculine', 'feminine'],
+        min_count: 2
+      },
+      nextActivity: {
+        mode: 'practice',
+        category_ids: [11, 22],
+        session_word_ids: [1101, 2201],
+        type: 'review_chunk',
+        reason_code: 'review_chunk_balanced',
+        details: { chunk_size: 2 }
+      },
+      recommendationQueue: [
+        {
+          mode: 'practice',
+          category_ids: [11, 22],
+          session_word_ids: [1101, 2201],
+          type: 'review_chunk',
+          reason_code: 'review_chunk_balanced',
+          queue_id: 'queue-practice-only',
+          details: { chunk_size: 2 }
+        }
+      ]
+    }
+  });
+
+  const genderButton = page.locator('[data-ll-wordset-start-mode][data-mode="gender"]');
+  await expect(genderButton).toBeEnabled();
+  await genderButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('gender');
+  expect(Array.isArray(launch.categoryIds) ? launch.categoryIds : []).toContain(33);
 });
 
 test('next learning recommendation with two starred words is expanded to a minimum-size compatible session', async ({ page }) => {
