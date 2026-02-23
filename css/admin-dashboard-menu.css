@@ -1,0 +1,21 @@
+@media screen and (min-width: 961px) {
+  #adminmenu #toplevel_page_ll-tools-dashboard-home.wp-has-current-submenu > .wp-submenu,
+  #adminmenu #toplevel_page_ll-tools-dashboard-home.wp-menu-open > .wp-submenu,
+  #adminmenu #toplevel_page_ll-tools-dashboard-home.current > .wp-submenu {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+}
+
+@media screen and (max-width: 782px) {
+  .auto-fold #adminmenu #toplevel_page_ll-tools-dashboard-home.wp-has-current-submenu > .wp-submenu,
+  .auto-fold #adminmenu #toplevel_page_ll-tools-dashboard-home.wp-menu-open > .wp-submenu,
+  .auto-fold #adminmenu #toplevel_page_ll-tools-dashboard-home.current > .wp-submenu {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+}

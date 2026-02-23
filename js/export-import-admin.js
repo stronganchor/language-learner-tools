@@ -314,7 +314,24 @@
         }
     }
 
+    function initExportFullBundleCategoryUi() {
+        var includeFull = document.getElementById('ll_export_include_full');
+        var multiCategorySelect = document.getElementById('ll_full_export_category_ids');
+        if (!includeFull || !multiCategorySelect) {
+            return;
+        }
+
+        function syncUi() {
+            var noCategories = multiCategorySelect.getAttribute('data-no-categories') === '1';
+            multiCategorySelect.disabled = noCategories || !includeFull.checked;
+        }
+
+        includeFull.addEventListener('change', syncUi);
+        syncUi();
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        initExportFullBundleCategoryUi();
         initImportWordsetModeUi();
         initAutoPreviewOnZipUpload();
         initImportConfirmProgressUi();

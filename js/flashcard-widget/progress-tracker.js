@@ -381,6 +381,20 @@
         });
         if (eventId) {
             scheduleFlush(entry.flushDelay || 900);
+            try {
+                if ($ && typeof $.fn !== 'undefined') {
+                    $(document).trigger('lltools:flashcard-word-outcome-queued', [{
+                        event_id: eventId,
+                        mode: normalizeMode(entry.mode || context.mode),
+                        word_id: wordId,
+                        category_id: categoryId,
+                        category_name: categoryName,
+                        wordset_id: resolveWordsetId(entry.wordsetId || entry.wordset_id),
+                        is_correct: isCorrect,
+                        had_wrong_before: hadWrongBefore
+                    }]);
+                }
+            } catch (_) { /* no-op */ }
         }
         return eventId;
     }

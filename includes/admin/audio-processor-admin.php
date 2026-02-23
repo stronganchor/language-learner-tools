@@ -744,20 +744,9 @@ function ll_delete_audio_recording_handler() {
 }
 
 /**
- * Show admin notice if there are unprocessed recordings
+ * Get count of audio recordings waiting for processing.
  */
-add_action('admin_notices', 'll_audio_processor_admin_notice');
-
-function ll_audio_processor_admin_notice() {
-    if (!current_user_can('view_ll_tools')) {
-        return;
-    }
-
-    $screen = get_current_screen();
-    if ($screen && $screen->id === 'tools_page_ll-audio-processor') {
-        return;
-    }
-
+function ll_tools_get_audio_processing_queue_count(): int {
     $args = [
         'post_type' => 'word_audio',
         'post_status' => ['publish', 'draft'],
@@ -773,16 +762,134 @@ function ll_audio_processor_admin_notice() {
     ];
 
     $query = new WP_Query($args);
-    $unprocessed_count = $query->found_posts;
+    $unprocessed_count = (int) $query->found_posts;
     wp_reset_postdata();
 
-    if ($unprocessed_count > 0) {
-        $url = admin_url('tools.php?page=ll-audio-processor');
-        printf(
-            '<div class="notice notice-warning is-dismissible"><p><strong>Audio Processor:</strong> You have %d unprocessed audio recording%s. <a href="%s">Process them now</a></p></div>',
-            $unprocessed_count,
-            $unprocessed_count === 1 ? '' : 's',
-            esc_url($url)
-        );
+    return max(0, $unprocessed_count);
+}
+
+/**
+ * Build LL Tools maintenance task list for the global admin notice.
+ *
+ * @return array<int,array{key:string,url:string,screen_id:string,title:string,message:string}>
+ */
+function ll_tools_get_admin_maintenance_tasks(): array {
+    $tasks = [];
+
+    $audio_count = ll_tools_get_audio_processing_queue_count();
+    if ($audio_count > 0) {
+        $tasks[] = [
+            'key' => 'audio_processing',
+            'url' => admin_url('tools.php?page=ll-audio-processor'),
+            'screen_id' => 'tools_page_ll-audio-processor',
+            'title' => __('Audio Processor', 'll-tools-text-domain'),
+            'message' => sprintf(
+                /* translators: %d: number of audio recordings */
+                _n(
+                    '%d audio recording needs processing',
+                    '%d audio recordings need processing',
+                    $audio_count,
+                    'll-tools-text-domain'
+                ),
+                $audio_count
+            ),
+        ];
     }
+
+    if (function_exists('ll_tools_get_aspect_normalization_needs_lookup') && function_exists('ll_tools_get_aspect_normalizer_admin_url')) {
+        $aspect_needs_lookup = ll_tools_get_aspect_normalization_needs_lookup();
+        $aspect_category_count = count($aspect_needs_lookup);
+        if ($aspect_category_count > 0) {
+            $tasks[] = [
+                'key' => 'image_aspect_normalization',
+                'url' => ll_tools_get_aspect_normalizer_admin_url(),
+                'screen_id' => 'tools_page_' . ll_tools_get_aspect_normalizer_page_slug(),
+                'title' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
+                'message' => sprintf(
+                    /* translators: %d: number of categories */
+                    _n(
+                        'Images need aspect ratio normalization in %d category',
+                        'Images need aspect ratio normalization in %d categories',
+                        $aspect_category_count,
+                        'll-tools-text-domain'
+                    ),
+                    $aspect_category_count
+                ),
+            ];
+        }
+    }
+
+    if (function_exists('ll_tools_webp_optimizer_get_queue') && function_exists('ll_tools_get_webp_optimizer_admin_url')) {
+        $webp_queue = ll_tools_webp_optimizer_get_queue([
+            'ids_only' => true,
+            'include_non_flagged' => false,
+        ]);
+        $webp_queued_count = (int) (($webp_queue['summary']['queued_count'] ?? 0));
+        if ($webp_queued_count > 0) {
+            $tasks[] = [
+                'key' => 'image_webp_optimization',
+                'url' => ll_tools_get_webp_optimizer_admin_url(),
+                'screen_id' => 'tools_page_' . ll_tools_get_webp_optimizer_page_slug(),
+                'title' => __('WebP Image Optimizer', 'll-tools-text-domain'),
+                'message' => sprintf(
+                    /* translators: %d: number of word images */
+                    _n(
+                        '%d image needs compression or WebP conversion',
+                        '%d images need compression or WebP conversion',
+                        $webp_queued_count,
+                        'll-tools-text-domain'
+                    ),
+                    $webp_queued_count
+                ),
+            ];
+        }
+    }
+
+    return $tasks;
+}
+
+/**
+ * Show admin notice if LL Tools maintenance tasks need attention.
+ */
+add_action('admin_notices', 'll_audio_processor_admin_notice');
+
+function ll_audio_processor_admin_notice() {
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $tasks = ll_tools_get_admin_maintenance_tasks();
+    if (empty($tasks)) {
+        return;
+    }
+
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    $current_screen_id = ($screen instanceof WP_Screen) ? (string) $screen->id : '';
+    if (count($tasks) === 1 && $current_screen_id !== '' && $current_screen_id === (string) ($tasks[0]['screen_id'] ?? '')) {
+        return;
+    }
+
+    echo '<div class="notice notice-warning is-dismissible">';
+    echo '<p><strong>' . esc_html__('LL Tools Admin Tasks', 'll-tools-text-domain') . ':</strong> ';
+    echo esc_html__('The following maintenance tasks need attention.', 'll-tools-text-domain');
+    echo '</p>';
+
+    if (count($tasks) > 1) {
+        echo '<ul>';
+        foreach ($tasks as $task) {
+            echo '<li>';
+            echo '<a href="' . esc_url((string) $task['url']) . '">' . esc_html((string) $task['title']) . '</a>: ';
+            echo esc_html((string) $task['message']);
+            echo '</li>';
+        }
+        echo '</ul>';
+    } else {
+        $task = $tasks[0];
+        echo '<p>';
+        echo '<a href="' . esc_url((string) $task['url']) . '">' . esc_html((string) $task['title']) . '</a>: ';
+        echo esc_html((string) $task['message']);
+        echo '</p>';
+    }
+
+    echo '</div>';
 }

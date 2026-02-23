@@ -182,6 +182,856 @@ function ll_tools_wordset_render_admin_field(bool $is_edit, string $wrap_class, 
     echo '</div>';
 }
 
+function ll_tools_wordset_normalize_category_ordering_mode($value): string {
+    $mode = sanitize_key((string) $value);
+    if (in_array($mode, ['manual', 'prerequisite'], true)) {
+        return $mode;
+    }
+    return 'none';
+}
+
+function ll_tools_wordset_get_category_ordering_mode(int $wordset_id): string {
+    if ($wordset_id <= 0) {
+        return 'none';
+    }
+    return ll_tools_wordset_normalize_category_ordering_mode(
+        get_term_meta($wordset_id, 'll_wordset_category_ordering_mode', true)
+    );
+}
+
+function ll_tools_wordset_normalize_category_id_list(array $ids): array {
+    $normalized = [];
+    foreach ($ids as $id) {
+        $cid = (int) $id;
+        if ($cid > 0) {
+            $normalized[$cid] = true;
+        }
+    }
+    return array_map('intval', array_keys($normalized));
+}
+
+function ll_tools_wordset_parse_category_id_csv($raw): array {
+    if (is_array($raw)) {
+        return ll_tools_wordset_normalize_category_id_list($raw);
+    }
+
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    return ll_tools_wordset_normalize_category_id_list(preg_split('/\s*,\s*/', $raw));
+}
+
+function ll_tools_wordset_parse_id_list_meta($raw): array {
+    if (is_array($raw)) {
+        return ll_tools_wordset_normalize_category_id_list($raw);
+    }
+
+    if (!is_string($raw)) {
+        return [];
+    }
+
+    $trimmed = trim($raw);
+    if ($trimmed === '') {
+        return [];
+    }
+
+    if ($trimmed[0] === '[' || $trimmed[0] === '{') {
+        $decoded = json_decode($trimmed, true);
+        if (is_array($decoded)) {
+            return ll_tools_wordset_normalize_category_id_list($decoded);
+        }
+    }
+
+    return ll_tools_wordset_parse_category_id_csv($trimmed);
+}
+
+function ll_tools_wordset_compare_category_labels(string $left, string $right): int {
+    if (function_exists('ll_tools_locale_compare_strings')) {
+        return ll_tools_locale_compare_strings($left, $right);
+    }
+    return strnatcasecmp($left, $right);
+}
+
+function ll_tools_wordset_get_category_label_map(array $category_ids, array $seed = []): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $label_map = [];
+    foreach ($seed as $raw_id => $label) {
+        $cid = (int) $raw_id;
+        if ($cid > 0 && is_string($label) && $label !== '') {
+            $label_map[$cid] = html_entity_decode($label, ENT_QUOTES, 'UTF-8');
+        }
+    }
+
+    $missing = [];
+    foreach ($category_ids as $cid) {
+        if (!isset($label_map[$cid])) {
+            $missing[] = $cid;
+        }
+    }
+
+    if (!empty($missing)) {
+        $terms = get_terms([
+            'taxonomy'   => 'word-category',
+            'include'    => $missing,
+            'hide_empty' => false,
+        ]);
+        if (!is_wp_error($terms)) {
+            foreach ($terms as $term) {
+                $cid = (int) $term->term_id;
+                if ($cid <= 0) {
+                    continue;
+                }
+                $label = function_exists('ll_tools_get_category_display_name')
+                    ? (string) ll_tools_get_category_display_name($term)
+                    : (string) $term->name;
+                $label_map[$cid] = html_entity_decode($label, ENT_QUOTES, 'UTF-8');
+            }
+        }
+    }
+
+    foreach ($category_ids as $cid) {
+        if (!isset($label_map[$cid])) {
+            $label_map[$cid] = (string) $cid;
+        }
+    }
+
+    return $label_map;
+}
+
+function ll_tools_wordset_get_vocab_lesson_category_created_timestamps(int $wordset_id): array {
+    static $cache = [];
+
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    if (isset($cache[$wordset_id])) {
+        return $cache[$wordset_id];
+    }
+
+    if (!defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
+        $cache[$wordset_id] = [];
+        return $cache[$wordset_id];
+    }
+
+    $lesson_ids = get_posts([
+        'post_type'              => 'll_vocab_lesson',
+        'post_status'            => 'publish',
+        'posts_per_page'         => -1,
+        'fields'                 => 'ids',
+        'orderby'                => 'date',
+        'order'                  => 'ASC',
+        'no_found_rows'          => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query'             => [
+            [
+                'key'   => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+        ],
+    ]);
+
+    $timestamps = [];
+    foreach ((array) $lesson_ids as $lesson_id) {
+        $lesson_id = (int) $lesson_id;
+        if ($lesson_id <= 0) {
+            continue;
+        }
+        $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        if ($category_id <= 0 || isset($timestamps[$category_id])) {
+            continue;
+        }
+        $timestamp = (int) get_post_time('U', true, $lesson_id);
+        if ($timestamp > 0) {
+            $timestamps[$category_id] = $timestamp;
+        }
+    }
+
+    $cache[$wordset_id] = $timestamps;
+    return $cache[$wordset_id];
+}
+
+function ll_tools_wordset_get_default_manual_category_order(int $wordset_id, array $category_ids, array $args = []): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (count($category_ids) < 2) {
+        return $category_ids;
+    }
+
+    $seed_label_map = [];
+    if (isset($args['category_name_map']) && is_array($args['category_name_map'])) {
+        $seed_label_map = $args['category_name_map'];
+    }
+    $label_map = ll_tools_wordset_get_category_label_map($category_ids, $seed_label_map);
+    $lesson_timestamps = ll_tools_wordset_get_vocab_lesson_category_created_timestamps($wordset_id);
+
+    usort($category_ids, static function (int $left, int $right) use ($lesson_timestamps, $label_map): int {
+        $left_ts = (int) ($lesson_timestamps[$left] ?? 0);
+        $right_ts = (int) ($lesson_timestamps[$right] ?? 0);
+
+        if ($left_ts > 0 || $right_ts > 0) {
+            if ($left_ts <= 0) {
+                return 1;
+            }
+            if ($right_ts <= 0) {
+                return -1;
+            }
+            if ($left_ts !== $right_ts) {
+                return ($left_ts < $right_ts) ? -1 : 1;
+            }
+        }
+
+        if ($left !== $right) {
+            return ($left < $right) ? -1 : 1;
+        }
+
+        return ll_tools_wordset_compare_category_labels(
+            (string) ($label_map[$left] ?? (string) $left),
+            (string) ($label_map[$right] ?? (string) $right)
+        );
+    });
+
+    return $category_ids;
+}
+
+function ll_tools_wordset_get_category_manual_order(int $wordset_id, array $category_ids, array $args = []): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $baseline = ll_tools_wordset_get_default_manual_category_order($wordset_id, $category_ids, $args);
+    $valid_lookup = array_fill_keys($category_ids, true);
+    $stored_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
+    $stored = ll_tools_wordset_parse_id_list_meta($stored_raw);
+
+    $ordered = [];
+    $seen = [];
+    foreach ($stored as $cid) {
+        if (!isset($valid_lookup[$cid]) || isset($seen[$cid])) {
+            continue;
+        }
+        $ordered[] = $cid;
+        $seen[$cid] = true;
+    }
+    foreach ($baseline as $cid) {
+        if (isset($seen[$cid])) {
+            continue;
+        }
+        $ordered[] = $cid;
+    }
+
+    return $ordered;
+}
+
+function ll_tools_wordset_normalize_category_prereq_map($raw_map, array $allowed_category_ids = []): array {
+    if (!is_array($raw_map)) {
+        if (is_string($raw_map) && trim($raw_map) !== '') {
+            $decoded = json_decode($raw_map, true);
+            $raw_map = is_array($decoded) ? $decoded : [];
+        } else {
+            $raw_map = [];
+        }
+    }
+
+    $allowed_category_ids = ll_tools_wordset_normalize_category_id_list($allowed_category_ids);
+    $allowed_lookup = empty($allowed_category_ids) ? [] : array_fill_keys($allowed_category_ids, true);
+    $restrict = !empty($allowed_lookup);
+
+    $normalized = [];
+    foreach ($raw_map as $raw_key => $raw_value) {
+        $category_id = (int) $raw_key;
+        if ($category_id <= 0) {
+            continue;
+        }
+        if ($restrict && !isset($allowed_lookup[$category_id])) {
+            continue;
+        }
+
+        $deps = [];
+        if (is_array($raw_value)) {
+            $deps = ll_tools_wordset_normalize_category_id_list($raw_value);
+        } elseif (is_string($raw_value)) {
+            $deps = ll_tools_wordset_parse_id_list_meta($raw_value);
+        }
+
+        $clean_deps = [];
+        foreach ($deps as $dep_id) {
+            if ($dep_id <= 0 || $dep_id === $category_id) {
+                continue;
+            }
+            if ($restrict && !isset($allowed_lookup[$dep_id])) {
+                continue;
+            }
+            $clean_deps[$dep_id] = true;
+        }
+
+        if (!empty($clean_deps)) {
+            $normalized[$category_id] = array_map('intval', array_keys($clean_deps));
+        }
+    }
+
+    ksort($normalized, SORT_NUMERIC);
+    return $normalized;
+}
+
+function ll_tools_wordset_find_prereq_cycle(array $category_ids, array $prereq_map): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [
+            'has_cycle' => false,
+            'cycle_path' => [],
+        ];
+    }
+
+    $lookup = array_fill_keys($category_ids, true);
+    $graph = ll_tools_wordset_normalize_category_prereq_map($prereq_map, $category_ids);
+
+    $state = [];
+    $stack = [];
+    $index_lookup = [];
+    $cycle_path = [];
+
+    $visit = static function (int $node_id) use (&$visit, &$state, &$stack, &$index_lookup, &$cycle_path, $graph, $lookup): bool {
+        $state[$node_id] = 1;
+        $index_lookup[$node_id] = count($stack);
+        $stack[] = $node_id;
+
+        foreach ((array) ($graph[$node_id] ?? []) as $dep_id) {
+            $dep_id = (int) $dep_id;
+            if ($dep_id <= 0 || !isset($lookup[$dep_id])) {
+                continue;
+            }
+
+            $dep_state = (int) ($state[$dep_id] ?? 0);
+            if ($dep_state === 1) {
+                $cycle_start = (int) ($index_lookup[$dep_id] ?? 0);
+                $cycle_path = array_slice($stack, $cycle_start);
+                $cycle_path[] = $dep_id;
+                return true;
+            }
+
+            if ($dep_state === 0 && $visit($dep_id)) {
+                return true;
+            }
+        }
+
+        array_pop($stack);
+        unset($index_lookup[$node_id]);
+        $state[$node_id] = 2;
+        return false;
+    };
+
+    foreach ($category_ids as $category_id) {
+        if ((int) ($state[$category_id] ?? 0) !== 0) {
+            continue;
+        }
+        if ($visit($category_id)) {
+            break;
+        }
+    }
+
+    return [
+        'has_cycle' => !empty($cycle_path),
+        'cycle_path' => array_map('intval', $cycle_path),
+    ];
+}
+
+function ll_tools_wordset_calculate_prereq_levels(array $category_ids, array $prereq_map): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [
+            'has_cycle' => false,
+            'cycle_path' => [],
+            'levels' => [],
+        ];
+    }
+
+    $graph = ll_tools_wordset_normalize_category_prereq_map($prereq_map, $category_ids);
+    $cycle = ll_tools_wordset_find_prereq_cycle($category_ids, $graph);
+    if (!empty($cycle['has_cycle'])) {
+        return [
+            'has_cycle' => true,
+            'cycle_path' => (array) ($cycle['cycle_path'] ?? []),
+            'levels' => [],
+        ];
+    }
+
+    $lookup = array_fill_keys($category_ids, true);
+    $levels = [];
+    $visit = static function (int $node_id) use (&$visit, &$levels, $graph, $lookup): int {
+        if (isset($levels[$node_id])) {
+            return (int) $levels[$node_id];
+        }
+
+        $max_parent_level = -1;
+        foreach ((array) ($graph[$node_id] ?? []) as $dep_id) {
+            $dep_id = (int) $dep_id;
+            if ($dep_id <= 0 || !isset($lookup[$dep_id])) {
+                continue;
+            }
+            $dep_level = $visit($dep_id);
+            if ($dep_level > $max_parent_level) {
+                $max_parent_level = $dep_level;
+            }
+        }
+
+        $levels[$node_id] = max(0, $max_parent_level + 1);
+        return (int) $levels[$node_id];
+    };
+
+    foreach ($category_ids as $category_id) {
+        $visit($category_id);
+    }
+
+    return [
+        'has_cycle' => false,
+        'cycle_path' => [],
+        'levels' => $levels,
+    ];
+}
+
+function ll_tools_wordset_get_category_prereq_map(int $wordset_id, array $category_ids = []): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+    $raw = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+    return ll_tools_wordset_normalize_category_prereq_map($raw, $category_ids);
+}
+
+function ll_tools_wordset_get_prereq_level_info(int $wordset_id, array $category_ids): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [
+            'has_cycle' => false,
+            'cycle_path' => [],
+            'levels' => [],
+        ];
+    }
+
+    $prereq_map = ll_tools_wordset_get_category_prereq_map($wordset_id, $category_ids);
+    return ll_tools_wordset_calculate_prereq_levels($category_ids, $prereq_map);
+}
+
+function ll_tools_wordset_sort_category_ids(array $category_ids, int $wordset_id, array $args = []): array {
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if (count($category_ids) < 2) {
+        return $category_ids;
+    }
+
+    $mode = isset($args['mode'])
+        ? ll_tools_wordset_normalize_category_ordering_mode($args['mode'])
+        : ll_tools_wordset_get_category_ordering_mode($wordset_id);
+
+    $seed_name_map = [];
+    if (isset($args['category_name_map']) && is_array($args['category_name_map'])) {
+        $seed_name_map = $args['category_name_map'];
+    } elseif (isset($args['categories_payload']) && is_array($args['categories_payload'])) {
+        foreach ($args['categories_payload'] as $category_row) {
+            if (!is_array($category_row)) {
+                continue;
+            }
+            $cid = (int) ($category_row['id'] ?? 0);
+            if ($cid <= 0) {
+                continue;
+            }
+            $label = '';
+            if (isset($category_row['translation']) && is_string($category_row['translation']) && $category_row['translation'] !== '') {
+                $label = $category_row['translation'];
+            } elseif (isset($category_row['name']) && is_string($category_row['name']) && $category_row['name'] !== '') {
+                $label = $category_row['name'];
+            }
+            if ($label !== '') {
+                $seed_name_map[$cid] = $label;
+            }
+        }
+    }
+
+    $label_map = ll_tools_wordset_get_category_label_map($category_ids, $seed_name_map);
+
+    if ($mode === 'manual') {
+        return ll_tools_wordset_get_category_manual_order($wordset_id, $category_ids, ['category_name_map' => $label_map]);
+    }
+
+    if ($mode === 'prerequisite') {
+        $level_info = ll_tools_wordset_get_prereq_level_info($wordset_id, $category_ids);
+        if (empty($level_info['has_cycle'])) {
+            $levels = (array) ($level_info['levels'] ?? []);
+            usort($category_ids, static function (int $left, int $right) use ($levels, $label_map): int {
+                $left_level = (int) ($levels[$left] ?? 0);
+                $right_level = (int) ($levels[$right] ?? 0);
+                if ($left_level !== $right_level) {
+                    return ($left_level < $right_level) ? -1 : 1;
+                }
+
+                $cmp = ll_tools_wordset_compare_category_labels(
+                    (string) ($label_map[$left] ?? (string) $left),
+                    (string) ($label_map[$right] ?? (string) $right)
+                );
+                if ($cmp !== 0) {
+                    return $cmp;
+                }
+
+                if ($left === $right) {
+                    return 0;
+                }
+                return ($left < $right) ? -1 : 1;
+            });
+            return $category_ids;
+        }
+    }
+
+    usort($category_ids, static function (int $left, int $right) use ($label_map): int {
+        $cmp = ll_tools_wordset_compare_category_labels(
+            (string) ($label_map[$left] ?? (string) $left),
+            (string) ($label_map[$right] ?? (string) $right)
+        );
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+        if ($left === $right) {
+            return 0;
+        }
+        return ($left < $right) ? -1 : 1;
+    });
+
+    return $category_ids;
+}
+
+function ll_tools_wordset_get_category_ordering_cache_signature(int $wordset_id): string {
+    if ($wordset_id <= 0) {
+        return 'none';
+    }
+
+    $mode = ll_tools_wordset_get_category_ordering_mode($wordset_id);
+    $payload = ['mode' => $mode];
+
+    if ($mode === 'manual') {
+        $payload['manual'] = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
+    } elseif ($mode === 'prerequisite') {
+        $payload['prereq'] = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+    }
+
+    return substr(md5((string) wp_json_encode($payload)), 0, 12);
+}
+
+function ll_tools_wordset_category_order_notice_transient_key(int $user_id = 0): string {
+    $user_id = (int) ($user_id ?: get_current_user_id());
+    return 'll_ws_cat_order_notice_' . max(0, $user_id);
+}
+
+function ll_tools_wordset_queue_category_order_notice(string $message, string $type = 'error'): void {
+    $user_id = (int) get_current_user_id();
+    if ($user_id <= 0 || $message === '') {
+        return;
+    }
+
+    $allowed_types = ['error', 'warning', 'success', 'info'];
+    if (!in_array($type, $allowed_types, true)) {
+        $type = 'error';
+    }
+
+    set_transient(
+        ll_tools_wordset_category_order_notice_transient_key($user_id),
+        [
+            'message' => $message,
+            'type' => $type,
+        ],
+        5 * MINUTE_IN_SECONDS
+    );
+}
+
+function ll_tools_wordset_render_category_order_notice(): void {
+    if (!is_admin()) {
+        return;
+    }
+
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    $taxonomy = '';
+    if ($screen && !empty($screen->taxonomy)) {
+        $taxonomy = (string) $screen->taxonomy;
+    } elseif (isset($_GET['taxonomy'])) {
+        $taxonomy = sanitize_key((string) wp_unslash($_GET['taxonomy']));
+    }
+    if ($taxonomy !== 'wordset') {
+        return;
+    }
+
+    $transient_key = ll_tools_wordset_category_order_notice_transient_key();
+    $notice = get_transient($transient_key);
+    if (!is_array($notice) || empty($notice['message'])) {
+        return;
+    }
+    delete_transient($transient_key);
+
+    $type = sanitize_key((string) ($notice['type'] ?? 'error'));
+    if (!in_array($type, ['error', 'warning', 'success', 'info'], true)) {
+        $type = 'error';
+    }
+
+    echo '<div class="notice notice-' . esc_attr($type) . ' is-dismissible"><p>' . esc_html((string) $notice['message']) . '</p></div>';
+}
+add_action('admin_notices', 'll_tools_wordset_render_category_order_notice');
+
+function ll_tools_wordset_get_admin_category_ordering_rows(int $wordset_id): array {
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $rows = [];
+
+    if (function_exists('ll_tools_user_study_categories_for_wordset')) {
+        $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
+        foreach ((array) $study_categories as $cat) {
+            if (!is_array($cat)) {
+                continue;
+            }
+            $cid = (int) ($cat['id'] ?? 0);
+            if ($cid <= 0) {
+                continue;
+            }
+            $label = '';
+            if (isset($cat['translation']) && is_string($cat['translation']) && $cat['translation'] !== '') {
+                $label = (string) $cat['translation'];
+            } elseif (isset($cat['name']) && is_string($cat['name']) && $cat['name'] !== '') {
+                $label = (string) $cat['name'];
+            }
+            $rows[$cid] = [
+                'id' => $cid,
+                'name' => html_entity_decode($label !== '' ? $label : (string) $cid, ENT_QUOTES, 'UTF-8'),
+                'slug' => isset($cat['slug']) ? (string) $cat['slug'] : '',
+            ];
+        }
+    }
+
+    if (empty($rows) && function_exists('ll_tools_get_wordset_page_category_rows')) {
+        $page_rows = ll_tools_get_wordset_page_category_rows($wordset_id);
+        $category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck((array) $page_rows, 'term_id'));
+        if (!empty($category_ids)) {
+            $terms = get_terms([
+                'taxonomy'   => 'word-category',
+                'include'    => $category_ids,
+                'hide_empty' => false,
+            ]);
+            if (!is_wp_error($terms)) {
+                foreach ($terms as $term) {
+                    $cid = (int) $term->term_id;
+                    if ($cid <= 0) {
+                        continue;
+                    }
+                    $label = function_exists('ll_tools_get_category_display_name')
+                        ? (string) ll_tools_get_category_display_name($term)
+                        : (string) $term->name;
+                    $rows[$cid] = [
+                        'id' => $cid,
+                        'name' => html_entity_decode($label, ENT_QUOTES, 'UTF-8'),
+                        'slug' => (string) $term->slug,
+                    ];
+                }
+            }
+        }
+    }
+
+    if (empty($rows)) {
+        return [];
+    }
+
+    return array_values($rows);
+}
+
+function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): string {
+    $mode = ll_tools_wordset_get_category_ordering_mode($wordset_id);
+    $rows = ll_tools_wordset_get_admin_category_ordering_rows($wordset_id);
+    $category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($rows, 'id'));
+
+    $category_name_map = [];
+    foreach ($rows as $row) {
+        $cid = (int) ($row['id'] ?? 0);
+        if ($cid > 0) {
+            $category_name_map[$cid] = (string) ($row['name'] ?? (string) $cid);
+        }
+    }
+
+    $baseline_manual_order_ids = !empty($category_ids)
+        ? ll_tools_wordset_get_default_manual_category_order($wordset_id, $category_ids, ['category_name_map' => $category_name_map])
+        : [];
+    $baseline_age_rank_lookup = [];
+    foreach ($baseline_manual_order_ids as $idx => $cid) {
+        $baseline_age_rank_lookup[(int) $cid] = (int) $idx;
+    }
+
+    $manual_order_ids = !empty($category_ids)
+        ? ll_tools_wordset_get_category_manual_order($wordset_id, $category_ids, ['category_name_map' => $category_name_map])
+        : [];
+    $manual_order_lookup = [];
+    foreach ($manual_order_ids as $idx => $cid) {
+        $manual_order_lookup[(int) $cid] = (int) $idx;
+    }
+
+    $prereq_map = !empty($category_ids)
+        ? ll_tools_wordset_get_category_prereq_map($wordset_id, $category_ids)
+        : [];
+    $prereq_levels = ll_tools_wordset_calculate_prereq_levels($category_ids, $prereq_map);
+
+    $prereq_table_order_ids = $category_ids;
+    if (!empty($prereq_table_order_ids)) {
+        $prereq_table_order_ids = ll_tools_wordset_sort_category_ids(
+            $prereq_table_order_ids,
+            $wordset_id,
+            ['mode' => 'prerequisite', 'category_name_map' => $category_name_map]
+        );
+        if (!empty($prereq_levels['has_cycle'])) {
+            $prereq_table_order_ids = ll_tools_wordset_sort_category_ids(
+                $category_ids,
+                $wordset_id,
+                ['mode' => 'none', 'category_name_map' => $category_name_map]
+            );
+        }
+    }
+
+    $category_ids_csv = implode(',', $category_ids);
+    $manual_order_csv = implode(',', $manual_order_ids);
+    $multi_select_size = max(4, min(8, count($category_ids)));
+    $show_manual = ($mode === 'manual');
+    $show_prereq = ($mode === 'prerequisite');
+
+    ob_start();
+    ?>
+    <div class="ll-wordset-category-ordering" data-ll-wordset-category-ordering>
+        <div class="ll-wordset-category-ordering__mode-row">
+            <label for="ll-wordset-category-ordering-mode" class="screen-reader-text"><?php esc_html_e('Category ordering mode', 'll-tools-text-domain'); ?></label>
+            <select id="ll-wordset-category-ordering-mode" name="ll_wordset_category_ordering_mode" data-ll-wordset-category-ordering-mode>
+                <option value="none" <?php selected($mode, 'none'); ?>><?php esc_html_e('No logical ordering (alphabetical)', 'll-tools-text-domain'); ?></option>
+                <option value="manual" <?php selected($mode, 'manual'); ?>><?php esc_html_e('Manual order', 'll-tools-text-domain'); ?></option>
+                <option value="prerequisite" <?php selected($mode, 'prerequisite'); ?>><?php esc_html_e('Prerequisite-based', 'll-tools-text-domain'); ?></option>
+            </select>
+            <p class="description"><?php esc_html_e('Controls category ordering on wordset pages. Alphabetical is used when no logical ordering is selected.', 'll-tools-text-domain'); ?></p>
+        </div>
+
+        <?php if ($wordset_id <= 0) : ?>
+            <p class="description"><?php esc_html_e('Save the word set first, then return to configure category ordering and prerequisites.', 'll-tools-text-domain'); ?></p>
+        <?php else : ?>
+            <input type="hidden" name="ll_wordset_category_order_category_ids" value="<?php echo esc_attr($category_ids_csv); ?>">
+
+            <?php if (empty($category_ids)) : ?>
+                <p class="description"><?php esc_html_e('No quizzable categories were found for this word set yet. Add words/categories first, then refresh this page.', 'll-tools-text-domain'); ?></p>
+            <?php else : ?>
+                <div class="ll-wordset-category-ordering__panel" data-ll-wordset-category-ordering-panel="manual" <?php if (!$show_manual) : ?>hidden<?php endif; ?>>
+                    <p class="description"><?php esc_html_e('Manual order defaults to category age (older first, newer later). You can reorder by age or name first, then drag categories or use the arrow buttons to fine-tune.', 'll-tools-text-domain'); ?></p>
+                    <div class="ll-wordset-category-ordering__manual-tools" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px;">
+                        <label for="ll-wordset-manual-sort-field" class="screen-reader-text"><?php esc_html_e('Manual sort field', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-wordset-manual-sort-field" data-ll-wordset-manual-sort-field>
+                            <option value="age"><?php esc_html_e('Age', 'll-tools-text-domain'); ?></option>
+                            <option value="name"><?php esc_html_e('Name (alphabetical)', 'll-tools-text-domain'); ?></option>
+                        </select>
+                        <label for="ll-wordset-manual-sort-direction" class="screen-reader-text"><?php esc_html_e('Manual sort direction', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-wordset-manual-sort-direction" data-ll-wordset-manual-sort-direction>
+                            <option value="asc"><?php esc_html_e('Ascending', 'll-tools-text-domain'); ?></option>
+                            <option value="desc"><?php esc_html_e('Descending', 'll-tools-text-domain'); ?></option>
+                        </select>
+                        <button type="button" class="button button-secondary" data-ll-wordset-manual-sort-apply>
+                            <?php esc_html_e('Reorder list', 'll-tools-text-domain'); ?>
+                        </button>
+                    </div>
+                    <input type="hidden" name="ll_wordset_category_manual_order" value="<?php echo esc_attr($manual_order_csv); ?>" data-ll-wordset-manual-order-input>
+                    <ul class="ll-wordset-category-ordering__manual-list" data-ll-wordset-manual-order-list style="margin:0; padding:0;">
+                        <?php foreach ($manual_order_ids as $cid) : ?>
+                            <?php
+                            $label = (string) ($category_name_map[$cid] ?? (string) $cid);
+                            $age_rank = isset($baseline_age_rank_lookup[$cid]) ? (int) $baseline_age_rank_lookup[$cid] : 999999;
+                            ?>
+                            <li
+                                class="ll-wordset-category-ordering__manual-item"
+                                data-category-id="<?php echo esc_attr((string) $cid); ?>"
+                                data-category-label="<?php echo esc_attr($label); ?>"
+                                data-sort-age-rank="<?php echo esc_attr((string) $age_rank); ?>"
+                                style="display:flex; align-items:center; gap:8px; margin:0 0 6px; padding:8px 10px; border:1px solid #ccd0d4; border-radius:4px; background:#fff;"
+                            >
+                                <span class="dashicons dashicons-move" aria-hidden="true"></span>
+                                <span style="flex:1 1 auto;"><?php echo esc_html($label); ?></span>
+                                <button type="button" class="button button-small" data-ll-wordset-manual-move="up" aria-label="<?php echo esc_attr(sprintf(__('Move %s up', 'll-tools-text-domain'), $label)); ?>"><?php esc_html_e('Up', 'll-tools-text-domain'); ?></button>
+                                <button type="button" class="button button-small" data-ll-wordset-manual-move="down" aria-label="<?php echo esc_attr(sprintf(__('Move %s down', 'll-tools-text-domain'), $label)); ?>"><?php esc_html_e('Down', 'll-tools-text-domain'); ?></button>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <div class="ll-wordset-category-ordering__panel" data-ll-wordset-category-ordering-panel="prerequisite" <?php if (!$show_prereq) : ?>hidden<?php endif; ?>>
+                    <p class="description"><?php esc_html_e('Set prerequisites for each category. Categories are recommended in prerequisite order (lower levels first). Select multiple prerequisites with Ctrl/Command + click.', 'll-tools-text-domain'); ?></p>
+                    <?php if (!empty($prereq_levels['has_cycle'])) : ?>
+                        <p class="description" style="color:#b32d2e; font-weight:600;"><?php esc_html_e('A prerequisite loop is currently stored. Ordering falls back to alphabetical until the loop is removed.', 'll-tools-text-domain'); ?></p>
+                    <?php endif; ?>
+                    <div style="overflow:auto; max-height:460px; border:1px solid #ccd0d4; border-radius:4px; background:#fff;">
+                        <table class="widefat striped" style="margin:0;">
+                            <thead>
+                                <tr>
+                                    <th scope="col"><?php esc_html_e('Category', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col" style="width:90px;"><?php esc_html_e('Level', 'll-tools-text-domain'); ?></th>
+                                    <th scope="col"><?php esc_html_e('Prerequisites', 'll-tools-text-domain'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($prereq_table_order_ids as $cid) : ?>
+                                    <?php
+                                    $label = (string) ($category_name_map[$cid] ?? (string) $cid);
+                                    $selected_prereqs = (array) ($prereq_map[$cid] ?? []);
+                                    $level_value = isset($prereq_levels['levels'][$cid]) ? (int) $prereq_levels['levels'][$cid] : null;
+                                    ?>
+                                    <tr>
+                                        <th scope="row" style="vertical-align:top;">
+                                            <div><?php echo esc_html($label); ?></div>
+                                            <div style="color:#646970; font-size:12px; margin-top:3px;">#<?php echo esc_html((string) $cid); ?></div>
+                                        </th>
+                                        <td style="vertical-align:top;">
+                                            <?php if ($level_value === null && !empty($prereq_levels['has_cycle'])) : ?>
+                                                <span aria-label="<?php echo esc_attr__('Cycle detected', 'll-tools-text-domain'); ?>">—</span>
+                                            <?php else : ?>
+                                                <?php echo esc_html((string) max(0, (int) $level_value)); ?>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="vertical-align:top;">
+                                            <select
+                                                name="ll_wordset_category_prereqs[<?php echo esc_attr((string) $cid); ?>][]"
+                                                multiple
+                                                size="<?php echo esc_attr((string) $multi_select_size); ?>"
+                                                style="min-width:260px; width:100%;"
+                                            >
+                                                <?php foreach ($prereq_table_order_ids as $option_cid) : ?>
+                                                    <?php if ((int) $option_cid === (int) $cid) { continue; } ?>
+                                                    <?php $option_label = (string) ($category_name_map[$option_cid] ?? (string) $option_cid); ?>
+                                                    <option value="<?php echo esc_attr((string) $option_cid); ?>" <?php selected(in_array((int) $option_cid, array_map('intval', $selected_prereqs), true), true); ?>>
+                                                        <?php
+                                                        $order_hint = isset($manual_order_lookup[$option_cid]) ? ((int) $manual_order_lookup[$option_cid] + 1) : null;
+                                                        echo esc_html(
+                                                            $order_hint
+                                                                ? sprintf(__('%1$s (manual #%2$d)', 'll-tools-text-domain'), $option_label, $order_hint)
+                                                                : $option_label
+                                                        );
+                                                        ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 // Add language field to the word set taxonomy admin page
 function ll_add_wordset_language_field($term) {
     $is_edit = ($term instanceof WP_Term);
@@ -266,6 +1116,14 @@ function ll_add_wordset_language_field($term) {
         '<label><input type="checkbox" id="ll-wordset-hide-lesson-text" name="ll_wordset_hide_lesson_text_for_non_text_quiz" value="1" ' . checked($hide_lesson_text_for_non_text_quiz, true, false) . ' /> ' . esc_html__('Hide word text on lesson pages/word grids when the category quiz shows only images/audio.', 'll-tools-text-domain') . '</label>',
         'll-wordset-hide-lesson-text',
         __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-category-ordering-wrap',
+        __('Category ordering', 'll-tools-text-domain'),
+        ll_tools_wordset_render_category_ordering_field_html($term_id),
+        'll-wordset-category-ordering-mode'
     );
 
     ll_tools_wordset_render_admin_field(
@@ -386,7 +1244,7 @@ add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
 
 // Enqueue the script for the wordset taxonomy
 function ll_enqueue_wordsets_script() {
-    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete'), true);
+    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable'), true);
 
     $languages = get_terms([
         'taxonomy' => 'language',
@@ -434,6 +1292,10 @@ add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
+        || isset($_POST['ll_wordset_category_ordering_mode'])
+        || isset($_POST['ll_wordset_category_order_category_ids'])
+        || isset($_POST['ll_wordset_category_manual_order'])
+        || isset($_POST['ll_wordset_category_prereqs'])
         || isset($_POST['ll_wordset_has_gender'])
         || isset($_POST['ll_wordset_gender_options'])
         || isset($_POST['ll_wordset_gender_symbol_masculine'])
@@ -464,6 +1326,99 @@ function ll_save_wordset_language($term_id) {
     if ($has_meta_input) {
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+
+        $ordering_mode_raw = isset($_POST['ll_wordset_category_ordering_mode'])
+            ? wp_unslash((string) $_POST['ll_wordset_category_ordering_mode'])
+            : '';
+        $ordering_mode = ll_tools_wordset_normalize_category_ordering_mode($ordering_mode_raw);
+        if ($ordering_mode === 'none') {
+            delete_term_meta($term_id, 'll_wordset_category_ordering_mode');
+        } else {
+            update_term_meta($term_id, 'll_wordset_category_ordering_mode', $ordering_mode);
+        }
+
+        $posted_category_ids = isset($_POST['ll_wordset_category_order_category_ids'])
+            ? ll_tools_wordset_parse_category_id_csv(wp_unslash((string) $_POST['ll_wordset_category_order_category_ids']))
+            : [];
+        if (empty($posted_category_ids)) {
+            $fallback_rows = ll_tools_wordset_get_admin_category_ordering_rows((int) $term_id);
+            $posted_category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($fallback_rows, 'id'));
+        }
+
+        if (!empty($posted_category_ids)) {
+            $allowed_lookup = array_fill_keys($posted_category_ids, true);
+            $baseline_manual_order = ll_tools_wordset_get_default_manual_category_order((int) $term_id, $posted_category_ids);
+
+            $manual_order_posted = isset($_POST['ll_wordset_category_manual_order'])
+                ? ll_tools_wordset_parse_id_list_meta(wp_unslash((string) $_POST['ll_wordset_category_manual_order']))
+                : [];
+            $manual_order = [];
+            $manual_seen = [];
+            foreach ($manual_order_posted as $cid) {
+                if (!isset($allowed_lookup[$cid]) || isset($manual_seen[$cid])) {
+                    continue;
+                }
+                $manual_order[] = $cid;
+                $manual_seen[$cid] = true;
+            }
+            foreach ($baseline_manual_order as $cid) {
+                if (isset($manual_seen[$cid])) {
+                    continue;
+                }
+                $manual_order[] = $cid;
+            }
+
+            if (empty($manual_order) || $manual_order === $baseline_manual_order) {
+                delete_term_meta($term_id, 'll_wordset_category_manual_order');
+            } else {
+                update_term_meta($term_id, 'll_wordset_category_manual_order', $manual_order);
+            }
+
+            $posted_prereq_raw = isset($_POST['ll_wordset_category_prereqs'])
+                ? wp_unslash($_POST['ll_wordset_category_prereqs'])
+                : [];
+            if (!is_array($posted_prereq_raw)) {
+                $posted_prereq_raw = [];
+            }
+
+            $normalized_prereq_map = ll_tools_wordset_normalize_category_prereq_map($posted_prereq_raw, $posted_category_ids);
+            $cycle_check = ll_tools_wordset_find_prereq_cycle($posted_category_ids, $normalized_prereq_map);
+
+            if (!empty($cycle_check['has_cycle'])) {
+                $cycle_labels = ll_tools_wordset_get_category_label_map($posted_category_ids);
+                $cycle_names = [];
+                foreach ((array) ($cycle_check['cycle_path'] ?? []) as $cycle_id) {
+                    $cycle_id = (int) $cycle_id;
+                    if ($cycle_id <= 0) {
+                        continue;
+                    }
+                    $cycle_names[] = (string) ($cycle_labels[$cycle_id] ?? (string) $cycle_id);
+                }
+                $cycle_preview = implode(' -> ', array_slice($cycle_names, 0, 8));
+                if ($cycle_preview === '') {
+                    $cycle_preview = __('cycle detected', 'll-tools-text-domain');
+                }
+
+                ll_tools_wordset_queue_category_order_notice(
+                    sprintf(
+                        __('Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again.', 'll-tools-text-domain'),
+                        $cycle_preview
+                    ),
+                    'error'
+                );
+            } elseif (empty($normalized_prereq_map)) {
+                delete_term_meta($term_id, 'll_wordset_category_prerequisites');
+            } else {
+                update_term_meta($term_id, 'll_wordset_category_prerequisites', $normalized_prereq_map);
+            }
+        } else {
+            if (isset($_POST['ll_wordset_category_manual_order'])) {
+                delete_term_meta($term_id, 'll_wordset_category_manual_order');
+            }
+            if (isset($_POST['ll_wordset_category_prereqs'])) {
+                delete_term_meta($term_id, 'll_wordset_category_prerequisites');
+            }
+        }
 
         $has_gender = isset($_POST['ll_wordset_has_gender']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_has_gender', $has_gender);

@@ -1863,14 +1863,18 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     display: none !important;
 }
 
+#quiz-results .ll-wordset-inline-skeleton {
+    display: inline-block;
+    border-radius: 999px;
+    background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
+    background-size: 220% 100%;
+    animation: ll-results-skeleton-shimmer 1.15s linear infinite;
+}
+
 #quiz-results .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton {
     width: 100%;
     height: 100%;
     border-radius: 8px;
-    display: inline-block;
-    background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
-    background-size: 220% 100%;
-    animation: ll-results-skeleton-shimmer 1.15s linear infinite;
 }
 
 @keyframes ll-results-skeleton-shimmer {
@@ -1889,6 +1893,27 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 #quiz-results .ll-vocab-lesson-mode-label {
     min-width: 0;
+}
+
+#quiz-results .ll-vocab-lesson-mode-label--loading {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 118px;
+    max-width: 100%;
+    line-height: 1;
+}
+
+#quiz-results .ll-vocab-lesson-mode-label--loading .ll-wordset-inline-skeleton {
+    height: 8px;
+}
+
+#quiz-results .ll-vocab-lesson-mode-label--loading .ll-wordset-inline-skeleton--line-1 {
+    width: 100%;
+}
+
+#quiz-results .ll-vocab-lesson-mode-label--loading .ll-wordset-inline-skeleton--line-2 {
+    width: 62%;
 }
 
 #quiz-results #ll-study-results-actions .quiz-mode-button,
