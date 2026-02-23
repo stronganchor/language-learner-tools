@@ -76,6 +76,13 @@
             .replace(/'/g, '&#39;');
     }
 
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) return '';
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) return text;
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
+
     function setBusy(nextBusy) {
         isBusy = !!nextBusy;
         $saveBtn.prop('disabled', isBusy);
@@ -319,12 +326,14 @@
 
         const titleText = wordText || itemFieldValue(item, 'title') || wordTranslation || '—';
         const categoryText = itemFieldValue(item, 'category.name');
+        const titleDisplayText = protectMaqafNoBreak(titleText);
+        const categoryDisplayText = protectMaqafNoBreak(categoryText);
 
         let html = '';
         html += '<article class="ll-editor-hub-item" data-word-id="' + (parseInt(item.word_id, 10) || 0) + '">';
         html += '<header class="ll-editor-hub-item-head">';
-        html += '<h2 class="ll-editor-hub-item-title">' + escapeHtml(titleText) + '</h2>';
-        html += '<div class="ll-editor-hub-item-meta">' + escapeHtml(categoryText) + '</div>';
+        html += '<h2 class="ll-editor-hub-item-title">' + escapeHtml(titleDisplayText) + '</h2>';
+        html += '<div class="ll-editor-hub-item-meta">' + escapeHtml(categoryDisplayText) + '</div>';
         html += '</header>';
 
         const imageUrl = itemFieldValue(item, 'image.url');

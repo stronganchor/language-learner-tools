@@ -2302,8 +2302,8 @@ function ll_tools_word_grid_shortcode($atts) {
 
             $title_row_html = '<div class="ll-word-title-row">';
             $title_row_html .= '<h3 class="word-title">';
-            $title_row_html .= '<span class="ll-word-text" data-ll-word-text dir="auto">' . esc_html($word_text) . '</span>';
-            $title_row_html .= '<span class="ll-word-translation" data-ll-word-translation dir="auto">' . esc_html($translation_text) . '</span>';
+            $title_row_html .= '<span class="ll-word-text" data-ll-word-text dir="auto">' . ll_tools_esc_html_display($word_text) . '</span>';
+            $title_row_html .= '<span class="ll-word-translation" data-ll-word-translation dir="auto">' . ll_tools_esc_html_display($translation_text) . '</span>';
             $title_row_html .= '</h3>';
             $title_row_html .= '</div>';
 
@@ -2609,10 +2609,10 @@ function ll_tools_word_grid_shortcode($atts) {
                         if (!empty($row['text']) || !empty($row['translation']) || !empty($row['ipa'])) {
                             $recordings_html .= '<span class="ll-word-recording-text">';
                             if (!empty($row['text'])) {
-                                $recordings_html .= '<span class="ll-word-recording-text-main" dir="auto">' . esc_html($row['text']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-text-main" dir="auto">' . ll_tools_esc_html_display($row['text']) . '</span>';
                             }
                             if (!empty($row['translation'])) {
-                                $recordings_html .= '<span class="ll-word-recording-text-translation" dir="auto">' . esc_html($row['translation']) . '</span>';
+                                $recordings_html .= '<span class="ll-word-recording-text-translation" dir="auto">' . ll_tools_esc_html_display($row['translation']) . '</span>';
                             }
                             if (!empty($row['ipa'])) {
                                 $recordings_html .= '<span class="ll-word-recording-ipa ll-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';

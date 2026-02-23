@@ -209,7 +209,9 @@
     font-weight: 600;
     font-size: 0.92rem;
     line-height: 1.25;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
 }
 
 .ll-hidden-word-category {

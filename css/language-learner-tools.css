@@ -920,7 +920,9 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-recording-text-main,
 .word-grid.ll-word-grid .ll-word-recording-text-translation {
     min-width: 0 !important;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text-translation {

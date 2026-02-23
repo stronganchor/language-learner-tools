@@ -65,6 +65,13 @@
         ? window.ll_recorder_data.hidden_words.slice()
         : [];
 
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) { return ''; }
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
+
     images.forEach(item => {
         if (Array.isArray(item?.missing_types)) {
             item.missing_types = sortRecordingTypes(item.missing_types);
@@ -506,13 +513,13 @@
 
                 const title = document.createElement('span');
                 title.className = 'll-hidden-word-title';
-                title.textContent = entry.title || entry.key;
+                title.textContent = protectMaqafNoBreak(entry.title || entry.key);
                 main.appendChild(title);
 
                 if (entry.category_name) {
                     const category = document.createElement('span');
                     category.className = 'll-hidden-word-category';
-                    category.textContent = entry.category_name;
+                    category.textContent = protectMaqafNoBreak(entry.category_name);
                     main.appendChild(category);
                 }
 
@@ -1927,7 +1934,7 @@
         } else if (img?.use_word_display && img.word_translation && img.word_translation.toLowerCase().includes(targetLang.toLowerCase())) {
             displayTitle = decodeEntities(img.word_translation);
         }
-        return displayTitle;
+        return protectMaqafNoBreak(displayTitle);
     }
 
     function refreshCurrentImageDisplay() {
@@ -2012,7 +2019,7 @@
             el.title.parentNode.insertBefore(categoryEl, el.title.nextSibling);
         }
         categoryEl.textContent = (i18n.category || 'Category:') + ' ' +
-            (img.category_name || i18n.uncategorized || 'Uncategorized');
+            protectMaqafNoBreak(img.category_name || i18n.uncategorized || 'Uncategorized');
 
         if (el.hideBtn) {
             const hasHideKey = !!getPrimaryHideKeyForItem(img);

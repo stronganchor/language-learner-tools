@@ -49,6 +49,13 @@
     let vizAudio = null;
     let vizSource = null;
 
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) { return ''; }
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
+
     function canUseVisualizerForUrl(url) {
         if (!url) { return false; }
         const value = String(url);
@@ -1397,7 +1404,7 @@
                 $main = $('<span>', { class: 'll-word-recording-text-main', dir: 'auto' }).appendTo($textWrap);
             }
             $main.attr('dir', 'auto');
-            $main.text(parts.text);
+            $main.text(protectMaqafNoBreak(parts.text));
         } else {
             $main.remove();
         }
@@ -1408,7 +1415,7 @@
                 $translation = $('<span>', { class: 'll-word-recording-text-translation', dir: 'auto' }).appendTo($textWrap);
             }
             $translation.attr('dir', 'auto');
-            $translation.text(parts.translation);
+            $translation.text(protectMaqafNoBreak(parts.translation));
         } else {
             $translation.remove();
         }
@@ -3209,11 +3216,11 @@
                 }
                 const data = response.data || {};
                 if (typeof data.word_text === 'string') {
-                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(data.word_text);
+                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
                     $item.find('[data-ll-word-input="word"]').val(data.word_text);
                 }
                 if (typeof data.word_translation === 'string') {
-                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(data.word_translation);
+                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
                     $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
                 }
                 if (typeof data.word_note === 'string') {
@@ -3315,11 +3322,11 @@
             const $item = $grids.find('.word-item[data-word-id="' + wordId + '"]').first();
             if (!$item.length) { return; }
             if (typeof word.word_text === 'string') {
-                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(word.word_text);
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_text));
                 $item.find('[data-ll-word-input="word"]').val(word.word_text);
             }
             if (typeof word.word_translation === 'string') {
-                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(word.word_translation);
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_translation));
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
             }
             if (word.dictionary_entry) {

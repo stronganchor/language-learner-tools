@@ -63,7 +63,7 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
         <div id="ll-tools-category-stack" class="ll-tools-category-stack">
           <?php if (!$embed): ?>
           <span id="ll-tools-category-display" class="ll-tools-category-display">
-            <?php echo esc_html($category_label_text); ?>
+            <?php echo ll_tools_esc_html_display($category_label_text); ?>
           </span>
           <?php endif; ?>
           <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">

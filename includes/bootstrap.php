@@ -4,6 +4,7 @@ if (!defined('WPINC')) { die; }
 // Include asset management
 require_once(__DIR__ . '/assets.php');
 require_once __DIR__ . '/lib/sort.php';
+require_once __DIR__ . '/lib/text-display.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';

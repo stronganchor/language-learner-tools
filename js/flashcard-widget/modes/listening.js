@@ -895,6 +895,11 @@
         const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
         const total = Math.max(historyLen, wordsTotal);
         let cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
+        if (State && State.isListeningMode && Dom && typeof Dom.updateSimpleProgress === 'function') {
+            try {
+                Dom.updateSimpleProgress(total > 0 ? (cur + 1) : 0, total);
+            } catch (_) { /* no-op */ }
+        }
         const canBack = cur > 0 && historyLen > 0; // never go before first
         const canFwd = total > 0; // keep next enabled even on the last item
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);

@@ -159,7 +159,9 @@
         return {
             title: msgs.selfCheckTitle || 'Self check',
             categoryLabel: getCategoryDisplayLabel(categoryName),
-            progressText: (total > 0) ? (String(current) + ' / ' + String(total)) : ''
+            progressText: (total > 0) ? (String(current) + ' / ' + String(total)) : '',
+            progressCurrent: current,
+            progressTotal: total
         };
     }
 
@@ -838,7 +840,6 @@
         if (!$) { return; }
         $('#ll-tools-flashcard-quiz-popup, #ll-tools-flashcard-content, #ll-tools-flashcard-header').addClass('ll-self-check-active');
         $('#ll-tools-flashcard-quiz-popup').removeClass('ll-self-check-needs-scroll');
-        $('#ll-tools-learning-progress').hide().empty();
         $('#ll-tools-category-stack, #ll-tools-category-display, #ll-tools-repeat-flashcard').hide();
         $('#ll-tools-flashcard, #ll-tools-flashcard-content').removeClass('audio-line-layout audio-line-mode');
     }
@@ -955,9 +956,16 @@
             } catch (_) { /* no-op */ }
         }
 
+        const roundMeta = buildRoundMeta(categoryNameForRound);
+        if (ctx.Dom && typeof ctx.Dom.updateSimpleProgress === 'function') {
+            try {
+                ctx.Dom.updateSimpleProgress(roundMeta.progressCurrent, roundMeta.progressTotal);
+            } catch (_) { /* no-op */ }
+        }
+
         const loader = ctx.FlashcardLoader;
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
-            buildRound(targetWord, promptType, optionType, ctx, buildRoundMeta(categoryNameForRound));
+            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }
@@ -968,7 +976,7 @@
         }
 
         loader.loadResourcesForWord(targetWord, optionType, categoryNameForRound, categoryConfig).then(function () {
-            buildRound(targetWord, promptType, optionType, ctx, buildRoundMeta(categoryNameForRound));
+            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }
@@ -979,7 +987,7 @@
             console.error('Self check round failed:', err);
             // Degrade gracefully instead of leaving a spinner-only screen when a
             // specific resource (image/audio) cannot be loaded for the target word.
-            buildRound(targetWord, promptType, optionType, ctx, buildRoundMeta(categoryNameForRound));
+            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }

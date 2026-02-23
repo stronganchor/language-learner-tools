@@ -3,6 +3,9 @@
 
     const namespace = (root.LLFlashcards = root.LLFlashcards || {});
     const State = namespace.State || {};
+    const protectMaqafNoBreak = (namespace.Util && typeof namespace.Util.protectMaqafNoBreak === 'function')
+        ? namespace.Util.protectMaqafNoBreak
+        : function (value) { return (value === null || value === undefined) ? '' : String(value); };
 
     // Centralized icon configuration
     const ICON_CONFIG = {
@@ -316,7 +319,6 @@
         }
 
         if (enabled) {
-            $('#ll-tools-learning-progress').hide().empty();
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-repeat-flashcard').hide();
         }
@@ -344,7 +346,7 @@
                 : {};
             const override = String(flashData.categoryDisplayOverride || flashData.category_display_override || '').trim();
             if (override) {
-                $el.text(override);
+                $el.text(protectMaqafNoBreak(override));
                 return;
             }
             if (!name) return;
@@ -358,7 +360,7 @@
                 }
             }
 
-            $el.text(String(displayName));
+            $el.text(protectMaqafNoBreak(String(displayName)));
         },
         showLoading() {
             const viz = namespace.AudioVisualizer;
@@ -425,6 +427,21 @@
                 <div class="learning-progress-bar">
                     <div class="learning-progress-fill introduced-fill" style="width: ${introducedPercentage}%"></div>
                     <div class="learning-progress-fill completed-fill" style="width: ${completedPercentage}%"></div>
+                </div>
+            `).show();
+        },
+        updateSimpleProgress(currentCount, totalCount) {
+            const $progress = $('#ll-tools-learning-progress');
+            if (!$progress.length) return;
+
+            const total = Math.max(0, parseInt(totalCount, 10) || 0);
+            const current = Math.max(0, parseInt(currentCount, 10) || 0);
+            const clampedCurrent = total > 0 ? Math.min(total, current) : 0;
+            const percent = total > 0 ? Math.round((clampedCurrent / total) * 100) : 0;
+
+            $progress.html(`
+                <div class="learning-progress-bar simple-progress-bar">
+                    <div class="learning-progress-fill simple-fill" style="width: ${percent}%"></div>
                 </div>
             `).show();
         },

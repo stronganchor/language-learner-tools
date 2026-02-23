@@ -766,7 +766,7 @@ function ll_tools_display_vocab_content($content) {
                 // Decode any HTML entities, then escape for safe output.
                 $decoded_name = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
                 $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
-                                    . esc_html($decoded_name)
+                                    . ll_tools_esc_html_display($decoded_name)
                                     . '</a>';
 
                 // Walk up the parent chain to include ancestors.
@@ -777,7 +777,7 @@ function ll_tools_display_vocab_content($content) {
                     }
                     $decoded_parent = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
                     $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
-                                        . esc_html($decoded_parent)
+                                        . ll_tools_esc_html_display($decoded_parent)
                                         . '</a>';
                 }
             }
@@ -812,12 +812,12 @@ function ll_tools_display_vocab_content($content) {
         }
 
         // Show the English meaning as a heading.
-        $custom_content .= '<h2>' . esc_html__('Meaning:', 'll-tools-text-domain') . ' ' . esc_html($word_english_meaning) . '</h2>';
+        $custom_content .= '<h2>' . esc_html__('Meaning:', 'll-tools-text-domain') . ' ' . ll_tools_esc_html_display($word_english_meaning) . '</h2>';
 
         // Show example sentence and its translation, if available.
         if ($word_example_sentence && $word_example_translation) {
-            $custom_content .= '<p>' . esc_html($word_example_sentence) . '</p>';
-            $custom_content .= '<p><em>' . esc_html($word_example_translation) . '</em></p>';
+            $custom_content .= '<p>' . ll_tools_esc_html_display($word_example_sentence) . '</p>';
+            $custom_content .= '<p><em>' . ll_tools_esc_html_display($word_example_translation) . '</em></p>';
         }
 
         // Include an audio player if an audio file URL is provided.

@@ -66,6 +66,7 @@
                 beforeIntroCorrect: 0,
                 afterIntroCorrect: 0
             },
+            progressMaxPassedCount: 0,
             resultsActions: null
         };
     }
@@ -1612,6 +1613,35 @@
         });
     }
 
+    function countPassedWords() {
+        if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
+            return 0;
+        }
+        let count = 0;
+        session.activeWordIds.forEach(function (wordId) {
+            if (isWordPassed(wordId)) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
+    function updateSessionProgressBar() {
+        const total = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
+        if (!total) return;
+        const passedCount = countPassedWords();
+        session.progressMaxPassedCount = Math.max(
+            0,
+            parseInt(session.progressMaxPassedCount, 10) || 0,
+            passedCount
+        );
+        if (Dom && typeof Dom.updateSimpleProgress === 'function') {
+            try {
+                Dom.updateSimpleProgress(session.progressMaxPassedCount, total);
+            } catch (_) { /* no-op */ }
+        }
+    }
+
     function pickRandomWordId(wordIds) {
         const list = (Array.isArray(wordIds) ? wordIds : []).map(toInt).filter(function (id) { return id > 0; });
         if (!list.length) return 0;
@@ -2330,6 +2360,8 @@
             return null;
         }
 
+        updateSessionProgressBar();
+
         if (session.level === LEVEL_ONE && session.introPending && !session.introComplete) {
             return session.introWords.slice();
         }
@@ -2518,6 +2550,8 @@
             maybeDemoteCategoryFromSessionPressure(categoryName);
             updatedProgress = getWordProgress(wordId);
         }
+
+        updateSessionProgressBar();
 
         // Stop any pending L2 sequence and always replay intro before advancing.
         resetRoundSequence();

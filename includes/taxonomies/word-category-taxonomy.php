@@ -1413,6 +1413,21 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'option_blocked_ids' => isset($blocked_map[$word_id]) ? array_values(array_map('intval', (array) $blocked_map[$word_id])) : [],
         ];
 
+        if (function_exists('ll_tools_protect_maqqef_for_display')) {
+            $word_data['title'] = ll_tools_protect_maqqef_for_display((string) $word_data['title']);
+            $word_data['label'] = ll_tools_protect_maqqef_for_display((string) $word_data['label']);
+            $word_data['prompt_label'] = ll_tools_protect_maqqef_for_display((string) $word_data['prompt_label']);
+
+            if (!empty($word_data['specific_wrong_answer_texts']) && is_array($word_data['specific_wrong_answer_texts'])) {
+                $word_data['specific_wrong_answer_texts'] = array_values(array_map(
+                    static function ($value): string {
+                        return ll_tools_protect_maqqef_for_display((string) $value);
+                    },
+                    $word_data['specific_wrong_answer_texts']
+                ));
+            }
+        }
+
         // Enforce required assets based on prompt + option selections
         if ($require_audio && !$has_audio) {
             // Wrong-answer-only words can still be used in audio-prompt quizzes when options are text-only.

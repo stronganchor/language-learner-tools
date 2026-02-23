@@ -78,6 +78,13 @@
     let nextCardWidthReleaseTimer = null;
     let progressMiniCountRaf = 0;
     let progressMiniCountCleanupTimer = null;
+
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) { return ''; }
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -2297,8 +2304,8 @@
                 $('<span>', { class: 'll-wordset-progress-word-thumb-fallback', 'aria-hidden': 'true' }).appendTo($wordThumb);
             }
             const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
-            $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: primaryWord }).appendTo($wordMain);
-            $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: secondaryWord }).appendTo($wordMain);
+            $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
+            $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
             $wordContent.append($wordThumb).append($wordMain);
             $wordCell.append($wordContent).appendTo($tr);
 

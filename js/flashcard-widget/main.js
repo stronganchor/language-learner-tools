@@ -697,6 +697,103 @@
         recomputeQuizResultTotals();
     }
 
+    function getPracticeProgressStarMode() {
+        if (State && State.starModeOverride) {
+            return normalizeStarMode(State.starModeOverride);
+        }
+        const prefs = ensureStudyPrefs();
+        const data = root.llToolsFlashcardsData || {};
+        return normalizeStarMode(
+            prefs.starMode ||
+            prefs.star_mode ||
+            data.starMode ||
+            data.star_mode ||
+            'normal'
+        );
+    }
+
+    function getPracticeProgressStarredLookup() {
+        const prefs = ensureStudyPrefs();
+        const ids = Array.isArray(prefs.starredWordIds) ? prefs.starredWordIds : [];
+        const lookup = {};
+        ids.forEach(function (id) {
+            const num = parseInt(id, 10);
+            if (num > 0) {
+                lookup[num] = true;
+            }
+        });
+        return lookup;
+    }
+
+    function isPracticeProgressEligibleWord(word) {
+        if (!word || typeof word !== 'object') return false;
+        if (Selection && typeof Selection.isWordBlockedFromPromptRounds === 'function') {
+            try {
+                if (Selection.isWordBlockedFromPromptRounds(word)) {
+                    return false;
+                }
+            } catch (_) { /* no-op */ }
+        }
+        return true;
+    }
+
+    function getPracticeProgressTotalCount() {
+        const sourceNames = (Array.isArray(State.initialCategoryNames) && State.initialCategoryNames.length)
+            ? State.initialCategoryNames
+            : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
+        const names = sourceNames.filter(Boolean);
+        if (!names.length) return 0;
+
+        const starMode = getPracticeProgressStarMode();
+        const starredLookup = getPracticeProgressStarredLookup();
+        const seenWordIds = {};
+        let total = 0;
+
+        names.forEach(function (name) {
+            const words = (State.wordsByCategory && Array.isArray(State.wordsByCategory[name]))
+                ? State.wordsByCategory[name]
+                : [];
+            words.forEach(function (word) {
+                const wordId = parseInt(word && word.id, 10) || 0;
+                if (!wordId || seenWordIds[wordId]) return;
+                seenWordIds[wordId] = true;
+                if (!isPracticeProgressEligibleWord(word)) return;
+                if (starMode === 'only' && !starredLookup[wordId]) return;
+                total += 1;
+            });
+        });
+
+        return total;
+    }
+
+    function getPracticeProgressAnsweredUniqueCount() {
+        const results = ensureQuizResultsShape();
+        const attempts = results.wordAttempts || {};
+        let count = 0;
+        Object.keys(attempts).forEach(function (key) {
+            const info = attempts[key] || {};
+            const clean = parseInt(info.clean, 10) || 0;
+            if (clean > 0) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
+    function updatePracticeModeProgress() {
+        const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
+        if (!isPracticeMode) return;
+        if (!Dom || typeof Dom.updateSimpleProgress !== 'function') return;
+
+        const total = getPracticeProgressTotalCount();
+        if (total <= 0) return;
+
+        const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        try {
+            Dom.updateSimpleProgress(answeredUnique, total);
+        } catch (_) { /* no-op */ }
+    }
+
     // --- Study star helpers (user study dashboard only) ---
     const StarManager = (function () {
         let currentWord = null;
@@ -2780,6 +2877,7 @@
             State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
             try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
         }
+        updatePracticeModeProgress();
         updateProgressTrackerContext(getCurrentModeKey());
 
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')

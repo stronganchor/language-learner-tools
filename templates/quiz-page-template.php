@@ -3,7 +3,7 @@
 // Expected vars: $vh, $src, $display_name, $slug
 ?>
 <div class="ll-tools-quiz-wrapper">
-  <h1 class="ll-quiz-page-title"><?php echo esc_html($display_name); ?></h1>
+  <h1 class="ll-quiz-page-title"><?php echo ll_tools_esc_html_display($display_name); ?></h1>
   <div class="ll-tools-quiz-iframe-wrapper" style="min-height: <?php echo (int)$vh; ?>vh" data-quiz-slug="<?php echo esc_attr($slug); ?>">
     <div class="ll-tools-iframe-loading" aria-hidden="true"></div>
     <iframe class="ll-tools-quiz-iframe"

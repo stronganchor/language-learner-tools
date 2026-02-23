@@ -519,6 +519,9 @@ function ll_tools_recording_hidden_words_meta_key(): string {
  */
 function ll_tools_normalize_recording_hide_title($title): string {
     $clean = html_entity_decode((string) $title, ENT_QUOTES, 'UTF-8');
+    if (function_exists('ll_tools_strip_display_word_joiners')) {
+        $clean = ll_tools_strip_display_word_joiners($clean);
+    }
     $clean = sanitize_text_field($clean);
     $clean = trim(preg_replace('/\s+/', ' ', $clean));
     if ($clean === '') {
@@ -3352,6 +3355,22 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $result = ll_tools_filter_hidden_recording_items($result, get_current_user_id());
     }
 
+    if (function_exists('ll_tools_protect_maqqef_for_display')) {
+        foreach ($result as &$item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            foreach (['title', 'category_name', 'word_title', 'word_translation'] as $key) {
+                if (!array_key_exists($key, $item) || $item[$key] === null) {
+                    continue;
+                }
+                $item[$key] = ll_tools_protect_maqqef_for_display((string) $item[$key]);
+            }
+        }
+        unset($item);
+    }
+
     return $result;
 }
 
@@ -4343,6 +4362,9 @@ function ll_strip_shortcodes_preserve_content($text) {
  */
 function ll_sanitize_word_title_text($text) {
     $text = (string) $text;
+    if (function_exists('ll_tools_strip_display_word_joiners')) {
+        $text = ll_tools_strip_display_word_joiners($text);
+    }
     // Remove shortcode wrappers while keeping the inner text (e.g., color tags)
     $text = ll_strip_shortcodes_preserve_content($text);
     // Strip BBCode-style or unknown bracket tags (e.g., [color]...[/color])
