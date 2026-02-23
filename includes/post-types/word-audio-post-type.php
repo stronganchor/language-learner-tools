@@ -242,6 +242,212 @@ function ll_word_audio_filter_by_category_where($where, $query) {
 }
 
 /**
+ * BULK EDIT RECORDING TYPE REPLACEMENT FOR WORD AUDIO
+ *
+ * WordPress bulk edit for non-hierarchical taxonomies appends terms rather than
+ * replacing them. This adds an opt-in replacement checklist that is enabled when
+ * the selected recordings all share the same recording types.
+ */
+
+function ll_word_audio_enqueue_bulk_edit_recording_type_script($hook) {
+    global $pagenow, $typenow;
+
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    if ($hook !== 'edit.php' || $pagenow !== 'edit.php' || $typenow !== 'word_audio') {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp(
+        'js/word-audio-bulk-recording-type-edit.js',
+        'll-word-audio-bulk-recording-type-edit',
+        ['jquery', 'inline-edit-post'],
+        true
+    );
+
+    wp_localize_script('ll-word-audio-bulk-recording-type-edit', 'llWordAudioBulkRecordingTypeEditData', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('ll_word_audio_bulk_recording_type_edit'),
+        'actionName' => 'll_word_audio_get_bulk_recording_type_state',
+        'strings' => [
+            'idle' => __('Open Bulk Edit to load shared recording types.', 'll-tools-text-domain'),
+            'loading' => __('Loading shared recording types...', 'll-tools-text-domain'),
+            'ready' => __('Shared recording types loaded. Changing this list will replace recording types on the selected recordings.', 'll-tools-text-domain'),
+            'notUniform' => __('Replacement is only available when all selected recordings share the same recording types.', 'll-tools-text-domain'),
+            'loadError' => __('Could not load recording types for the selected recordings.', 'll-tools-text-domain'),
+        ],
+    ]);
+}
+add_action('admin_enqueue_scripts', 'll_word_audio_enqueue_bulk_edit_recording_type_script');
+
+function ll_word_audio_render_bulk_edit_recording_type_controls($column_name, $post_type) {
+    if ($post_type !== 'word_audio' || $column_name !== 'recording_type') {
+        return;
+    }
+
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $recording_types = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+        'orderby' => 'name',
+    ]);
+
+    echo '<fieldset class="inline-edit-col-left ll-word-audio-bulk-recording-type-fieldset">';
+    echo '<div class="inline-edit-col">';
+    echo '<span class="title">' . esc_html__('Replace Recording Types', 'll-tools-text-domain') . '</span>';
+    echo '<p class="howto">' . esc_html__('Enabled when selected recordings all share the same recording types.', 'll-tools-text-domain') . '</p>';
+    echo '<div class="ll-word-audio-bulk-recording-type-checklist-wrap" style="max-height: 140px; overflow: auto; border: 1px solid #dcdcde; padding: 6px 8px; background: #fff;">';
+    echo '<ul class="cat-checklist ll-word-audio-bulk-recording-type-checklist" style="margin: 0;">';
+
+    if (is_wp_error($recording_types) || empty($recording_types)) {
+        echo '<li><em>' . esc_html__('No recording types found.', 'll-tools-text-domain') . '</em></li>';
+    } else {
+        foreach ($recording_types as $recording_type) {
+            printf(
+                '<li><label><input type="checkbox" class="ll-word-audio-bulk-recording-type-option" value="%d" disabled> %s</label></li>',
+                (int) $recording_type->term_id,
+                esc_html($recording_type->name)
+            );
+        }
+    }
+
+    echo '</ul>';
+    echo '</div>';
+    echo '<p class="howto ll-word-audio-bulk-recording-type-status" data-ll-word-audio-bulk-recording-type-status>'
+        . esc_html__('Open Bulk Edit to load shared recording types.', 'll-tools-text-domain')
+        . '</p>';
+    echo '</div>';
+    echo '</fieldset>';
+}
+add_action('bulk_edit_custom_box', 'll_word_audio_render_bulk_edit_recording_type_controls', 10, 2);
+
+function ll_word_audio_get_bulk_recording_type_state_for_posts(array $post_ids): array {
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
+
+    if (empty($post_ids)) {
+        return [
+            'common' => [],
+            'allSame' => false,
+        ];
+    }
+
+    $all_sets = [];
+
+    foreach ($post_ids as $post_id) {
+        $post = get_post($post_id);
+        if (!$post || $post->post_type !== 'word_audio') {
+            continue;
+        }
+
+        if (!current_user_can('edit_post', $post_id)) {
+            continue;
+        }
+
+        $term_ids = wp_get_post_terms($post_id, 'recording_type', ['fields' => 'ids']);
+        if (is_wp_error($term_ids)) {
+            continue;
+        }
+
+        $term_ids = array_values(array_unique(array_filter(array_map('intval', (array) $term_ids), function ($term_id) {
+            return $term_id > 0;
+        })));
+        sort($term_ids, SORT_NUMERIC);
+
+        $all_sets[] = $term_ids;
+    }
+
+    if (empty($all_sets)) {
+        return [
+            'common' => [],
+            'allSame' => false,
+        ];
+    }
+
+    $common = $all_sets[0];
+    $all_same = true;
+
+    foreach ($all_sets as $index => $term_set) {
+        if ($index > 0) {
+            $common = array_values(array_intersect($common, $term_set));
+        }
+
+        if ($term_set !== $all_sets[0]) {
+            $all_same = false;
+        }
+    }
+
+    sort($common, SORT_NUMERIC);
+
+    return [
+        'common' => $common,
+        'allSame' => $all_same,
+    ];
+}
+
+function ll_word_audio_get_bulk_recording_type_state_ajax() {
+    check_ajax_referer('ll_word_audio_bulk_recording_type_edit', 'nonce');
+
+    if (!current_user_can('view_ll_tools') || !current_user_can('edit_posts')) {
+        wp_send_json_error([
+            'message' => __('Permission denied', 'll-tools-text-domain'),
+        ]);
+    }
+
+    $post_ids = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
+    $state = ll_word_audio_get_bulk_recording_type_state_for_posts($post_ids);
+
+    if (empty($post_ids)) {
+        wp_send_json_error([
+            'message' => __('No posts selected', 'll-tools-text-domain'),
+        ]);
+    }
+
+    wp_send_json_success($state);
+}
+add_action('wp_ajax_ll_word_audio_get_bulk_recording_type_state', 'll_word_audio_get_bulk_recording_type_state_ajax');
+
+function ll_word_audio_handle_bulk_edit_recording_type_replace($post_id) {
+    if (!isset($_REQUEST['bulk_edit'])) {
+        return;
+    }
+
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $post = get_post($post_id);
+    if (!$post || $post->post_type !== 'word_audio') {
+        return;
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    if (!isset($_REQUEST['ll_bulk_recording_types_replace']) || (string) $_REQUEST['ll_bulk_recording_types_replace'] !== '1') {
+        return;
+    }
+
+    $selected_terms = isset($_REQUEST['ll_bulk_recording_types_selected'])
+        ? (array) $_REQUEST['ll_bulk_recording_types_selected']
+        : [];
+
+    $selected_terms = array_values(array_unique(array_filter(array_map('intval', $selected_terms), function ($term_id) {
+        return $term_id > 0;
+    })));
+
+    wp_set_object_terms($post_id, $selected_terms, 'recording_type', false);
+}
+add_action('edit_post', 'll_word_audio_handle_bulk_edit_recording_type_replace', 999, 1);
+
+/**
  * Add meta box for audio details
  */
 add_action('add_meta_boxes_word_audio', 'll_word_audio_meta_box');
