@@ -1271,7 +1271,7 @@
         });
         const symbolHtml = (Selection && typeof Selection.buildGenderSymbolMarkup === 'function')
             ? Selection.buildGenderSymbolMarkup(visual, markerLabel)
-            : ('<span class="ll-gender-symbol" aria-hidden="true">' + escapeHtml(markerLabel) + '</span>');
+            : ('<span class="ll-gender-symbol ll-gender-symbol--text" aria-hidden="true">' + escapeHtml(markerLabel) + '</span>');
         $badge.html(symbolHtml + '<span class="screen-reader-text">' + escapeHtml(markerLabel) + '</span>');
 
         if (Selection && typeof Selection.applyGenderStyleVariables === 'function') {

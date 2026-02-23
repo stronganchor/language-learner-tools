@@ -5720,10 +5720,11 @@
         categoryList.forEach(function (cat) {
             const categoryId = parseInt(cat && cat.id, 10) || 0;
             if (!categoryId) { return; }
-            const rows = getWordRowsForCategory(categoryId, effectiveLookup || null);
+            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
             rows.forEach(function (row) {
                 const wordId = parseInt(row && row.id, 10) || 0;
                 if (!wordId || seenWordIds[wordId]) { return; }
+                if (effectiveLookup && !effectiveLookup[wordId]) { return; }
                 seenWordIds[wordId] = true;
                 count += 1;
             });

@@ -3159,6 +3159,7 @@
             const verbMood = ($item.find('[data-ll-word-input="verb_mood"]').val() || '').toString();
             const dictionaryEntryId = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
             const dictionaryEntryTitle = ($item.find('[data-ll-word-input="dictionary_entry_lookup"]').val() || '').toString();
+            const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
             const recordings = [];
@@ -3180,7 +3181,7 @@
             $item.attr('aria-busy', 'true');
             setEditStatus($item, editMessages.saving, false);
 
-            $.post(ajaxUrl, {
+            const requestData = {
                 action: 'll_tools_word_grid_update_word',
                 nonce: editNonce,
                 word_id: wordId,
@@ -3196,7 +3197,12 @@
                 dictionary_entry_title: dictionaryEntryTitle,
                 wordset_id: wordsetId,
                 recordings: recordings
-            }).done(function (response) {
+            };
+            if ($wrongAnswerTextsInput.length) {
+                requestData.specific_wrong_answer_texts = ($wrongAnswerTextsInput.val() || '').toString();
+            }
+
+            $.post(ajaxUrl, requestData).done(function (response) {
                 if (!response || response.success !== true) {
                     setEditStatus($item, editMessages.error, true);
                     return;
@@ -3213,6 +3219,9 @@
                 if (typeof data.word_note === 'string') {
                     $item.find('[data-ll-word-input="note"]').val(data.word_note);
                     setWordNote($item, data.word_note);
+                }
+                if (Array.isArray(data.specific_wrong_answer_texts) && $wrongAnswerTextsInput.length) {
+                    $wrongAnswerTextsInput.val(data.specific_wrong_answer_texts.join('\n'));
                 }
                 if (data.dictionary_entry) {
                     applyDictionaryEntryData($item, data.dictionary_entry);

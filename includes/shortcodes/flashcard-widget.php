@@ -760,7 +760,7 @@ function ll_get_words_by_category_ajax() {
     $prompt_type  = isset($_POST['prompt_type'])  ? sanitize_text_field($_POST['prompt_type'])  : '';
     $option_type  = isset($_POST['option_type'])  ? sanitize_text_field($_POST['option_type'])  : '';
 
-    if (!$category) { wp_send_json_error('Invalid category.'); }
+    if (!$category) { wp_send_json_error(__('Invalid category.', 'll-tools-text-domain')); }
 
     $wordset_ids = ll_flashcards_resolve_wordset_ids($wordset_spec, $wordset_fallback);
     if ($wordset_spec !== '' && empty($wordset_ids)) {

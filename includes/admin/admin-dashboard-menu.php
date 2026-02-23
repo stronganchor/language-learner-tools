@@ -435,7 +435,7 @@ function ll_tools_render_tools_hub_page() {
         ],
         [
             'label' => __('Optimize Images (WebP)', 'll-tools-text-domain'),
-            'description' => __('Flag oversized or non-WebP word images and batch-convert them with progress tracking.', 'll-tools-text-domain'),
+            'description' => __('Flag oversized or non-WebP word images and batch-optimize them with progress tracking.', 'll-tools-text-domain'),
             'url' => ll_tools_get_tools_page_url('ll-image-webp-optimizer'),
             'cap' => 'view_ll_tools',
             'icon' => 'dashicons-images-alt',

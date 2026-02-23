@@ -990,7 +990,6 @@ function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
     $redirect_with_status('ok');
 }
 add_action('admin_post_ll_tools_enable_vocab_lessons_for_wordset', 'll_tools_handle_enable_vocab_lessons_for_wordset_request');
-add_action('admin_post_nopriv_ll_tools_enable_vocab_lessons_for_wordset', 'll_tools_handle_enable_vocab_lessons_for_wordset_request');
 
 function ll_tools_handle_vocab_lesson_settings_submit() {
     if (!is_admin()) {

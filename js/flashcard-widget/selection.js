@@ -304,7 +304,7 @@
             }
         }
         const text = formatGenderDisplayLabel(symbolValue || fallbackLabel || '?');
-        return '<span class="ll-gender-symbol" aria-hidden="true">' + escapeHtml(text) + '</span>';
+        return '<span class="ll-gender-symbol ll-gender-symbol--text" aria-hidden="true">' + escapeHtml(text) + '</span>';
     }
 
     function shouldShowGenderOptionLabel(visual) {

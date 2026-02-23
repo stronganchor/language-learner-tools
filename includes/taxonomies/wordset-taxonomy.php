@@ -1244,12 +1244,24 @@ add_action('wordset_edit_form_fields', 'll_add_wordset_language_field');
 
 // Enqueue the script for the wordset taxonomy
 function ll_enqueue_wordsets_script() {
+    if (!function_exists('get_current_screen')) {
+        return;
+    }
+
+    $screen = get_current_screen();
+    if (!$screen || $screen->taxonomy !== 'wordset') {
+        return;
+    }
+
     ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable'), true);
 
     $languages = get_terms([
         'taxonomy' => 'language',
         'hide_empty' => false,
     ]);
+    if (is_wp_error($languages)) {
+        $languages = [];
+    }
     $language_data = array_map(function($language) {
         return array('label' => esc_html($language->name), 'value' => esc_attr($language->term_id));
     }, $languages);
@@ -2049,6 +2061,38 @@ function ll_tools_wordset_build_gender_update_map(array $old_options, array $new
     return $map;
 }
 
+function ll_tools_wordset_get_word_ids_with_meta_in_wordset(int $wordset_id, string $meta_key): array {
+    $wordset_id = (int) $wordset_id;
+    $meta_key = trim($meta_key);
+    if ($wordset_id <= 0 || $meta_key === '') {
+        return [];
+    }
+
+    $word_ids = get_posts([
+        'post_type'         => 'words',
+        'post_status'       => 'any',
+        'posts_per_page'    => -1,
+        'fields'            => 'ids',
+        'no_found_rows'     => true,
+        'suppress_filters'  => true,
+        'tax_query'         => [[
+            'taxonomy' => 'wordset',
+            'field'    => 'term_id',
+            'terms'    => [$wordset_id],
+        ]],
+        'meta_query'        => [[
+            'key'     => $meta_key,
+            'compare' => 'EXISTS',
+        ]],
+    ]);
+
+    if (!is_array($word_ids) || empty($word_ids)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('intval', $word_ids)));
+}
+
 function ll_tools_wordset_sync_gender_values(int $wordset_id, array $old_options, array $new_options, array $legacy_options = []): void {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -2074,19 +2118,7 @@ function ll_tools_wordset_sync_gender_values(int $wordset_id, array $old_options
         return;
     }
 
-    $word_ids = get_posts([
-        'post_type'      => 'words',
-        'post_status'    => 'any',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'suppress_filters' => true,
-        'tax_query'      => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-    ]);
+    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_grammatical_gender');
     if (empty($word_ids)) {
         return;
     }
@@ -2348,10 +2380,10 @@ function ll_tools_wordset_get_gender_display_data(int $wordset_id, string $value
             if ($symbol_text === '') {
                 $symbol_text = $label;
             }
-            $symbol_html = '<span class="ll-gender-symbol" aria-hidden="true">' . esc_html($symbol_text) . '</span>';
+            $symbol_html = '<span class="ll-gender-symbol ll-gender-symbol--text" aria-hidden="true">' . esc_html($symbol_text) . '</span>';
         }
     } else {
-        $symbol_html = '<span class="ll-gender-symbol" aria-hidden="true">' . esc_html($label) . '</span>';
+        $symbol_html = '<span class="ll-gender-symbol ll-gender-symbol--text" aria-hidden="true">' . esc_html($label) . '</span>';
     }
 
     $symbol_html .= '<span class="screen-reader-text">' . esc_html($label) . '</span>';
@@ -2399,19 +2431,7 @@ function ll_tools_wordset_sync_plurality_values(int $wordset_id, array $old_opti
         return;
     }
 
-    $word_ids = get_posts([
-        'post_type'      => 'words',
-        'post_status'    => 'any',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'suppress_filters' => true,
-        'tax_query'      => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-    ]);
+    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_grammatical_plurality');
     if (empty($word_ids)) {
         return;
     }
@@ -2522,19 +2542,7 @@ function ll_tools_wordset_sync_verb_tense_values(int $wordset_id, array $old_opt
         return;
     }
 
-    $word_ids = get_posts([
-        'post_type'      => 'words',
-        'post_status'    => 'any',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'suppress_filters' => true,
-        'tax_query'      => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-    ]);
+    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_verb_tense');
     if (empty($word_ids)) {
         return;
     }
@@ -2645,19 +2653,7 @@ function ll_tools_wordset_sync_verb_mood_values(int $wordset_id, array $old_opti
         return;
     }
 
-    $word_ids = get_posts([
-        'post_type'      => 'words',
-        'post_status'    => 'any',
-        'posts_per_page' => -1,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-        'suppress_filters' => true,
-        'tax_query'      => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-    ]);
+    $word_ids = ll_tools_wordset_get_word_ids_with_meta_in_wordset($wordset_id, 'll_verb_mood');
     if (empty($word_ids)) {
         return;
     }
