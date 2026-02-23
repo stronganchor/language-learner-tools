@@ -171,7 +171,7 @@ function ll_ajax_create_recording_page() {
     check_ajax_referer('ll_create_recording_page', 'nonce');
 
     if (!current_user_can('manage_options')) {
-        wp_send_json_error('Permission denied');
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
     // Clear the old page ID
@@ -192,7 +192,7 @@ function ll_ajax_create_recording_page() {
             'view_link' => get_permalink($page_id),
         ]);
     } else {
-        wp_send_json_error('Failed to create page');
+        wp_send_json_error(__('Failed to create page', 'll-tools-text-domain'));
     }
 }
 add_action('wp_ajax_ll_create_recording_page', 'll_ajax_create_recording_page');

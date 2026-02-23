@@ -109,7 +109,7 @@ function ll_render_audio_image_matcher_page() {
 
 function ll_aim_verify_ajax_request() {
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
     check_ajax_referer('ll_aim_admin', 'nonce');
 }
@@ -137,25 +137,49 @@ function ll_aim_get_images_handler() {
         'order'   => 'ASC',
     ]);
 
+    $thumb_ids = [];
+    $thumb_id_by_image_id = [];
+    foreach ($images as $img_post) {
+        $thumb_id = (int) get_post_thumbnail_id($img_post->ID);
+        $thumb_id_by_image_id[(int) $img_post->ID] = $thumb_id;
+        if ($thumb_id > 0) {
+            $thumb_ids[$thumb_id] = true;
+        }
+    }
+
+    $used_count_by_thumb_id = [];
+    if (!empty($thumb_ids)) {
+        global $wpdb;
+        $thumb_id_list = array_keys($thumb_ids);
+        $placeholders = implode(', ', array_fill(0, count($thumb_id_list), '%d'));
+        $sql = "
+            SELECT CAST(pm.meta_value AS UNSIGNED) AS thumb_id, COUNT(*) AS used_count
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm
+                ON pm.post_id = p.ID
+               AND pm.meta_key = '_thumbnail_id'
+            WHERE p.post_type = 'words'
+              AND p.post_status = 'publish'
+              AND CAST(pm.meta_value AS UNSIGNED) IN ($placeholders)
+            GROUP BY CAST(pm.meta_value AS UNSIGNED)
+        ";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $thumb_id_list), ARRAY_A);
+        foreach ((array) $rows as $row) {
+            $thumb_id = (int) ($row['thumb_id'] ?? 0);
+            if ($thumb_id <= 0) {
+                continue;
+            }
+            $used_count_by_thumb_id[$thumb_id] = (int) ($row['used_count'] ?? 0);
+        }
+    }
+
     $out = [];
     foreach ($images as $img_post) {
-        $thumb_id = get_post_thumbnail_id($img_post->ID);
+        $thumb_id = (int) ($thumb_id_by_image_id[(int) $img_post->ID] ?? 0);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
         // Always count actual published words using this image (ignore cached meta)
-        $used_count = 0;
-        if ($thumb_id) {
-            $q = new WP_Query([
-                'post_type'      => 'words',
-                'post_status'    => 'publish',
-                'posts_per_page' => -1,
-                'meta_query'     => [[ 'key' => '_thumbnail_id', 'value' => $thumb_id, 'compare' => '=' ]],
-                'fields'         => 'ids',
-                'no_found_rows'  => false,
-            ]);
-            $used_count = $q->found_posts;
-            wp_reset_postdata();
-        }
+        $used_count = $thumb_id ? (int) ($used_count_by_thumb_id[$thumb_id] ?? 0) : 0;
 
         if ($hide_used && $used_count > 0) {
             continue;
@@ -239,28 +263,28 @@ function ll_aim_assign_handler() {
     $image_id = isset($_POST['image_id']) ? intval($_POST['image_id']) : 0;
 
     if (!$word_id || !$image_id) {
-        wp_send_json_error('missing params', 400);
+        wp_send_json_error(__('Missing parameters', 'll-tools-text-domain'), 400);
     }
 
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
-        wp_send_json_error('invalid word', 400);
+        wp_send_json_error(__('Invalid word', 'll-tools-text-domain'), 400);
     }
     if (!current_user_can('edit_post', $word_id)) {
-        wp_send_json_error('forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $image_post = get_post($image_id);
     if (!$image_post || $image_post->post_type !== 'word_images') {
-        wp_send_json_error('invalid image', 400);
+        wp_send_json_error(__('Invalid image', 'll-tools-text-domain'), 400);
     }
     if (!current_user_can('edit_post', $image_id)) {
-        wp_send_json_error('forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $attachment_id = get_post_thumbnail_id($image_id);
     if (!$attachment_id) {
-        wp_send_json_error('image has no thumbnail', 400);
+        wp_send_json_error(__('Image has no thumbnail', 'll-tools-text-domain'), 400);
     }
 
     // Optional: if you maintain meta counts, decrement the old image’s _ll_picked_count

@@ -31,7 +31,7 @@ read_first:
 - WordPress plugin for vocabulary-driven language learning.
 - Custom post types for words, dictionary entries, word images, and word audio recordings.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
-- Flashcard quizzes with three modes (practice, learning, listening) and per-category prompt/option config.
+- Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
@@ -77,6 +77,8 @@ includes/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
     recording-page.php        # Recording page creation + login redirect
+    wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
+    vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
     words-post-type.php
     dictionary-entry-post-type.php
@@ -107,6 +109,10 @@ includes/
     bulk-translation-admin.php
     bulk-word-import-admin.php
     export-import.php
+    word-option-rules-admin.php
+    duplicate-category-words-admin.php
+    image-aspect-normalizer-admin.php
+    image-webp-optimizer-admin.php
     word-images-fixer.php
     manage-wordsets.php
     metabox-word-audio-parent.php
@@ -242,7 +248,7 @@ Core settings live in `includes/admin/settings.php`:
 - `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and session guards.
 - `state.js` - shared state container and constants.
 - `selection.js` - category/word selection, prompt rendering, and star-weighted selection.
-- `modes/practice.js`, `modes/learning.js`, `modes/listening.js` - mode-specific flows.
+- `modes/practice.js`, `modes/learning.js`, `modes/listening.js`, `modes/gender.js`, `modes/self-check.js` - mode-specific flows.
 - `audio.js` - playback + `selectBestAudio()` priority logic.
 - `loader.js` - preloading and cache management (wordset aware).
 - `options.js` - option count calculation and layout constraints.
@@ -266,6 +272,8 @@ Core settings live in `includes/admin/settings.php`:
   - Implementation: `js/flashcard-widget/modes/listening.js` + `audio-visualizer.js`.
   - Prompt audio preference is isolation-first when available.
   - Uses study prefs (`llToolsStudyPrefs`) to honor star mode and fast transitions.
+- Gender mode: adaptive grammar-focused rounds using wordset/category gender support flags.
+- Self-check mode: confidence-based review flow that feeds user-progress signals/recommendations.
 
 # Admin tools and workflows
 ## Core Tools menu pages (files)
@@ -280,6 +288,14 @@ Core settings live in `includes/admin/settings.php`:
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
 - Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).
 - Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
+- Word Option Rules: `includes/admin/word-option-rules-admin.php` (option conflict/group editing).
+- Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
+- Image Aspect Normalizer: `includes/admin/image-aspect-normalizer-admin.php`.
+- Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.
+
+## Maintenance notes (current)
+- `includes/admin/manage-wordsets.php` is currently unused in normal workflows. Decide later whether to redesign it for usability or remove it.
+- `includes/shortcodes/user-study-dashboard.php` is largely superseded by newer `wordset` page flows. Decide later whether to deprecate/remove it or keep only a minimal compatibility surface.
 
 ## Audio workflow (end to end)
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.

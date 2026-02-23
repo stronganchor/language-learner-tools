@@ -296,6 +296,12 @@
         const pluralityValue = itemFieldValue(item, 'grammatical_plurality.value');
         const verbTenseValue = itemFieldValue(item, 'verb_tense.value');
         const verbMoodValue = itemFieldValue(item, 'verb_mood.value');
+        const wrongAnswerTexts = Array.isArray(item && item.specific_wrong_answer_texts)
+            ? item.specific_wrong_answer_texts.map(function (value) {
+                return (value || '').toString();
+            }).filter(Boolean).join('\n')
+            : '';
+        const answerOptionsTextOnly = !!(item && item.answer_options_text_only);
 
         const flags = (item && typeof item.missing_flags === 'object' && item.missing_flags !== null)
             ? item.missing_flags
@@ -345,6 +351,13 @@
         html += '<label>' + escapeHtml(t('note', 'Note')) + '</label>';
         html += '<textarea rows="3" data-word-field="word_note">' + escapeHtml(wordNote) + '</textarea>';
         html += '</div>';
+
+        if (answerOptionsTextOnly) {
+            html += '<div class="ll-editor-hub-field">';
+            html += '<label>' + escapeHtml(t('wrong_answer_options', 'Wrong answer options (one per line)')) + '</label>';
+            html += '<textarea rows="4" dir="auto" data-word-field="specific_wrong_answer_texts">' + escapeHtml(wrongAnswerTexts) + '</textarea>';
+            html += '</div>';
+        }
 
         html += '<div class="ll-editor-hub-field' + dictMissing + '">';
         html += '<label>' + escapeHtml(t('dictionary_entry', 'Dictionary entry')) + '</label>';
@@ -529,7 +542,7 @@
             });
         });
 
-        return {
+        const payload = {
             action: 'll_tools_word_grid_update_word',
             nonce: nonce,
             word_id: wordId,
@@ -546,6 +559,13 @@
             verb_mood: ($card.find('[data-word-field="verb_mood"]').val() || '').toString(),
             recordings: JSON.stringify(recordings)
         };
+
+        const $wrongAnswerTexts = $card.find('[data-word-field="specific_wrong_answer_texts"]').first();
+        if ($wrongAnswerTexts.length) {
+            payload.specific_wrong_answer_texts = ($wrongAnswerTexts.val() || '').toString();
+        }
+
+        return payload;
     }
 
     function applyDataset(payload, preferredIndex) {

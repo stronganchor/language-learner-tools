@@ -180,6 +180,17 @@ p:has(.ll-word-audio) {
     line-height: 1;
 }
 
+.word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--text {
+    font-family: inherit !important;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 1em;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+
 .word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--svg svg {
     width: 1.2em;
     height: 1.2em;

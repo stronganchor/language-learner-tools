@@ -460,7 +460,7 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
     if (!$is_webp) {
         $reasons[] = [
             'code' => 'non_webp',
-            'label' => __('Convert to WebP', 'll-tools-text-domain'),
+            'label' => __('Optimize to WebP', 'll-tools-text-domain'),
         ];
     }
     if ($is_oversize) {
@@ -837,10 +837,10 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
         return new WP_Error('invalid_post', __('Word image not found.', 'll-tools-text-domain'));
     }
     if (empty($item_before['attachment_id'])) {
-        return new WP_Error('missing_thumbnail', __('This word image does not have a featured image to convert.', 'll-tools-text-domain'));
+        return new WP_Error('missing_thumbnail', __('This word image does not have a featured image to optimize.', 'll-tools-text-domain'));
     }
     if (empty($item_before['is_supported_source'])) {
-        return new WP_Error('unsupported_source', __('This image format is not supported for WebP conversion.', 'll-tools-text-domain'));
+        return new WP_Error('unsupported_source', __('This image format is not supported for WebP optimization.', 'll-tools-text-domain'));
     }
     if (!$force && empty($item_before['needs_conversion'])) {
         return new WP_Error('not_needed', __('This image does not currently need optimization.', 'll-tools-text-domain'));
@@ -936,7 +936,7 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
             if ($had_larger_than_source_attempt) {
                 return new WP_Error(
                     'no_savings',
-                    __('Converted image would be larger than the current file at available quality levels, so it was not applied.', 'll-tools-text-domain')
+                    __('Optimized image would be larger than the current file at available quality levels, so it was not applied.', 'll-tools-text-domain')
                 );
             }
 
@@ -957,7 +957,7 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
                     'no_savings',
                     sprintf(
                         /* translators: 1: source size, 2: new size */
-                        __('Converted image would be larger (%1$s -> %2$s), so it was not applied.', 'll-tools-text-domain'),
+                        __('Optimized image would be larger (%1$s -> %2$s), so it was not applied.', 'll-tools-text-domain'),
                         ll_tools_webp_optimizer_bytes_label($source_size),
                         ll_tools_webp_optimizer_bytes_label($new_size)
                     )
@@ -1064,12 +1064,12 @@ function ll_tools_webp_optimizer_get_primary_action_label(array $item): string {
         }
         return sprintf(
             /* translators: %s target file size threshold */
-            __('Compress to %s', 'll-tools-text-domain'),
+            __('Optimize to %s', 'll-tools-text-domain'),
             $threshold_label
         );
     }
 
-    return __('Convert to WebP', 'll-tools-text-domain');
+    return __('Optimize Image', 'll-tools-text-domain');
 }
 
 function ll_tools_webp_optimizer_render_list_cell_html(int $word_image_id, ?array $item = null): string {
@@ -1185,22 +1185,22 @@ function ll_tools_webp_optimizer_enqueue_admin_assets($hook): void {
         ],
         'i18n' => [
             'loadingQueue' => __('Loading image queue...', 'll-tools-text-domain'),
-            'loadingIds' => __('Building conversion queue...', 'll-tools-text-domain'),
-            'emptyQueue' => __('No word images currently need WebP conversion or additional compression.', 'll-tools-text-domain'),
-            'convertAll' => __('Convert All Flagged', 'll-tools-text-domain'),
-            'convertOne' => __('Convert to WebP', 'll-tools-text-domain'),
-            'compressToThreshold' => __('Compress to %s', 'll-tools-text-domain'),
-            'working' => __('Converting...', 'll-tools-text-domain'),
-            'convertAllConfirm' => __('Convert all currently flagged word images using batched WebP conversion?', 'll-tools-text-domain'),
+            'loadingIds' => __('Building optimization queue...', 'll-tools-text-domain'),
+            'emptyQueue' => __('No word images currently need WebP optimization.', 'll-tools-text-domain'),
+            'convertAll' => __('Optimize All Flagged', 'll-tools-text-domain'),
+            'convertOne' => __('Optimize Image', 'll-tools-text-domain'),
+            'compressToThreshold' => __('Optimize to %s', 'll-tools-text-domain'),
+            'working' => __('Optimizing...', 'll-tools-text-domain'),
+            'convertAllConfirm' => __('Optimize all currently flagged word images using batched WebP optimization?', 'll-tools-text-domain'),
             'convertButtonWorking' => __('Working...', 'll-tools-text-domain'),
-            'convertSuccess' => __('Converted to WebP and updated the word image.', 'll-tools-text-domain'),
-            'convertFailed' => __('Could not convert this image right now.', 'll-tools-text-domain'),
+            'convertSuccess' => __('Optimized image and updated the word image.', 'll-tools-text-domain'),
+            'convertFailed' => __('Could not optimize this image right now.', 'll-tools-text-domain'),
             'queueFailed' => __('Could not load the WebP optimization queue.', 'll-tools-text-domain'),
-            'webpUnavailable' => __('WebP encoding is not available on this server. The queue can still be reviewed, but conversion is disabled.', 'll-tools-text-domain'),
-            'progressLabel' => __('Converting batch %1$d of %2$d...', 'll-tools-text-domain'),
-            'progressDone' => __('Batch conversion finished.', 'll-tools-text-domain'),
+            'webpUnavailable' => __('WebP encoding is not available on this server. The queue can still be reviewed, but optimization is disabled.', 'll-tools-text-domain'),
+            'progressLabel' => __('Optimizing batch %1$d of %2$d...', 'll-tools-text-domain'),
+            'progressDone' => __('Batch optimization finished.', 'll-tools-text-domain'),
             'bytesSaved' => __('Saved %s', 'll-tools-text-domain'),
-            'resultSummary' => __('Converted %1$d image(s); %2$d failed; saved %3$s total.', 'll-tools-text-domain'),
+            'resultSummary' => __('Optimized %1$d image(s); %2$d failed; saved %3$s total.', 'll-tools-text-domain'),
             'resultSummaryWarnings' => __('%d image(s) are still flagged and remain in the queue.', 'll-tools-text-domain'),
             'pageLabel' => __('Page %1$d of %2$d', 'll-tools-text-domain'),
             'prevPage' => __('Previous', 'll-tools-text-domain'),
@@ -1233,7 +1233,7 @@ function ll_tools_webp_optimizer_render_admin_page(): void {
     <div class="wrap ll-webp-optimizer-wrap">
         <h1><?php echo esc_html__('WebP Image Optimizer', 'll-tools-text-domain'); ?></h1>
         <p class="description">
-            <?php echo esc_html__('Find word images that should be converted to WebP or recompressed because they are oversized for quiz use. Convert individually or run a batched bulk pass with progress tracking.', 'll-tools-text-domain'); ?>
+            <?php echo esc_html__('Find word images that need WebP optimization because they are non-WebP or oversized for quiz use. Optimize individually or run a batched bulk pass with progress tracking.', 'll-tools-text-domain'); ?>
         </p>
 
         <div class="ll-webp-optimizer" data-ll-webp-optimizer-root data-preselected-word-image-id="<?php echo esc_attr((string) max(0, $preselected_word_image_id)); ?>">
@@ -1281,7 +1281,7 @@ function ll_tools_webp_optimizer_render_admin_page(): void {
                         ?>
                     </div>
                     <button type="button" class="button button-primary" data-ll-webp-convert-all>
-                        <span class="ll-webp-button__text"><?php echo esc_html__('Convert All Flagged', 'll-tools-text-domain'); ?></span>
+                        <span class="ll-webp-button__text"><?php echo esc_html__('Optimize All Flagged', 'll-tools-text-domain'); ?></span>
                         <span class="ll-webp-button__spinner" aria-hidden="true"></span>
                     </button>
                 </div>
@@ -1364,7 +1364,7 @@ function ll_tools_webp_optimizer_convert_ajax(): void {
     $raw_ids = $_POST['word_image_ids'] ?? ($_POST['word_image_id'] ?? []);
     $ids = ll_tools_webp_optimizer_parse_post_id_list($raw_ids);
     if (empty($ids)) {
-        wp_send_json_error(['message' => __('No word images were selected for conversion.', 'll-tools-text-domain')], 400);
+        wp_send_json_error(['message' => __('No word images were selected for optimization.', 'll-tools-text-domain')], 400);
     }
 
     $quality = isset($_POST['quality']) ? (int) $_POST['quality'] : ll_tools_webp_optimizer_quality();
@@ -1428,14 +1428,14 @@ function ll_tools_webp_optimizer_convert_ajax(): void {
             $warning_count++;
             if (!empty($reason_labels)) {
                 $message = sprintf(
-                    /* translators: 1: conversion summary, 2: remaining reason labels */
+                    /* translators: 1: optimization summary, 2: remaining reason labels */
                     __('%1$s. Still flagged: %2$s (remains in queue).', 'll-tools-text-domain'),
                     $message,
                     implode(', ', $reason_labels)
                 );
             } else {
                 $message = sprintf(
-                    /* translators: %s conversion summary */
+                    /* translators: %s optimization summary */
                     __('%s. Still flagged and remains in queue.', 'll-tools-text-domain'),
                     $message
                 );

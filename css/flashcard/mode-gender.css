@@ -183,6 +183,18 @@
     font-variant-emoji: text;
 }
 
+.ll-gender-option .ll-gender-symbol--text,
+.ll-gender-intro-badge .ll-gender-symbol--text {
+    font-family: inherit !important;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 1em;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+
 .ll-gender-option .ll-gender-symbol--svg svg,
 .ll-gender-intro-badge .ll-gender-symbol--svg svg {
     display: block;

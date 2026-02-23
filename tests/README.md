@@ -127,7 +127,7 @@ tests/bin/run-tests.sh tests/Integration/UserProgressSelfCheckSignalTest.php
 tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 ```
 
-## 5) What these initial tests cover
+## 5) What the PHPUnit suite covers (high level)
 
 - Audio recorder role creation and required capabilities.
 - `ll_tools_user_can_record()` permission behavior.
@@ -136,6 +136,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - `[flashcard_widget]` primary render path with localized initial words/categories.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
+- Additional integration tests also cover import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -200,6 +201,7 @@ tests/bin/run-e2e.sh specs/user-study-dashboard-mode-options.spec.js
 - Keep all new tests under `tests/Integration/` and use translation-ready messages in assertions where relevant.
 - `run-tests.sh` supports either Linux PHP or Local Windows `php.exe` through `bin/php-local.sh`.
 - `install-wp-tests.sh` writes `WP_PHP_BINARY` and `$table_prefix` into `wp-tests-config.php` for Local Windows PHP compatibility.
+- Playwright failure artifacts default to `tests/e2e/test-results/` (relative to `tests/e2e/`), and the HTML report is in `tests/e2e/playwright-report/`.
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
 - If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
   - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`

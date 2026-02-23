@@ -388,6 +388,127 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNotContains('edit.php', $remaining);
     }
 
+    public function test_audio_processor_safe_delete_path_rejects_non_uploads_file(): void
+    {
+        $base = wp_normalize_path(untrailingslashit(ABSPATH));
+        $dir = trailingslashit($base) . 'll-tools-tests-non-uploads';
+        wp_mkdir_p($dir);
+        $path = trailingslashit($dir) . 'outside-uploads.txt';
+        file_put_contents($path, 'test');
+        $stored_path = str_replace($base, '', wp_normalize_path($path));
+
+        try {
+            $resolved = ll_audio_processor_resolve_safe_delete_path($stored_path);
+            $this->assertSame('', $resolved);
+        } finally {
+            @unlink($path);
+            @rmdir($dir);
+        }
+    }
+
+    public function test_audio_processor_safe_delete_path_accepts_uploads_file(): void
+    {
+        $uploads = wp_get_upload_dir();
+        if (!empty($uploads['error']) || empty($uploads['basedir'])) {
+            $this->markTestSkipped('Uploads directory unavailable in test environment.');
+        }
+
+        $base = wp_normalize_path(untrailingslashit(ABSPATH));
+        $uploads_base = wp_normalize_path((string) $uploads['basedir']);
+        if ($uploads_base === '' || strpos(strtolower($uploads_base), strtolower($base . '/')) !== 0) {
+            $this->markTestSkipped('Uploads directory is not inside ABSPATH in this test environment.');
+        }
+
+        $dir = trailingslashit($uploads['basedir']) . 'll-tools-tests';
+        wp_mkdir_p($dir);
+        $path = trailingslashit($dir) . 'safe-delete-test.txt';
+        file_put_contents($path, 'test');
+
+        $stored_path = str_replace($base, '', wp_normalize_path($path));
+
+        try {
+            $resolved = ll_audio_processor_resolve_safe_delete_path($stored_path);
+            $this->assertSame(wp_normalize_path($path), $resolved);
+        } finally {
+            @unlink($path);
+            @rmdir($dir);
+        }
+    }
+
+    public function test_audio_processor_save_handler_requires_upload_files_cap(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+
+        wp_set_current_user($user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_audio_processor'),
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [];
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_save_processed_audio_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            $_FILES = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertStringContainsString('Permission denied', (string) ($response['data'] ?? ''));
+    }
+
+    public function test_audio_processor_delete_handler_requires_delete_cap_for_recording(): void
+    {
+        $owner_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Delete Guard Word',
+            'post_author' => $owner_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Delete Guard Recording',
+            'post_parent' => $word_id,
+            'post_author' => $owner_id,
+        ]);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_audio_processor'),
+            'post_id' => $audio_id,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertStringContainsString('Insufficient permissions', (string) ($response['data'] ?? ''));
+        $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
+    }
+
     /**
      * @param array<int, array<string, mixed>> $rows
      * @return array<string, mixed>|null

@@ -52,12 +52,6 @@ function ll_tools_register_or_refresh_audio_recorder_role() {
 add_action('plugins_loaded', 'll_tools_register_or_refresh_audio_recorder_role', 1);
 
 /**
- * Optional: If you *also* want to re-ensure on init (e.g., after role manager plugins run),
- * keep this. It’s cheap and idempotent.
- */
-add_action('init', 'll_tools_register_or_refresh_audio_recorder_role', 1);
-
-/**
  * Helper: who can record?
  * Recording access requires media upload capability plus LL Tools access
  * (or stricter manage_options access).

@@ -106,9 +106,9 @@
         const needsConversion = !!row.needs_conversion;
         if (isWebp && needsConversion) {
             const thresholdLabel = String(row.threshold_label || cfg.thresholdLabel || '300 KB');
-            return formatTemplate(i18n.compressToThreshold || 'Compress to %s', [thresholdLabel]);
+            return formatTemplate(i18n.compressToThreshold || 'Optimize to %s', [thresholdLabel]);
         }
-        return String(i18n.convertOne || 'Convert to WebP');
+        return String(i18n.convertOne || 'Optimize Image');
     }
 
     function renderToolCard(item, extra) {
@@ -226,20 +226,20 @@
             const $status = $root.find('[data-ll-webp-inline-status]');
 
             $button.prop('disabled', true).addClass('is-working');
-            $status.removeClass('is-success is-error').text(i18n.working || 'Converting...');
+            $status.removeClass('is-success is-error').text(i18n.working || 'Optimizing...');
 
             request('convert', {
                 word_image_ids: [wordImageId],
                 quality: quality
             }).done(function (res) {
                 if (!res || !res.success || !res.data || !Array.isArray(res.data.results) || !res.data.results.length) {
-                    $status.addClass('is-error').text(i18n.convertFailed || 'Could not convert this image right now.');
+                    $status.addClass('is-error').text(i18n.convertFailed || 'Could not optimize this image right now.');
                     return;
                 }
 
                 const result = res.data.results[0] || {};
                 const html = String(result.list_cell_html || '');
-                const message = String(result.message || (result.success ? (i18n.convertSuccess || 'Converted to WebP and updated the word image.') : (i18n.convertFailed || 'Could not convert this image right now.')));
+                const message = String(result.message || (result.success ? (i18n.convertSuccess || 'Optimized image and updated the word image.') : (i18n.convertFailed || 'Could not optimize this image right now.')));
 
                 if (html) {
                     $root.replaceWith(html);
@@ -253,7 +253,7 @@
             }).fail(function (xhr) {
                 const message = (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message)
                     ? String(xhr.responseJSON.data.message)
-                    : (i18n.convertFailed || 'Could not convert this image right now.');
+                    : (i18n.convertFailed || 'Could not optimize this image right now.');
                 $button.removeClass('is-working').prop('disabled', false);
                 $status.removeClass('is-success is-error').addClass('is-error').text(message);
             });
@@ -371,7 +371,7 @@
             const focusItem = state.focusItem && typeof state.focusItem === 'object' ? state.focusItem : null;
 
             if (!items.length && !(focusItem && focusItem.word_image_id)) {
-                $cards.html('<div class="ll-webp-empty">' + escapeHtml(i18n.emptyQueue || 'No word images currently need WebP conversion or additional compression.') + '</div>');
+                $cards.html('<div class="ll-webp-empty">' + escapeHtml(i18n.emptyQueue || 'No word images currently need WebP optimization.') + '</div>');
                 return;
             }
 
@@ -475,7 +475,7 @@
                 renderPagination();
 
                 if (!cfg.encodingSupported || !res.data.encoding_supported) {
-                    setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but conversion is disabled.', 'info');
+                    setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but optimization is disabled.', 'info');
                 } else if (!quietStatus) {
                     setStatus('', '');
                 }
@@ -520,7 +520,7 @@
                 return $.Deferred().resolve(null).promise();
             }
             if (!cfg.encodingSupported) {
-                setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but conversion is disabled.', 'error');
+                setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but optimization is disabled.', 'error');
                 return $.Deferred().reject({ message: 'webp-unavailable' }).promise();
             }
 
@@ -536,12 +536,12 @@
             const postReloadFeedbacks = {};
 
             setBusy(true);
-            setStatus(i18n.working || 'Converting...', 'loading');
+            setStatus(i18n.working || 'Optimizing...', 'loading');
 
             function finish() {
                 const totalBytesLabel = formatBytes(bytesSavedTotal);
                 const summaryMessage = formatTemplate(
-                    i18n.resultSummary || 'Converted %1$d image(s); %2$d failed; saved %3$s total.',
+                    i18n.resultSummary || 'Optimized %1$d image(s); %2$d failed; saved %3$s total.',
                     [convertedCount, failedCount, totalBytesLabel]
                 );
                 const warningSuffix = warningCount > 0
@@ -586,7 +586,7 @@
 
                 const currentChunk = chunks[chunkIndex].slice();
                 updateCardButtonsWorking(currentChunk, true);
-                const progressText = formatTemplate(i18n.progressLabel || 'Converting batch %1$d of %2$d...', [chunkIndex + 1, totalChunks]);
+                const progressText = formatTemplate(i18n.progressLabel || 'Optimizing batch %1$d of %2$d...', [chunkIndex + 1, totalChunks]);
                 setProgress(chunkIndex, totalChunks, progressText);
 
                 request('convert', {
@@ -622,7 +622,7 @@
                 }).fail(function (xhr) {
                     const message = (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message)
                         ? String(xhr.responseJSON.data.message)
-                        : (i18n.convertFailed || 'Could not convert this image right now.');
+                        : (i18n.convertFailed || 'Could not optimize this image right now.');
                     failedCount += currentChunk.length;
                     currentChunk.forEach(function (id) {
                         postReloadFeedbacks[id] = {
@@ -636,8 +636,8 @@
                     chunkIndex += 1;
                     const processedChunks = Math.min(chunkIndex, totalChunks);
                     const doneText = (processedChunks >= totalChunks)
-                        ? (i18n.progressDone || 'Batch conversion finished.')
-                        : formatTemplate(i18n.progressLabel || 'Converting batch %1$d of %2$d...', [processedChunks + 1, totalChunks]);
+                        ? (i18n.progressDone || 'Batch optimization finished.')
+                        : formatTemplate(i18n.progressLabel || 'Optimizing batch %1$d of %2$d...', [processedChunks + 1, totalChunks]);
                     setProgress(processedChunks, totalChunks, doneText);
                     processNextChunk();
                 });
@@ -694,20 +694,20 @@
 
             const queuedCount = Math.max(0, parseInt(state.summary && state.summary.queued_count, 10) || 0);
             if (!queuedCount) {
-                setStatus(i18n.emptyQueue || 'No word images currently need WebP conversion or additional compression.', 'info');
+                setStatus(i18n.emptyQueue || 'No word images currently need WebP optimization.', 'info');
                 return;
             }
 
-            if (!window.confirm(i18n.convertAllConfirm || 'Convert all currently flagged word images using batched WebP conversion?')) {
+            if (!window.confirm(i18n.convertAllConfirm || 'Optimize all currently flagged word images using batched WebP optimization?')) {
                 return;
             }
 
-            setStatus(i18n.loadingIds || 'Building conversion queue...', 'loading');
+            setStatus(i18n.loadingIds || 'Building optimization queue...', 'loading');
             setBusy(true);
             fetchAllFlaggedIds().done(function (ids) {
                 setBusy(false);
                 if (!Array.isArray(ids) || !ids.length) {
-                    setStatus(i18n.emptyQueue || 'No word images currently need WebP conversion or additional compression.', 'info');
+                    setStatus(i18n.emptyQueue || 'No word images currently need WebP optimization.', 'info');
                     return;
                 }
                 runConversion(ids, { reloadAfter: true });
@@ -720,7 +720,7 @@
 
         renderSummary();
         if (!cfg.encodingSupported) {
-            setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but conversion is disabled.', 'info');
+            setStatus(i18n.webpUnavailable || 'WebP encoding is not available on this server. The queue can still be reviewed, but optimization is disabled.', 'info');
         }
         loadQueue({ page: 1, includeFocus: preselectedWordImageId > 0 });
     }

@@ -186,6 +186,21 @@ function ll_tools_editor_hub_get_part_of_speech_for_word(int $word_id, array $ma
     ];
 }
 
+function ll_tools_editor_hub_category_has_text_only_answer_options(int $category_id): bool {
+    if ($category_id <= 0 || !function_exists('ll_tools_get_category_quiz_config')) {
+        return false;
+    }
+
+    $term = get_term($category_id, 'word-category');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return false;
+    }
+
+    $config = ll_tools_get_category_quiz_config($term);
+    $option_type = (string) ($config['option_type'] ?? '');
+    return in_array($option_type, ['text', 'text_translation', 'text_title'], true);
+}
+
 function ll_tools_editor_hub_get_recording_type_labels(): array {
     $defaults = [
         'question' => __('Question', 'll-tools-text-domain'),
@@ -583,14 +598,22 @@ function ll_tools_editor_hub_build_item(int $word_id, int $wordset_id, array $ui
 
     $missing_labels = array_values(array_unique(array_filter(array_map('strval', $missing_labels))));
 
+    $category = ll_tools_editor_hub_get_primary_category_for_word($word_id);
+    $category_id = (int) ($category['id'] ?? 0);
+    $specific_wrong_answer_texts = function_exists('ll_tools_get_word_specific_wrong_answer_texts')
+        ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
+        : [];
+
     return [
         'word_id' => $word_id,
         'title' => (string) get_the_title($word_id),
         'wordset_id' => $wordset_id,
-        'category' => ll_tools_editor_hub_get_primary_category_for_word($word_id),
+        'category' => $category,
         'word_text' => $word_text,
         'word_translation' => $translation_text,
         'word_note' => $word_note,
+        'specific_wrong_answer_texts' => array_values(array_map('strval', (array) $specific_wrong_answer_texts)),
+        'answer_options_text_only' => ll_tools_editor_hub_category_has_text_only_answer_options($category_id),
         'image' => ll_tools_editor_hub_get_word_image_data($word_id),
         'dictionary_entry' => [
             'id' => $dictionary_entry_id,
@@ -835,6 +858,7 @@ function ll_editor_hub_shortcode($atts) {
             'word' => __('Word', 'll-tools-text-domain'),
             'translation' => __('Translation', 'll-tools-text-domain'),
             'note' => __('Note', 'll-tools-text-domain'),
+            'wrong_answer_options' => __('Wrong answer options (one per line)', 'll-tools-text-domain'),
             'dictionary_entry' => __('Dictionary entry', 'll-tools-text-domain'),
             'dictionary_placeholder' => __('Type to select or create dictionary entry', 'll-tools-text-domain'),
             'part_of_speech' => __('Part of speech', 'll-tools-text-domain'),

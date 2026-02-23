@@ -552,37 +552,107 @@ function ll_render_audio_processor_page() {
  */
 add_action('wp_ajax_ll_save_processed_audio', 'll_save_processed_audio_handler');
 
+/**
+ * Resolve a stored recording path to a safe deletable file path inside uploads.
+ *
+ * Stored `audio_file_path` values are expected to be ABSPATH-relative. This
+ * helper rejects anything that resolves outside the current uploads base dir.
+ */
+function ll_audio_processor_resolve_safe_delete_path($stored_path) {
+    $stored_path = trim((string) $stored_path);
+    if ($stored_path === '') {
+        return '';
+    }
+
+    $uploads = wp_get_upload_dir();
+    if (!empty($uploads['error']) || empty($uploads['basedir'])) {
+        return '';
+    }
+
+    $candidate = wp_normalize_path(ABSPATH . ltrim($stored_path, "/\\"));
+    if (!file_exists($candidate)) {
+        return '';
+    }
+
+    $real = realpath($candidate);
+    if (!is_string($real) || $real === '') {
+        return '';
+    }
+
+    $real_norm = wp_normalize_path($real);
+    $uploads_base = wp_normalize_path(untrailingslashit((string) $uploads['basedir']));
+    if ($uploads_base === '') {
+        return '';
+    }
+
+    $real_cmp = strtolower($real_norm);
+    $base_cmp = strtolower($uploads_base);
+    if ($real_cmp !== $base_cmp && strpos($real_cmp, $base_cmp . '/') !== 0) {
+        return '';
+    }
+
+    return $real_norm;
+}
+
 function ll_save_processed_audio_handler() {
     check_ajax_referer('ll_audio_processor', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Permission denied');
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
+    }
+    if (!current_user_can('upload_files')) {
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
     $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
     $recording_type = isset($_POST['recording_type']) ? sanitize_text_field($_POST['recording_type']) : '';
 
     if (!$audio_post_id || !isset($_FILES['audio'])) {
-        wp_send_json_error('Missing required data');
+        wp_send_json_error(__('Missing required data', 'll-tools-text-domain'));
     }
 
     $audio_post = get_post($audio_post_id);
     if (!$audio_post || $audio_post->post_type !== 'word_audio') {
-        wp_send_json_error('Invalid audio post');
+        wp_send_json_error(__('Invalid audio post', 'll-tools-text-domain'));
+    }
+    if (!current_user_can('edit_post', $audio_post_id)) {
+        wp_send_json_error(__('Insufficient permissions to edit this recording.', 'll-tools-text-domain'));
     }
 
     $parent_word_id = wp_get_post_parent_id($audio_post_id);
     if (!$parent_word_id) {
-        wp_send_json_error('No parent word post found');
+        wp_send_json_error(__('No parent word post found', 'll-tools-text-domain'));
     }
 
     $parent_word = get_post($parent_word_id);
     if (!$parent_word || $parent_word->post_type !== 'words') {
-        wp_send_json_error('Invalid parent word post');
+        wp_send_json_error(__('Invalid parent word post', 'll-tools-text-domain'));
+    }
+    if (!current_user_can('edit_post', $parent_word_id)) {
+        wp_send_json_error(__('Insufficient permissions to edit the parent word.', 'll-tools-text-domain'));
     }
 
-    $file = $_FILES['audio'];
+    $file = (array) $_FILES['audio'];
+    if (!function_exists('ll_tools_validate_recording_upload_file')) {
+        wp_send_json_error(__('Audio upload validation is unavailable', 'll-tools-text-domain'));
+    }
+    $upload_validation = ll_tools_validate_recording_upload_file($file);
+    if (empty($upload_validation['valid'])) {
+        $status = max(400, (int) ($upload_validation['status'] ?? 400));
+        $message = (string) ($upload_validation['error'] ?? '');
+        if ($message === '') {
+            $message = __('Invalid audio upload.', 'll-tools-text-domain');
+        }
+        wp_send_json_error($message, $status);
+    }
+
     $upload_dir = wp_upload_dir();
+    if (!empty($upload_dir['error']) || empty($upload_dir['path'])) {
+        wp_send_json_error(__('Upload directory is unavailable', 'll-tools-text-domain'));
+    }
+    if (!wp_mkdir_p((string) $upload_dir['path'])) {
+        wp_send_json_error(__('Upload directory is unavailable', 'll-tools-text-domain'));
+    }
 
     $title = sanitize_file_name($parent_word->post_title);
 
@@ -591,13 +661,43 @@ function ll_save_processed_audio_handler() {
     $type_for_filename = $recording_type ?: (!is_wp_error($existing_recording_types) && !empty($existing_recording_types) ? $existing_recording_types[0] : '');
     $type_suffix = $type_for_filename ? '_' . $type_for_filename : '';
 
-    // Include audio_post_id to ensure absolute uniqueness
-    $filename = $title . $type_suffix . '_' . $audio_post_id . '_' . time() . '.mp3';
-    $filepath = trailingslashit($upload_dir['path']) . $filename;
-
-    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-        wp_send_json_error('Failed to save file');
+    $validated_ext = sanitize_key((string) ($upload_validation['ext'] ?? ''));
+    if ($validated_ext === '') {
+        $validated_ext = 'mp3';
     }
+    // Include audio_post_id to ensure absolute uniqueness.
+    $filename = $title . $type_suffix . '_' . $audio_post_id . '_' . time() . '.' . $validated_ext;
+    $file['name'] = $filename;
+    if (!empty($upload_validation['mime'])) {
+        $file['type'] = (string) $upload_validation['mime'];
+    }
+
+    if (!function_exists('wp_handle_upload')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+    }
+    $upload_result = wp_handle_upload($file, [
+        'test_form' => false,
+        // Validation already enforced by ll_tools_validate_recording_upload_file().
+        'test_type' => false,
+        'mimes' => function_exists('ll_tools_get_allowed_recording_upload_mimes')
+            ? ll_tools_get_allowed_recording_upload_mimes()
+            : null,
+    ]);
+    if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
+        $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
+        if ($upload_error !== '') {
+            wp_send_json_error(
+                sprintf(
+                    /* translators: %s: upload subsystem error message */
+                    __('Failed to save file: %s', 'll-tools-text-domain'),
+                    $upload_error
+                ),
+                400
+            );
+        }
+        wp_send_json_error(__('Failed to save file', 'll-tools-text-domain'));
+    }
+    $filepath = (string) $upload_result['file'];
 
     $relative_path = str_replace(
         wp_normalize_path(untrailingslashit(ABSPATH)),
@@ -629,7 +729,7 @@ function ll_save_processed_audio_handler() {
     }
 
     wp_send_json_success([
-        'message' => 'Audio processed and published successfully',
+        'message' => __('Audio processed and published successfully', 'll-tools-text-domain'),
         'file_path' => $relative_path,
         'audio_post_id' => $audio_post_id,
         'recording_type' => $recording_type,
@@ -685,18 +785,21 @@ function ll_delete_audio_recording_handler() {
     check_ajax_referer('ll_audio_processor', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Permission denied');
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
     $audio_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
 
     if (!$audio_post_id) {
-        wp_send_json_error('Invalid post ID');
+        wp_send_json_error(__('Invalid post ID', 'll-tools-text-domain'));
     }
 
     $audio_post = get_post($audio_post_id);
     if (!$audio_post || $audio_post->post_type !== 'word_audio') {
-        wp_send_json_error('Invalid audio post');
+        wp_send_json_error(__('Invalid audio post', 'll-tools-text-domain'));
+    }
+    if (!current_user_can('delete_post', $audio_post_id)) {
+        wp_send_json_error(__('Insufficient permissions to delete this recording.', 'll-tools-text-domain'));
     }
 
     // Resolve parent word before deletion
@@ -705,8 +808,8 @@ function ll_delete_audio_recording_handler() {
     // Delete the audio file from filesystem
     $audio_file_path = get_post_meta($audio_post_id, 'audio_file_path', true);
     if ($audio_file_path) {
-        $full_path = ABSPATH . ltrim($audio_file_path, '/');
-        if (file_exists($full_path)) {
+        $full_path = ll_audio_processor_resolve_safe_delete_path($audio_file_path);
+        if ($full_path !== '' && file_exists($full_path)) {
             @unlink($full_path);
         }
     }
@@ -737,9 +840,9 @@ function ll_delete_audio_recording_handler() {
             }
         }
 
-        wp_send_json_success(['message' => 'Audio recording deleted']);
+        wp_send_json_success(['message' => __('Audio recording deleted', 'll-tools-text-domain')]);
     } else {
-        wp_send_json_error('Failed to delete audio recording');
+        wp_send_json_error(__('Failed to delete audio recording', 'll-tools-text-domain'));
     }
 }
 
@@ -834,8 +937,8 @@ function ll_tools_get_admin_maintenance_tasks(): array {
                 'message' => sprintf(
                     /* translators: %d: number of word images */
                     _n(
-                        '%d image needs compression or WebP conversion',
-                        '%d images need compression or WebP conversion',
+                        '%d image needs WebP optimization',
+                        '%d images need WebP optimization',
                         $webp_queued_count,
                         'll-tools-text-domain'
                     ),
