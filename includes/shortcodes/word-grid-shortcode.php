@@ -2216,6 +2216,63 @@ function ll_tools_word_grid_shortcode($atts) {
                     ];
                 }
             }
+            if (!$has_recordings && !empty($audio_files)) {
+                $fallback_types = [];
+                foreach ($audio_files as $audio_file_entry) {
+                    $fallback_type = isset($audio_file_entry['recording_type']) ? sanitize_text_field((string) $audio_file_entry['recording_type']) : '';
+                    if ($fallback_type === '' || isset($fallback_types[$fallback_type])) {
+                        continue;
+                    }
+                    $fallback_types[$fallback_type] = true;
+                }
+                foreach (array_keys($fallback_types) as $type) {
+                    $entry = ll_tools_word_grid_select_audio_entry($audio_files, (string) $type, $preferred_speaker);
+                    $audio_url = isset($entry['url']) ? (string) $entry['url'] : '';
+                    if (!$audio_url) {
+                        continue;
+                    }
+                    $has_recordings = true;
+                    $label = $recording_labels[$type] ?? ucwords(str_replace(['-', '_'], ' ', (string) $type));
+                    $play_label = sprintf($play_label_template, $label);
+                    $recording_text = trim((string) ($entry['recording_text'] ?? ''));
+                    $recording_translation = trim((string) ($entry['recording_translation'] ?? ''));
+                    $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''));
+                    if ($recording_text !== '' || $recording_translation !== '' || $recording_ipa !== '') {
+                        $has_recording_caption = true;
+                    }
+                    $recording_id_attr = '';
+                    if (!empty($entry['id'])) {
+                        $recording_id_attr = ' data-recording-id="' . esc_attr((int) $entry['id']) . '"';
+                    }
+                    $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '">';
+                    $recording_button .= '<span class="ll-study-recording-icon" aria-hidden="true"></span>';
+                    $recording_button .= '<span class="ll-study-recording-visualizer" aria-hidden="true">';
+                    for ($i = 0; $i < 4; $i++) {
+                        $recording_button .= '<span class="bar"></span>';
+                    }
+                    $recording_button .= '</span>';
+                    $recording_button .= '</button>';
+                    $recording_rows[] = [
+                        'button' => $recording_button,
+                        'text' => $recording_text,
+                        'translation' => $recording_translation,
+                        'ipa' => $recording_ipa,
+                        'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
+                    ];
+
+                    if ($can_edit_words && !empty($entry['id'])) {
+                        $edit_recordings[] = [
+                            'id' => (int) $entry['id'],
+                            'type' => $type,
+                            'label' => $label,
+                            'text' => (string) ($entry['recording_text'] ?? ''),
+                            'translation' => (string) ($entry['recording_translation'] ?? ''),
+                            'ipa' => ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? '')),
+                            'audio_url' => $audio_url,
+                        ];
+                    }
+                }
+            }
 
             $actions_row_html = '';
             if ($show_stars || $can_edit_words) {
