@@ -122,7 +122,16 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
         : $wordset_min;
     $min_words = max($wordset_min, $lesson_min);
 
-    $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words;
+    $ordering_sig = function_exists('ll_tools_wordset_get_category_ordering_cache_signature')
+        ? ll_tools_wordset_get_category_ordering_cache_signature($wordset_id)
+        : 'none';
+    $translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
+        ? (ll_tools_is_category_translation_enabled() ? '1' : '0')
+        : ((bool) get_option('ll_enable_category_translation', 0) ? '1' : '0');
+    $translation_target = sanitize_key((string) get_option('ll_translation_language', ''));
+    $label_locale_sig = sanitize_key((string) get_locale());
+    $cache_context_sig = substr(md5($label_locale_sig . '|' . $translation_enabled . '|' . $translation_target), 0, 8);
+    $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words . '_' . $ordering_sig . '_' . $cache_context_sig;
     $cached = wp_cache_get($cache_key, 'll_tools');
     if ($cached !== false) {
         return $cached;
@@ -176,6 +185,29 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
                 'term_id' => $term_id,
                 'word_count' => $count,
             ];
+        }
+    }
+
+    if (!empty($rows) && function_exists('ll_tools_wordset_sort_category_ids')) {
+        $row_lookup = [];
+        $row_ids = [];
+        foreach ($rows as $row) {
+            $cid = (int) ($row['term_id'] ?? 0);
+            if ($cid <= 0) {
+                continue;
+            }
+            $row_lookup[$cid] = $row;
+            $row_ids[] = $cid;
+        }
+        $ordered_ids = ll_tools_wordset_sort_category_ids($row_ids, $wordset_id);
+        $ordered_rows = [];
+        foreach ($ordered_ids as $cid) {
+            if (isset($row_lookup[$cid])) {
+                $ordered_rows[] = $row_lookup[$cid];
+            }
+        }
+        if (!empty($ordered_rows)) {
+            $rows = $ordered_rows;
         }
     }
 
@@ -593,15 +625,6 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'preview_limit' => $preview_limit_for_category,
             'url'        => get_permalink($lesson_post_id),
         ];
-    }
-
-    if (!empty($items)) {
-        usort($items, static function ($a, $b) {
-            if (function_exists('ll_tools_locale_compare_strings')) {
-                return ll_tools_locale_compare_strings((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
-            }
-            return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
-        });
     }
 
     return apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
@@ -2267,7 +2290,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         <div class="ll-wordset-settings-card__options" role="group" aria-label="<?php echo esc_attr__('Enabled modes', 'll-tools-text-domain'); ?>">
                             <?php
                             $goal_modes = ['learning', 'practice', 'listening'];
-                            if ($gender_enabled) {
+                            if ($gender_mode_available) {
                                 $goal_modes[] = 'gender';
                             }
                             $goal_modes[] = 'self-check';

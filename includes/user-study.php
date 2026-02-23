@@ -110,7 +110,7 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
         return [];
     }
     [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
-    return array_map(function ($cat) {
+    $normalized = array_map(function ($cat) {
         $cat['id']    = (int) $cat['id'];
         $cat['name']  = (string) $cat['name'];
         $cat['slug']  = (string) $cat['slug'];
@@ -122,6 +122,58 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
         }
         return $cat;
     }, $categories);
+
+    $wordset_term_id = (int) $wordset_id;
+    if ($wordset_term_id <= 0 || empty($normalized) || !function_exists('ll_tools_wordset_sort_category_ids')) {
+        return $normalized;
+    }
+
+    $category_ids = [];
+    $category_name_map = [];
+    $by_id = [];
+    foreach ($normalized as $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+        $cid = (int) ($category_row['id'] ?? 0);
+        if ($cid <= 0) {
+            continue;
+        }
+        $category_ids[] = $cid;
+        $category_name_map[$cid] = (string) ($category_row['name'] ?? (string) $cid);
+        $by_id[$cid] = $category_row;
+    }
+
+    $ordered_ids = ll_tools_wordset_sort_category_ids(
+        $category_ids,
+        $wordset_term_id,
+        ['category_name_map' => $category_name_map]
+    );
+
+    $level_info = function_exists('ll_tools_wordset_get_prereq_level_info')
+        ? ll_tools_wordset_get_prereq_level_info($wordset_term_id, $category_ids)
+        : ['has_cycle' => false, 'levels' => []];
+    $levels = (is_array($level_info) && isset($level_info['levels']) && is_array($level_info['levels']))
+        ? $level_info['levels']
+        : [];
+    $prereq_mode = function_exists('ll_tools_wordset_get_category_ordering_mode')
+        ? (ll_tools_wordset_get_category_ordering_mode($wordset_term_id) === 'prerequisite')
+        : false;
+
+    $ordered = [];
+    foreach ($ordered_ids as $position => $cid) {
+        if (!isset($by_id[$cid])) {
+            continue;
+        }
+        $row = $by_id[$cid];
+        $row['logical_order_position'] = (int) $position;
+        if ($prereq_mode && empty($level_info['has_cycle'])) {
+            $row['logical_order_level'] = (int) ($levels[$cid] ?? 0);
+        }
+        $ordered[] = $row;
+    }
+
+    return !empty($ordered) ? $ordered : $normalized;
 }
 
 /**

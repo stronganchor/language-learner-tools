@@ -40,6 +40,74 @@ add_action('init', 'll_tools_register_word_images_post_type');
 /**
  * Attachment metadata helpers.
  */
+function ll_tools_get_external_attachment_source_url($attachment_id) {
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0) {
+        return '';
+    }
+
+    $url = get_post_meta($attachment_id, '_ll_tools_external_source_url', true);
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (strpos($url, '//') === 0) {
+        $url = (is_ssl() ? 'https:' : 'http:') . $url;
+    }
+
+    $url = esc_url_raw($url);
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return '';
+    }
+
+    $validated = wp_http_validate_url($url);
+    return is_string($validated) ? $validated : '';
+}
+
+function ll_tools_filter_external_attachment_url($url, $attachment_id) {
+    $external_url = ll_tools_get_external_attachment_source_url((int) $attachment_id);
+    return $external_url !== '' ? $external_url : $url;
+}
+add_filter('wp_get_attachment_url', 'll_tools_filter_external_attachment_url', 5, 2);
+
+function ll_tools_image_downsize_external_attachment($downsize, $id, $size) {
+    if ($downsize) {
+        return $downsize;
+    }
+
+    $attachment_id = (int) $id;
+    if ($attachment_id <= 0) {
+        return false;
+    }
+
+    $external_url = ll_tools_get_external_attachment_source_url($attachment_id);
+    if ($external_url === '') {
+        return false;
+    }
+
+    $attachment = get_post($attachment_id);
+    if (!$attachment || $attachment->post_type !== 'attachment') {
+        return false;
+    }
+
+    $mime_type = (string) $attachment->post_mime_type;
+    if ($mime_type !== '' && strpos($mime_type, 'image/') !== 0) {
+        return false;
+    }
+
+    $metadata = wp_get_attachment_metadata($attachment_id);
+    $width = is_array($metadata) ? (int) ($metadata['width'] ?? 0) : 0;
+    $height = is_array($metadata) ? (int) ($metadata['height'] ?? 0) : 0;
+
+    if ($width > 0 || $height > 0) {
+        list($width, $height) = image_constrain_size_for_editor($width, $height, $size);
+    }
+
+    return [$external_url, max(0, $width), max(0, $height), false];
+}
+add_filter('image_downsize', 'll_tools_image_downsize_external_attachment', 10, 3);
+
 function ll_tools_attachment_metadata_needs_refresh($metadata) {
     if (!is_array($metadata)) {
         return true;

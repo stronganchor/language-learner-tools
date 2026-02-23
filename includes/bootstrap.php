@@ -52,6 +52,7 @@ require_once(__DIR__ . '/admin/example-sentence-migration.php');
 require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
 require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
+require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
 require_once(__DIR__ . '/admin/split-word-admin.php');
 require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
 require_once(__DIR__ . '/user-progress.php');

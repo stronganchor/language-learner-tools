@@ -68,6 +68,7 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-ipa-keyboard',
             'll-word-option-rules',
             'll-image-aspect-normalizer',
+            'll-image-webp-optimizer',
             'll-fix-word-images',
             'll-recording-types',
             'deepl-api-key',
@@ -293,6 +294,11 @@ add_action('admin_menu', 'll_tools_register_dashboard_menu', 9);
 
 function ll_tools_enqueue_dashboard_menu_assets($hook) {
     $page = isset($_GET['page']) ? sanitize_key((string) wp_unslash($_GET['page'])) : '';
+
+    if ($page !== '' && ll_tools_is_dashboard_related_page_slug($page)) {
+        ll_enqueue_asset_by_timestamp('/css/admin-dashboard-menu.css', 'll-tools-admin-dashboard-menu', [], false);
+    }
+
     if ($page !== ll_tools_get_tools_hub_page_slug() && $page !== ll_tools_get_admin_menu_slug()) {
         return;
     }
@@ -426,6 +432,13 @@ function ll_tools_render_tools_hub_page() {
             'url' => ll_tools_get_tools_page_url('ll-image-aspect-normalizer'),
             'cap' => 'view_ll_tools',
             'icon' => 'dashicons-format-gallery',
+        ],
+        [
+            'label' => __('Optimize Images (WebP)', 'll-tools-text-domain'),
+            'description' => __('Flag oversized or non-WebP word images and batch-convert them with progress tracking.', 'll-tools-text-domain'),
+            'url' => ll_tools_get_tools_page_url('ll-image-webp-optimizer'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-images-alt',
         ],
         [
             'label' => __('Fix Word Images', 'll-tools-text-domain'),
@@ -631,6 +644,51 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
 }
 add_filter('submenu_file', 'll_tools_force_dashboard_submenu_file', 9999);
 
+function ll_tools_normalize_admin_title_for_dashboard_pages($admin_title, $title) {
+    if (!is_admin()) {
+        return $admin_title;
+    }
+
+    $page = ll_tools_get_current_plugin_page_slug();
+    if ($page === '' || !ll_tools_is_dashboard_related_page_slug($page)) {
+        return $admin_title;
+    }
+
+    if (is_string($admin_title) && trim($admin_title) !== '') {
+        return $admin_title;
+    }
+
+    $page_title = is_string($title) ? trim($title) : '';
+    if ($page_title === '') {
+        $fallback_titles = [
+            'll-image-webp-optimizer' => __('WebP Image Optimizer', 'll-tools-text-domain'),
+            'll-image-aspect-normalizer' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
+            'll-tools-dashboard-tools' => __('LL Tools Utilities', 'll-tools-text-domain'),
+            'll-tools-dashboard-home' => __('Language Learning Tools', 'll-tools-text-domain'),
+        ];
+        if (isset($fallback_titles[$page])) {
+            $page_title = (string) $fallback_titles[$page];
+        }
+    }
+
+    if ($page_title === '') {
+        return 'WordPress';
+    }
+
+    $site_name = (string) get_bloginfo('name');
+    if ($site_name === '') {
+        return $page_title;
+    }
+
+    return sprintf(
+        /* translators: 1: Admin page title, 2: Site name */
+        __('%1$s ‹ %2$s — WordPress'),
+        $page_title,
+        $site_name
+    );
+}
+add_filter('admin_title', 'll_tools_normalize_admin_title_for_dashboard_pages', 9999, 2);
+
 function ll_tools_dashboard_menu_highlight_fallback(): void {
     if (!is_admin()) {
         return;
@@ -651,13 +709,23 @@ function ll_tools_dashboard_menu_highlight_fallback(): void {
     <script>
     (function () {
         var llTop = document.getElementById('<?php echo esc_js($top_level_id); ?>');
+        var llTopLink = llTop ? llTop.querySelector('a.menu-top') : null;
         if (llTop) {
-            llTop.classList.add('wp-has-current-submenu', 'wp-menu-open', 'current');
+            llTop.classList.remove('wp-not-current-submenu');
+            llTop.classList.add('wp-has-current-submenu', 'wp-menu-open', 'current', 'opensub');
+        }
+        if (llTopLink) {
+            llTopLink.classList.remove('wp-not-current-submenu');
+            llTopLink.classList.add('wp-has-current-submenu');
         }
 
         var wpTools = document.getElementById('menu-tools');
+        var wpToolsLink = wpTools ? wpTools.querySelector('a.menu-top') : null;
         if (wpTools) {
-            wpTools.classList.remove('wp-has-current-submenu', 'wp-menu-open', 'current');
+            wpTools.classList.remove('wp-has-current-submenu', 'wp-menu-open', 'current', 'opensub');
+        }
+        if (wpToolsLink) {
+            wpToolsLink.classList.remove('wp-has-current-submenu');
         }
 
         if (!llTop) {

@@ -25,6 +25,8 @@
     const CHUNK_SIZE = 15;
     const LEARNING_MIN_CHUNK_SIZE = Math.max(8, parseInt(cfg.learningMinChunkSize, 10) || 8);
     const HARD_WORD_DIFFICULTY_THRESHOLD = Math.max(1, parseInt(cfg.hardWordDifficultyThreshold, 10) || 4);
+    const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
+    const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
 
     let categories = normalizeCategories(cfg.categories || []);
     let goals = normalizeGoals(cfg.goals || {});
@@ -66,6 +68,7 @@
     let analyticsCategoryRenderToken = 0;
     let chunkSession = null;
     let lastFlashcardLaunch = null;
+    let resultsFollowupPrefetchState = null;
     let resultsFollowupRefreshToken = 0;
     let queueItemWidthTimer = null;
     let selectAllAlignmentTimer = null;
@@ -563,6 +566,13 @@
         const cls = String(className || 'll-vocab-lesson-mode-icon').trim() || 'll-vocab-lesson-mode-icon';
         return '<span class="' + escapeHtml(cls + ' ll-vocab-lesson-mode-icon--loading') + '" aria-hidden="true">'
             + '<span class="ll-wordset-inline-skeleton"></span>'
+            + '</span>';
+    }
+
+    function getLoadingResultsButtonLabelMarkup() {
+        return '<span class="ll-vocab-lesson-mode-label ll-vocab-lesson-mode-label--loading" aria-hidden="true">'
+            + '<span class="ll-wordset-inline-skeleton ll-wordset-inline-skeleton--line-1"></span>'
+            + '<span class="ll-wordset-inline-skeleton ll-wordset-inline-skeleton--line-2"></span>'
             + '</span>';
     }
 
@@ -2752,6 +2762,10 @@
             }
         }
         return false;
+    }
+
+    function wordsetHasGenderSupport() {
+        return selectionHasGenderSupport(getVisibleCategoryIds());
     }
 
     function getSelectionMinimumWordCount() {
@@ -4986,10 +5000,11 @@
         });
 
         const enabledModes = uniqueModeList(goals.enabled_modes || []);
+        const genderAvailableForWordset = wordsetHasGenderSupport();
         $root.find('[data-ll-wordset-goal-mode]').each(function () {
             const $btn = $(this);
             const mode = normalizeMode($btn.attr('data-ll-wordset-goal-mode') || '');
-            const available = !!mode && (mode !== 'gender' || !!genderCfg.enabled);
+            const available = !!mode && (mode !== 'gender' || genderAvailableForWordset);
             const active = available && enabledModes.indexOf(mode) !== -1;
             $btn
                 .toggleClass('active', active)
@@ -5592,16 +5607,25 @@
     function setResultsButtonContent($button, iconMarkup, label, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (!$button || !$button.length) { return; }
+        const labelMarkup = opts.loading
+            ? getLoadingResultsButtonLabelMarkup()
+            : ('<span class="ll-vocab-lesson-mode-label">' + escapeHtml(label) + '</span>');
         $button
             .removeClass('quiz-mode-button')
             .removeClass('ghost')
             .removeClass('is-loading')
             .addClass('ll-study-btn ll-vocab-lesson-mode-button ll-study-followup-mode-button')
-            .html((iconMarkup || '') + '<span class="ll-vocab-lesson-mode-label">' + escapeHtml(label) + '</span>');
+            .html((iconMarkup || '') + labelMarkup);
         if (opts.loading) {
-            $button.addClass('is-loading').attr('aria-busy', 'true');
+            $button
+                .addClass('is-loading')
+                .attr('aria-busy', 'true')
+                .attr('aria-label', String(opts.loadingAriaLabel || i18n.nextLoading || 'Loading recommendation...'));
         } else {
             $button.removeAttr('aria-busy');
+            if (label) {
+                $button.removeAttr('aria-label');
+            }
         }
     }
 
@@ -5664,6 +5688,200 @@
             return false;
         }
         return areCategorySetsEqual(left.category_ids || [], right.category_ids || []);
+    }
+
+    function buildResultsFollowupPlanKey(planLike) {
+        const plan = (planLike && typeof planLike === 'object') ? planLike : {};
+        const mode = normalizeMode(plan.mode || '');
+        if (!mode) {
+            return '';
+        }
+        const categoryIds = uniqueIntList(plan.category_ids || []).slice().sort(function (a, b) { return a - b; });
+        const sessionWordIds = uniqueIntList(plan.session_word_ids || []).slice().sort(function (a, b) { return a - b; });
+        const starMode = normalizeStarMode(plan.session_star_mode || plan.sessionStarMode || 'normal');
+        return [
+            mode,
+            'c:' + categoryIds.join(','),
+            'w:' + (sessionWordIds.length ? sessionWordIds.join(',') : '*'),
+            's:' + starMode
+        ].join('|');
+    }
+
+    function estimateFlashcardResultsWordCount(mode, sessionWordIds, selectedCats, effectiveLookup) {
+        const explicitCount = uniqueIntList(sessionWordIds || []).length;
+        if (explicitCount > 0) {
+            return explicitCount;
+        }
+
+        const categoryList = Array.isArray(selectedCats) ? selectedCats : [];
+        const seenWordIds = {};
+        let count = 0;
+
+        categoryList.forEach(function (cat) {
+            const categoryId = parseInt(cat && cat.id, 10) || 0;
+            if (!categoryId) { return; }
+            const rows = getWordRowsForCategory(categoryId, effectiveLookup || null);
+            rows.forEach(function (row) {
+                const wordId = parseInt(row && row.id, 10) || 0;
+                if (!wordId || seenWordIds[wordId]) { return; }
+                seenWordIds[wordId] = true;
+                count += 1;
+            });
+        });
+
+        return count;
+    }
+
+    function resetResultsFollowupPrefetchState() {
+        resultsFollowupPrefetchState = null;
+    }
+
+    function initializeResultsFollowupPrefetchStateForLaunch(launchPlan) {
+        const plan = (launchPlan && typeof launchPlan === 'object') ? launchPlan : null;
+        const launchKey = buildResultsFollowupPlanKey(plan);
+        if (!plan || !launchKey) {
+            resetResultsFollowupPrefetchState();
+            return;
+        }
+
+        const estimatedTotal = Math.max(0, parseInt(
+            plan.estimated_results_total ||
+            plan.estimatedResultsTotal,
+            10
+        ) || 0);
+        const thresholdCount = estimatedTotal > 0
+            ? Math.max(1, Math.ceil(estimatedTotal * RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO))
+            : RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER;
+
+        resultsFollowupPrefetchState = {
+            launchKey: launchKey,
+            mode: normalizeMode(plan.mode || '') || 'practice',
+            chunked: !!plan.chunked,
+            estimatedTotal: estimatedTotal,
+            thresholdCount: thresholdCount,
+            answeredWordIds: {},
+            answeredCount: 0,
+            correctCount: 0,
+            prefetchStarted: false,
+            prefetchReady: false,
+            prefetchFailed: false,
+            prefetchRequestedAt: 0,
+            prefetchCompletedAt: 0,
+            inFlightPromise: null
+        };
+    }
+
+    function getResultsFollowupPrefetchStateForPlan(planLike) {
+        const key = buildResultsFollowupPlanKey(planLike);
+        if (!key || !resultsFollowupPrefetchState) {
+            return null;
+        }
+        return resultsFollowupPrefetchState.launchKey === key ? resultsFollowupPrefetchState : null;
+    }
+
+    function startResultsFollowupPrefetch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const session = resultsFollowupPrefetchState;
+        if (!session || session.chunked || !isLoggedIn || !ajaxUrl || !nonce) {
+            return $.Deferred().resolve(null).promise();
+        }
+
+        if (session.prefetchReady && !opts.forceRefresh) {
+            return $.Deferred().resolve(session).promise();
+        }
+
+        if (session.inFlightPromise) {
+            return session.inFlightPromise;
+        }
+
+        session.prefetchStarted = true;
+        session.prefetchFailed = false;
+        session.prefetchRequestedAt = Date.now();
+
+        const dfd = $.Deferred();
+        session.inFlightPromise = dfd.promise();
+
+        const preferredMode = normalizeMode(opts.preferredMode || session.mode || '') || session.mode || 'practice';
+        const finalizeRequest = function () {
+            const request = refreshRecommendation({
+                preferredMode: preferredMode,
+                forceRefresh: true
+            });
+
+            request.done(function () {
+                if (resultsFollowupPrefetchState !== session) { return; }
+                session.prefetchReady = true;
+                session.prefetchCompletedAt = Date.now();
+            }).fail(function () {
+                if (resultsFollowupPrefetchState !== session) { return; }
+                session.prefetchFailed = true;
+            }).always(function () {
+                if (resultsFollowupPrefetchState === session) {
+                    session.inFlightPromise = null;
+                }
+                dfd.resolve(session);
+            });
+        };
+
+        let flushPromise = null;
+        try {
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (tracker && typeof tracker.flush === 'function') {
+                flushPromise = tracker.flush();
+            }
+        } catch (_) {
+            flushPromise = null;
+        }
+
+        if (flushPromise && typeof flushPromise.then === 'function' && typeof Promise !== 'undefined' && typeof Promise.resolve === 'function') {
+            Promise.resolve(flushPromise).catch(function () {
+                return null;
+            }).then(finalizeRequest);
+        } else {
+            finalizeRequest();
+        }
+
+        return session.inFlightPromise;
+    }
+
+    function noteResultsFollowupPrefetchOutcome(detail) {
+        const session = resultsFollowupPrefetchState;
+        if (!session || session.chunked || !isFlashcardOpen) {
+            return;
+        }
+
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const mode = normalizeMode(info.mode || '');
+        if (mode && mode !== session.mode) {
+            return;
+        }
+
+        const wordId = parseInt(info.word_id || info.wordId, 10) || 0;
+        if (!wordId || session.answeredWordIds[wordId]) {
+            return;
+        }
+
+        session.answeredWordIds[wordId] = true;
+        session.answeredCount += 1;
+        if (info.is_correct) {
+            session.correctCount += 1;
+        }
+
+        const threshold = session.thresholdCount > 0
+            ? session.thresholdCount
+            : RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER;
+        if (session.answeredCount < threshold) {
+            return;
+        }
+
+        if (session.prefetchReady || session.inFlightPromise) {
+            return;
+        }
+
+        startResultsFollowupPrefetch({
+            preferredMode: session.mode,
+            forceRefresh: true
+        });
     }
 
     function buildCurrentResultsPlan(resultMode) {
@@ -5909,6 +6127,7 @@
             normalizeMode(nextPlan.mode) !== normalizeMode(currentPlan && currentPlan.mode) &&
             !arePlansDuplicate(nextPlan, currentPlan) &&
             !(showDifferent && arePlansDuplicate(nextPlan, differentPlan));
+        const showDifferentLoading = !showDifferent && !!opts.showDifferentLoading;
         const showNextLoading = !showNext && !!opts.showNextLoading;
 
         if (showSame) {
@@ -5936,6 +6155,17 @@
                 evt.stopImmediatePropagation();
                 launchResultsPlan(differentPlan, { source: 'wordset_results_different_category' });
             });
+        } else if (showDifferentLoading) {
+            setResultsButtonContent(
+                $different,
+                getLoadingModeIconMarkup('ll-vocab-lesson-mode-icon'),
+                '',
+                {
+                    loading: true,
+                    loadingAriaLabel: String(i18n.nextLoading || 'Loading recommendation...')
+                }
+            );
+            $different.show().prop('disabled', true).off('click.llWordsetResults');
         } else {
             $different.hide().off('click.llWordsetResults');
         }
@@ -5951,8 +6181,11 @@
             setResultsButtonContent(
                 $next,
                 getLoadingModeIconMarkup('ll-vocab-lesson-mode-icon'),
-                String(i18n.resultsRecommendedActivity || 'Recommended'),
-                { loading: true }
+                '',
+                {
+                    loading: true,
+                    loadingAriaLabel: String(i18n.nextLoading || 'Loading recommendation...')
+                }
             );
             $next.show().prop('disabled', true).off('click.llWordsetResults');
         } else {
@@ -5963,7 +6196,7 @@
             $suggestion.text('').hide();
         }
 
-        if (showSame || showDifferent || showNext || showNextLoading) {
+        if (showSame || showDifferent || showDifferentLoading || showNext || showNextLoading) {
             $('#quiz-mode-buttons').hide();
             $('#ll-gender-results-actions').hide();
             $('#restart-quiz').hide();
@@ -5987,14 +6220,21 @@
             return false;
         }
 
-        let differentPlan = buildDifferentCategoryResultsPlan(currentPlan);
-        let nextPlan = buildRecommendedResultsPlan(currentPlan);
+        const prefetchState = getResultsFollowupPrefetchStateForPlan(currentPlan);
+        const followupsReady = !!(prefetchState && prefetchState.prefetchReady);
+        let differentPlan = followupsReady ? buildDifferentCategoryResultsPlan(currentPlan) : null;
+        let nextPlan = followupsReady ? buildRecommendedResultsPlan(currentPlan) : null;
         updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan, {
-            showNextLoading: !nextPlan
+            showDifferentLoading: !followupsReady,
+            showNextLoading: !followupsReady
         });
 
+        if (followupsReady) {
+            return true;
+        }
+
         const refreshToken = ++resultsFollowupRefreshToken;
-        refreshRecommendation({
+        startResultsFollowupPrefetch({
             preferredMode: currentPlan.mode,
             forceRefresh: true
         }).always(function () {
@@ -6002,6 +6242,7 @@
             differentPlan = buildDifferentCategoryResultsPlan(currentPlan);
             nextPlan = buildRecommendedResultsPlan(currentPlan);
             updateWordsetResultsActionButtons(currentPlan, differentPlan, nextPlan, {
+                showDifferentLoading: false,
                 showNextLoading: false
             });
         });
@@ -6306,6 +6547,12 @@
             }));
             const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
                 resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
+            const estimatedResultsTotal = estimateFlashcardResultsWordCount(
+                finalMode,
+                effectiveSessionIds,
+                selectedCats,
+                effectiveLookup
+            );
 
             lastFlashcardLaunch = {
                 mode: finalMode,
@@ -6314,8 +6561,11 @@
                 source: String(opts.source || ''),
                 session_star_mode: sessionStarModeOverride,
                 details: launchDetails,
-                category_label_override: resolvedCategoryLabelOverride
+                category_label_override: resolvedCategoryLabelOverride,
+                estimated_results_total: estimatedResultsTotal,
+                chunked: !!opts.chunked
             };
+            initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
 
             const firstCategory = selectedCats[0];
             const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup));
@@ -6743,7 +6993,7 @@
             e.preventDefault();
             const mode = normalizeMode($(this).attr('data-ll-wordset-goal-mode') || '');
             if (!mode) { return; }
-            if (mode === 'gender' && !genderCfg.enabled) { return; }
+            if (mode === 'gender' && !wordsetHasGenderSupport()) { return; }
 
             const prevEnabledModes = uniqueModeList(goals.enabled_modes || []);
             const nextEnabledModes = prevEnabledModes.slice();
@@ -6949,10 +7199,21 @@
             renderStandardResultsActions(mode);
         });
 
-        $(document).on('lltools:flashcard-opened.llWordsetPage', function () {
+        $(document).on('lltools:flashcard-word-outcome-queued.llWordsetPage', function (_evt, detail) {
+            noteResultsFollowupPrefetchOutcome(detail);
+        });
+
+        $(document).on('lltools:flashcard-opened.llWordsetPage', function (_evt, detail) {
             isFlashcardOpen = true;
             pendingSummaryRefreshAfterClose = false;
             clearPerfectCelebrationPending();
+            if (resultsFollowupPrefetchState) {
+                const info = (detail && typeof detail === 'object') ? detail : {};
+                const openedMode = normalizeMode(info.mode || '');
+                if (openedMode && openedMode !== resultsFollowupPrefetchState.mode) {
+                    resetResultsFollowupPrefetchState();
+                }
+            }
             hideChunkResultsActions();
         });
 
