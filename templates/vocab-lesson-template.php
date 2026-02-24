@@ -146,7 +146,8 @@ if (have_posts()) {
                 <?php if (is_user_logged_in()) : ?>
                     <div class="ll-vocab-lesson-star-controls">
                         <button type="button" class="ll-vocab-lesson-star-toggle ll-study-btn tiny ghost ll-group-star" data-ll-word-grid-star-toggle aria-pressed="false">
-                            <?php echo '&#9734; ' . esc_html__('Star all', 'll-tools-text-domain'); ?>
+                            <span class="ll-vocab-lesson-star-icon" aria-hidden="true">&#9734;</span>
+                            <span class="ll-vocab-lesson-star-label"><?php echo esc_html__('Star all', 'll-tools-text-domain'); ?></span>
                         </button>
                         <?php if ($can_transcribe) : ?>
                             <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>

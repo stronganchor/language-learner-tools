@@ -707,7 +707,7 @@ body.ll-study-check-open {
 .ll-group-star.active {
   background: #D39A00;
   border-color: #D39A00;
-  color: #111827;
+  color: #ffffff;
 }
 
 .ll-word-thumb {
@@ -1724,8 +1724,8 @@ body.ll-study-check-open {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  line-height: 1 !important;
-  font-size: 16px !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
   font-weight: 700 !important;
   text-align: center !important;
   text-decoration: none !important;
@@ -1744,8 +1744,23 @@ body.ll-study-check-open {
 }
 
 .ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star::before,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star::before {
+  content: "" !important;
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-color: currentColor !important;
+  -webkit-mask-image: var(--ll-tools-star-mask-outline) !important;
+  mask-image: var(--ll-tools-star-mask-outline) !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  -webkit-mask-position: center !important;
+  mask-position: center !important;
+  -webkit-mask-size: 100% 100% !important;
+  mask-size: 100% 100% !important;
+}
+
 .ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star::after,
-.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star::before,
 .ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star::after {
   content: none !important;
   display: none !important;
@@ -1769,7 +1784,15 @@ body.ll-study-check-open {
   background-color: #D39A00 !important;
   background-image: none !important;
   border-color: #D39A00 !important;
-  color: #111827 !important;
+  color: #ffffff !important;
+}
+
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star.active::before,
+.ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star[aria-pressed="true"]::before,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star.active::before,
+.ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star[aria-pressed="true"]::before {
+  -webkit-mask-image: var(--ll-tools-star-mask-filled) !important;
+  mask-image: var(--ll-tools-star-mask-filled) !important;
 }
 
 .ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star:focus-visible,

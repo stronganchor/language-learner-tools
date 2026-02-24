@@ -165,6 +165,96 @@
     const $progressSelectionClear = $root.find('[data-ll-wordset-progress-selection-clear]');
     const $settingsQueueList = $root.find('[data-ll-wordset-queue-list]');
     const $settingsQueueEmpty = $root.find('[data-ll-wordset-queue-empty]');
+    const WORDSET_THUMB_IMAGE_SELECTOR = [
+        '.ll-wordset-preview-item--image img',
+        '.ll-wordset-queue-thumb--image img',
+        '.ll-wordset-next-thumb--image img',
+        '.ll-wordset-progress-word-thumb img',
+        '.ll-wordset-progress-category-thumb.is-image img'
+    ].join(', ');
+    const WORDSET_THUMB_IMAGE_WRAPPER_SELECTOR = [
+        '.ll-wordset-preview-item--image',
+        '.ll-wordset-queue-thumb--image',
+        '.ll-wordset-next-thumb--image',
+        '.ll-wordset-progress-word-thumb',
+        '.ll-wordset-progress-category-thumb.is-image'
+    ].join(', ');
+    let wordsetThumbImageObserver = null;
+
+    function getWordsetThumbImageWrapper(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG' || !img.closest) { return null; }
+        return img.closest(WORDSET_THUMB_IMAGE_WRAPPER_SELECTOR);
+    }
+
+    function setWordsetThumbImagePending(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-loaded');
+        img.classList.add('ll-image-load-pending');
+        const wrapper = getWordsetThumbImageWrapper(img);
+        if (wrapper) {
+            wrapper.classList.remove('ll-image-loaded');
+            wrapper.classList.add('ll-image-load-pending');
+        }
+    }
+
+    function markWordsetThumbImageLoaded(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-load-pending');
+        img.classList.add('ll-image-loaded');
+        const wrapper = getWordsetThumbImageWrapper(img);
+        if (wrapper) {
+            wrapper.classList.remove('ll-image-load-pending');
+            wrapper.classList.add('ll-image-loaded');
+        }
+    }
+
+    function bindWordsetThumbImageLoadState(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        if (img.dataset.llImgLoadBound === '1') {
+            if (img.complete) {
+                markWordsetThumbImageLoaded(img);
+            }
+            return;
+        }
+        img.dataset.llImgLoadBound = '1';
+        if (img.complete) {
+            markWordsetThumbImageLoaded(img);
+            return;
+        }
+        setWordsetThumbImagePending(img);
+        const finish = function () {
+            markWordsetThumbImageLoaded(img);
+        };
+        img.addEventListener('load', finish, { once: true });
+        img.addEventListener('error', finish, { once: true });
+    }
+
+    function scanWordsetThumbImages(rootNode) {
+        if (!rootNode || rootNode.nodeType !== 1) { return; }
+        if (rootNode.matches && rootNode.matches(WORDSET_THUMB_IMAGE_SELECTOR)) {
+            bindWordsetThumbImageLoadState(rootNode);
+        }
+        if (rootNode.querySelectorAll) {
+            rootNode.querySelectorAll(WORDSET_THUMB_IMAGE_SELECTOR).forEach(bindWordsetThumbImageLoadState);
+        }
+    }
+
+    function initWordsetThumbImageLoadingState() {
+        scanWordsetThumbImages($root[0]);
+        if (!window.MutationObserver) { return; }
+        wordsetThumbImageObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                if (!mutation || !mutation.addedNodes) { return; }
+                mutation.addedNodes.forEach(function (node) {
+                    if (!node || node.nodeType !== 1) { return; }
+                    scanWordsetThumbImages(node);
+                });
+            });
+        });
+        wordsetThumbImageObserver.observe($root[0], { childList: true, subtree: true });
+    }
+
+    initWordsetThumbImageLoadingState();
 
     function normalizeCategories(raw) {
         return (Array.isArray(raw) ? raw : []).map(function (cat) {
@@ -1991,7 +2081,9 @@
                     $('<img>', {
                         src: String(entry.url),
                         alt: String(entry.alt || categoryLabel || ''),
-                        loading: 'lazy'
+                        loading: 'lazy',
+                        decoding: 'async',
+                        fetchpriority: 'low'
                     }).appendTo($thumb);
                 } else {
                     $('<span>', {
@@ -2298,7 +2390,9 @@
                 $('<img>', {
                     src: imageUrl,
                     alt: primaryWord || secondaryWord || '',
-                    loading: 'lazy'
+                    loading: 'lazy',
+                    decoding: 'async',
+                    fetchpriority: 'low'
                 }).appendTo($wordThumb);
             } else {
                 $('<span>', { class: 'll-wordset-progress-word-thumb-fallback', 'aria-hidden': 'true' }).appendTo($wordThumb);
@@ -4521,7 +4615,7 @@
             if (String(source.type || '') === 'image' && String(source.url || '') !== '') {
                 slots.push(
                     '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--image">'
-                    + '<img src="' + escapeHtml(String(source.url || '')) + '" alt="" loading="lazy" />'
+                    + '<img src="' + escapeHtml(String(source.url || '')) + '" alt="" loading="lazy" decoding="async" fetchpriority="low" />'
                     + '</span>'
                 );
                 return;
@@ -4939,7 +5033,9 @@
                     $('<img>', {
                         src: String(preview.url),
                         alt: '',
-                        loading: 'lazy'
+                        loading: 'lazy',
+                        decoding: 'async',
+                        fetchpriority: 'low'
                     }).appendTo($thumbImage);
                     $preview.append($thumbImage);
                     continue;

@@ -34,6 +34,83 @@
     const $grids = $('[data-ll-word-grid]');
     if (!$grids.length) { return; }
 
+    const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
+    const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
+    const wordGridImageObservers = [];
+
+    function setWordGridImagePending(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-loaded');
+        img.classList.add('ll-image-load-pending');
+        const container = img.closest(WORD_GRID_IMAGE_WRAPPER_SELECTOR);
+        if (container) {
+            container.classList.remove('ll-image-loaded');
+            container.classList.add('ll-image-load-pending');
+        }
+    }
+
+    function markWordGridImageLoaded(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-load-pending');
+        img.classList.add('ll-image-loaded');
+        const container = img.closest(WORD_GRID_IMAGE_WRAPPER_SELECTOR);
+        if (container) {
+            container.classList.remove('ll-image-load-pending');
+            container.classList.add('ll-image-loaded');
+        }
+    }
+
+    function bindWordGridImageLoadState(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        if (img.dataset.llImgLoadBound === '1') {
+            if (img.complete) {
+                markWordGridImageLoaded(img);
+            }
+            return;
+        }
+        img.dataset.llImgLoadBound = '1';
+        if (img.complete) {
+            markWordGridImageLoaded(img);
+            return;
+        }
+        setWordGridImagePending(img);
+        const finish = function () {
+            markWordGridImageLoaded(img);
+        };
+        img.addEventListener('load', finish, { once: true });
+        img.addEventListener('error', finish, { once: true });
+    }
+
+    function scanWordGridImages(rootNode) {
+        if (!rootNode || rootNode.nodeType !== 1) { return; }
+        if (rootNode.matches && rootNode.matches(WORD_GRID_IMAGE_SELECTOR)) {
+            bindWordGridImageLoadState(rootNode);
+        }
+        if (rootNode.querySelectorAll) {
+            rootNode.querySelectorAll(WORD_GRID_IMAGE_SELECTOR).forEach(bindWordGridImageLoadState);
+        }
+    }
+
+    function initWordGridImageLoadingState() {
+        $grids.each(function () {
+            scanWordGridImages(this);
+            if (!window.MutationObserver) { return; }
+            const observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (!mutation || !mutation.addedNodes) { return; }
+                    mutation.addedNodes.forEach(function (node) {
+                        if (!node || node.nodeType !== 1) { return; }
+                        scanWordGridImages(node);
+                    });
+                });
+            });
+            observer.observe(this, { childList: true, subtree: true });
+            wordGridImageObservers.push(observer);
+        });
+    }
+
+    initWordGridImageLoadingState();
+
     let currentAudio = null;
     let currentAudioButton = null;
 

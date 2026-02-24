@@ -521,7 +521,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     border-radius: 10px !important;
     border: 1px solid #e2dace !important;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
-    background: transparent !important;
+    background: #edf2f7 !important;
+    position: relative;
+    z-index: 1;
 }
 
 .ll-wordset-next-thumb--text {
@@ -653,6 +655,88 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 @keyframes ll-wordset-skeleton-shimmer {
     0% { background-position: 100% 0; }
     100% { background-position: -100% 0; }
+}
+
+.ll-wordset-preview-item--image img,
+.ll-wordset-queue-thumb--image img,
+.ll-wordset-next-thumb--image img,
+.ll-wordset-progress-word-thumb img,
+.ll-wordset-progress-category-thumb.is-image img {
+    background-color: #edf2f7;
+    position: relative;
+    z-index: 1;
+    opacity: 1;
+    transform: none;
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.ll-wordset-preview-item--image,
+.ll-wordset-queue-thumb--image,
+.ll-wordset-next-thumb--image,
+.ll-wordset-progress-word-thumb,
+.ll-wordset-progress-category-thumb.is-image {
+    position: relative;
+    isolation: isolate;
+}
+
+.ll-wordset-preview-item--image::after,
+.ll-wordset-queue-thumb--image::after,
+.ll-wordset-next-thumb--image::after,
+.ll-wordset-progress-word-thumb::after,
+.ll-wordset-progress-category-thumb.is-image::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 140ms ease;
+    background: linear-gradient(100deg, #e9eef4 16%, #f7fafc 34%, #e9eef4 52%);
+    background-size: 220% 100%;
+    animation: none;
+}
+
+.ll-wordset-next-thumb--image::after {
+    border-radius: 10px;
+    border: 1px solid #e2dace;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ll-wordset-preview-item--image.ll-image-load-pending::after,
+.ll-wordset-queue-thumb--image.ll-image-load-pending::after,
+.ll-wordset-next-thumb--image.ll-image-load-pending::after,
+.ll-wordset-progress-word-thumb.ll-image-load-pending::after,
+.ll-wordset-progress-category-thumb.is-image.ll-image-load-pending::after {
+    opacity: 1;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-wordset-preview-item--image.ll-image-loaded::after,
+.ll-wordset-queue-thumb--image.ll-image-loaded::after,
+.ll-wordset-next-thumb--image.ll-image-loaded::after,
+.ll-wordset-progress-word-thumb.ll-image-loaded::after,
+.ll-wordset-progress-category-thumb.is-image.ll-image-loaded::after {
+    opacity: 0;
+    animation: none;
+}
+
+.ll-wordset-preview-item--image img.ll-image-load-pending,
+.ll-wordset-queue-thumb--image img.ll-image-load-pending,
+.ll-wordset-next-thumb--image img.ll-image-load-pending,
+.ll-wordset-progress-word-thumb img.ll-image-load-pending,
+.ll-wordset-progress-category-thumb.is-image img.ll-image-load-pending {
+    opacity: 0;
+    transform: scale(0.99);
+}
+
+.ll-wordset-preview-item--image img.ll-image-loaded,
+.ll-wordset-queue-thumb--image img.ll-image-loaded,
+.ll-wordset-next-thumb--image img.ll-image-loaded,
+.ll-wordset-progress-word-thumb img.ll-image-loaded,
+.ll-wordset-progress-category-thumb.is-image img.ll-image-loaded {
+    opacity: 1;
+    transform: none;
 }
 
 @keyframes ll-wordset-next-card-pulse {
@@ -859,11 +943,29 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-pill__icon.ll-wordset-progress-star-glyph-icon {
-    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", system-ui, sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
-    transform: translateY(-0.5px);
+    font-size: 0;
+    line-height: 0;
+    transform: none;
+}
+
+.ll-wordset-progress-star-glyph-icon::before {
+    content: "";
+    display: block;
+    background-color: currentColor;
+    -webkit-mask-image: var(--ll-tools-star-mask-filled);
+    mask-image: var(--ll-tools-star-mask-filled);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-progress-pill__icon.ll-wordset-progress-star-glyph-icon::before {
+    width: 11px;
+    height: 11px;
 }
 
 .ll-wordset-progress-pill__icon svg {
@@ -936,6 +1038,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-progress-pill--starred {
     background: var(--ll-wp-pill-gold);
     color: var(--ll-wp-pill-gold-text);
+}
+
+.ll-wordset-progress-pill--starred .ll-wordset-progress-star-glyph-icon {
+    color: #ffffff;
 }
 
 .ll-wordset-progress-pill--hard {
@@ -1195,8 +1301,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: var(--ll-wp-pill-gold-text) !important;
 }
 
+.ll-wordset-card__starred-pill .ll-wordset-progress-star-glyph-icon {
+    color: #ffffff !important;
+}
+
 .ll-wordset-card__starred-icon.ll-wordset-progress-star-glyph-icon {
-    font-size: 10.5px;
+    font-size: 0;
+    line-height: 0;
+}
+
+.ll-wordset-card__starred-icon.ll-wordset-progress-star-glyph-icon::before {
+    width: 10.5px;
+    height: 10.5px;
 }
 
 .ll-wordset-card__starred-value {
@@ -1603,10 +1719,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-priority-option__icon.ll-wordset-progress-star-glyph-icon {
-    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", system-ui, sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1;
+    font-size: 0;
+    line-height: 0;
+}
+
+.ll-wordset-priority-option__icon.ll-wordset-progress-star-glyph-icon::before {
+    width: 15px;
+    height: 15px;
 }
 
 .ll-wordset-priority-option__label {
@@ -1639,6 +1758,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: var(--ll-wp-pill-gold) !important;
     border-color: rgba(138, 86, 0, 0.28) !important;
     color: var(--ll-wp-pill-gold-text) !important;
+}
+
+.ll-wordset-settings-card .ll-wordset-priority-option--starred .ll-wordset-progress-star-glyph-icon {
+    color: #ffffff !important;
 }
 
 .ll-wordset-settings-card .ll-wordset-priority-option--hard {
@@ -2028,12 +2151,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-kpi-icon.ll-wordset-progress-star-glyph-icon {
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1;
+    font-size: 0;
+    line-height: 0;
     align-items: center;
     justify-content: center;
+}
+
+.ll-wordset-progress-kpi-icon.ll-wordset-progress-star-glyph-icon::before {
+    width: 18px;
+    height: 18px;
 }
 
 .ll-wordset-progress-kpi-value {
@@ -3203,9 +3329,35 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-selection-bar__starred-icon {
-    font-size: 15px;
-    line-height: 1;
+    font-size: 0;
+    line-height: 0;
     color: inherit;
+    width: 15px;
+    height: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ll-wordset-selection-bar__starred-icon::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-color: currentColor;
+    -webkit-mask-image: var(--ll-tools-star-mask-outline);
+    mask-image: var(--ll-tools-star-mask-outline);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+}
+
+.ll-wordset-selection-bar__starred-toggle.is-active .ll-wordset-selection-bar__starred-icon::before {
+    -webkit-mask-image: var(--ll-tools-star-mask-filled);
+    mask-image: var(--ll-tools-star-mask-filled);
 }
 
 .ll-wordset-selection-bar__starred-text {
@@ -3523,11 +3675,33 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     justify-content: center !important;
     padding: 0 !important;
     font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif !important;
-    font-size: 16px !important;
+    font-size: 0 !important;
     font-weight: 700 !important;
+    line-height: 0 !important;
     text-decoration: none !important;
     box-shadow: none !important;
     transform: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star::after {
+    content: none !important;
+    display: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star::before {
+    content: "" !important;
+    display: block !important;
+    width: 16px !important;
+    height: 16px !important;
+    background-color: currentColor !important;
+    -webkit-mask-image: var(--ll-tools-star-mask-outline) !important;
+    mask-image: var(--ll-tools-star-mask-outline) !important;
+    -webkit-mask-repeat: no-repeat !important;
+    mask-repeat: no-repeat !important;
+    -webkit-mask-position: center !important;
+    mask-position: center !important;
+    -webkit-mask-size: 100% 100% !important;
+    mask-size: 100% 100% !important;
 }
 
 .ll-wordset-page .ll-wordset-progress-star:hover,
@@ -3545,6 +3719,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: #D39A00 !important;
     border-color: #D39A00 !important;
     color: #ffffff !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-star.active::before,
+.ll-wordset-page .ll-wordset-progress-star[aria-pressed="true"]::before {
+    -webkit-mask-image: var(--ll-tools-star-mask-filled) !important;
+    mask-image: var(--ll-tools-star-mask-filled) !important;
 }
 
 .ll-wordset-page .ll-wordset-progress-star.active:hover,
@@ -4525,8 +4705,26 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-next-thumb--loading,
     .ll-wordset-next-card__line--skeleton,
-    .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton {
+    .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton,
+    .ll-wordset-preview-item--image.ll-image-load-pending::after,
+    .ll-wordset-queue-thumb--image.ll-image-load-pending::after,
+    .ll-wordset-next-thumb--image.ll-image-load-pending::after,
+    .ll-wordset-progress-word-thumb.ll-image-load-pending::after,
+    .ll-wordset-progress-category-thumb.is-image.ll-image-load-pending::after {
         animation: none !important;
+    }
+
+    .ll-wordset-preview-item--image img,
+    .ll-wordset-queue-thumb--image img,
+    .ll-wordset-next-thumb--image img,
+    .ll-wordset-progress-word-thumb img,
+    .ll-wordset-progress-category-thumb.is-image img,
+    .ll-wordset-preview-item--image::after,
+    .ll-wordset-queue-thumb--image::after,
+    .ll-wordset-next-thumb--image::after,
+    .ll-wordset-progress-word-thumb::after,
+    .ll-wordset-progress-category-thumb.is-image::after {
+        transition: none !important;
     }
 
     .ll-wordset-next-shell.is-ready-pulse .ll-wordset-next-card {

@@ -825,6 +825,22 @@ p:has(.ll-word-audio) {
     height: auto !important;
     margin-bottom: 0 !important;
     border-radius: 0 !important;
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+    opacity: 1;
+    transform: none;
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.word-image.ll-image-load-pending {
+    opacity: 0;
+    transform: scale(0.99);
+}
+
+.word-image.ll-image-loaded {
+    opacity: 1;
+    transform: none;
 }
 
 /* Container for the word image to enable rounded corners */
@@ -838,16 +854,66 @@ p:has(.ll-word-audio) {
     overflow: hidden; /* Ensure the rounded corners clip the content */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Adds shadow for depth */
     line-height: 0 !important;
+    position: relative;
+    isolation: isolate;
+    background: #edf2f7;
+}
+
+.word-grid.ll-word-grid .word-image-container::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(100deg, #e9eef4 16%, #f7fafc 34%, #e9eef4 52%);
+    background-size: 220% 100%;
+    opacity: 0;
+    transition: opacity 140ms ease;
+    animation: none;
+}
+
+.word-grid.ll-word-grid .word-image-container.ll-image-load-pending::before {
+    opacity: 1;
+    animation: ll-word-grid-image-shimmer 1.15s linear infinite;
+}
+
+.word-grid.ll-word-grid .word-image-container.ll-image-loaded::before {
+    animation: none;
+    opacity: 0;
 }
 
 .word-grid.ll-word-grid .word-item {
     text-align: center !important;
 }
 
+@supports (content-visibility: auto) {
+    .word-grid.ll-word-grid .word-item {
+        content-visibility: auto;
+        /* Reserve approximate offscreen card height to reduce scroll jumps before render. */
+        contain-intrinsic-size: 420px;
+    }
+}
+
 .word-grid.ll-word-grid .word-image-container {
     display: block;
     margin-left: auto;
     margin-right: auto;
+}
+
+@keyframes ll-word-grid-image-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .word-grid.ll-word-grid .word-image-container::before {
+        animation: none !important;
+    }
+
+    .word-image,
+    .word-grid.ll-word-grid .word-image-container::before {
+        transition: none !important;
+    }
 }
 
 .word-grid.ll-word-grid .word-title,
@@ -1065,6 +1131,11 @@ p:has(.ll-word-audio) {
     100% { transform: scaleY(1); }
 }
 
+:root {
+    --ll-tools-star-mask-outline: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.75l2.84 5.76 6.36.92-4.6 4.48 1.09 6.33L12 17.25 6.31 20.24l1.09-6.33-4.6-4.48 6.36-.92L12 2.75Z' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --ll-tools-star-mask-filled: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.75l2.84 5.76 6.36.92-4.6 4.48 1.09 6.33L12 17.25 6.31 20.24l1.09-6.33-4.6-4.48 6.36-.92L12 2.75Z' fill='%23fff'/%3E%3C/svg%3E");
+}
+
 /* Shared baseline so star toggles keep their shape/colors across aggressive themes. */
 button.ll-tools-star-button.ll-tools-star-button {
     all: unset !important;
@@ -1087,9 +1158,9 @@ button.ll-tools-star-button.ll-tools-star-button {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    font-size: var(--ll-star-btn-font-size, 16px) !important;
+    font-size: 0 !important;
     font-weight: 700 !important;
-    line-height: 1 !important;
+    line-height: 0 !important;
     text-align: center !important;
     text-decoration: none !important;
     text-transform: none !important;
@@ -1104,6 +1175,28 @@ button.ll-tools-star-button.ll-tools-star-button {
     appearance: none !important;
     font-family: var(--ll-star-btn-font-family, "Segoe UI Symbol", system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif) !important;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button::after {
+    content: none !important;
+    display: none !important;
+}
+
+button.ll-tools-star-button.ll-tools-star-button::before {
+    content: "" !important;
+    display: block !important;
+    width: var(--ll-star-btn-icon-size, 16px) !important;
+    height: var(--ll-star-btn-icon-size, 16px) !important;
+    background-color: currentColor !important;
+    -webkit-mask-image: var(--ll-tools-star-mask-outline) !important;
+    mask-image: var(--ll-tools-star-mask-outline) !important;
+    -webkit-mask-repeat: no-repeat !important;
+    mask-repeat: no-repeat !important;
+    -webkit-mask-position: center !important;
+    mask-position: center !important;
+    -webkit-mask-size: 100% 100% !important;
+    mask-size: 100% 100% !important;
+    flex: 0 0 auto !important;
 }
 
 button.ll-tools-star-button.ll-tools-star-button:not(.active):hover,
@@ -1123,9 +1216,53 @@ button.ll-tools-star-button.ll-tools-star-button[aria-pressed="true"] {
     color: var(--ll-star-btn-active-color, #ffffff) !important;
 }
 
+button.ll-tools-star-button.ll-tools-star-button.active::before,
+button.ll-tools-star-button.ll-tools-star-button[aria-pressed="true"]::before {
+    -webkit-mask-image: var(--ll-tools-star-mask-filled) !important;
+    mask-image: var(--ll-tools-star-mask-filled) !important;
+}
+
 button.ll-tools-star-button.ll-tools-star-button:focus-visible {
     outline: 3px solid var(--ll-star-btn-focus, #D39A00) !important;
     outline-offset: 2px !important;
+}
+
+.ll-group-star__icon,
+.ll-vocab-lesson-star-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    font-size: 0;
+    color: currentColor;
+    flex: 0 0 auto;
+}
+
+.ll-group-star__icon::before,
+.ll-vocab-lesson-star-icon::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-color: currentColor;
+    -webkit-mask-image: var(--ll-tools-star-mask-outline);
+    mask-image: var(--ll-tools-star-mask-outline);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+}
+
+.ll-group-star.active .ll-group-star__icon::before,
+.ll-group-star[aria-pressed="true"] .ll-group-star__icon::before,
+.ll-vocab-lesson-star-toggle.active .ll-vocab-lesson-star-icon::before,
+.ll-vocab-lesson-star-toggle[aria-pressed="true"] .ll-vocab-lesson-star-icon::before {
+    -webkit-mask-image: var(--ll-tools-star-mask-filled);
+    mask-image: var(--ll-tools-star-mask-filled);
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star {
@@ -1148,9 +1285,9 @@ button.ll-tools-star-button.ll-tools-star-button:focus-visible {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    font-size: 16px !important;
+    font-size: 0 !important;
     font-weight: 700 !important;
-    line-height: 1 !important;
+    line-height: 0 !important;
     text-align: center !important;
     text-decoration: none !important;
     text-transform: none !important;
@@ -1175,14 +1312,26 @@ button.ll-tools-star-button.ll-tools-star-button:focus-visible {
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star::before {
-    content: "\2606" !important;
+    content: "" !important;
     display: block !important;
-    line-height: 1 !important;
+    width: 16px !important;
+    height: 16px !important;
+    line-height: 0 !important;
+    background-color: currentColor !important;
+    -webkit-mask-image: var(--ll-tools-star-mask-outline) !important;
+    mask-image: var(--ll-tools-star-mask-outline) !important;
+    -webkit-mask-repeat: no-repeat !important;
+    mask-repeat: no-repeat !important;
+    -webkit-mask-position: center !important;
+    mask-position: center !important;
+    -webkit-mask-size: 100% 100% !important;
+    mask-size: 100% 100% !important;
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star.active::before,
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"]::before {
-    content: "\2605" !important;
+    -webkit-mask-image: var(--ll-tools-star-mask-filled) !important;
+    mask-image: var(--ll-tools-star-mask-filled) !important;
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star.active,
@@ -1191,7 +1340,7 @@ button.ll-tools-star-button.ll-tools-star-button:focus-visible {
     background-color: #D39A00 !important;
     background-image: none !important;
     border-color: #D39A00 !important;
-    color: #111827 !important;
+    color: #ffffff !important;
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star:not(.active):hover,

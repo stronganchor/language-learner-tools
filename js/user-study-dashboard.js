@@ -3174,13 +3174,22 @@
             $('<span>', { text: catLabel }).appendTo(titleRow);
             const starState = categoryStarState(cid);
             const starLabel = starState.allStarred ? (i18n.unstarAll || 'Unstar all') : (i18n.starAll || 'Star all');
-            $('<button>', {
+            const $groupStarBtn = $('<button>', {
                 type: 'button',
                 class: 'll-study-btn tiny ghost ll-group-star' + (starState.allStarred ? ' active' : ''),
                 'data-cat-id': cid,
-                disabled: !starState.hasWords,
-                text: (starState.allStarred ? '★ ' : '☆ ') + starLabel
-            }).appendTo(titleRow);
+                disabled: !starState.hasWords
+            });
+            $('<span>', {
+                class: 'll-group-star__icon',
+                'aria-hidden': 'true',
+                text: starState.allStarred ? '★' : '☆'
+            }).appendTo($groupStarBtn);
+            $('<span>', {
+                class: 'll-group-star__label',
+                text: starLabel
+            }).appendTo($groupStarBtn);
+            $groupStarBtn.appendTo(titleRow);
             group.append(titleRow);
 
             if (!words.length) {

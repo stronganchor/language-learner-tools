@@ -2451,7 +2451,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                             <?php $queue_preview_item = isset($queue_preview_items[$queue_preview_idx]) && is_array($queue_preview_items[$queue_preview_idx]) ? $queue_preview_items[$queue_preview_idx] : null; ?>
                                             <?php if ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url'])) : ?>
                                                 <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--image">
-                                                    <img src="<?php echo esc_url($queue_preview_item['url']); ?>" alt="" loading="lazy" />
+                                                    <img src="<?php echo esc_url($queue_preview_item['url']); ?>" alt="" loading="lazy" decoding="async" fetchpriority="low" />
                                                 </span>
                                             <?php elseif ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'text' && !empty($queue_preview_item['label'])) : ?>
                                                 <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--text">
@@ -2689,7 +2689,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
                                                 ?>
                                                 <span class="ll-wordset-preview-item ll-wordset-preview-item--image"<?php echo $preview_ratio_style; ?>>
-                                                    <img src="<?php echo esc_url($preview['url']); ?>" alt="<?php echo esc_attr($preview['alt'] ?? ''); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" />
+                                                    <img src="<?php echo esc_url($preview['url']); ?>" alt="<?php echo esc_attr($preview['alt'] ?? ''); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" decoding="async" fetchpriority="low" />
                                                 </span>
                                             <?php else : ?>
                                                 <span class="ll-wordset-preview-item ll-wordset-preview-item--text">

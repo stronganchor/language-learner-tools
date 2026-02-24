@@ -2082,6 +2082,16 @@ function ll_tools_word_grid_shortcode($atts) {
             $grid_attrs .= ' data-ll-verb-mood-enabled="1"';
         }
         echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" ' . $grid_attrs . '>'; // Grid container
+        $word_grid_image_size = apply_filters('ll_tools_word_grid_image_size', 'medium_large', $wordset_id, $category_term);
+        if (!is_array($word_grid_image_size) && !is_string($word_grid_image_size)) {
+            $word_grid_image_size = 'medium_large';
+        }
+        if (is_string($word_grid_image_size)) {
+            $word_grid_image_size = trim($word_grid_image_size);
+            if ($word_grid_image_size === '') {
+                $word_grid_image_size = 'medium_large';
+            }
+        }
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
@@ -2163,7 +2173,12 @@ function ll_tools_word_grid_shortcode($atts) {
             // Featured image with container
             if (!$is_text_based && has_post_thumbnail()) {
                 echo '<div class="word-image-container">'; // Start new container
-                echo get_the_post_thumbnail(get_the_ID(), 'full', array('class' => 'word-image'));
+                echo get_the_post_thumbnail(get_the_ID(), $word_grid_image_size, array(
+                    'class' => 'word-image',
+                    'loading' => 'lazy',
+                    'decoding' => 'async',
+                    'fetchpriority' => 'low',
+                ));
                 echo '</div>'; // Close container
             }
 
