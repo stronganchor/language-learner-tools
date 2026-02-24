@@ -915,6 +915,14 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, $current_user_id);
+    }
+    if (empty($wordset_term_ids)) {
+        return '<div class="ll-recording-interface"><p>' .
+               __('No recording word set is assigned for this account. Ask the word set manager to assign a private word set.', 'll-tools-text-domain') .
+               '</p></div>';
+    }
 
     $allow_new_words = !empty($atts['allow_new_words']);
     $auto_process_recordings = !empty($atts['auto_process_recordings']);
@@ -1701,6 +1709,12 @@ function ll_get_images_for_recording_handler() {
     $category = sanitize_text_field($_POST['category']);
     $wordset_ids = json_decode(stripslashes($_POST['wordset_ids']), true);
     $wordset_term_ids = is_array($wordset_ids) ? array_map('intval', $wordset_ids) : [];
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, get_current_user_id());
+    }
+    if (empty($wordset_term_ids)) {
+        wp_send_json_error(__('No recording word set is assigned for this account.', 'll-tools-text-domain'), 403);
+    }
     $include_types = isset($_POST['include_types']) ? sanitize_text_field($_POST['include_types']) : '';
     $exclude_types = isset($_POST['exclude_types']) ? sanitize_text_field($_POST['exclude_types']) : '';
 
@@ -2342,6 +2356,89 @@ function ll_update_new_word_text_handler() {
 }
 
 /**
+ * Get recorder-assigned wordset IDs for a user (Audio Recorder role only).
+ *
+ * Returns an empty array when no explicit assignment is configured.
+ *
+ * @param int $user_id
+ * @return int[]
+ */
+function ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id) {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $user = get_userdata($user_id);
+    if (!$user) {
+        return [];
+    }
+    if (!in_array('audio_recorder', (array) $user->roles, true)) {
+        return [];
+    }
+    if (user_can($user, 'manage_options') || user_can($user, 'manage_wordsets')) {
+        return [];
+    }
+
+    $config = function_exists('ll_get_user_recording_config')
+        ? ll_get_user_recording_config($user_id)
+        : get_user_meta($user_id, 'll_recording_config', true);
+    if (!is_array($config)) {
+        return [];
+    }
+
+    $configured_wordset_slug = sanitize_title((string) ($config['wordset'] ?? ''));
+    if ($configured_wordset_slug === '') {
+        return [];
+    }
+
+    $term = get_term_by('slug', $configured_wordset_slug, 'wordset');
+    if (!$term || is_wp_error($term)) {
+        return [];
+    }
+
+    $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
+    return ($term_id > 0) ? [$term_id] : [];
+}
+
+/**
+ * Clamp recording wordset IDs to a user's assigned recorder scope (if any).
+ *
+ * @param array $wordset_ids
+ * @param int   $user_id
+ * @return int[]
+ */
+function ll_tools_filter_recording_wordset_ids_for_user($wordset_ids, $user_id = 0) {
+    $filtered_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function ($id) {
+        return $id > 0;
+    })));
+
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        $user_id = get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return $filtered_ids;
+    }
+
+    $assigned_ids = ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id);
+    if (empty($assigned_ids)) {
+        return $filtered_ids;
+    }
+
+    if (empty($filtered_ids)) {
+        return $assigned_ids;
+    }
+
+    $clamped = array_values(array_intersect($filtered_ids, $assigned_ids));
+    if (empty($clamped)) {
+        return $assigned_ids;
+    }
+
+    return array_map('intval', $clamped);
+}
+
+/**
  * Resolve wordset term IDs from recorder AJAX requests.
  *
  * @return int[]
@@ -2358,6 +2455,10 @@ function ll_tools_get_recording_wordset_ids_from_request() {
     $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
     if (empty($posted_ids)) {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $posted_ids = ll_tools_filter_recording_wordset_ids_for_user($posted_ids, get_current_user_id());
     }
 
     return array_values(array_filter(array_map('intval', (array) $posted_ids), static function ($id) {

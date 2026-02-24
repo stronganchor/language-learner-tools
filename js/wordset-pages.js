@@ -72,6 +72,7 @@
     let resultsFollowupRefreshToken = 0;
     let queueItemWidthTimer = null;
     let selectAllAlignmentTimer = null;
+    let hasInitialSelectAllAlignment = false;
     let progressKpiFeedbackTimer = null;
     let progressWordTableFxTimer = null;
     let nextCardRevealTimer = null;
@@ -3088,6 +3089,12 @@
     }
 
     function scheduleSelectAllAlignment() {
+        if (!hasInitialSelectAllAlignment) {
+            // Run the first alignment sync immediately so the tool row offset is set before paint.
+            hasInitialSelectAllAlignment = true;
+            syncSelectAllAlignment();
+            return;
+        }
         if (selectAllAlignmentTimer) {
             clearTimeout(selectAllAlignmentTimer);
         }
@@ -3883,6 +3890,42 @@
         };
     }
 
+    function syncWordsetCardProgressSegmentVisualState($card) {
+        const segments = getWordsetCardProgressSegments($card);
+        const ordered = [segments.mastered, segments.studied, segments.new].filter(function ($segment) {
+            return !!($segment && $segment.length);
+        });
+        if (!ordered.length) { return; }
+
+        ordered.forEach(function ($segment) {
+            $segment.removeClass('is-visible-edge-left is-visible-edge-right has-left-divider is-progress-hidden');
+        });
+
+        const visible = [];
+        ordered.forEach(function ($segment) {
+            const pct = parseCardProgressSegmentPercent($segment);
+            if (pct > 0.001) {
+                visible.push($segment);
+            } else {
+                $segment.addClass('is-progress-hidden');
+            }
+        });
+
+        if (!visible.length) { return; }
+
+        visible[0].addClass('is-visible-edge-left');
+        visible[visible.length - 1].addClass('is-visible-edge-right');
+        for (let i = 1; i < visible.length; i++) {
+            visible[i].addClass('has-left-divider');
+        }
+    }
+
+    function syncAllWordsetCardProgressSegmentVisualState() {
+        $root.find('.ll-wordset-card').each(function () {
+            syncWordsetCardProgressSegmentVisualState($(this));
+        });
+    }
+
     function readWordsetCardProgressPercents($card) {
         const segments = getWordsetCardProgressSegments($card);
         return {
@@ -3946,6 +3989,7 @@
             setCardProgressSegmentPercent(segments.mastered, next.mastered);
             setCardProgressSegmentPercent(segments.studied, next.studied);
             setCardProgressSegmentPercent(segments.new, next.new);
+            syncWordsetCardProgressSegmentVisualState($card);
         };
 
         if (!shouldAnimate) {
@@ -7631,6 +7675,7 @@
     }
 
     if (view === 'main') {
+        syncAllWordsetCardProgressSegmentVisualState();
         bindSettingsControls();
         bindMainInteractions();
     }

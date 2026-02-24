@@ -72,3 +72,41 @@ function manage_word_sets_shortcode() {
     $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
     return '<div class="custom-admin-page"><iframe src="' . $iframe_url . '" style="width:100%; height:800px; border:none;"></iframe></div>';
 }
+
+/**
+ * Redirect word set managers to a custom front-end page after login.
+ * Keep wp-admin accessible for now because some manager tools still live there.
+ */
+function ll_tools_wordset_manager_login_redirect($redirect_to, $request, $user) {
+    if (!($user instanceof WP_User)) {
+        return $redirect_to;
+    }
+    if (user_can($user, 'manage_options')) {
+        return $redirect_to;
+    }
+
+    $roles = (array) $user->roles;
+    if (!in_array('wordset_manager', $roles, true)) {
+        return $redirect_to;
+    }
+
+    $requested_redirect = function_exists('ll_tools_get_valid_login_redirect_request')
+        ? ll_tools_get_valid_login_redirect_request($request)
+        : '';
+    if ($requested_redirect !== '') {
+        return $requested_redirect;
+    }
+
+    if (function_exists('ll_tools_get_user_managed_wordset_ids') && function_exists('ll_tools_get_wordset_page_view_url')) {
+        $managed_wordset_ids = ll_tools_get_user_managed_wordset_ids((int) $user->ID);
+        foreach ($managed_wordset_ids as $wordset_id) {
+            $term = get_term((int) $wordset_id, 'wordset');
+            if ($term instanceof WP_Term && !is_wp_error($term)) {
+                return ll_tools_get_wordset_page_view_url($term);
+            }
+        }
+    }
+
+    return $redirect_to;
+}
+add_filter('login_redirect', 'll_tools_wordset_manager_login_redirect', 996, 3);

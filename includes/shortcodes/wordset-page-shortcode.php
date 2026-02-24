@@ -2,6 +2,45 @@
 // /includes/shortcodes/wordset-page-shortcode.php
 if (!defined('WPINC')) { die; }
 
+function ll_tools_wordset_page_shortcode_maybe_enqueue_assets(): void {
+    if (is_admin()) {
+        return;
+    }
+
+    if (function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context()) {
+        // Dedicated wordset routes enqueue via includes/pages/wordset-pages.php.
+        return;
+    }
+
+    if (!is_singular()) {
+        return;
+    }
+
+    $post = get_queried_object();
+    if (!$post instanceof WP_Post || !isset($post->post_content)) {
+        return;
+    }
+
+    $content = (string) $post->post_content;
+    if ($content === '') {
+        return;
+    }
+
+    $has_wordset_shortcode = has_shortcode($content, 'wordset_page') || has_shortcode($content, 'll_wordset_page');
+    if (!$has_wordset_shortcode) {
+        return;
+    }
+
+    // Enqueue before wp_head on shortcode pages to avoid late CSS application / layout shift.
+    if (function_exists('ll_tools_wordset_page_enqueue_styles')) {
+        ll_tools_wordset_page_enqueue_styles();
+    }
+    if (function_exists('ll_tools_wordset_page_enqueue_scripts')) {
+        ll_tools_wordset_page_enqueue_scripts();
+    }
+}
+add_action('wp_enqueue_scripts', 'll_tools_wordset_page_shortcode_maybe_enqueue_assets');
+
 function ll_tools_wordset_page_shortcode($atts = []): string {
     $atts = shortcode_atts([
         'wordset' => '',

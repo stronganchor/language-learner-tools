@@ -1646,7 +1646,7 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
     return $ordered;
 }
 
-function ll_tools_user_can_edit_vocab_words(): bool {
+function ll_tools_user_can_edit_vocab_words(int $wordset_id = 0): bool {
     if (!is_user_logged_in() || !current_user_can('view_ll_tools')) {
         return false;
     }
@@ -1656,7 +1656,22 @@ function ll_tools_user_can_edit_vocab_words(): bool {
     }
 
     $user = wp_get_current_user();
-    return in_array('ll_tools_editor', (array) $user->roles, true);
+    if (in_array('ll_tools_editor', (array) $user->roles, true)) {
+        return true;
+    }
+
+    if ($wordset_id <= 0 && is_singular('ll_vocab_lesson')) {
+        $lesson_id = (int) get_queried_object_id();
+        if ($lesson_id > 0) {
+            $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+        }
+    }
+
+    if ($wordset_id > 0 && function_exists('ll_tools_current_user_can_manage_wordset_content')) {
+        return ll_tools_current_user_can_manage_wordset_content($wordset_id);
+    }
+
+    return false;
 }
 
 /**
@@ -1730,7 +1745,7 @@ function ll_tools_word_grid_shortcode($atts) {
     }
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery', 'jquery-ui-autocomplete'], true);
 
-    $can_edit_words = ll_tools_user_can_edit_vocab_words()
+    $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id)
         && is_singular('ll_vocab_lesson');
 
     $user_study_state = [
@@ -2845,6 +2860,45 @@ function ll_tools_lesson_recording_belongs_to(int $recording_id, int $wordset_id
     return true;
 }
 
+function ll_tools_word_grid_user_can_manage_wordset_scope(int $wordset_id): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_current_user_can_manage_wordset_content')) {
+        return ll_tools_current_user_can_manage_wordset_content($wordset_id);
+    }
+
+    return current_user_can('manage_options');
+}
+
+function ll_tools_word_grid_user_can_manage_word(int $word_id, int $preferred_wordset_id = 0): bool {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    $preferred_wordset_id = (int) $preferred_wordset_id;
+    if ($preferred_wordset_id > 0 && has_term($preferred_wordset_id, 'wordset', $word_id)) {
+        return ll_tools_word_grid_user_can_manage_wordset_scope($preferred_wordset_id);
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($wordset_ids)) {
+        return false;
+    }
+
+    foreach ((array) $wordset_ids as $wordset_id) {
+        $wordset_id = (int) $wordset_id;
+        if ($wordset_id > 0 && ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function ll_tools_can_transcribe_recordings(): bool {
     if (!function_exists('ll_tools_assemblyai_transcribe_audio_file') || !function_exists('ll_get_assemblyai_api_key')) {
         return false;
@@ -3020,6 +3074,11 @@ function ll_tools_word_grid_update_word_handler() {
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
         wp_send_json_error('Invalid word ID', 404);
+    }
+
+    $requested_wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if (!ll_tools_word_grid_user_can_manage_word($word_id, $requested_wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
     }
 
     $word_text_raw = sanitize_text_field($_POST['word_text'] ?? '');
@@ -3447,6 +3506,9 @@ function ll_tools_search_dictionary_entries_handler() {
             $wordset_id = $resolved_wordset_id;
         }
     }
+    if ($wordset_id > 0 && !ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
+    }
 
     $entries = function_exists('ll_tools_search_dictionary_entries')
         ? ll_tools_search_dictionary_entries($query, $limit, $wordset_id)
@@ -3469,6 +3531,9 @@ function ll_tools_word_grid_bulk_update_handler() {
     $category_id = (int) ($_POST['category_id'] ?? 0);
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_send_json_error('Missing wordset or category', 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
     }
 
     $mode = sanitize_text_field($_POST['mode'] ?? '');
@@ -3780,6 +3845,9 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_send_json_error('Missing lesson metadata', 400);
     }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
+    }
 
     $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
     if (empty($word_ids)) {
@@ -3839,6 +3907,9 @@ function ll_tools_clear_lesson_transcriptions_handler() {
     [$wordset_id, $category_id] = ll_tools_get_vocab_lesson_ids_from_post($lesson_id);
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_send_json_error('Missing lesson metadata', 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
     }
 
     $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
@@ -4013,6 +4084,9 @@ function ll_tools_transcribe_recording_by_id_handler() {
     [$wordset_id, $category_id] = ll_tools_get_vocab_lesson_ids_from_post($lesson_id);
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_send_json_error('Missing lesson metadata', 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
     }
 
     if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {

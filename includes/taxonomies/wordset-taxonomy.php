@@ -1,4 +1,172 @@
 <?php
+if (!defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')) {
+    define('LL_TOOLS_WORDSET_VISIBILITY_META_KEY', 'll_wordset_visibility');
+}
+
+function ll_tools_normalize_wordset_visibility($value): string {
+    $visibility = sanitize_key((string) $value);
+    return ($visibility === 'private') ? 'private' : 'public';
+}
+
+function ll_tools_resolve_wordset_term_id($wordset): int {
+    if ($wordset instanceof WP_Term) {
+        return ($wordset->taxonomy === 'wordset') ? (int) $wordset->term_id : 0;
+    }
+
+    if (is_numeric($wordset)) {
+        return (int) $wordset;
+    }
+
+    if (!is_string($wordset)) {
+        return 0;
+    }
+
+    $wordset = trim($wordset);
+    if ($wordset === '') {
+        return 0;
+    }
+
+    $term = get_term_by('slug', sanitize_title($wordset), 'wordset');
+    if ($term instanceof WP_Term && !is_wp_error($term)) {
+        return (int) $term->term_id;
+    }
+
+    $term = get_term_by('name', $wordset, 'wordset');
+    if ($term instanceof WP_Term && !is_wp_error($term)) {
+        return (int) $term->term_id;
+    }
+
+    return 0;
+}
+
+function ll_tools_get_wordset_visibility($wordset): string {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return 'public';
+    }
+
+    $raw = get_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, true);
+    $visibility = ll_tools_normalize_wordset_visibility($raw);
+
+    return (string) apply_filters('ll_tools_wordset_visibility', $visibility, $wordset_id);
+}
+
+function ll_tools_is_wordset_private($wordset): bool {
+    return ll_tools_get_wordset_visibility($wordset) === 'private';
+}
+
+function ll_tools_get_wordset_manager_user_id(int $wordset_id): int {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+    return (int) get_term_meta($wordset_id, 'manager_user_id', true);
+}
+
+function ll_tools_get_user_managed_wordset_ids(int $user_id = 0): array {
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $ids = [];
+
+    $owned_term_ids = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+        'meta_query' => [
+            [
+                'key'   => 'manager_user_id',
+                'value' => $user_id,
+                'compare' => '=',
+            ],
+        ],
+    ]);
+    if (!is_wp_error($owned_term_ids)) {
+        foreach ((array) $owned_term_ids as $term_id) {
+            $term_id = (int) $term_id;
+            if ($term_id > 0) {
+                $ids[$term_id] = true;
+            }
+        }
+    }
+
+    // Legacy fallback used by older upload tooling.
+    $legacy_managed = get_user_meta($user_id, 'managed_wordsets', true);
+    foreach ((array) $legacy_managed as $term_id) {
+        $term_id = (int) $term_id;
+        if ($term_id > 0) {
+            $ids[$term_id] = true;
+        }
+    }
+
+    $resolved = array_map('intval', array_keys($ids));
+    sort($resolved, SORT_NUMERIC);
+    return $resolved;
+}
+
+function ll_tools_user_can_manage_wordset_content($wordset, int $user_id = 0): bool {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return false;
+    }
+
+    if (user_can($user, 'manage_options')) {
+        return true;
+    }
+
+    if (!user_can($user, 'view_ll_tools')) {
+        return false;
+    }
+
+    $roles = (array) $user->roles;
+    if (in_array('ll_tools_editor', $roles, true)) {
+        return true;
+    }
+
+    $manager_user_id = ll_tools_get_wordset_manager_user_id($wordset_id);
+    if ($manager_user_id > 0 && $manager_user_id === (int) $user->ID) {
+        return true;
+    }
+
+    $managed_wordset_ids = ll_tools_get_user_managed_wordset_ids((int) $user->ID);
+    if (in_array($wordset_id, $managed_wordset_ids, true)) {
+        return true;
+    }
+
+    return (bool) apply_filters('ll_tools_user_can_manage_wordset_content', false, $wordset_id, $user);
+}
+
+function ll_tools_current_user_can_manage_wordset_content($wordset): bool {
+    return ll_tools_user_can_manage_wordset_content($wordset, (int) get_current_user_id());
+}
+
+function ll_tools_user_can_view_wordset($wordset, int $user_id = 0): bool {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    $is_private = ll_tools_is_wordset_private($wordset_id);
+    if (!$is_private) {
+        return true;
+    }
+
+    $allowed = ll_tools_user_can_manage_wordset_content($wordset_id, $user_id);
+    return (bool) apply_filters('ll_tools_user_can_view_wordset', $allowed, $wordset_id, $user_id);
+}
+
 // Register the "wordset" taxonomy
 function ll_tools_register_wordset_taxonomy() {
     $labels = [
@@ -1038,6 +1206,7 @@ function ll_add_wordset_language_field($term) {
     $term_id = $is_edit ? (int) $term->term_id : 0;
 
     $language = '';
+    $wordset_visibility = 'public';
     $hide_lesson_text_for_non_text_quiz = false;
     $has_gender = false;
     $has_plurality = false;
@@ -1067,6 +1236,9 @@ function ll_add_wordset_language_field($term) {
 
     if ($term_id > 0) {
         $language = (string) get_term_meta($term_id, 'll_language', true);
+        $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
+            ? ll_tools_get_wordset_visibility($term_id)
+            : 'public';
         $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
         $has_gender = (bool) get_term_meta($term_id, 'll_wordset_has_gender', true);
         $has_plurality = (bool) get_term_meta($term_id, 'll_wordset_has_plurality', true);
@@ -1107,6 +1279,18 @@ function ll_add_wordset_language_field($term) {
         '<input type="text" id="wordset-language" name="wordset_language" value="' . esc_attr($language) . '" required>',
         'wordset-language',
         __('Enter the language for this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-visibility-wrap',
+        __('Visibility', 'll-tools-text-domain'),
+        '<select id="ll-wordset-visibility" name="ll_wordset_visibility">'
+            . '<option value="public" ' . selected($wordset_visibility, 'public', false) . '>' . esc_html__('Public', 'll-tools-text-domain') . '</option>'
+            . '<option value="private" ' . selected($wordset_visibility, 'private', false) . '>' . esc_html__('Private', 'll-tools-text-domain') . '</option>'
+            . '</select>',
+        'll-wordset-visibility',
+        __('Private word sets are visible only to users who can manage that word set (or administrators).', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1303,6 +1487,7 @@ add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
+        || isset($_POST['ll_wordset_visibility'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_category_ordering_mode'])
         || isset($_POST['ll_wordset_category_order_category_ids'])
@@ -1336,6 +1521,11 @@ function ll_save_wordset_language($term_id) {
     }
 
     if ($has_meta_input) {
+        $wordset_visibility = isset($_POST['ll_wordset_visibility'])
+            ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
+            : 'public';
+        update_term_meta($term_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $wordset_visibility);
+
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
 
@@ -1664,9 +1854,14 @@ function ll_save_wordset_language($term_id) {
         }
     }
 
-    // save the user who created the wordset
-    $user_id = get_current_user_id();
-    update_term_meta($term_id, 'manager_user_id', $user_id);
+    // Preserve the assigned manager on edits; only seed a manager if none exists yet.
+    $existing_manager_user_id = (int) get_term_meta($term_id, 'manager_user_id', true);
+    if ($existing_manager_user_id <= 0) {
+        $user_id = (int) get_current_user_id();
+        if ($user_id > 0) {
+            update_term_meta($term_id, 'manager_user_id', $user_id);
+        }
+    }
 }
 add_action('created_wordset', 'll_save_wordset_language');
 add_action('edited_wordset', 'll_save_wordset_language');

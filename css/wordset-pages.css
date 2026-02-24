@@ -1,4 +1,5 @@
 .ll-wordset-page {
+    --ll-wp-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --ll-wp-bg: #f8f5ee;
     --ll-wp-bg-accent: #eef6f1;
     --ll-wp-card: #ffffff;
@@ -28,10 +29,13 @@
     --ll-wp-top-chip-height: 36px;
     --ll-wp-top-chip-pill-height: 22px;
     --ll-wp-recommendation-thumb-size: 40px;
+    --ll-wp-next-card-width: clamp(320px, 38vw, 460px);
     --ll-wp-page-padding-inline: clamp(18px, 5vw, 60px);
     --ll-wp-main-shell-max-width: 1100px;
     --ll-wp-subpage-shell-max-width: 1100px;
     color: var(--ll-wp-text);
+    font-family: var(--ll-wp-font-sans);
+    line-height: 1.4;
     padding: clamp(24px, 4vw, 48px) var(--ll-wp-page-padding-inline) clamp(40px, 6vw, 70px);
     min-height: 70vh;
 }
@@ -81,6 +85,49 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-page * {
     box-sizing: border-box;
+}
+
+/* Theme guard: normalize common element defaults inside the wordset UI. */
+.ll-wordset-page h1,
+.ll-wordset-page h2,
+.ll-wordset-page h3,
+.ll-wordset-page h4,
+.ll-wordset-page h5,
+.ll-wordset-page h6,
+.ll-wordset-page p,
+.ll-wordset-page figure {
+    margin: 0;
+}
+
+.ll-wordset-page ul,
+.ll-wordset-page ol {
+    margin: 0;
+    padding: 0;
+}
+
+.ll-wordset-page li {
+    margin: 0;
+}
+
+.ll-wordset-page button,
+.ll-wordset-page input,
+.ll-wordset-page select,
+.ll-wordset-page textarea {
+    font: inherit;
+    color: inherit;
+    letter-spacing: normal;
+}
+
+.ll-wordset-page button {
+    text-transform: none;
+}
+
+.ll-wordset-page table {
+    border-spacing: 0;
+}
+
+.ll-wordset-page img {
+    height: auto;
 }
 
 .ll-wordset-hero,
@@ -438,6 +485,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-next-wrap {
     display: grid;
     gap: 6px;
+    width: min(100%, var(--ll-wp-next-card-width));
+    max-width: 100%;
 }
 
 .ll-wordset-page .ll-wordset-next-card,
@@ -480,7 +529,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     position: relative;
     display: inline-flex;
     align-items: center;
-    max-width: min(100%, 760px);
+    width: 100%;
+    max-width: 100%;
     transition: width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -522,7 +572,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding: 11px 88px 11px 14px !important;
     cursor: pointer;
     text-align: left !important;
-    width: fit-content;
+    width: 100%;
     max-width: 100%;
     color: var(--ll-wp-text) !important;
     box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
@@ -1512,7 +1562,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     width: 100%;
     min-height: 14px;
     border-radius: 999px;
-    background: #e9edf2;
+    background: #ffffff;
     display: flex;
     overflow: hidden;
     transform-origin: center center;
@@ -1528,26 +1578,52 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     position: relative;
     overflow: hidden;
     color: inherit;
+    --ll-wp-card-progress-segment-border: transparent;
+    box-sizing: border-box;
+    border: 1px solid var(--ll-wp-card-progress-segment-border);
 }
 
-.ll-wordset-card__progress-segment::after {
-    content: "";
-    width: 8px;
-    height: 8px;
-    display: block;
-    background-color: currentColor;
-    opacity: 0.9;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-    flex: 0 0 auto;
+.ll-wordset-card__progress-segment.is-progress-hidden {
+    display: none;
 }
 
-.ll-wordset-card__progress-segment + .ll-wordset-card__progress-segment {
-    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.95);
+.ll-wordset-card__progress-segment:first-child {
+    border-radius: 999px 0 0 999px;
+}
+
+.ll-wordset-card__progress-segment:last-child {
+    border-radius: 0 999px 999px 0;
+}
+
+.ll-wordset-card__progress-segment.is-visible-edge-left {
+    border-left-width: 1px;
+    border-radius: 999px 0 0 999px;
+}
+
+.ll-wordset-card__progress-segment.is-visible-edge-right {
+    border-right-width: 1px;
+    border-radius: 0 999px 999px 0;
+}
+
+.ll-wordset-card__progress-segment.is-visible-edge-left.is-visible-edge-right {
+    border-radius: 999px;
+}
+
+.ll-wordset-card__progress-segment.has-left-divider {
+    margin-left: 0;
+    border-left-width: 0;
+}
+
+.ll-wordset-card__progress-icon {
+    width: 9px;
+    height: 9px;
+    min-width: 9px;
+    min-height: 9px;
+    opacity: 0.95;
+    line-height: 0;
+    pointer-events: none;
+    position: relative;
+    z-index: 2;
 }
 
 .ll-wordset-card__progress-track.is-progress-updating {
@@ -1581,33 +1657,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-card__progress-segment--mastered {
     background: var(--ll-wp-pill-green);
     color: var(--ll-wp-pill-green-text);
-}
-
-.ll-wordset-card__progress-segment--mastered::after {
-    -webkit-mask-image: var(--ll-wp-card-progress-mask-mastered);
-    mask-image: var(--ll-wp-card-progress-mask-mastered);
+    --ll-wp-card-progress-segment-border: var(--ll-wp-pill-green-border);
 }
 
 .ll-wordset-card__progress-segment--studied {
     background: var(--ll-wp-pill-blue);
     color: var(--ll-wp-pill-blue-text);
-}
-
-.ll-wordset-card__progress-segment--studied::after {
-    -webkit-mask-image: var(--ll-wp-card-progress-mask-studied);
-    mask-image: var(--ll-wp-card-progress-mask-studied);
+    --ll-wp-card-progress-segment-border: var(--ll-wp-pill-blue-border);
 }
 
 .ll-wordset-card__progress-segment--new {
     background: var(--ll-wp-pill-slate);
     color: var(--ll-wp-pill-slate-text);
-}
-
-.ll-wordset-card__progress-segment--new::after {
-    width: 9px;
-    height: 9px;
-    -webkit-mask-image: var(--ll-wp-card-progress-mask-new);
-    mask-image: var(--ll-wp-card-progress-mask-new);
+    --ll-wp-card-progress-segment-border: var(--ll-wp-pill-slate-border);
 }
 
 .ll-wordset-card__quiz-actions {

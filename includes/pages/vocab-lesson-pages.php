@@ -961,7 +961,10 @@ function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
         $redirect_with_status('error', 'request');
     }
 
-    if (!current_user_can('view_ll_tools')) {
+    $can_manage_wordset = function_exists('ll_tools_current_user_can_manage_wordset_content')
+        ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
+        : current_user_can('view_ll_tools');
+    if (!$can_manage_wordset) {
         $redirect_with_status('error', 'permission');
     }
 

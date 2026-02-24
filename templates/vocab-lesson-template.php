@@ -2,7 +2,34 @@
 // /templates/vocab-lesson-template.php
 if (!defined('WPINC')) { die; }
 
+$ll_vocab_lesson_access_denied = false;
+if (is_singular('ll_vocab_lesson') && function_exists('ll_tools_user_can_view_wordset')) {
+    $preflight_post_id = (int) get_queried_object_id();
+    if ($preflight_post_id > 0) {
+        $preflight_wordset_id = (int) get_post_meta($preflight_post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+        if ($preflight_wordset_id > 0 && !ll_tools_user_can_view_wordset($preflight_wordset_id)) {
+            $ll_vocab_lesson_access_denied = true;
+            $wp_query = $GLOBALS['wp_query'] ?? null;
+            if ($wp_query instanceof WP_Query) {
+                $wp_query->set_404();
+            } elseif (is_object($wp_query)) {
+                $wp_query->is_404 = true;
+            }
+            status_header(404);
+            nocache_headers();
+        }
+    }
+}
+
 get_header();
+
+if ($ll_vocab_lesson_access_denied) {
+    echo '<main class="ll-vocab-lesson-page"><div class="ll-wordset-empty">';
+    echo esc_html__('Lesson not found.', 'll-tools-text-domain');
+    echo '</div></main>';
+    get_footer();
+    return;
+}
 
 if (have_posts()) {
     the_post();
@@ -13,7 +40,7 @@ if (have_posts()) {
     $wordset = $wordset_id ? get_term($wordset_id, 'wordset') : null;
     $category = $category_id ? get_term($category_id, 'word-category') : null;
     $can_edit_words = function_exists('ll_tools_user_can_edit_vocab_words')
-        ? ll_tools_user_can_edit_vocab_words()
+        ? ll_tools_user_can_edit_vocab_words($wordset_id)
         : (is_user_logged_in() && current_user_can('view_ll_tools'));
     $can_transcribe = $can_edit_words
         && function_exists('ll_tools_can_transcribe_recordings')
