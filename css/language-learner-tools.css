@@ -1209,11 +1209,11 @@ button.ll-tools-star-button.ll-tools-star-button[aria-pressed="false"]:hover {
 
 button.ll-tools-star-button.ll-tools-star-button.active,
 button.ll-tools-star-button.ll-tools-star-button[aria-pressed="true"] {
-    background: var(--ll-star-btn-active-bg, #D39A00) !important;
-    background-color: var(--ll-star-btn-active-bg, #D39A00) !important;
+    background: var(--ll-star-btn-active-bg, #FDE7A3) !important;
+    background-color: var(--ll-star-btn-active-bg, #FDE7A3) !important;
     background-image: none !important;
-    border-color: var(--ll-star-btn-active-border, #D39A00) !important;
-    color: var(--ll-star-btn-active-color, #ffffff) !important;
+    border-color: var(--ll-star-btn-active-border, rgba(138, 86, 0, 0.22)) !important;
+    color: var(--ll-star-btn-active-color, #8A5600) !important;
 }
 
 button.ll-tools-star-button.ll-tools-star-button.active::before,
@@ -1336,11 +1336,11 @@ button.ll-tools-star-button.ll-tools-star-button:focus-visible {
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star.active,
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star[aria-pressed="true"] {
-    background: #D39A00 !important;
-    background-color: #D39A00 !important;
+    background: #FDE7A3 !important;
+    background-color: #FDE7A3 !important;
     background-image: none !important;
-    border-color: #D39A00 !important;
-    color: #ffffff !important;
+    border-color: rgba(138, 86, 0, 0.22) !important;
+    color: #8A5600 !important;
 }
 
 .word-grid.ll-word-grid button.ll-word-star.ll-word-star:not(.active):hover,

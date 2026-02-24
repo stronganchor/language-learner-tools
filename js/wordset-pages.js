@@ -859,7 +859,7 @@
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span>';
         }
         if (key === 'starred') {
-            return '<span class="' + escapeHtml(cls) + ' ll-wordset-progress-star-glyph-icon" aria-hidden="true">★</span>';
+            return '<span class="' + escapeHtml(cls) + ' ll-wordset-progress-star-glyph-icon" aria-hidden="true"></span>';
         }
         if (key === 'hard') {
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + progressHardIconSvgMarkup() + '</span>';
@@ -2375,8 +2375,7 @@
                 'data-ll-wordset-progress-word-star': row.id,
                 'aria-pressed': isStarred ? 'true' : 'false',
                 'aria-label': starLabel,
-                title: starLabel,
-                text: isStarred ? '★' : '☆'
+                title: starLabel
             }).appendTo($starCell);
             $starCell.appendTo($tr);
 
@@ -5201,7 +5200,8 @@
         const filteredMinimumWords = getSelectionFilteredMinimumWordCount();
         // Starred/hard filters are user-specific and should stay unavailable for guests.
         const showStarredOnly = isLoggedIn && metrics.starred >= filteredMinimumWords;
-        const showHardOnly = isLoggedIn && metrics.hard >= filteredMinimumWords;
+        const minimumHardWordsForSelectionFilter = Math.max(5, getSelectionMinimumWordCount());
+        const showHardOnly = isLoggedIn && metrics.hard >= minimumHardWordsForSelectionFilter;
 
         if (!showStarredOnly) {
             selectionStarredOnly = false;

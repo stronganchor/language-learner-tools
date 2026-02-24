@@ -246,9 +246,9 @@
 }
 
 .ll-vocab-lesson-page .ll-group-star.active {
-    background: #D39A00 !important;
-    border-color: #D39A00 !important;
-    color: #ffffff !important;
+    background: #FDE7A3 !important;
+    border-color: rgba(138, 86, 0, 0.22) !important;
+    color: #8A5600 !important;
 }
 
 .ll-vocab-lesson-settings {

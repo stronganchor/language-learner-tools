@@ -82,6 +82,32 @@ function buildCategoryWords() {
   };
 }
 
+function buildAnalyticsWordsWithHardCount(hardCount) {
+  const count = Math.max(0, Number(hardCount) || 0);
+  const rows = [];
+  const wordIds = [1101, 1102, 2201, 2202, 3301, 3302];
+
+  wordIds.forEach((id, index) => {
+    const categoryId = Number(String(id).slice(0, 2));
+    rows.push({
+      id,
+      title: `W${id}`,
+      translation: `W${id}`,
+      category_id: categoryId,
+      category_ids: [categoryId],
+      status: 'studied',
+      difficulty_score: index < count ? 4 : 0,
+      total_coverage: 3,
+      incorrect: 0,
+      lapse_count: 0,
+      last_seen_at: '',
+      is_starred: false
+    });
+  });
+
+  return rows;
+}
+
 function buildPageConfig({ isLoggedIn }) {
   return {
     view: 'main',
@@ -660,6 +686,42 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await page.locator('[data-ll-wordset-select-all]').click();
 
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
+});
+
+test('selection shows hard-only only when at least five hard words are in selected categories', async ({ page }) => {
+  const hardToggle = page.locator('.ll-wordset-selection-bar__hard-toggle');
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      analytics: {
+        scope: {},
+        summary: {},
+        daily_activity: { days: [], max_events: 0, window_days: 14 },
+        categories: [],
+        words: buildAnalyticsWordsWithHardCount(4)
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(hardToggle).toBeHidden();
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      analytics: {
+        scope: {},
+        summary: {},
+        daily_activity: { days: [], max_events: 0, window_days: 14 },
+        categories: [],
+        words: buildAnalyticsWordsWithHardCount(5)
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(hardToggle).toBeVisible();
 });
 
 test('learning starred selection mixes only compatible categories and fills to eight words', async ({ page }) => {

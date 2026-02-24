@@ -1135,7 +1135,7 @@ function ll_tools_wordset_page_render_mode_icon(string $mode, array $mode_ui, st
 }
 
 function ll_tools_wordset_page_render_hide_icon(string $class = 'll-wordset-hide-icon'): string {
-    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
         . '<path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
         . '<circle cx="32" cy="32" r="7" fill="currentColor"/>'
         . '<path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>'
@@ -1143,7 +1143,7 @@ function ll_tools_wordset_page_render_hide_icon(string $class = 'll-wordset-hide
 }
 
 function ll_tools_wordset_page_render_unhide_icon(string $class = 'll-wordset-unhide-icon'): string {
-    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
         . '<path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/>'
         . '</svg>';
 }
@@ -1158,7 +1158,7 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
 
 function ll_tools_wordset_page_render_hard_words_icon(string $class = ''): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
-    return '<svg' . $class_attr . ' viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+    return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
         . '<path d="M12 3.5L2.5 20.5H21.5L12 3.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>'
         . '<line x1="12" y1="9" x2="12" y2="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>'
         . '<circle cx="12" cy="17" r="1.2" fill="currentColor"></circle>'
@@ -1168,26 +1168,26 @@ function ll_tools_wordset_page_render_hard_words_icon(string $class = ''): strin
 function ll_tools_wordset_page_render_progress_icon(string $status, string $class = 'll-wordset-progress-pill__icon'): string {
     $status = sanitize_key($status);
     if ($status === 'starred') {
-        return '<span class="' . esc_attr(trim($class . ' ll-wordset-progress-star-glyph-icon')) . '" aria-hidden="true">★</span>';
+        return '<span class="' . esc_attr(trim($class . ' ll-wordset-progress-star-glyph-icon')) . '" aria-hidden="true"></span>';
     }
 
     $svg = '';
     if ($status === 'mastered') {
-        $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+        $svg = '<svg viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
             . '<polyline points="14,34 28,46 50,18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline>'
             . '</svg>';
     } elseif ($status === 'studied') {
-        $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+        $svg = '<svg viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
             . '<circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="6"></circle>'
             . '<path fill="currentColor" fill-rule="evenodd" d="M32 8 A24 24 0 1 1 31.999 8 Z M32 32 L32 8 A24 24 0 0 0 8 32 Z"></path>'
             . '</svg>';
     } elseif ($status === 'new') {
-        $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+        $svg = '<svg viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
             . '<line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>'
             . '<line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line>'
             . '</svg>';
     } elseif ($status === 'hard') {
-        $svg = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+        $svg = '<svg viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
             . '<path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path>'
             . '<line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line>'
             . '<circle cx="32" cy="45" r="3.2" fill="currentColor"></circle>'
@@ -1328,9 +1328,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $show_plugin_update_link = false;
         $plugin_update_version = '';
     }
+    $plugin_update_check_flash = $can_manage_plugin_updates && function_exists('ll_tools_consume_plugin_update_check_flash')
+        ? (string) ll_tools_consume_plugin_update_check_flash()
+        : '';
+    $show_plugin_up_to_date_flash = $show_title
+        && $can_manage_plugin_updates
+        && !$show_plugin_update_link
+        && $plugin_update_check_flash === 'up_to_date';
     $show_plugin_update_check_link = $show_title
         && $can_manage_plugin_updates
-        && $plugin_update_status_name === 'unknown';
+        && !$show_plugin_update_link
+        && !$show_plugin_up_to_date_flash;
     $plugin_update_check_url = ($show_plugin_update_check_link && function_exists('ll_tools_get_plugin_update_check_action_url'))
         ? (string) ll_tools_get_plugin_update_check_action_url($wordset_url)
         : '';
@@ -2563,6 +2571,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     <?php echo esc_html(sprintf(__('Update to %s', 'll-tools-text-domain'), $plugin_update_version)); ?>
                                 </span>
                             </a>
+                        <?php elseif ($show_plugin_up_to_date_flash) : ?>
+                            <span
+                                class="ll-wordset-link-chip ll-wordset-check-updates-link ll-wordset-check-updates-link--success"
+                                role="status"
+                                aria-label="<?php echo esc_attr__('Plugin is up to date', 'll-tools-text-domain'); ?>">
+                                <span class="ll-wordset-check-updates-link__check" aria-hidden="true">
+                                    <svg viewBox="0 0 16 16" width="10" height="10" focusable="false" aria-hidden="true">
+                                        <path d="M3.5 8.25 6.4 11.1 12.5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    </svg>
+                                </span>
+                                <span class="ll-wordset-check-updates-link__label">
+                                    <?php echo esc_html__('Up to date', 'll-tools-text-domain'); ?>
+                                </span>
+                            </span>
                         <?php elseif ($show_plugin_update_check_link) : ?>
                             <a
                                 class="ll-wordset-link-chip ll-wordset-check-updates-link"

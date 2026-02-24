@@ -219,6 +219,55 @@ function ll_tools_get_plugin_update_check_action_url($redirect_to = '') {
 }
 
 /**
+ * Build a per-user transient key for one-time update-check UI feedback.
+ */
+function ll_tools_plugin_update_check_flash_key($user_id = 0) {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        $user_id = get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return '';
+    }
+
+    $blog_id = function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 0;
+    return 'll_tools_upd_ck_flash_' . $blog_id . '_' . $user_id;
+}
+
+/**
+ * Store one-time plugin update check UI feedback for the current admin user.
+ */
+function ll_tools_set_plugin_update_check_flash($status) {
+    $key = ll_tools_plugin_update_check_flash_key();
+    if ($key === '') {
+        return;
+    }
+
+    $status = is_string($status) ? trim($status) : '';
+    if ($status === '') {
+        delete_transient($key);
+        return;
+    }
+
+    set_transient($key, $status, 2 * MINUTE_IN_SECONDS);
+}
+
+/**
+ * Consume one-time plugin update check UI feedback for the current user.
+ */
+function ll_tools_consume_plugin_update_check_flash() {
+    $key = ll_tools_plugin_update_check_flash_key();
+    if ($key === '') {
+        return '';
+    }
+
+    $value = get_transient($key);
+    delete_transient($key);
+
+    return is_string($value) ? trim($value) : '';
+}
+
+/**
  * Manual update check endpoint for admins clicking from the wordset page.
  */
 function ll_tools_handle_manual_plugin_update_check() {
@@ -249,6 +298,17 @@ function ll_tools_handle_manual_plugin_update_check() {
         wp_update_plugins();
     } elseif (is_object($ll_tools_update_checker) && method_exists($ll_tools_update_checker, 'checkForUpdates')) {
         $ll_tools_update_checker->checkForUpdates();
+    }
+
+    ll_tools_set_plugin_update_check_flash('');
+    $plugin_file = plugin_basename(LL_TOOLS_MAIN_FILE);
+    $updates = get_site_transient('update_plugins');
+    if (is_object($updates)) {
+        $response = isset($updates->response) ? (is_array($updates->response) ? $updates->response : (array) $updates->response) : [];
+        $no_update = isset($updates->no_update) ? (is_array($updates->no_update) ? $updates->no_update : (array) $updates->no_update) : [];
+        if (empty($response[$plugin_file]) && array_key_exists($plugin_file, $no_update)) {
+            ll_tools_set_plugin_update_check_flash('up_to_date');
+        }
     }
 
     wp_safe_redirect($redirect_to);

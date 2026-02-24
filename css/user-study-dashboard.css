@@ -694,8 +694,9 @@ body.ll-study-check-open {
 }
 
 .ll-word-star.active {
-  background: #D39A00;
-  border-color: #D39A00;
+  background: #FDE7A3;
+  border-color: rgba(138, 86, 0, 0.22);
+  color: #8A5600;
 }
 
 .ll-group-star {
@@ -705,9 +706,9 @@ body.ll-study-check-open {
 }
 
 .ll-group-star.active {
-  background: #D39A00;
-  border-color: #D39A00;
-  color: #ffffff;
+  background: #FDE7A3;
+  border-color: rgba(138, 86, 0, 0.22);
+  color: #8A5600;
 }
 
 .ll-word-thumb {
@@ -1157,9 +1158,9 @@ body.ll-study-check-open {
   --ll-star-btn-color: #111827;
   --ll-star-btn-hover-border: #cbd5e1;
   --ll-star-btn-hover-bg: #f8fafc;
-  --ll-star-btn-active-bg: #D39A00;
-  --ll-star-btn-active-border: #D39A00;
-  --ll-star-btn-active-color: #111827;
+  --ll-star-btn-active-bg: #FDE7A3;
+  --ll-star-btn-active-border: rgba(138, 86, 0, 0.22);
+  --ll-star-btn-active-color: #8A5600;
   --ll-star-btn-font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
   width: 30px;
   height: 30px;
@@ -1186,9 +1187,9 @@ body.ll-study-check-open {
 }
 
 .ll-study-analytics-star.active {
-  background: #D39A00;
-  border-color: #D39A00;
-  color: #111827;
+  background: #FDE7A3;
+  border-color: rgba(138, 86, 0, 0.22);
+  color: #8A5600;
 }
 
 .ll-study-status-pill {
@@ -1780,11 +1781,11 @@ body.ll-study-check-open {
 .ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star[aria-pressed="true"],
 .ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star.active,
 .ll-user-study-dashboard .ll-word-row button.ll-word-star.ll-word-star[aria-pressed="true"] {
-  background: #D39A00 !important;
-  background-color: #D39A00 !important;
+  background: #FDE7A3 !important;
+  background-color: #FDE7A3 !important;
   background-image: none !important;
-  border-color: #D39A00 !important;
-  color: #ffffff !important;
+  border-color: rgba(138, 86, 0, 0.22) !important;
+  color: #8A5600 !important;
 }
 
 .ll-user-study-dashboard #ll-study-words button.ll-word-star.ll-word-star.active::before,
@@ -1809,7 +1810,7 @@ body.ll-study-check-open {
 .ll-user-study-dashboard .ll-word-star.ll-quiz-star-btn[aria-pressed="true"],
 .ll-user-study-dashboard #ll-study-words .ll-word-star.ll-quiz-star-btn.active,
 .ll-user-study-dashboard #ll-study-words .ll-word-star.ll-quiz-star-btn[aria-pressed="true"] {
-  color: #ffffff !important;
+  color: #8A5600 !important;
 }
 
 @media (max-width: 768px) {
