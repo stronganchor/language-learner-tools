@@ -359,6 +359,42 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
     ksort($normalized, SORT_NUMERIC);
 
     update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $normalized, false);
+
+    if (function_exists('ll_tools_bump_category_cache_version')) {
+        $touched_word_ids = [];
+        foreach (array_keys($owner_to_wrong_ids) as $owner_id_raw) {
+            $owner_id = (int) $owner_id_raw;
+            if ($owner_id > 0) {
+                $touched_word_ids[$owner_id] = true;
+            }
+        }
+        foreach (array_keys($existing_wrong_lookup) as $wrong_id_raw) {
+            $wrong_id = (int) $wrong_id_raw;
+            if ($wrong_id > 0) {
+                $touched_word_ids[$wrong_id] = true;
+            }
+        }
+
+        if (!empty($touched_word_ids)) {
+            $touched_category_ids = [];
+            foreach (array_keys($touched_word_ids) as $word_id) {
+                $category_ids = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+                if (is_wp_error($category_ids)) {
+                    continue;
+                }
+                foreach ((array) $category_ids as $category_id_raw) {
+                    $category_id = (int) $category_id_raw;
+                    if ($category_id > 0) {
+                        $touched_category_ids[$category_id] = true;
+                    }
+                }
+            }
+            if (!empty($touched_category_ids)) {
+                ll_tools_bump_category_cache_version(array_keys($touched_category_ids));
+            }
+        }
+    }
+
     return $normalized;
 }
 

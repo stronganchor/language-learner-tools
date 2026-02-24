@@ -1437,6 +1437,9 @@ function ll_enqueue_wordsets_script() {
         return;
     }
 
+    if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
+        ll_tools_enqueue_jquery_ui_autocomplete_assets();
+    }
     ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable'), true);
 
     $languages = get_terms([

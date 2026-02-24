@@ -16,9 +16,14 @@ function ll_tools_ensure_recording_page() {
         return;
     }
 
+    $force_create = (bool) get_option('ll_tools_force_create_recording_page', false);
+    if ($force_create) {
+        delete_option('ll_tools_force_create_recording_page');
+    }
+
     // Check if a recording page already exists and is valid
     $existing_page_id = get_option('ll_default_recording_page_id');
-    if ($existing_page_id && get_post_status($existing_page_id) === 'publish') {
+    if (!$force_create && $existing_page_id && get_post_status($existing_page_id) === 'publish') {
         return; // Page exists and is published
     }
 
@@ -36,7 +41,7 @@ function ll_tools_ensure_recording_page() {
         'fields' => 'ids',
     ]);
 
-    if (!empty($pages)) {
+    if (!$force_create && !empty($pages)) {
         // Found existing page, just save the ID
         update_option('ll_default_recording_page_id', $pages[0]);
         return;
@@ -44,7 +49,7 @@ function ll_tools_ensure_recording_page() {
 
     // Check if we've already tried to create recently (avoid duplicate creation)
     $creation_attempt = get_transient('ll_recording_page_creation_attempt');
-    if ($creation_attempt) {
+    if (!$force_create && $creation_attempt) {
         return; // Already tried recently, don't spam
     }
 
@@ -147,12 +152,12 @@ function ll_recording_page_settings_section() {
 
                     $.post(ajaxurl, {
                         action: 'll_create_recording_page',
-                        nonce: '<?php echo wp_create_nonce('ll_create_recording_page'); ?>'
+                        nonce: '<?php echo esc_js(wp_create_nonce('ll_create_recording_page')); ?>'
                     }, function(response) {
                         if (response.success) {
                             location.reload();
                         } else {
-                            alert('Error: ' + (response.data || 'Unknown error'));
+                            window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + (response.data || '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>'));
                         }
                     });
                 });
@@ -176,6 +181,7 @@ function ll_ajax_create_recording_page() {
 
     // Clear the old page ID
     delete_option('ll_default_recording_page_id');
+    delete_transient('ll_recording_page_creation_attempt');
 
     // Set flag to create page
     update_option('ll_tools_force_create_recording_page', 1);

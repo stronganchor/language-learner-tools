@@ -1743,6 +1743,9 @@ function ll_tools_word_grid_shortcode($atts) {
     if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_mood')) {
         $wordset_has_verb_mood = ll_tools_wordset_has_verb_mood($wordset_id);
     }
+    if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
+        ll_tools_enqueue_jquery_ui_autocomplete_assets();
+    }
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery', 'jquery-ui-autocomplete'], true);
 
     $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id)
@@ -2877,6 +2880,11 @@ function ll_tools_word_grid_user_can_manage_word(int $word_id, int $preferred_wo
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return false;
+    }
+
+    // Administrators can edit words even when they are not assigned to a wordset yet.
+    if (current_user_can('manage_options')) {
+        return true;
     }
 
     $preferred_wordset_id = (int) $preferred_wordset_id;

@@ -847,6 +847,9 @@ function ll_editor_hub_shortcode($atts) {
     $dataset = ll_tools_editor_hub_get_dataset($wordset_id, (string) $atts['category']);
 
     ll_enqueue_asset_by_timestamp('/css/editor-hub.css', 'll-editor-hub-css');
+    if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
+        ll_tools_enqueue_jquery_ui_autocomplete_assets();
+    }
     ll_enqueue_asset_by_timestamp('/js/editor-hub.js', 'll-editor-hub', ['jquery', 'jquery-ui-autocomplete'], true);
 
     $current_user = wp_get_current_user();

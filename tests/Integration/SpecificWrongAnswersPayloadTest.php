@@ -157,4 +157,36 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
     }
+
+    public function test_rebuild_owner_map_invalidates_cached_category_rows(): void
+    {
+        $category_name = 'Specific Wrong Cache Bust ' . (string) wp_rand(1000, 9999);
+        $category_id = $this->createCategory($category_name);
+
+        $owner_id = $this->createWord($category_id, 'Owner Cached Word');
+        $reserved_id = $this->createWord($category_id, 'Reserved Cached Word');
+
+        $config = [
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+
+        $primed_rows = ll_get_words_by_category($category_name, 'text_title', null, $config);
+        $primed_by_id = $this->indexRowsByWordId((array) $primed_rows);
+        $this->assertArrayHasKey($owner_id, $primed_by_id);
+        $this->assertArrayHasKey($reserved_id, $primed_by_id);
+        $this->assertSame([], $this->normalizeIds((array) ($primed_by_id[$owner_id]['specific_wrong_answer_ids'] ?? [])));
+        $this->assertSame([], $this->normalizeIds((array) ($primed_by_id[$reserved_id]['specific_wrong_answer_owner_ids'] ?? [])));
+
+        update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$reserved_id]);
+        update_post_meta($owner_id, LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Typed Wrong']);
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+
+        $updated_rows = ll_get_words_by_category($category_name, 'text_title', null, $config);
+        $updated_by_id = $this->indexRowsByWordId((array) $updated_rows);
+
+        $this->assertSame([$reserved_id], $this->normalizeIds((array) ($updated_by_id[$owner_id]['specific_wrong_answer_ids'] ?? [])));
+        $this->assertSame(['Typed Wrong'], array_values(array_map('strval', (array) ($updated_by_id[$owner_id]['specific_wrong_answer_texts'] ?? []))));
+        $this->assertSame([$owner_id], $this->normalizeIds((array) ($updated_by_id[$reserved_id]['specific_wrong_answer_owner_ids'] ?? [])));
+    }
 }

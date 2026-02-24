@@ -2061,6 +2061,9 @@ function ll_tools_wordset_page_summary_counts(array $analytics): array {
 }
 
 function ll_tools_wordset_page_enqueue_scripts(): void {
+    if (function_exists('ll_tools_enqueue_confetti_asset')) {
+        ll_tools_enqueue_confetti_asset();
+    }
     ll_enqueue_asset_by_timestamp('/js/wordset-pages.js', 'll-wordset-pages-js', ['jquery'], true);
 }
 

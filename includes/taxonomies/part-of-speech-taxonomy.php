@@ -1,5 +1,7 @@
 <?php
 
+if (!defined('WPINC')) { die; }
+
 // Register the "part_of_speech" taxonomy for the "words" custom post type
 function ll_register_part_of_speech_taxonomy() {
     $labels = array(
@@ -19,6 +21,11 @@ function ll_register_part_of_speech_taxonomy() {
     );
 
     register_taxonomy('part_of_speech', array('words'), $args);
+
+    // Only seed defaults once to avoid repeated duplicate insert attempts on every init.
+    if (get_option('ll_parts_of_speech_seeded')) {
+        return;
+    }
 
     // Insert pre-defined part of speech terms
     $parts_of_speech = array(
@@ -42,7 +49,11 @@ function ll_register_part_of_speech_taxonomy() {
     );
 
     foreach ($parts_of_speech as $part_of_speech_slug => $part_of_speech_name) {
-        wp_insert_term($part_of_speech_name, 'part_of_speech', array('slug' => $part_of_speech_slug));
+        if (!term_exists($part_of_speech_slug, 'part_of_speech')) {
+            wp_insert_term($part_of_speech_name, 'part_of_speech', array('slug' => $part_of_speech_slug));
+        }
     }
+
+    update_option('ll_parts_of_speech_seeded', true);
 }
 add_action('init', 'll_register_part_of_speech_taxonomy');

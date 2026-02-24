@@ -943,6 +943,17 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
     }
 
     $use_titles = get_term_meta($term->term_id, 'use_word_titles_for_audio', true) === '1';
+    $term_id = (int) $term->term_id;
+
+    static $resolving_term_ids = [];
+    if ($term_id > 0 && !empty($resolving_term_ids[$term_id])) {
+        // Avoid recursive default-resolution loops triggered by display-text
+        // resolution inside ll_get_words_by_category().
+        return $use_titles ? 'text_title' : 'image';
+    }
+    if ($term_id > 0) {
+        $resolving_term_ids[$term_id] = true;
+    }
 
     $base = ['prompt_type' => 'audio', '__skip_quiz_config_merge' => true];
     $cfg_image = array_merge($base, ['option_type' => 'image']);
@@ -953,22 +964,28 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
     $text_title_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids, $cfg_text_title));
     $text_translation_count = count(ll_get_words_by_category($term->name, 'text', $wordset_ids, $cfg_text_translation));
 
-    if ($use_titles && $text_title_count >= $min_word_count) {
-        return 'text_title';
-    }
+    try {
+        if ($use_titles && $text_title_count >= $min_word_count) {
+            return 'text_title';
+        }
 
-    if ($image_count >= $min_word_count && $image_count >= $text_translation_count) {
+        if ($image_count >= $min_word_count && $image_count >= $text_translation_count) {
+            return 'image';
+        }
+        if ($text_translation_count >= $min_word_count) {
+            return 'text_translation';
+        }
+
+        // Fallback to whichever has more entries (or image if tied/empty)
+        if ($text_translation_count > $image_count) {
+            return 'text_translation';
+        }
         return 'image';
+    } finally {
+        if ($term_id > 0) {
+            unset($resolving_term_ids[$term_id]);
+        }
     }
-    if ($text_translation_count >= $min_word_count) {
-        return 'text_translation';
-    }
-
-    // Fallback to whichever has more entries (or image if tied/empty)
-    if ($text_translation_count > $image_count) {
-        return 'text_translation';
-    }
-    return 'image';
 }
 
 /**
@@ -1227,6 +1244,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
+        // Include term identity so in-request static cache rows do not bleed across
+        // test cases when term IDs are recycled after DB resets.
+        'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 3,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
@@ -1264,6 +1284,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'post_status'    => 'publish',
         'posts_per_page' => -1,
         'suppress_filters' => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => true,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
             'field'    => 'name',
@@ -1283,6 +1305,53 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
 
     $query = new WP_Query($args);
+    $word_ids = array_values(array_filter(array_map(static function ($post): int {
+        return ($post instanceof WP_Post) ? (int) $post->ID : 0;
+    }, (array) $query->posts), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+
+    $audio_posts_by_word = [];
+    if (!empty($word_ids)) {
+        $all_audio_posts = get_posts([
+            'post_type'      => 'word_audio',
+            'post_parent__in' => $word_ids,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'suppress_filters' => true,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'no_found_rows'  => true,
+        ]);
+
+        if (!empty($all_audio_posts)) {
+            $audio_ids = array_values(array_filter(array_map(static function ($post): int {
+                return ($post instanceof WP_Post) ? (int) $post->ID : 0;
+            }, (array) $all_audio_posts), static function (int $post_id): bool {
+                return $post_id > 0;
+            }));
+
+            if (!empty($audio_ids)) {
+                update_postmeta_cache($audio_ids);
+                update_object_term_cache($audio_ids, 'word_audio');
+            }
+
+            foreach ($all_audio_posts as $audio_post) {
+                if (!($audio_post instanceof WP_Post)) {
+                    continue;
+                }
+                $parent_id = (int) $audio_post->post_parent;
+                if ($parent_id <= 0) {
+                    continue;
+                }
+                if (!isset($audio_posts_by_word[$parent_id])) {
+                    $audio_posts_by_word[$parent_id] = [];
+                }
+                $audio_posts_by_word[$parent_id][] = $audio_post;
+            }
+        }
+    }
+
     $words = [];
     $group_maps = [
         'group_map' => [],
@@ -1317,15 +1386,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $audio_files = [];
-        $audio_posts = get_posts([
-            'post_type'      => 'word_audio',
-            'post_parent'    => $word_id,
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'suppress_filters' => true,
-            'orderby'        => 'date',
-            'order'          => 'DESC',
-        ]);
+        $audio_posts = isset($audio_posts_by_word[$word_id]) && is_array($audio_posts_by_word[$word_id])
+            ? $audio_posts_by_word[$word_id]
+            : [];
 
         $preferred_speaker = ll_tools_get_preferred_speaker_for_word($word_id);
         foreach ($audio_posts as $audio_post) {
@@ -1343,7 +1406,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
         }
 
-        $prioritized_audio = ll_get_prioritized_audio($audio_posts);
+        $prioritized_audio = ll_get_prioritized_audio($audio_posts, $preferred_speaker);
         $primary_audio = '';
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
@@ -1629,10 +1692,11 @@ function ll_get_word_audio_url($word_id) {
  *
  * Practice prompt audio ordering is handled in the flashcard JS mode layer.
  *
- * @param array $audio_posts Array of word_audio post objects
+ * @param array    $audio_posts Array of word_audio post objects
+ * @param int|null $preferred_speaker Preferred speaker ID (optional to avoid duplicate lookup)
  * @return WP_Post|null The highest priority audio post or null
  */
-function ll_get_prioritized_audio($audio_posts) {
+function ll_get_prioritized_audio($audio_posts, ?int $preferred_speaker = null) {
     if (empty($audio_posts)) {
         return null;
     }
@@ -1663,11 +1727,15 @@ function ll_get_prioritized_audio($audio_posts) {
         }
     }
 
-    // Attempt to prefer a speaker who has all main types
-    $preferred_speaker = 0;
-    if (!empty($audio_posts)) {
-        $parent_id = (int) (get_post($audio_posts[0])->post_parent ?? 0);
-        if ($parent_id) { $preferred_speaker = ll_tools_get_preferred_speaker_for_word($parent_id); }
+    // Attempt to prefer a speaker who has all main types.
+    if ($preferred_speaker === null) {
+        $preferred_speaker = 0;
+        if (!empty($audio_posts)) {
+            $parent_id = (int) (get_post($audio_posts[0])->post_parent ?? 0);
+            if ($parent_id) { $preferred_speaker = ll_tools_get_preferred_speaker_for_word($parent_id); }
+        }
+    } else {
+        $preferred_speaker = max(0, (int) $preferred_speaker);
     }
 
     // Check each priority level in order
