@@ -35,6 +35,8 @@
     let recommendationQueue = normalizeRecommendationQueue(cfg.recommendationQueue || []);
     let summaryCounts = normalizeSummaryCounts(cfg.summaryCounts || {});
     let analytics = normalizeAnalytics(cfg.analytics || null);
+    let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
+    let summaryMetricsLoadingToken = 0;
     let selectedCategoryIds = [];
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
@@ -79,9 +81,12 @@
     let nextCardWidthReleaseTimer = null;
     let progressMiniCountRaf = 0;
     let progressMiniCountCleanupTimer = null;
+    let progressMiniCountPendingComplete = null;
     let progressMiniStickyHostEl = null;
     let progressMiniStickyRaf = 0;
+    let progressMiniStickyHoldTimer = 0;
     let progressMiniStickyReleaseTimer = 0;
+    let progressMiniStickyReleaseFinalize = null;
     let progressMiniStickySession = null;
 
     function protectMaqafNoBreak(value) {
@@ -110,6 +115,7 @@
     const CATEGORY_PROGRESS_CENTER_BAND_RATIO = 0.3;
     const CATEGORY_PROGRESS_CENTER_MIN_BAND_PX = 120;
     const CATEGORY_PROGRESS_POST_METRICS_DELAY_MS = 650;
+    const PROGRESS_MINI_STICKY_HOLD_AFTER_ANIMATION_MS = 1500;
 
     const $nextCard = $root.find('[data-ll-wordset-next]');
     const $nextShell = $root.find('[data-ll-wordset-next-shell]');
@@ -2920,6 +2926,19 @@
         });
         const hardLookup = getHardWordLookup();
         const seen = {};
+        const selectionMatchesVisibleScope = areCategorySetsEqual(ids, getVisibleCategoryIds());
+        const analyticsScopeCategoryIds = uniqueIntList(
+            analytics && analytics.scope && typeof analytics.scope === 'object'
+                ? (analytics.scope.category_ids || [])
+                : []
+        );
+        const analyticsScopeLookup = {};
+        analyticsScopeCategoryIds.forEach(function (id) {
+            analyticsScopeLookup[id] = true;
+        });
+        const analyticsCoversSelection = !!analyticsScopeCategoryIds.length && ids.every(function (id) {
+            return !!analyticsScopeLookup[id];
+        });
         const applyWord = function (wordId) {
             if (!wordId || seen[wordId]) { return; }
             seen[wordId] = true;
@@ -2956,29 +2975,46 @@
             if (!inSelection) { return; }
             applyWord(wordId);
         });
-        if (metrics.total > 0) {
+        if (analyticsCoversSelection) {
             return metrics;
         }
 
         // Fallback for logged-out selection flows where analytics words are often empty.
-        let usedLoadedCategoryWords = false;
+        let loadedCategoryCount = 0;
         ids.forEach(function (categoryId) {
             const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
-            if (!rows.length) { return; }
-            usedLoadedCategoryWords = true;
+            if (!Array.isArray(wordsByCategory[categoryId])) { return; }
+            loadedCategoryCount += 1;
             rows.forEach(function (row) {
                 applyWord(parseInt(row && row.id, 10) || 0);
             });
         });
-        if (usedLoadedCategoryWords && metrics.total > 0) {
+        if (selectionMatchesVisibleScope) {
+            const summary = normalizeSummaryCounts(summaryCounts || {});
+            if (summary.starred > metrics.starred) {
+                metrics.starred = summary.starred;
+            }
+            if (summary.hard > metrics.hard) {
+                metrics.hard = summary.hard;
+            }
+        }
+        if (loadedCategoryCount === ids.length) {
             return metrics;
         }
 
         // Last resort: estimate from category totals so selection actions stay usable.
+        // Avoid returning partial cached-word counts (common on the main view where
+        // analytics.words is intentionally not bootstrapped and only some categories
+        // may have been fetched yet).
         metrics.total = ids.reduce(function (sum, id) {
             const cat = getCategoryById(id);
             return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
         }, 0);
+        if (selectionMatchesVisibleScope) {
+            const summary = normalizeSummaryCounts(summaryCounts || {});
+            metrics.starred = Math.max(metrics.starred, summary.starred);
+            metrics.hard = Math.max(metrics.hard, summary.hard);
+        }
 
         return metrics;
     }
@@ -3005,8 +3041,31 @@
         return uniqueIntList(ids);
     }
 
+    function setSummaryMetricsLoadingState(isLoading) {
+        summaryMetricsLoading = !!isLoading;
+
+        if ($progressMiniChip.length) {
+            $progressMiniChip
+                .toggleClass('is-loading', summaryMetricsLoading)
+                .attr('aria-busy', summaryMetricsLoading ? 'true' : 'false');
+        }
+
+        syncSelectAllButton();
+    }
+
     function syncSelectAllButton() {
         if (!$selectAllButton.length) { return; }
+        const summaryLoading = !!summaryMetricsLoading;
+        $selectAllButton
+            .toggleClass('is-loading', summaryLoading)
+            .prop('disabled', summaryLoading)
+            .attr('aria-disabled', summaryLoading ? 'true' : 'false');
+        if (summaryLoading) {
+            $selectAllButton.attr('aria-busy', 'true');
+        } else {
+            $selectAllButton.removeAttr('aria-busy');
+        }
+
         const $selectAllWrap = $selectAllButton.closest('.ll-wordset-grid-tools');
         const allIds = getSelectableCategoryIdsFromUI();
         if (allIds.length <= 1) {
@@ -3259,6 +3318,13 @@
     }
 
     function clearMiniCountAnimationState() {
+        if (typeof progressMiniCountPendingComplete === 'function') {
+            const pendingComplete = progressMiniCountPendingComplete;
+            progressMiniCountPendingComplete = null;
+            try {
+                pendingComplete();
+            } catch (_) { /* no-op */ }
+        }
         if (progressMiniCountRaf) {
             const cancelFrame = window.cancelAnimationFrame || window.clearTimeout;
             cancelFrame(progressMiniCountRaf);
@@ -3285,9 +3351,20 @@
             cancelFrame(progressMiniStickyRaf);
             progressMiniStickyRaf = 0;
         }
+        if (progressMiniStickyHoldTimer) {
+            window.clearTimeout(progressMiniStickyHoldTimer);
+            progressMiniStickyHoldTimer = 0;
+        }
         if (progressMiniStickyReleaseTimer) {
             window.clearTimeout(progressMiniStickyReleaseTimer);
             progressMiniStickyReleaseTimer = 0;
+        }
+        if (typeof progressMiniStickyReleaseFinalize === 'function') {
+            const finalize = progressMiniStickyReleaseFinalize;
+            progressMiniStickyReleaseFinalize = null;
+            try {
+                finalize();
+            } catch (_) { /* no-op */ }
         }
     }
 
@@ -3341,13 +3418,15 @@
         if (progressMiniStickyHostEl && progressMiniStickyHostEl.parentNode) {
             return progressMiniStickyHostEl;
         }
-        if (!document.body) {
+        const rootEl = ($root && $root.length) ? $root.get(0) : null;
+        const mountTarget = (rootEl && rootEl.nodeType === 1) ? rootEl : document.body;
+        if (!mountTarget) {
             return null;
         }
         const hostEl = document.createElement('div');
         hostEl.className = 'll-wordset-progress-mini-sticky-host';
         hostEl.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(hostEl);
+        mountTarget.appendChild(hostEl);
         progressMiniStickyHostEl = hostEl;
         return progressMiniStickyHostEl;
     }
@@ -3366,8 +3445,14 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const immediate = !!opts.immediate || prefersReducedMotion();
         clearProgressMiniStickyTimers();
+        let finalized = false;
 
         const finalize = function () {
+            if (finalized) { return; }
+            finalized = true;
+            if (progressMiniStickyReleaseFinalize === finalize) {
+                progressMiniStickyReleaseFinalize = null;
+            }
             const chipEl = target.chipEl;
             const placeholderEl = target.placeholderEl;
             const hostEl = target.hostEl;
@@ -3416,10 +3501,37 @@
             return;
         }
 
+        progressMiniStickyReleaseFinalize = finalize;
         progressMiniStickyReleaseTimer = window.setTimeout(function () {
             progressMiniStickyReleaseTimer = 0;
             finalize();
-        }, 220);
+        }, 240);
+    }
+
+    function scheduleStickyProgressMiniReleaseForMetricsAnimation(session, options) {
+        const target = (session && typeof session === 'object') ? session : progressMiniStickySession;
+        if (!target || target.released) {
+            return;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const immediate = !!opts.immediate || prefersReducedMotion();
+        const holdMs = immediate ? 0 : Math.max(0, parseInt(opts.holdMs, 10) || PROGRESS_MINI_STICKY_HOLD_AFTER_ANIMATION_MS);
+
+        if (progressMiniStickyHoldTimer) {
+            window.clearTimeout(progressMiniStickyHoldTimer);
+            progressMiniStickyHoldTimer = 0;
+        }
+
+        if (holdMs <= 0) {
+            releaseStickyProgressMiniForMetricsAnimation(target, { immediate: immediate });
+            return;
+        }
+
+        progressMiniStickyHoldTimer = window.setTimeout(function () {
+            progressMiniStickyHoldTimer = 0;
+            releaseStickyProgressMiniForMetricsAnimation(target, { immediate: immediate });
+        }, holdMs);
     }
 
     function showStickyProgressMiniForMetricsAnimationIfOffscreen() {
@@ -3458,10 +3570,9 @@
         const sourceNextSibling = chipEl.nextSibling;
         sourceParent.insertBefore(placeholderEl, chipEl);
 
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
         const adminOffsetPx = getProgressMiniStickyAdminOffsetPx();
         const enterTravelPx = adminOffsetPx > 0 ? 10 : 18;
-        const enterOffsetY = rect.top >= viewportHeight ? (enterTravelPx + 'px') : ('-' + enterTravelPx + 'px');
+        const enterOffsetY = '-' + enterTravelPx + 'px';
 
         hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-admin-offset', adminOffsetPx + 'px');
         hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-enter-y', enterOffsetY);
@@ -3645,7 +3756,13 @@
         const shouldAnimate = !!opts.animate && !prefersReducedMotion();
         const celebratePerfect = !!opts.celebratePerfect && !prefersReducedMotion();
         const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        let didSignalComplete = false;
         const signalComplete = function () {
+            if (didSignalComplete) { return; }
+            didSignalComplete = true;
+            if (progressMiniCountPendingComplete === signalComplete) {
+                progressMiniCountPendingComplete = null;
+            }
             if (!onComplete) { return; }
             try {
                 onComplete();
@@ -3661,6 +3778,7 @@
         });
 
         clearMiniCountAnimationState();
+        progressMiniCountPendingComplete = signalComplete;
         clearMiniProgressBurstParticles();
 
         if ($progressMiniChip.length) {
@@ -4470,6 +4588,8 @@
         const analyticsData = (analyticsPayload && typeof analyticsPayload === 'object') ? analyticsPayload : {};
         const opts = (options && typeof options === 'object') ? options : {};
         const deferVisible = !!opts.deferVisible;
+        const syncAllImmediately = !!opts.syncAllImmediately;
+        const animateCards = opts.animateCards !== false;
         const rows = Array.isArray(analyticsData.categories) ? analyticsData.categories : [];
         if (!rows.length) { return false; }
 
@@ -4495,6 +4615,12 @@
                 return;
             }
             hasCategoryProgressChanges = true;
+
+            if (syncAllImmediately) {
+                setWordsetCardProgressPercents($card, nextValues, { animate: animateCards });
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
 
             const cardEl = $card.get(0);
             const cardRect = (cardEl && typeof cardEl.getBoundingClientRect === 'function')
@@ -4697,6 +4823,7 @@
         const animate = opts.animate !== false;
         const celebratePerfect = !!opts.celebratePerfect;
         const stickyMiniWhenOffscreen = !!opts.stickyMiniWhenOffscreen;
+        const syncAllCategoryProgressImmediately = !!opts.syncAllCategoryProgressImmediately;
         const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress
             || categoryProgressHoldForMetrics
             || !!categoryProgressPostMetricsTimer;
@@ -4714,10 +4841,18 @@
         }
         categoryProgressHoldForMetrics = deferVisibleCategoryProgress;
         if (!isLoggedIn || !ajaxUrl || !nonce) {
+            setSummaryMetricsLoadingState(false);
             categoryProgressHoldForMetrics = false;
             complete({ hasCountChanges: false, skipped: true });
             return;
         }
+
+        const metricsLoadingToken = ++summaryMetricsLoadingToken;
+        setSummaryMetricsLoadingState(true);
+        const finishMetricsLoading = function () {
+            if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }
+            setSummaryMetricsLoadingState(false);
+        };
 
         const stableCountsBefore = normalizeSummaryCounts(summaryCounts || {});
         const renderedCountsBefore = getRenderedMiniCountValues();
@@ -4733,12 +4868,15 @@
                 ? res.data.analytics
                 : null;
             if (!analytics || !analytics.summary || typeof analytics.summary !== 'object') {
+                finishMetricsLoading();
                 categoryProgressHoldForMetrics = false;
                 complete({ hasCountChanges: false, skipped: true });
                 return;
             }
             const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
-                deferVisible: deferVisibleCategoryProgress
+                deferVisible: deferVisibleCategoryProgress,
+                syncAllImmediately: syncAllCategoryProgressImmediately,
+                animateCards: animate
             });
             const summary = analytics.summary;
             const mastered = Math.max(0, parseInt(summary.mastered_words, 10) || 0);
@@ -4756,20 +4894,22 @@
             const stableChanged = summaryCountsChanged(stableCountsBefore, nextCounts);
             const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
             const hasCountChanges = stableChanged || renderedChanged;
+            const shouldSurfaceMetricsUpdate = hasCountChanges || !!hasCategoryProgressChanges;
             summaryCounts = nextCounts;
-            if (stickyMiniWhenOffscreen && hasCountChanges) {
+            finishMetricsLoading();
+            if (stickyMiniWhenOffscreen && shouldSurfaceMetricsUpdate) {
                 stickyMiniSession = showStickyProgressMiniForMetricsAnimationIfOffscreen();
             }
             renderMiniCounts({
                 previousCounts: renderedCountsBefore,
-                animate: animate && renderedChanged,
+                animate: animate && (renderedChanged || (stickyMiniWhenOffscreen && !!hasCategoryProgressChanges)),
                 celebratePerfect: celebratePerfect && hasCountChanges,
                 onComplete: function () {
                     if (deferVisibleCategoryProgress) {
                         scheduleTopRowCategoryProgressAfterMetrics();
                     }
                     if (stickyMiniSession) {
-                        releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession);
+                        scheduleStickyProgressMiniReleaseForMetricsAnimation(stickyMiniSession);
                         stickyMiniSession = null;
                     }
                 }
@@ -4782,6 +4922,7 @@
                 hasCategoryProgressChanges: !!hasCategoryProgressChanges
             });
         }).fail(function () {
+            finishMetricsLoading();
             categoryProgressHoldForMetrics = false;
             if (stickyMiniSession) {
                 releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession, { immediate: true });
@@ -7458,6 +7599,9 @@
 
         $root.on('click', '[data-ll-wordset-select-all]', function (e) {
             e.preventDefault();
+            if ($(this).prop('disabled') || String($(this).attr('aria-disabled') || '') === 'true') {
+                return;
+            }
             const allIds = getSelectableCategoryIdsFromUI();
             if (!allIds.length) { return; }
             const allLookup = {};
@@ -7886,9 +8030,15 @@
     }
 
     if (view === 'main') {
+        setSummaryMetricsLoadingState(summaryMetricsLoading);
         syncAllWordsetCardProgressSegmentVisualState();
         bindSettingsControls();
         bindMainInteractions();
+        refreshSummaryCounts({
+            animate: false,
+            deferVisibleCategoryProgress: false,
+            syncAllCategoryProgressImmediately: true
+        });
     }
 
     if (view === 'hidden-categories') {

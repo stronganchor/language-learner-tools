@@ -1,0 +1,164 @@
+.ll-wordset-utility-bar--shared {
+    width: min(1200px, calc(100vw - 2rem));
+    max-width: 100%;
+    margin: 0.75rem auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ll-wordset-utility-bar__identity {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    max-width: min(100%, 520px);
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-border, #e6ded1);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ll-wp-text, #2e2a24);
+    font-size: 13px;
+    line-height: 1.2;
+    box-shadow: 0 1px 8px rgba(35, 29, 21, 0.04);
+}
+
+.ll-wordset-utility-bar__identity-label {
+    color: var(--ll-wp-muted, #6b6256);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--ll-wp-muted, #6b6256);
+    flex: 0 0 auto;
+}
+
+.ll-wordset-utility-bar__identity-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.ll-wordset-utility-bar__identity-name {
+    color: var(--ll-wp-text, #2e2a24);
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-login {
+    color: var(--ll-wp-muted, #6b6256);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ll-wp-muted, #6b6256);
+    text-decoration: none !important;
+    margin-left: 2px;
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 2px;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-utility-bar__identity-logout:hover,
+.ll-wordset-utility-bar__identity-logout:focus,
+.ll-wordset-utility-bar__identity-logout:focus-visible {
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+    text-decoration: none !important;
+    outline: none;
+}
+
+.ll-wordset-utility-bar__identity-logout:focus-visible {
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.18);
+}
+
+.ll-wordset-utility-bar__identity-logout svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-utility-bar__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.ll-wordset-utility-bar__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-pill-blue-border, rgba(29, 77, 153, 0.22));
+    background: var(--ll-wp-card, #ffffff);
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+    text-decoration: none !important;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.15;
+    box-shadow: 0 2px 10px rgba(35, 29, 21, 0.04);
+}
+
+.ll-wordset-utility-bar__link:hover,
+.ll-wordset-utility-bar__link:focus,
+.ll-wordset-utility-bar__link:focus-visible {
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+    border-color: rgba(29, 77, 153, 0.34);
+    background: #f7fbff;
+    text-decoration: none !important;
+    outline: none;
+}
+
+.ll-wordset-utility-bar__link:focus-visible {
+    box-shadow: 0 0 0 3px rgba(29, 77, 153, 0.18);
+}
+
+.ll-wordset-utility-bar__link.is-active {
+    background: var(--ll-wp-pill-blue, #d8e8ff);
+    border-color: rgba(29, 77, 153, 0.28);
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+}
+
+@media (max-width: 800px) {
+    .ll-wordset-utility-bar--shared {
+        width: calc(100vw - 1.25rem);
+        align-items: stretch;
+        flex-direction: column;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .ll-wordset-utility-bar__identity {
+        max-width: 100%;
+        justify-content: flex-start;
+    }
+
+    .ll-wordset-utility-bar__links {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+}

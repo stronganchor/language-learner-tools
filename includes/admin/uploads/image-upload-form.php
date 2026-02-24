@@ -327,7 +327,7 @@ function ll_image_upload_form_shortcode($atts = []) {
                     <label for="ll-new-category-option"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?>:</label><br>
                     <select id="ll-new-category-option" name="ll_new_category_option_type" class="regular-text" data-ll-new-category-option>
                         <option value="image"><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
-                        <option value="text"><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
+                        <option value="text"><?php esc_html_e('Text (opposite prompt)', 'll-tools-text-domain'); ?></option>
                         <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
@@ -379,7 +379,7 @@ function ll_image_upload_form_shortcode($atts = []) {
         <?php if ($return_url !== '') : ?>
             <input type="hidden" name="ll_return_url" value="<?php echo esc_url($return_url); ?>">
         <?php endif; ?>
-        <input type="submit" class="button button-primary" value="<?php esc_attr_e('Bulk Add Images', 'll-tools-text-domain'); ?>">
+        <input type="submit" class="button button-primary ll-tools-upload-submit" value="<?php esc_attr_e('Bulk Add Images', 'll-tools-text-domain'); ?>">
     </form>
     <?php
     return ob_get_clean();
@@ -696,7 +696,7 @@ function ll_image_upload_create_category_from_request() {
         $allowed_options = ['image', 'text', 'text_translation', 'text_title', 'audio', 'text_audio'];
         $option = in_array($option_raw, $allowed_options, true) ? $option_raw : 'image';
         if ($option === 'text') {
-            $option = ($prompt === 'text_title') ? 'text_title' : 'text_translation';
+            $option = ($prompt === 'text_title') ? 'text_translation' : 'text_title';
         }
     }
 
@@ -706,6 +706,12 @@ function ll_image_upload_create_category_from_request() {
     }
     if ($prompt === 'audio' && $option === 'audio') {
         $option = 'text_translation';
+    }
+    if ($prompt === 'text_title' && $option === 'text_title') {
+        $option = 'text_translation';
+    }
+    if ($prompt === 'text_translation' && $option === 'text_translation') {
+        $option = 'text_title';
     }
 
     update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);

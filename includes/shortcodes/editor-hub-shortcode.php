@@ -810,8 +810,14 @@ function ll_get_editor_hub_items_handler() {
 add_action('wp_ajax_ll_get_editor_hub_items', 'll_get_editor_hub_items_handler');
 
 function ll_editor_hub_shortcode($atts) {
+    $utility_nav_base = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'editor_hub',
+        ])
+        : '';
+
     if (!is_user_logged_in()) {
-        return ll_tools_render_login_window([
+        return $utility_nav_base . ll_tools_render_login_window([
             'container_class' => 'll-editor-hub ll-login-required',
             'title' => __('Sign in to access Editor Hub', 'll-tools-text-domain'),
             'message' => __('Use an account with editor access to continue.', 'll-tools-text-domain'),
@@ -821,7 +827,7 @@ function ll_editor_hub_shortcode($atts) {
     }
 
     if (!ll_tools_editor_hub_user_can_access()) {
-        return '<div class="ll-editor-hub"><p>'
+        return $utility_nav_base . '<div class="ll-editor-hub"><p>'
             . esc_html__('You do not have permission to access Editor Hub.', 'll-tools-text-domain')
             . '</p></div>';
     }
@@ -833,7 +839,7 @@ function ll_editor_hub_shortcode($atts) {
 
     $wordset_id = ll_tools_editor_hub_resolve_wordset_id((string) $atts['wordset']);
     if ($wordset_id <= 0) {
-        return '<div class="ll-editor-hub"><p>'
+        return $utility_nav_base . '<div class="ll-editor-hub"><p>'
             . esc_html__('No word set is available for Editor Hub.', 'll-tools-text-domain')
             . '</p></div>';
     }
@@ -893,9 +899,16 @@ function ll_editor_hub_shortcode($atts) {
 
     $categories = (array) ($dataset['categories'] ?? []);
     $selected_category = (string) ($dataset['selected_category'] ?? '');
+    $utility_nav = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'editor_hub',
+            'wordset' => $wordset_id,
+        ])
+        : '';
 
     ob_start();
     ?>
+    <?php echo $utility_nav; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <div class="ll-editor-hub" data-ll-editor-hub>
         <div class="ll-editor-hub-header">
             <div class="ll-editor-hub-progress" aria-label="<?php echo esc_attr__('Progress', 'll-tools-text-domain'); ?>">

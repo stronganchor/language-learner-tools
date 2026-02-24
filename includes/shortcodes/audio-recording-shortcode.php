@@ -875,9 +875,15 @@ function ll_tools_remove_hidden_recording_word(int $user_id, string $hide_key, i
 }
 
 function ll_audio_recording_interface_shortcode($atts) {
+    $utility_nav_base = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'recorder',
+        ])
+        : '';
+
     // Require user to be logged in
     if (!is_user_logged_in()) {
-        return ll_tools_render_login_window([
+        return $utility_nav_base . ll_tools_render_login_window([
             'container_class' => 'll-recording-interface ll-login-required',
             'title' => __('Sign in to record', 'll-tools-text-domain'),
             'message' => __('Use an account with recording access to continue.', 'll-tools-text-domain'),
@@ -887,7 +893,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
 
     if (!ll_tools_user_can_record()) {
-        return '<div class="ll-recording-interface"><p>' .
+        return $utility_nav_base . '<div class="ll-recording-interface"><p>' .
                __('You do not have permission to record audio. If you think this is a mistake, ask for the "Audio Recorder" user role to be added to your user account.', 'll-tools-text-domain') . '</p></div>';
     }
 
@@ -919,10 +925,16 @@ function ll_audio_recording_interface_shortcode($atts) {
         $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, $current_user_id);
     }
     if (empty($wordset_term_ids)) {
-        return '<div class="ll-recording-interface"><p>' .
+        return $utility_nav_base . '<div class="ll-recording-interface"><p>' .
                __('No recording word set is assigned for this account. Ask the word set manager to assign a private word set.', 'll-tools-text-domain') .
                '</p></div>';
     }
+    $utility_nav_context = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'recorder',
+            'wordset' => (int) $wordset_term_ids[0],
+        ])
+        : $utility_nav_base;
 
     $allow_new_words = !empty($atts['allow_new_words']);
     $auto_process_recordings = !empty($atts['auto_process_recordings']);
@@ -934,7 +946,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     if (empty($available_categories)) {
         if (!$allow_new_words && !$has_hidden_recording_words) {
             $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
-            return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+            return $utility_nav_context . '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
         }
         $available_categories = [
             'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
@@ -964,7 +976,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
 
     if (empty($images_needing_audio) && !$allow_new_words && !$has_hidden_recording_words) {
-        return '<div class="ll-recording-interface"><p>' .
+        return $utility_nav_context . '<div class="ll-recording-interface"><p>' .
                __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
                '</p></div>';
     }
@@ -1083,10 +1095,12 @@ function ll_audio_recording_interface_shortcode($atts) {
             $wordset_name = $wordset_term->name;
         }
     }
+    $utility_nav = $utility_nav_context;
 
     ob_start();
     ?>
     <?php $initial_count = is_array($images_needing_audio) ? count($images_needing_audio) : 0; ?>
+    <?php echo $utility_nav; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <div class="ll-recording-interface">
         <!-- Compact header - progress, category, wordset, user -->
         <div class="ll-recording-header">

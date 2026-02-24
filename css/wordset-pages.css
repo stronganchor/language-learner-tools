@@ -132,6 +132,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-hero,
 .ll-wordset-subpage-head,
+.ll-wordset-utility-bar,
 .ll-wordset-top-actions,
 .ll-wordset-progress-view,
 .ll-wordset-settings-page,
@@ -144,12 +145,184 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-page.ll-wordset-page--progress .ll-wordset-subpage-head,
+.ll-wordset-page.ll-wordset-page--progress .ll-wordset-utility-bar,
 .ll-wordset-page.ll-wordset-page--progress .ll-wordset-progress-view,
 .ll-wordset-page.ll-wordset-page--progress .ll-wordset-progress-reset-notice,
 .ll-wordset-page.ll-wordset-page--settings .ll-wordset-subpage-head,
+.ll-wordset-page.ll-wordset-page--settings .ll-wordset-utility-bar,
 .ll-wordset-page.ll-wordset-page--settings .ll-wordset-settings-page {
     max-width: var(--ll-wp-subpage-shell-max-width);
     margin-inline: auto;
+}
+
+.ll-wordset-utility-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-right: var(--ll-wordset-grid-right-offset, 0px);
+}
+
+.ll-wordset-utility-bar__identity {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: min(100%, 520px);
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-border);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ll-wp-text);
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.ll-wordset-utility-bar__identity-label {
+    color: var(--ll-wp-muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--ll-wp-muted);
+    flex: 0 0 auto;
+}
+
+.ll-wordset-utility-bar__identity-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.ll-wordset-utility-bar__identity-name {
+    color: var(--ll-wp-text);
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-login {
+    color: var(--ll-wp-muted);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-wordset-utility-bar__identity-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ll-wp-muted);
+    text-decoration: none !important;
+    margin-left: 2px;
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 2px;
+    line-height: 1;
+}
+
+.ll-wordset-utility-bar__identity-logout:hover,
+.ll-wordset-utility-bar__identity-logout:focus,
+.ll-wordset-utility-bar__identity-logout:focus-visible {
+    color: var(--ll-wp-pill-blue-text);
+    text-decoration: none !important;
+    outline: none;
+}
+
+.ll-wordset-utility-bar__identity-logout svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-utility-bar__links {
+    display: flex;
+    flex: 1 1 280px;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
+    margin-left: auto;
+}
+
+.ll-wordset-utility-bar__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-pill-blue-border);
+    background: var(--ll-wp-card);
+    color: var(--ll-wp-pill-blue-text);
+    text-decoration: none !important;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.15;
+    max-width: 100%;
+    text-align: center;
+    overflow-wrap: anywhere;
+    box-shadow: 0 2px 10px rgba(35, 29, 21, 0.04);
+}
+
+.ll-wordset-utility-bar__link:hover,
+.ll-wordset-utility-bar__link:focus,
+.ll-wordset-utility-bar__link:focus-visible {
+    color: var(--ll-wp-pill-blue-text);
+    border-color: rgba(29, 77, 153, 0.34);
+    background: #f7fbff;
+    text-decoration: none !important;
+    outline: none;
+}
+
+.ll-wordset-utility-bar__link:focus-visible {
+    box-shadow: 0 0 0 3px rgba(29, 77, 153, 0.18);
+}
+
+.ll-wordset-utility-bar__link.is-active {
+    background: var(--ll-wp-pill-blue);
+    border-color: rgba(29, 77, 153, 0.28);
+    color: var(--ll-wp-pill-blue-text);
+}
+
+.ll-wordset-utility-bar__link--accent {
+    background: var(--ll-wp-pill-green);
+    border-color: var(--ll-wp-pill-green-border);
+    color: var(--ll-wp-pill-green-text);
+}
+
+.ll-wordset-utility-bar__link--accent:hover,
+.ll-wordset-utility-bar__link--accent:focus,
+.ll-wordset-utility-bar__link--accent:focus-visible {
+    color: var(--ll-wp-pill-green-text);
+    background: #e7fbeb;
+    border-color: rgba(20, 100, 40, 0.3);
+}
+
+.ll-wordset-utility-bar__link--logout {
+    border-color: var(--ll-wp-pill-slate-border);
+    color: var(--ll-wp-pill-slate-text);
+}
+
+.ll-wordset-utility-bar__link--logout:hover,
+.ll-wordset-utility-bar__link--logout:focus,
+.ll-wordset-utility-bar__link--logout:focus-visible {
+    color: var(--ll-wp-pill-slate-text);
+    background: #f6f8fb;
+    border-color: rgba(73, 84, 99, 0.3);
 }
 
 .ll-wordset-hero {
@@ -202,6 +375,24 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     flex-wrap: wrap;
     justify-content: flex-end;
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
+}
+
+@media (max-width: 800px) {
+    .ll-wordset-utility-bar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ll-wordset-utility-bar__identity {
+        max-width: 100%;
+        justify-content: flex-start;
+    }
+
+    .ll-wordset-utility-bar__links {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+    }
 }
 
 .ll-wordset-link-chip {
@@ -1112,6 +1303,27 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     will-change: transform;
 }
 
+.ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill {
+    position: relative;
+    isolation: isolate;
+    pointer-events: none;
+}
+
+.ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill > * {
+    opacity: 0;
+}
+
+.ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.14) 16%, rgba(255, 255, 255, 0.72) 34%, rgba(255, 255, 255, 0.14) 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+    pointer-events: none;
+}
+
 .ll-wordset-progress-pill.is-updating {
     animation: ll-wordset-progress-pill-update 0.62s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1318,6 +1530,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-select-all {
+    position: relative;
+    overflow: hidden;
     min-height: 34px;
     padding: 7px 12px;
     border-radius: 10px;
@@ -1579,7 +1793,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-card__title {
     margin: 0 !important;
     display: block;
-    font-size: 0.92rem;
+    font-size: 0.92rem !important;
     font-weight: 600 !important;
     color: var(--ll-wp-text) !important;
     line-height: 1.28 !important;
@@ -1588,6 +1802,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
+}
+
+/* Theme heading styles often target h2 globally; lock card titles to the card scale. */
+.ll-wordset-page .ll-wordset-card__heading > h2.ll-wordset-card__title {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    font-family: inherit !important;
+    font-size: 0.92rem !important;
+    line-height: 1.28 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
 }
 
 .ll-wordset-card__progress {
@@ -2101,6 +2328,52 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     cursor: not-allowed;
     transform: none !important;
     box-shadow: none !important;
+}
+
+/* Theme-resistant submit buttons for embedded bulk upload shortcodes on the settings page. */
+.ll-wordset-page .ll-wordset-settings-card input.ll-tools-upload-submit[type="submit"] {
+    display: inline-block !important;
+    width: auto !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    margin: 8px 0 0 !important;
+    padding: 10px 16px !important;
+    border: 1px solid #1d5f96 !important;
+    border-radius: 12px !important;
+    background: #2271b1 !important;
+    background-image: none !important;
+    color: #ffffff !important;
+    font-family: inherit !important;
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    white-space: nowrap !important;
+    box-shadow: 0 6px 14px rgba(29, 77, 153, 0.16) !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease !important;
+}
+
+.ll-wordset-page .ll-wordset-settings-card input.ll-tools-upload-submit[type="submit"]:hover,
+.ll-wordset-page .ll-wordset-settings-card input.ll-tools-upload-submit[type="submit"]:focus-visible {
+    background: #135e96 !important;
+    border-color: #0f4f7e !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 20px rgba(29, 77, 153, 0.22) !important;
+    transform: translateY(-1px);
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-settings-card input.ll-tools-upload-submit[type="submit"]:active {
+    background: #13527f !important;
+    border-color: #0f4368 !important;
+    box-shadow: 0 4px 10px rgba(29, 77, 153, 0.18) !important;
+    transform: translateY(0);
 }
 
 .ll-wordset-settings-empty {
@@ -2633,12 +2906,35 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     line-height: 1.2;
     font-weight: 600;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    text-decoration: none;
+    box-shadow: none;
+    transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .ll-wordset-progress-tab.active {
     background: #0f172a;
     border-color: #0f172a;
     color: #ffffff;
+}
+
+.ll-wordset-page button.ll-wordset-progress-tab:hover,
+.ll-wordset-page button.ll-wordset-progress-tab:focus,
+.ll-wordset-page button.ll-wordset-progress-tab:focus-visible {
+    border-color: #94a3b8 !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-tab.active:hover,
+.ll-wordset-page button.ll-wordset-progress-tab.active:focus,
+.ll-wordset-page button.ll-wordset-progress-tab.active:focus-visible {
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
 }
 
 .ll-wordset-progress-reset-actions {
@@ -3887,6 +4183,34 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     outline: none !important;
 }
 
+.ll-wordset-page .ll-wordset-select-all.is-loading,
+.ll-wordset-page .ll-wordset-select-all.is-loading:hover,
+.ll-wordset-page .ll-wordset-select-all.is-loading:focus,
+.ll-wordset-page .ll-wordset-select-all.is-loading:focus-visible,
+.ll-wordset-page .ll-wordset-select-all.is-loading:active {
+    color: transparent !important;
+    border-color: #d8e0ea !important;
+    background: #eef3f8 !important;
+    cursor: wait !important;
+    pointer-events: none !important;
+}
+
+.ll-wordset-page .ll-wordset-select-all.is-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.15) 16%, rgba(255, 255, 255, 0.8) 34%, rgba(255, 255, 255, 0.15) 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+    pointer-events: none;
+}
+
+.ll-wordset-page .ll-wordset-select-all:disabled:not(.is-loading) {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+}
+
 .ll-wordset-page .ll-wordset-progress-clear-filters {
     min-height: 36px !important;
     border: 1px solid #cdd5df !important;
@@ -5107,6 +5431,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-next-thumb--loading,
     .ll-wordset-next-card__line--skeleton,
     .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton,
+    .ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill::after,
+    .ll-wordset-page .ll-wordset-select-all.is-loading::after,
     .ll-wordset-preview-item--image.ll-image-load-pending::after,
     .ll-wordset-queue-thumb--image.ll-image-load-pending::after,
     .ll-wordset-next-thumb--image.ll-image-load-pending::after,

@@ -1704,6 +1704,15 @@
         return words.length > 0;
     }
 
+    function getNormalizedWordGenderKey(wordId) {
+        const id = toInt(wordId);
+        if (!id) return '';
+        const word = session.wordsById[id];
+        if (!word) return '';
+        const normalized = normalizeGenderValue((word.__gender_label || word.grammatical_gender || ''), getGenderOptions());
+        return String(normalized || '').trim().toLowerCase();
+    }
+
     function planLevelOneIntroBatch(maxCount) {
         const take = Math.max(1, parseInt(maxCount, 10) || 1);
         const notIntroduced = getNotIntroducedWordIds();
@@ -1713,18 +1722,44 @@
             session.introComplete = true;
             return false;
         }
-        const picked = [];
-        for (let i = 0; i < notIntroduced.length && picked.length < take; i++) {
+        const orderedCandidates = [];
+        for (let i = 0; i < notIntroduced.length; i++) {
             const wordId = toInt(notIntroduced[i]);
             if (!wordId) continue;
             if (wordId === session.lastWordId && notIntroduced.length > take) continue;
-            if (picked.indexOf(wordId) !== -1) continue;
-            picked.push(wordId);
+            if (orderedCandidates.indexOf(wordId) !== -1) continue;
+            orderedCandidates.push(wordId);
         }
-        if (!picked.length) {
-            picked.push(notIntroduced[0]);
+        if (!orderedCandidates.length) {
+            orderedCandidates.push(notIntroduced[0]);
         }
-        return setIntroWordsFromIds(picked);
+
+        let candidateOrder = orderedCandidates.slice();
+        const shouldPreferMixedFirstPair = (
+            session.level === LEVEL_ONE &&
+            take >= 2 &&
+            getIntroducedWordIds().length === 0 &&
+            candidateOrder.length >= 2
+        );
+        if (shouldPreferMixedFirstPair) {
+            const firstId = toInt(candidateOrder[0]);
+            const firstGender = getNormalizedWordGenderKey(firstId);
+            if (firstId && firstGender) {
+                const mixedIdx = candidateOrder.findIndex(function (wordId, idx) {
+                    if (idx === 0) return false;
+                    const gender = getNormalizedWordGenderKey(wordId);
+                    return !!gender && gender !== firstGender;
+                });
+                if (mixedIdx > 1) {
+                    const mixedId = candidateOrder[mixedIdx];
+                    candidateOrder = [firstId, mixedId]
+                        .concat(candidateOrder.slice(1, mixedIdx))
+                        .concat(candidateOrder.slice(mixedIdx + 1));
+                }
+            }
+        }
+
+        return setIntroWordsFromIds(candidateOrder.slice(0, take));
     }
 
     function updateCategoryForWord(wordId) {

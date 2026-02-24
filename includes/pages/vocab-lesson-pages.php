@@ -38,6 +38,23 @@ function ll_tools_get_vocab_lesson_wordset_ids(): array {
     return $ids;
 }
 
+function ll_tools_enable_vocab_lessons_for_new_wordset($term_id): void {
+    $term_id = (int) $term_id;
+    if ($term_id <= 0 || !term_exists($term_id, 'wordset')) {
+        return;
+    }
+
+    $enabled_wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
+    if (in_array($term_id, $enabled_wordset_ids, true)) {
+        return;
+    }
+
+    $enabled_wordset_ids[] = $term_id;
+    sort($enabled_wordset_ids, SORT_NUMERIC);
+    update_option('ll_vocab_lesson_wordsets', array_values($enabled_wordset_ids), false);
+}
+add_action('created_wordset', 'll_tools_enable_vocab_lessons_for_new_wordset', 20, 1);
+
 function ll_tools_vocab_lesson_build_slug(string $wordset_slug, string $category_slug): string {
     $wordset_slug  = sanitize_title($wordset_slug);
     $category_slug = sanitize_title($category_slug);

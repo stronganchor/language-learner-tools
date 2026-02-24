@@ -191,7 +191,7 @@ function ll_audio_upload_form_shortcode($atts = []) {
             <input type="hidden" name="ll_return_url" value="<?php echo esc_url($return_url); ?>">
         <?php endif; ?>
         <?php wp_nonce_field('ll_process_audio_files', 'll_audio_upload_nonce'); ?>
-        <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
+        <input type="submit" class="button button-primary ll-tools-upload-submit" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
     </form>
     <?php
     return ob_get_clean();

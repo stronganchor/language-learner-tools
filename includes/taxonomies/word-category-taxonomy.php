@@ -285,6 +285,11 @@ function ll_tools_get_quiz_option_types(): array {
     return ['image', 'text_translation', 'text_title', 'audio', 'text_audio'];
 }
 
+function ll_tools_is_text_quiz_type($value): bool {
+    $val = is_string($value) ? strtolower(trim($value)) : '';
+    return in_array($val, ['text_translation', 'text_title'], true);
+}
+
 /**
  * Normalize stored prompt/option values with safe fallbacks.
  */
@@ -297,7 +302,7 @@ function ll_tools_normalize_quiz_prompt_type($value, bool $use_titles = false): 
     return in_array($val, ll_tools_get_quiz_prompt_types(), true) ? $val : 'audio';
 }
 /**
- * Resolve a text option type so it can follow text prompt selection when requested.
+ * Resolve a text option type so text-only quizzes use the complementary text side.
  *
  * @param string $prompt_type
  * @param bool   $use_titles
@@ -306,10 +311,10 @@ function ll_tools_normalize_quiz_prompt_type($value, bool $use_titles = false): 
 function ll_tools_resolve_text_option_type_for_prompt($prompt_type, bool $use_titles = false): string {
     $normalized_prompt = ll_tools_normalize_quiz_prompt_type($prompt_type, $use_titles);
     if ($normalized_prompt === 'text_title') {
-        return 'text_title';
+        return 'text_translation';
     }
     if ($normalized_prompt === 'text_translation') {
-        return 'text_translation';
+        return 'text_title';
     }
     return $use_titles ? 'text_title' : 'text_translation';
 }
@@ -320,9 +325,16 @@ function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false, s
     if (in_array($val, ['text', 'text_match_prompt', 'text_only'], true)) {
         return ll_tools_resolve_text_option_type_for_prompt($prompt_type, $use_titles);
     }
-    return in_array($val, ll_tools_get_quiz_option_types(), true)
+    $normalized = in_array($val, ll_tools_get_quiz_option_types(), true)
         ? $val
         : ($use_titles ? 'text_title' : 'image');
+
+    $normalized_prompt = ll_tools_normalize_quiz_prompt_type($prompt_type, $use_titles);
+    if (ll_tools_is_text_quiz_type($normalized_prompt) && $normalized === $normalized_prompt) {
+        return ll_tools_resolve_text_option_type_for_prompt($normalized_prompt, $use_titles);
+    }
+
+    return $normalized;
 }
 
 /**
@@ -351,10 +363,15 @@ function ll_tools_get_category_quiz_config($term): array {
     // Back-compat: derive an option type if none stored yet (older categories)
     $option_type = $stored_option_type !== ''
         ? ll_tools_normalize_quiz_option_type($stored_option_type, $use_titles_legacy, $prompt_type)
-        : ll_tools_default_option_type_for_category($term);
+        : ll_tools_normalize_quiz_option_type(
+            ll_tools_default_option_type_for_category($term),
+            $use_titles_legacy,
+            $prompt_type
+        );
 
-    // If legacy flag is present, prefer title-based text option
-    if ($option_type === 'text_translation' && $use_titles_legacy) {
+    // If legacy flag is present with legacy/empty option storage, prefer title-based text option.
+    $stored_option_type_normalized = is_string($stored_option_type) ? strtolower(trim($stored_option_type)) : '';
+    if ($option_type === 'text_translation' && $use_titles_legacy && in_array($stored_option_type_normalized, ['', 'text'], true)) {
         $option_type = 'text_title';
     }
 
@@ -453,7 +470,7 @@ function ll_add_quiz_prompt_option_fields($term) {
         <label for="ll_quiz_option_type"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?></label>
         <select name="ll_quiz_option_type" id="ll_quiz_option_type">
             <option value="image" <?php selected($defaults['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
-            <option value="text"><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
+            <option value="text"><?php esc_html_e('Text (opposite prompt)', 'll-tools-text-domain'); ?></option>
             <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
             <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
             <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
@@ -484,6 +501,14 @@ function ll_add_quiz_prompt_option_fields($term) {
           if (prompt.value === 'audio') {
             const opt = option.querySelector('option[value="audio"]');
             if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = 'text_translation'; } }
+          }
+          if (prompt.value === 'text_title' || prompt.value === 'text_translation') {
+            const opposite = prompt.value === 'text_title' ? 'text_translation' : 'text_title';
+            const sameTextOpt = option.querySelector('option[value="' + prompt.value + '"]');
+            if (sameTextOpt) {
+              sameTextOpt.disabled = true;
+              if (option.value === prompt.value) { option.value = opposite; }
+            }
           }
         }
         prompt.addEventListener('change', syncDisables);
@@ -521,7 +546,7 @@ function ll_edit_quiz_prompt_option_fields($term) {
         <td>
             <select name="ll_quiz_option_type" id="ll_quiz_option_type">
                 <option value="image" <?php selected($config['option_type'], 'image'); ?>><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
-                <option value="text" <?php selected((in_array($config['prompt_type'], ['text_translation', 'text_title'], true) && $config['option_type'] === $config['prompt_type']), true); ?>><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
+                <option value="text"><?php esc_html_e('Text (opposite prompt)', 'll-tools-text-domain'); ?></option>
                 <option value="text_translation" <?php selected($config['option_type'], 'text_translation'); ?>><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
                 <option value="text_title" <?php selected($config['option_type'], 'text_title'); ?>><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
                 <option value="audio" <?php selected($config['option_type'], 'audio'); ?>><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
@@ -557,6 +582,14 @@ function ll_edit_quiz_prompt_option_fields($term) {
           if (prompt.value === 'audio') {
             const opt = option.querySelector('option[value="audio"]');
             if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = 'text_translation'; } }
+          }
+          if (prompt.value === 'text_title' || prompt.value === 'text_translation') {
+            const opposite = prompt.value === 'text_title' ? 'text_translation' : 'text_title';
+            const sameTextOpt = option.querySelector('option[value="' + prompt.value + '"]');
+            if (sameTextOpt) {
+              sameTextOpt.disabled = true;
+              if (option.value === prompt.value) { option.value = opposite; }
+            }
           }
         }
         prompt.addEventListener('change', syncDisables);
