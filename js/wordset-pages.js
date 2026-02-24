@@ -79,6 +79,10 @@
     let nextCardWidthReleaseTimer = null;
     let progressMiniCountRaf = 0;
     let progressMiniCountCleanupTimer = null;
+    let progressMiniStickyHostEl = null;
+    let progressMiniStickyRaf = 0;
+    let progressMiniStickyReleaseTimer = 0;
+    let progressMiniStickySession = null;
 
     function protectMaqafNoBreak(value) {
         const text = (value === null || value === undefined) ? '' : String(value);
@@ -3275,6 +3279,220 @@
         $progressMiniChip.find('.ll-wordset-progress-burst-dot').remove();
     }
 
+    function clearProgressMiniStickyTimers() {
+        if (progressMiniStickyRaf) {
+            const cancelFrame = window.cancelAnimationFrame || window.clearTimeout;
+            cancelFrame(progressMiniStickyRaf);
+            progressMiniStickyRaf = 0;
+        }
+        if (progressMiniStickyReleaseTimer) {
+            window.clearTimeout(progressMiniStickyReleaseTimer);
+            progressMiniStickyReleaseTimer = 0;
+        }
+    }
+
+    function getViewportTopOcclusionOffsetPx() {
+        const adminBar = document.getElementById('wpadminbar');
+        if (!adminBar || typeof adminBar.getBoundingClientRect !== 'function') {
+            return 0;
+        }
+        const style = window.getComputedStyle ? window.getComputedStyle(adminBar) : null;
+        if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+            return 0;
+        }
+        const rect = adminBar.getBoundingClientRect();
+        if (!rect || rect.height <= 0) {
+            return 0;
+        }
+        if (rect.bottom <= 0) {
+            return 0;
+        }
+        return Math.max(0, rect.bottom);
+    }
+
+    function getProgressMiniStickyAdminOffsetPx() {
+        return getViewportTopOcclusionOffsetPx();
+    }
+
+    function isRectMeaningfullyVisibleToUser(rect) {
+        if (!rect) { return false; }
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const topOcclusion = getViewportTopOcclusionOffsetPx();
+
+        const horizontalVisible = rect.right >= 0 && rect.left <= viewportWidth;
+        if (!horizontalVisible) {
+            return false;
+        }
+
+        const visibleTop = Math.max(rect.top, topOcclusion);
+        const visibleBottom = Math.min(rect.bottom, viewportHeight);
+        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+        if (visibleHeight <= 0) {
+            return false;
+        }
+
+        const rectHeight = Math.max(1, rect.height || (rect.bottom - rect.top) || 1);
+        const minVisibleHeight = Math.min(rectHeight, Math.max(14, rectHeight * 0.55));
+        return visibleHeight >= minVisibleHeight;
+    }
+
+    function ensureProgressMiniStickyHost() {
+        if (progressMiniStickyHostEl && progressMiniStickyHostEl.parentNode) {
+            return progressMiniStickyHostEl;
+        }
+        if (!document.body) {
+            return null;
+        }
+        const hostEl = document.createElement('div');
+        hostEl.className = 'll-wordset-progress-mini-sticky-host';
+        hostEl.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(hostEl);
+        progressMiniStickyHostEl = hostEl;
+        return progressMiniStickyHostEl;
+    }
+
+    function releaseStickyProgressMiniForMetricsAnimation(session, options) {
+        const target = (session && typeof session === 'object') ? session : progressMiniStickySession;
+        if (!target || target.released) {
+            return;
+        }
+
+        target.released = true;
+        if (progressMiniStickySession === target) {
+            progressMiniStickySession = null;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const immediate = !!opts.immediate || prefersReducedMotion();
+        clearProgressMiniStickyTimers();
+
+        const finalize = function () {
+            const chipEl = target.chipEl;
+            const placeholderEl = target.placeholderEl;
+            const hostEl = target.hostEl;
+            let restoreParent = null;
+            let restoreBefore = null;
+
+            if (placeholderEl && placeholderEl.parentNode) {
+                restoreParent = placeholderEl.parentNode;
+                restoreBefore = placeholderEl;
+            } else if (target.sourceParent) {
+                restoreParent = target.sourceParent;
+                restoreBefore = (target.sourceNextSibling && target.sourceNextSibling.parentNode === restoreParent)
+                    ? target.sourceNextSibling
+                    : null;
+            }
+
+            if (chipEl) {
+                if (restoreParent && chipEl.parentNode !== restoreParent) {
+                    if (restoreBefore && restoreBefore.parentNode === restoreParent) {
+                        restoreParent.insertBefore(chipEl, restoreBefore);
+                    } else {
+                        restoreParent.appendChild(chipEl);
+                    }
+                }
+                chipEl.classList.remove('ll-wordset-progress-mini--sticky-floating');
+            }
+
+            if (placeholderEl && placeholderEl.parentNode) {
+                placeholderEl.parentNode.removeChild(placeholderEl);
+            }
+
+            if (hostEl && hostEl.classList) {
+                hostEl.classList.remove('is-active');
+                if (!hostEl.childNodes.length) {
+                    hostEl.classList.remove('is-mounted');
+                }
+            }
+        };
+
+        if (target.hostEl && target.hostEl.classList) {
+            target.hostEl.classList.remove('is-active');
+        }
+
+        if (immediate) {
+            finalize();
+            return;
+        }
+
+        progressMiniStickyReleaseTimer = window.setTimeout(function () {
+            progressMiniStickyReleaseTimer = 0;
+            finalize();
+        }, 220);
+    }
+
+    function showStickyProgressMiniForMetricsAnimationIfOffscreen() {
+        if (!$progressMiniChip.length) {
+            return null;
+        }
+        const chipEl = $progressMiniChip.get(0);
+        if (!chipEl || !chipEl.parentNode || typeof chipEl.getBoundingClientRect !== 'function') {
+            return null;
+        }
+
+        const rect = chipEl.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0 || isRectMeaningfullyVisibleToUser(rect)) {
+            return null;
+        }
+
+        if (progressMiniStickySession) {
+            releaseStickyProgressMiniForMetricsAnimation(progressMiniStickySession, { immediate: true });
+        }
+
+        const hostEl = ensureProgressMiniStickyHost();
+        if (!hostEl) {
+            return null;
+        }
+
+        clearProgressMiniStickyTimers();
+
+        const placeholderEl = document.createElement('span');
+        placeholderEl.className = 'll-wordset-progress-mini-sticky-placeholder';
+        placeholderEl.setAttribute('aria-hidden', 'true');
+        placeholderEl.style.display = 'inline-block';
+        placeholderEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+        placeholderEl.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+
+        const sourceParent = chipEl.parentNode;
+        const sourceNextSibling = chipEl.nextSibling;
+        sourceParent.insertBefore(placeholderEl, chipEl);
+
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const adminOffsetPx = getProgressMiniStickyAdminOffsetPx();
+        const enterTravelPx = adminOffsetPx > 0 ? 10 : 18;
+        const enterOffsetY = rect.top >= viewportHeight ? (enterTravelPx + 'px') : ('-' + enterTravelPx + 'px');
+
+        hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-admin-offset', adminOffsetPx + 'px');
+        hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-enter-y', enterOffsetY);
+        hostEl.classList.remove('is-active');
+        hostEl.classList.add('is-mounted');
+
+        chipEl.classList.add('ll-wordset-progress-mini--sticky-floating');
+        hostEl.appendChild(chipEl);
+
+        const session = {
+            chipEl: chipEl,
+            hostEl: hostEl,
+            placeholderEl: placeholderEl,
+            sourceParent: sourceParent,
+            sourceNextSibling: sourceNextSibling,
+            released: false
+        };
+        progressMiniStickySession = session;
+
+        const raf = window.requestAnimationFrame || function (cb) { return window.setTimeout(cb, 0); };
+        progressMiniStickyRaf = raf(function () {
+            progressMiniStickyRaf = 0;
+            if (progressMiniStickySession !== session || session.released || !session.hostEl) {
+                return;
+            }
+            session.hostEl.classList.add('is-active');
+        });
+
+        return session;
+    }
+
     function buildMiniCountAnimationPlan(from, to, celebratePerfect) {
         const start = Math.max(0, parseInt(from, 10) || 0);
         const end = Math.max(0, parseInt(to, 10) || 0);
@@ -3720,22 +3938,6 @@
         const total = Math.max(0, parseInt(summary.total, 10) || 0);
         const correct = Math.max(0, parseInt(summary.correct, 10) || 0);
         return total > 0 && correct >= total;
-    }
-
-    function scrollWordsetPageToTop() {
-        if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') {
-            return;
-        }
-        const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
-        try {
-            window.scrollTo({
-                top: 0,
-                left: 0,
-                behavior: behavior
-            });
-        } catch (_) {
-            window.scrollTo(0, 0);
-        }
     }
 
     function getHiddenCountValue() {
@@ -4494,10 +4696,12 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const animate = opts.animate !== false;
         const celebratePerfect = !!opts.celebratePerfect;
+        const stickyMiniWhenOffscreen = !!opts.stickyMiniWhenOffscreen;
         const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress
             || categoryProgressHoldForMetrics
             || !!categoryProgressPostMetricsTimer;
         const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        let stickyMiniSession = null;
         const complete = function (detail) {
             if (!onComplete) { return; }
             try {
@@ -4553,6 +4757,9 @@
             const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
             const hasCountChanges = stableChanged || renderedChanged;
             summaryCounts = nextCounts;
+            if (stickyMiniWhenOffscreen && hasCountChanges) {
+                stickyMiniSession = showStickyProgressMiniForMetricsAnimationIfOffscreen();
+            }
             renderMiniCounts({
                 previousCounts: renderedCountsBefore,
                 animate: animate && renderedChanged,
@@ -4560,6 +4767,10 @@
                 onComplete: function () {
                     if (deferVisibleCategoryProgress) {
                         scheduleTopRowCategoryProgressAfterMetrics();
+                    }
+                    if (stickyMiniSession) {
+                        releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession);
+                        stickyMiniSession = null;
                     }
                 }
             });
@@ -4572,6 +4783,10 @@
             });
         }).fail(function () {
             categoryProgressHoldForMetrics = false;
+            if (stickyMiniSession) {
+                releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession, { immediate: true });
+                stickyMiniSession = null;
+            }
             complete({ hasCountChanges: false, failed: true });
         });
     }
@@ -7377,11 +7592,7 @@
                     animate: true,
                     celebratePerfect: hasPendingPerfectCelebration(),
                     deferVisibleCategoryProgress: true,
-                    onComplete: function (result) {
-                        if (result && (result.hasCountChanges || result.hasCategoryProgressChanges)) {
-                            scrollWordsetPageToTop();
-                        }
-                    }
+                    stickyMiniWhenOffscreen: true
                 });
             }
         });

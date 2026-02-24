@@ -2186,6 +2186,21 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $study_categories = [];
     $gender_options = [];
     $gender_enabled = false;
+    // Full analytics payloads (especially analytics.words) can be very large on big wordsets
+    // and are only required for the dedicated progress view. Avoid building them during the
+    // main wordset page render to prevent white-screen failures from memory/time exhaustion.
+    $should_bootstrap_analytics = ($view === 'progress');
+    $estimated_category_word_total = 0;
+    foreach ((array) $categories as $category_row) {
+        $estimated_category_word_total += max(0, (int) ($category_row['count'] ?? 0));
+    }
+    $should_bootstrap_analytics = (bool) apply_filters(
+        'll_tools_wordset_page_bootstrap_analytics',
+        $should_bootstrap_analytics,
+        $view === '' ? 'main' : $view,
+        $wordset_id,
+        $estimated_category_word_total
+    );
     if ($is_study_user) {
         if (function_exists('ll_tools_get_user_study_goals')) {
             $goals = ll_tools_get_user_study_goals(get_current_user_id());
@@ -2194,7 +2209,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $study_state = array_merge($study_state, ll_tools_get_user_study_state(get_current_user_id()));
         }
         $study_state['wordset_id'] = $wordset_id;
-        if (function_exists('ll_tools_build_user_study_analytics_payload')) {
+        if ($should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
             $analytics_include_ignored = ($view === 'progress');
             $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, $analytics_include_ignored);
         }

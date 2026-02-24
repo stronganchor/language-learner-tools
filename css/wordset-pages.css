@@ -937,6 +937,43 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.22s ease;
 }
 
+.ll-wordset-progress-mini-sticky-host {
+    position: fixed;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 12px + var(--ll-wordset-progress-mini-sticky-admin-offset, 0px));
+    transform: translate(-50%, var(--ll-wordset-progress-mini-sticky-enter-y, -18px));
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100100;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+    transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ll-wordset-progress-mini-sticky-host.is-mounted {
+    opacity: 0;
+}
+
+.ll-wordset-progress-mini-sticky-host.is-mounted.is-active {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.ll-wordset-progress-mini-sticky-placeholder {
+    display: inline-block;
+    vertical-align: top;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-progress-mini--sticky-floating {
+    pointer-events: none !important;
+    box-shadow: 0 14px 28px rgba(46, 42, 36, 0.18);
+}
+
 .ll-wordset-progress-mini:hover,
 .ll-wordset-progress-mini:focus-visible {
     border-color: rgba(31, 107, 92, 0.42);
@@ -5098,6 +5135,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-progress-mini,
     .ll-wordset-progress-pill,
     .ll-wordset-progress-pill__value {
+        transition: none !important;
+    }
+
+    .ll-wordset-progress-mini-sticky-host {
         transition: none !important;
     }
 
