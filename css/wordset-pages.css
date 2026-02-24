@@ -224,6 +224,70 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     outline: none;
 }
 
+.ll-wordset-link-chip.ll-wordset-update-link {
+    min-height: var(--ll-wp-top-chip-height);
+    height: var(--ll-wp-top-chip-height);
+    padding: 0 12px;
+    gap: 8px;
+    border: 1px solid rgba(194, 65, 12, 0.35);
+    background: #fff7ed;
+    color: #9a3412 !important;
+    box-shadow: 0 1px 0 rgba(194, 65, 12, 0.08);
+    white-space: nowrap;
+}
+
+.ll-wordset-link-chip.ll-wordset-update-link:hover,
+.ll-wordset-link-chip.ll-wordset-update-link:focus-visible {
+    border-color: rgba(194, 65, 12, 0.55);
+    background: #ffedd5;
+    color: #7c2d12 !important;
+}
+
+.ll-wordset-update-link__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: 0 0 8px;
+    box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.12);
+}
+
+.ll-wordset-update-link__label {
+    line-height: 1;
+}
+
+.ll-wordset-link-chip.ll-wordset-check-updates-link {
+    min-height: var(--ll-wp-top-chip-height);
+    height: var(--ll-wp-top-chip-height);
+    padding: 0 12px;
+    gap: 8px;
+    border: 1px solid rgba(71, 85, 105, 0.28);
+    background: #f8fafc;
+    color: #334155 !important;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    white-space: nowrap;
+}
+
+.ll-wordset-link-chip.ll-wordset-check-updates-link:hover,
+.ll-wordset-link-chip.ll-wordset-check-updates-link:focus-visible {
+    border-color: rgba(71, 85, 105, 0.42);
+    background: #f1f5f9;
+    color: #0f172a !important;
+}
+
+.ll-wordset-check-updates-link__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: 0 0 8px;
+    opacity: 0.8;
+}
+
+.ll-wordset-check-updates-link__label {
+    line-height: 1;
+}
+
 .ll-wordset-top-actions {
     display: flex;
     flex-direction: column;

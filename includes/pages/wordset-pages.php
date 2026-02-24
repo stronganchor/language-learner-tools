@@ -1311,6 +1311,32 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     );
     $back_url = ll_tools_wordset_page_resolve_back_url($wordset_term);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
+        ? ll_tools_get_plugin_update_status_details()
+        : ['status' => 'unknown', 'version' => '', 'raw' => null];
+    $plugin_update_status_name = is_array($plugin_update_status) ? (string) ($plugin_update_status['status'] ?? 'unknown') : 'unknown';
+    $plugin_update_version = is_array($plugin_update_status) ? (string) ($plugin_update_status['version'] ?? '') : '';
+    $can_manage_plugin_updates = function_exists('ll_tools_user_can_manage_plugin_updates') && ll_tools_user_can_manage_plugin_updates();
+    $show_plugin_update_link = $show_title
+        && $can_manage_plugin_updates
+        && $plugin_update_status_name === 'available'
+        && $plugin_update_version !== '';
+    $plugin_update_url = ($show_plugin_update_link && function_exists('ll_tools_get_plugin_update_action_url'))
+        ? (string) ll_tools_get_plugin_update_action_url()
+        : '';
+    if ($plugin_update_url === '') {
+        $show_plugin_update_link = false;
+        $plugin_update_version = '';
+    }
+    $show_plugin_update_check_link = $show_title
+        && $can_manage_plugin_updates
+        && $plugin_update_status_name === 'unknown';
+    $plugin_update_check_url = ($show_plugin_update_check_link && function_exists('ll_tools_get_plugin_update_check_action_url'))
+        ? (string) ll_tools_get_plugin_update_check_action_url($wordset_url)
+        : '';
+    if ($plugin_update_check_url === '') {
+        $show_plugin_update_check_link = false;
+    }
 
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $mode_labels = [
@@ -2527,6 +2553,27 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-hard><?php echo (int) $summary_counts['hard']; ?></span>
                             </span>
                         </a>
+                        <?php if ($show_plugin_update_link) : ?>
+                            <a
+                                class="ll-wordset-link-chip ll-wordset-update-link"
+                                href="<?php echo esc_url($plugin_update_url); ?>"
+                                aria-label="<?php echo esc_attr(sprintf(__('Update Language Learner Tools to version %s', 'll-tools-text-domain'), $plugin_update_version)); ?>">
+                                <span class="ll-wordset-update-link__dot" aria-hidden="true"></span>
+                                <span class="ll-wordset-update-link__label">
+                                    <?php echo esc_html(sprintf(__('Update to %s', 'll-tools-text-domain'), $plugin_update_version)); ?>
+                                </span>
+                            </a>
+                        <?php elseif ($show_plugin_update_check_link) : ?>
+                            <a
+                                class="ll-wordset-link-chip ll-wordset-check-updates-link"
+                                href="<?php echo esc_url($plugin_update_check_url); ?>"
+                                aria-label="<?php echo esc_attr__('Check for plugin updates', 'll-tools-text-domain'); ?>">
+                                <span class="ll-wordset-check-updates-link__dot" aria-hidden="true"></span>
+                                <span class="ll-wordset-check-updates-link__label">
+                                    <?php echo esc_html__('Check updates', 'll-tools-text-domain'); ?>
+                                </span>
+                            </a>
+                        <?php endif; ?>
                         <?php if ($is_study_user) : ?>
                             <a class="ll-wordset-settings-link ll-tools-settings-button" href="<?php echo esc_url($settings_url); ?>" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>">
                                 <span class="mode-icon" aria-hidden="true">
