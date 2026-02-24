@@ -16,47 +16,16 @@ function ll_tools_ensure_editor_hub_page() {
     }
 
     ll_tools_editor_hub_migrate_legacy_page_option();
-
-    $existing_page_id = (int) get_option('ll_default_editor_hub_page_id');
-    if ($existing_page_id > 0 && get_post_status($existing_page_id) === 'publish') {
-        return;
-    }
-
-    if ($existing_page_id > 0) {
-        delete_option('ll_default_editor_hub_page_id');
-    }
-
-    $found_page_id = ll_find_editor_hub_page();
-    if ($found_page_id > 0) {
-        update_option('ll_default_editor_hub_page_id', $found_page_id);
-        return;
-    }
-
-    $creation_attempt = get_transient('ll_editor_hub_page_creation_attempt');
-    if ($creation_attempt) {
-        return;
-    }
-
-    set_transient('ll_editor_hub_page_creation_attempt', time(), 5 * MINUTE_IN_SECONDS);
-
-    $page_id = wp_insert_post([
-        'post_title' => __('Editor Hub', 'll-tools-text-domain'),
-        'post_content' => '[editor_hub]',
-        'post_status' => 'publish',
-        'post_type' => 'page',
-        'post_author' => get_current_user_id() ?: 1,
-        'comment_status' => 'closed',
-        'ping_status' => 'closed',
+    ll_tools_ensure_default_shortcode_page([
+        'option_key'                 => 'll_default_editor_hub_page_id',
+        'force_option_key'           => 'll_tools_force_create_editor_hub_page',
+        'creation_attempt_transient' => 'll_editor_hub_page_creation_attempt',
+        'created_notice_transient'   => 'll_editor_hub_page_created',
+        'shortcode_search'           => '[editor_hub',
+        'post_title'                 => __('Editor Hub', 'll-tools-text-domain'),
+        'post_content'               => '[editor_hub]',
+        'error_context'              => 'editor hub page',
     ]);
-
-    if (!is_wp_error($page_id) && (int) $page_id > 0) {
-        $page_id = (int) $page_id;
-        update_option('ll_default_editor_hub_page_id', $page_id);
-        set_transient('ll_editor_hub_page_created', $page_id, 60);
-        return;
-    }
-
-    error_log('LL Tools: Failed to create editor hub page. Error: ' . ($page_id instanceof WP_Error ? $page_id->get_error_message() : 'Unknown'));
 }
 add_action('admin_init', 'll_tools_ensure_editor_hub_page', 21);
 
@@ -162,6 +131,8 @@ function ll_ajax_create_editor_hub_page() {
     }
 
     delete_option('ll_default_editor_hub_page_id');
+    delete_transient('ll_editor_hub_page_creation_attempt');
+    update_option('ll_tools_force_create_editor_hub_page', 1);
     ll_tools_ensure_editor_hub_page();
 
     $page_id = (int) get_option('ll_default_editor_hub_page_id');
@@ -238,20 +209,10 @@ add_filter('login_redirect', 'll_tools_editor_hub_login_redirect', 998, 3);
  * Find a page that contains the editor_hub shortcode.
  */
 function ll_find_editor_hub_page() {
-    $pages = get_posts([
-        'post_type' => 'page',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        's' => '[editor_hub',
-        'fields' => 'ids',
-    ]);
-
-    if (!empty($pages)) {
-        $page_id = (int) $pages[0];
-        if ($page_id > 0) {
-            update_option('ll_default_editor_hub_page_id', $page_id);
-            return $page_id;
-        }
+    $page_id = (int) (ll_tools_find_shortcode_page_by_fragment('[editor_hub', 'ids') ?? 0);
+    if ($page_id > 0) {
+        update_option('ll_default_editor_hub_page_id', $page_id);
+        return $page_id;
     }
 
     $legacy_pages = get_posts([
@@ -272,7 +233,6 @@ function ll_find_editor_hub_page() {
                     'post_content' => $updated,
                 ]);
             }
-
             update_option('ll_default_editor_hub_page_id', $page_id);
             return $page_id;
         }

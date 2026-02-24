@@ -127,6 +127,30 @@ function ll_enqueue_audio_processor_assets($hook) {
             'titleRequired' => __('Title cannot be empty.', 'll-tools-text-domain'),
             'titleSaving' => __('Saving...', 'll-tools-text-domain'),
             'titleSaveFailed' => __('Could not update title.', 'll-tools-text-domain'),
+            'deleteSelectedConfirmTemplate' => __('Delete %d recording(s)? This action cannot be undone.', 'll-tools-text-domain'),
+            'deleteButtonDeleting' => __('Deleting...', 'll-tools-text-domain'),
+            'deleteSelectedButtonDefault' => __('Delete Selected', 'll-tools-text-domain'),
+            'deleteAllButtonDefault' => __('Delete All', 'll-tools-text-domain'),
+            'deleteSuccessTemplate' => __('Deleted %d recording(s).', 'll-tools-text-domain'),
+            'deletePartialTemplate' => __('Deleted %1$d recording(s). Failed to delete %2$d.', 'll-tools-text-domain'),
+            'deleteAllSuccessTemplate' => __('Successfully deleted %d recording(s)', 'll-tools-text-domain'),
+            /* translators: %s: recording title */
+            'deleteSingleConfirmTemplate' => __('Delete "%s"? This action cannot be undone.', 'll-tools-text-domain'),
+            /* translators: %s: recording title */
+            'removeFromBatchConfirmTemplate' => __('Remove "%s" from this batch? It will remain unprocessed.', 'll-tools-text-domain'),
+            'deleteErrorPrefix' => __('Error:', 'll-tools-text-domain'),
+            'deleteFailed' => __('Failed to delete recording', 'll-tools-text-domain'),
+            /* translators: %s: error message */
+            'deleteErrorTemplate' => __('Error deleting recording: %s', 'll-tools-text-domain'),
+            'recordingFallbackLabel' => __('this recording', 'll-tools-text-domain'),
+            'cancelReviewConfirm' => __('Are you sure you want to cancel? All processing will be lost.', 'll-tools-text-domain'),
+            'trimLabel' => __('Trim', 'll-tools-text-domain'),
+            'noiseReductionLabel' => __('Noise Reduction', 'll-tools-text-domain'),
+            'loudnessLabel' => __('Loudness', 'll-tools-text-domain'),
+            'removeFromBatchButton' => __('Remove', 'll-tools-text-domain'),
+            'removeFromBatchTitle' => __('Remove from this batch', 'll-tools-text-domain'),
+            'deleteRecordingButton' => __('Delete', 'll-tools-text-domain'),
+            'deleteRecordingTitle' => __('Delete this recording', 'll-tools-text-domain'),
         ],
     ]);
 }

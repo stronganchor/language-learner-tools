@@ -5,8 +5,8 @@ if (!defined('WPINC')) { die; }
 function ll_register_word_option_rules_admin_page() {
     add_submenu_page(
         'tools.php',
-        'Language Learner Tools - Word Options',
-        'LL Word Options',
+        __('Language Learner Tools - Word Options', 'll-tools-text-domain'),
+        __('LL Word Options', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-word-option-rules',
         'll_render_word_option_rules_admin_page'
@@ -21,6 +21,12 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
 
     ll_enqueue_asset_by_timestamp('/css/word-option-rules-admin.css', 'll-tools-word-option-rules-admin', [], false);
     ll_enqueue_asset_by_timestamp('/js/word-option-rules-admin.js', 'll-tools-word-option-rules-admin-js', [], true);
+    wp_localize_script('ll-tools-word-option-rules-admin-js', 'llWordOptionRulesI18n', [
+        'remove' => __('Remove', 'll-tools-text-domain'),
+        'assignToGroup' => __('Assign to group', 'll-tools-text-domain'),
+        /* translators: %s: group label */
+        'assignToGroupNamedTemplate' => __('Assign to group %s', 'll-tools-text-domain'),
+    ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_word_option_rules_admin_assets');
 

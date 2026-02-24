@@ -11,6 +11,7 @@ read_first:
   - includes/lib/word-option-rules.php
   - includes/pages/quiz-pages.php
   - includes/pages/embed-page.php
+  - includes/pages/default-shortcode-page-helper.php
   - includes/pages/recording-page.php
   - includes/pages/editor-hub-page.php
   - includes/shortcodes/flashcard-widget.php
@@ -89,6 +90,7 @@ includes/
   pages/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
+    default-shortcode-page-helper.php # Shared ensure/find helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)

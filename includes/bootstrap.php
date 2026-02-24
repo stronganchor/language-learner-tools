@@ -70,6 +70,7 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
 }
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
+require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
