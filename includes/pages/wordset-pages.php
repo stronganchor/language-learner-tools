@@ -2097,6 +2097,7 @@ function ll_tools_render_wordset_page_missing_content(array $extra_classes = [],
 function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     if (function_exists('ll_enqueue_asset_by_timestamp')) {
         ll_enqueue_asset_by_timestamp('/css/frontend-utility-menu.css', 'll-tools-frontend-utility-menu-css');
+        ll_enqueue_asset_by_timestamp('/js/frontend-utility-menu.js', 'll-tools-frontend-utility-menu-js', [], true);
     }
 
     $args = wp_parse_args($args, [
@@ -2221,6 +2222,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     'label' => __('Check updates', 'll-tools-text-domain'),
                     'url' => $plugin_update_check_nav_url,
                     'is_active' => false,
+                    'force_hard_nav' => true,
                 ];
             }
         }
@@ -2316,10 +2318,12 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                         continue;
                     }
                     $is_active = !empty($link['is_active']);
+                    $force_hard_nav = !empty($link['force_hard_nav']);
                     ?>
                     <a
                         class="ll-wordset-utility-bar__link<?php echo $is_active ? ' is-active' : ''; ?>"
                         href="<?php echo esc_url($link_url); ?>"
+                        <?php if ($force_hard_nav) : ?>data-ll-force-hard-nav="1"<?php endif; ?>
                         <?php if ($is_active) : ?>aria-current="page"<?php endif; ?>>
                         <?php echo esc_html($link_label); ?>
                     </a>
