@@ -1227,6 +1227,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
+        // Bump when text label source-selection logic changes so stale cached rows are bypassed.
+        'text_label_schema'    => 3,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
             : true,
@@ -1353,20 +1355,40 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // Require actual audio to be present for inclusion in quizzes. Do NOT fall back to legacy meta here.
         $has_audio = !empty($primary_audio) || !empty($audio_files);
 
-        $title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
+        $raw_post_title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
 
-        $candidate_keys = [
-            'word_english_meaning',
-            'word_translation',
-            'translation',
-            'meaning',
-        ];
-        $translation = '';
-        foreach ($candidate_keys as $key) {
-            $val = trim((string) get_post_meta($word_id, $key, true));
-            if ($val !== '') { $translation = $val; break; }
+        // Match quiz text labels to the sitewide "word title language role" semantics used by the word grid.
+        $title = $raw_post_title;
+        $translation_label = '';
+        if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+            $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+            $word_text = trim((string) ($display_values['word_text'] ?? ''));
+            $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+
+            if ($word_text !== '') {
+                $title = html_entity_decode($word_text, ENT_QUOTES, 'UTF-8');
+            }
+            if ($translation_text !== '') {
+                $translation_label = html_entity_decode($translation_text, ENT_QUOTES, 'UTF-8');
+            }
+        } else {
+            $word_title_role = sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
+            $candidate_keys = ($word_title_role === 'translation')
+                ? ['word_translation', 'translation', 'meaning', 'word_english_meaning']
+                : ['word_english_meaning', 'word_translation', 'translation', 'meaning'];
+            $translation = '';
+            foreach ($candidate_keys as $key) {
+                $val = trim((string) get_post_meta($word_id, $key, true));
+                if ($val !== '') { $translation = $val; break; }
+            }
+            $translation_label = ($translation !== '') ? html_entity_decode($translation, ENT_QUOTES, 'UTF-8') : '';
+
+            if ($word_title_role === 'translation' && $translation_label !== '') {
+                // In translation-title mode, "word title" is the translation/meta side and the opposite is post_title.
+                $title = $translation_label;
+                $translation_label = $raw_post_title;
+            }
         }
-        $translation_label = ($translation !== '') ? html_entity_decode($translation, ENT_QUOTES, 'UTF-8') : '';
 
         $label = $title;
         $use_translation_label = in_array($option_type, ['text_translation', 'text_audio'], true);
