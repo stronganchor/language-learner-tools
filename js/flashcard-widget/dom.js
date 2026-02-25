@@ -437,13 +437,31 @@
             const total = Math.max(0, parseInt(totalCount, 10) || 0);
             const current = Math.max(0, parseInt(currentCount, 10) || 0);
             const clampedCurrent = total > 0 ? Math.min(total, current) : 0;
-            const percent = total > 0 ? Math.round((clampedCurrent / total) * 100) : 0;
+            const rawPercent = total > 0 ? ((clampedCurrent / total) * 100) : 0;
+            const displayPercent = Math.max(0, Math.min(100, rawPercent));
+            const widthPercent = Math.round(displayPercent * 100) / 100;
+            const widthValue = String(widthPercent).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') + '%';
 
-            $progress.html(`
-                <div class="learning-progress-bar simple-progress-bar">
-                    <div class="learning-progress-fill simple-fill" style="width: ${percent}%"></div>
-                </div>
-            `).show();
+            let $bar = $progress.find('.learning-progress-bar.simple-progress-bar');
+            let $fill = $bar.find('.learning-progress-fill.simple-fill');
+
+            if (!$bar.length || !$fill.length) {
+                $progress.html(`
+                    <div class="learning-progress-bar simple-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total || 0}">
+                        <div class="learning-progress-fill simple-fill" style="width: 0%"></div>
+                    </div>
+                `);
+                $bar = $progress.find('.learning-progress-bar.simple-progress-bar');
+                $fill = $bar.find('.learning-progress-fill.simple-fill');
+            }
+
+            $bar
+                .attr('aria-valuemax', String(total || 0))
+                .attr('aria-valuenow', String(clampedCurrent))
+                .attr('aria-valuetext', total > 0 ? (String(clampedCurrent) + ' of ' + String(total)) : '0');
+
+            $fill.css('width', widthValue);
+            $progress.show();
         },
         showAutoplayBlockedOverlay() {
             // Check if overlay already exists

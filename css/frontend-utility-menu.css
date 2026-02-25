@@ -99,14 +99,17 @@
 .ll-wordset-utility-bar__links {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    column-gap: 8px;
+    row-gap: 8px;
     align-items: center;
+    align-content: flex-start;
     justify-content: flex-end;
     margin-left: auto;
 }
 
 .ll-wordset-utility-bar__link {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     min-height: 34px;
@@ -120,6 +123,7 @@
     font-weight: 700;
     line-height: 1.15;
     box-shadow: 0 2px 10px rgba(35, 29, 21, 0.04);
+    margin: 0;
 }
 
 .ll-wordset-utility-bar__link:hover,

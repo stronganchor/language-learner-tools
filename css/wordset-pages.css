@@ -250,8 +250,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: flex;
     flex: 1 1 280px;
     flex-wrap: wrap;
-    gap: 8px;
+    column-gap: 8px;
+    row-gap: 8px;
     align-items: center;
+    align-content: flex-start;
     justify-content: flex-end;
     min-width: 0;
     max-width: 100%;
@@ -260,6 +262,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-utility-bar__link {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     min-height: 34px;
@@ -276,6 +279,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-align: center;
     overflow-wrap: anywhere;
     box-shadow: 0 2px 10px rgba(35, 29, 21, 0.04);
+    margin: 0;
 }
 
 .ll-wordset-utility-bar__link:hover,

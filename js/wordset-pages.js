@@ -6899,6 +6899,154 @@
             }
         };
 
+        const getWordRowsForCategory = function (categoryId, lookup) {
+            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
+            if (!rows.length) { return []; }
+            if (!lookup) { return rows.slice(); }
+            return rows.filter(function (word) {
+                const wordId = parseInt(word && word.id, 10) || 0;
+                return !!lookup[wordId];
+            });
+        };
+        const hasWordRowsForCategory = function (categoryId, lookup) {
+            return getWordRowsForCategory(categoryId, lookup).length > 0;
+        };
+
+        const commitFlashcardLaunch = function (selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup) {
+            if (!Array.isArray(selectedCats) || !selectedCats.length) {
+                abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                return;
+            }
+
+            const effectiveCategoryIds = uniqueIntList(selectedCats.map(function (cat) {
+                return parseInt(cat.id, 10) || 0;
+            }));
+            const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
+                resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
+            let estimatedResultsTotal = estimateFlashcardResultsWordCount(
+                finalMode,
+                effectiveSessionIds,
+                selectedCats,
+                effectiveLookup
+            );
+            if (estimatedResultsTotal <= 0 && !effectiveSessionIds.length) {
+                estimatedResultsTotal = selectedCats.reduce(function (sum, cat) {
+                    return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
+                }, 0);
+            }
+
+            lastFlashcardLaunch = {
+                mode: finalMode,
+                category_ids: effectiveCategoryIds.slice(),
+                session_word_ids: effectiveSessionIds.slice(),
+                source: String(opts.source || ''),
+                session_star_mode: sessionStarModeOverride,
+                details: launchDetails,
+                category_label_override: resolvedCategoryLabelOverride,
+                estimated_results_total: estimatedResultsTotal,
+                chunked: !!opts.chunked
+            };
+            initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
+
+            const firstCategory = selectedCats[0];
+            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup));
+
+            const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
+                ? window.llToolsFlashcardsData
+                : {};
+
+            // Wordset-page launches should start with a fresh gender plan scope.
+            // Otherwise a stale armed plan from a previous gender results action can
+            // override the requested category for card-level launches.
+            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+            flashData.genderLaunchSource = effectiveCategoryIds.length > 1 ? 'dashboard' : 'direct';
+
+            flashData.launchContext = 'dashboard';
+            flashData.launch_context = 'dashboard';
+            flashData.categories = selectedCats.slice();
+            flashData.categoriesPreselected = true;
+            flashData.firstCategoryName = String(firstCategory.name || '');
+            flashData.firstCategoryData = firstRows;
+            flashData.wordset = wordsetSlug || String(wordsetId || '');
+            flashData.wordsetIds = wordsetId > 0 ? [wordsetId] : [];
+            flashData.wordsetFallback = false;
+            flashData.quiz_mode = finalMode;
+            flashData.starMode = state.star_mode;
+            flashData.star_mode = state.star_mode;
+            flashData.sessionStarModeOverride = sessionStarModeOverride;
+            flashData.session_star_mode_override = sessionStarModeOverride;
+            flashData.fastTransitions = !!state.fast_transitions;
+            flashData.fast_transitions = !!state.fast_transitions;
+            flashData.sessionWordIds = effectiveSessionIds.slice();
+            flashData.session_word_ids = effectiveSessionIds.slice();
+            flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
+            flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
+            if (resolvedCategoryLabelOverride) {
+                flashData.categoryDisplayOverride = resolvedCategoryLabelOverride;
+                flashData.category_display_override = resolvedCategoryLabelOverride;
+            } else {
+                delete flashData.categoryDisplayOverride;
+                delete flashData.category_display_override;
+            }
+            flashData.userStudyState = flashData.userStudyState || {};
+            flashData.userStudyState.wordset_id = wordsetId;
+            flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
+            flashData.userStudyState.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+            flashData.userStudyState.star_mode = state.star_mode;
+            flashData.userStudyState.fast_transitions = !!state.fast_transitions;
+
+            flashData.genderEnabled = !!genderCfg.enabled;
+            flashData.genderWordsetId = wordsetId;
+            flashData.genderOptions = Array.isArray(genderCfg.options) ? genderCfg.options.slice() : [];
+            flashData.genderMinCount = Math.max(2, parseInt(genderCfg.min_count, 10) || 2);
+
+            window.llToolsFlashcardsData = flashData;
+            syncGlobalPrefs();
+
+            hideChunkResultsActions();
+
+            const catNames = selectedCats.map(function (cat) {
+                return String(cat.name || '');
+            }).filter(Boolean);
+
+            const $popup = launchUi.$popup;
+            const $quizPopup = launchUi.$quizPopup;
+            $popup.show();
+            $quizPopup.show();
+
+            if (typeof window.initFlashcardWidget === 'function') {
+                const initRes = window.initFlashcardWidget(catNames, finalMode);
+                if (initRes && typeof initRes.catch === 'function') {
+                    initRes.catch(function () {
+                        closeFlashcardLaunchLoadingState(launchUi);
+                    });
+                }
+            } else {
+                closeFlashcardLaunchLoadingState(launchUi);
+            }
+        };
+
+        const shouldFastStartListeningWithoutSession = finalMode === 'listening' && sessionIds.length === 0;
+        if (shouldFastStartListeningWithoutSession) {
+            let selectedCats = categories.filter(function (cat) {
+                return ids.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
+            });
+            if (!selectedCats.length) {
+                abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
+                return;
+            }
+
+            selectedCats = shuffleList(selectedCats);
+
+            // Warm the dashboard-side word cache in the background, but never block listening startup on it.
+            try { ensureWordsForCategories(ids); } catch (_) { /* no-op */ }
+
+            commitFlashcardLaunch(selectedCats, [], requestedCategoryLabelOverride, null);
+            return;
+        }
+
         ensureWordsForCategories(ids).always(function () {
             let launchCategoryIds = ids.slice();
             let effectiveSessionIds = sessionIds.slice();
@@ -6939,19 +7087,6 @@
                 abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
                 return;
             }
-
-            const getWordRowsForCategory = function (categoryId, lookup) {
-                const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
-                if (!rows.length) { return []; }
-                if (!lookup) { return rows.slice(); }
-                return rows.filter(function (word) {
-                    const wordId = parseInt(word && word.id, 10) || 0;
-                    return !!lookup[wordId];
-                });
-            };
-            const hasWordRowsForCategory = function (categoryId, lookup) {
-                return getWordRowsForCategory(categoryId, lookup).length > 0;
-            };
             if (effectiveSessionIds.length) {
                 const sessionLookup = {};
                 effectiveSessionIds.forEach(function (id) {
@@ -7045,110 +7180,7 @@
             } else {
                 selectedCats = shuffleList(selectedCats);
             }
-
-            const effectiveCategoryIds = uniqueIntList(selectedCats.map(function (cat) {
-                return parseInt(cat.id, 10) || 0;
-            }));
-            const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
-                resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
-            const estimatedResultsTotal = estimateFlashcardResultsWordCount(
-                finalMode,
-                effectiveSessionIds,
-                selectedCats,
-                effectiveLookup
-            );
-
-            lastFlashcardLaunch = {
-                mode: finalMode,
-                category_ids: effectiveCategoryIds.slice(),
-                session_word_ids: effectiveSessionIds.slice(),
-                source: String(opts.source || ''),
-                session_star_mode: sessionStarModeOverride,
-                details: launchDetails,
-                category_label_override: resolvedCategoryLabelOverride,
-                estimated_results_total: estimatedResultsTotal,
-                chunked: !!opts.chunked
-            };
-            initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
-
-            const firstCategory = selectedCats[0];
-            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup));
-
-            const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
-                ? window.llToolsFlashcardsData
-                : {};
-
-            // Wordset-page launches should start with a fresh gender plan scope.
-            // Otherwise a stale armed plan from a previous gender results action can
-            // override the requested category for card-level launches.
-            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
-            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
-            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
-            flashData.genderLaunchSource = effectiveCategoryIds.length > 1 ? 'dashboard' : 'direct';
-
-            flashData.launchContext = 'dashboard';
-            flashData.launch_context = 'dashboard';
-            flashData.categories = selectedCats.slice();
-            flashData.categoriesPreselected = true;
-            flashData.firstCategoryName = String(firstCategory.name || '');
-            flashData.firstCategoryData = firstRows;
-            flashData.wordset = wordsetSlug || String(wordsetId || '');
-            flashData.wordsetIds = wordsetId > 0 ? [wordsetId] : [];
-            flashData.wordsetFallback = false;
-            flashData.quiz_mode = finalMode;
-            flashData.starMode = state.star_mode;
-            flashData.star_mode = state.star_mode;
-            flashData.sessionStarModeOverride = sessionStarModeOverride;
-            flashData.session_star_mode_override = sessionStarModeOverride;
-            flashData.fastTransitions = !!state.fast_transitions;
-            flashData.fast_transitions = !!state.fast_transitions;
-            flashData.sessionWordIds = effectiveSessionIds.slice();
-            flashData.session_word_ids = effectiveSessionIds.slice();
-            flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
-            flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
-            if (resolvedCategoryLabelOverride) {
-                flashData.categoryDisplayOverride = resolvedCategoryLabelOverride;
-                flashData.category_display_override = resolvedCategoryLabelOverride;
-            } else {
-                delete flashData.categoryDisplayOverride;
-                delete flashData.category_display_override;
-            }
-            flashData.userStudyState = flashData.userStudyState || {};
-            flashData.userStudyState.wordset_id = wordsetId;
-            flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
-            flashData.userStudyState.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
-            flashData.userStudyState.star_mode = state.star_mode;
-            flashData.userStudyState.fast_transitions = !!state.fast_transitions;
-
-            flashData.genderEnabled = !!genderCfg.enabled;
-            flashData.genderWordsetId = wordsetId;
-            flashData.genderOptions = Array.isArray(genderCfg.options) ? genderCfg.options.slice() : [];
-            flashData.genderMinCount = Math.max(2, parseInt(genderCfg.min_count, 10) || 2);
-
-            window.llToolsFlashcardsData = flashData;
-            syncGlobalPrefs();
-
-            hideChunkResultsActions();
-
-            const catNames = selectedCats.map(function (cat) {
-                return String(cat.name || '');
-            }).filter(Boolean);
-
-            const $popup = launchUi.$popup;
-            const $quizPopup = launchUi.$quizPopup;
-            $popup.show();
-            $quizPopup.show();
-
-            if (typeof window.initFlashcardWidget === 'function') {
-                const initRes = window.initFlashcardWidget(catNames, finalMode);
-                if (initRes && typeof initRes.catch === 'function') {
-                    initRes.catch(function () {
-                        closeFlashcardLaunchLoadingState(launchUi);
-                    });
-                }
-            } else {
-                closeFlashcardLaunchLoadingState(launchUi);
-            }
+            commitFlashcardLaunch(selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup);
         });
     }
 
@@ -7178,6 +7210,23 @@
 
         if (!selectedIds.length) {
             alert(i18n.noCategoriesSelected || 'Select at least one category.');
+            return;
+        }
+
+        if (normalizedMode === 'listening' && !starredOnlyActive && !hardOnlyActive) {
+            const ids = filterCategoryIdsByAspectBucket(selectedIds, {
+                preferCategoryId: selectedIds[0] || 0
+            });
+            if (!ids.length) {
+                alert(i18n.noCategoriesSelected || 'Select at least one category.');
+                return;
+            }
+            chunkSession = null;
+            launchFlashcards(normalizedMode, ids, [], {
+                source: 'wordset_selection_start',
+                chunked: false,
+                sessionStarMode: 'normal'
+            });
             return;
         }
 

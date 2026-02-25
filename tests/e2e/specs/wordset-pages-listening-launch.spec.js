@@ -404,6 +404,83 @@ test('logged-in listening launches ignore recommendation chunk IDs for top and s
   expect(selectionLaunch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
 });
 
+test('selection listening launch does not wait for full category word fetch before opening flashcards', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    const $ = window.jQuery;
+    const originalPost = $.post.bind($);
+
+    window.__llFetchWordsCalls = 0;
+    window.__llFetchWordsPending = 0;
+    window.__llFetchWordsResolvers = [];
+
+    $.post = function (url, request) {
+      const action = request && request.action ? String(request.action) : '';
+      if (action === 'll_user_study_fetch_words') {
+        window.__llFetchWordsCalls += 1;
+        window.__llFetchWordsPending += 1;
+        const deferred = $.Deferred();
+        window.__llFetchWordsResolvers.push(() => {
+          window.__llFetchWordsPending = Math.max(0, (window.__llFetchWordsPending || 0) - 1);
+          deferred.resolve({
+            success: true,
+            data: {
+              words_by_category: {}
+            }
+          });
+        });
+        return deferred.promise();
+      }
+      return originalPost(url, request);
+    };
+
+    window.__llReleaseFetchWords = function () {
+      const resolvers = Array.isArray(window.__llFetchWordsResolvers)
+        ? window.__llFetchWordsResolvers.splice(0)
+        : [];
+      resolvers.forEach((resolve) => {
+        try { resolve(); } catch (_) {}
+      });
+    };
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]')).toBeEnabled();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Number(window.__llFetchWordsPending || 0));
+  }).toBeGreaterThan(0);
+
+  const state = await page.evaluate(() => ({
+    fetchCalls: Number(window.__llFetchWordsCalls || 0),
+    fetchPending: Number(window.__llFetchWordsPending || 0)
+  }));
+
+  expect(state.fetchCalls).toBeGreaterThan(0);
+  expect(state.fetchPending).toBeGreaterThan(0);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('listening');
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+
+  await page.evaluate(() => {
+    if (typeof window.__llReleaseFetchWords === 'function') {
+      window.__llReleaseFetchWords();
+    }
+  });
+});
+
 test('logged-in practice top launch falls back to visible categories when recommendation categories are stale', async ({ page }) => {
   await mountWordsetPage(page, {
     isLoggedIn: true,
