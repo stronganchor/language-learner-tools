@@ -161,6 +161,7 @@
     }
 
     .ll-wordset-utility-bar__links {
+        flex: 0 0 auto;
         width: 100%;
         justify-content: flex-start;
         margin-left: 0;

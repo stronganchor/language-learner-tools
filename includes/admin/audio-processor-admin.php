@@ -429,6 +429,10 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
 }
 
 function ll_render_audio_processor_page() {
+    if (function_exists('ll_tools_acknowledge_recording_notification_batch_from_processor_page')) {
+        ll_tools_acknowledge_recording_notification_batch_from_processor_page();
+    }
+
     $recording_sets = ll_get_unprocessed_recordings();
     $queue_recordings = isset($recording_sets['queue']) ? $recording_sets['queue'] : [];
     $duplicate_recordings = isset($recording_sets['duplicates']) ? $recording_sets['duplicates'] : [];

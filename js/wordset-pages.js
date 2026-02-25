@@ -7039,9 +7039,9 @@
             }
 
             selectedCats = shuffleList(selectedCats);
-
-            // Warm the dashboard-side word cache in the background, but never block listening startup on it.
-            try { ensureWordsForCategories(ids); } catch (_) { /* no-op */ }
+            // Do not trigger the dashboard's bulk word fetch here.
+            // The flashcard widget will load categories incrementally; a parallel bulk
+            // fetch can monopolize the server and delay first audio on large selections.
 
             commitFlashcardLaunch(selectedCats, [], requestedCategoryLabelOverride, null);
             return;

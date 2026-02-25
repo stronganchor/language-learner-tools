@@ -3737,7 +3737,7 @@ function ll_tools_register_recording_notification_settings() {
     register_setting('language-learning-tools-options', 'll_tools_recording_notification_delay_minutes', [
         'type' => 'integer',
         'sanitize_callback' => 'll_tools_sanitize_recording_notification_delay_minutes',
-        'default' => 20,
+        'default' => 5,
     ]);
 }
 add_action('admin_init', 'll_tools_register_recording_notification_settings');
@@ -3770,7 +3770,7 @@ function ll_tools_sanitize_recording_notification_email($value) {
 function ll_tools_sanitize_recording_notification_delay_minutes($value) {
     $minutes = absint($value);
     if ($minutes < 1) {
-        $minutes = 20;
+        $minutes = 5;
     }
     if ($minutes > 1440) {
         $minutes = 1440;
@@ -3779,17 +3779,61 @@ function ll_tools_sanitize_recording_notification_delay_minutes($value) {
 }
 
 /**
- * Get notification inactivity delay in minutes.
+ * Get first-email notification inactivity delay in minutes.
  */
 function ll_tools_get_recording_notification_delay_minutes() {
-    $minutes = (int) get_option('ll_tools_recording_notification_delay_minutes', 20);
+    $raw = get_option('ll_tools_recording_notification_delay_minutes', null);
+    $minutes = (int) $raw;
+
+    // Migrate the legacy default (20 min) to the new first-email default (5 min).
+    if ($minutes === 20) {
+        $minutes = 5;
+    }
     if ($minutes < 1) {
-        return 20;
+        return 5;
     }
     if ($minutes > 1440) {
         return 1440;
     }
     return $minutes;
+}
+
+/**
+ * Get follow-up notification inactivity delay in minutes after the first daily email.
+ */
+function ll_tools_get_recording_notification_followup_delay_minutes() {
+    $minutes = (int) apply_filters('ll_tools_recording_notification_followup_delay_minutes', 120);
+    if ($minutes < 1) {
+        return 120;
+    }
+    if ($minutes > 1440) {
+        return 1440;
+    }
+    return $minutes;
+}
+
+/**
+ * Check whether a recording notification email has already been sent today (site local date).
+ */
+function ll_tools_has_sent_recording_notification_email_today() {
+    $today_local = (string) current_time('Y-m-d');
+    if ($today_local === '') {
+        return false;
+    }
+
+    $last_sent_local = (string) get_option('ll_tools_recording_notification_last_sent_local_date', '');
+    return ($last_sent_local !== '' && $last_sent_local === $today_local);
+}
+
+/**
+ * Get the active quiet-window delay in seconds (first email vs same-day follow-up).
+ */
+function ll_tools_get_recording_notification_delay_seconds() {
+    $delay_minutes = ll_tools_has_sent_recording_notification_email_today()
+        ? ll_tools_get_recording_notification_followup_delay_minutes()
+        : ll_tools_get_recording_notification_delay_minutes();
+
+    return max(MINUTE_IN_SECONDS, $delay_minutes * MINUTE_IN_SECONDS);
 }
 
 /**
@@ -3843,7 +3887,7 @@ function ll_tools_render_recording_notification_settings_rows() {
         </td>
     </tr>
     <tr valign="top">
-        <th scope="row"><?php esc_html_e('Recording Notification Delay (minutes)', 'll-tools-text-domain'); ?></th>
+        <th scope="row"><?php esc_html_e('Recording Notification First Email Delay (minutes)', 'll-tools-text-domain'); ?></th>
         <td>
             <input
                 type="number"
@@ -3855,13 +3899,176 @@ function ll_tools_render_recording_notification_settings_rows() {
                 step="1"
             />
             <p class="description">
-                <?php esc_html_e('After the most recent upload, wait this many minutes before sending a summary email.', 'll-tools-text-domain'); ?>
+                <?php esc_html_e('For the first recording email sent each day, wait this many quiet minutes after the most recent upload.', 'll-tools-text-domain'); ?>
+            </p>
+            <p class="description">
+                <?php esc_html_e('After the first email is sent that day, follow-up summaries wait about 2 hours after recording activity stops.', 'll-tools-text-domain'); ?>
             </p>
         </td>
     </tr>
     <?php
 }
 add_action('ll_tools_settings_after_translations', 'll_tools_render_recording_notification_settings_rows', 30);
+
+/**
+ * Add word-category summary data for this audio upload into the pending notification state.
+ */
+function ll_tools_recording_notification_add_audio_categories_to_state(array $state, $audio_post_id) {
+    $audio_post = get_post((int) $audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        return $state;
+    }
+
+    $word_id = (int) $audio_post->post_parent;
+    if ($word_id <= 0) {
+        return $state;
+    }
+
+    $terms = wp_get_post_terms($word_id, 'word-category');
+    if (is_wp_error($terms) || empty($terms)) {
+        $state['uncategorized_count'] = max(0, (int) ($state['uncategorized_count'] ?? 0)) + 1;
+        return $state;
+    }
+
+    $categories = isset($state['categories']) && is_array($state['categories']) ? $state['categories'] : [];
+    $added_any = false;
+
+    foreach ($terms as $term) {
+        if (!is_object($term)) {
+            continue;
+        }
+        $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $term_name = '';
+        if (isset($term->name)) {
+            $term_name = sanitize_text_field((string) $term->name);
+        }
+        if ($term_name === '') {
+            $term_name = sprintf(
+                /* translators: %d: term ID */
+                __('Category #%d', 'll-tools-text-domain'),
+                $term_id
+            );
+        }
+
+        $term_key = (string) $term_id;
+        if (!isset($categories[$term_key]) || !is_array($categories[$term_key])) {
+            $categories[$term_key] = [
+                'name' => $term_name,
+                'count' => 0,
+            ];
+        } elseif (empty($categories[$term_key]['name'])) {
+            $categories[$term_key]['name'] = $term_name;
+        }
+
+        $categories[$term_key]['count'] = max(0, (int) ($categories[$term_key]['count'] ?? 0)) + 1;
+        $added_any = true;
+    }
+
+    if ($added_any) {
+        $state['categories'] = $categories;
+        return $state;
+    }
+
+    $state['uncategorized_count'] = max(0, (int) ($state['uncategorized_count'] ?? 0)) + 1;
+    return $state;
+}
+
+/**
+ * Build category summary lines for the recording notification email.
+ *
+ * @return string[]
+ */
+function ll_tools_get_recording_notification_category_summary_lines(array $state) {
+    $lines = [];
+    $categories = isset($state['categories']) && is_array($state['categories']) ? $state['categories'] : [];
+
+    if (!empty($categories)) {
+        uasort($categories, static function ($a, $b) {
+            $count_compare = ((int) ($b['count'] ?? 0)) <=> ((int) ($a['count'] ?? 0));
+            if ($count_compare !== 0) {
+                return $count_compare;
+            }
+            return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        });
+
+        $all_names = [];
+        foreach ($categories as $entry) {
+            $name = sanitize_text_field((string) ($entry['name'] ?? ''));
+            if ($name !== '') {
+                $all_names[] = $name;
+            }
+        }
+
+        $all_names = array_values(array_unique($all_names));
+        $total_categories = count($all_names);
+        if ($total_categories > 0) {
+            $max_named_categories = 4;
+            $shown_names = array_slice($all_names, 0, $max_named_categories);
+            $shown_list = implode(', ', $shown_names);
+            $remaining_count = max(0, $total_categories - count($shown_names));
+
+            if ($remaining_count > 0) {
+                $lines[] = sprintf(
+                    /* translators: 1: total distinct categories, 2: shown category names, 3: remaining category count */
+                    _n(
+                        'Categories (%1$d total): %2$s (+%3$d more category)',
+                        'Categories (%1$d total): %2$s (+%3$d more categories)',
+                        $remaining_count,
+                        'll-tools-text-domain'
+                    ),
+                    $total_categories,
+                    $shown_list,
+                    $remaining_count
+                );
+            } else {
+                $lines[] = sprintf(
+                    /* translators: 1: total distinct categories, 2: category names */
+                    __('Categories (%1$d total): %2$s', 'll-tools-text-domain'),
+                    $total_categories,
+                    $shown_list
+                );
+            }
+        }
+    }
+
+    $uncategorized_count = max(0, (int) ($state['uncategorized_count'] ?? 0));
+    if ($uncategorized_count > 0) {
+        $lines[] = sprintf(
+            /* translators: %d: recording count */
+            _n(
+                'Uncategorized recording: %d',
+                'Uncategorized recordings: %d',
+                $uncategorized_count,
+                'll-tools-text-domain'
+            ),
+            $uncategorized_count
+        );
+    }
+
+    return $lines;
+}
+
+/**
+ * Clear the pending recording notification batch when the audio processor page is opened.
+ */
+function ll_tools_acknowledge_recording_notification_batch_from_processor_page() {
+    $state = get_option('ll_tools_recording_notification_state', []);
+    if (!is_array($state)) {
+        return;
+    }
+
+    $total_count = max(0, (int) ($state['total_count'] ?? 0));
+    if ($total_count < 1) {
+        return;
+    }
+
+    delete_option('ll_tools_recording_notification_state');
+    wp_clear_scheduled_hook('ll_tools_send_recording_notification_event');
+}
 
 /**
  * Save a successful recording upload into the pending-notification batch.
@@ -3917,6 +4124,8 @@ function ll_tools_queue_recording_upload_notification($audio_post_id, $user_id) 
     $users[$user_key]['count'] = max(0, (int) ($users[$user_key]['count'] ?? 0)) + 1;
     $state['users'] = $users;
 
+    $state = ll_tools_recording_notification_add_audio_categories_to_state($state, $audio_post_id);
+
     update_option('ll_tools_recording_notification_state', $state, false);
     ll_tools_schedule_recording_notification_event();
 }
@@ -3927,7 +4136,7 @@ function ll_tools_queue_recording_upload_notification($audio_post_id, $user_id) 
 function ll_tools_schedule_recording_notification_event() {
     wp_clear_scheduled_hook('ll_tools_send_recording_notification_event');
 
-    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
     wp_schedule_single_event(time() + $delay_seconds, 'll_tools_send_recording_notification_event');
 }
 
@@ -3947,7 +4156,7 @@ function ll_tools_send_recording_notification_email() {
     }
 
     $last_upload_unix = isset($state['last_upload_unix']) ? (int) $state['last_upload_unix'] : 0;
-    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
     if ($last_upload_unix > 0 && (time() - $last_upload_unix) < $delay_seconds) {
         ll_tools_schedule_recording_notification_event();
         return;
@@ -4009,6 +4218,14 @@ function ll_tools_send_recording_notification_email() {
         $lines[] = '';
     }
 
+    $category_lines = ll_tools_get_recording_notification_category_summary_lines($state);
+    if (!empty($category_lines)) {
+        foreach ($category_lines as $category_line) {
+            $lines[] = $category_line;
+        }
+        $lines[] = '';
+    }
+
     if (!empty($state['batch_started_at'])) {
         $lines[] = sprintf(
             /* translators: %s: date/time */
@@ -4031,6 +4248,7 @@ function ll_tools_send_recording_notification_email() {
     $sent = wp_mail($recipient, $subject, implode("\n", $lines), $headers);
 
     if ($sent) {
+        update_option('ll_tools_recording_notification_last_sent_local_date', (string) current_time('Y-m-d'), false);
         delete_option('ll_tools_recording_notification_state');
         return;
     }

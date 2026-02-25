@@ -13,6 +13,10 @@ if (!defined('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_THRESHOLD_BYTES')) {
     define('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_THRESHOLD_BYTES', 307200); // 300 KB
 }
 
+if (!defined('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_ANIMATED_WEBP_THRESHOLD_BYTES')) {
+    define('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_ANIMATED_WEBP_THRESHOLD_BYTES', 409600); // 400 KB
+}
+
 if (!defined('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_BATCH_SIZE')) {
     define('LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_BATCH_SIZE', 8);
 }
@@ -45,6 +49,24 @@ function ll_tools_webp_optimizer_post_statuses(): array {
 function ll_tools_webp_optimizer_threshold_bytes(): int {
     $threshold = (int) apply_filters('ll_tools_webp_optimizer_threshold_bytes', (int) LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_THRESHOLD_BYTES);
     return max(32768, $threshold);
+}
+
+function ll_tools_webp_optimizer_animated_webp_threshold_bytes(): int {
+    $threshold = (int) apply_filters(
+        'll_tools_webp_optimizer_animated_webp_threshold_bytes',
+        (int) LL_TOOLS_WEBP_OPTIMIZER_DEFAULT_ANIMATED_WEBP_THRESHOLD_BYTES
+    );
+
+    return max(ll_tools_webp_optimizer_threshold_bytes(), max(32768, $threshold));
+}
+
+function ll_tools_webp_optimizer_threshold_bytes_for_image(string $mime, bool $is_animated_webp = false): int {
+    $mime = strtolower(trim($mime));
+    if ($mime === 'image/webp' && $is_animated_webp) {
+        return ll_tools_webp_optimizer_animated_webp_threshold_bytes();
+    }
+
+    return ll_tools_webp_optimizer_threshold_bytes();
 }
 
 function ll_tools_webp_optimizer_quality(): int {
@@ -102,6 +124,28 @@ function ll_tools_webp_optimizer_can_encode_webp(): bool {
     return (bool) wp_image_editor_supports(['mime_type' => 'image/webp']);
 }
 
+function ll_tools_webp_optimizer_can_optimize_animated_webp(): bool {
+    static $cached = null;
+    if ($cached !== null) {
+        return (bool) $cached;
+    }
+
+    if (!class_exists('Imagick') || !method_exists('Imagick', 'queryFormats')) {
+        $cached = false;
+        return false;
+    }
+
+    try {
+        $formats = \Imagick::queryFormats('WEBP');
+    } catch (Exception $e) {
+        $cached = false;
+        return false;
+    }
+
+    $cached = is_array($formats) && !empty($formats);
+    return (bool) $cached;
+}
+
 function ll_tools_webp_optimizer_bytes_label(int $bytes): string {
     $bytes = max(0, $bytes);
     if (function_exists('size_format')) {
@@ -129,6 +173,69 @@ function ll_tools_webp_optimizer_safe_filesize(string $path): int {
     clearstatcache(true, $path);
     $size = @filesize($path);
     return ($size === false) ? 0 : max(0, (int) $size);
+}
+
+function ll_tools_webp_optimizer_is_animated_webp_file(string $path): bool {
+    static $cache = [];
+
+    $path = trim($path);
+    if ($path === '' || !file_exists($path) || !is_readable($path)) {
+        return false;
+    }
+
+    $size = ll_tools_webp_optimizer_safe_filesize($path);
+    $mtime = @filemtime($path);
+    $cache_key = $path . '|' . (string) $size . '|' . (string) (($mtime === false) ? 0 : (int) $mtime);
+    if (array_key_exists($cache_key, $cache)) {
+        return (bool) $cache[$cache_key];
+    }
+
+    $fh = @fopen($path, 'rb');
+    if (!is_resource($fh)) {
+        $cache[$cache_key] = false;
+        return false;
+    }
+
+    $is_animated = false;
+    try {
+        $header = (string) fread($fh, 12);
+        if (strlen($header) !== 12 || substr($header, 0, 4) !== 'RIFF' || substr($header, 8, 4) !== 'WEBP') {
+            $cache[$cache_key] = false;
+            return false;
+        }
+
+        $max_chunks = 64;
+        $chunk_count = 0;
+
+        while (!feof($fh) && $chunk_count < $max_chunks) {
+            $chunk_header = (string) fread($fh, 8);
+            if (strlen($chunk_header) < 8) {
+                break;
+            }
+
+            $chunk_count++;
+            $chunk_type = substr($chunk_header, 0, 4);
+            $chunk_size_data = unpack('Vsize', substr($chunk_header, 4, 4));
+            $chunk_size = isset($chunk_size_data['size']) ? max(0, (int) $chunk_size_data['size']) : 0;
+
+            if ($chunk_type === 'ANIM' || $chunk_type === 'ANMF') {
+                $is_animated = true;
+                break;
+            }
+
+            if ($chunk_size > 0) {
+                $skip = $chunk_size + ($chunk_size % 2);
+                if (@fseek($fh, $skip, SEEK_CUR) !== 0) {
+                    break;
+                }
+            }
+        }
+    } finally {
+        fclose($fh);
+    }
+
+    $cache[$cache_key] = $is_animated;
+    return $is_animated;
 }
 
 function ll_tools_webp_optimizer_attachment_metadata_filesize(int $attachment_id): int {
@@ -326,7 +433,9 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
     $attachment_id = (int) get_post_thumbnail_id($word_image_id);
     $categories = ll_tools_webp_optimizer_get_categories_for_post($word_image_id);
     $threshold_bytes = ll_tools_webp_optimizer_threshold_bytes();
+    $animated_webp_threshold_bytes = ll_tools_webp_optimizer_animated_webp_threshold_bytes();
     $encoding_supported = ll_tools_webp_optimizer_can_encode_webp();
+    $animated_webp_optimizer_supported = ll_tools_webp_optimizer_can_optimize_animated_webp();
 
     $item = [
         'word_image_id' => (int) $word_image_id,
@@ -349,6 +458,7 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
         'dimensions_label' => '',
         'is_supported_source' => false,
         'is_webp' => false,
+        'is_animated_webp' => false,
         'needs_conversion' => false,
         'can_convert' => false,
         'has_problem' => false,
@@ -358,7 +468,12 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
         'reason_labels' => [],
         'threshold_bytes' => $threshold_bytes,
         'threshold_label' => ll_tools_webp_optimizer_bytes_label($threshold_bytes),
+        'base_threshold_bytes' => $threshold_bytes,
+        'base_threshold_label' => ll_tools_webp_optimizer_bytes_label($threshold_bytes),
+        'animated_webp_threshold_bytes' => $animated_webp_threshold_bytes,
+        'animated_webp_threshold_label' => ll_tools_webp_optimizer_bytes_label($animated_webp_threshold_bytes),
         'encoding_supported' => $encoding_supported,
+        'animated_webp_optimizer_supported' => $animated_webp_optimizer_supported,
         'status_key' => 'unknown',
         'status_label' => __('Unknown', 'll-tools-text-domain'),
         'source_mode' => 'local',
@@ -417,7 +532,12 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
     $supported_sources = ll_tools_webp_optimizer_supported_source_mimes();
     $is_supported_source = in_array($mime, $supported_sources, true);
     $is_webp = ($mime === 'image/webp');
-    $is_oversize = ($file_size > $threshold_bytes);
+    $is_animated_webp = false;
+    if ($is_webp && $has_local_file) {
+        $is_animated_webp = ll_tools_webp_optimizer_is_animated_webp_file((string) $path);
+    }
+    $effective_threshold_bytes = ll_tools_webp_optimizer_threshold_bytes_for_image($mime, $is_animated_webp);
+    $is_oversize = ($file_size > $effective_threshold_bytes);
     $download_url = '';
     if (!$has_local_file) {
         $download_url = ll_tools_webp_optimizer_get_attachment_download_url($attachment_id);
@@ -429,6 +549,12 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
 
     $item['is_supported_source'] = $is_supported_source;
     $item['is_webp'] = $is_webp;
+    $item['is_animated_webp'] = $is_animated_webp;
+    $item['threshold_bytes'] = $effective_threshold_bytes;
+    $item['threshold_label'] = ll_tools_webp_optimizer_bytes_label($effective_threshold_bytes);
+    if ($is_animated_webp) {
+        $item['format_label'] = __('Animated WebP', 'll-tools-text-domain');
+    }
 
     if (!$encoding_supported) {
         $item['status_key'] = 'unavailable';
@@ -469,7 +595,7 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
             'label' => sprintf(
                 /* translators: %s file size threshold */
                 __('Over %s', 'll-tools-text-domain'),
-                ll_tools_webp_optimizer_bytes_label($threshold_bytes)
+                ll_tools_webp_optimizer_bytes_label($effective_threshold_bytes)
             ),
         ];
     }
@@ -488,6 +614,13 @@ function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
     $item['status_label'] = $needs
         ? __('Needs optimization', 'll-tools-text-domain')
         : __('Looks efficient', 'll-tools-text-domain');
+
+    if ($is_animated_webp && $needs && !$animated_webp_optimizer_supported) {
+        $item['can_convert'] = false;
+        $item['has_problem'] = true;
+        $item['problem_code'] = 'animated_webp_unsupported';
+        $item['problem_label'] = __('Animated WebP optimization requires Imagick with WebP animation support on this server.', 'll-tools-text-domain');
+    }
 
     if (!$has_local_file && $download_url !== '') {
         $item['has_problem'] = true;
@@ -592,6 +725,8 @@ function ll_tools_webp_optimizer_get_queue(array $args = []): array {
         'encoding_supported' => ll_tools_webp_optimizer_can_encode_webp(),
         'threshold_bytes' => ll_tools_webp_optimizer_threshold_bytes(),
         'threshold_label' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_threshold_bytes()),
+        'animated_webp_threshold_bytes' => ll_tools_webp_optimizer_animated_webp_threshold_bytes(),
+        'animated_webp_threshold_label' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_animated_webp_threshold_bytes()),
     ];
 
     foreach ((array) $post_ids as $raw_post_id) {
@@ -770,12 +905,133 @@ function ll_tools_webp_optimizer_finalize_generated_attachment(int $source_attac
     return $new_attachment_id;
 }
 
+function ll_tools_webp_optimizer_save_animated_webp_candidate_imagick(string $source_path, int $quality, array $args = []) {
+    if (!ll_tools_webp_optimizer_can_optimize_animated_webp()) {
+        return new WP_Error(
+            'animated_webp_unsupported',
+            __('Animated WebP optimization requires Imagick with WebP animation support on this server.', 'll-tools-text-domain')
+        );
+    }
+
+    $target_path = ll_tools_webp_optimizer_build_target_path(
+        $source_path,
+        $quality,
+        (string) ($args['target_dir'] ?? ''),
+        (string) ($args['source_name_override'] ?? '')
+    );
+
+    $source = null;
+    $coalesced = null;
+    $optimized = null;
+    try {
+        $source = new \Imagick();
+        $source->readImage($source_path);
+
+        if ((int) $source->getNumberImages() < 2) {
+            return new WP_Error(
+                'animated_webp_unsupported',
+                __('Animated WebP optimization is not fully supported by this server ImageMagick/Imagick build.', 'll-tools-text-domain')
+            );
+        }
+
+        $iterations = method_exists($source, 'getImageIterations') ? (int) $source->getImageIterations() : 0;
+
+        $coalesced = $source->coalesceImages();
+        foreach ($coalesced as $frame) {
+            if (!($frame instanceof \Imagick)) {
+                continue;
+            }
+
+            $frame->setImageFormat('webp');
+            $frame->setImageCompressionQuality($quality);
+
+            if (method_exists($frame, 'setOption')) {
+                $frame->setOption('webp:method', '6');
+            }
+        }
+
+        $optimized = $coalesced->deconstructImages();
+        foreach ($optimized as $frame) {
+            if (!($frame instanceof \Imagick)) {
+                continue;
+            }
+
+            $frame->setImageFormat('webp');
+            $frame->setImageCompressionQuality($quality);
+            if (method_exists($frame, 'setOption')) {
+                $frame->setOption('webp:method', '6');
+            }
+        }
+
+        if (method_exists($optimized, 'setImageIterations') && $iterations >= 0) {
+            $optimized->setImageIterations($iterations);
+        }
+
+        $write_ok = $optimized->writeImages($target_path, true);
+        if (!$write_ok) {
+            if (file_exists($target_path)) {
+                @unlink($target_path);
+            }
+            return new WP_Error('save_failed', __('Could not save optimized animated WebP image.', 'll-tools-text-domain'));
+        }
+    } catch (Exception $e) {
+        if (file_exists($target_path)) {
+            @unlink($target_path);
+        }
+        return new WP_Error(
+            'animated_webp_encode_failed',
+            sprintf(
+                /* translators: %s error message */
+                __('Could not optimize animated WebP image: %s', 'll-tools-text-domain'),
+                $e->getMessage()
+            )
+        );
+    } finally {
+        if ($optimized instanceof \Imagick) {
+            $optimized->clear();
+            $optimized->destroy();
+        }
+        if ($coalesced instanceof \Imagick) {
+            $coalesced->clear();
+            $coalesced->destroy();
+        }
+        if ($source instanceof \Imagick) {
+            $source->clear();
+            $source->destroy();
+        }
+    }
+
+    if (!file_exists($target_path)) {
+        return new WP_Error('save_failed', __('Could not save optimized animated WebP image.', 'll-tools-text-domain'));
+    }
+
+    $size = ll_tools_webp_optimizer_safe_filesize($target_path);
+    if ($size <= 0) {
+        @unlink($target_path);
+        return new WP_Error('save_failed', __('Could not read the optimized animated WebP file size.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'path' => $target_path,
+        'size' => $size,
+        'quality' => $quality,
+    ];
+}
+
 function ll_tools_webp_optimizer_save_webp_candidate(string $source_path, int $quality, array $args = []) {
     $quality = max(10, min(100, (int) $quality));
     $args = wp_parse_args($args, [
         'target_dir' => '',
         'source_name_override' => '',
+        'source_mime' => '',
+        'is_animated_webp' => false,
     ]);
+
+    $source_mime = strtolower(trim((string) ($args['source_mime'] ?? '')));
+    $is_animated_webp = !empty($args['is_animated_webp']) && ($source_mime === 'image/webp');
+    if ($is_animated_webp) {
+        return ll_tools_webp_optimizer_save_animated_webp_candidate_imagick($source_path, $quality, $args);
+    }
 
     $editor = wp_get_image_editor($source_path);
     if (is_wp_error($editor)) {
@@ -865,11 +1121,33 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
 
     $source_size = ll_tools_webp_optimizer_safe_filesize($source_path);
     $source_mime = (string) ($item_before['mime'] ?? '');
+    $is_animated_source_webp = ($source_mime === 'image/webp') && ll_tools_webp_optimizer_is_animated_webp_file($source_path);
     try {
         $min_savings = ll_tools_webp_optimizer_min_savings_bytes();
-        $queue_threshold = ll_tools_webp_optimizer_threshold_bytes();
+        $queue_threshold = ll_tools_webp_optimizer_threshold_bytes_for_image($source_mime, $is_animated_source_webp);
         $retry_floor_quality = min($quality, ll_tools_webp_optimizer_min_retry_quality());
         $retry_quality_step = ll_tools_webp_optimizer_retry_quality_step();
+
+        if (
+            !$force
+            && $source_mime === 'image/webp'
+            && $source_size > 0
+            && $queue_threshold > 0
+            && $source_size <= $queue_threshold
+        ) {
+            return new WP_Error('not_needed', __('This image does not currently need optimization.', 'll-tools-text-domain'));
+        }
+
+        if (
+            $source_mime === 'image/webp'
+            && $is_animated_source_webp
+            && !ll_tools_webp_optimizer_can_optimize_animated_webp()
+        ) {
+            return new WP_Error(
+                'animated_webp_unsupported',
+                __('Animated WebP optimization requires Imagick with WebP animation support on this server.', 'll-tools-text-domain')
+            );
+        }
 
         $qualities_to_try = [$quality];
         if ($queue_threshold > 0 && $source_size > $queue_threshold && $retry_floor_quality < $quality) {
@@ -888,6 +1166,8 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
             $candidate = ll_tools_webp_optimizer_save_webp_candidate($source_path, (int) $try_quality, [
                 'target_dir' => $target_dir,
                 'source_name_override' => $source_name_override,
+                'source_mime' => $source_mime,
+                'is_animated_webp' => $is_animated_source_webp,
             ]);
             if (is_wp_error($candidate)) {
                 $last_error = $candidate;
@@ -1176,6 +1456,8 @@ function ll_tools_webp_optimizer_enqueue_admin_assets($hook): void {
         ],
         'thresholdBytes' => ll_tools_webp_optimizer_threshold_bytes(),
         'thresholdLabel' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_threshold_bytes()),
+        'animatedWebpThresholdBytes' => ll_tools_webp_optimizer_animated_webp_threshold_bytes(),
+        'animatedWebpThresholdLabel' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_animated_webp_threshold_bytes()),
         'quality' => ll_tools_webp_optimizer_quality(),
         'batchSize' => ll_tools_webp_optimizer_batch_size(),
         'encodingSupported' => ll_tools_webp_optimizer_can_encode_webp(),
@@ -1205,6 +1487,7 @@ function ll_tools_webp_optimizer_enqueue_admin_assets($hook): void {
             'pageLabel' => __('Page %1$d of %2$d', 'll-tools-text-domain'),
             'prevPage' => __('Previous', 'll-tools-text-domain'),
             'nextPage' => __('Next', 'll-tools-text-domain'),
+            'animatedWebpLabel' => __('animated WebP', 'll-tools-text-domain'),
             'focusLabel' => __('Opened from list view', 'll-tools-text-domain'),
             'refresh' => __('Refresh Queue', 'll-tools-text-domain'),
             'applyFilters' => __('Apply Filters', 'll-tools-text-domain'),
@@ -1273,11 +1556,22 @@ function ll_tools_webp_optimizer_render_admin_page(): void {
                 <div class="ll-webp-optimizer__bulk-actions">
                     <div class="ll-webp-optimizer__threshold-note">
                         <?php
-                        printf(
-                            /* translators: %s file size threshold */
-                            esc_html__('Oversized WebP threshold: %s', 'll-tools-text-domain'),
-                            esc_html(ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_threshold_bytes()))
-                        );
+                        $base_threshold_label = ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_threshold_bytes());
+                        $animated_threshold_label = ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_animated_webp_threshold_bytes());
+                        if ($animated_threshold_label !== $base_threshold_label) {
+                            printf(
+                                /* translators: 1: standard WebP threshold, 2: animated WebP threshold */
+                                esc_html__('Oversized WebP threshold: %1$s (animated WebP: %2$s)', 'll-tools-text-domain'),
+                                esc_html($base_threshold_label),
+                                esc_html($animated_threshold_label)
+                            );
+                        } else {
+                            printf(
+                                /* translators: %s file size threshold */
+                                esc_html__('Oversized WebP threshold: %s', 'll-tools-text-domain'),
+                                esc_html($base_threshold_label)
+                            );
+                        }
                         ?>
                     </div>
                     <button type="button" class="button button-primary" data-ll-webp-convert-all>
@@ -1354,6 +1648,8 @@ function ll_tools_webp_optimizer_queue_ajax(): void {
         'encoding_supported' => ll_tools_webp_optimizer_can_encode_webp(),
         'threshold_bytes' => ll_tools_webp_optimizer_threshold_bytes(),
         'threshold_label' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_threshold_bytes()),
+        'animated_webp_threshold_bytes' => ll_tools_webp_optimizer_animated_webp_threshold_bytes(),
+        'animated_webp_threshold_label' => ll_tools_webp_optimizer_bytes_label(ll_tools_webp_optimizer_animated_webp_threshold_bytes()),
     ]);
 }
 add_action('wp_ajax_ll_tools_webp_optimizer_queue', 'll_tools_webp_optimizer_queue_ajax');

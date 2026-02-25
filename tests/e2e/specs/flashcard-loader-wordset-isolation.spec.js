@@ -147,3 +147,64 @@ test('flashcard loader serializes category AJAX preloads by default to avoid req
     return await page.evaluate(() => window.__llPendingAjax.length);
   }).toBe(2);
 });
+
+test('flashcard loader can skip current-word audio preload when requested', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Category One'];
+    window.getCategoryDisplayMode = function () { return 'image'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      categories: [
+        { id: 11, name: 'Category One', prompt_type: 'audio', option_type: 'image' }
+      ]
+    };
+
+    const originalCreateElement = document.createElement.bind(document);
+    window.__llAudioCreateCount = 0;
+    document.createElement = function (tagName) {
+      if (String(tagName || '').toLowerCase() === 'audio') {
+        window.__llAudioCreateCount += 1;
+      }
+      return originalCreateElement(tagName);
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+
+  const result = await page.evaluate(async () => {
+    return await window.FlashcardLoader.loadResourcesForWord(
+      {
+        id: 1001,
+        title: 'Word One',
+        label: 'Word One',
+        audio: 'https://example.test/audio-one.mp3',
+        image: 'https://example.test/image-one.jpg',
+        audio_files: [],
+        wordset_ids: [101]
+      },
+      'image',
+      'Category One',
+      { prompt_type: 'audio', option_type: 'image' },
+      { skipAudioPreload: true, skipImagePreload: true }
+    );
+  });
+
+  const audioCreateCount = await page.evaluate(() => window.__llAudioCreateCount || 0);
+
+  expect(audioCreateCount).toBe(0);
+  expect(result).toMatchObject({
+    ready: true,
+    audioReady: true,
+    imageReady: true
+  });
+  expect(result.audio && result.audio.skipped).toBeTruthy();
+});

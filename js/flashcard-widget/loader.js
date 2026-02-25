@@ -971,10 +971,11 @@
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
+            const shouldPreloadAudio = needsAudio && !opts.skipAudioPreload;
             const shouldPreloadImage = needsImage && !opts.skipImagePreload;
             const audioURL = (typeof word.audio === 'string') ? word.audio : '';
             const imageURL = (typeof word.image === 'string') ? word.image : '';
-            const audioPromise = needsAudio
+            const audioPromise = shouldPreloadAudio
                 ? (audioURL
                     ? loadAudio(audioURL, {
                         maxRetries: opts.audioRetryCount,
@@ -1018,7 +1019,7 @@
             ]).then(function (results) {
                 const audioResult = results[0] || { ready: !needsAudio };
                 const imageResult = results[1] || { ready: !shouldPreloadImage };
-                const audioReady = !needsAudio || !!audioResult.ready;
+                const audioReady = !shouldPreloadAudio || !!audioResult.ready;
                 const imageReady = !shouldPreloadImage || !!imageResult.ready;
 
                 return {
