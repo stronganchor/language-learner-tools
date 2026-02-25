@@ -2936,20 +2936,78 @@ function ll_tools_wordset_get_verb_mood_label(int $wordset_id, string $value): s
  * - Else if exactly one word set exists, use that.
  * - Else return 0 (caller can decide to warn or require selection).
  */
+function ll_tools_get_wordset_cache_epoch(): int {
+    $epoch = (int) get_option('ll_tools_wordset_cache_epoch', 1);
+    if ($epoch < 1) {
+        $epoch = 1;
+        update_option('ll_tools_wordset_cache_epoch', $epoch, false);
+    }
+    return $epoch;
+}
+
+function ll_tools_bump_wordset_cache_epoch(): void {
+    $epoch = ll_tools_get_wordset_cache_epoch();
+    update_option('ll_tools_wordset_cache_epoch', $epoch + 1, false);
+}
+
+function ll_tools_handle_wordset_cache_epoch_bump($term_id = 0): void {
+    ll_tools_bump_wordset_cache_epoch();
+}
+add_action('created_wordset', 'll_tools_handle_wordset_cache_epoch_bump', 20, 1);
+add_action('edited_wordset', 'll_tools_handle_wordset_cache_epoch_bump', 20, 1);
+add_action('delete_wordset', 'll_tools_handle_wordset_cache_epoch_bump', 20, 1);
+
 function ll_tools_get_active_wordset_id($explicit = 0): int {
     $explicit = (int) $explicit;
-    if ($explicit > 0 && term_exists($explicit, 'wordset')) {
-        return $explicit;
-    }
     $opt = (int) get_option('ll_default_wordset_id', 0);
-    if ($opt > 0 && term_exists($opt, 'wordset')) {
-        return $opt;
+
+    $epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? (int) ll_tools_get_wordset_cache_epoch()
+        : 1;
+    if ($epoch < 1) {
+        $epoch = 1;
     }
-    $all = get_terms(['taxonomy' => 'wordset', 'hide_empty' => false, 'fields' => 'ids']);
-    if (!is_wp_error($all) && is_array($all) && count($all) === 1) {
-        return (int) $all[0];
+
+    $cache_key = 'll_active_ws_' . md5(wp_json_encode([
+        'explicit' => $explicit,
+        'opt' => $opt,
+        'epoch' => $epoch,
+        'schema' => 1,
+    ]));
+    $cache_group = 'll_tools_wordset';
+    $cache_ttl = 15 * MINUTE_IN_SECONDS;
+
+    static $request_cache = [];
+    if (array_key_exists($cache_key, $request_cache)) {
+        return (int) $request_cache[$cache_key];
     }
-    return 0;
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (is_numeric($cached)) {
+        $request_cache[$cache_key] = (int) $cached;
+        return (int) $cached;
+    }
+
+    $result = 0;
+    if ($explicit > 0 && term_exists($explicit, 'wordset')) {
+        $result = $explicit;
+    } elseif ($opt > 0 && term_exists($opt, 'wordset')) {
+        $result = $opt;
+    } else {
+        $all = get_terms(['taxonomy' => 'wordset', 'hide_empty' => false, 'fields' => 'ids']);
+        if (!is_wp_error($all) && is_array($all) && count($all) === 1) {
+            $result = (int) $all[0];
+        }
+    }
+
+    $request_cache[$cache_key] = $result;
+    wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
+    set_transient($cache_key, $result, $cache_ttl);
+
+    return $result;
 }
 
 /**

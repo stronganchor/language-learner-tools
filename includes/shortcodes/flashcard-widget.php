@@ -50,6 +50,75 @@ function ll_flashcards_resolve_wordset_ids(string $wordset_spec = '', bool $fall
 }
 
 /**
+ * Cache the expensive processed category metadata used by the flashcard picker.
+ *
+ * This avoids re-running ll_process_categories() (and many ll_get_words_by_category()
+ * calls) on every page request.
+ *
+ * @param array $terms Array of WP_Term objects.
+ * @return array
+ */
+function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_translations, int $min_word_count, array $wordset_ids = []): array {
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
+        return $id > 0;
+    }));
+
+    $term_ids = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+        $term_id = (int) $term->term_id;
+        if ($term_id > 0) {
+            $term_ids[] = $term_id;
+        }
+    }
+
+    $cache_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? (int) ll_tools_get_category_cache_epoch()
+        : 1;
+    if ($cache_epoch < 1) {
+        $cache_epoch = 1;
+    }
+
+    $cache_key = 'll_fc_proc_cats_' . md5(wp_json_encode([
+        'term_ids' => $term_ids,
+        'use_translations' => $use_translations ? 1 : 0,
+        'min_word_count' => $min_word_count,
+        'wordset_ids' => $wordset_ids,
+        'epoch' => $cache_epoch,
+    ]));
+    $cache_group = 'll_tools_flashcards';
+    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', 10 * MINUTE_IN_SECONDS);
+    if ($cache_ttl < 1) {
+        $cache_ttl = 10 * MINUTE_IN_SECONDS;
+    }
+
+    static $request_cache = [];
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (is_array($cached)) {
+        $request_cache[$cache_key] = $cached;
+        return $cached;
+    }
+
+    $processed = ll_process_categories($terms, $use_translations, $min_word_count, $wordset_ids);
+    $processed = is_array($processed) ? $processed : [];
+
+    $request_cache[$cache_key] = $processed;
+    wp_cache_set($cache_key, $processed, $cache_group, $cache_ttl);
+    set_transient($cache_key, $processed, $cache_ttl);
+
+    return $processed;
+}
+
+/**
  * Build the categories list used by the widget.
  * Returns [array $categories, bool $categoriesPreselected]
  */
@@ -75,32 +144,111 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
         }
     }
 
-    // Your existing helper builds the final structure: id, slug, name, translation, mode
-    $all_processed = ll_process_categories($all_terms, $use_translations, $min_word_count, $wordset_ids);
-
     // No specific categories provided → offer all; not preselected.
     if (empty($raw)) {
+        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
         return [$all_processed, false];
     }
 
-    // Specific categories requested → pick matching ones; preselected = true.
     $wanted = array_map('trim', explode(',', (string) $raw));
+    $wanted = array_values(array_filter($wanted, static function ($value): bool {
+        return $value !== '';
+    }));
+    if (empty($wanted)) {
+        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
+        return [$all_processed, false];
+    }
+
+    // Build a reduced term list first so we don't process every category when only a few were requested.
+    $terms_by_id = [];
+    $terms_by_slug = [];
+    $terms_by_name = [];
+    foreach ($all_terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+        $term_id = (int) $term->term_id;
+        if ($term_id > 0 && !isset($terms_by_id[(string) $term_id])) {
+            $terms_by_id[(string) $term_id] = $term;
+        }
+
+        $slug_key = strtolower((string) $term->slug);
+        if ($slug_key !== '' && !isset($terms_by_slug[$slug_key])) {
+            $terms_by_slug[$slug_key] = $term;
+        }
+
+        $name_raw_key = strtolower((string) $term->name);
+        if ($name_raw_key !== '' && !isset($terms_by_name[$name_raw_key])) {
+            $terms_by_name[$name_raw_key] = $term;
+        }
+
+        $name_decoded_key = strtolower(html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'));
+        if ($name_decoded_key !== '' && !isset($terms_by_name[$name_decoded_key])) {
+            $terms_by_name[$name_decoded_key] = $term;
+        }
+    }
+
+    $requested_terms = [];
+    $requested_term_ids = [];
+    foreach ($wanted as $w) {
+        $w_lc = strtolower($w);
+        $matched = null;
+        if (isset($terms_by_id[$w])) {
+            $matched = $terms_by_id[$w];
+        } elseif (isset($terms_by_slug[$w_lc])) {
+            $matched = $terms_by_slug[$w_lc];
+        } elseif (isset($terms_by_name[$w_lc])) {
+            $matched = $terms_by_name[$w_lc];
+        }
+
+        if ($matched instanceof WP_Term) {
+            $tid = (int) $matched->term_id;
+            if ($tid > 0 && !isset($requested_term_ids[$tid])) {
+                $requested_terms[] = $matched;
+                $requested_term_ids[$tid] = true;
+            }
+        }
+    }
+
+    $all_processed = ll_flashcards_get_processed_categories_cached($requested_terms, $use_translations, $min_word_count, $wordset_ids);
+
+    // Specific categories requested → pick matching ones; preselected = true.
+    $processed_by_id = [];
+    $processed_by_slug = [];
+    $processed_by_name = [];
+    foreach ($all_processed as $cat) {
+        if (!is_array($cat)) {
+            continue;
+        }
+        if (isset($cat['id'])) {
+            $processed_by_id[(string) $cat['id']] = $cat;
+        }
+        if (!empty($cat['slug'])) {
+            $processed_by_slug[strtolower((string) $cat['slug'])] = $cat;
+        }
+        if (!empty($cat['name'])) {
+            $processed_by_name[strtolower((string) $cat['name'])] = $cat;
+        }
+    }
+
     $out = [];
     foreach ($wanted as $w) {
         $w_lc = strtolower($w);
-        $found = false;
-        foreach ($all_processed as $cat) {
-            if (
-                strtolower((string) $cat['name']) === $w_lc ||
-                (string) $cat['id'] === $w ||
-                strtolower((string) $cat['slug']) === $w_lc
-            ) {
-                $out[] = $cat;
-                $found = true;
-                break;
-            }
+        $cat = null;
+
+        if (isset($processed_by_id[$w])) {
+            $cat = $processed_by_id[$w];
+        } elseif (isset($processed_by_slug[$w_lc])) {
+            $cat = $processed_by_slug[$w_lc];
+        } elseif (isset($processed_by_name[$w_lc])) {
+            $cat = $processed_by_name[$w_lc];
         }
-        if (!$found) error_log("LL Tools: Category '$w' not found.");
+
+        if (is_array($cat)) {
+            $out[] = $cat;
+        } else {
+            error_log("LL Tools: Category '$w' not found.");
+        }
     }
     return [$out, true];
 }
@@ -121,17 +269,25 @@ function ll_flashcards_pick_initial_batch(array $categories, array $wordset_ids 
         return [$selected_category_data, $firstCategoryName, $words_data];
     }
 
-    // Try random categories until we have at least a few words
-    $names = array_column($categories, 'name');
-    $tries = $names;
-    while (!empty($tries) && (empty($words_data) || count($words_data) < 3)) {
-        $random = $tries[array_rand($tries)];
-        $tries  = array_diff($tries, [$random]);
-
-        $selected_category_data = null;
-        foreach ($categories as $cat) {
-            if ($cat['name'] === $random) { $selected_category_data = $cat; break; }
+    // Try categories in a randomized order until we have at least a few words.
+    $categories_by_name = [];
+    foreach ($categories as $cat) {
+        if (!is_array($cat) || empty($cat['name'])) {
+            continue;
         }
+        $categories_by_name[(string) $cat['name']] = $cat;
+    }
+    $tries = array_keys($categories_by_name);
+    if (!empty($tries)) {
+        shuffle($tries);
+    }
+
+    foreach ($tries as $random) {
+        if (!empty($words_data) && count($words_data) >= 3) {
+            break;
+        }
+
+        $selected_category_data = $categories_by_name[$random] ?? null;
         $mode = $selected_category_data ? ($selected_category_data['option_type'] ?? $selected_category_data['mode']) : 'image';
 
         $words_data = ll_get_words_by_category($random, $mode, $wordset_ids, (array) $selected_category_data);
@@ -155,7 +311,12 @@ function ll_flashcards_category_label(?array $selected_category_data, string $fi
 
 /** Prepare translatable UI messages for JavaScript */
 function ll_flashcards_get_messages(): array {
-    return [
+    static $messages = null;
+    if (is_array($messages)) {
+        return $messages;
+    }
+
+    $messages = [
         // Results page messages
         'learningComplete'        => __('Learning Complete!', 'll-tools-text-domain'),
         'learningCompleteMessage' => __('✓', 'll-tools-text-domain'),
@@ -220,10 +381,17 @@ function ll_flashcards_get_messages(): array {
         'checkWordsetFilter'      => __('If using wordsets, the wordset contains words for this category', 'll-tools-text-domain'),
         'checkSpecificWrongAnswers' => __('Any specific wrong-answer words are available for this target', 'll-tools-text-domain'),
     ];
+
+    return $messages;
 }
 
 /** Return UI metadata (icon + labels) for each quiz mode */
 function ll_flashcards_get_mode_ui_config(): array {
+    static $config = null;
+    if (is_array($config)) {
+        return $config;
+    }
+
     $gender_svg = <<<'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
@@ -254,7 +422,7 @@ SVG;
             . '</svg>';
     }
 
-    return [
+    $config = [
         'practice' => [
             'icon'              => '❓',
             'className'         => 'practice-mode',
@@ -288,6 +456,8 @@ SVG;
             'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
+
+    return $config;
 }
 
 /** Enqueue styles/scripts and localize data. Returns the localized data array for per-instance scoping. */
@@ -434,6 +604,30 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     }
 
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
+    $preload_tuning_defaults = [
+        'categoryAjaxConcurrency'    => 1,
+        'categoryAjaxSpacingMs'      => 220,
+        'categoryAjaxMaxRetriesOn429'=> 2,
+        'categoryAjaxRetryBaseMs'    => 900,
+        'categoryAjaxRetryMaxMs'     => 10000,
+        'categoryMediaChunkSize'     => 8,
+        'categoryMediaChunkDelayMs'  => 100,
+        'categoryMediaChunkConcurrency' => 2,
+    ];
+    $preload_tuning = apply_filters('ll_tools_flashcards_preload_tuning', $preload_tuning_defaults, $atts, $categories, $wordset_ids);
+    if (!is_array($preload_tuning)) {
+        $preload_tuning = [];
+    }
+    $preload_tuning = [
+        'categoryAjaxConcurrency'       => max(1, min(4, (int) ($preload_tuning['categoryAjaxConcurrency'] ?? $preload_tuning_defaults['categoryAjaxConcurrency']))),
+        'categoryAjaxSpacingMs'         => max(0, min(6000, (int) ($preload_tuning['categoryAjaxSpacingMs'] ?? $preload_tuning_defaults['categoryAjaxSpacingMs']))),
+        'categoryAjaxMaxRetriesOn429'   => max(0, min(6, (int) ($preload_tuning['categoryAjaxMaxRetriesOn429'] ?? $preload_tuning_defaults['categoryAjaxMaxRetriesOn429']))),
+        'categoryAjaxRetryBaseMs'       => max(100, min(30000, (int) ($preload_tuning['categoryAjaxRetryBaseMs'] ?? $preload_tuning_defaults['categoryAjaxRetryBaseMs']))),
+        'categoryAjaxRetryMaxMs'        => max(500, min(90000, (int) ($preload_tuning['categoryAjaxRetryMaxMs'] ?? $preload_tuning_defaults['categoryAjaxRetryMaxMs']))),
+        'categoryMediaChunkSize'        => max(1, min(30, (int) ($preload_tuning['categoryMediaChunkSize'] ?? $preload_tuning_defaults['categoryMediaChunkSize']))),
+        'categoryMediaChunkDelayMs'     => max(0, min(10000, (int) ($preload_tuning['categoryMediaChunkDelayMs'] ?? $preload_tuning_defaults['categoryMediaChunkDelayMs']))),
+        'categoryMediaChunkConcurrency' => max(1, min(8, (int) ($preload_tuning['categoryMediaChunkConcurrency'] ?? $preload_tuning_defaults['categoryMediaChunkConcurrency']))),
+    ];
     $localized_data = [
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
@@ -472,6 +666,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'launchContext'        => $launch_context,
         'launch_context'       => $launch_context,
         'sortLocale'           => get_locale(),
+        'preloadTuning'        => $preload_tuning,
     ];
 
     wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
@@ -583,8 +778,8 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
     $config = $term && !is_wp_error($term) ? ll_tools_get_category_quiz_config($term) : ['prompt_type' => 'audio', 'option_type' => 'image'];
 
     $option_type = $config['option_type'] ?? 'image';
-    $words_in_mode = ll_get_words_by_category($categoryName, $option_type, $wordset_ids, $config);
-    if (count($words_in_mode) >= $min_word_count) {
+    $words_in_mode_count = ll_get_words_by_category_count($categoryName, $option_type, $wordset_ids, $config);
+    if ($words_in_mode_count >= $min_word_count) {
         return $option_type;
     }
 
@@ -592,15 +787,15 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
     if (in_array($option_type, ['audio', 'text_audio'], true)) {
         $fallback_config = $config;
         $fallback_config['option_type'] = 'text_translation';
-        $text_words = ll_get_words_by_category($categoryName, 'text', $wordset_ids, $fallback_config);
-        if (count($text_words) >= $min_word_count) {
+        $text_count = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, $fallback_config);
+        if ($text_count >= $min_word_count) {
             return 'text_translation';
         }
     }
 
     // Last resort: compare image/text availability to pick the better one
-    $image_count = count(ll_get_words_by_category($categoryName, 'image', $wordset_ids, $config));
-    $text_count  = count(ll_get_words_by_category($categoryName, 'text', $wordset_ids, array_merge($config, ['option_type' => 'text_translation'])));
+    $image_count = ll_get_words_by_category_count($categoryName, 'image', $wordset_ids, $config);
+    $text_count  = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, array_merge($config, ['option_type' => 'text_translation']));
 
     if ($image_count < $min_word_count && $text_count < $min_word_count) return null;
     if ($image_count < $min_word_count) return 'text';
@@ -609,7 +804,7 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
 }
 
 /**
- * Processes categories (unchanged from your version).
+ * Processes categories for the flashcard widget.
  */
 function ll_process_categories($categories, $use_translations, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
     $processed = [];
@@ -632,25 +827,42 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
     }
 
     foreach ($categories as $category) {
-        if (!ll_can_category_generate_quiz($category, $min_word_count, $wordset_ids)) continue;
+        if (!($category instanceof WP_Term)) {
+            continue;
+        }
+        if ((string) ($category->slug ?? '') === 'uncategorized') {
+            continue;
+        }
 
         $config = ll_tools_get_category_quiz_config($category);
         $learning_supported = $config['learning_supported'];
 
         // Resolve the effective option type (fall back to text if the preferred audio-based mode has too few words)
         $option_type = $config['option_type'];
-        $words_in_mode = ll_get_words_by_category($category->name, $option_type, $wordset_ids, $config);
-        if (count($words_in_mode) < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
+        $words_in_mode = [];
+        $word_count = ll_get_words_by_category_count($category->name, $option_type, $wordset_ids, $config);
+        if ($word_count < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
             $fallback_config = $config;
             $fallback_config['option_type'] = 'text_translation';
-            $fallback_words = ll_get_words_by_category($category->name, 'text', $wordset_ids, $fallback_config);
-            if (count($fallback_words) >= $min_word_count) {
+            $fallback_count = ll_get_words_by_category_count($category->name, 'text', $wordset_ids, $fallback_config);
+            if ($fallback_count >= $min_word_count) {
                 $option_type = 'text_translation';
                 $learning_supported = ($config['prompt_type'] === 'image') ? false : $learning_supported;
-                $words_in_mode = $fallback_words;
+                $word_count = $fallback_count;
             }
         }
+        if ($word_count < $min_word_count) {
+            continue;
+        }
         $config['option_type'] = $option_type;
+
+        if ($gender_enabled) {
+            $words_in_mode = ll_get_words_by_category($category->name, $option_type, $wordset_ids, $config);
+            $word_count = count($words_in_mode);
+            if ($word_count < $min_word_count) {
+                continue;
+            }
+        }
 
         // Keep legacy name "mode" for frontend compatibility (now represents the option type)
         $mode = $option_type;
@@ -708,7 +920,7 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'prompt_type' => $config['prompt_type'],
             'learning_supported' => $learning_supported,
             'use_titles'  => $config['use_titles'],
-            'word_count'  => count($words_in_mode),
+            'word_count'  => $word_count,
             'gender_word_count' => $gender_word_count,
             'gender_supported' => ($gender_enabled && $gender_word_count >= $min_word_count),
             'aspect_bucket' => $aspect_bucket,

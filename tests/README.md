@@ -9,6 +9,7 @@ This directory contains the plugin test framework:
 - `bootstrap.php`: boots the WordPress test suite and loads the plugin.
 - `Integration/*Test.php`: first integration tests.
 - `bin/setup-local-env.sh`: detects Local site DB settings and prints export commands.
+  - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports.
 - `bin/install-wp-tests.sh`: installs WordPress core + wordpress-tests-lib and writes `wp-tests-config.php`.
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
 - `bin/run-tests.sh`: installs test deps (if needed) and runs PHPUnit.
@@ -101,6 +102,15 @@ tests/bin/bootstrap-and-test.sh
 ```
 
 If your shell cannot reach Local's database port, start the Local site first, then rerun the commands.
+If the site is running but the detected DB port still refuses connections, compare:
+
+```bash
+tests/bin/setup-local-env.sh
+tests/bin/setup-local-http-env.sh
+```
+
+Some Local installs keep stale ports in `local-site.json`; in that case inspect the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and temporarily override `WP_TEST_DB_HOST`.
+`setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and (when runtime detection succeeds) `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` to show which Local runtime files were used.
 
 ## 4.2) Using a `.env` file
 
@@ -205,3 +215,6 @@ tests/bin/run-e2e.sh specs/user-study-dashboard-mode-options.spec.js
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
 - If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
   - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`
+- One PHPUnit import regression may be skipped on some machines:
+  - `ExternalCsvBundleImportTest::test_import_decodes_windows_1255_csv_values_and_generates_quiz_page`
+  - This depends on runtime `iconv` / `mbstring` support for reliably round-tripping the non-UTF Hebrew fixture encoding.

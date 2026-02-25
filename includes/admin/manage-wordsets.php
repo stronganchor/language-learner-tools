@@ -5,6 +5,19 @@
  * @return void
  */
 function ll_manage_wordsets_page_template() {
+    if (!is_admin()) {
+        return;
+    }
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return;
+    }
+    if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+        return;
+    }
+    if (!current_user_can('view_ll_tools') && !current_user_can('manage_options')) {
+        return;
+    }
+
     $page_slug = 'manage-word-sets';
     $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
 	
@@ -45,12 +58,11 @@ function ll_manage_wordsets_page_template() {
         }
     }
 }
-add_action('init', 'll_manage_wordsets_page_template');
+add_action('admin_init', 'll_manage_wordsets_page_template');
 
 // Function to return the content for the Manage Word Sets page
 function ll_manage_wordsets_page_content() {
     $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
     return '<div class="custom-admin-page"><iframe src="' . $iframe_url . '" style="width:100%; height:800px; border:none;"></iframe></div>';
 }
-
 

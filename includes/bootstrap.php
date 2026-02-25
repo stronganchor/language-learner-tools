@@ -34,34 +34,55 @@ require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
 require_once(__DIR__ . '/user-roles/learner-role.php');
 require_once(__DIR__ . '/user-roles/audio-recorder-role.php');
 
-// Include admin functionality
-require_once(__DIR__ . '/admin/admin-dashboard-menu.php');
+// Include shortcode-providing/admin-shared modules.
+// These live under /admin for historical reasons but can be used on public pages.
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
-require_once(__DIR__ . '/admin/manage-wordsets.php');
-require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
-require_once(__DIR__ . '/admin/audio-image-matcher.php'); 
-require_once(__DIR__ . '/admin/settings.php');
-require_once(__DIR__ . '/admin/audio-processor-admin.php');
-require_once(__DIR__ . '/admin/recording-types-admin.php');
-require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
-require_once(__DIR__ . '/admin/bulk-translation-admin.php');
-require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
-require_once(__DIR__ . '/admin/export-import.php');
-require_once(__DIR__ . '/admin/word-images-fixer.php');
-require_once(__DIR__ . '/admin/example-sentence-migration.php');
-require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
-require_once(__DIR__ . '/admin/word-option-rules-admin.php');
-require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
-require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
-require_once(__DIR__ . '/admin/split-word-admin.php');
-require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
 require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/user-study.php');
 
-// Include API integrations
+// Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
 require_once(__DIR__ . '/admin/api/assemblyai-api.php');
+
+// Load admin-only tools and screens only for admin/WP-CLI requests.
+if (!function_exists('ll_tools_should_load_admin_modules')) {
+    function ll_tools_should_load_admin_modules() {
+        // PHPUnit integration tests call many admin/import helper functions directly
+        // in a front-end bootstrap context, so keep those modules available there.
+        if (defined('WP_TESTS_DOMAIN')) {
+            return true;
+        }
+
+        if (is_admin()) {
+            return true;
+        }
+
+        return defined('WP_CLI') && WP_CLI;
+    }
+}
+
+if (ll_tools_should_load_admin_modules()) {
+    require_once(__DIR__ . '/admin/admin-dashboard-menu.php');
+    require_once(__DIR__ . '/admin/manage-wordsets.php');
+    require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
+    require_once(__DIR__ . '/admin/audio-image-matcher.php');
+    require_once(__DIR__ . '/admin/settings.php');
+    require_once(__DIR__ . '/admin/audio-processor-admin.php');
+    require_once(__DIR__ . '/admin/recording-types-admin.php');
+    require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
+    require_once(__DIR__ . '/admin/bulk-translation-admin.php');
+    require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
+    require_once(__DIR__ . '/admin/export-import.php');
+    require_once(__DIR__ . '/admin/word-images-fixer.php');
+    require_once(__DIR__ . '/admin/example-sentence-migration.php');
+    require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
+    require_once(__DIR__ . '/admin/word-option-rules-admin.php');
+    require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
+    require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
+    require_once(__DIR__ . '/admin/split-word-admin.php');
+    require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
+}
 
 // Include pages
 require_once(__DIR__ . '/pages/quiz-pages.php');
@@ -87,8 +108,10 @@ require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 require_once(__DIR__ . '/shortcodes/user-study-dashboard.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
 
-// Include the plugin update checker
-require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';
+// Include the plugin update checker only on admin/cron/CLI requests.
+if (!function_exists('ll_tools_should_boot_update_checker') || ll_tools_should_boot_update_checker()) {
+    require_once LL_TOOLS_BASE_PATH . 'vendor/plugin-update-checker/plugin-update-checker.php';
+}
 
 // Include other utility files
 require_once(__DIR__ . '/i18n/language-switcher.php');

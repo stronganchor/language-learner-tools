@@ -45,14 +45,56 @@ function ll_tools_resolve_term_id_by_slug_name_or_id($taxonomy, $value) {
 function ll_raw_resolve_wordset_term_ids($spec) {
     global $wpdb;
 
-    if (is_numeric($spec)) {
-        $tid = (int) $spec;
-        if ($tid > 0) return [$tid];
-        return [];
+    $raw_spec = is_scalar($spec) ? (string) $spec : '';
+    $normalized_spec = trim($raw_spec);
+    $is_numeric_spec = is_numeric($spec);
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? (int) ll_tools_get_wordset_cache_epoch()
+        : 1;
+    if ($wordset_epoch < 1) {
+        $wordset_epoch = 1;
     }
 
-    $spec = trim((string) $spec);
-    if ($spec === '') return [];
+    $cache_key = 'll_raw_ws_ids_' . md5(wp_json_encode([
+        'spec' => $normalized_spec,
+        'is_numeric' => $is_numeric_spec ? 1 : 0,
+        'epoch' => $wordset_epoch,
+        'schema' => 1,
+    ]));
+    $cache_group = 'll_tools_wordset';
+    $cache_ttl = HOUR_IN_SECONDS;
+
+    static $request_cache = [];
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (is_array($cached)) {
+        $cached = array_values(array_unique(array_filter(array_map('intval', $cached), function($v){ return $v > 0; })));
+        $request_cache[$cache_key] = $cached;
+        return $cached;
+    }
+
+    if ($is_numeric_spec) {
+        $tid = (int) $spec;
+        $result = ($tid > 0) ? [$tid] : [];
+        $request_cache[$cache_key] = $result;
+        wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
+        set_transient($cache_key, $result, $cache_ttl);
+        return $result;
+    }
+
+    $spec = $normalized_spec;
+    if ($spec === '') {
+        $request_cache[$cache_key] = [];
+        wp_cache_set($cache_key, [], $cache_group, $cache_ttl);
+        set_transient($cache_key, [], $cache_ttl);
+        return [];
+    }
 
     // 1) Exact slug match(es)
     $sql_slug = $wpdb->prepare("
@@ -74,7 +116,12 @@ function ll_raw_resolve_wordset_term_ids($spec) {
         $ids = array_map('intval', (array) $wpdb->get_col($sql_name));
     }
 
-    return array_values(array_unique(array_filter($ids, function($v){ return $v > 0; })));
+    $result = array_values(array_unique(array_filter($ids, function($v){ return $v > 0; })));
+    $request_cache[$cache_key] = $result;
+    wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
+    set_transient($cache_key, $result, $cache_ttl);
+
+    return $result;
 }
 
 /**
@@ -89,15 +136,33 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
     $wordset_term_ids = array_filter($wordset_term_ids, function($v){ return $v > 0; });
     if (empty($wordset_term_ids)) return [];
 
-    // Simple in-request cache
-    $cache_key = 'll_wcids_ws_' . md5(implode(',', $wordset_term_ids));
-    $cached = wp_cache_get($cache_key, 'll_tools');
-    if ($cached !== false) return $cached;
-
     $placeholders = implode(',', array_fill(0, count($wordset_term_ids), '%d'));
 
     // Get minimum word count (default 5)
     $min_words = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $category_cache_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? (int) ll_tools_get_category_cache_epoch()
+        : 1;
+    if ($category_cache_epoch < 1) {
+        $category_cache_epoch = 1;
+    }
+
+    // Cache key includes the category cache epoch so membership/count changes invalidate it.
+    $cache_key = 'll_wcids_ws_' . md5(wp_json_encode([
+        'wordset_ids' => $wordset_term_ids,
+        'min_words' => $min_words,
+        'epoch' => $category_cache_epoch,
+    ]));
+    $cache_group = 'll_tools';
+    $cache_ttl = HOUR_IN_SECONDS;
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (is_array($cached)) {
+        return array_values(array_map('intval', $cached));
+    }
 
     // First, get word counts per category for this wordset
     $sql = $wpdb->prepare("
@@ -118,7 +183,8 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
 
     $cat_ids = array_map('intval', (array) $wpdb->get_col($sql));
     if (empty($cat_ids)) {
-        wp_cache_set($cache_key, [], 'll_tools', HOUR_IN_SECONDS);
+        wp_cache_set($cache_key, [], $cache_group, $cache_ttl);
+        set_transient($cache_key, [], $cache_ttl);
         return [];
     }
 
@@ -131,7 +197,8 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
         }
     }
     $result = array_values(array_map('intval', array_keys($with_anc)));
-    wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);
+    wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
+    set_transient($cache_key, $result, $cache_ttl);
     return $result;
 }
 

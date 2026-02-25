@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.4.7
+Version: 5.4.8
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -30,16 +30,40 @@ function ll_tools_get_update_branch() {
     return ll_tools_normalize_update_branch($branch);
 }
 
+/**
+ * Only boot the plugin update checker where it is useful.
+ *
+ * Front-end page requests don't need PUC hooks and object setup.
+ */
+function ll_tools_should_boot_update_checker() {
+    if (is_admin()) {
+        return true;
+    }
+
+    if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+        return true;
+    }
+
+    if (defined('WP_CLI') && WP_CLI) {
+        return true;
+    }
+
+    return false;
+}
+
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
-$ll_tools_update_branch = ll_tools_get_update_branch();
-$ll_tools_update_checker = PucFactory::buildUpdateChecker(
-    'https://github.com/stronganchor/language-learner-tools',
-    __FILE__,
-    'language-learner-tools'
-);
-$ll_tools_update_checker->setBranch($ll_tools_update_branch);
+$ll_tools_update_checker = null;
+if (ll_tools_should_boot_update_checker()) {
+    $ll_tools_update_branch = ll_tools_get_update_branch();
+    $ll_tools_update_checker = PucFactory::buildUpdateChecker(
+        'https://github.com/stronganchor/language-learner-tools',
+        __FILE__,
+        'language-learner-tools'
+    );
+    $ll_tools_update_checker->setBranch($ll_tools_update_branch);
+}
 
 add_action('update_option_ll_update_branch', function ($old_value, $value, $option_name) {
     global $ll_tools_update_checker;
