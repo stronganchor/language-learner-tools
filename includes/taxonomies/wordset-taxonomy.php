@@ -1444,9 +1444,27 @@ function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string
 }
 
 function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): array {
+    static $runtime_cache = [];
+
     if ($wordset_id <= 0) {
         return [];
     }
+
+    if (isset($runtime_cache[$wordset_id]) && is_array($runtime_cache[$wordset_id])) {
+        return $runtime_cache[$wordset_id];
+    }
+
+    $transient_key = 'll_ws_ans_prev_samples_' . $wordset_id;
+    $cached_samples = get_transient($transient_key);
+    if (is_array($cached_samples)) {
+        $runtime_cache[$wordset_id] = $cached_samples;
+        return $cached_samples;
+    }
+
+    $max_candidate_words = max(100, min(2000, (int) apply_filters('ll_tools_wordset_preview_max_candidate_words', 600, $wordset_id)));
+    $max_categories = max(4, min(80, (int) apply_filters('ll_tools_wordset_preview_max_categories', 24, $wordset_id)));
+    $max_words_per_category = max(10, min(200, (int) apply_filters('ll_tools_wordset_preview_max_words_per_category', 60, $wordset_id)));
+    $max_unique_labels = max(30, min(1000, (int) apply_filters('ll_tools_wordset_preview_max_unique_labels', 240, $wordset_id)));
 
     $candidate_category_ids = [];
     if (function_exists('ll_collect_wc_ids_for_wordset_term_ids')) {
@@ -1459,12 +1477,14 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
         $word_ids_for_scope = get_posts([
             'post_type'         => 'words',
             'post_status'       => 'any',
-            'posts_per_page'    => -1,
+            'posts_per_page'    => $max_candidate_words,
             'fields'            => 'ids',
             'orderby'           => 'ID',
             'order'             => 'ASC',
             'no_found_rows'     => true,
             'suppress_filters'  => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
             'tax_query'         => [[
                 'taxonomy' => 'wordset',
                 'field'    => 'term_id',
@@ -1497,6 +1517,7 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
 
     $items = [];
     $seen_text = [];
+    $text_category_count = 0;
     foreach ((array) $candidate_terms as $category_term) {
         if (!($category_term instanceof WP_Term)) {
             continue;
@@ -1510,16 +1531,22 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
         if (!ll_tools_wordset_preview_uses_text_answer_options($option_type)) {
             continue;
         }
+        $text_category_count++;
+        if ($text_category_count > $max_categories) {
+            break;
+        }
 
         $word_ids = get_posts([
             'post_type'         => 'words',
             'post_status'       => 'any',
-            'posts_per_page'    => -1,
+            'posts_per_page'    => $max_words_per_category,
             'fields'            => 'ids',
             'orderby'           => 'ID',
             'order'             => 'ASC',
             'no_found_rows'     => true,
             'suppress_filters'  => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
             'tax_query'         => [
                 'relation' => 'AND',
                 [
@@ -1554,10 +1581,16 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
                 'categoryId' => (int) $category_term->term_id,
                 'optionType' => $option_type,
             ];
+
+            if (count($items) >= $max_unique_labels) {
+                break 2;
+            }
         }
     }
 
     if (empty($items)) {
+        $runtime_cache[$wordset_id] = [];
+        set_transient($transient_key, [], 15 * MINUTE_IN_SECONDS);
         return [];
     }
 
@@ -1593,11 +1626,16 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
         }
     }
 
-    return [
+    $result = [
         'shortest' => $items[0],
         'average'  => $items[$average_index] ?? $items[0],
         'longest'  => $items[$last_index],
     ];
+
+    $runtime_cache[$wordset_id] = $result;
+    set_transient($transient_key, $result, 15 * MINUTE_IN_SECONDS);
+
+    return $result;
 }
 
 function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_id, array $style_config): string {
