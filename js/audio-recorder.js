@@ -1046,7 +1046,7 @@
             }
             const data = await response.json();
             if (!data.success) {
-                throw new Error(data.data || data.message || 'Failed to update word text');
+                throw new Error(data.data || data.message || (i18n.new_word_update_text_failed || 'Failed to update word text'));
             }
             const responseData = data.data || {};
             const postTitle = typeof responseData.post_title === 'string' ? responseData.post_title : '';
@@ -1191,7 +1191,7 @@
 
             const data = await response.json();
             if (!data.success) {
-                const message = data.data?.message || data.data || data.message || 'Transcription failed';
+                const message = data.data?.message || data.data || data.message || (i18n.transcription_request_failed || 'Transcription failed');
                 throw new Error(message);
             }
 
@@ -1243,7 +1243,7 @@
             }
             const data = await response.json();
             if (!data.success) {
-                const message = data.data?.message || data.data || data.message || 'Translation failed';
+                const message = data.data?.message || data.data || data.message || (i18n.translation_request_failed || 'Translation failed');
                 throw new Error(message);
             }
 
@@ -1320,7 +1320,7 @@
             }
             const data = await response.json();
             if (!data.success) {
-                const message = data.data?.message || data.data || data.message || 'Transcription failed';
+                const message = data.data?.message || data.data || data.message || (i18n.transcription_request_failed || 'Transcription failed');
                 throw new Error(message);
             }
 
@@ -1639,12 +1639,12 @@
             }
             const data = await response.json();
             if (!data.success) {
-                throw new Error(data.data || data.message || 'Failed to prepare new word');
+                throw new Error(data.data || data.message || (i18n.new_word_prepare_failed || 'Failed to prepare new word'));
             }
 
             const word = data.data?.word;
             if (!word) {
-                throw new Error('Missing word data');
+                throw new Error(i18n.new_word_missing_data || 'Missing word data');
             }
             const recordingTypes = sortRecordingTypes(data.data?.recording_types || []);
             if (Array.isArray(word.missing_types)) {
@@ -2145,7 +2145,7 @@
             }
             else {
                 console.error('No suitable audio format supported by this browser');
-                throw new Error('Browser does not support required audio formats for recording');
+                throw new Error(i18n.recording_format_unsupported || 'Browser does not support required audio formats for recording');
             }
 
             mediaRecorder = new MediaRecorder(stream, options);
@@ -2212,7 +2212,7 @@
 
         // Insecure context
         if (!isSecure) {
-            return 'Microphone requires a secure connection. Open this page over HTTPS or localhost and try again.';
+            return i18n.mic_error_insecure || 'Microphone requires a secure connection. Open this page over HTTPS or localhost and try again.';
         }
 
         // Tailored messages by error name
@@ -2220,27 +2220,27 @@
             case 'NotAllowedError':
             case 'PermissionDeniedError':
                 if (permState === 'denied') {
-                    msg = 'Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page.';
+                    msg = i18n.mic_error_permission_blocked || 'Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page.';
                 } else {
-                    msg = 'Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.';
+                    msg = i18n.mic_error_permission_not_granted || 'Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.';
                 }
                 break;
             case 'NotReadableError':
-                msg = 'Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again.';
+                msg = i18n.mic_error_in_use || 'Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again.';
                 break;
             case 'NotFoundError':
             case 'DevicesNotFoundError':
-                msg = 'No microphone found. Connect a microphone and check Windows Privacy & Sound settings.';
+                msg = i18n.mic_error_not_found || 'No microphone found. Connect a microphone and check Windows Privacy & Sound settings.';
                 break;
             case 'OverconstrainedError':
             case 'ConstraintNotSatisfiedError':
-                msg = 'The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again.';
+                msg = i18n.mic_error_constraints || 'The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again.';
                 break;
             case 'SecurityError':
-                msg = 'Browser blocked access due to security policy. Ensure you are on HTTPS and try again.';
+                msg = i18n.mic_error_security || 'Browser blocked access due to security policy. Ensure you are on HTTPS and try again.';
                 break;
             case 'AbortError':
-                msg = 'Audio capture aborted unexpectedly. Try again.';
+                msg = i18n.mic_error_abort || 'Audio capture aborted unexpectedly. Try again.';
                 break;
             default:
                 // Keep default
@@ -2250,10 +2250,10 @@
         // Augment with quick Windows/Chrome hints
         const hints = [];
         if (permState === 'denied') {
-            hints.push('Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow.');
+            hints.push(i18n.mic_hint_permission || 'Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow.');
         }
         if (inputCount === 0) {
-            hints.push('No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input.');
+            hints.push(i18n.mic_hint_no_inputs || 'No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input.');
         }
 
         if (hints.length) {
@@ -2514,7 +2514,7 @@
             }
             const data = await response.json();
             if (!data?.success) {
-                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || 'Request failed';
+                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || (i18n.request_failed || 'Request failed');
                 throw new Error(message);
             }
 
@@ -2568,7 +2568,7 @@
             }
             const data = await response.json();
             if (!data?.success) {
-                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || 'Request failed';
+                const message = (typeof data?.data === 'string' ? data.data : data?.data?.message) || (i18n.request_failed || 'Request failed');
                 throw new Error(message);
             }
 
@@ -2801,10 +2801,10 @@
                 return;
             }
 
-            showUploadError(uploadErrorMessage || 'HTTP 500 (no recording found)');
+            showUploadError(uploadErrorMessage || (i18n.verify_no_recording_found || 'HTTP 500 (no recording found)'));
         } catch (e) {
             console.error('Verify error:', e);
-            showUploadError(uploadErrorMessage || e.message || 'Verify failed');
+            showUploadError(uploadErrorMessage || e.message || (i18n.verify_failed || 'Verify failed'));
         } finally {
             restoreUploadControls();
         }
@@ -2823,6 +2823,7 @@
             ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(displayTitle)}" class="ll-review-thumbnail">`
             : '';
         const categoryHtml = `<span class="ll-review-category"><strong>${escapeHtml(i18n.category || 'Category:')}</strong> ${escapeHtml(categoryLabel)}</span>`;
+        const playLabel = escapeHtml(i18n.play || 'Play');
         div.innerHTML = `
             <div class="ll-review-header">
                 <div class="ll-review-title-section">
@@ -2839,7 +2840,7 @@
                 <canvas class="ll-waveform-canvas"></canvas>
             </div>
             <div class="ll-playback-controls">
-                <button type="button" class="ll-btn ll-btn-secondary ll-review-play" title="Play" aria-label="Play"></button>
+                <button type="button" class="ll-btn ll-btn-secondary ll-review-play" title="${playLabel}" aria-label="${playLabel}"></button>
                 <audio controls preload="auto"></audio>
             </div>
         `;
@@ -3150,7 +3151,7 @@
         const reprocessBtn = container.querySelector('.ll-reprocess-btn');
         const originalText = reprocessBtn ? reprocessBtn.textContent : '';
         if (reprocessBtn) {
-            reprocessBtn.textContent = 'Processing...';
+            reprocessBtn.textContent = i18n.processing_short || 'Processing...';
             reprocessBtn.disabled = true;
         }
 
@@ -3492,7 +3493,7 @@
 
                 showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
             } else {
-                const errorMsg = data.data || data.message || 'Switch failed';
+                const errorMsg = data.data || data.message || (i18n.switch_failed_message || 'Switch failed');
                 showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + errorMsg, 'error');
             }
         } catch (err) {

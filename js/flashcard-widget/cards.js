@@ -5,6 +5,109 @@
     const { Dom } = root.LLFlashcards;
     let optionMiniViz = null;
 
+    function clampInt(value, min, max, fallback) {
+        const parsed = parseInt(value, 10);
+        if (!Number.isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(max, parsed));
+    }
+
+    function clampNumber(value, min, max, fallback) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(max, parsed));
+    }
+
+    function getAnswerOptionTextStyleConfig() {
+        const raw = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object' && root.llToolsFlashcardsData.answerOptionTextStyle && typeof root.llToolsFlashcardsData.answerOptionTextStyle === 'object')
+            ? root.llToolsFlashcardsData.answerOptionTextStyle
+            : ((root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object' && root.llToolsFlashcardsData.answer_option_text_style && typeof root.llToolsFlashcardsData.answer_option_text_style === 'object')
+                ? root.llToolsFlashcardsData.answer_option_text_style
+                : {});
+
+        let fontFamily = String(raw.fontFamily || '').trim();
+        fontFamily = fontFamily.replace(/[\r\n{};]/g, ' ').trim();
+        if (fontFamily.length > 160) {
+            fontFamily = fontFamily.slice(0, 160).trim();
+        }
+
+        let fontWeight = String(raw.fontWeight || '700').trim();
+        if (!/^(400|500|600|700|800|900)$/.test(fontWeight)) {
+            fontWeight = '700';
+        }
+
+        const lineHeightRatio = clampNumber(raw.lineHeightRatio, 1.05, 2.2, 1.22);
+        const lineHeightRatioWithDiacritics = Math.max(
+            lineHeightRatio,
+            clampNumber(raw.lineHeightRatioWithDiacritics, 1.05, 2.4, 1.4)
+        );
+
+        return {
+            fontFamily: fontFamily,
+            fontWeight: fontWeight,
+            fontSizePx: clampInt(raw.fontSizePx, 12, 72, 48),
+            minFontSizePx: clampInt(raw.minFontSizePx, 10, 24, 12),
+            lineHeightRatio: lineHeightRatio,
+            lineHeightRatioWithDiacritics: lineHeightRatioWithDiacritics
+        };
+    }
+
+    function textHasCombiningMarks(value) {
+        return /[\u0300-\u036F\u0591-\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/.test(String(value || ''));
+    }
+
+    function getAnswerOptionLineHeightRatio(text) {
+        const cfg = getAnswerOptionTextStyleConfig();
+        if (textHasCombiningMarks(text)) {
+            return cfg.lineHeightRatioWithDiacritics;
+        }
+        return cfg.lineHeightRatio;
+    }
+
+    function applyAnswerOptionContainerCssVars() {
+        const cfg = getAnswerOptionTextStyleConfig();
+        const container = document.getElementById('ll-tools-flashcard-container') || document.getElementById('ll-tools-flashcard-popup');
+        if (!container || !container.style) {
+            return;
+        }
+
+        if (cfg.fontFamily) {
+            container.style.setProperty('--ll-answer-option-font-family', cfg.fontFamily);
+        } else {
+            container.style.removeProperty('--ll-answer-option-font-family');
+        }
+        container.style.setProperty('--ll-answer-option-font-weight', cfg.fontWeight);
+        container.style.setProperty('--ll-answer-option-font-size-px', cfg.fontSizePx + 'px');
+        container.style.setProperty('--ll-answer-option-text-line-height', String(cfg.lineHeightRatio));
+        container.style.setProperty('--ll-answer-option-text-line-height-marked', String(cfg.lineHeightRatioWithDiacritics));
+    }
+
+    function applyAnswerOptionTextStyle($label, text) {
+        if (!$label || !$label.length) {
+            return;
+        }
+        const cfg = getAnswerOptionTextStyleConfig();
+        applyAnswerOptionContainerCssVars();
+
+        if (cfg.fontFamily) {
+            $label.css('font-family', cfg.fontFamily);
+        } else {
+            $label.css('font-family', '');
+        }
+        $label.css('font-weight', cfg.fontWeight);
+
+        const lineHeightRatio = getAnswerOptionLineHeightRatio(text);
+        $label.css('--ll-answer-option-line-height-ratio', String(lineHeightRatio));
+        if (textHasCombiningMarks(text)) {
+            $label.attr('data-ll-combining-marks', '1');
+        } else {
+            $label.removeAttr('data-ll-combining-marks');
+        }
+    }
+
     function createImageCard(word) {
         const $c = $('<div>', {
             class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize,
@@ -25,16 +128,39 @@
     function createTextCard(word) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
         const $c = $('<div>', { class: `flashcard-container text-based ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
-        const $label = $('<div>', { text: word.label, class: 'quiz-text', dir: 'auto' }).appendTo($c);
+        const labelText = word.label || word.title || '';
+        const $label = $('<div>', { text: labelText, class: 'quiz-text', dir: 'auto' }).appendTo($c);
+        applyAnswerOptionTextStyle($label, labelText);
 
         $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' }).appendTo('body');
         const boxH = $c.innerHeight() - 15, boxW = $c.innerWidth() - 15;
-        const fontFamily = getComputedStyle($label[0]).fontFamily || 'sans-serif';
-        for (let fs = 48; fs >= 12; fs--) {
-            const w = Util.measureTextWidth(word.label || '', fs + 'px ' + fontFamily);
+        const computed = getComputedStyle($label[0]);
+        const fontFamily = computed.fontFamily || 'sans-serif';
+        const fontWeight = String(computed.fontWeight || getAnswerOptionTextStyleConfig().fontWeight || '700');
+        const cfg = getAnswerOptionTextStyleConfig();
+        const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 12);
+        const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
+        const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
+        let fitted = false;
+
+        for (let fs = startFontSize; fs >= minFontSize; fs--) {
+            const w = Util.measureTextWidth(labelText || '', fontWeight + ' ' + fs + 'px ' + fontFamily);
             if (w > boxW) continue;
-            $label.css({ fontSize: fs + 'px', lineHeight: fs + 'px', visibility: 'visible', position: 'relative' });
-            if ($label.outerHeight() <= boxH) break;
+            const lineHeightPx = Math.round(fs * lineHeightRatio * 100) / 100;
+            $label.css({ fontSize: fs + 'px', lineHeight: lineHeightPx + 'px', visibility: 'visible', position: 'relative' });
+            if ($label.outerHeight() <= boxH) {
+                fitted = true;
+                break;
+            }
+        }
+        if (!fitted) {
+            const fallbackLineHeightPx = Math.round(minFontSize * lineHeightRatio * 100) / 100;
+            $label.css({
+                fontSize: minFontSize + 'px',
+                lineHeight: fallbackLineHeightPx + 'px',
+                visibility: 'visible',
+                position: 'relative'
+            });
         }
         $c.detach().css({ position: '', top: '', left: '', visibility: '', display: 'none' });
         return $c;
@@ -151,7 +277,8 @@
 
         if (includeText) {
             const labelText = word.label || word.title || '';
-            $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText, dir: 'auto' }).appendTo($c);
+            const $label = $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText, dir: 'auto' }).appendTo($c);
+            applyAnswerOptionTextStyle($label, labelText);
         } else {
             const $viz = $('<div>', { class: 'll-audio-mini-visualizer', 'aria-hidden': 'true' });
             for (let i = 0; i < barCount; i++) {

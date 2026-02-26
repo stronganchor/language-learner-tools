@@ -81,12 +81,12 @@ function ll_image_copyright_grid_shortcode($atts) {
             'format'    => '?paged=%#%',
             'current'   => $paged,
             'total'     => $query->max_num_pages,
-            'prev_text' => __('« Prev'),
-            'next_text' => __('Next »'),
+            'prev_text' => __('« Prev', 'll-tools-text-domain'),
+            'next_text' => __('Next »', 'll-tools-text-domain'),
         ));
         echo '</div>';
     } else {
-        echo '<p>No Word Images found with copyright info.</p>';
+        echo '<p>' . esc_html__('No Word Images found with copyright info.', 'll-tools-text-domain') . '</p>';
     }
 
     // Reset query

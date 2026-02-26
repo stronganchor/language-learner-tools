@@ -579,6 +579,9 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $gender_visual_config = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
         ? ll_tools_wordset_get_gender_visual_config($gender_wordset_id)
         : [];
+    $answer_option_text_style = function_exists('ll_tools_wordset_get_answer_option_text_style_config')
+        ? ll_tools_wordset_get_answer_option_text_style_config((count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0)
+        : [];
 
     // Pull saved study prefs (stars/fast transitions) for logged-in users so the widget can reflect them outside the dashboard.
     $user_study_state = [
@@ -661,6 +664,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'genderWordsetId'      => $gender_wordset_id,
         'genderOptions'        => $gender_options,
         'genderVisualConfig'   => $gender_visual_config,
+        'answerOptionTextStyle'=> $answer_option_text_style,
+        'answer_option_text_style' => $answer_option_text_style,
         'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
         'launchContext'        => $launch_context,

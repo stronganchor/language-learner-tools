@@ -2103,6 +2103,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
         ll_enqueue_asset_by_timestamp('/js/frontend-utility-menu.js', 'll-tools-frontend-utility-menu-js', [], true);
     }
 
+    $plugin_update_check_flash_arg_provided = array_key_exists('plugin_update_check_flash', $args);
+    $plugin_update_check_flash_arg = $plugin_update_check_flash_arg_provided
+        ? trim((string) $args['plugin_update_check_flash'])
+        : '';
+
     $args = wp_parse_args($args, [
         'current_area' => '',
         'wordset' => null,
@@ -2147,6 +2152,15 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     $current_wordset_term = $wordset_term;
     $scoped_wordset_term = null;
     $managed_wordset_term = null;
+    $plugin_update_check_flash = $plugin_update_check_flash_arg;
+    if (
+        !$plugin_update_check_flash_arg_provided
+        && function_exists('ll_tools_user_can_manage_plugin_updates')
+        && ll_tools_user_can_manage_plugin_updates()
+        && function_exists('ll_tools_consume_plugin_update_check_flash')
+    ) {
+        $plugin_update_check_flash = (string) ll_tools_consume_plugin_update_check_flash();
+    }
     if ($user instanceof WP_User) {
         $resolve_first_wordset_term = static function (array $term_ids) {
             foreach ($term_ids as $term_id) {
@@ -2222,10 +2236,16 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
             $plugin_update_check_nav_url = (string) ll_tools_get_plugin_update_check_action_url($current_url);
             if ($plugin_update_check_nav_url !== '') {
                 $links[] = [
-                    'label' => __('Check updates', 'll-tools-text-domain'),
+                    'label' => $plugin_update_check_flash === 'up_to_date'
+                        ? __('Up to date', 'll-tools-text-domain')
+                        : __('Check updates', 'll-tools-text-domain'),
                     'url' => $plugin_update_check_nav_url,
                     'is_active' => false,
                     'force_hard_nav' => true,
+                    'is_success' => ($plugin_update_check_flash === 'up_to_date'),
+                    'aria_label' => $plugin_update_check_flash === 'up_to_date'
+                        ? __('Plugin is up to date', 'll-tools-text-domain')
+                        : '',
                 ];
             }
         }
@@ -2322,12 +2342,22 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     }
                     $is_active = !empty($link['is_active']);
                     $force_hard_nav = !empty($link['force_hard_nav']);
+                    $is_success = !empty($link['is_success']);
+                    $aria_label = isset($link['aria_label']) ? (string) $link['aria_label'] : '';
                     ?>
                     <a
-                        class="ll-wordset-utility-bar__link<?php echo $is_active ? ' is-active' : ''; ?>"
+                        class="ll-wordset-utility-bar__link<?php echo $is_active ? ' is-active' : ''; ?><?php echo $is_success ? ' is-success' : ''; ?>"
                         href="<?php echo esc_url($link_url); ?>"
                         <?php if ($force_hard_nav) : ?>data-ll-force-hard-nav="1"<?php endif; ?>
+                        <?php if ($aria_label !== '') : ?>aria-label="<?php echo esc_attr($aria_label); ?>"<?php endif; ?>
                         <?php if ($is_active) : ?>aria-current="page"<?php endif; ?>>
+                        <?php if ($is_success) : ?>
+                            <span class="ll-wordset-utility-bar__link-icon ll-wordset-utility-bar__link-icon--check" aria-hidden="true">
+                                <svg viewBox="0 0 16 16" width="10" height="10" focusable="false" aria-hidden="true">
+                                    <path d="M3.5 8.25 6.4 11.1 12.5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </svg>
+                            </span>
+                        <?php endif; ?>
                         <?php echo esc_html($link_label); ?>
                     </a>
                 <?php endforeach; ?>
@@ -2493,6 +2523,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if ($plugin_update_check_url === '') {
         $show_plugin_update_check_link = false;
     }
+    // The shared utility menu now displays the "up to date" feedback in-place.
+    $show_plugin_up_to_date_hero_flash = $show_plugin_up_to_date_flash && !$show_title;
 
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $mode_labels = [
@@ -3088,6 +3120,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'current_area' => $utility_current_area,
                 'wordset' => $wordset_term,
                 'current_url' => $utility_current_url,
+                'plugin_update_check_flash' => $plugin_update_check_flash,
             ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             ?>
         <?php endif; ?>
@@ -4074,7 +4107,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     <?php echo esc_html(sprintf(__('Update to %s', 'll-tools-text-domain'), $plugin_update_version)); ?>
                                 </span>
                             </a>
-                        <?php elseif ($show_plugin_up_to_date_flash) : ?>
+                        <?php elseif ($show_plugin_up_to_date_hero_flash) : ?>
                             <span
                                 class="ll-wordset-link-chip ll-wordset-check-updates-link ll-wordset-check-updates-link--success"
                                 role="status"

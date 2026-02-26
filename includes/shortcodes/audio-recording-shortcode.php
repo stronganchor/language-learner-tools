@@ -1059,23 +1059,44 @@ function ll_audio_recording_interface_shortcode($atts) {
             'starting_upload' => __('Starting upload for image:', 'll-tools-text-domain'),
             'http_error' => __('HTTP %d: %s', 'll-tools-text-domain'),
             'invalid_response' => __('Server returned invalid response format', 'll-tools-text-domain'),
+            'request_failed' => __('Request failed', 'll-tools-text-domain'),
             'switching_category' => __('Switching category...', 'll-tools-text-domain'),
             'skipping'            => __('Skipping...', 'll-tools-text-domain'),
             'skip_failed'         => __('Skip failed:', 'll-tools-text-domain'),
             'no_images_in_category'=> __('No images need audio in this category.', 'll-tools-text-domain'),
             'category_switched'   => __('Category switched. Ready to record.', 'll-tools-text-domain'),
             'switch_failed'       => __('Switch failed:', 'll-tools-text-domain'),
+            'switch_failed_message' => __('Switch failed', 'll-tools-text-domain'),
             'new_word_preparing'  => __('Preparing new word...', 'll-tools-text-domain'),
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
+            'new_word_update_text_failed' => __('Failed to update word text', 'll-tools-text-domain'),
+            'new_word_prepare_failed' => __('Failed to prepare new word', 'll-tools-text-domain'),
+            'new_word_missing_data' => __('Missing word data', 'll-tools-text-domain'),
             'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
             'new_word_missing_recording' => __('Record audio before saving this word.', 'll-tools-text-domain'),
             'transcribing'        => __('Transcribing...', 'll-tools-text-domain'),
             'translating'         => __('Translating...', 'll-tools-text-domain'),
             'transcription_failed'=> __('Transcription failed:', 'll-tools-text-domain'),
+            'transcription_request_failed' => __('Transcription failed', 'll-tools-text-domain'),
             'transcription_timeout'=> __('Transcription is still processing. Please try again in a moment.', 'll-tools-text-domain'),
             'transcription_unavailable' => __('Speech-to-text is not available. Please enter the word manually.', 'll-tools-text-domain'),
             'translation_failed'  => __('Translation failed:', 'll-tools-text-domain'),
+            'translation_request_failed' => __('Translation failed', 'll-tools-text-domain'),
             'translation_ready'   => __('Translation ready.', 'll-tools-text-domain'),
+            'insecure_context'    => __('Microphone requires a secure connection. Please use HTTPS or localhost.', 'll-tools-text-domain'),
+            'mic_permission_blocked' => __('Microphone permission is blocked for this site. Click the lock icon in the address bar → Site settings → allow Microphone, then reload.', 'll-tools-text-domain'),
+            'no_mic_devices'      => __('No microphone input devices detected. Check Windows microphone privacy and Sound settings.', 'll-tools-text-domain'),
+            'mic_error_insecure'  => __('Microphone requires a secure connection. Open this page over HTTPS or localhost and try again.', 'll-tools-text-domain'),
+            'mic_error_permission_blocked' => __('Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page.', 'll-tools-text-domain'),
+            'mic_error_permission_not_granted' => __('Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.', 'll-tools-text-domain'),
+            'mic_error_in_use'    => __('Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again.', 'll-tools-text-domain'),
+            'mic_error_not_found' => __('No microphone found. Connect a microphone and check Windows Privacy & Sound settings.', 'll-tools-text-domain'),
+            'mic_error_constraints' => __('The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again.', 'll-tools-text-domain'),
+            'mic_error_security'  => __('Browser blocked access due to security policy. Ensure you are on HTTPS and try again.', 'll-tools-text-domain'),
+            'mic_error_abort'     => __('Audio capture aborted unexpectedly. Try again.', 'll-tools-text-domain'),
+            'mic_hint_permission' => __('Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow.', 'll-tools-text-domain'),
+            'mic_hint_no_inputs'  => __('No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input.', 'll-tools-text-domain'),
+            'recording_format_unsupported' => __('Browser does not support required audio formats for recording', 'll-tools-text-domain'),
             'hiding'             => __('Hiding...', 'll-tools-text-domain'),
             'hide_failed'        => __('Hide failed:', 'll-tools-text-domain'),
             'hidden_success'     => __('Word hidden. Moving to the next item.', 'll-tools-text-domain'),
@@ -1085,6 +1106,10 @@ function ll_audio_recording_interface_shortcode($atts) {
             'unhide'             => __('Unhide', 'll-tools-text-domain'),
             'unhide_failed'      => __('Unhide failed:', 'll-tools-text-domain'),
             'unhide_success'     => __('Word unhidden.', 'll-tools-text-domain'),
+            'verify_no_recording_found' => __('HTTP 500 (no recording found)', 'll-tools-text-domain'),
+            'verify_failed'      => __('Verify failed', 'll-tools-text-domain'),
+            'play'               => __('Play', 'll-tools-text-domain'),
+            'processing_short'   => __('Processing...', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -1316,7 +1341,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             <div class="ll-recording-controls-column">
                 <!-- Recording type moved here for better visibility and more space -->
                 <div class="ll-recording-type-selector">
-                    <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
+                    <label for="ll-recording-type"><?php esc_html_e('Recording Type', 'll-tools-text-domain'); ?>:</label>
                     <?php
                     $initial_recording_type = '';
                     if (!empty($images_needing_audio[0]['missing_types']) && is_array($images_needing_audio[0]['missing_types'])) {

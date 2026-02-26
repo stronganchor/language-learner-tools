@@ -3864,7 +3864,7 @@
         if (ids.length) {
             return true;
         }
-        alert(i18n.noCategories || 'Pick at least one category.');
+        alert(i18n.pickCategory || 'Pick at least one category.');
         return false;
     }
 
@@ -3891,7 +3891,7 @@
             return requestedCategoryIds.indexOf(parseInt(c.id, 10) || 0) !== -1;
         });
         if (!selectedCats.length) {
-            alert(i18n.noCategories || 'Pick at least one category.');
+            alert(i18n.pickCategory || 'Pick at least one category.');
             return;
         }
         const genderAllowed = isGenderSupportedForSelection(requestedCategoryIds);
@@ -3944,7 +3944,7 @@
             });
 
             if (!effectiveSelectedCats.length) {
-                alert(i18n.noCategories || 'Pick at least one category.');
+                alert(i18n.pickCategory || 'Pick at least one category.');
                 return;
             }
 

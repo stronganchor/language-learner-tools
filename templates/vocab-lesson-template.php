@@ -540,28 +540,6 @@ if (have_posts()) {
                             </button>
                         <?php endforeach; ?>
                     </div>
-                    <?php if (is_user_logged_in()) : ?>
-                        <div class="ll-vocab-lesson-settings ll-tools-settings-control" data-ll-vocab-lesson-settings>
-                            <button type="button" class="ll-vocab-lesson-settings-button ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>">
-                                <span class="mode-icon" aria-hidden="true">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </span>
-                            </button>
-                            <div class="ll-vocab-lesson-settings-panel ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr__('Word inclusion', 'll-tools-text-domain'); ?>" aria-hidden="true">
-                                <div class="ll-tools-settings-section">
-                                    <div class="ll-tools-settings-heading"><?php echo esc_html__('Word inclusion', 'll-tools-text-domain'); ?></div>
-                                    <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Word inclusion', 'll-tools-text-domain'); ?>">
-                                        <button type="button" class="ll-tools-settings-option ll-vocab-lesson-star-mode" data-star-mode="normal" aria-pressed="false"><?php echo esc_html__('☆★ All words once', 'll-tools-text-domain'); ?></button>
-                                        <button type="button" class="ll-tools-settings-option ll-vocab-lesson-star-mode" data-star-mode="weighted" aria-pressed="false"><?php echo esc_html__('★☆★ Starred twice', 'll-tools-text-domain'); ?></button>
-                                        <button type="button" class="ll-tools-settings-option ll-vocab-lesson-star-mode" data-star-mode="only" aria-pressed="false"><?php echo esc_html__('★ Starred only', 'll-tools-text-domain'); ?></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </header>

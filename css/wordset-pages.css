@@ -155,6 +155,24 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     margin-inline: auto;
 }
 
+/* Theme guard: some themes add horizontal padding to section/header blocks but not nav, causing the top user menu to misalign. */
+.ll-wordset-page .ll-wordset-hero,
+.ll-wordset-page .ll-wordset-utility-bar,
+.ll-wordset-page .ll-wordset-top-actions,
+.ll-wordset-page .ll-wordset-subpage-head {
+    width: 100% !important;
+    max-width: var(--ll-wp-main-shell-max-width) !important;
+    margin-inline: auto !important;
+    padding-inline: 0 !important;
+}
+
+.ll-wordset-page.ll-wordset-page--progress .ll-wordset-subpage-head,
+.ll-wordset-page.ll-wordset-page--progress .ll-wordset-utility-bar,
+.ll-wordset-page.ll-wordset-page--settings .ll-wordset-subpage-head,
+.ll-wordset-page.ll-wordset-page--settings .ll-wordset-utility-bar {
+    max-width: var(--ll-wp-subpage-shell-max-width) !important;
+}
+
 .ll-wordset-utility-bar {
     display: flex;
     flex-wrap: wrap;
@@ -163,13 +181,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 12px;
     margin-bottom: 12px;
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
-}
-
-@media (min-width: 801px) {
-    .ll-wordset-page--main .ll-wordset-utility-bar--shared .ll-wordset-utility-bar__identity {
-        /* Match the main title text start (hero icon width + title gap). */
-        margin-left: 68px;
-    }
 }
 
 .ll-wordset-utility-bar__identity {
