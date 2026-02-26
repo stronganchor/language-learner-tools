@@ -2108,6 +2108,27 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($wordset_has_verb_mood) {
             $grid_attrs .= ' data-ll-verb-mood-enabled="1"';
         }
+        $word_grid_style_parts = [];
+        if ($wordset_id > 0 && function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
+            $answer_option_style = ll_tools_wordset_get_answer_option_text_style_config((int) $wordset_id);
+            $answer_option_font_family = isset($answer_option_style['fontFamily']) ? trim((string) $answer_option_style['fontFamily']) : '';
+            if ($answer_option_font_family !== '') {
+                $grid_classes .= ' ll-word-grid--answer-option-font-custom';
+                $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-family:' . $answer_option_font_family;
+                $line_height = isset($answer_option_style['lineHeightRatioWithDiacritics'])
+                    ? (float) $answer_option_style['lineHeightRatioWithDiacritics']
+                    : 1.4;
+                if ($line_height < 1.05) {
+                    $line_height = 1.05;
+                } elseif ($line_height > 2.4) {
+                    $line_height = 2.4;
+                }
+                $word_grid_style_parts[] = '--ll-word-grid-answer-option-line-height:' . rtrim(rtrim(number_format($line_height, 2, '.', ''), '0'), '.');
+            }
+        }
+        if (!empty($word_grid_style_parts)) {
+            $grid_attrs .= ' style="' . esc_attr(implode(';', $word_grid_style_parts) . ';') . '"';
+        }
         echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" ' . $grid_attrs . '>'; // Grid container
         $word_grid_image_size = apply_filters('ll_tools_word_grid_image_size', 'medium_large', $wordset_id, $category_term);
         if (!is_array($word_grid_image_size) && !is_string($word_grid_image_size)) {

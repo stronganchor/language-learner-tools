@@ -16,6 +16,37 @@ function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_
     if ($ext === 'css') wp_enqueue_style($handle, $url, $deps, $ver);
 }
 
+function ll_tools_get_custom_font_stylesheet_url(): string {
+    $url = trim((string) get_option('ll_quiz_font_url', ''));
+    if ($url === '') {
+        return '';
+    }
+    $url = esc_url_raw($url);
+    if ($url === '') {
+        return '';
+    }
+    $scheme = wp_parse_url($url, PHP_URL_SCHEME);
+    if (!in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+        return '';
+    }
+    return $url;
+}
+
+function ll_tools_enqueue_custom_font_stylesheet(): void {
+    static $enqueued = false;
+    if ($enqueued) {
+        return;
+    }
+
+    $font_url = ll_tools_get_custom_font_stylesheet_url();
+    if ($font_url === '') {
+        return;
+    }
+
+    $enqueued = true;
+    wp_enqueue_style('ll-tools-custom-font-stylesheet', $font_url, [], null);
+}
+
 /**
  * Shared front-end base styles used across LL Tools pages/shortcodes.
  *
@@ -29,6 +60,7 @@ function ll_tools_enqueue_public_assets() {
     }
     $enqueued = true;
 
+    ll_tools_enqueue_custom_font_stylesheet();
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
 }
@@ -177,6 +209,30 @@ function ll_tools_maybe_enqueue_public_assets() {
     ll_tools_enqueue_public_assets();
 }
 add_action('wp_enqueue_scripts', 'll_tools_maybe_enqueue_public_assets', 100);
+
+function ll_tools_maybe_enqueue_admin_custom_font_stylesheet($hook = ''): void {
+    if (!is_admin()) {
+        return;
+    }
+
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    $screen_base = $screen && !empty($screen->base) ? (string) $screen->base : '';
+    $screen_taxonomy = $screen && !empty($screen->taxonomy) ? (string) $screen->taxonomy : '';
+
+    $settings_page_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+        ? (string) ll_tools_get_admin_settings_page_slug()
+        : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+
+    $is_ll_settings_page = ($hook === ('settings_page_' . $settings_page_slug));
+    $is_wordset_taxonomy_screen = ($screen_base === 'edit-tags' && $screen_taxonomy === 'wordset');
+
+    if (!$is_ll_settings_page && !$is_wordset_taxonomy_screen) {
+        return;
+    }
+
+    ll_tools_enqueue_custom_font_stylesheet();
+}
+add_action('admin_enqueue_scripts', 'll_tools_maybe_enqueue_admin_custom_font_stylesheet', 20);
 
 /**
  * Enqueue jQuery UI Autocomplete assets only for screens/features that use it.

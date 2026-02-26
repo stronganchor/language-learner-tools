@@ -88,6 +88,14 @@ p:has(.ll-word-audio) {
     color: #000000 !important;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--answer-option-font-custom .ll-word-text {
+    font-family: var(--ll-word-grid-answer-option-font-family, inherit) !important;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--answer-option-font-custom .word-title {
+    line-height: var(--ll-word-grid-answer-option-line-height, 1.2) !important;
+}
+
 .word-grid.ll-word-grid .ll-word-translation {
     display: inline-block;
     color: #666666 !important;

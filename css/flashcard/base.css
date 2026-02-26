@@ -960,7 +960,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 .flashcard-container.text-based .quiz-text,
 .flashcard-container.audio-option .quiz-text {
-    font-family: var(--ll-answer-option-font-family, inherit);
     font-weight: var(--ll-answer-option-font-weight, 700);
     overflow-wrap: anywhere;
     word-break: normal;

@@ -119,6 +119,9 @@ jQuery(document).ready(function ($) {
         var $manualSortField = $root.find('[data-ll-wordset-manual-sort-field]');
         var $manualSortDirection = $root.find('[data-ll-wordset-manual-sort-direction]');
         var $manualSortApply = $root.find('[data-ll-wordset-manual-sort-apply]');
+        var $form = $root.closest('form').first();
+        var $prereqCompactInput = $();
+        var $prereqCompactModeInput = $();
 
         function syncPanels() {
             var mode = String($mode.val() || 'none');
@@ -142,6 +145,124 @@ jQuery(document).ready(function ($) {
                 }
             });
             $manualInput.val(ids.join(','));
+        }
+
+        function ensurePrereqCompactFields() {
+            if (!$form.length || !window.JSON || typeof window.JSON.stringify !== 'function') {
+                return false;
+            }
+
+            if (!$prereqCompactInput.length) {
+                $prereqCompactInput = $form.find('input[name="ll_wordset_category_prereqs_compact"]').first();
+                if (!$prereqCompactInput.length) {
+                    $prereqCompactInput = $('<input>', {
+                        type: 'hidden',
+                        name: 'll_wordset_category_prereqs_compact'
+                    });
+                    $form.append($prereqCompactInput);
+                }
+            }
+
+            if (!$prereqCompactModeInput.length) {
+                $prereqCompactModeInput = $form.find('input[name="ll_wordset_category_prereqs_compact_mode"]').first();
+                if (!$prereqCompactModeInput.length) {
+                    $prereqCompactModeInput = $('<input>', {
+                        type: 'hidden',
+                        name: 'll_wordset_category_prereqs_compact_mode'
+                    });
+                    $form.append($prereqCompactModeInput);
+                }
+            }
+
+            return true;
+        }
+
+        function markAndDetachLegacyPrereqNames() {
+            var $prereqSelects = $root.find('select[name^="ll_wordset_category_prereqs["], select[data-ll-wordset-prereq-select]');
+            if (!$prereqSelects.length) {
+                return;
+            }
+            if (!ensurePrereqCompactFields()) {
+                return;
+            }
+
+            $prereqSelects.each(function () {
+                var $select = $(this);
+                var currentName = String($select.attr('name') || '');
+                var categoryId = parseInt($select.attr('data-ll-wordset-prereq-category-id'), 10) || 0;
+
+                if (categoryId <= 0 && currentName) {
+                    var match = currentName.match(/^ll_wordset_category_prereqs\[(\d+)\]\[\]$/);
+                    if (match && match[1]) {
+                        categoryId = parseInt(match[1], 10) || 0;
+                    }
+                }
+
+                if (categoryId <= 0) {
+                    return;
+                }
+
+                $select.attr('data-ll-wordset-prereq-select', '1');
+                $select.attr('data-ll-wordset-prereq-category-id', String(categoryId));
+
+                if (currentName) {
+                    $select.attr('data-ll-wordset-prereq-legacy-name', currentName);
+                    $select.removeAttr('name');
+                }
+            });
+        }
+
+        function buildCompactPrereqMap() {
+            var out = {};
+
+            $root.find('select[data-ll-wordset-prereq-select]').each(function () {
+                var $select = $(this);
+                var categoryId = parseInt($select.attr('data-ll-wordset-prereq-category-id'), 10) || 0;
+                if (categoryId <= 0) {
+                    return;
+                }
+
+                var values = $select.val();
+                if (!Array.isArray(values) || !values.length) {
+                    return;
+                }
+
+                var deps = [];
+                var seen = {};
+                values.forEach(function (rawValue) {
+                    var depId = parseInt(rawValue, 10) || 0;
+                    if (depId <= 0 || depId === categoryId || seen[depId]) {
+                        return;
+                    }
+                    seen[depId] = true;
+                    deps.push(depId);
+                });
+
+                if (!deps.length) {
+                    return;
+                }
+
+                out[String(categoryId)] = deps;
+            });
+
+            return out;
+        }
+
+        function syncCompactPrereqInput() {
+            var prereqSelectExists = $root.find('select[data-ll-wordset-prereq-select], select[name^="ll_wordset_category_prereqs["]').length > 0;
+            if (!prereqSelectExists) {
+                return;
+            }
+            if (!ensurePrereqCompactFields()) {
+                return;
+            }
+            if (String($mode.val() || 'none') !== 'prerequisite') {
+                $prereqCompactInput.val('');
+                $prereqCompactModeInput.val('');
+                return;
+            }
+            $prereqCompactInput.val(window.JSON.stringify(buildCompactPrereqMap()));
+            $prereqCompactModeInput.val('json-v1');
         }
 
         function moveListItem($item, direction) {
@@ -213,6 +334,9 @@ jQuery(document).ready(function ($) {
             syncPanels();
         }
 
+        markAndDetachLegacyPrereqNames();
+        syncCompactPrereqInput();
+
         if ($manualList.length) {
             if ($.fn.sortable) {
                 $manualList.sortable({
@@ -236,6 +360,13 @@ jQuery(document).ready(function ($) {
             }
 
             syncManualOrderInput();
+        }
+
+        $root.on('change', 'select[data-ll-wordset-prereq-select]', syncCompactPrereqInput);
+        if ($form.length) {
+            $form.on('submit.llWordsetPrereqCompact', function () {
+                syncCompactPrereqInput();
+            });
         }
     })();
 

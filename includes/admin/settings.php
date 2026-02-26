@@ -335,6 +335,24 @@ function ll_render_settings_page() {
                             Choose one of the fonts that are already loaded on your site.
                             If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually.
                         </p>
+                        <p style="margin:12px 0 6px 0;">
+                            <label for="ll_quiz_font_url"><strong><?php echo esc_html__('Font stylesheet URL (Google Fonts or local CSS)', 'll-tools-text-domain'); ?></strong></label>
+                        </p>
+                        <input
+                            type="url"
+                            class="regular-text code"
+                            style="width:min(100%, 720px);"
+                            name="ll_quiz_font_url"
+                            id="ll_quiz_font_url"
+                            value="<?php echo esc_attr((string) $quiz_font_url); ?>"
+                            placeholder="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap"
+                        />
+                        <p class="description">
+                            <?php echo esc_html__('Paste a Google Fonts CSS URL (or another font stylesheet URL) to make that font available to LL Tools admin previews, quizzes, and wordset font overrides.', 'll-tools-text-domain'); ?>
+                        </p>
+                        <p class="description">
+                            <?php echo esc_html__('Example (Heebo): https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap', 'll-tools-text-domain'); ?>
+                        </p>
                     </td>
                 </tr>
                 <tr valign="top">

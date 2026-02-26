@@ -110,6 +110,56 @@ function ll_tools_wordset_normalize_answer_option_font_family($value): string {
     return trim((string) $value);
 }
 
+function ll_tools_wordset_get_available_answer_option_font_families(): array {
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+
+    $fonts = [];
+    if (function_exists('ll_get_site_available_fonts')) {
+        $fonts = (array) ll_get_site_available_fonts();
+    }
+
+    $normalized_fonts = [];
+    $seen = [];
+    foreach ($fonts as $font) {
+        $name = ll_tools_wordset_normalize_answer_option_font_family($font);
+        if ($name === '') {
+            continue;
+        }
+        $key = strtolower($name);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $normalized_fonts[] = $name;
+    }
+
+    usort($normalized_fonts, static function (string $a, string $b): int {
+        return strcasecmp($a, $b);
+    });
+
+    $cache = array_values($normalized_fonts);
+    return $cache;
+}
+
+function ll_tools_wordset_sanitize_answer_option_font_family_choice($value): string {
+    $name = ll_tools_wordset_normalize_answer_option_font_family($value);
+    if ($name === '') {
+        return '';
+    }
+
+    $available = ll_tools_wordset_get_available_answer_option_font_families();
+    foreach ($available as $font_name) {
+        if (strcasecmp($font_name, $name) === 0) {
+            return (string) $font_name;
+        }
+    }
+
+    return '';
+}
+
 function ll_tools_wordset_normalize_answer_option_font_weight($value): string {
     $weight = preg_replace('/[^0-9]/', '', (string) $value);
     $allowed = array_keys(ll_tools_wordset_get_answer_option_font_weight_choices());
@@ -507,6 +557,31 @@ function ll_tools_wordset_parse_id_list_meta($raw): array {
     }
 
     return ll_tools_wordset_parse_category_id_csv($trimmed);
+}
+
+/**
+ * Parse the compact prerequisite payload emitted by the wordset admin JS.
+ *
+ * Returns:
+ * - array (possibly empty) when payload is valid JSON
+ * - null when payload is missing/invalid and should be ignored
+ */
+function ll_tools_wordset_parse_category_prereq_compact_payload($raw, array $allowed_category_ids = []): ?array {
+    if (!is_string($raw)) {
+        return null;
+    }
+
+    $trimmed = trim($raw);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $decoded = json_decode($trimmed, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    return ll_tools_wordset_normalize_category_prereq_map($decoded, $allowed_category_ids);
 }
 
 function ll_tools_wordset_compare_category_labels(string $left, string $right): int {
@@ -1313,47 +1388,170 @@ function ll_tools_wordset_preview_text_length(string $value): int {
     return strlen($value);
 }
 
+function ll_tools_wordset_preview_uses_text_answer_options(string $option_type): bool {
+    $option_type = strtolower(trim($option_type));
+    if ($option_type === '') {
+        return false;
+    }
+    return strpos($option_type, 'text') === 0;
+}
+
+function ll_tools_wordset_preview_build_answer_option_label(int $word_id, string $option_type): string {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return '';
+    }
+
+    $option_type = strtolower(trim($option_type));
+    if ($option_type === '') {
+        return '';
+    }
+
+    $raw_title = html_entity_decode((string) get_the_title($word_id), ENT_QUOTES, 'UTF-8');
+    $title = trim($raw_title);
+    $translation = '';
+
+    if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+        $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+        $word_text = trim((string) ($display_values['word_text'] ?? ''));
+        $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+        if ($word_text !== '') {
+            $title = html_entity_decode($word_text, ENT_QUOTES, 'UTF-8');
+        }
+        if ($translation_text !== '') {
+            $translation = html_entity_decode($translation_text, ENT_QUOTES, 'UTF-8');
+        }
+    }
+
+    $label = $title;
+    if (in_array($option_type, ['text_translation', 'text_audio'], true) && $translation !== '') {
+        $label = $translation;
+    }
+
+    $label = trim((string) $label);
+    if ($label === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_protect_maqqef_for_display')) {
+        $label = ll_tools_protect_maqqef_for_display($label);
+    }
+
+    return $label;
+}
+
 function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): array {
     if ($wordset_id <= 0) {
         return [];
     }
 
-    $word_ids = get_posts([
-        'post_type'         => 'words',
-        'post_status'       => 'any',
-        'posts_per_page'    => -1,
-        'fields'            => 'ids',
-        'orderby'           => 'ID',
-        'order'             => 'ASC',
-        'no_found_rows'     => true,
-        'suppress_filters'  => true,
-        'tax_query'         => [[
-            'taxonomy' => 'wordset',
-            'field'    => 'term_id',
-            'terms'    => [$wordset_id],
-        ]],
-    ]);
+    $candidate_category_ids = [];
+    if (function_exists('ll_collect_wc_ids_for_wordset_term_ids')) {
+        $candidate_category_ids = array_values(array_filter(array_map('intval', (array) ll_collect_wc_ids_for_wordset_term_ids([$wordset_id])), static function ($id): bool {
+            return $id > 0;
+        }));
+    }
 
-    if (!is_array($word_ids) || empty($word_ids)) {
+    if (empty($candidate_category_ids)) {
+        $word_ids_for_scope = get_posts([
+            'post_type'         => 'words',
+            'post_status'       => 'any',
+            'posts_per_page'    => -1,
+            'fields'            => 'ids',
+            'orderby'           => 'ID',
+            'order'             => 'ASC',
+            'no_found_rows'     => true,
+            'suppress_filters'  => true,
+            'tax_query'         => [[
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ]],
+        ]);
+        if (is_array($word_ids_for_scope) && !empty($word_ids_for_scope)) {
+            $candidate_category_ids = wp_get_object_terms(array_map('intval', $word_ids_for_scope), 'word-category', ['fields' => 'ids']);
+            if (is_wp_error($candidate_category_ids)) {
+                $candidate_category_ids = [];
+            }
+            $candidate_category_ids = array_values(array_filter(array_map('intval', (array) $candidate_category_ids), static function ($id): bool {
+                return $id > 0;
+            }));
+        }
+    }
+
+    if (empty($candidate_category_ids)) {
+        return [];
+    }
+
+    $candidate_terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'include'    => $candidate_category_ids,
+    ]);
+    if (is_wp_error($candidate_terms) || empty($candidate_terms)) {
         return [];
     }
 
     $items = [];
     $seen_text = [];
-    foreach ($word_ids as $word_id) {
-        $label = trim(wp_strip_all_tags((string) get_the_title((int) $word_id)));
-        if ($label === '') {
+    foreach ((array) $candidate_terms as $category_term) {
+        if (!($category_term instanceof WP_Term)) {
             continue;
         }
-        if (isset($seen_text[$label])) {
+        if (!function_exists('ll_tools_get_category_quiz_config')) {
             continue;
         }
-        $seen_text[$label] = true;
-        $items[] = [
-            'text'   => $label,
-            'length' => ll_tools_wordset_preview_text_length($label),
-            'wordId' => (int) $word_id,
-        ];
+
+        $quiz_config = ll_tools_get_category_quiz_config($category_term);
+        $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : '';
+        if (!ll_tools_wordset_preview_uses_text_answer_options($option_type)) {
+            continue;
+        }
+
+        $word_ids = get_posts([
+            'post_type'         => 'words',
+            'post_status'       => 'any',
+            'posts_per_page'    => -1,
+            'fields'            => 'ids',
+            'orderby'           => 'ID',
+            'order'             => 'ASC',
+            'no_found_rows'     => true,
+            'suppress_filters'  => true,
+            'tax_query'         => [
+                'relation' => 'AND',
+                [
+                    'taxonomy' => 'wordset',
+                    'field'    => 'term_id',
+                    'terms'    => [$wordset_id],
+                ],
+                [
+                    'taxonomy' => 'word-category',
+                    'field'    => 'term_id',
+                    'terms'    => [(int) $category_term->term_id],
+                ],
+            ],
+        ]);
+        if (!is_array($word_ids) || empty($word_ids)) {
+            continue;
+        }
+
+        foreach ($word_ids as $word_id) {
+            $label = ll_tools_wordset_preview_build_answer_option_label((int) $word_id, $option_type);
+            if ($label === '') {
+                continue;
+            }
+            if (isset($seen_text[$label])) {
+                continue;
+            }
+            $seen_text[$label] = true;
+            $items[] = [
+                'text'   => $label,
+                'length' => ll_tools_wordset_preview_text_length($label),
+                'wordId' => (int) $word_id,
+                'categoryId' => (int) $category_term->term_id,
+                'optionType' => $option_type,
+            ];
+        }
     }
 
     if (empty($items)) {
@@ -1547,9 +1745,9 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
         <p class="ll-wordset-answer-option-preview__note">
             <?php
             if ($wordset_id > 0 && $has_real_samples) {
-                echo esc_html__('Preview cards use real word titles from this word set and auto-fit text like quiz text answer cards.', 'll-tools-text-domain');
+                echo esc_html__('Preview cards use real answer-option text from text-based quiz categories in this word set and auto-fit text like quiz text answer cards.', 'll-tools-text-domain');
             } elseif ($wordset_id > 0) {
-                echo esc_html__('No words found yet in this word set. Add words to see shortest/average/longest previews.', 'll-tools-text-domain');
+                echo esc_html__('No text-based answer option labels were found in this word set yet. Add words to a text-based quiz category to see shortest/average/longest previews.', 'll-tools-text-domain');
             } else {
                 echo esc_html__('Save the word set first to preview real words from this word set.', 'll-tools-text-domain');
             }
@@ -1646,6 +1844,16 @@ function ll_add_wordset_language_field($term) {
     $answer_option_font_weight = ll_tools_wordset_normalize_answer_option_font_weight($answer_option_text_style['fontWeight'] ?? '700');
     $answer_option_font_size_px = ll_tools_wordset_normalize_answer_option_font_size_px($answer_option_text_style['fontSizePx'] ?? 48);
     $answer_option_font_weight_choices = ll_tools_wordset_get_answer_option_font_weight_choices();
+    $answer_option_available_fonts = ll_tools_wordset_get_available_answer_option_font_families();
+    $answer_option_font_family_validated = ll_tools_wordset_sanitize_answer_option_font_family_choice($answer_option_font_family);
+    $answer_option_font_family_missing_from_available = ($answer_option_font_family !== '' && $answer_option_font_family_validated === '');
+    if ($answer_option_font_family_validated !== '') {
+        $answer_option_font_family = $answer_option_font_family_validated;
+        $answer_option_text_style['fontFamily'] = $answer_option_font_family_validated;
+    } elseif ($answer_option_font_family_missing_from_available) {
+        $answer_option_font_family = '';
+        $answer_option_text_style['fontFamily'] = '';
+    }
     $answer_option_preview_html = ll_tools_wordset_render_answer_option_style_preview_html($term_id, $answer_option_text_style);
 
     wp_nonce_field('ll_wordset_meta', 'll_wordset_meta_nonce');
@@ -1680,21 +1888,22 @@ function ll_add_wordset_language_field($term) {
         __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
     );
 
-    $answer_option_font_family_field_html =
-        '<input type="text" id="ll-wordset-answer-option-font-family" name="ll_wordset_answer_option_text_font_family" value="' . esc_attr($answer_option_font_family) . '" list="ll-wordset-answer-option-font-family-list" placeholder="' . esc_attr__('Default device/browser font', 'll-tools-text-domain') . '" />'
-        . '<datalist id="ll-wordset-answer-option-font-family-list">'
-        . '<option value="Arial"></option>'
-        . '<option value="Helvetica"></option>'
-        . '<option value="Verdana"></option>'
-        . '<option value="Tahoma"></option>'
-        . '<option value="Trebuchet MS"></option>'
-        . '<option value="Noto Sans"></option>'
-        . '<option value="Noto Sans Hebrew"></option>'
-        . '<option value="SBL Hebrew"></option>'
-        . '<option value="Ezra SIL"></option>'
-        . '<option value="Times New Roman"></option>'
-        . '<option value="Georgia"></option>'
-        . '</datalist>';
+    $answer_option_font_family_field_html = '<select id="ll-wordset-answer-option-font-family" name="ll_wordset_answer_option_text_font_family"';
+    if (empty($answer_option_available_fonts)) {
+        $answer_option_font_family_field_html .= ' disabled';
+    }
+    $answer_option_font_family_field_html .= '>';
+    $answer_option_font_family_field_html .= '<option value="">' . esc_html__('Default (site/theme/device font)', 'll-tools-text-domain') . '</option>';
+    foreach ($answer_option_available_fonts as $available_font_name) {
+        $answer_option_font_family_field_html .= '<option value="' . esc_attr($available_font_name) . '" ' . selected($answer_option_font_family, $available_font_name, false) . '>' . esc_html($available_font_name) . '</option>';
+    }
+    $answer_option_font_family_field_html .= '</select>';
+    if (empty($answer_option_available_fonts)) {
+        $answer_option_font_family_field_html .= '<p class="description">' . esc_html__('No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set LL Tools Font stylesheet URL in settings, then reload this page.', 'll-tools-text-domain') . '</p>';
+    }
+    if ($answer_option_font_family_missing_from_available) {
+        $answer_option_font_family_field_html .= '<p class="description">' . esc_html(sprintf(__('Saved font "%s" is not currently detected on this site, so it is not selectable until the font is loaded again.', 'll-tools-text-domain'), $answer_option_text_style['fontFamily'])) . '</p>';
+    }
 
     $answer_option_font_weight_select = '<select id="ll-wordset-answer-option-font-weight" name="ll_wordset_answer_option_text_font_weight">';
     foreach ($answer_option_font_weight_choices as $weight_value => $weight_label) {
@@ -1708,7 +1917,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text preview', 'll-tools-text-domain'),
         $answer_option_preview_html,
         '',
-        __('Previews show shortest/average/longest word titles from this word set. The quiz still auto-resizes text to fit each answer card.', 'll-tools-text-domain')
+        __('Previews show shortest/average/longest answer-option text labels from text-based quiz categories in this word set. The quiz still auto-resizes text to fit each answer card.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1717,7 +1926,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text font', 'll-tools-text-domain'),
         $answer_option_font_family_field_html,
         'll-wordset-answer-option-font-family',
-        __('Font family used as the default for text answer options (for example: Arial, Noto Sans Hebrew). Leave empty for the theme/device default.', 'll-tools-text-domain')
+        __('Choose from fonts currently available on this site. Leave empty for the theme/device default.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1935,6 +2144,8 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_category_order_category_ids'])
         || isset($_POST['ll_wordset_category_manual_order'])
         || isset($_POST['ll_wordset_category_prereqs'])
+        || isset($_POST['ll_wordset_category_prereqs_compact'])
+        || isset($_POST['ll_wordset_category_prereqs_compact_mode'])
         || isset($_POST['ll_wordset_has_gender'])
         || isset($_POST['ll_wordset_gender_options'])
         || isset($_POST['ll_wordset_gender_symbol_masculine'])
@@ -1972,13 +2183,15 @@ function ll_save_wordset_language($term_id) {
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
 
         $answer_style_defaults = ll_tools_wordset_get_answer_option_text_style_defaults();
-        $answer_font_family = isset($_POST['ll_wordset_answer_option_text_font_family'])
-            ? ll_tools_wordset_normalize_answer_option_font_family(wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_family']))
-            : '';
-        if ($answer_font_family === '') {
-            delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY);
-        } else {
-            update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY, $answer_font_family);
+        if (array_key_exists('ll_wordset_answer_option_text_font_family', $_POST)) {
+            $answer_font_family = ll_tools_wordset_sanitize_answer_option_font_family_choice(
+                wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_family'])
+            );
+            if ($answer_font_family === '') {
+                delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY);
+            } else {
+                update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY, $answer_font_family);
+            }
         }
 
         $answer_font_weight = isset($_POST['ll_wordset_answer_option_text_font_weight'])
@@ -2046,48 +2259,85 @@ function ll_save_wordset_language($term_id) {
                 update_term_meta($term_id, 'll_wordset_category_manual_order', $manual_order);
             }
 
-            $posted_prereq_raw = isset($_POST['ll_wordset_category_prereqs'])
-                ? wp_unslash($_POST['ll_wordset_category_prereqs'])
-                : [];
-            if (!is_array($posted_prereq_raw)) {
-                $posted_prereq_raw = [];
+            $has_prereq_submission = false;
+            $posted_prereq_raw = [];
+
+            $prereq_compact_mode = isset($_POST['ll_wordset_category_prereqs_compact_mode'])
+                ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact_mode']))
+                : '';
+
+            if ($prereq_compact_mode === 'json-v1' && isset($_POST['ll_wordset_category_prereqs_compact'])) {
+                $parsed_compact_prereqs = ll_tools_wordset_parse_category_prereq_compact_payload(
+                    wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact']),
+                    $posted_category_ids
+                );
+
+                if (is_array($parsed_compact_prereqs)) {
+                    $posted_prereq_raw = $parsed_compact_prereqs;
+                    $has_prereq_submission = true;
+                } elseif (isset($_POST['ll_wordset_category_prereqs'])) {
+                    $legacy_prereq_raw = wp_unslash($_POST['ll_wordset_category_prereqs']);
+                    if (is_array($legacy_prereq_raw)) {
+                        $posted_prereq_raw = $legacy_prereq_raw;
+                        $has_prereq_submission = true;
+                    }
+                } else {
+                    ll_tools_wordset_queue_category_order_notice(
+                        __('Category prerequisites were not saved because the submitted prerequisite data was incomplete. Refresh and save again.', 'll-tools-text-domain'),
+                        'warning'
+                    );
+                }
+            } elseif (isset($_POST['ll_wordset_category_prereqs'])) {
+                $legacy_prereq_raw = wp_unslash($_POST['ll_wordset_category_prereqs']);
+                if (is_array($legacy_prereq_raw)) {
+                    $posted_prereq_raw = $legacy_prereq_raw;
+                    $has_prereq_submission = true;
+                }
             }
 
-            $normalized_prereq_map = ll_tools_wordset_normalize_category_prereq_map($posted_prereq_raw, $posted_category_ids);
-            $cycle_check = ll_tools_wordset_find_prereq_cycle($posted_category_ids, $normalized_prereq_map);
+            if ($has_prereq_submission) {
+                $normalized_prereq_map = ll_tools_wordset_normalize_category_prereq_map($posted_prereq_raw, $posted_category_ids);
+                $cycle_check = ll_tools_wordset_find_prereq_cycle($posted_category_ids, $normalized_prereq_map);
 
-            if (!empty($cycle_check['has_cycle'])) {
-                $cycle_labels = ll_tools_wordset_get_category_label_map($posted_category_ids);
-                $cycle_names = [];
-                foreach ((array) ($cycle_check['cycle_path'] ?? []) as $cycle_id) {
-                    $cycle_id = (int) $cycle_id;
-                    if ($cycle_id <= 0) {
-                        continue;
+                if (!empty($cycle_check['has_cycle'])) {
+                    $cycle_labels = ll_tools_wordset_get_category_label_map($posted_category_ids);
+                    $cycle_names = [];
+                    foreach ((array) ($cycle_check['cycle_path'] ?? []) as $cycle_id) {
+                        $cycle_id = (int) $cycle_id;
+                        if ($cycle_id <= 0) {
+                            continue;
+                        }
+                        $cycle_names[] = (string) ($cycle_labels[$cycle_id] ?? (string) $cycle_id);
                     }
-                    $cycle_names[] = (string) ($cycle_labels[$cycle_id] ?? (string) $cycle_id);
-                }
-                $cycle_preview = implode(' -> ', array_slice($cycle_names, 0, 8));
-                if ($cycle_preview === '') {
-                    $cycle_preview = __('cycle detected', 'll-tools-text-domain');
-                }
+                    $cycle_preview = implode(' -> ', array_slice($cycle_names, 0, 8));
+                    if ($cycle_preview === '') {
+                        $cycle_preview = __('cycle detected', 'll-tools-text-domain');
+                    }
 
-                ll_tools_wordset_queue_category_order_notice(
-                    sprintf(
-                        __('Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again.', 'll-tools-text-domain'),
-                        $cycle_preview
-                    ),
-                    'error'
-                );
-            } elseif (empty($normalized_prereq_map)) {
-                delete_term_meta($term_id, 'll_wordset_category_prerequisites');
-            } else {
-                update_term_meta($term_id, 'll_wordset_category_prerequisites', $normalized_prereq_map);
+                    ll_tools_wordset_queue_category_order_notice(
+                        sprintf(
+                            __('Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again.', 'll-tools-text-domain'),
+                            $cycle_preview
+                        ),
+                        'error'
+                    );
+                } elseif (empty($normalized_prereq_map)) {
+                    delete_term_meta($term_id, 'll_wordset_category_prerequisites');
+                } else {
+                    update_term_meta($term_id, 'll_wordset_category_prerequisites', $normalized_prereq_map);
+                }
             }
         } else {
             if (isset($_POST['ll_wordset_category_manual_order'])) {
                 delete_term_meta($term_id, 'll_wordset_category_manual_order');
             }
-            if (isset($_POST['ll_wordset_category_prereqs'])) {
+            if (
+                isset($_POST['ll_wordset_category_prereqs'])
+                || (
+                    isset($_POST['ll_wordset_category_prereqs_compact_mode'])
+                    && sanitize_key(wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact_mode'])) === 'json-v1'
+                )
+            ) {
                 delete_term_meta($term_id, 'll_wordset_category_prerequisites');
             }
         }
