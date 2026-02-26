@@ -165,6 +165,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
 }
 
+@media (min-width: 801px) {
+    .ll-wordset-page--main .ll-wordset-utility-bar--shared .ll-wordset-utility-bar__identity {
+        /* Match the main title text start (hero icon width + title gap). */
+        margin-left: 68px;
+    }
+}
+
 .ll-wordset-utility-bar__identity {
     display: inline-flex;
     align-items: center;
@@ -203,8 +210,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-utility-bar__identity-name {
+    display: block;
     color: var(--ll-wp-text);
     font-weight: 700;
+    line-height: 1.35;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -212,7 +221,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-utility-bar__identity-login {
+    display: block;
     color: var(--ll-wp-muted);
+    line-height: 1.35;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

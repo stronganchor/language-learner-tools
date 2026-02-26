@@ -2052,6 +2052,15 @@ function ll_tools_word_grid_shortcode($atts) {
             'verbMoodMissing' => __('Choose a verb mood option.', 'll-tools-text-domain'),
             'error' => __('Unable to update words.', 'll-tools-text-domain'),
         ],
+        'prereqI18n' => [
+            'saving' => __('Saving prerequisites...', 'll-tools-text-domain'),
+            'saved' => __('Prerequisites saved.', 'll-tools-text-domain'),
+            'error' => __('Unable to save prerequisites.', 'll-tools-text-domain'),
+            'empty' => __('No prerequisites selected.', 'll-tools-text-domain'),
+            'remove' => __('Remove %s', 'll-tools-text-domain'),
+            'levelCycle' => __('Cycle', 'll-tools-text-domain'),
+            'levelUnknown' => __('—', 'll-tools-text-domain'),
+        ],
         'transcribeI18n' => [
             'confirm'        => __('Transcribe missing recordings for this lesson?', 'll-tools-text-domain'),
             'confirmReplace' => __('Replace captions for this lesson?', 'll-tools-text-domain'),
@@ -3524,6 +3533,148 @@ function ll_tools_search_dictionary_entries_handler() {
 
     wp_send_json_success([
         'entries' => array_values((array) $entries),
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_update_category_prereqs', 'll_tools_word_grid_update_category_prereqs_handler');
+function ll_tools_word_grid_update_category_prereqs_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit prerequisites.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    $category_id = (int) ($_POST['category_id'] ?? 0);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        wp_send_json_error([
+            'message' => __('Missing word set or category.', 'll-tools-text-domain'),
+        ], 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit prerequisites for this word set.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    if (!function_exists('ll_tools_wordset_get_category_ordering_mode')
+        || ll_tools_wordset_get_category_ordering_mode($wordset_id) !== 'prerequisite'
+    ) {
+        wp_send_json_error([
+            'message' => __('This word set is not using prerequisite ordering.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if (!function_exists('ll_tools_wordset_get_admin_category_ordering_rows')
+        || !function_exists('ll_tools_wordset_normalize_category_id_list')
+        || !function_exists('ll_tools_wordset_get_category_prereq_map')
+        || !function_exists('ll_tools_wordset_normalize_category_prereq_map')
+        || !function_exists('ll_tools_wordset_find_prereq_cycle')
+        || !function_exists('ll_tools_wordset_calculate_prereq_levels')
+    ) {
+        wp_send_json_error([
+            'message' => __('Prerequisite editing is unavailable right now.', 'll-tools-text-domain'),
+        ], 500);
+    }
+
+    $ordering_rows = ll_tools_wordset_get_admin_category_ordering_rows($wordset_id);
+    $allowed_category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck((array) $ordering_rows, 'id'));
+    if (empty($allowed_category_ids) || !in_array($category_id, $allowed_category_ids, true)) {
+        wp_send_json_error([
+            'message' => __('This lesson category is not available for prerequisite ordering.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $label_map = [];
+    foreach ((array) $ordering_rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row_id = (int) ($row['id'] ?? 0);
+        if ($row_id <= 0) {
+            continue;
+        }
+        $label_map[$row_id] = (string) ($row['name'] ?? (string) $row_id);
+    }
+
+    $posted_prereq_ids = $_POST['prereq_ids'] ?? [];
+    $posted_prereq_ids = wp_unslash($posted_prereq_ids);
+    if (!is_array($posted_prereq_ids)) {
+        $posted_prereq_ids = [$posted_prereq_ids];
+    }
+
+    $single_map = ll_tools_wordset_normalize_category_prereq_map(
+        [$category_id => $posted_prereq_ids],
+        $allowed_category_ids
+    );
+    $selected_prereq_ids = array_values(array_map('intval', (array) ($single_map[$category_id] ?? [])));
+
+    $prereq_map = ll_tools_wordset_get_category_prereq_map($wordset_id, $allowed_category_ids);
+    if (empty($selected_prereq_ids)) {
+        unset($prereq_map[$category_id]);
+    } else {
+        $prereq_map[$category_id] = $selected_prereq_ids;
+    }
+
+    $prereq_map = ll_tools_wordset_normalize_category_prereq_map($prereq_map, $allowed_category_ids);
+    $cycle_check = ll_tools_wordset_find_prereq_cycle($allowed_category_ids, $prereq_map);
+    if (!empty($cycle_check['has_cycle'])) {
+        $cycle_labels = [];
+        foreach ((array) ($cycle_check['cycle_path'] ?? []) as $cycle_id) {
+            $cycle_id = (int) $cycle_id;
+            if ($cycle_id <= 0) {
+                continue;
+            }
+            $cycle_labels[] = (string) ($label_map[$cycle_id] ?? (string) $cycle_id);
+        }
+
+        if (!empty($cycle_labels)) {
+            wp_send_json_error([
+                'message' => sprintf(
+                    __('Prerequisites were not saved because they create a loop: %s', 'll-tools-text-domain'),
+                    implode(' -> ', $cycle_labels)
+                ),
+            ], 409);
+        }
+
+        wp_send_json_error([
+            'message' => __('Prerequisites were not saved because they create a loop.', 'll-tools-text-domain'),
+        ], 409);
+    }
+
+    if (empty($prereq_map)) {
+        delete_term_meta($wordset_id, 'll_wordset_category_prerequisites');
+    } else {
+        update_term_meta($wordset_id, 'll_wordset_category_prerequisites', $prereq_map);
+    }
+
+    $level_info = ll_tools_wordset_calculate_prereq_levels($allowed_category_ids, $prereq_map);
+    $selected_rows = [];
+    foreach ($selected_prereq_ids as $selected_prereq_id) {
+        $selected_prereq_id = (int) $selected_prereq_id;
+        if ($selected_prereq_id <= 0) {
+            continue;
+        }
+        $row = [
+            'id' => $selected_prereq_id,
+            'label' => (string) ($label_map[$selected_prereq_id] ?? (string) $selected_prereq_id),
+        ];
+        if (isset($level_info['levels'][$selected_prereq_id]) && empty($level_info['has_cycle'])) {
+            $row['level'] = (int) $level_info['levels'][$selected_prereq_id];
+        }
+        $selected_rows[] = $row;
+    }
+
+    wp_send_json_success([
+        'message' => __('Prerequisites saved.', 'll-tools-text-domain'),
+        'selected' => $selected_rows,
+        'selected_ids' => array_values(array_map('intval', $selected_prereq_ids)),
+        'level' => (isset($level_info['levels'][$category_id]) && empty($level_info['has_cycle']))
+            ? (int) $level_info['levels'][$category_id]
+            : null,
+        'has_cycle' => !empty($level_info['has_cycle']),
     ]);
 }
 
