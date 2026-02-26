@@ -66,6 +66,7 @@
                 beforeIntroCorrect: 0,
                 afterIntroCorrect: 0
             },
+            progressMaxPassedCount: 0,
             resultsActions: null
         };
     }
@@ -1612,6 +1613,35 @@
         });
     }
 
+    function countPassedWords() {
+        if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
+            return 0;
+        }
+        let count = 0;
+        session.activeWordIds.forEach(function (wordId) {
+            if (isWordPassed(wordId)) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
+    function updateSessionProgressBar() {
+        const total = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
+        if (!total) return;
+        const passedCount = countPassedWords();
+        session.progressMaxPassedCount = Math.max(
+            0,
+            parseInt(session.progressMaxPassedCount, 10) || 0,
+            passedCount
+        );
+        if (Dom && typeof Dom.updateSimpleProgress === 'function') {
+            try {
+                Dom.updateSimpleProgress(session.progressMaxPassedCount, total);
+            } catch (_) { /* no-op */ }
+        }
+    }
+
     function pickRandomWordId(wordIds) {
         const list = (Array.isArray(wordIds) ? wordIds : []).map(toInt).filter(function (id) { return id > 0; });
         if (!list.length) return 0;
@@ -1674,6 +1704,15 @@
         return words.length > 0;
     }
 
+    function getNormalizedWordGenderKey(wordId) {
+        const id = toInt(wordId);
+        if (!id) return '';
+        const word = session.wordsById[id];
+        if (!word) return '';
+        const normalized = normalizeGenderValue((word.__gender_label || word.grammatical_gender || ''), getGenderOptions());
+        return String(normalized || '').trim().toLowerCase();
+    }
+
     function planLevelOneIntroBatch(maxCount) {
         const take = Math.max(1, parseInt(maxCount, 10) || 1);
         const notIntroduced = getNotIntroducedWordIds();
@@ -1683,18 +1722,44 @@
             session.introComplete = true;
             return false;
         }
-        const picked = [];
-        for (let i = 0; i < notIntroduced.length && picked.length < take; i++) {
+        const orderedCandidates = [];
+        for (let i = 0; i < notIntroduced.length; i++) {
             const wordId = toInt(notIntroduced[i]);
             if (!wordId) continue;
             if (wordId === session.lastWordId && notIntroduced.length > take) continue;
-            if (picked.indexOf(wordId) !== -1) continue;
-            picked.push(wordId);
+            if (orderedCandidates.indexOf(wordId) !== -1) continue;
+            orderedCandidates.push(wordId);
         }
-        if (!picked.length) {
-            picked.push(notIntroduced[0]);
+        if (!orderedCandidates.length) {
+            orderedCandidates.push(notIntroduced[0]);
         }
-        return setIntroWordsFromIds(picked);
+
+        let candidateOrder = orderedCandidates.slice();
+        const shouldPreferMixedFirstPair = (
+            session.level === LEVEL_ONE &&
+            take >= 2 &&
+            getIntroducedWordIds().length === 0 &&
+            candidateOrder.length >= 2
+        );
+        if (shouldPreferMixedFirstPair) {
+            const firstId = toInt(candidateOrder[0]);
+            const firstGender = getNormalizedWordGenderKey(firstId);
+            if (firstId && firstGender) {
+                const mixedIdx = candidateOrder.findIndex(function (wordId, idx) {
+                    if (idx === 0) return false;
+                    const gender = getNormalizedWordGenderKey(wordId);
+                    return !!gender && gender !== firstGender;
+                });
+                if (mixedIdx > 1) {
+                    const mixedId = candidateOrder[mixedIdx];
+                    candidateOrder = [firstId, mixedId]
+                        .concat(candidateOrder.slice(1, mixedIdx))
+                        .concat(candidateOrder.slice(mixedIdx + 1));
+                }
+            }
+        }
+
+        return setIntroWordsFromIds(candidateOrder.slice(0, take));
     }
 
     function updateCategoryForWord(wordId) {
@@ -2330,6 +2395,8 @@
             return null;
         }
 
+        updateSessionProgressBar();
+
         if (session.level === LEVEL_ONE && session.introPending && !session.introComplete) {
             return session.introWords.slice();
         }
@@ -2518,6 +2585,8 @@
             maybeDemoteCategoryFromSessionPressure(categoryName);
             updatedProgress = getWordProgress(wordId);
         }
+
+        updateSessionProgressBar();
 
         // Stop any pending L2 sequence and always replay intro before advancing.
         resetRoundSequence();

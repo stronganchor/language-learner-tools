@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.4.0
+Version: 5.5.1
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -30,16 +30,40 @@ function ll_tools_get_update_branch() {
     return ll_tools_normalize_update_branch($branch);
 }
 
+/**
+ * Only boot the plugin update checker where it is useful.
+ *
+ * Front-end page requests don't need PUC hooks and object setup.
+ */
+function ll_tools_should_boot_update_checker() {
+    if (is_admin()) {
+        return true;
+    }
+
+    if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+        return true;
+    }
+
+    if (defined('WP_CLI') && WP_CLI) {
+        return true;
+    }
+
+    return false;
+}
+
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
-$ll_tools_update_branch = ll_tools_get_update_branch();
-$ll_tools_update_checker = PucFactory::buildUpdateChecker(
-    'https://github.com/stronganchor/language-learner-tools',
-    __FILE__,
-    'language-learner-tools'
-);
-$ll_tools_update_checker->setBranch($ll_tools_update_branch);
+$ll_tools_update_checker = null;
+if (ll_tools_should_boot_update_checker()) {
+    $ll_tools_update_branch = ll_tools_get_update_branch();
+    $ll_tools_update_checker = PucFactory::buildUpdateChecker(
+        'https://github.com/stronganchor/language-learner-tools',
+        __FILE__,
+        'language-learner-tools'
+    );
+    $ll_tools_update_checker->setBranch($ll_tools_update_branch);
+}
 
 add_action('update_option_ll_update_branch', function ($old_value, $value, $option_name) {
     global $ll_tools_update_checker;
@@ -51,6 +75,335 @@ add_action('update_option_ll_update_branch', function ($old_value, $value, $opti
     $ll_tools_update_checker->resetUpdateState();
     $ll_tools_update_checker->checkForUpdates();
 }, 10, 3);
+
+/**
+ * Determine whether the current user should see plugin update UI.
+ */
+function ll_tools_user_can_manage_plugin_updates() {
+    if (!is_user_logged_in()) {
+        return false;
+    }
+
+    if (!current_user_can('update_plugins')) {
+        return false;
+    }
+
+    return current_user_can('view_ll_tools')
+        || current_user_can('manage_options')
+        || current_user_can('manage_network_plugins');
+}
+
+/**
+ * Returns plugin update status for this plugin from WordPress/PUC caches.
+ *
+ * @return array{
+ *   status:string,
+ *   version:string,
+ *   raw:object|null
+ * }
+ */
+function ll_tools_get_plugin_update_status_details() {
+    static $has_checked = false;
+    static $cached_result = null;
+
+    if ($has_checked) {
+        return $cached_result;
+    }
+    $has_checked = true;
+
+    $plugin_file = plugin_basename(LL_TOOLS_MAIN_FILE);
+    $raw_update = null;
+    $known_no_update = false;
+    $known_checked = false;
+
+    $updates = get_site_transient('update_plugins');
+    if (is_object($updates)) {
+        if (isset($updates->response)) {
+            $response = is_array($updates->response) ? $updates->response : (array) $updates->response;
+            if (!empty($response[$plugin_file]) && is_object($response[$plugin_file])) {
+                $raw_update = $response[$plugin_file];
+            }
+        }
+
+        if ($raw_update === null && isset($updates->no_update)) {
+            $no_update = is_array($updates->no_update) ? $updates->no_update : (array) $updates->no_update;
+            if (array_key_exists($plugin_file, $no_update)) {
+                $known_no_update = true;
+            }
+        }
+
+        if ($raw_update === null && isset($updates->checked)) {
+            $checked = is_array($updates->checked) ? $updates->checked : (array) $updates->checked;
+            if (array_key_exists($plugin_file, $checked)) {
+                $known_checked = true;
+            }
+        }
+    }
+
+    if ($raw_update === null) {
+        global $ll_tools_update_checker;
+        if (is_object($ll_tools_update_checker) && method_exists($ll_tools_update_checker, 'getUpdate')) {
+            $puc_update = $ll_tools_update_checker->getUpdate();
+            if (is_object($puc_update)) {
+                $raw_update = $puc_update;
+            }
+        }
+    }
+
+    $version = '';
+    if (is_object($raw_update)) {
+        if (!empty($raw_update->new_version) && is_string($raw_update->new_version)) {
+            $version = trim((string) $raw_update->new_version);
+        } elseif (!empty($raw_update->version) && is_string($raw_update->version)) {
+            $version = trim((string) $raw_update->version);
+        }
+    }
+
+    if ($version !== '') {
+        $cached_result = [
+            'status' => 'available',
+            'version' => $version,
+            'raw' => $raw_update,
+        ];
+        return $cached_result;
+    }
+
+    if ($known_no_update || $known_checked) {
+        $cached_result = [
+            'status' => 'none',
+            'version' => '',
+            'raw' => null,
+        ];
+        return $cached_result;
+    }
+
+    $cached_result = [
+        'status' => 'unknown',
+        'version' => '',
+        'raw' => null,
+    ];
+
+    return $cached_result;
+}
+
+/**
+ * Returns available update info for this plugin from WordPress/PUC caches.
+ *
+ * @return array|null {
+ *   @type string $version Available version string.
+ *   @type object $raw     Raw update object from WP/PUC.
+ * }
+ */
+function ll_tools_get_available_plugin_update_details() {
+    $status = ll_tools_get_plugin_update_status_details();
+    if (!is_array($status) || ($status['status'] ?? '') !== 'available') {
+        return null;
+    }
+
+    return [
+        'version' => (string) ($status['version'] ?? ''),
+        'raw' => isset($status['raw']) && is_object($status['raw']) ? $status['raw'] : null,
+    ];
+}
+
+/**
+ * Build the authenticated update URL for this plugin.
+ */
+function ll_tools_get_plugin_update_action_url() {
+    if (!ll_tools_user_can_manage_plugin_updates()) {
+        return '';
+    }
+
+    $plugin_file = plugin_basename(LL_TOOLS_MAIN_FILE);
+    $url = self_admin_url('update.php?action=upgrade-plugin&plugin=' . rawurlencode($plugin_file));
+
+    return wp_nonce_url($url, 'upgrade-plugin_' . $plugin_file);
+}
+
+/**
+ * Build the authenticated manual "check for updates" URL for this plugin.
+ */
+function ll_tools_get_plugin_update_check_action_url($redirect_to = '') {
+    if (!ll_tools_user_can_manage_plugin_updates()) {
+        return '';
+    }
+
+    $url = add_query_arg(
+        [
+            'action' => 'll_tools_check_plugin_update',
+        ],
+        admin_url('admin-post.php')
+    );
+
+    if (is_string($redirect_to) && $redirect_to !== '') {
+        $url = add_query_arg('redirect_to', $redirect_to, $url);
+    }
+
+    return wp_nonce_url($url, 'll_tools_check_plugin_update');
+}
+
+/**
+ * Build a per-user transient key for one-time update-check UI feedback.
+ */
+function ll_tools_plugin_update_check_flash_key($user_id = 0) {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        $user_id = get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return '';
+    }
+
+    $blog_id = function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 0;
+    return 'll_tools_upd_ck_flash_' . $blog_id . '_' . $user_id;
+}
+
+/**
+ * Store one-time plugin update check UI feedback for the current admin user.
+ */
+function ll_tools_set_plugin_update_check_flash($status) {
+    $key = ll_tools_plugin_update_check_flash_key();
+    if ($key === '') {
+        return;
+    }
+
+    $status = is_string($status) ? trim($status) : '';
+    if ($status === '') {
+        delete_transient($key);
+        return;
+    }
+
+    set_transient($key, $status, 2 * MINUTE_IN_SECONDS);
+}
+
+/**
+ * Consume one-time plugin update check UI feedback for the current user.
+ */
+function ll_tools_consume_plugin_update_check_flash() {
+    $key = ll_tools_plugin_update_check_flash_key();
+    if ($key === '') {
+        return '';
+    }
+
+    $value = get_transient($key);
+    delete_transient($key);
+
+    return is_string($value) ? trim($value) : '';
+}
+
+/**
+ * Manual update check endpoint for admins clicking from the wordset page.
+ */
+function ll_tools_handle_manual_plugin_update_check() {
+    if (!ll_tools_user_can_manage_plugin_updates()) {
+        wp_die(esc_html__('You are not allowed to check plugin updates.', 'll-tools-text-domain'), 403);
+    }
+
+    check_admin_referer('ll_tools_check_plugin_update');
+
+    $redirect_to = '';
+    if (isset($_GET['redirect_to'])) {
+        $redirect_to = wp_unslash((string) $_GET['redirect_to']);
+    }
+    $redirect_to = wp_validate_redirect($redirect_to, self_admin_url('plugins.php'));
+
+    global $ll_tools_update_checker;
+    if (is_object($ll_tools_update_checker)) {
+        if (method_exists($ll_tools_update_checker, 'resetUpdateState')) {
+            $ll_tools_update_checker->resetUpdateState();
+        }
+    }
+
+    delete_site_transient('update_plugins');
+    if (!function_exists('wp_update_plugins')) {
+        require_once ABSPATH . 'wp-admin/includes/update.php';
+    }
+    if (function_exists('wp_update_plugins')) {
+        wp_update_plugins();
+    } elseif (is_object($ll_tools_update_checker) && method_exists($ll_tools_update_checker, 'checkForUpdates')) {
+        $ll_tools_update_checker->checkForUpdates();
+    }
+
+    ll_tools_set_plugin_update_check_flash('');
+    $plugin_file = plugin_basename(LL_TOOLS_MAIN_FILE);
+    $updates = get_site_transient('update_plugins');
+    if (is_object($updates)) {
+        $response = isset($updates->response) ? (is_array($updates->response) ? $updates->response : (array) $updates->response) : [];
+        $no_update = isset($updates->no_update) ? (is_array($updates->no_update) ? $updates->no_update : (array) $updates->no_update) : [];
+        if (empty($response[$plugin_file]) && array_key_exists($plugin_file, $no_update)) {
+            ll_tools_set_plugin_update_check_flash('up_to_date');
+        }
+    }
+
+    wp_safe_redirect($redirect_to);
+    exit;
+}
+add_action('admin_post_ll_tools_check_plugin_update', 'll_tools_handle_manual_plugin_update_check');
+
+/**
+ * Dashboard notice for plugin updates (when detected by WordPress/PUC).
+ */
+function ll_tools_maybe_render_plugin_update_dashboard_notice() {
+    static $rendered = false;
+    if ($rendered) {
+        return;
+    }
+
+    if (!ll_tools_user_can_manage_plugin_updates()) {
+        return;
+    }
+
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return;
+    }
+
+    if (!function_exists('get_current_screen')) {
+        return;
+    }
+
+    $screen = get_current_screen();
+    if (!$screen || !in_array($screen->base, ['dashboard', 'dashboard-network'], true)) {
+        return;
+    }
+
+    $update = ll_tools_get_available_plugin_update_details();
+    if (!is_array($update) || empty($update['version'])) {
+        return;
+    }
+
+    $rendered = true;
+    $version = (string) $update['version'];
+    $update_url = ll_tools_get_plugin_update_action_url();
+    if ($update_url === '') {
+        return;
+    }
+    ?>
+    <div class="notice notice-warning">
+        <p>
+            <?php
+            echo esc_html(
+                sprintf(
+                    __('Language Learner Tools update available: version %s.', 'll-tools-text-domain'),
+                    $version
+                )
+            );
+            ?>
+            <a class="button button-primary" href="<?php echo esc_url($update_url); ?>">
+                <?php
+                echo esc_html(
+                    sprintf(
+                        __('Update to %s', 'll-tools-text-domain'),
+                        $version
+                    )
+                );
+                ?>
+            </a>
+        </p>
+    </div>
+    <?php
+}
+add_action('admin_notices', 'll_tools_maybe_render_plugin_update_dashboard_notice');
+add_action('network_admin_notices', 'll_tools_maybe_render_plugin_update_dashboard_notice');
 
 add_filter('upgrader_source_selection', function ($source, $remote_source, $upgrader) {
     global $wp_filesystem;

@@ -11,66 +11,16 @@ if (!defined('WPINC')) { die; }
  * Runs on admin_init and checks if page needs to be created
  */
 function ll_tools_ensure_recording_page() {
-    // Only run for admins to avoid unnecessary queries on every page load
-    if (!current_user_can('manage_options')) {
-        return;
-    }
-
-    // Check if a recording page already exists and is valid
-    $existing_page_id = get_option('ll_default_recording_page_id');
-    if ($existing_page_id && get_post_status($existing_page_id) === 'publish') {
-        return; // Page exists and is published
-    }
-
-    // If we had a page ID but it's not published anymore, clear it
-    if ($existing_page_id) {
-        delete_option('ll_default_recording_page_id');
-    }
-
-    // Search for existing page with the shortcode
-    $pages = get_posts([
-        'post_type' => 'page',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        's' => '[audio_recording_interface',
-        'fields' => 'ids',
+    ll_tools_ensure_default_shortcode_page([
+        'option_key'                 => 'll_default_recording_page_id',
+        'force_option_key'           => 'll_tools_force_create_recording_page',
+        'creation_attempt_transient' => 'll_recording_page_creation_attempt',
+        'created_notice_transient'   => 'll_recording_page_created',
+        'shortcode_search'           => '[audio_recording_interface',
+        'post_title'                 => __('Record Audio', 'll-tools-text-domain'),
+        'post_content'               => '[audio_recording_interface]',
+        'error_context'              => 'recording page',
     ]);
-
-    if (!empty($pages)) {
-        // Found existing page, just save the ID
-        update_option('ll_default_recording_page_id', $pages[0]);
-        return;
-    }
-
-    // Check if we've already tried to create recently (avoid duplicate creation)
-    $creation_attempt = get_transient('ll_recording_page_creation_attempt');
-    if ($creation_attempt) {
-        return; // Already tried recently, don't spam
-    }
-
-    // Set transient to prevent duplicate attempts (5 minute cooldown)
-    set_transient('ll_recording_page_creation_attempt', time(), 5 * MINUTE_IN_SECONDS);
-
-    // Create new recording page
-    $page_id = wp_insert_post([
-        'post_title' => __('Record Audio', 'll-tools-text-domain'),
-        'post_content' => '[audio_recording_interface]',
-        'post_status' => 'publish',
-        'post_type' => 'page',
-        'post_author' => get_current_user_id() ?: 1,
-        'comment_status' => 'closed',
-        'ping_status' => 'closed',
-    ]);
-
-    if (!is_wp_error($page_id) && $page_id > 0) {
-        update_option('ll_default_recording_page_id', $page_id);
-
-        // Add admin notice
-        set_transient('ll_recording_page_created', $page_id, 60);
-    } else {
-        // Log error for debugging
-        error_log('LL Tools: Failed to create recording page. Error: ' . ($page_id instanceof WP_Error ? $page_id->get_error_message() : 'Unknown'));
-    }
 }
 add_action('admin_init', 'll_tools_ensure_recording_page', 20);
 
@@ -147,12 +97,12 @@ function ll_recording_page_settings_section() {
 
                     $.post(ajaxurl, {
                         action: 'll_create_recording_page',
-                        nonce: '<?php echo wp_create_nonce('ll_create_recording_page'); ?>'
+                        nonce: '<?php echo esc_js(wp_create_nonce('ll_create_recording_page')); ?>'
                     }, function(response) {
                         if (response.success) {
                             location.reload();
                         } else {
-                            alert('Error: ' + (response.data || 'Unknown error'));
+                            window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + (response.data || '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>'));
                         }
                     });
                 });
@@ -176,6 +126,7 @@ function ll_ajax_create_recording_page() {
 
     // Clear the old page ID
     delete_option('ll_default_recording_page_id');
+    delete_transient('ll_recording_page_creation_attempt');
 
     // Set flag to create page
     update_option('ll_tools_force_create_recording_page', 1);
@@ -255,16 +206,8 @@ add_filter('login_redirect', 'll_audio_recorder_login_redirect', 999, 3);
  * Find a page that contains the audio_recording_interface shortcode
  */
 function ll_find_recording_page() {
-    // Search for pages with the shortcode
-    $pages = get_posts([
-        'post_type' => 'page',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        's' => '[audio_recording_interface',
-    ]);
-
-    if (!empty($pages)) {
-        $page_id = $pages[0]->ID;
+    $page_id = (int) (ll_tools_find_shortcode_page_by_fragment('[audio_recording_interface', 'ids') ?? 0);
+    if ($page_id > 0) {
         update_option('ll_default_recording_page_id', $page_id);
         return $page_id;
     }

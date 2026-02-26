@@ -164,11 +164,31 @@ function ll_image_upload_render_parent_category_options($terms, $selected_id = 0
 /**
  * Shortcode handler for [image_upload_form].
  *
+ * Supported attributes:
+ * - wordset_id (int): preselect a word set for auto-created words
+ * - lock_wordset (0|1): force the provided word set
+ * - return_url (string): optional redirect target after processing
+ *
  * @return string The HTML form for uploading image files.
  */
-function ll_image_upload_form_shortcode() {
+function ll_image_upload_form_shortcode($atts = []) {
     if (!ll_image_upload_user_can_access()) {
         return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
+    }
+
+    $atts = shortcode_atts([
+        'wordset_id' => 0,
+        'lock_wordset' => '0',
+        'return_url' => '',
+    ], (array) $atts, 'image_upload_form');
+    $requested_wordset_id = max(0, (int) $atts['wordset_id']);
+    $lock_wordset = !empty($atts['lock_wordset']) && $atts['lock_wordset'] !== '0';
+    $return_url = '';
+    if (!empty($atts['return_url'])) {
+        $validated_return = wp_validate_redirect((string) $atts['return_url'], '');
+        if (is_string($validated_return)) {
+            $return_url = $validated_return;
+        }
     }
 
     ll_image_upload_enqueue_form_assets();
@@ -182,6 +202,42 @@ function ll_image_upload_form_shortcode() {
     if (is_wp_error($wordsets)) {
         $wordsets = [];
     }
+    if (!empty($wordsets) && !current_user_can('manage_options') && function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $allowed_wordset_ids = ll_tools_get_user_managed_wordset_ids(get_current_user_id());
+        if (!empty($allowed_wordset_ids)) {
+            $allowed_lookup = array_fill_keys(array_map('intval', (array) $allowed_wordset_ids), true);
+            $wordsets = array_values(array_filter($wordsets, static function ($wordset) use ($allowed_lookup) {
+                $term_id = isset($wordset->term_id) ? (int) $wordset->term_id : 0;
+                return $term_id > 0 && !empty($allowed_lookup[$term_id]);
+            }));
+        } elseif (in_array('wordset_manager', (array) wp_get_current_user()->roles, true)) {
+            $wordsets = [];
+        }
+    }
+    $preselected_wordset = null;
+    if ($requested_wordset_id > 0) {
+        foreach ((array) $wordsets as $candidate_wordset) {
+            if ((int) ($candidate_wordset->term_id ?? 0) === $requested_wordset_id) {
+                $preselected_wordset = $candidate_wordset;
+                break;
+            }
+        }
+        if (!$preselected_wordset && function_exists('ll_tools_user_can_manage_wordset_content')
+            && ll_tools_user_can_manage_wordset_content(get_current_user_id(), $requested_wordset_id)
+        ) {
+            $maybe_term = get_term($requested_wordset_id, 'wordset');
+            if ($maybe_term && !is_wp_error($maybe_term)) {
+                $preselected_wordset = $maybe_term;
+                $wordsets[] = $maybe_term;
+            }
+        }
+    }
+    if ($lock_wordset && !$preselected_wordset) {
+        return esc_html__('That word set is not available for image upload.', 'll-tools-text-domain');
+    }
+    $preselected_wordset_id = ($preselected_wordset && isset($preselected_wordset->term_id))
+        ? (int) $preselected_wordset->term_id
+        : 0;
 
     $category_terms = get_terms([
         'taxonomy'   => 'word-category',
@@ -271,7 +327,7 @@ function ll_image_upload_form_shortcode() {
                     <label for="ll-new-category-option"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?>:</label><br>
                     <select id="ll-new-category-option" name="ll_new_category_option_type" class="regular-text" data-ll-new-category-option>
                         <option value="image"><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
-                        <option value="text"><?php esc_html_e('Text (match prompt)', 'll-tools-text-domain'); ?></option>
+                        <option value="text"><?php esc_html_e('Text (opposite prompt)', 'll-tools-text-domain'); ?></option>
                         <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
@@ -299,19 +355,31 @@ function ll_image_upload_form_shortcode() {
         <div style="margin-top:10px; display:none;" data-ll-wordset-wrap>
             <label><?php esc_html_e('Generate word posts for these word sets (applies only when the category quizzes without audio):', 'll-tools-text-domain'); ?></label><br>
             <?php if (!empty($wordsets) && !is_wp_error($wordsets)) : ?>
-                <select name="ll_wordset_ids[]" multiple size="5" style="min-width:240px;">
-                    <?php foreach ($wordsets as $ws) : ?>
-                        <option value="<?php echo esc_attr($ws->term_id); ?>"><?php echo esc_html($ws->name); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <p class="description"><?php esc_html_e('If left empty, generated word posts will not be assigned to a word set.', 'll-tools-text-domain'); ?></p>
+                <?php if ($lock_wordset && $preselected_wordset) : ?>
+                    <input type="hidden" name="ll_wordset_ids[]" value="<?php echo esc_attr((int) $preselected_wordset->term_id); ?>">
+                    <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ccd0d4;border-radius:4px;background:#fff;">
+                        <strong><?php echo esc_html((string) $preselected_wordset->name); ?></strong>
+                        <span class="description" style="margin:0;"><?php echo esc_html__('Locked to this word set', 'll-tools-text-domain'); ?></span>
+                    </div>
+                    <p class="description"><?php esc_html_e('Generated words will be assigned to this word set when auto-create is enabled for the chosen category.', 'll-tools-text-domain'); ?></p>
+                <?php else : ?>
+                    <select name="ll_wordset_ids[]" multiple size="5" style="min-width:240px;">
+                        <?php foreach ($wordsets as $ws) : ?>
+                            <option value="<?php echo esc_attr($ws->term_id); ?>" <?php selected($preselected_wordset_id, (int) $ws->term_id); ?>><?php echo esc_html($ws->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description"><?php esc_html_e('If left empty, generated word posts will not be assigned to a word set.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
             <?php else : ?>
                 <p class="description"><?php esc_html_e('No word sets available.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
         </div>
 
         <input type="hidden" name="action" value="process_image_files">
-        <input type="submit" class="button button-primary" value="<?php esc_attr_e('Bulk Add Images', 'll-tools-text-domain'); ?>">
+        <?php if ($return_url !== '') : ?>
+            <input type="hidden" name="ll_return_url" value="<?php echo esc_url($return_url); ?>">
+        <?php endif; ?>
+        <input type="submit" class="button button-primary ll-tools-upload-submit" value="<?php esc_attr_e('Bulk Add Images', 'll-tools-text-domain'); ?>">
     </form>
     <?php
     return ob_get_clean();
@@ -342,6 +410,7 @@ function ll_handle_image_file_uploads() {
         wp_die(esc_html__('You do not have permission to upload files.', 'll-tools-text-domain'));
     }
     check_admin_referer('ll_process_image_files', 'll_image_upload_nonce');
+    $return_url = isset($_POST['ll_return_url']) ? wp_validate_redirect((string) wp_unslash($_POST['ll_return_url']), '') : '';
 
     /**
      * Extracts copyright information from EXIF and from any XMP packet data.
@@ -510,6 +579,25 @@ function ll_handle_image_file_uploads() {
         unset($GLOBALS['ll_image_upload_skip_audio_requirement']);
     }
 
+    if (is_string($return_url) && $return_url !== '') {
+        $success_count = count($success_uploads);
+        $failed_count = count($failed_uploads);
+        $status = 'ok';
+        if ($success_count === 0 && $failed_count > 0) {
+            $status = 'error';
+        } elseif ($success_count > 0 && $failed_count > 0) {
+            $status = 'partial';
+        }
+
+        $redirect_url = add_query_arg([
+            'll_wordset_image_upload' => $status,
+            'll_wordset_image_upload_success' => $success_count,
+            'll_wordset_image_upload_failed' => $failed_count,
+        ], $return_url);
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
     // Redirect with success and failure messages
     $redirect_url = add_query_arg([
         'post_type' => 'word_images',
@@ -608,7 +696,7 @@ function ll_image_upload_create_category_from_request() {
         $allowed_options = ['image', 'text', 'text_translation', 'text_title', 'audio', 'text_audio'];
         $option = in_array($option_raw, $allowed_options, true) ? $option_raw : 'image';
         if ($option === 'text') {
-            $option = ($prompt === 'text_title') ? 'text_title' : 'text_translation';
+            $option = ($prompt === 'text_title') ? 'text_translation' : 'text_title';
         }
     }
 
@@ -618,6 +706,12 @@ function ll_image_upload_create_category_from_request() {
     }
     if ($prompt === 'audio' && $option === 'audio') {
         $option = 'text_translation';
+    }
+    if ($prompt === 'text_title' && $option === 'text_title') {
+        $option = 'text_translation';
+    }
+    if ($prompt === 'text_translation' && $option === 'text_translation') {
+        $option = 'text_title';
     }
 
     update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);
@@ -728,7 +822,18 @@ function ll_image_upload_should_autocreate_word($category_ids) {
 function ll_image_upload_sanitize_wordset_ids($raw_ids) {
     $ids = array_map('intval', (array) $raw_ids);
     $ids = array_filter($ids, function ($id) { return $id > 0; });
-    return array_values(array_unique($ids));
+    $ids = array_values(array_unique($ids));
+
+    if (!current_user_can('manage_options') && function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $allowed_ids = array_map('intval', (array) ll_tools_get_user_managed_wordset_ids(get_current_user_id()));
+        if (!empty($allowed_ids)) {
+            $ids = array_values(array_intersect($ids, $allowed_ids));
+        } elseif (in_array('wordset_manager', (array) wp_get_current_user()->roles, true)) {
+            $ids = [];
+        }
+    }
+
+    return $ids;
 }
 
 /**

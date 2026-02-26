@@ -519,6 +519,9 @@ function ll_tools_recording_hidden_words_meta_key(): string {
  */
 function ll_tools_normalize_recording_hide_title($title): string {
     $clean = html_entity_decode((string) $title, ENT_QUOTES, 'UTF-8');
+    if (function_exists('ll_tools_strip_display_word_joiners')) {
+        $clean = ll_tools_strip_display_word_joiners($clean);
+    }
     $clean = sanitize_text_field($clean);
     $clean = trim(preg_replace('/\s+/', ' ', $clean));
     if ($clean === '') {
@@ -872,9 +875,15 @@ function ll_tools_remove_hidden_recording_word(int $user_id, string $hide_key, i
 }
 
 function ll_audio_recording_interface_shortcode($atts) {
+    $utility_nav_base = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'recorder',
+        ])
+        : '';
+
     // Require user to be logged in
     if (!is_user_logged_in()) {
-        return ll_tools_render_login_window([
+        return $utility_nav_base . ll_tools_render_login_window([
             'container_class' => 'll-recording-interface ll-login-required',
             'title' => __('Sign in to record', 'll-tools-text-domain'),
             'message' => __('Use an account with recording access to continue.', 'll-tools-text-domain'),
@@ -884,7 +893,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
 
     if (!ll_tools_user_can_record()) {
-        return '<div class="ll-recording-interface"><p>' .
+        return $utility_nav_base . '<div class="ll-recording-interface"><p>' .
                __('You do not have permission to record audio. If you think this is a mistake, ask for the "Audio Recorder" user role to be added to your user account.', 'll-tools-text-domain') . '</p></div>';
     }
 
@@ -912,6 +921,20 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, $current_user_id);
+    }
+    if (empty($wordset_term_ids)) {
+        return $utility_nav_base . '<div class="ll-recording-interface"><p>' .
+               __('No recording word set is assigned for this account. Ask the word set manager to assign a private word set.', 'll-tools-text-domain') .
+               '</p></div>';
+    }
+    $utility_nav_context = function_exists('ll_tools_render_frontend_user_utility_menu')
+        ? ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'recorder',
+            'wordset' => (int) $wordset_term_ids[0],
+        ])
+        : $utility_nav_base;
 
     $allow_new_words = !empty($atts['allow_new_words']);
     $auto_process_recordings = !empty($atts['auto_process_recordings']);
@@ -923,7 +946,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     if (empty($available_categories)) {
         if (!$allow_new_words && !$has_hidden_recording_words) {
             $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
-            return '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+            return $utility_nav_context . '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
         }
         $available_categories = [
             'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
@@ -953,7 +976,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
 
     if (empty($images_needing_audio) && !$allow_new_words && !$has_hidden_recording_words) {
-        return '<div class="ll-recording-interface"><p>' .
+        return $utility_nav_context . '<div class="ll-recording-interface"><p>' .
                __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
                '</p></div>';
     }
@@ -1036,23 +1059,44 @@ function ll_audio_recording_interface_shortcode($atts) {
             'starting_upload' => __('Starting upload for image:', 'll-tools-text-domain'),
             'http_error' => __('HTTP %d: %s', 'll-tools-text-domain'),
             'invalid_response' => __('Server returned invalid response format', 'll-tools-text-domain'),
+            'request_failed' => __('Request failed', 'll-tools-text-domain'),
             'switching_category' => __('Switching category...', 'll-tools-text-domain'),
             'skipping'            => __('Skipping...', 'll-tools-text-domain'),
             'skip_failed'         => __('Skip failed:', 'll-tools-text-domain'),
             'no_images_in_category'=> __('No images need audio in this category.', 'll-tools-text-domain'),
             'category_switched'   => __('Category switched. Ready to record.', 'll-tools-text-domain'),
             'switch_failed'       => __('Switch failed:', 'll-tools-text-domain'),
+            'switch_failed_message' => __('Switch failed', 'll-tools-text-domain'),
             'new_word_preparing'  => __('Preparing new word...', 'll-tools-text-domain'),
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
+            'new_word_update_text_failed' => __('Failed to update word text', 'll-tools-text-domain'),
+            'new_word_prepare_failed' => __('Failed to prepare new word', 'll-tools-text-domain'),
+            'new_word_missing_data' => __('Missing word data', 'll-tools-text-domain'),
             'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
             'new_word_missing_recording' => __('Record audio before saving this word.', 'll-tools-text-domain'),
             'transcribing'        => __('Transcribing...', 'll-tools-text-domain'),
             'translating'         => __('Translating...', 'll-tools-text-domain'),
             'transcription_failed'=> __('Transcription failed:', 'll-tools-text-domain'),
+            'transcription_request_failed' => __('Transcription failed', 'll-tools-text-domain'),
             'transcription_timeout'=> __('Transcription is still processing. Please try again in a moment.', 'll-tools-text-domain'),
             'transcription_unavailable' => __('Speech-to-text is not available. Please enter the word manually.', 'll-tools-text-domain'),
             'translation_failed'  => __('Translation failed:', 'll-tools-text-domain'),
+            'translation_request_failed' => __('Translation failed', 'll-tools-text-domain'),
             'translation_ready'   => __('Translation ready.', 'll-tools-text-domain'),
+            'insecure_context'    => __('Microphone requires a secure connection. Please use HTTPS or localhost.', 'll-tools-text-domain'),
+            'mic_permission_blocked' => __('Microphone permission is blocked for this site. Click the lock icon in the address bar → Site settings → allow Microphone, then reload.', 'll-tools-text-domain'),
+            'no_mic_devices'      => __('No microphone input devices detected. Check Windows microphone privacy and Sound settings.', 'll-tools-text-domain'),
+            'mic_error_insecure'  => __('Microphone requires a secure connection. Open this page over HTTPS or localhost and try again.', 'll-tools-text-domain'),
+            'mic_error_permission_blocked' => __('Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page.', 'll-tools-text-domain'),
+            'mic_error_permission_not_granted' => __('Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.', 'll-tools-text-domain'),
+            'mic_error_in_use'    => __('Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again.', 'll-tools-text-domain'),
+            'mic_error_not_found' => __('No microphone found. Connect a microphone and check Windows Privacy & Sound settings.', 'll-tools-text-domain'),
+            'mic_error_constraints' => __('The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again.', 'll-tools-text-domain'),
+            'mic_error_security'  => __('Browser blocked access due to security policy. Ensure you are on HTTPS and try again.', 'll-tools-text-domain'),
+            'mic_error_abort'     => __('Audio capture aborted unexpectedly. Try again.', 'll-tools-text-domain'),
+            'mic_hint_permission' => __('Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow.', 'll-tools-text-domain'),
+            'mic_hint_no_inputs'  => __('No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input.', 'll-tools-text-domain'),
+            'recording_format_unsupported' => __('Browser does not support required audio formats for recording', 'll-tools-text-domain'),
             'hiding'             => __('Hiding...', 'll-tools-text-domain'),
             'hide_failed'        => __('Hide failed:', 'll-tools-text-domain'),
             'hidden_success'     => __('Word hidden. Moving to the next item.', 'll-tools-text-domain'),
@@ -1062,6 +1106,10 @@ function ll_audio_recording_interface_shortcode($atts) {
             'unhide'             => __('Unhide', 'll-tools-text-domain'),
             'unhide_failed'      => __('Unhide failed:', 'll-tools-text-domain'),
             'unhide_success'     => __('Word unhidden.', 'll-tools-text-domain'),
+            'verify_no_recording_found' => __('HTTP 500 (no recording found)', 'll-tools-text-domain'),
+            'verify_failed'      => __('Verify failed', 'll-tools-text-domain'),
+            'play'               => __('Play', 'll-tools-text-domain'),
+            'processing_short'   => __('Processing...', 'll-tools-text-domain'),
         ],
     ]);
     // Get wordset name for display
@@ -1072,10 +1120,12 @@ function ll_audio_recording_interface_shortcode($atts) {
             $wordset_name = $wordset_term->name;
         }
     }
+    $utility_nav = $utility_nav_context;
 
     ob_start();
     ?>
     <?php $initial_count = is_array($images_needing_audio) ? count($images_needing_audio) : 0; ?>
+    <?php echo $utility_nav; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <div class="ll-recording-interface">
         <!-- Compact header - progress, category, wordset, user -->
         <div class="ll-recording-header">
@@ -1291,7 +1341,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             <div class="ll-recording-controls-column">
                 <!-- Recording type moved here for better visibility and more space -->
                 <div class="ll-recording-type-selector">
-                    <label for="ll-recording-type"><?php _e('Recording Type:', 'll-tools-text-domain'); ?></label>
+                    <label for="ll-recording-type"><?php esc_html_e('Recording Type', 'll-tools-text-domain'); ?>:</label>
                     <?php
                     $initial_recording_type = '';
                     if (!empty($images_needing_audio[0]['missing_types']) && is_array($images_needing_audio[0]['missing_types'])) {
@@ -1698,6 +1748,12 @@ function ll_get_images_for_recording_handler() {
     $category = sanitize_text_field($_POST['category']);
     $wordset_ids = json_decode(stripslashes($_POST['wordset_ids']), true);
     $wordset_term_ids = is_array($wordset_ids) ? array_map('intval', $wordset_ids) : [];
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $wordset_term_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_term_ids, get_current_user_id());
+    }
+    if (empty($wordset_term_ids)) {
+        wp_send_json_error(__('No recording word set is assigned for this account.', 'll-tools-text-domain'), 403);
+    }
     $include_types = isset($_POST['include_types']) ? sanitize_text_field($_POST['include_types']) : '';
     $exclude_types = isset($_POST['exclude_types']) ? sanitize_text_field($_POST['exclude_types']) : '';
 
@@ -2339,6 +2395,89 @@ function ll_update_new_word_text_handler() {
 }
 
 /**
+ * Get recorder-assigned wordset IDs for a user (Audio Recorder role only).
+ *
+ * Returns an empty array when no explicit assignment is configured.
+ *
+ * @param int $user_id
+ * @return int[]
+ */
+function ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id) {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        return [];
+    }
+
+    $user = get_userdata($user_id);
+    if (!$user) {
+        return [];
+    }
+    if (!in_array('audio_recorder', (array) $user->roles, true)) {
+        return [];
+    }
+    if (user_can($user, 'manage_options') || user_can($user, 'manage_wordsets')) {
+        return [];
+    }
+
+    $config = function_exists('ll_get_user_recording_config')
+        ? ll_get_user_recording_config($user_id)
+        : get_user_meta($user_id, 'll_recording_config', true);
+    if (!is_array($config)) {
+        return [];
+    }
+
+    $configured_wordset_slug = sanitize_title((string) ($config['wordset'] ?? ''));
+    if ($configured_wordset_slug === '') {
+        return [];
+    }
+
+    $term = get_term_by('slug', $configured_wordset_slug, 'wordset');
+    if (!$term || is_wp_error($term)) {
+        return [];
+    }
+
+    $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
+    return ($term_id > 0) ? [$term_id] : [];
+}
+
+/**
+ * Clamp recording wordset IDs to a user's assigned recorder scope (if any).
+ *
+ * @param array $wordset_ids
+ * @param int   $user_id
+ * @return int[]
+ */
+function ll_tools_filter_recording_wordset_ids_for_user($wordset_ids, $user_id = 0) {
+    $filtered_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function ($id) {
+        return $id > 0;
+    })));
+
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        $user_id = get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return $filtered_ids;
+    }
+
+    $assigned_ids = ll_tools_get_assigned_recorder_wordset_ids_for_user($user_id);
+    if (empty($assigned_ids)) {
+        return $filtered_ids;
+    }
+
+    if (empty($filtered_ids)) {
+        return $assigned_ids;
+    }
+
+    $clamped = array_values(array_intersect($filtered_ids, $assigned_ids));
+    if (empty($clamped)) {
+        return $assigned_ids;
+    }
+
+    return array_map('intval', $clamped);
+}
+
+/**
  * Resolve wordset term IDs from recorder AJAX requests.
  *
  * @return int[]
@@ -2355,6 +2494,10 @@ function ll_tools_get_recording_wordset_ids_from_request() {
     $wordset_spec = sanitize_text_field($_POST['wordset'] ?? '');
     if (empty($posted_ids)) {
         $posted_ids = ll_resolve_wordset_term_ids_or_default($wordset_spec);
+    }
+
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $posted_ids = ll_tools_filter_recording_wordset_ids_for_user($posted_ids, get_current_user_id());
     }
 
     return array_values(array_filter(array_map('intval', (array) $posted_ids), static function ($id) {
@@ -3352,6 +3495,22 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         $result = ll_tools_filter_hidden_recording_items($result, get_current_user_id());
     }
 
+    if (function_exists('ll_tools_protect_maqqef_for_display')) {
+        foreach ($result as &$item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            foreach (['title', 'category_name', 'word_title', 'word_translation'] as $key) {
+                if (!array_key_exists($key, $item) || $item[$key] === null) {
+                    continue;
+                }
+                $item[$key] = ll_tools_protect_maqqef_for_display((string) $item[$key]);
+            }
+        }
+        unset($item);
+    }
+
     return $result;
 }
 
@@ -3603,7 +3762,7 @@ function ll_tools_register_recording_notification_settings() {
     register_setting('language-learning-tools-options', 'll_tools_recording_notification_delay_minutes', [
         'type' => 'integer',
         'sanitize_callback' => 'll_tools_sanitize_recording_notification_delay_minutes',
-        'default' => 20,
+        'default' => 5,
     ]);
 }
 add_action('admin_init', 'll_tools_register_recording_notification_settings');
@@ -3636,7 +3795,7 @@ function ll_tools_sanitize_recording_notification_email($value) {
 function ll_tools_sanitize_recording_notification_delay_minutes($value) {
     $minutes = absint($value);
     if ($minutes < 1) {
-        $minutes = 20;
+        $minutes = 5;
     }
     if ($minutes > 1440) {
         $minutes = 1440;
@@ -3645,17 +3804,61 @@ function ll_tools_sanitize_recording_notification_delay_minutes($value) {
 }
 
 /**
- * Get notification inactivity delay in minutes.
+ * Get first-email notification inactivity delay in minutes.
  */
 function ll_tools_get_recording_notification_delay_minutes() {
-    $minutes = (int) get_option('ll_tools_recording_notification_delay_minutes', 20);
+    $raw = get_option('ll_tools_recording_notification_delay_minutes', null);
+    $minutes = (int) $raw;
+
+    // Migrate the legacy default (20 min) to the new first-email default (5 min).
+    if ($minutes === 20) {
+        $minutes = 5;
+    }
     if ($minutes < 1) {
-        return 20;
+        return 5;
     }
     if ($minutes > 1440) {
         return 1440;
     }
     return $minutes;
+}
+
+/**
+ * Get follow-up notification inactivity delay in minutes after the first daily email.
+ */
+function ll_tools_get_recording_notification_followup_delay_minutes() {
+    $minutes = (int) apply_filters('ll_tools_recording_notification_followup_delay_minutes', 120);
+    if ($minutes < 1) {
+        return 120;
+    }
+    if ($minutes > 1440) {
+        return 1440;
+    }
+    return $minutes;
+}
+
+/**
+ * Check whether a recording notification email has already been sent today (site local date).
+ */
+function ll_tools_has_sent_recording_notification_email_today() {
+    $today_local = (string) current_time('Y-m-d');
+    if ($today_local === '') {
+        return false;
+    }
+
+    $last_sent_local = (string) get_option('ll_tools_recording_notification_last_sent_local_date', '');
+    return ($last_sent_local !== '' && $last_sent_local === $today_local);
+}
+
+/**
+ * Get the active quiet-window delay in seconds (first email vs same-day follow-up).
+ */
+function ll_tools_get_recording_notification_delay_seconds() {
+    $delay_minutes = ll_tools_has_sent_recording_notification_email_today()
+        ? ll_tools_get_recording_notification_followup_delay_minutes()
+        : ll_tools_get_recording_notification_delay_minutes();
+
+    return max(MINUTE_IN_SECONDS, $delay_minutes * MINUTE_IN_SECONDS);
 }
 
 /**
@@ -3709,7 +3912,7 @@ function ll_tools_render_recording_notification_settings_rows() {
         </td>
     </tr>
     <tr valign="top">
-        <th scope="row"><?php esc_html_e('Recording Notification Delay (minutes)', 'll-tools-text-domain'); ?></th>
+        <th scope="row"><?php esc_html_e('Recording Notification First Email Delay (minutes)', 'll-tools-text-domain'); ?></th>
         <td>
             <input
                 type="number"
@@ -3721,13 +3924,176 @@ function ll_tools_render_recording_notification_settings_rows() {
                 step="1"
             />
             <p class="description">
-                <?php esc_html_e('After the most recent upload, wait this many minutes before sending a summary email.', 'll-tools-text-domain'); ?>
+                <?php esc_html_e('For the first recording email sent each day, wait this many quiet minutes after the most recent upload.', 'll-tools-text-domain'); ?>
+            </p>
+            <p class="description">
+                <?php esc_html_e('After the first email is sent that day, follow-up summaries wait about 2 hours after recording activity stops.', 'll-tools-text-domain'); ?>
             </p>
         </td>
     </tr>
     <?php
 }
 add_action('ll_tools_settings_after_translations', 'll_tools_render_recording_notification_settings_rows', 30);
+
+/**
+ * Add word-category summary data for this audio upload into the pending notification state.
+ */
+function ll_tools_recording_notification_add_audio_categories_to_state(array $state, $audio_post_id) {
+    $audio_post = get_post((int) $audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        return $state;
+    }
+
+    $word_id = (int) $audio_post->post_parent;
+    if ($word_id <= 0) {
+        return $state;
+    }
+
+    $terms = wp_get_post_terms($word_id, 'word-category');
+    if (is_wp_error($terms) || empty($terms)) {
+        $state['uncategorized_count'] = max(0, (int) ($state['uncategorized_count'] ?? 0)) + 1;
+        return $state;
+    }
+
+    $categories = isset($state['categories']) && is_array($state['categories']) ? $state['categories'] : [];
+    $added_any = false;
+
+    foreach ($terms as $term) {
+        if (!is_object($term)) {
+            continue;
+        }
+        $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $term_name = '';
+        if (isset($term->name)) {
+            $term_name = sanitize_text_field((string) $term->name);
+        }
+        if ($term_name === '') {
+            $term_name = sprintf(
+                /* translators: %d: term ID */
+                __('Category #%d', 'll-tools-text-domain'),
+                $term_id
+            );
+        }
+
+        $term_key = (string) $term_id;
+        if (!isset($categories[$term_key]) || !is_array($categories[$term_key])) {
+            $categories[$term_key] = [
+                'name' => $term_name,
+                'count' => 0,
+            ];
+        } elseif (empty($categories[$term_key]['name'])) {
+            $categories[$term_key]['name'] = $term_name;
+        }
+
+        $categories[$term_key]['count'] = max(0, (int) ($categories[$term_key]['count'] ?? 0)) + 1;
+        $added_any = true;
+    }
+
+    if ($added_any) {
+        $state['categories'] = $categories;
+        return $state;
+    }
+
+    $state['uncategorized_count'] = max(0, (int) ($state['uncategorized_count'] ?? 0)) + 1;
+    return $state;
+}
+
+/**
+ * Build category summary lines for the recording notification email.
+ *
+ * @return string[]
+ */
+function ll_tools_get_recording_notification_category_summary_lines(array $state) {
+    $lines = [];
+    $categories = isset($state['categories']) && is_array($state['categories']) ? $state['categories'] : [];
+
+    if (!empty($categories)) {
+        uasort($categories, static function ($a, $b) {
+            $count_compare = ((int) ($b['count'] ?? 0)) <=> ((int) ($a['count'] ?? 0));
+            if ($count_compare !== 0) {
+                return $count_compare;
+            }
+            return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        });
+
+        $all_names = [];
+        foreach ($categories as $entry) {
+            $name = sanitize_text_field((string) ($entry['name'] ?? ''));
+            if ($name !== '') {
+                $all_names[] = $name;
+            }
+        }
+
+        $all_names = array_values(array_unique($all_names));
+        $total_categories = count($all_names);
+        if ($total_categories > 0) {
+            $max_named_categories = 4;
+            $shown_names = array_slice($all_names, 0, $max_named_categories);
+            $shown_list = implode(', ', $shown_names);
+            $remaining_count = max(0, $total_categories - count($shown_names));
+
+            if ($remaining_count > 0) {
+                $lines[] = sprintf(
+                    /* translators: 1: total distinct categories, 2: shown category names, 3: remaining category count */
+                    _n(
+                        'Categories (%1$d total): %2$s (+%3$d more category)',
+                        'Categories (%1$d total): %2$s (+%3$d more categories)',
+                        $remaining_count,
+                        'll-tools-text-domain'
+                    ),
+                    $total_categories,
+                    $shown_list,
+                    $remaining_count
+                );
+            } else {
+                $lines[] = sprintf(
+                    /* translators: 1: total distinct categories, 2: category names */
+                    __('Categories (%1$d total): %2$s', 'll-tools-text-domain'),
+                    $total_categories,
+                    $shown_list
+                );
+            }
+        }
+    }
+
+    $uncategorized_count = max(0, (int) ($state['uncategorized_count'] ?? 0));
+    if ($uncategorized_count > 0) {
+        $lines[] = sprintf(
+            /* translators: %d: recording count */
+            _n(
+                'Uncategorized recording: %d',
+                'Uncategorized recordings: %d',
+                $uncategorized_count,
+                'll-tools-text-domain'
+            ),
+            $uncategorized_count
+        );
+    }
+
+    return $lines;
+}
+
+/**
+ * Clear the pending recording notification batch when the audio processor page is opened.
+ */
+function ll_tools_acknowledge_recording_notification_batch_from_processor_page() {
+    $state = get_option('ll_tools_recording_notification_state', []);
+    if (!is_array($state)) {
+        return;
+    }
+
+    $total_count = max(0, (int) ($state['total_count'] ?? 0));
+    if ($total_count < 1) {
+        return;
+    }
+
+    delete_option('ll_tools_recording_notification_state');
+    wp_clear_scheduled_hook('ll_tools_send_recording_notification_event');
+}
 
 /**
  * Save a successful recording upload into the pending-notification batch.
@@ -3783,6 +4149,8 @@ function ll_tools_queue_recording_upload_notification($audio_post_id, $user_id) 
     $users[$user_key]['count'] = max(0, (int) ($users[$user_key]['count'] ?? 0)) + 1;
     $state['users'] = $users;
 
+    $state = ll_tools_recording_notification_add_audio_categories_to_state($state, $audio_post_id);
+
     update_option('ll_tools_recording_notification_state', $state, false);
     ll_tools_schedule_recording_notification_event();
 }
@@ -3793,7 +4161,7 @@ function ll_tools_queue_recording_upload_notification($audio_post_id, $user_id) 
 function ll_tools_schedule_recording_notification_event() {
     wp_clear_scheduled_hook('ll_tools_send_recording_notification_event');
 
-    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
     wp_schedule_single_event(time() + $delay_seconds, 'll_tools_send_recording_notification_event');
 }
 
@@ -3813,7 +4181,7 @@ function ll_tools_send_recording_notification_email() {
     }
 
     $last_upload_unix = isset($state['last_upload_unix']) ? (int) $state['last_upload_unix'] : 0;
-    $delay_seconds = ll_tools_get_recording_notification_delay_minutes() * MINUTE_IN_SECONDS;
+    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
     if ($last_upload_unix > 0 && (time() - $last_upload_unix) < $delay_seconds) {
         ll_tools_schedule_recording_notification_event();
         return;
@@ -3875,6 +4243,14 @@ function ll_tools_send_recording_notification_email() {
         $lines[] = '';
     }
 
+    $category_lines = ll_tools_get_recording_notification_category_summary_lines($state);
+    if (!empty($category_lines)) {
+        foreach ($category_lines as $category_line) {
+            $lines[] = $category_line;
+        }
+        $lines[] = '';
+    }
+
     if (!empty($state['batch_started_at'])) {
         $lines[] = sprintf(
             /* translators: %s: date/time */
@@ -3897,6 +4273,7 @@ function ll_tools_send_recording_notification_email() {
     $sent = wp_mail($recipient, $subject, implode("\n", $lines), $headers);
 
     if ($sent) {
+        update_option('ll_tools_recording_notification_last_sent_local_date', (string) current_time('Y-m-d'), false);
         delete_option('ll_tools_recording_notification_state');
         return;
     }
@@ -4343,6 +4720,9 @@ function ll_strip_shortcodes_preserve_content($text) {
  */
 function ll_sanitize_word_title_text($text) {
     $text = (string) $text;
+    if (function_exists('ll_tools_strip_display_word_joiners')) {
+        $text = ll_tools_strip_display_word_joiners($text);
+    }
     // Remove shortcode wrappers while keeping the inner text (e.g., color tags)
     $text = ll_strip_shortcodes_preserve_content($text);
     // Strip BBCode-style or unknown bracket tags (e.g., [color]...[/color])

@@ -35,6 +35,8 @@
     let recommendationQueue = normalizeRecommendationQueue(cfg.recommendationQueue || []);
     let summaryCounts = normalizeSummaryCounts(cfg.summaryCounts || {});
     let analytics = normalizeAnalytics(cfg.analytics || null);
+    let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
+    let summaryMetricsLoadingToken = 0;
     let selectedCategoryIds = [];
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
@@ -72,12 +74,27 @@
     let resultsFollowupRefreshToken = 0;
     let queueItemWidthTimer = null;
     let selectAllAlignmentTimer = null;
+    let hasInitialSelectAllAlignment = false;
     let progressKpiFeedbackTimer = null;
     let progressWordTableFxTimer = null;
     let nextCardRevealTimer = null;
     let nextCardWidthReleaseTimer = null;
     let progressMiniCountRaf = 0;
     let progressMiniCountCleanupTimer = null;
+    let progressMiniCountPendingComplete = null;
+    let progressMiniStickyHostEl = null;
+    let progressMiniStickyRaf = 0;
+    let progressMiniStickyHoldTimer = 0;
+    let progressMiniStickyReleaseTimer = 0;
+    let progressMiniStickyReleaseFinalize = null;
+    let progressMiniStickySession = null;
+
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) { return ''; }
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -98,6 +115,7 @@
     const CATEGORY_PROGRESS_CENTER_BAND_RATIO = 0.3;
     const CATEGORY_PROGRESS_CENTER_MIN_BAND_PX = 120;
     const CATEGORY_PROGRESS_POST_METRICS_DELAY_MS = 650;
+    const PROGRESS_MINI_STICKY_HOLD_AFTER_ANIMATION_MS = 1500;
 
     const $nextCard = $root.find('[data-ll-wordset-next]');
     const $nextShell = $root.find('[data-ll-wordset-next-shell]');
@@ -158,6 +176,96 @@
     const $progressSelectionClear = $root.find('[data-ll-wordset-progress-selection-clear]');
     const $settingsQueueList = $root.find('[data-ll-wordset-queue-list]');
     const $settingsQueueEmpty = $root.find('[data-ll-wordset-queue-empty]');
+    const WORDSET_THUMB_IMAGE_SELECTOR = [
+        '.ll-wordset-preview-item--image img',
+        '.ll-wordset-queue-thumb--image img',
+        '.ll-wordset-next-thumb--image img',
+        '.ll-wordset-progress-word-thumb img',
+        '.ll-wordset-progress-category-thumb.is-image img'
+    ].join(', ');
+    const WORDSET_THUMB_IMAGE_WRAPPER_SELECTOR = [
+        '.ll-wordset-preview-item--image',
+        '.ll-wordset-queue-thumb--image',
+        '.ll-wordset-next-thumb--image',
+        '.ll-wordset-progress-word-thumb',
+        '.ll-wordset-progress-category-thumb.is-image'
+    ].join(', ');
+    let wordsetThumbImageObserver = null;
+
+    function getWordsetThumbImageWrapper(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG' || !img.closest) { return null; }
+        return img.closest(WORDSET_THUMB_IMAGE_WRAPPER_SELECTOR);
+    }
+
+    function setWordsetThumbImagePending(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-loaded');
+        img.classList.add('ll-image-load-pending');
+        const wrapper = getWordsetThumbImageWrapper(img);
+        if (wrapper) {
+            wrapper.classList.remove('ll-image-loaded');
+            wrapper.classList.add('ll-image-load-pending');
+        }
+    }
+
+    function markWordsetThumbImageLoaded(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-load-pending');
+        img.classList.add('ll-image-loaded');
+        const wrapper = getWordsetThumbImageWrapper(img);
+        if (wrapper) {
+            wrapper.classList.remove('ll-image-load-pending');
+            wrapper.classList.add('ll-image-loaded');
+        }
+    }
+
+    function bindWordsetThumbImageLoadState(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        if (img.dataset.llImgLoadBound === '1') {
+            if (img.complete) {
+                markWordsetThumbImageLoaded(img);
+            }
+            return;
+        }
+        img.dataset.llImgLoadBound = '1';
+        if (img.complete) {
+            markWordsetThumbImageLoaded(img);
+            return;
+        }
+        setWordsetThumbImagePending(img);
+        const finish = function () {
+            markWordsetThumbImageLoaded(img);
+        };
+        img.addEventListener('load', finish, { once: true });
+        img.addEventListener('error', finish, { once: true });
+    }
+
+    function scanWordsetThumbImages(rootNode) {
+        if (!rootNode || rootNode.nodeType !== 1) { return; }
+        if (rootNode.matches && rootNode.matches(WORDSET_THUMB_IMAGE_SELECTOR)) {
+            bindWordsetThumbImageLoadState(rootNode);
+        }
+        if (rootNode.querySelectorAll) {
+            rootNode.querySelectorAll(WORDSET_THUMB_IMAGE_SELECTOR).forEach(bindWordsetThumbImageLoadState);
+        }
+    }
+
+    function initWordsetThumbImageLoadingState() {
+        scanWordsetThumbImages($root[0]);
+        if (!window.MutationObserver) { return; }
+        wordsetThumbImageObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                if (!mutation || !mutation.addedNodes) { return; }
+                mutation.addedNodes.forEach(function (node) {
+                    if (!node || node.nodeType !== 1) { return; }
+                    scanWordsetThumbImages(node);
+                });
+            });
+        });
+        wordsetThumbImageObserver.observe($root[0], { childList: true, subtree: true });
+    }
+
+    initWordsetThumbImageLoadingState();
 
     function normalizeCategories(raw) {
         return (Array.isArray(raw) ? raw : []).map(function (cat) {
@@ -762,7 +870,7 @@
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span>';
         }
         if (key === 'starred') {
-            return '<span class="' + escapeHtml(cls) + ' ll-wordset-progress-star-glyph-icon" aria-hidden="true">★</span>';
+            return '<span class="' + escapeHtml(cls) + ' ll-wordset-progress-star-glyph-icon" aria-hidden="true"></span>';
         }
         if (key === 'hard') {
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + progressHardIconSvgMarkup() + '</span>';
@@ -1984,7 +2092,9 @@
                     $('<img>', {
                         src: String(entry.url),
                         alt: String(entry.alt || categoryLabel || ''),
-                        loading: 'lazy'
+                        loading: 'lazy',
+                        decoding: 'async',
+                        fetchpriority: 'low'
                     }).appendTo($thumb);
                 } else {
                     $('<span>', {
@@ -2276,8 +2386,7 @@
                 'data-ll-wordset-progress-word-star': row.id,
                 'aria-pressed': isStarred ? 'true' : 'false',
                 'aria-label': starLabel,
-                title: starLabel,
-                text: isStarred ? '★' : '☆'
+                title: starLabel
             }).appendTo($starCell);
             $starCell.appendTo($tr);
 
@@ -2291,14 +2400,16 @@
                 $('<img>', {
                     src: imageUrl,
                     alt: primaryWord || secondaryWord || '',
-                    loading: 'lazy'
+                    loading: 'lazy',
+                    decoding: 'async',
+                    fetchpriority: 'low'
                 }).appendTo($wordThumb);
             } else {
                 $('<span>', { class: 'll-wordset-progress-word-thumb-fallback', 'aria-hidden': 'true' }).appendTo($wordThumb);
             }
             const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
-            $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: primaryWord }).appendTo($wordMain);
-            $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: secondaryWord }).appendTo($wordMain);
+            $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
+            $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
             $wordContent.append($wordThumb).append($wordMain);
             $wordCell.append($wordContent).appendTo($tr);
 
@@ -2815,6 +2926,19 @@
         });
         const hardLookup = getHardWordLookup();
         const seen = {};
+        const selectionMatchesVisibleScope = areCategorySetsEqual(ids, getVisibleCategoryIds());
+        const analyticsScopeCategoryIds = uniqueIntList(
+            analytics && analytics.scope && typeof analytics.scope === 'object'
+                ? (analytics.scope.category_ids || [])
+                : []
+        );
+        const analyticsScopeLookup = {};
+        analyticsScopeCategoryIds.forEach(function (id) {
+            analyticsScopeLookup[id] = true;
+        });
+        const analyticsCoversSelection = !!analyticsScopeCategoryIds.length && ids.every(function (id) {
+            return !!analyticsScopeLookup[id];
+        });
         const applyWord = function (wordId) {
             if (!wordId || seen[wordId]) { return; }
             seen[wordId] = true;
@@ -2851,29 +2975,46 @@
             if (!inSelection) { return; }
             applyWord(wordId);
         });
-        if (metrics.total > 0) {
+        if (analyticsCoversSelection) {
             return metrics;
         }
 
         // Fallback for logged-out selection flows where analytics words are often empty.
-        let usedLoadedCategoryWords = false;
+        let loadedCategoryCount = 0;
         ids.forEach(function (categoryId) {
             const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
-            if (!rows.length) { return; }
-            usedLoadedCategoryWords = true;
+            if (!Array.isArray(wordsByCategory[categoryId])) { return; }
+            loadedCategoryCount += 1;
             rows.forEach(function (row) {
                 applyWord(parseInt(row && row.id, 10) || 0);
             });
         });
-        if (usedLoadedCategoryWords && metrics.total > 0) {
+        if (selectionMatchesVisibleScope) {
+            const summary = normalizeSummaryCounts(summaryCounts || {});
+            if (summary.starred > metrics.starred) {
+                metrics.starred = summary.starred;
+            }
+            if (summary.hard > metrics.hard) {
+                metrics.hard = summary.hard;
+            }
+        }
+        if (loadedCategoryCount === ids.length) {
             return metrics;
         }
 
         // Last resort: estimate from category totals so selection actions stay usable.
+        // Avoid returning partial cached-word counts (common on the main view where
+        // analytics.words is intentionally not bootstrapped and only some categories
+        // may have been fetched yet).
         metrics.total = ids.reduce(function (sum, id) {
             const cat = getCategoryById(id);
             return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
         }, 0);
+        if (selectionMatchesVisibleScope) {
+            const summary = normalizeSummaryCounts(summaryCounts || {});
+            metrics.starred = Math.max(metrics.starred, summary.starred);
+            metrics.hard = Math.max(metrics.hard, summary.hard);
+        }
 
         return metrics;
     }
@@ -2900,8 +3041,31 @@
         return uniqueIntList(ids);
     }
 
+    function setSummaryMetricsLoadingState(isLoading) {
+        summaryMetricsLoading = !!isLoading;
+
+        if ($progressMiniChip.length) {
+            $progressMiniChip
+                .toggleClass('is-loading', summaryMetricsLoading)
+                .attr('aria-busy', summaryMetricsLoading ? 'true' : 'false');
+        }
+
+        syncSelectAllButton();
+    }
+
     function syncSelectAllButton() {
         if (!$selectAllButton.length) { return; }
+        const summaryLoading = !!summaryMetricsLoading;
+        $selectAllButton
+            .toggleClass('is-loading', summaryLoading)
+            .prop('disabled', summaryLoading)
+            .attr('aria-disabled', summaryLoading ? 'true' : 'false');
+        if (summaryLoading) {
+            $selectAllButton.attr('aria-busy', 'true');
+        } else {
+            $selectAllButton.removeAttr('aria-busy');
+        }
+
         const $selectAllWrap = $selectAllButton.closest('.ll-wordset-grid-tools');
         const allIds = getSelectableCategoryIdsFromUI();
         if (allIds.length <= 1) {
@@ -2988,6 +3152,12 @@
     }
 
     function scheduleSelectAllAlignment() {
+        if (!hasInitialSelectAllAlignment) {
+            // Run the first alignment sync immediately so the tool row offset is set before paint.
+            hasInitialSelectAllAlignment = true;
+            syncSelectAllAlignment();
+            return;
+        }
         if (selectAllAlignmentTimer) {
             clearTimeout(selectAllAlignmentTimer);
         }
@@ -3148,6 +3318,13 @@
     }
 
     function clearMiniCountAnimationState() {
+        if (typeof progressMiniCountPendingComplete === 'function') {
+            const pendingComplete = progressMiniCountPendingComplete;
+            progressMiniCountPendingComplete = null;
+            try {
+                pendingComplete();
+            } catch (_) { /* no-op */ }
+        }
         if (progressMiniCountRaf) {
             const cancelFrame = window.cancelAnimationFrame || window.clearTimeout;
             cancelFrame(progressMiniCountRaf);
@@ -3166,6 +3343,265 @@
     function clearMiniProgressBurstParticles() {
         if (!$progressMiniChip.length) { return; }
         $progressMiniChip.find('.ll-wordset-progress-burst-dot').remove();
+    }
+
+    function clearProgressMiniStickyTimers() {
+        if (progressMiniStickyRaf) {
+            const cancelFrame = window.cancelAnimationFrame || window.clearTimeout;
+            cancelFrame(progressMiniStickyRaf);
+            progressMiniStickyRaf = 0;
+        }
+        if (progressMiniStickyHoldTimer) {
+            window.clearTimeout(progressMiniStickyHoldTimer);
+            progressMiniStickyHoldTimer = 0;
+        }
+        if (progressMiniStickyReleaseTimer) {
+            window.clearTimeout(progressMiniStickyReleaseTimer);
+            progressMiniStickyReleaseTimer = 0;
+        }
+        if (typeof progressMiniStickyReleaseFinalize === 'function') {
+            const finalize = progressMiniStickyReleaseFinalize;
+            progressMiniStickyReleaseFinalize = null;
+            try {
+                finalize();
+            } catch (_) { /* no-op */ }
+        }
+    }
+
+    function getViewportTopOcclusionOffsetPx() {
+        const adminBar = document.getElementById('wpadminbar');
+        if (!adminBar || typeof adminBar.getBoundingClientRect !== 'function') {
+            return 0;
+        }
+        const style = window.getComputedStyle ? window.getComputedStyle(adminBar) : null;
+        if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+            return 0;
+        }
+        const rect = adminBar.getBoundingClientRect();
+        if (!rect || rect.height <= 0) {
+            return 0;
+        }
+        if (rect.bottom <= 0) {
+            return 0;
+        }
+        return Math.max(0, rect.bottom);
+    }
+
+    function getProgressMiniStickyAdminOffsetPx() {
+        return getViewportTopOcclusionOffsetPx();
+    }
+
+    function isRectMeaningfullyVisibleToUser(rect) {
+        if (!rect) { return false; }
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const topOcclusion = getViewportTopOcclusionOffsetPx();
+
+        const horizontalVisible = rect.right >= 0 && rect.left <= viewportWidth;
+        if (!horizontalVisible) {
+            return false;
+        }
+
+        const visibleTop = Math.max(rect.top, topOcclusion);
+        const visibleBottom = Math.min(rect.bottom, viewportHeight);
+        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+        if (visibleHeight <= 0) {
+            return false;
+        }
+
+        const rectHeight = Math.max(1, rect.height || (rect.bottom - rect.top) || 1);
+        const minVisibleHeight = Math.min(rectHeight, Math.max(14, rectHeight * 0.55));
+        return visibleHeight >= minVisibleHeight;
+    }
+
+    function ensureProgressMiniStickyHost() {
+        if (progressMiniStickyHostEl && progressMiniStickyHostEl.parentNode) {
+            return progressMiniStickyHostEl;
+        }
+        const rootEl = ($root && $root.length) ? $root.get(0) : null;
+        const mountTarget = (rootEl && rootEl.nodeType === 1) ? rootEl : document.body;
+        if (!mountTarget) {
+            return null;
+        }
+        const hostEl = document.createElement('div');
+        hostEl.className = 'll-wordset-progress-mini-sticky-host';
+        hostEl.setAttribute('aria-hidden', 'true');
+        mountTarget.appendChild(hostEl);
+        progressMiniStickyHostEl = hostEl;
+        return progressMiniStickyHostEl;
+    }
+
+    function releaseStickyProgressMiniForMetricsAnimation(session, options) {
+        const target = (session && typeof session === 'object') ? session : progressMiniStickySession;
+        if (!target || target.released) {
+            return;
+        }
+
+        target.released = true;
+        if (progressMiniStickySession === target) {
+            progressMiniStickySession = null;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const immediate = !!opts.immediate || prefersReducedMotion();
+        clearProgressMiniStickyTimers();
+        let finalized = false;
+
+        const finalize = function () {
+            if (finalized) { return; }
+            finalized = true;
+            if (progressMiniStickyReleaseFinalize === finalize) {
+                progressMiniStickyReleaseFinalize = null;
+            }
+            const chipEl = target.chipEl;
+            const placeholderEl = target.placeholderEl;
+            const hostEl = target.hostEl;
+            let restoreParent = null;
+            let restoreBefore = null;
+
+            if (placeholderEl && placeholderEl.parentNode) {
+                restoreParent = placeholderEl.parentNode;
+                restoreBefore = placeholderEl;
+            } else if (target.sourceParent) {
+                restoreParent = target.sourceParent;
+                restoreBefore = (target.sourceNextSibling && target.sourceNextSibling.parentNode === restoreParent)
+                    ? target.sourceNextSibling
+                    : null;
+            }
+
+            if (chipEl) {
+                if (restoreParent && chipEl.parentNode !== restoreParent) {
+                    if (restoreBefore && restoreBefore.parentNode === restoreParent) {
+                        restoreParent.insertBefore(chipEl, restoreBefore);
+                    } else {
+                        restoreParent.appendChild(chipEl);
+                    }
+                }
+                chipEl.classList.remove('ll-wordset-progress-mini--sticky-floating');
+            }
+
+            if (placeholderEl && placeholderEl.parentNode) {
+                placeholderEl.parentNode.removeChild(placeholderEl);
+            }
+
+            if (hostEl && hostEl.classList) {
+                hostEl.classList.remove('is-active');
+                if (!hostEl.childNodes.length) {
+                    hostEl.classList.remove('is-mounted');
+                }
+            }
+        };
+
+        if (target.hostEl && target.hostEl.classList) {
+            target.hostEl.classList.remove('is-active');
+        }
+
+        if (immediate) {
+            finalize();
+            return;
+        }
+
+        progressMiniStickyReleaseFinalize = finalize;
+        progressMiniStickyReleaseTimer = window.setTimeout(function () {
+            progressMiniStickyReleaseTimer = 0;
+            finalize();
+        }, 240);
+    }
+
+    function scheduleStickyProgressMiniReleaseForMetricsAnimation(session, options) {
+        const target = (session && typeof session === 'object') ? session : progressMiniStickySession;
+        if (!target || target.released) {
+            return;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const immediate = !!opts.immediate || prefersReducedMotion();
+        const holdMs = immediate ? 0 : Math.max(0, parseInt(opts.holdMs, 10) || PROGRESS_MINI_STICKY_HOLD_AFTER_ANIMATION_MS);
+
+        if (progressMiniStickyHoldTimer) {
+            window.clearTimeout(progressMiniStickyHoldTimer);
+            progressMiniStickyHoldTimer = 0;
+        }
+
+        if (holdMs <= 0) {
+            releaseStickyProgressMiniForMetricsAnimation(target, { immediate: immediate });
+            return;
+        }
+
+        progressMiniStickyHoldTimer = window.setTimeout(function () {
+            progressMiniStickyHoldTimer = 0;
+            releaseStickyProgressMiniForMetricsAnimation(target, { immediate: immediate });
+        }, holdMs);
+    }
+
+    function showStickyProgressMiniForMetricsAnimationIfOffscreen() {
+        if (!$progressMiniChip.length) {
+            return null;
+        }
+        const chipEl = $progressMiniChip.get(0);
+        if (!chipEl || !chipEl.parentNode || typeof chipEl.getBoundingClientRect !== 'function') {
+            return null;
+        }
+
+        const rect = chipEl.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0 || isRectMeaningfullyVisibleToUser(rect)) {
+            return null;
+        }
+
+        if (progressMiniStickySession) {
+            releaseStickyProgressMiniForMetricsAnimation(progressMiniStickySession, { immediate: true });
+        }
+
+        const hostEl = ensureProgressMiniStickyHost();
+        if (!hostEl) {
+            return null;
+        }
+
+        clearProgressMiniStickyTimers();
+
+        const placeholderEl = document.createElement('span');
+        placeholderEl.className = 'll-wordset-progress-mini-sticky-placeholder';
+        placeholderEl.setAttribute('aria-hidden', 'true');
+        placeholderEl.style.display = 'inline-block';
+        placeholderEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+        placeholderEl.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+
+        const sourceParent = chipEl.parentNode;
+        const sourceNextSibling = chipEl.nextSibling;
+        sourceParent.insertBefore(placeholderEl, chipEl);
+
+        const adminOffsetPx = getProgressMiniStickyAdminOffsetPx();
+        const enterTravelPx = adminOffsetPx > 0 ? 10 : 18;
+        const enterOffsetY = '-' + enterTravelPx + 'px';
+
+        hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-admin-offset', adminOffsetPx + 'px');
+        hostEl.style.setProperty('--ll-wordset-progress-mini-sticky-enter-y', enterOffsetY);
+        hostEl.classList.remove('is-active');
+        hostEl.classList.add('is-mounted');
+
+        chipEl.classList.add('ll-wordset-progress-mini--sticky-floating');
+        hostEl.appendChild(chipEl);
+
+        const session = {
+            chipEl: chipEl,
+            hostEl: hostEl,
+            placeholderEl: placeholderEl,
+            sourceParent: sourceParent,
+            sourceNextSibling: sourceNextSibling,
+            released: false
+        };
+        progressMiniStickySession = session;
+
+        const raf = window.requestAnimationFrame || function (cb) { return window.setTimeout(cb, 0); };
+        progressMiniStickyRaf = raf(function () {
+            progressMiniStickyRaf = 0;
+            if (progressMiniStickySession !== session || session.released || !session.hostEl) {
+                return;
+            }
+            session.hostEl.classList.add('is-active');
+        });
+
+        return session;
     }
 
     function buildMiniCountAnimationPlan(from, to, celebratePerfect) {
@@ -3320,7 +3756,13 @@
         const shouldAnimate = !!opts.animate && !prefersReducedMotion();
         const celebratePerfect = !!opts.celebratePerfect && !prefersReducedMotion();
         const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        let didSignalComplete = false;
         const signalComplete = function () {
+            if (didSignalComplete) { return; }
+            didSignalComplete = true;
+            if (progressMiniCountPendingComplete === signalComplete) {
+                progressMiniCountPendingComplete = null;
+            }
             if (!onComplete) { return; }
             try {
                 onComplete();
@@ -3336,6 +3778,7 @@
         });
 
         clearMiniCountAnimationState();
+        progressMiniCountPendingComplete = signalComplete;
         clearMiniProgressBurstParticles();
 
         if ($progressMiniChip.length) {
@@ -3615,22 +4058,6 @@
         return total > 0 && correct >= total;
     }
 
-    function scrollWordsetPageToTop() {
-        if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') {
-            return;
-        }
-        const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
-        try {
-            window.scrollTo({
-                top: 0,
-                left: 0,
-                behavior: behavior
-            });
-        } catch (_) {
-            window.scrollTo(0, 0);
-        }
-    }
-
     function getHiddenCountValue() {
         const ignored = getIgnoredLookup();
         let count = 0;
@@ -3783,6 +4210,42 @@
         };
     }
 
+    function syncWordsetCardProgressSegmentVisualState($card) {
+        const segments = getWordsetCardProgressSegments($card);
+        const ordered = [segments.mastered, segments.studied, segments.new].filter(function ($segment) {
+            return !!($segment && $segment.length);
+        });
+        if (!ordered.length) { return; }
+
+        ordered.forEach(function ($segment) {
+            $segment.removeClass('is-visible-edge-left is-visible-edge-right has-left-divider is-progress-hidden');
+        });
+
+        const visible = [];
+        ordered.forEach(function ($segment) {
+            const pct = parseCardProgressSegmentPercent($segment);
+            if (pct > 0.001) {
+                visible.push($segment);
+            } else {
+                $segment.addClass('is-progress-hidden');
+            }
+        });
+
+        if (!visible.length) { return; }
+
+        visible[0].addClass('is-visible-edge-left');
+        visible[visible.length - 1].addClass('is-visible-edge-right');
+        for (let i = 1; i < visible.length; i++) {
+            visible[i].addClass('has-left-divider');
+        }
+    }
+
+    function syncAllWordsetCardProgressSegmentVisualState() {
+        $root.find('.ll-wordset-card').each(function () {
+            syncWordsetCardProgressSegmentVisualState($(this));
+        });
+    }
+
     function readWordsetCardProgressPercents($card) {
         const segments = getWordsetCardProgressSegments($card);
         return {
@@ -3846,6 +4309,7 @@
             setCardProgressSegmentPercent(segments.mastered, next.mastered);
             setCardProgressSegmentPercent(segments.studied, next.studied);
             setCardProgressSegmentPercent(segments.new, next.new);
+            syncWordsetCardProgressSegmentVisualState($card);
         };
 
         if (!shouldAnimate) {
@@ -4124,6 +4588,8 @@
         const analyticsData = (analyticsPayload && typeof analyticsPayload === 'object') ? analyticsPayload : {};
         const opts = (options && typeof options === 'object') ? options : {};
         const deferVisible = !!opts.deferVisible;
+        const syncAllImmediately = !!opts.syncAllImmediately;
+        const animateCards = opts.animateCards !== false;
         const rows = Array.isArray(analyticsData.categories) ? analyticsData.categories : [];
         if (!rows.length) { return false; }
 
@@ -4149,6 +4615,12 @@
                 return;
             }
             hasCategoryProgressChanges = true;
+
+            if (syncAllImmediately) {
+                setWordsetCardProgressPercents($card, nextValues, { animate: animateCards });
+                delete pendingCategoryProgressUpdates[categoryId];
+                return;
+            }
 
             const cardEl = $card.get(0);
             const cardRect = (cardEl && typeof cardEl.getBoundingClientRect === 'function')
@@ -4350,10 +4822,13 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const animate = opts.animate !== false;
         const celebratePerfect = !!opts.celebratePerfect;
+        const stickyMiniWhenOffscreen = !!opts.stickyMiniWhenOffscreen;
+        const syncAllCategoryProgressImmediately = !!opts.syncAllCategoryProgressImmediately;
         const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress
             || categoryProgressHoldForMetrics
             || !!categoryProgressPostMetricsTimer;
         const onComplete = (typeof opts.onComplete === 'function') ? opts.onComplete : null;
+        let stickyMiniSession = null;
         const complete = function (detail) {
             if (!onComplete) { return; }
             try {
@@ -4366,10 +4841,18 @@
         }
         categoryProgressHoldForMetrics = deferVisibleCategoryProgress;
         if (!isLoggedIn || !ajaxUrl || !nonce) {
+            setSummaryMetricsLoadingState(false);
             categoryProgressHoldForMetrics = false;
             complete({ hasCountChanges: false, skipped: true });
             return;
         }
+
+        const metricsLoadingToken = ++summaryMetricsLoadingToken;
+        setSummaryMetricsLoadingState(true);
+        const finishMetricsLoading = function () {
+            if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }
+            setSummaryMetricsLoadingState(false);
+        };
 
         const stableCountsBefore = normalizeSummaryCounts(summaryCounts || {});
         const renderedCountsBefore = getRenderedMiniCountValues();
@@ -4385,12 +4868,15 @@
                 ? res.data.analytics
                 : null;
             if (!analytics || !analytics.summary || typeof analytics.summary !== 'object') {
+                finishMetricsLoading();
                 categoryProgressHoldForMetrics = false;
                 complete({ hasCountChanges: false, skipped: true });
                 return;
             }
             const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
-                deferVisible: deferVisibleCategoryProgress
+                deferVisible: deferVisibleCategoryProgress,
+                syncAllImmediately: syncAllCategoryProgressImmediately,
+                animateCards: animate
             });
             const summary = analytics.summary;
             const mastered = Math.max(0, parseInt(summary.mastered_words, 10) || 0);
@@ -4408,14 +4894,23 @@
             const stableChanged = summaryCountsChanged(stableCountsBefore, nextCounts);
             const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
             const hasCountChanges = stableChanged || renderedChanged;
+            const shouldSurfaceMetricsUpdate = hasCountChanges || !!hasCategoryProgressChanges;
             summaryCounts = nextCounts;
+            finishMetricsLoading();
+            if (stickyMiniWhenOffscreen && shouldSurfaceMetricsUpdate) {
+                stickyMiniSession = showStickyProgressMiniForMetricsAnimationIfOffscreen();
+            }
             renderMiniCounts({
                 previousCounts: renderedCountsBefore,
-                animate: animate && renderedChanged,
+                animate: animate && (renderedChanged || (stickyMiniWhenOffscreen && !!hasCategoryProgressChanges)),
                 celebratePerfect: celebratePerfect && hasCountChanges,
                 onComplete: function () {
                     if (deferVisibleCategoryProgress) {
                         scheduleTopRowCategoryProgressAfterMetrics();
+                    }
+                    if (stickyMiniSession) {
+                        scheduleStickyProgressMiniReleaseForMetricsAnimation(stickyMiniSession);
+                        stickyMiniSession = null;
                     }
                 }
             });
@@ -4427,7 +4922,12 @@
                 hasCategoryProgressChanges: !!hasCategoryProgressChanges
             });
         }).fail(function () {
+            finishMetricsLoading();
             categoryProgressHoldForMetrics = false;
+            if (stickyMiniSession) {
+                releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession, { immediate: true });
+                stickyMiniSession = null;
+            }
             complete({ hasCountChanges: false, failed: true });
         });
     }
@@ -4514,7 +5014,7 @@
             if (String(source.type || '') === 'image' && String(source.url || '') !== '') {
                 slots.push(
                     '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--image">'
-                    + '<img src="' + escapeHtml(String(source.url || '')) + '" alt="" loading="lazy" />'
+                    + '<img src="' + escapeHtml(String(source.url || '')) + '" alt="" loading="lazy" decoding="async" fetchpriority="low" />'
                     + '</span>'
                 );
                 return;
@@ -4932,7 +5432,9 @@
                     $('<img>', {
                         src: String(preview.url),
                         alt: '',
-                        loading: 'lazy'
+                        loading: 'lazy',
+                        decoding: 'async',
+                        fetchpriority: 'low'
                     }).appendTo($thumbImage);
                     $preview.append($thumbImage);
                     continue;
@@ -5098,7 +5600,8 @@
         const filteredMinimumWords = getSelectionFilteredMinimumWordCount();
         // Starred/hard filters are user-specific and should stay unavailable for guests.
         const showStarredOnly = isLoggedIn && metrics.starred >= filteredMinimumWords;
-        const showHardOnly = isLoggedIn && metrics.hard >= filteredMinimumWords;
+        const minimumHardWordsForSelectionFilter = Math.max(5, getSelectionMinimumWordCount());
+        const showHardOnly = isLoggedIn && metrics.hard >= minimumHardWordsForSelectionFilter;
 
         if (!showStarredOnly) {
             selectionStarredOnly = false;
@@ -6396,6 +6899,154 @@
             }
         };
 
+        const getWordRowsForCategory = function (categoryId, lookup) {
+            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
+            if (!rows.length) { return []; }
+            if (!lookup) { return rows.slice(); }
+            return rows.filter(function (word) {
+                const wordId = parseInt(word && word.id, 10) || 0;
+                return !!lookup[wordId];
+            });
+        };
+        const hasWordRowsForCategory = function (categoryId, lookup) {
+            return getWordRowsForCategory(categoryId, lookup).length > 0;
+        };
+
+        const commitFlashcardLaunch = function (selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup) {
+            if (!Array.isArray(selectedCats) || !selectedCats.length) {
+                abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                return;
+            }
+
+            const effectiveCategoryIds = uniqueIntList(selectedCats.map(function (cat) {
+                return parseInt(cat.id, 10) || 0;
+            }));
+            const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
+                resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
+            let estimatedResultsTotal = estimateFlashcardResultsWordCount(
+                finalMode,
+                effectiveSessionIds,
+                selectedCats,
+                effectiveLookup
+            );
+            if (estimatedResultsTotal <= 0 && !effectiveSessionIds.length) {
+                estimatedResultsTotal = selectedCats.reduce(function (sum, cat) {
+                    return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
+                }, 0);
+            }
+
+            lastFlashcardLaunch = {
+                mode: finalMode,
+                category_ids: effectiveCategoryIds.slice(),
+                session_word_ids: effectiveSessionIds.slice(),
+                source: String(opts.source || ''),
+                session_star_mode: sessionStarModeOverride,
+                details: launchDetails,
+                category_label_override: resolvedCategoryLabelOverride,
+                estimated_results_total: estimatedResultsTotal,
+                chunked: !!opts.chunked
+            };
+            initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
+
+            const firstCategory = selectedCats[0];
+            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup));
+
+            const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
+                ? window.llToolsFlashcardsData
+                : {};
+
+            // Wordset-page launches should start with a fresh gender plan scope.
+            // Otherwise a stale armed plan from a previous gender results action can
+            // override the requested category for card-level launches.
+            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+            flashData.genderLaunchSource = effectiveCategoryIds.length > 1 ? 'dashboard' : 'direct';
+
+            flashData.launchContext = 'dashboard';
+            flashData.launch_context = 'dashboard';
+            flashData.categories = selectedCats.slice();
+            flashData.categoriesPreselected = true;
+            flashData.firstCategoryName = String(firstCategory.name || '');
+            flashData.firstCategoryData = firstRows;
+            flashData.wordset = wordsetSlug || String(wordsetId || '');
+            flashData.wordsetIds = wordsetId > 0 ? [wordsetId] : [];
+            flashData.wordsetFallback = false;
+            flashData.quiz_mode = finalMode;
+            flashData.starMode = state.star_mode;
+            flashData.star_mode = state.star_mode;
+            flashData.sessionStarModeOverride = sessionStarModeOverride;
+            flashData.session_star_mode_override = sessionStarModeOverride;
+            flashData.fastTransitions = !!state.fast_transitions;
+            flashData.fast_transitions = !!state.fast_transitions;
+            flashData.sessionWordIds = effectiveSessionIds.slice();
+            flashData.session_word_ids = effectiveSessionIds.slice();
+            flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
+            flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
+            if (resolvedCategoryLabelOverride) {
+                flashData.categoryDisplayOverride = resolvedCategoryLabelOverride;
+                flashData.category_display_override = resolvedCategoryLabelOverride;
+            } else {
+                delete flashData.categoryDisplayOverride;
+                delete flashData.category_display_override;
+            }
+            flashData.userStudyState = flashData.userStudyState || {};
+            flashData.userStudyState.wordset_id = wordsetId;
+            flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
+            flashData.userStudyState.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+            flashData.userStudyState.star_mode = state.star_mode;
+            flashData.userStudyState.fast_transitions = !!state.fast_transitions;
+
+            flashData.genderEnabled = !!genderCfg.enabled;
+            flashData.genderWordsetId = wordsetId;
+            flashData.genderOptions = Array.isArray(genderCfg.options) ? genderCfg.options.slice() : [];
+            flashData.genderMinCount = Math.max(2, parseInt(genderCfg.min_count, 10) || 2);
+
+            window.llToolsFlashcardsData = flashData;
+            syncGlobalPrefs();
+
+            hideChunkResultsActions();
+
+            const catNames = selectedCats.map(function (cat) {
+                return String(cat.name || '');
+            }).filter(Boolean);
+
+            const $popup = launchUi.$popup;
+            const $quizPopup = launchUi.$quizPopup;
+            $popup.show();
+            $quizPopup.show();
+
+            if (typeof window.initFlashcardWidget === 'function') {
+                const initRes = window.initFlashcardWidget(catNames, finalMode);
+                if (initRes && typeof initRes.catch === 'function') {
+                    initRes.catch(function () {
+                        closeFlashcardLaunchLoadingState(launchUi);
+                    });
+                }
+            } else {
+                closeFlashcardLaunchLoadingState(launchUi);
+            }
+        };
+
+        const shouldFastStartListeningWithoutSession = finalMode === 'listening' && sessionIds.length === 0;
+        if (shouldFastStartListeningWithoutSession) {
+            let selectedCats = categories.filter(function (cat) {
+                return ids.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
+            });
+            if (!selectedCats.length) {
+                abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
+                return;
+            }
+
+            selectedCats = shuffleList(selectedCats);
+            // Do not trigger the dashboard's bulk word fetch here.
+            // The flashcard widget will load categories incrementally; a parallel bulk
+            // fetch can monopolize the server and delay first audio on large selections.
+
+            commitFlashcardLaunch(selectedCats, [], requestedCategoryLabelOverride, null);
+            return;
+        }
+
         ensureWordsForCategories(ids).always(function () {
             let launchCategoryIds = ids.slice();
             let effectiveSessionIds = sessionIds.slice();
@@ -6436,19 +7087,6 @@
                 abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
                 return;
             }
-
-            const getWordRowsForCategory = function (categoryId, lookup) {
-                const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
-                if (!rows.length) { return []; }
-                if (!lookup) { return rows.slice(); }
-                return rows.filter(function (word) {
-                    const wordId = parseInt(word && word.id, 10) || 0;
-                    return !!lookup[wordId];
-                });
-            };
-            const hasWordRowsForCategory = function (categoryId, lookup) {
-                return getWordRowsForCategory(categoryId, lookup).length > 0;
-            };
             if (effectiveSessionIds.length) {
                 const sessionLookup = {};
                 effectiveSessionIds.forEach(function (id) {
@@ -6542,110 +7180,7 @@
             } else {
                 selectedCats = shuffleList(selectedCats);
             }
-
-            const effectiveCategoryIds = uniqueIntList(selectedCats.map(function (cat) {
-                return parseInt(cat.id, 10) || 0;
-            }));
-            const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
-                resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
-            const estimatedResultsTotal = estimateFlashcardResultsWordCount(
-                finalMode,
-                effectiveSessionIds,
-                selectedCats,
-                effectiveLookup
-            );
-
-            lastFlashcardLaunch = {
-                mode: finalMode,
-                category_ids: effectiveCategoryIds.slice(),
-                session_word_ids: effectiveSessionIds.slice(),
-                source: String(opts.source || ''),
-                session_star_mode: sessionStarModeOverride,
-                details: launchDetails,
-                category_label_override: resolvedCategoryLabelOverride,
-                estimated_results_total: estimatedResultsTotal,
-                chunked: !!opts.chunked
-            };
-            initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
-
-            const firstCategory = selectedCats[0];
-            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup));
-
-            const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
-                ? window.llToolsFlashcardsData
-                : {};
-
-            // Wordset-page launches should start with a fresh gender plan scope.
-            // Otherwise a stale armed plan from a previous gender results action can
-            // override the requested category for card-level launches.
-            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
-            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
-            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
-            flashData.genderLaunchSource = effectiveCategoryIds.length > 1 ? 'dashboard' : 'direct';
-
-            flashData.launchContext = 'dashboard';
-            flashData.launch_context = 'dashboard';
-            flashData.categories = selectedCats.slice();
-            flashData.categoriesPreselected = true;
-            flashData.firstCategoryName = String(firstCategory.name || '');
-            flashData.firstCategoryData = firstRows;
-            flashData.wordset = wordsetSlug || String(wordsetId || '');
-            flashData.wordsetIds = wordsetId > 0 ? [wordsetId] : [];
-            flashData.wordsetFallback = false;
-            flashData.quiz_mode = finalMode;
-            flashData.starMode = state.star_mode;
-            flashData.star_mode = state.star_mode;
-            flashData.sessionStarModeOverride = sessionStarModeOverride;
-            flashData.session_star_mode_override = sessionStarModeOverride;
-            flashData.fastTransitions = !!state.fast_transitions;
-            flashData.fast_transitions = !!state.fast_transitions;
-            flashData.sessionWordIds = effectiveSessionIds.slice();
-            flashData.session_word_ids = effectiveSessionIds.slice();
-            flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
-            flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
-            if (resolvedCategoryLabelOverride) {
-                flashData.categoryDisplayOverride = resolvedCategoryLabelOverride;
-                flashData.category_display_override = resolvedCategoryLabelOverride;
-            } else {
-                delete flashData.categoryDisplayOverride;
-                delete flashData.category_display_override;
-            }
-            flashData.userStudyState = flashData.userStudyState || {};
-            flashData.userStudyState.wordset_id = wordsetId;
-            flashData.userStudyState.category_ids = effectiveCategoryIds.slice();
-            flashData.userStudyState.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
-            flashData.userStudyState.star_mode = state.star_mode;
-            flashData.userStudyState.fast_transitions = !!state.fast_transitions;
-
-            flashData.genderEnabled = !!genderCfg.enabled;
-            flashData.genderWordsetId = wordsetId;
-            flashData.genderOptions = Array.isArray(genderCfg.options) ? genderCfg.options.slice() : [];
-            flashData.genderMinCount = Math.max(2, parseInt(genderCfg.min_count, 10) || 2);
-
-            window.llToolsFlashcardsData = flashData;
-            syncGlobalPrefs();
-
-            hideChunkResultsActions();
-
-            const catNames = selectedCats.map(function (cat) {
-                return String(cat.name || '');
-            }).filter(Boolean);
-
-            const $popup = launchUi.$popup;
-            const $quizPopup = launchUi.$quizPopup;
-            $popup.show();
-            $quizPopup.show();
-
-            if (typeof window.initFlashcardWidget === 'function') {
-                const initRes = window.initFlashcardWidget(catNames, finalMode);
-                if (initRes && typeof initRes.catch === 'function') {
-                    initRes.catch(function () {
-                        closeFlashcardLaunchLoadingState(launchUi);
-                    });
-                }
-            } else {
-                closeFlashcardLaunchLoadingState(launchUi);
-            }
+            commitFlashcardLaunch(selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup);
         });
     }
 
@@ -6675,6 +7210,23 @@
 
         if (!selectedIds.length) {
             alert(i18n.noCategoriesSelected || 'Select at least one category.');
+            return;
+        }
+
+        if (normalizedMode === 'listening' && !starredOnlyActive && !hardOnlyActive) {
+            const ids = filterCategoryIdsByAspectBucket(selectedIds, {
+                preferCategoryId: selectedIds[0] || 0
+            });
+            if (!ids.length) {
+                alert(i18n.noCategoriesSelected || 'Select at least one category.');
+                return;
+            }
+            chunkSession = null;
+            launchFlashcards(normalizedMode, ids, [], {
+                source: 'wordset_selection_start',
+                chunked: false,
+                sessionStarMode: 'normal'
+            });
             return;
         }
 
@@ -7096,6 +7648,9 @@
 
         $root.on('click', '[data-ll-wordset-select-all]', function (e) {
             e.preventDefault();
+            if ($(this).prop('disabled') || String($(this).attr('aria-disabled') || '') === 'true') {
+                return;
+            }
             const allIds = getSelectableCategoryIdsFromUI();
             if (!allIds.length) { return; }
             const allLookup = {};
@@ -7230,11 +7785,7 @@
                     animate: true,
                     celebratePerfect: hasPendingPerfectCelebration(),
                     deferVisibleCategoryProgress: true,
-                    onComplete: function (result) {
-                        if (result && (result.hasCountChanges || result.hasCategoryProgressChanges)) {
-                            scrollWordsetPageToTop();
-                        }
-                    }
+                    stickyMiniWhenOffscreen: true
                 });
             }
         });
@@ -7528,8 +8079,15 @@
     }
 
     if (view === 'main') {
+        setSummaryMetricsLoadingState(summaryMetricsLoading);
+        syncAllWordsetCardProgressSegmentVisualState();
         bindSettingsControls();
         bindMainInteractions();
+        refreshSummaryCounts({
+            animate: false,
+            deferVisibleCategoryProgress: false,
+            syncAllCategoryProgressImmediately: true
+        });
     }
 
     if (view === 'hidden-categories') {

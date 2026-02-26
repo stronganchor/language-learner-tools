@@ -9,11 +9,32 @@
 /**
  * Shortcode handler for [audio_upload_form].
  *
+ * Supported attributes:
+ * - wordset_id (int): preselect a word set
+ * - lock_wordset (0|1): hide the selector and force the provided word set
+ * - return_url (string): optional redirect target after processing
+ *
  * @return string The HTML form for uploading audio files.
  */
-function ll_audio_upload_form_shortcode() {
+function ll_audio_upload_form_shortcode($atts = []) {
     if (!current_user_can('upload_files') || !current_user_can('view_ll_tools')) {
         return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
+    }
+
+    $atts = shortcode_atts([
+        'wordset_id' => 0,
+        'lock_wordset' => '0',
+        'return_url' => '',
+    ], (array) $atts, 'audio_upload_form');
+
+    $requested_wordset_id = max(0, (int) $atts['wordset_id']);
+    $lock_wordset = !empty($atts['lock_wordset']) && $atts['lock_wordset'] !== '0';
+    $return_url = '';
+    if (!empty($atts['return_url'])) {
+        $validated_return = wp_validate_redirect((string) $atts['return_url'], '');
+        if (is_string($validated_return)) {
+            $return_url = $validated_return;
+        }
     }
 
     // Get recording types
@@ -27,6 +48,53 @@ function ll_audio_upload_form_shortcode() {
         'orderby' => 'display_name',
         'order' => 'ASC',
     ]);
+
+    $wsets = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($wsets)) {
+        $wsets = [];
+    }
+    if (!current_user_can('manage_options') && function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $allowed_wordset_ids = ll_tools_get_user_managed_wordset_ids(get_current_user_id());
+        if (!empty($allowed_wordset_ids)) {
+            $allowed_lookup = array_fill_keys(array_map('intval', (array) $allowed_wordset_ids), true);
+            $wsets = array_values(array_filter((array) $wsets, static function ($ws) use ($allowed_lookup) {
+                $term_id = isset($ws->term_id) ? (int) $ws->term_id : 0;
+                return $term_id > 0 && !empty($allowed_lookup[$term_id]);
+            }));
+        } elseif (in_array('wordset_manager', (array) wp_get_current_user()->roles, true)) {
+            $wsets = [];
+        }
+    }
+
+    $preselected_wordset = null;
+    if ($requested_wordset_id > 0) {
+        foreach ((array) $wsets as $candidate_wordset) {
+            if ((int) ($candidate_wordset->term_id ?? 0) === $requested_wordset_id) {
+                $preselected_wordset = $candidate_wordset;
+                break;
+            }
+        }
+        if (!$preselected_wordset && function_exists('ll_tools_user_can_manage_wordset_content')
+            && ll_tools_user_can_manage_wordset_content(get_current_user_id(), $requested_wordset_id)
+        ) {
+            $maybe_term = get_term($requested_wordset_id, 'wordset');
+            if ($maybe_term && !is_wp_error($maybe_term)) {
+                $preselected_wordset = $maybe_term;
+                $wsets[] = $maybe_term;
+            }
+        }
+    }
+    if ($lock_wordset && !$preselected_wordset) {
+        return esc_html__('That word set is not available for audio upload.', 'll-tools-text-domain');
+    }
+    $preselected_wordset_id = ($preselected_wordset && isset($preselected_wordset->term_id))
+        ? (int) $preselected_wordset->term_id
+        : 0;
 
     ob_start();
     ?>
@@ -91,25 +159,39 @@ function ll_audio_upload_form_shortcode() {
 
         <div style="margin-top:10px;">
             <label><?php esc_html_e( 'Word Set', 'll-tools-text-domain' ); ?>:</label><br>
-            <select name="ll_wordset_id" required>
-                <?php
-                $wsets = get_terms(['taxonomy' => 'wordset', 'hide_empty' => false]);
-                if (!is_wp_error($wsets)) {
-                    echo '<option value="">' . esc_html__('— Select —', 'll-tools-text-domain') . '</option>';
-                    foreach ($wsets as $ws) {
-                        printf('<option value="%d">%s</option>',
-                            (int) $ws->term_id,
-                            esc_html($ws->name)
-                        );
+            <?php if ($lock_wordset && $preselected_wordset) : ?>
+                <input type="hidden" name="ll_wordset_id" value="<?php echo esc_attr((int) $preselected_wordset->term_id); ?>">
+                <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ccd0d4;border-radius:4px;background:#fff;">
+                    <strong><?php echo esc_html((string) $preselected_wordset->name); ?></strong>
+                    <span class="description" style="margin:0;"><?php echo esc_html__('Locked to this word set', 'll-tools-text-domain'); ?></span>
+                </div>
+            <?php else : ?>
+                <select name="ll_wordset_id" required>
+                    <?php
+                    if (!empty($wsets)) {
+                        echo '<option value="">' . esc_html__('— Select —', 'll-tools-text-domain') . '</option>';
+                        foreach ($wsets as $ws) {
+                            printf(
+                                '<option value="%1$d" %2$s>%3$s</option>',
+                                (int) $ws->term_id,
+                                selected($preselected_wordset_id, (int) $ws->term_id, false),
+                                esc_html($ws->name)
+                            );
+                        }
+                    } else {
+                        echo '<option value="">' . esc_html__('No word sets available', 'll-tools-text-domain') . '</option>';
                     }
-                }
-                ?>
-            </select>
+                    ?>
+                </select>
+            <?php endif; ?>
         </div>
 
         <input type="hidden" name="action" value="process_audio_files">
+        <?php if ($return_url !== '') : ?>
+            <input type="hidden" name="ll_return_url" value="<?php echo esc_url($return_url); ?>">
+        <?php endif; ?>
         <?php wp_nonce_field('ll_process_audio_files', 'll_audio_upload_nonce'); ?>
-        <input type="submit" class="button button-primary" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
+        <input type="submit" class="button button-primary ll-tools-upload-submit" value="<?php esc_attr_e( 'Bulk Add Audio', 'll-tools-text-domain' ); ?>">
     </form>
     <?php
     return ob_get_clean();
@@ -138,30 +220,32 @@ function ll_display_wordsets_dropdown() {
     $user = wp_get_current_user();
     $wordsets = array();
 
-    if (in_array('administrator', $user->roles)) {
+    if (user_can($user, 'manage_options')) {
         // If the user is an administrator, get all word sets
         $wordsets = get_terms('wordset', array('hide_empty' => false));
-    } elseif (in_array('wordset_manager', $user->roles)) {
+    } elseif (in_array('wordset_manager', (array) $user->roles, true)) {
         // If the user is a word set manager, get only the word sets they manage
-        $managed_wordsets = get_user_meta($user->ID, 'managed_wordsets', true);
+        $managed_wordsets = function_exists('ll_tools_get_user_managed_wordset_ids')
+            ? ll_tools_get_user_managed_wordset_ids((int) $user->ID)
+            : (array) get_user_meta($user->ID, 'managed_wordsets', true);
         if (!empty($managed_wordsets)) {
             $wordsets = get_terms(array(
                 'taxonomy' => 'wordset',
                 'hide_empty' => false,
-                'include' => $managed_wordsets,
+                'include' => array_map('intval', (array) $managed_wordsets),
             ));
         }
     }
 
     if (!empty($wordsets)) {
         echo '<select name="selected_wordset">';
-        echo '<option value="">Select a word set</option>';
+        echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
         foreach ($wordsets as $wordset) {
             echo '<option value="' . esc_attr($wordset->term_id) . '">' . esc_html($wordset->name) . '</option>';
         }
         echo '</select>';
     } else {
-        echo '<p>No word sets available.</p>';
+        echo '<p>' . esc_html__('No word sets available.', 'll-tools-text-domain') . '</p>';
     }
 }
 
@@ -177,9 +261,17 @@ function ll_handle_audio_file_uploads() {
 
     $match_existing_posts = !empty($_POST['match_existing_posts']);
     $selected_categories  = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
+    $return_url           = isset($_POST['ll_return_url']) ? wp_validate_redirect((string) wp_unslash($_POST['ll_return_url']), '') : '';
+    $selected_wordset_id  = isset($_POST['ll_wordset_id']) ? (int) wp_unslash((string) $_POST['ll_wordset_id']) : 0;
     $upload_dir           = wp_upload_dir();
     $success_matches      = [];
     $failed_matches       = [];
+
+    if ($selected_wordset_id > 0 && function_exists('ll_tools_user_can_manage_wordset_content')) {
+        if (!ll_tools_user_can_manage_wordset_content(get_current_user_id(), $selected_wordset_id)) {
+            wp_die(__('You do not have permission to assign uploads to that word set.', 'll-tools-text-domain'));
+        }
+    }
 
     $allowed_audio_types  = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/webm', 'video/x-matroska'];
     $max_file_size        = 10 * 1024 * 1024; // 10MB
@@ -204,7 +296,19 @@ function ll_handle_audio_file_uploads() {
         $formatted_title      = ll_format_title($original_name);
 
         if ($match_existing_posts) {
-            $existing_post = ll_find_post_by_exact_title($formatted_title);
+            $existing_post = null;
+            if ($selected_wordset_id > 0 && function_exists('ll_tools_find_existing_word_ids_by_title_in_wordset')) {
+                $matching_ids = ll_tools_find_existing_word_ids_by_title_in_wordset($formatted_title, $selected_wordset_id);
+                if (!empty($matching_ids)) {
+                    $existing_post = get_post((int) $matching_ids[0]);
+                    if ($existing_post && $existing_post->post_type !== 'words') {
+                        $existing_post = null;
+                    }
+                }
+            }
+            if (!$existing_post) {
+                $existing_post = ll_find_post_by_exact_title($formatted_title);
+            }
             if ($existing_post) {
                 ll_update_existing_post_audio($existing_post->ID, $relative_upload_path, $_POST);
                 $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
@@ -219,6 +323,26 @@ function ll_handle_audio_file_uploads() {
                 $failed_matches[] = $original_name . ' (Failed to create post)';
             }
         }
+    }
+
+    if (is_string($return_url) && $return_url !== '') {
+        $success_count = count($success_matches);
+        $failed_count = count($failed_matches);
+        $status = 'ok';
+        if ($success_count === 0 && $failed_count > 0) {
+            $status = 'error';
+        } elseif ($success_count > 0 && $failed_count > 0) {
+            $status = 'partial';
+        }
+
+        $redirect_back = add_query_arg([
+            'll_wordset_audio_upload' => $status,
+            'll_wordset_audio_upload_success' => $success_count,
+            'll_wordset_audio_upload_failed' => $failed_count,
+            'll_wordset_audio_upload_mode' => $match_existing_posts ? 'match' : 'create',
+        ], $return_url);
+        wp_safe_redirect($redirect_back);
+        exit;
     }
 
     if (apply_filters('ll_aim_autolaunch_enabled', false)) {
@@ -500,6 +624,12 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         // Final fallback: use the active/default word-set helper if available
         if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
             $wordset_id = (int) ll_tools_get_active_wordset_id();
+        }
+
+        if ($wordset_id > 0 && function_exists('ll_tools_user_can_manage_wordset_content')) {
+            if (!ll_tools_user_can_manage_wordset_content(get_current_user_id(), $wordset_id)) {
+                wp_die(__('You do not have permission to assign uploads to that word set.', 'll-tools-text-domain'));
+            }
         }
 
         // 3) Assign taxonomy term for 'wordset' (authoritative for scoping)

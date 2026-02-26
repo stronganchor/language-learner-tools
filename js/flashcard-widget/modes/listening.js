@@ -611,6 +611,14 @@
         });
     }
 
+    function queueStartupCategories(loader) {
+        if (!loader || typeof loader.loadResourcesForCategory !== 'function') return;
+        const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        names.slice(0, 3).forEach(function (name) {
+            ensureCategoryLoad(name, loader);
+        });
+    }
+
     function hasPendingCategoryLoads(loader) {
         if (pendingCategoryLoads && Object.keys(pendingCategoryLoads).length > 0) return true;
         const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
@@ -629,8 +637,13 @@
     }
 
     // Wait until at least one pending category finishes (or a timeout), instead of waiting for all.
-    function waitForNextAvailableWords(loader, timeoutMs = 2500) {
-        queueAllSelectedCategories(loader);
+    function waitForNextAvailableWords(loader, timeoutMs = 2500, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        if (opts.startupOnly) {
+            queueStartupCategories(loader);
+        } else {
+            queueAllSelectedCategories(loader);
+        }
         if (hasWordsReady()) return Promise.resolve(true);
 
         const pending = Object.values(pendingCategoryLoads || {});
@@ -811,7 +824,9 @@
         resetListeningCategoryOrder();
         resolveListeningCategoryOrder(true);
         rebuildWordsLinear();
-        queueAllSelectedCategories(FlashcardLoader);
+        // Defer bulk category AJAX queueing until the first listening word is already
+        // loading. Queueing every selected category during initialize can place the
+        // first-category bootstrap request behind a long serialized queue.
         State.listenIndex = 0;
         // Start listening for state/visibility changes and ensure proper wake lock state
         try { WakeLock.bind(); WakeLock.update(); } catch (_) { }
@@ -882,6 +897,68 @@
     function onCorrectAnswer() { return true; }
     function onWrongAnswer() { return true; }
 
+    function getListeningLaunchEstimatedTotal() {
+        const data = root.llToolsFlashcardsData || {};
+        const plan = (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object')
+            ? data.lastLaunchPlan
+            : ((data.last_launch_plan && typeof data.last_launch_plan === 'object') ? data.last_launch_plan : {});
+        const plannedEstimate = Math.max(0, parseInt(plan.estimated_results_total, 10) || 0);
+        if (plannedEstimate > 0) {
+            return plannedEstimate;
+        }
+
+        const sessionWordIds = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        if (Array.isArray(sessionWordIds) && sessionWordIds.length) {
+            return 0;
+        }
+
+        const cats = Array.isArray(data.categories) ? data.categories : [];
+        if (cats.length <= 1) {
+            return 0;
+        }
+
+        const fallbackEstimate = cats.reduce(function (sum, cat) {
+            return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
+        }, 0);
+        return Math.max(0, fallbackEstimate);
+    }
+
+    function getProgressDisplayState(loader) {
+        const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
+        const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
+        let total = Math.max(historyLen, wordsTotal);
+
+        // Fast-start listening may only have a subset of categories loaded at first.
+        // Use the launch estimate as a temporary denominator so the bar doesn't jump
+        // ahead and then move backwards when more categories finish loading.
+        const categoryCount = getSelectedCategoryNames().length;
+        if (categoryCount > 1) {
+            let pendingLoads = false;
+            try {
+                pendingLoads = hasPendingCategoryLoads(loader || FlashcardLoader);
+            } catch (_) {
+                pendingLoads = false;
+            }
+            if (pendingLoads) {
+                const estimatedTotal = getListeningLaunchEstimatedTotal();
+                if (estimatedTotal > total) {
+                    total = estimatedTotal;
+                }
+            }
+        }
+
+        const cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
+        return {
+            current: total > 0 ? (cur + 1) : 0,
+            total: total,
+            index: cur,
+            historyLen: historyLen,
+            wordsTotal: wordsTotal
+        };
+    }
+
     function toggleDisabled($jq, $btn, disabled) {
         if (!$jq || !$btn || !$btn.length) return;
         if (disabled) $btn.addClass('disabled').attr('aria-disabled', 'true');
@@ -891,10 +968,15 @@
     function updateControlsState() {
         const $jq = getJQuery();
         if (!$jq) return;
-        const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
-        const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
-        const total = Math.max(historyLen, wordsTotal);
-        let cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
+        const progress = getProgressDisplayState(FlashcardLoader);
+        const historyLen = Math.max(0, parseInt(progress.historyLen, 10) || 0);
+        const total = Math.max(0, parseInt(progress.total, 10) || 0);
+        const cur = Math.max(0, parseInt(progress.index, 10) || 0);
+        if (State && State.isListeningMode && Dom && typeof Dom.updateSimpleProgress === 'function') {
+            try {
+                Dom.updateSimpleProgress(Math.max(0, parseInt(progress.current, 10) || 0), total);
+            } catch (_) { /* no-op */ }
+        }
         const canBack = cur > 0 && historyLen > 0; // never go before first
         const canFwd = total > 0; // keep next enabled even on the last item
         toggleDisabled($jq, $jq('#ll-listen-back'), !canBack);
@@ -1131,6 +1213,7 @@
         const $container = utils.flashcardContainer;
         const $jq = getJQuery();
         const roundToken = ListeningPlayback.startNewRound();
+        const isStartupRound = !!State.isFirstRound;
         const setRoundResume = function (fn) { ListeningPlayback.setResume(fn, roundToken); };
         const restartRound = function (reason) {
             State.forceTransitionTo(STATES.QUIZ_READY, reason || 'Listening retry');
@@ -1166,11 +1249,13 @@
         if (!Array.isArray(State.wordsLinear) || !State.wordsLinear.length) {
             rebuildWordsLinear();
         }
-        queueAllSelectedCategories(loader);
+        if (!isStartupRound) {
+            queueAllSelectedCategories(loader);
+        }
 
         if ((!State.wordsLinear || !State.wordsLinear.length) && hasPendingCategoryLoads(loader)) {
             if (Dom && typeof Dom.showLoading === 'function') Dom.showLoading();
-            waitForNextAvailableWords(loader).then(function (hasWords) {
+            waitForNextAvailableWords(loader, 2500, { startupOnly: isStartupRound }).then(function (hasWords) {
                 rebuildWordsLinear();
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
                 const hasMore = !!hasWords && total > 0 && (Math.max(0, State.listenIndex || 0) < total);
@@ -1393,10 +1478,19 @@
         } catch (_) { /* no-op */ }
 
         const deferImagePreload = (promptType === 'audio');
+        const isFirstListeningWord = (State.listenIndex || 0) <= 1;
+        const skipCurrentWordAudioPreload = isFirstListeningWord && promptType === 'audio';
         const prefetchRoundSerial = (listeningPrefetchRoundSerial += 1);
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
-            skipImagePreload: deferImagePreload
+            skipImagePreload: deferImagePreload,
+            skipAudioPreload: skipCurrentWordAudioPreload
         }).then(function () {
+            if (isStartupRound) {
+                const startupBulkQueueId = scheduleTimeout(utils, function () {
+                    queueAllSelectedCategories(loader);
+                }, 0);
+                State.addTimeout && State.addTimeout(startupBulkQueueId);
+            }
             // Pre-render content inside placeholder for zero-layout-shift reveal
             try {
                 if ($jq && $ph && target && !$ph.find('.quiz-image, .quiz-text').length) {
@@ -1434,7 +1528,6 @@
             Dom.disableRepeatButton && Dom.disableRepeatButton();
             State.transitionTo(STATES.SHOWING_QUESTION, 'Listening: playing audio');
             // Keep media preloading ahead in small batches so current playback is never blocked.
-            const isFirstListeningWord = (State.listenIndex || 0) <= 1;
             const prefetchDelayMs = isFirstListeningWord
                 ? LISTENING_PREFETCH_FIRST_BATCH_DELAY_MS
                 : LISTENING_PREFETCH_DELAY_MS;
@@ -1829,9 +1922,14 @@
                     const $bars = $viz.find('.ll-tools-visualizer-bar');
                     if ($bars && $bars.length) { $bars.css({ opacity: 0, display: 'none' }); }
                 }
+                // For image-prompt/no-audio startup, show the listening UI/countdown instead of
+                // keeping the generic loading spinner visible for the entire countdown window.
+                Promise.resolve(releaseRoundLoading()).catch(function () { return; });
                 const launchCountdown = function () {
                     setRoundResume(null);
-                    startCountdown().then(afterCountdown);
+                    Promise.resolve(releaseRoundLoading()).catch(function () { return; }).then(function () {
+                        return startCountdown();
+                    }).then(afterCountdown);
                 };
                 const delayBeforeCountdown = scheduleTimeout(utils, launchCountdown, 700);
                 State.addTimeout && State.addTimeout(delayBeforeCountdown);
@@ -1884,7 +1982,8 @@
         onWrongAnswer,
         runRound,
         onStarChange,
-        getTotalCount: function () { return (State.wordsLinear || []).length; }
+        getTotalCount: function () { return (State.wordsLinear || []).length; },
+        getProgressDisplayState: function () { return getProgressDisplayState(FlashcardLoader); }
     };
 
 })(window);

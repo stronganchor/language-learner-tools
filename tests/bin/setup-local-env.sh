@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
+SITE_ROOT="$(cd "$PROJECT_ROOT/../../.." && pwd -P)"
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "python3 is required for setup-local-env.sh" >&2
@@ -59,6 +60,78 @@ db_user="${parsed[1]:-root}"
 db_pass="${parsed[2]:-root}"
 db_port="${parsed[3]:-3306}"
 
+# Some Local installs leave site-local `local-site.json` stale (old service ports)
+# while the active runtime under AppData/Roaming/Local/run/* has the correct ports.
+# Prefer the active runtime's MySQL port when we can match it to this site root.
+readarray -t active_runtime_match < <(python3 - "$SITE_ROOT" <<'PY'
+import glob
+import pathlib
+import re
+import sys
+
+site_root = pathlib.Path(sys.argv[1]).resolve()
+site_conf_paths = sorted(
+    glob.glob("/mnt/c/Users/*/AppData/Roaming/Local/run/*/conf/nginx/site.conf")
+)
+
+for conf_path in site_conf_paths:
+    conf_file = pathlib.Path(conf_path)
+    try:
+        nginx_text = conf_file.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        continue
+
+    root_match = re.search(r'^\s*root\s+"([^"]+)";', nginx_text, re.MULTILINE)
+    if not root_match:
+        continue
+
+    root_win = root_match.group(1).replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", root_win):
+        drive = root_win[0].lower()
+        root_unix = "/mnt/" + drive + "/" + root_win[3:]
+    else:
+        root_unix = root_win
+
+    try:
+        root_path = pathlib.Path(root_unix).resolve()
+    except OSError:
+        continue
+
+    if root_path != site_root:
+        continue
+
+    run_dir = conf_file.parents[2]
+    mysql_conf = run_dir / "conf" / "mysql" / "my.cnf"
+    if not mysql_conf.is_file():
+        continue
+
+    try:
+        mysql_text = mysql_conf.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        continue
+
+    port_match = re.search(r'^\s*port\s*=\s*(\d+)\s*$', mysql_text, re.MULTILINE)
+    if not port_match:
+        continue
+
+    print(port_match.group(1))
+    print(str(mysql_conf))
+    print(str(conf_file))
+    sys.exit(0)
+
+sys.exit(1)
+PY
+)
+
+active_db_port="${active_runtime_match[0]:-}"
+active_mysql_conf="${active_runtime_match[1]:-}"
+active_nginx_conf="${active_runtime_match[2]:-}"
+db_port_source="local_site_json"
+if [[ "$active_db_port" =~ ^[0-9]+$ ]]; then
+    db_port="$active_db_port"
+    db_port_source="local_runtime"
+fi
+
 host_value="127.0.0.1:${db_port}"
 tests_dir_default="${WP_TESTS_DIR:-/tmp/wordpress-tests-lib}"
 core_dir_default="${WP_CORE_DIR:-/tmp/wordpress}"
@@ -105,6 +178,14 @@ if [[ -n "$php_candidate" ]]; then
 fi
 if [[ -n "$mysql_candidate" ]]; then
     echo "export MYSQL_BIN='${mysql_candidate//\'/\'\\\'\'}'"
+fi
+
+echo "export LOCAL_DB_PORT_SOURCE='${db_port_source//\'/\'\\\'\'}'"
+if [[ -n "$active_mysql_conf" ]]; then
+    echo "export LOCAL_ACTIVE_MYSQL_CONF='${active_mysql_conf//\'/\'\\\'\'}'"
+fi
+if [[ -n "$active_nginx_conf" ]]; then
+    echo "export LOCAL_ACTIVE_NGINX_CONF='${active_nginx_conf//\'/\'\\\'\'}'"
 fi
 
 echo "export LOCAL_SITE_JSON='${LOCAL_SITE_JSON//\'/\'\\\'\'}'"

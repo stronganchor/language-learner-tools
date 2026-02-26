@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class TextToTextQuizOptionTest extends LL_Tools_TestCase
 {
-    public function test_text_match_prompt_option_resolves_to_prompt_text_variant_on_save(): void
+    public function test_text_alias_option_resolves_to_opposite_prompt_text_variant_on_save(): void
     {
         $category = wp_insert_term('Text Match Prompt Category', 'word-category');
         $this->assertFalse(is_wp_error($category));
@@ -17,14 +17,14 @@ final class TextToTextQuizOptionTest extends LL_Tools_TestCase
             ll_save_quiz_prompt_option_fields($category_id, 'word-category');
 
             $this->assertSame('text_title', get_term_meta($category_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_title', get_term_meta($category_id, 'll_quiz_option_type', true));
+            $this->assertSame('text_translation', get_term_meta($category_id, 'll_quiz_option_type', true));
 
             $_POST['ll_quiz_prompt_type'] = 'text_translation';
             $_POST['ll_quiz_option_type'] = 'text';
             ll_save_quiz_prompt_option_fields($category_id, 'word-category');
 
             $this->assertSame('text_translation', get_term_meta($category_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_translation', get_term_meta($category_id, 'll_quiz_option_type', true));
+            $this->assertSame('text_title', get_term_meta($category_id, 'll_quiz_option_type', true));
         } finally {
             $_POST = $original_post;
         }

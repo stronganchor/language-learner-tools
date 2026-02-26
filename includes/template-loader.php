@@ -27,7 +27,14 @@ function ll_tools_templates_dir(): string {
  */
 function ll_tools_locate_template(string $relative): string {
     // Basic hardening: prevent traversal & normalize slashes
-    $relative = ltrim(str_replace(['\\', '..'], ['', ''], $relative), '/');
+    $relative = str_replace("\0", '', $relative);
+    $relative = str_replace('\\', '/', $relative);
+    $relative = str_replace('..', '', $relative);
+    $relative = preg_replace('#/+#', '/', $relative);
+    $relative = ltrim((string) $relative, '/');
+    if ($relative === '' || substr($relative, -1) === '/') {
+        return '';
+    }
 
     $theme_subdir = trim(apply_filters('ll_tools_template_theme_subdir', 'll-tools'), '/');
 
@@ -39,7 +46,10 @@ function ll_tools_locate_template(string $relative): string {
 
     $candidates = apply_filters('ll_tools_template_search_paths', $candidates, $relative);
 
-    foreach ($candidates as $file) {
+    foreach ((array) $candidates as $file) {
+        if (!is_string($file) || $file === '') {
+            continue;
+        }
         if (is_readable($file)) {
             return $file;
         }

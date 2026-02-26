@@ -45,6 +45,11 @@
     z-index: 2;
 }
 
+.simple-fill {
+    background: #1d4d99;
+    z-index: 1;
+}
+
 /* Learning mode: dim cards during introduction */
 .flashcard-container.introducing {
     opacity: 0.9;

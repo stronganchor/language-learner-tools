@@ -238,4 +238,157 @@ jQuery(document).ready(function ($) {
             syncManualOrderInput();
         }
     })();
+
+    (function initAnswerOptionTextPreview() {
+        var $preview = $('[data-ll-answer-option-preview-root]').first();
+        var $fontFamily = $('[name="ll_wordset_answer_option_text_font_family"]').first();
+        var $fontWeight = $('[name="ll_wordset_answer_option_text_font_weight"]').first();
+        var $fontSize = $('[name="ll_wordset_answer_option_text_font_size_px"]').first();
+
+        if (!$preview.length || !$fontWeight.length || !$fontSize.length) {
+            return;
+        }
+
+        function hasCombiningMarks(value) {
+            return /[\u0300-\u036F\u0591-\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/.test(String(value || ''));
+        }
+
+        function clampInt(value, min, max, fallback) {
+            var parsed = parseInt(value, 10);
+            if (!isFinite(parsed)) {
+                return fallback;
+            }
+            if (parsed < min) { return min; }
+            if (parsed > max) { return max; }
+            return parsed;
+        }
+
+        function readPreviewConfig() {
+            var weight = String($fontWeight.val() || '700').trim();
+            if (!/^(400|500|600|700|800|900)$/.test(weight)) {
+                weight = '700';
+            }
+
+            var fontFamily = $fontFamily.length ? String($fontFamily.val() || '').trim() : '';
+            fontFamily = fontFamily.replace(/[\r\n{};]/g, ' ').trim();
+
+            return {
+                fontFamily: fontFamily,
+                fontWeight: weight,
+                fontSizePx: clampInt($fontSize.val(), 12, 72, 48),
+                minFontSizePx: 12,
+                lineHeightRatio: 1.22,
+                lineHeightRatioWithDiacritics: 1.4
+            };
+        }
+
+        function applyPreviewVars(cfg) {
+            var rootEl = $preview.get(0);
+            if (!rootEl || !rootEl.style) {
+                return;
+            }
+            if (cfg.fontFamily) {
+                rootEl.style.setProperty('--ll-ws-answer-preview-font-family', cfg.fontFamily);
+            } else {
+                rootEl.style.removeProperty('--ll-ws-answer-preview-font-family');
+            }
+            rootEl.style.setProperty('--ll-ws-answer-preview-font-weight', cfg.fontWeight);
+            rootEl.style.setProperty('--ll-ws-answer-preview-font-size', String(cfg.fontSizePx) + 'px');
+            rootEl.style.setProperty('--ll-ws-answer-preview-line-height', String(cfg.lineHeightRatio));
+            rootEl.style.setProperty('--ll-ws-answer-preview-line-height-marked', String(cfg.lineHeightRatioWithDiacritics));
+        }
+
+        var measureCanvas = null;
+        var measureCtx = null;
+        function measureTextWidth(text, font) {
+            if (!measureCanvas) {
+                measureCanvas = document.createElement('canvas');
+            }
+            if (!measureCtx) {
+                measureCtx = measureCanvas.getContext('2d');
+            }
+            if (!measureCtx) {
+                return 0;
+            }
+            try {
+                measureCtx.font = String(font || '');
+                return measureCtx.measureText(String(text || '')).width || 0;
+            } catch (_) {
+                return 0;
+            }
+        }
+
+        function fitPreviewText(cardEl, textEl, cfg) {
+            if (!cardEl || !textEl) {
+                return;
+            }
+
+            var textValue = String(textEl.textContent || '').trim();
+            var ratio = hasCombiningMarks(textValue) ? cfg.lineHeightRatioWithDiacritics : cfg.lineHeightRatio;
+            var boxH = Math.max(0, (cardEl.clientHeight || 0) - 15);
+            var boxW = Math.max(0, (cardEl.clientWidth || 0) - 15);
+
+            if (cfg.fontFamily) {
+                textEl.style.fontFamily = cfg.fontFamily;
+            } else {
+                textEl.style.fontFamily = '';
+            }
+            textEl.style.fontWeight = cfg.fontWeight;
+            textEl.style.position = 'relative';
+            textEl.style.visibility = 'hidden';
+
+            var minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 12);
+            var startFontSize = clampInt(cfg.fontSizePx, minFontSize, 72, 48);
+            var fitted = false;
+
+            for (var fs = startFontSize; fs >= minFontSize; fs--) {
+                var lineHeightPx = Math.round(fs * ratio * 100) / 100;
+                var measureFont = String(cfg.fontWeight) + ' ' + String(fs) + 'px ' + (cfg.fontFamily || 'sans-serif');
+                var singleLineWidth = measureTextWidth(textValue, measureFont);
+                if (singleLineWidth > boxW && boxW > 0) {
+                    continue;
+                }
+                textEl.style.fontSize = String(fs) + 'px';
+                textEl.style.lineHeight = String(lineHeightPx) + 'px';
+                if (textEl.offsetHeight <= boxH + 1) {
+                    fitted = true;
+                    break;
+                }
+            }
+
+            if (!fitted) {
+                var fallbackLineHeightPx = Math.round(minFontSize * ratio * 100) / 100;
+                textEl.style.fontSize = String(minFontSize) + 'px';
+                textEl.style.lineHeight = String(fallbackLineHeightPx) + 'px';
+            }
+
+            textEl.style.visibility = 'visible';
+        }
+
+        function refreshPreview() {
+            var cfg = readPreviewConfig();
+            applyPreviewVars(cfg);
+
+            $preview.find('[data-ll-answer-option-preview-card]').each(function () {
+                var cardEl = this;
+                var textEl = $(cardEl).find('[data-ll-answer-option-preview-text]').get(0);
+                fitPreviewText(cardEl, textEl, cfg);
+            });
+        }
+
+        var resizeTimer = null;
+        $(window).on('resize.llWordsetAnswerOptionPreview', function () {
+            if (resizeTimer) {
+                clearTimeout(resizeTimer);
+            }
+            resizeTimer = setTimeout(refreshPreview, 50);
+        });
+
+        $fontWeight.add($fontSize).on('input change', refreshPreview);
+        if ($fontFamily.length) {
+            $fontFamily.on('input change', refreshPreview);
+        }
+
+        refreshPreview();
+    })();
 });

@@ -18,6 +18,27 @@ if (!$wordset || is_wp_error($wordset)) {
     return;
 }
 
+if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset)) {
+    $wp_query = $GLOBALS['wp_query'] ?? null;
+    if ($wp_query instanceof WP_Query) {
+        $wp_query->set_404();
+    } elseif (is_object($wp_query)) {
+        $wp_query->is_404 = true;
+    }
+    status_header(404);
+    nocache_headers();
+    get_header();
+    if (function_exists('ll_tools_render_wordset_page_content')) {
+        echo ll_tools_render_wordset_page_content(null);
+    } else {
+        echo '<main class="ll-wordset-page ll-wordset-page--missing"><div class="ll-wordset-empty">';
+        echo esc_html__('Word set not found.', 'll-tools-text-domain');
+        echo '</div></main>';
+    }
+    get_footer();
+    return;
+}
+
 $wp_query = $GLOBALS['wp_query'] ?? null;
 if ($wp_query) {
     $wp_query->is_404 = false;

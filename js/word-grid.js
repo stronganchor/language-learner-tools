@@ -7,6 +7,7 @@
     const i18n = cfg.i18n || {};
     const editI18n = cfg.editI18n || {};
     const bulkI18n = cfg.bulkI18n || {};
+    const prereqI18n = cfg.prereqI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
     const transcribePollAttemptsRaw = parseInt(cfg.transcribePollAttempts, 10);
     const transcribePollIntervalRaw = parseInt(cfg.transcribePollIntervalMs, 10);
@@ -34,6 +35,83 @@
     const $grids = $('[data-ll-word-grid]');
     if (!$grids.length) { return; }
 
+    const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
+    const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
+    const wordGridImageObservers = [];
+
+    function setWordGridImagePending(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-loaded');
+        img.classList.add('ll-image-load-pending');
+        const container = img.closest(WORD_GRID_IMAGE_WRAPPER_SELECTOR);
+        if (container) {
+            container.classList.remove('ll-image-loaded');
+            container.classList.add('ll-image-load-pending');
+        }
+    }
+
+    function markWordGridImageLoaded(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        img.classList.remove('ll-image-load-pending');
+        img.classList.add('ll-image-loaded');
+        const container = img.closest(WORD_GRID_IMAGE_WRAPPER_SELECTOR);
+        if (container) {
+            container.classList.remove('ll-image-load-pending');
+            container.classList.add('ll-image-loaded');
+        }
+    }
+
+    function bindWordGridImageLoadState(img) {
+        if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
+        if (img.dataset.llImgLoadBound === '1') {
+            if (img.complete) {
+                markWordGridImageLoaded(img);
+            }
+            return;
+        }
+        img.dataset.llImgLoadBound = '1';
+        if (img.complete) {
+            markWordGridImageLoaded(img);
+            return;
+        }
+        setWordGridImagePending(img);
+        const finish = function () {
+            markWordGridImageLoaded(img);
+        };
+        img.addEventListener('load', finish, { once: true });
+        img.addEventListener('error', finish, { once: true });
+    }
+
+    function scanWordGridImages(rootNode) {
+        if (!rootNode || rootNode.nodeType !== 1) { return; }
+        if (rootNode.matches && rootNode.matches(WORD_GRID_IMAGE_SELECTOR)) {
+            bindWordGridImageLoadState(rootNode);
+        }
+        if (rootNode.querySelectorAll) {
+            rootNode.querySelectorAll(WORD_GRID_IMAGE_SELECTOR).forEach(bindWordGridImageLoadState);
+        }
+    }
+
+    function initWordGridImageLoadingState() {
+        $grids.each(function () {
+            scanWordGridImages(this);
+            if (!window.MutationObserver) { return; }
+            const observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (mutation) {
+                    if (!mutation || !mutation.addedNodes) { return; }
+                    mutation.addedNodes.forEach(function (node) {
+                        if (!node || node.nodeType !== 1) { return; }
+                        scanWordGridImages(node);
+                    });
+                });
+            });
+            observer.observe(this, { childList: true, subtree: true });
+            wordGridImageObservers.push(observer);
+        });
+    }
+
+    initWordGridImageLoadingState();
+
     let currentAudio = null;
     let currentAudioButton = null;
 
@@ -48,6 +126,13 @@
     let vizButton = null;
     let vizAudio = null;
     let vizSource = null;
+
+    function protectMaqafNoBreak(value) {
+        const text = (value === null || value === undefined) ? '' : String(value);
+        if (!text) { return ''; }
+        if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
+        return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
+    }
 
     function canUseVisualizerForUrl(url) {
         if (!url) { return false; }
@@ -978,6 +1063,15 @@
         verbMoodMissing: bulkI18n.verbMoodMissing || 'Choose a verb mood option.',
         error: bulkI18n.error || 'Unable to update words.'
     };
+    const prereqMessages = {
+        saving: prereqI18n.saving || 'Saving prerequisites...',
+        saved: prereqI18n.saved || 'Prerequisites saved.',
+        error: prereqI18n.error || 'Unable to save prerequisites.',
+        empty: prereqI18n.empty || 'No prerequisites selected.',
+        remove: prereqI18n.remove || 'Remove %s',
+        levelCycle: prereqI18n.levelCycle || 'Cycle',
+        levelUnknown: prereqI18n.levelUnknown || '-'
+    };
     const dictionaryEntryCache = {};
 
     function syncDictionaryEntrySelectionState($item) {
@@ -1165,11 +1259,86 @@
         return safe.replace('%1$d', String(count)).replace('%d', String(count));
     }
 
+    function formatStringMessage(template, value) {
+        const safe = (template || '').toString();
+        return safe.replace('%s', (value || '').toString());
+    }
+
     function setBulkStatus($wrap, message, isError) {
         const $status = $wrap.find('[data-ll-bulk-status]').first();
         if (!$status.length) { return; }
         $status.text(message || '');
         $status.toggleClass('is-error', !!isError);
+    }
+
+    function parseJsonArrayAttr($el, attrName) {
+        if (!$el || !$el.length) { return []; }
+        const raw = ($el.attr(attrName) || '').toString();
+        if (!raw) { return []; }
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function normalizePrereqOptionRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        const out = [];
+        const seen = {};
+
+        list.forEach(function (row) {
+            const item = (row && typeof row === 'object') ? row : {};
+            const id = parseInt(item.id, 10) || 0;
+            if (!id || seen[id]) { return; }
+
+            const label = (typeof item.label === 'string' && item.label)
+                ? item.label
+                : String(id);
+            const levelRaw = parseInt(item.level, 10);
+            const normalized = {
+                id: id,
+                label: label
+            };
+            if (Number.isFinite(levelRaw)) {
+                normalized.level = levelRaw;
+            }
+
+            out.push(normalized);
+            seen[id] = true;
+        });
+
+        return out;
+    }
+
+    function readAjaxErrorMessage(jqXHR, fallbackMessage) {
+        const fallback = (fallbackMessage || '').toString();
+        const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
+        if (!response) { return fallback; }
+
+        if (typeof response.data === 'string' && response.data) {
+            return response.data;
+        }
+        if (response.data && typeof response.data.message === 'string' && response.data.message) {
+            return response.data.message;
+        }
+        if (typeof response.message === 'string' && response.message) {
+            return response.message;
+        }
+
+        return fallback;
+    }
+
+    function formatPrereqLevelText(level, hasCycle) {
+        if (hasCycle) {
+            return prereqMessages.levelCycle;
+        }
+        const numeric = parseInt(level, 10);
+        if (Number.isFinite(numeric) && numeric >= 0) {
+            return String(numeric);
+        }
+        return prereqMessages.levelUnknown;
     }
 
     function setWordMetaText($item, selector, value) {
@@ -1397,7 +1566,7 @@
                 $main = $('<span>', { class: 'll-word-recording-text-main', dir: 'auto' }).appendTo($textWrap);
             }
             $main.attr('dir', 'auto');
-            $main.text(parts.text);
+            $main.text(protectMaqafNoBreak(parts.text));
         } else {
             $main.remove();
         }
@@ -1408,7 +1577,7 @@
                 $translation = $('<span>', { class: 'll-word-recording-text-translation', dir: 'auto' }).appendTo($textWrap);
             }
             $translation.attr('dir', 'auto');
-            $translation.text(parts.translation);
+            $translation.text(protectMaqafNoBreak(parts.translation));
         } else {
             $translation.remove();
         }
@@ -2712,12 +2881,408 @@
         }
 
         function setBulkBusy($wrap, isBusy) {
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply]')
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply], [data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]')
                 .prop('disabled', isBusy);
             $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
         }
 
+        function getPrereqEditorState($editor) {
+            if (!$editor || !$editor.length) { return null; }
+
+            let state = $editor.data('llPrereqState');
+            if (state && typeof state === 'object') {
+                return state;
+            }
+
+            const options = normalizePrereqOptionRows(parseJsonArrayAttr($editor, 'data-ll-prereq-options'));
+            const optionsById = {};
+            options.forEach(function (option) {
+                optionsById[option.id] = Object.assign({}, option);
+            });
+
+            const selectedRows = normalizePrereqOptionRows(parseJsonArrayAttr($editor, 'data-ll-prereq-selected'));
+            const selectedIds = [];
+            selectedRows.forEach(function (row) {
+                if (!optionsById[row.id]) {
+                    optionsById[row.id] = Object.assign({}, row);
+                    options.push(optionsById[row.id]);
+                } else {
+                    optionsById[row.id].label = row.label || optionsById[row.id].label;
+                    if (Object.prototype.hasOwnProperty.call(row, 'level')) {
+                        optionsById[row.id].level = row.level;
+                    }
+                }
+                if (selectedIds.indexOf(row.id) === -1) {
+                    selectedIds.push(row.id);
+                }
+            });
+
+            const currentLevelRaw = ($editor.attr('data-ll-prereq-current-level') || '').toString();
+            const currentLevel = currentLevelRaw === '' ? null : (parseInt(currentLevelRaw, 10) || 0);
+            const hasCycle = ($editor.attr('data-ll-prereq-has-cycle') || '') === '1';
+
+            state = {
+                options: options,
+                optionsById: optionsById,
+                selectedIds: selectedIds,
+                currentLevel: currentLevel,
+                hasCycle: hasCycle
+            };
+
+            $editor.data('llPrereqState', state);
+            return state;
+        }
+
+        function setPrereqEditorStatus($editor, message, isError) {
+            const $status = $editor.find('[data-ll-prereq-status]').first();
+            if (!$status.length) { return; }
+            $status.text(message || '');
+            $status.toggleClass('is-error', !!isError);
+        }
+
+        function setPrereqEditorBusy($editor, isBusy) {
+            $editor.find('[data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]').prop('disabled', !!isBusy);
+            $editor.attr('aria-busy', isBusy ? 'true' : 'false');
+        }
+
+        function setPrereqEditorLevel($editor, level, hasCycle) {
+            const $level = $editor.find('[data-ll-prereq-level]').first();
+            if ($level.length) {
+                $level.text(formatPrereqLevelText(level, hasCycle));
+            }
+
+            const $warning = $editor.find('[data-ll-prereq-cycle-warning]').first();
+            if ($warning.length) {
+                if (hasCycle) {
+                    $warning.removeAttr('hidden');
+                } else {
+                    $warning.attr('hidden', 'hidden');
+                }
+            }
+
+            $editor.attr('data-ll-prereq-current-level', (level === null || level === undefined) ? '' : String(level));
+            $editor.attr('data-ll-prereq-has-cycle', hasCycle ? '1' : '0');
+
+            const state = getPrereqEditorState($editor);
+            if (state) {
+                state.currentLevel = (level === null || level === undefined) ? null : (parseInt(level, 10) || 0);
+                state.hasCycle = !!hasCycle;
+            }
+        }
+
+        function renderPrereqEditorChips($editor) {
+            const state = getPrereqEditorState($editor);
+            const $chips = $editor.find('[data-ll-prereq-chips]').first();
+            if (!state || !$chips.length) { return; }
+
+            $chips.empty();
+
+            if (!state.selectedIds.length) {
+                $chips.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-empty',
+                    text: prereqMessages.empty
+                }));
+                return;
+            }
+
+            state.selectedIds.forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (!numericId) { return; }
+                const option = state.optionsById[numericId] || { id: numericId, label: String(numericId) };
+                const $chip = $('<span>', {
+                    class: 'll-vocab-lesson-prereq-chip',
+                    'data-ll-prereq-chip-id': numericId
+                });
+
+                $chip.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-chip-label',
+                    text: option.label || String(numericId)
+                }));
+
+                const levelRaw = parseInt(option.level, 10);
+                if (Number.isFinite(levelRaw) && !state.hasCycle) {
+                    $chip.append($('<span>', {
+                        class: 'll-vocab-lesson-prereq-chip-level',
+                        text: 'L' + String(levelRaw),
+                        'aria-hidden': 'true'
+                    }));
+                }
+
+                $chip.append($('<button>', {
+                    type: 'button',
+                    class: 'll-vocab-lesson-prereq-chip-remove',
+                    'data-ll-prereq-remove': String(numericId),
+                    'aria-label': formatStringMessage(prereqMessages.remove, option.label || String(numericId)),
+                    text: 'x'
+                }));
+
+                $chips.append($chip);
+            });
+        }
+
+        function upsertPrereqOption(state, optionRow) {
+            if (!state || !optionRow || typeof optionRow !== 'object') { return null; }
+            const id = parseInt(optionRow.id, 10) || 0;
+            if (!id) { return null; }
+
+            let option = state.optionsById[id];
+            if (!option) {
+                option = { id: id, label: (optionRow.label || String(id)).toString() };
+                state.optionsById[id] = option;
+                state.options.push(option);
+            }
+
+            if (typeof optionRow.label === 'string' && optionRow.label) {
+                option.label = optionRow.label;
+            }
+            if (Object.prototype.hasOwnProperty.call(optionRow, 'level')) {
+                const levelRaw = parseInt(optionRow.level, 10);
+                if (Number.isFinite(levelRaw)) {
+                    option.level = levelRaw;
+                } else {
+                    delete option.level;
+                }
+            }
+
+            return option;
+        }
+
+        function addPrereqSelection($editor, optionRow) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return false; }
+            const option = upsertPrereqOption(state, optionRow);
+            if (!option) { return false; }
+            if (state.selectedIds.indexOf(option.id) !== -1) {
+                return false;
+            }
+            state.selectedIds.push(option.id);
+            renderPrereqEditorChips($editor);
+            return true;
+        }
+
+        function removePrereqSelection($editor, prereqId) {
+            const state = getPrereqEditorState($editor);
+            const id = parseInt(prereqId, 10) || 0;
+            if (!state || !id) { return false; }
+            const nextIds = state.selectedIds.filter(function (currentId) {
+                return (parseInt(currentId, 10) || 0) !== id;
+            });
+            if (nextIds.length === state.selectedIds.length) {
+                return false;
+            }
+            state.selectedIds = nextIds;
+            renderPrereqEditorChips($editor);
+            return true;
+        }
+
+        function ensurePrereqEditorAutocomplete($editor) {
+            const $input = $editor.find('[data-ll-prereq-input]').first();
+            if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
+            if ($input.data('llPrereqAutocompleteReady')) { return; }
+            $input.data('llPrereqAutocompleteReady', true);
+
+            const $panel = $editor.closest('.ll-vocab-lesson-bulk-panel');
+            $input.autocomplete({
+                minLength: 0,
+                delay: 100,
+                appendTo: $panel.length ? $panel : $editor,
+                classes: {
+                    'ui-autocomplete': 'll-vocab-lesson-prereq-autocomplete'
+                },
+                source: function (request, response) {
+                    const state = getPrereqEditorState($editor);
+                    const selectedLookup = {};
+                    (state && Array.isArray(state.selectedIds) ? state.selectedIds : []).forEach(function (id) {
+                        const numericId = parseInt(id, 10) || 0;
+                        if (numericId) {
+                            selectedLookup[numericId] = true;
+                        }
+                    });
+
+                    const term = ((request && request.term) ? request.term : '').toString().trim().toLowerCase();
+                    const results = [];
+                    (state && Array.isArray(state.options) ? state.options : []).forEach(function (option) {
+                        const id = parseInt(option && option.id, 10) || 0;
+                        if (!id || selectedLookup[id]) { return; }
+                        const label = (option && option.label) ? option.label.toString() : String(id);
+                        const haystack = label.toLowerCase();
+                        const idText = String(id);
+                        if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
+                            return;
+                        }
+                        results.push({
+                            id: id,
+                            label: label,
+                            value: label,
+                            level: Object.prototype.hasOwnProperty.call(option || {}, 'level') ? option.level : undefined
+                        });
+                    });
+
+                    results.sort(function (left, right) {
+                        const leftLabel = (left && left.label) ? left.label.toString() : '';
+                        const rightLabel = (right && right.label) ? right.label.toString() : '';
+                        return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
+                    });
+
+                    response(results.slice(0, 20));
+                },
+                focus: function (event, ui) {
+                    event.preventDefault();
+                    $input.val((ui.item && ui.item.label) ? ui.item.label : '');
+                },
+                select: function (event, ui) {
+                    event.preventDefault();
+                    if (addPrereqSelection($editor, ui.item || {})) {
+                        setPrereqEditorStatus($editor, '', false);
+                    }
+                    $input.val('');
+                }
+            });
+
+            const instance = $input.autocomplete('instance');
+            if (instance) {
+                instance._renderItem = function (ul, item) {
+                    const $line = $('<div>', { class: 'll-vocab-lesson-prereq-menu-item' });
+                    $line.append($('<span>', {
+                        class: 'll-vocab-lesson-prereq-menu-label',
+                        text: (item && item.label) ? item.label : ''
+                    }));
+
+                    const levelRaw = parseInt(item && item.level, 10);
+                    if (Number.isFinite(levelRaw)) {
+                        $line.append($('<span>', {
+                            class: 'll-vocab-lesson-prereq-menu-level',
+                            text: 'L' + String(levelRaw),
+                            'aria-hidden': 'true'
+                        }));
+                    }
+
+                    return $('<li>').append($line).appendTo(ul);
+                };
+            }
+        }
+
+        function initPrereqEditor($editor) {
+            if (!$editor || !$editor.length) { return; }
+            getPrereqEditorState($editor);
+            renderPrereqEditorChips($editor);
+
+            const state = getPrereqEditorState($editor);
+            if (state) {
+                setPrereqEditorLevel($editor, state.currentLevel, state.hasCycle);
+            }
+        }
+
         if ($bulkEditors.length) {
+            $bulkEditors.find('[data-ll-prereq-editor]').each(function () {
+                initPrereqEditor($(this));
+            });
+
+            $bulkEditors.on('focus', '[data-ll-prereq-input]', function () {
+                const $input = $(this);
+                const $editor = $input.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                ensurePrereqEditorAutocomplete($editor);
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-input]', function (e) {
+                e.stopPropagation();
+                const $input = $(this);
+                const $editor = $input.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                ensurePrereqEditorAutocomplete($editor);
+                if (typeof $input.autocomplete === 'function') {
+                    $input.autocomplete('search', ($input.val() || '').toString());
+                }
+            });
+
+            $bulkEditors.on('input', '[data-ll-prereq-input]', function () {
+                const $editor = $(this).closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                setPrereqEditorStatus($editor, '', false);
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-remove]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                const prereqId = parseInt($btn.attr('data-ll-prereq-remove'), 10) || 0;
+                if (!prereqId) { return; }
+                if (removePrereqSelection($editor, prereqId)) {
+                    setPrereqEditorStatus($editor, '', false);
+                }
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-apply]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                const $wrap = $btn.closest('[data-ll-word-grid-bulk]');
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                if (!$wrap.length || !$editor.length) {
+                    return;
+                }
+
+                const context = getBulkContext($wrap);
+                if (!context) {
+                    setPrereqEditorStatus($editor, prereqMessages.error, true);
+                    return;
+                }
+
+                const state = getPrereqEditorState($editor);
+                if (!state) {
+                    setPrereqEditorStatus($editor, prereqMessages.error, true);
+                    return;
+                }
+
+                setPrereqEditorBusy($editor, true);
+                setPrereqEditorStatus($editor, prereqMessages.saving, false);
+
+                $.post(ajaxUrl, {
+                    action: 'll_tools_word_grid_update_category_prereqs',
+                    nonce: editNonce,
+                    wordset_id: context.wordsetId,
+                    category_id: context.categoryId,
+                    prereq_ids: state.selectedIds
+                }).done(function (response) {
+                    if (!response || response.success !== true) {
+                        const responseMessage = response && response.data && typeof response.data.message === 'string'
+                            ? response.data.message
+                            : prereqMessages.error;
+                        setPrereqEditorStatus($editor, responseMessage, true);
+                        return;
+                    }
+
+                    const data = response.data || {};
+                    const selectedRows = normalizePrereqOptionRows(Array.isArray(data.selected) ? data.selected : []);
+                    const nextSelectedIds = [];
+                    selectedRows.forEach(function (row) {
+                        const option = upsertPrereqOption(state, row);
+                        if (!option) { return; }
+                        if (nextSelectedIds.indexOf(option.id) === -1) {
+                            nextSelectedIds.push(option.id);
+                        }
+                    });
+                    state.selectedIds = nextSelectedIds;
+
+                    renderPrereqEditorChips($editor);
+                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
+                    $editor.find('[data-ll-prereq-input]').val('');
+
+                    const successMessage = (typeof data.message === 'string' && data.message)
+                        ? data.message
+                        : prereqMessages.saved;
+                    setPrereqEditorStatus($editor, successMessage, false);
+                }).fail(function (jqXHR) {
+                    setPrereqEditorStatus($editor, readAjaxErrorMessage(jqXHR, prereqMessages.error), true);
+                }).always(function () {
+                    setPrereqEditorBusy($editor, false);
+                });
+            });
+
             $bulkEditors.on('click', '[data-ll-bulk-pos-apply]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -3209,11 +3774,11 @@
                 }
                 const data = response.data || {};
                 if (typeof data.word_text === 'string') {
-                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(data.word_text);
+                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
                     $item.find('[data-ll-word-input="word"]').val(data.word_text);
                 }
                 if (typeof data.word_translation === 'string') {
-                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(data.word_translation);
+                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
                     $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
                 }
                 if (typeof data.word_note === 'string') {
@@ -3315,11 +3880,11 @@
             const $item = $grids.find('.word-item[data-word-id="' + wordId + '"]').first();
             if (!$item.length) { return; }
             if (typeof word.word_text === 'string') {
-                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(word.word_text);
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_text));
                 $item.find('[data-ll-word-input="word"]').val(word.word_text);
             }
             if (typeof word.word_translation === 'string') {
-                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(word.word_translation);
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_translation));
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
             }
             if (word.dictionary_entry) {

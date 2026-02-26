@@ -246,9 +246,9 @@
 }
 
 .ll-vocab-lesson-page .ll-group-star.active {
-    background: #D39A00 !important;
-    border-color: #D39A00 !important;
-    color: #111827 !important;
+    background: #FDE7A3 !important;
+    border-color: rgba(138, 86, 0, 0.22) !important;
+    color: #8A5600 !important;
 }
 
 .ll-vocab-lesson-settings {
@@ -304,7 +304,7 @@
     top: calc(100% + 10px) !important;
     bottom: auto !important;
     right: 0 !important;
-    width: min(320px, 90vw) !important;
+    width: min(360px, 92vw) !important;
     overflow-x: auto;
 }
 
@@ -360,6 +360,176 @@
 
 .ll-vocab-lesson-bulk-status.is-error {
     color: #b91c1c;
+}
+
+.ll-vocab-lesson-bulk-section--prereq {
+    padding-bottom: 2px;
+}
+
+.ll-vocab-lesson-prereq-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #dbe3ee;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.ll-vocab-lesson-prereq-level-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.ll-vocab-lesson-prereq-level-value {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.ll-vocab-lesson-prereq-input {
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 13px;
+    line-height: 1.35;
+    box-sizing: border-box;
+}
+
+.ll-vocab-lesson-prereq-input:focus {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    border-color: rgba(31, 107, 92, 0.6);
+}
+
+.ll-vocab-lesson-prereq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 26px;
+}
+
+.ll-vocab-lesson-prereq-empty {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ll-vocab-lesson-prereq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #cfe2db;
+    background: #edf7f3;
+    color: #16352d;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.ll-vocab-lesson-prereq-chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-vocab-lesson-prereq-chip-level {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: rgba(22, 53, 45, 0.08);
+    color: #16352d;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.ll-vocab-lesson-prereq-chip-remove {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 53, 45, 0.2);
+    background: #ffffff;
+    color: #16352d;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+
+.ll-vocab-lesson-prereq-chip-remove:hover {
+    background: #f8fafc;
+}
+
+.ll-vocab-lesson-prereq-chip-remove:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    outline-offset: 1px;
+}
+
+.ll-vocab-lesson-prereq-hint {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.2;
+}
+
+.ll-vocab-lesson-prereq-warning {
+    margin: 0;
+    font-size: 12px;
+    color: #b91c1c;
+    line-height: 1.35;
+}
+
+.ll-vocab-lesson-prereq-status {
+    margin-top: 4px;
+}
+
+.ll-vocab-lesson-prereq-autocomplete.ui-autocomplete {
+    z-index: 100000 !important;
+    border: 1px solid #d0d7de;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+    padding: 4px;
+    max-height: 240px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.ll-vocab-lesson-prereq-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ll-vocab-lesson-prereq-menu-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-vocab-lesson-prereq-menu-level {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
 }
 
 .ll-vocab-lesson-settings-button.ll-tools-settings-button {

@@ -88,8 +88,8 @@ add_action('init', 'll_register_language_taxonomy');
 function ll_create_languages_admin_page() {
     add_submenu_page(
         'tools.php',
-        'Language Learner Tools - Languages',
-        'LL Tools Languages',
+        __('Language Learner Tools - Languages', 'll-tools-text-domain'),
+        __('LL Tools Languages', 'll-tools-text-domain'),
         'manage_options',
         'language-learner-tools-languages',
         'll_render_languages_admin_page',
@@ -99,6 +99,10 @@ add_action('admin_menu', 'll_create_languages_admin_page');
 
 // Render the Languages admin page
 function ll_render_languages_admin_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('Permission denied.', 'll-tools-text-domain'));
+    }
+
     $languages = get_terms([
         'taxonomy' => 'language',
         'hide_empty' => false,
@@ -106,19 +110,19 @@ function ll_render_languages_admin_page() {
     ]);
     ?>
     <div class="wrap">
-        <h1>Language Learner Tools - Languages</h1>
+        <h1><?php esc_html_e('Language Learner Tools - Languages', 'll-tools-text-domain'); ?></h1>
         <form method="post" action="">
             <?php wp_nonce_field('refresh_languages', 'refresh_languages_nonce'); ?>
             <p>
-                <input type="submit" name="refresh_languages" class="button button-primary" value="Refresh Language List">
+                <input type="submit" name="refresh_languages" class="button button-primary" value="<?php echo esc_attr__('Refresh Language List', 'll-tools-text-domain'); ?>">
             </p>
         </form>
         <table class="wp-list-table widefat striped">
             <thead>
                 <tr>
-                    <th>Language ID</th>
-                    <th>Language Name</th>
-                    <th>Macrolanguage</th>
+                    <th><?php esc_html_e('Language ID', 'll-tools-text-domain'); ?></th>
+                    <th><?php esc_html_e('Language Name', 'll-tools-text-domain'); ?></th>
+                    <th><?php esc_html_e('Macrolanguage', 'll-tools-text-domain'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -137,24 +141,36 @@ function ll_render_languages_admin_page() {
 
 // Delete the languages and reset the flag to repopulate the language data
 function ll_refresh_language_list() {
-    if (isset($_POST['refresh_languages']) && wp_verify_nonce($_POST['refresh_languages_nonce'], 'refresh_languages')) {
-        // Delete all existing language terms
-        $languages = get_terms([
-            'taxonomy' => 'language',
-            'hide_empty' => false,
-            'fields' => 'ids',
-        ]);
-        foreach ($languages as $language_id) {
-            wp_delete_term($language_id, 'language');
-        }
-
-        // Reset the flag to indicate that the language data needs to be repopulated
-        update_option('ll_languages_populated', false);
-
-        // Redirect back to the languages admin page
-        wp_redirect(admin_url('tools.php?page=language-learner-tools-languages'));
-        exit;
+    if (!is_admin() || !isset($_POST['refresh_languages'])) {
+        return;
     }
+
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $nonce = isset($_POST['refresh_languages_nonce'])
+        ? wp_unslash((string) $_POST['refresh_languages_nonce'])
+        : '';
+    if (!wp_verify_nonce($nonce, 'refresh_languages')) {
+        return;
+    }
+
+    // Delete all existing language terms
+    $languages = get_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+        'fields' => 'ids',
+    ]);
+    foreach ($languages as $language_id) {
+        wp_delete_term($language_id, 'language');
+    }
+
+    // Reset the flag to indicate that the language data needs to be repopulated
+    update_option('ll_languages_populated', false);
+
+    // Redirect back to the languages admin page
+    wp_safe_redirect(admin_url('tools.php?page=language-learner-tools-languages'));
+    exit;
 }
 add_action('admin_init', 'll_refresh_language_list');
-

@@ -32,6 +32,14 @@
                 $option.val('text_translation');
             }
         }
+
+        if ($prompt.val() === 'text_title' || $prompt.val() === 'text_translation') {
+            var opposite = ($prompt.val() === 'text_title') ? 'text_translation' : 'text_title';
+            $option.find('option[value="' + $prompt.val() + '"]').prop('disabled', true);
+            if ($option.val() === $prompt.val()) {
+                $option.val(opposite);
+            }
+        }
     }
 
     function isNewCategoryAutocreateEligible($form) {

@@ -15,6 +15,10 @@
         const loadedResources = {};
         const inFlightRequests = {};
         const inFlightMediaLoads = {};
+        const categoryAjaxQueue = [];
+        let activeCategoryAjaxRequests = 0;
+        let categoryAjaxQueueTimerId = null;
+        let lastCategoryAjaxStartedAt = 0;
         let requestSerial = 0;
         let lastWordsetKey = null;
         const defaultConfig = { prompt_type: 'audio', option_type: 'image' };
@@ -131,6 +135,134 @@
         function getRetryDelayMs(attempt) {
             const step = Math.max(1, parseInt(attempt, 10) || 1);
             return Math.min(1200, (170 * step) + Math.round(Math.random() * 140));
+        }
+
+        function getClampedInt(raw, fallback, min, max) {
+            const parsed = parseInt(raw, 10);
+            if (!Number.isFinite(parsed)) {
+                return fallback;
+            }
+            return Math.max(min, Math.min(max, parsed));
+        }
+
+        function getPreloadTuning() {
+            const tuning = (window.llToolsFlashcardsData && window.llToolsFlashcardsData.preloadTuning && typeof window.llToolsFlashcardsData.preloadTuning === 'object')
+                ? window.llToolsFlashcardsData.preloadTuning
+                : {};
+
+            return {
+                categoryAjaxConcurrency: getClampedInt(tuning.categoryAjaxConcurrency, 1, 1, 4),
+                categoryAjaxSpacingMs: getClampedInt(tuning.categoryAjaxSpacingMs, 220, 0, 6000),
+                categoryAjaxMaxRetriesOn429: getClampedInt(tuning.categoryAjaxMaxRetriesOn429, 2, 0, 6),
+                categoryAjaxRetryBaseMs: getClampedInt(tuning.categoryAjaxRetryBaseMs, 900, 100, 30000),
+                categoryAjaxRetryMaxMs: getClampedInt(tuning.categoryAjaxRetryMaxMs, 10000, 500, 90000),
+                categoryMediaChunkSize: getClampedInt(tuning.categoryMediaChunkSize, 8, 1, 30),
+                categoryMediaChunkDelayMs: getClampedInt(tuning.categoryMediaChunkDelayMs, 100, 0, 10000),
+                categoryMediaChunkConcurrency: getClampedInt(tuning.categoryMediaChunkConcurrency, 2, 1, 8)
+            };
+        }
+
+        function wait(ms) {
+            return new Promise(function (resolve) {
+                setTimeout(resolve, Math.max(0, parseInt(ms, 10) || 0));
+            });
+        }
+
+        function scheduleCategoryAjaxQueuePump(delayMs) {
+            if (categoryAjaxQueueTimerId) {
+                return;
+            }
+            categoryAjaxQueueTimerId = setTimeout(function () {
+                categoryAjaxQueueTimerId = null;
+                pumpCategoryAjaxQueue();
+            }, Math.max(0, parseInt(delayMs, 10) || 0));
+        }
+
+        function pumpCategoryAjaxQueue() {
+            if (!categoryAjaxQueue.length) {
+                return;
+            }
+
+            const tuning = getPreloadTuning();
+            if (activeCategoryAjaxRequests >= tuning.categoryAjaxConcurrency) {
+                return;
+            }
+
+            const now = Date.now();
+            const spacingMs = Math.max(0, tuning.categoryAjaxSpacingMs || 0);
+            const nextAllowedStart = lastCategoryAjaxStartedAt + spacingMs;
+            if (spacingMs > 0 && nextAllowedStart > now) {
+                scheduleCategoryAjaxQueuePump(nextAllowedStart - now);
+                return;
+            }
+
+            const job = categoryAjaxQueue.shift();
+            if (!job || typeof job.run !== 'function') {
+                pumpCategoryAjaxQueue();
+                return;
+            }
+
+            activeCategoryAjaxRequests += 1;
+            lastCategoryAjaxStartedAt = Date.now();
+
+            Promise.resolve()
+                .then(job.run)
+                .then(job.resolve, job.reject)
+                .finally(function () {
+                    activeCategoryAjaxRequests = Math.max(0, activeCategoryAjaxRequests - 1);
+                    pumpCategoryAjaxQueue();
+                });
+
+            if (activeCategoryAjaxRequests < tuning.categoryAjaxConcurrency) {
+                pumpCategoryAjaxQueue();
+            }
+        }
+
+        function enqueueCategoryAjaxRequest(run) {
+            return new Promise(function (resolve, reject) {
+                categoryAjaxQueue.push({
+                    run: run,
+                    resolve: resolve,
+                    reject: reject
+                });
+                pumpCategoryAjaxQueue();
+            });
+        }
+
+        function parseRetryAfterMs(xhr) {
+            if (!xhr || typeof xhr.getResponseHeader !== 'function') {
+                return 0;
+            }
+            let raw = '';
+            try {
+                raw = String(xhr.getResponseHeader('Retry-After') || '').trim();
+            } catch (_) {
+                raw = '';
+            }
+            if (!raw) {
+                return 0;
+            }
+            const seconds = parseFloat(raw);
+            if (Number.isFinite(seconds)) {
+                return Math.max(0, Math.round(seconds * 1000));
+            }
+            const retryAt = Date.parse(raw);
+            if (!Number.isFinite(retryAt)) {
+                return 0;
+            }
+            return Math.max(0, retryAt - Date.now());
+        }
+
+        function getCategoryAjaxRetryDelayMs(xhr, attempt) {
+            const tuning = getPreloadTuning();
+            const retryAfterMs = parseRetryAfterMs(xhr);
+            if (retryAfterMs > 0) {
+                return Math.min(tuning.categoryAjaxRetryMaxMs, retryAfterMs);
+            }
+            const step = Math.max(1, parseInt(attempt, 10) || 1);
+            const base = Math.max(100, tuning.categoryAjaxRetryBaseMs || 900);
+            const jitter = Math.round(Math.random() * 250);
+            return Math.min(tuning.categoryAjaxRetryMaxMs, (base * Math.pow(2, step - 1)) + jitter);
         }
 
         function performAudioLoadAttempt(audioURL, timeoutMs) {
@@ -518,12 +650,10 @@
             const skipCategoryPreload = opts.skipCategoryPreload === true;
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
-            const requestId = ++requestSerial;
-            inFlightRequests[cacheKey] = requestId;
 
             if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
-                return;
+                return Promise.resolve({ cached: true, category: categoryName });
             }
 
             const displayMode = window.getCategoryDisplayMode(categoryName);
@@ -544,78 +674,173 @@
             if (nonce) {
                 payload._ajax_nonce = nonce;
             }
-            try {
-                window.__LL_LAST_WORDS_AJAX = {
-                    startedAt: Date.now(),
-                    category: categoryName,
-                    url: (window.llToolsFlashcardsData && window.llToolsFlashcardsData.ajaxurl) ? window.llToolsFlashcardsData.ajaxurl : '',
-                    page: window.location && window.location.href ? window.location.href : '',
-                    payload: Object.assign({}, payload)
-                };
-            } catch (_) {}
+            const requestId = ++requestSerial;
+            let callbackInvoked = false;
 
-            $.ajax({
-                url: llToolsFlashcardsData.ajaxurl,
-                method: 'POST',
-                dataType: 'json',
-                data: payload,
-                success: function (response) {
-                    // Ignore stale responses from previous wordset/session requests.
-                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
-                        return;
+            function invokeCallbackOnce() {
+                if (callbackInvoked) {
+                    return;
+                }
+                callbackInvoked = true;
+                if (typeof callback === 'function') {
+                    try { callback(); } catch (_) { /* no-op */ }
+                }
+            }
+
+            function isStaleRequest() {
+                return wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId;
+            }
+
+            function recordAjaxStart(attempt) {
+                try {
+                    window.__LL_LAST_WORDS_AJAX = {
+                        startedAt: Date.now(),
+                        category: categoryName,
+                        attempt: attempt,
+                        url: (window.llToolsFlashcardsData && window.llToolsFlashcardsData.ajaxurl) ? window.llToolsFlashcardsData.ajaxurl : '',
+                        page: window.location && window.location.href ? window.location.href : '',
+                        payload: Object.assign({}, payload)
+                    };
+                } catch (_) {}
+            }
+
+            function recordAjaxCompletion(response) {
+                try {
+                    if (window.__LL_LAST_WORDS_AJAX) {
+                        window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
+                        window.__LL_LAST_WORDS_AJAX.response = response;
                     }
-                    delete inFlightRequests[cacheKey];
-                    try {
-                        if (window.__LL_LAST_WORDS_AJAX) {
-                            window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
-                            window.__LL_LAST_WORDS_AJAX.response = response;
-                        }
-                    } catch (_) {}
-                    if (response.success) {
-                        processFetchedWordData(response.data, categoryName);
-                        if (earlyCallback && typeof callback === 'function') {
-                            // Let the caller continue as soon as data is available; optional preload continues in background.
-                            try { callback(); } catch (_) { }
-                            if (!skipCategoryPreload) {
-                                preloadCategoryResources(categoryName);
+                } catch (_) {}
+            }
+
+            function recordAjaxFailure(xhr, status, error, extra) {
+                try {
+                    if (window.__LL_LAST_WORDS_AJAX) {
+                        window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
+                        window.__LL_LAST_WORDS_AJAX.error = Object.assign({
+                            status: status,
+                            error: error,
+                            httpStatus: xhr && typeof xhr.status !== 'undefined' ? xhr.status : null,
+                            responseText: xhr && typeof xhr.responseText === 'string' ? xhr.responseText : ''
+                        }, extra || {});
+                    }
+                } catch (_) {}
+            }
+
+            function runAjaxAttempt(attempt) {
+                const attemptNumber = Math.max(1, parseInt(attempt, 10) || 1);
+                if (loadedCategories.includes(cacheKey)) {
+                    if (inFlightRequests[cacheKey] === requestId) {
+                        delete inFlightRequests[cacheKey];
+                    }
+                    invokeCallbackOnce();
+                    return Promise.resolve({ cached: true, category: categoryName });
+                }
+
+                if (wordsetKey !== getWordsetKey()) {
+                    if (inFlightRequests[cacheKey] === requestId) {
+                        delete inFlightRequests[cacheKey];
+                    }
+                    return Promise.resolve({ stale: true, category: categoryName });
+                }
+
+                inFlightRequests[cacheKey] = requestId;
+                recordAjaxStart(attemptNumber);
+
+                return new Promise(function (resolve) {
+                    $.ajax({
+                        url: llToolsFlashcardsData.ajaxurl,
+                        method: 'POST',
+                        dataType: 'json',
+                        data: payload,
+                        success: function (response) {
+                            // Ignore stale responses from previous wordset/session requests.
+                            if (isStaleRequest()) {
+                                resolve({ stale: true, category: categoryName });
+                                return;
                             }
-                        } else if (!skipCategoryPreload) {
-                            preloadCategoryResources(categoryName, callback);
-                        } else if (typeof callback === 'function') {
-                            callback();
-                        }
-                        if (!loadedCategories.includes(cacheKey)) {
-                            loadedCategories.push(cacheKey);
-                        }
-                    } else {
-                        console.error('Failed to load words for category:', categoryName, response);
-                        if (typeof callback === 'function') callback();
-                    }
-                },
-                error: function (xhr, status, error) {
-                    if (wordsetKey !== getWordsetKey() || inFlightRequests[cacheKey] !== requestId) {
-                        return;
-                    }
-                    delete inFlightRequests[cacheKey];
-                    try {
-                        if (window.__LL_LAST_WORDS_AJAX) {
-                            window.__LL_LAST_WORDS_AJAX.endedAt = Date.now();
-                            window.__LL_LAST_WORDS_AJAX.error = {
+                            delete inFlightRequests[cacheKey];
+                            recordAjaxCompletion(response);
+                            if (response.success) {
+                                processFetchedWordData(response.data, categoryName);
+                                if (earlyCallback) {
+                                    // Let the caller continue as soon as data is available; optional preload continues in background.
+                                    invokeCallbackOnce();
+                                    if (!skipCategoryPreload) {
+                                        preloadCategoryResources(categoryName);
+                                    }
+                                } else if (!skipCategoryPreload) {
+                                    preloadCategoryResources(categoryName, invokeCallbackOnce);
+                                } else {
+                                    invokeCallbackOnce();
+                                }
+                                if (!loadedCategories.includes(cacheKey)) {
+                                    loadedCategories.push(cacheKey);
+                                }
+                            } else {
+                                console.error('Failed to load words for category:', categoryName, response);
+                                invokeCallbackOnce();
+                            }
+                            resolve({ success: !!response.success, category: categoryName });
+                        },
+                        error: function (xhr, status, error) {
+                            if (isStaleRequest()) {
+                                resolve({ stale: true, category: categoryName });
+                                return;
+                            }
+
+                            const httpStatus = xhr && typeof xhr.status !== 'undefined' ? xhr.status : null;
+                            const retryCfg = getPreloadTuning();
+                            const canRetry429 = httpStatus === 429 && attemptNumber <= retryCfg.categoryAjaxMaxRetriesOn429;
+                            if (canRetry429) {
+                                const retryDelayMs = getCategoryAjaxRetryDelayMs(xhr, attemptNumber);
+                                recordAjaxFailure(xhr, status, error, {
+                                    retrying: true,
+                                    retryDelayMs: retryDelayMs
+                                });
+                                console.warn('AJAX rate-limited for category; retrying with backoff:', categoryName, {
+                                    attempt: attemptNumber,
+                                    retryDelayMs: retryDelayMs,
+                                    httpStatus: httpStatus
+                                });
+                                resolve(wait(retryDelayMs).then(function () {
+                                    return runAjaxAttempt(attemptNumber + 1);
+                                }));
+                                return;
+                            }
+
+                            delete inFlightRequests[cacheKey];
+                            recordAjaxFailure(xhr, status, error);
+                            console.error('AJAX request failed for category:', categoryName, {
                                 status: status,
                                 error: error,
-                                httpStatus: xhr && typeof xhr.status !== 'undefined' ? xhr.status : null,
+                                httpStatus: httpStatus,
                                 responseText: xhr && typeof xhr.responseText === 'string' ? xhr.responseText : ''
-                            };
+                            });
+                            invokeCallbackOnce();
+                            resolve({
+                                success: false,
+                                category: categoryName,
+                                httpStatus: httpStatus
+                            });
                         }
-                    } catch (_) {}
-                    console.error('AJAX request failed for category:', categoryName, {
-                        status: status,
-                        error: error,
-                        httpStatus: xhr && typeof xhr.status !== 'undefined' ? xhr.status : null,
-                        responseText: xhr && typeof xhr.responseText === 'string' ? xhr.responseText : ''
                     });
-                    if (typeof callback === 'function') callback();
+                });
+            }
+
+            return enqueueCategoryAjaxRequest(function () {
+                if (loadedCategories.includes(cacheKey)) {
+                    invokeCallbackOnce();
+                    return Promise.resolve({ cached: true, category: categoryName });
                 }
+                return runAjaxAttempt(1);
+            }).catch(function (err) {
+                console.error('Category request queue failed for category:', categoryName, err);
+                if (inFlightRequests[cacheKey] === requestId) {
+                    delete inFlightRequests[cacheKey];
+                }
+                invokeCallbackOnce();
+                return { success: false, category: categoryName };
             });
         }
 
@@ -636,7 +861,9 @@
                 return;
             }
 
-            const chunkSize = (totalWords <= 30) ? totalWords : 20;
+            const tuning = getPreloadTuning();
+            const chunkSize = Math.max(1, Math.min(totalWords, tuning.categoryMediaChunkSize));
+            const chunkDelayMs = Math.max(0, tuning.categoryMediaChunkDelayMs || 0);
             let currentIndex = 0;
             const displayMode = window.getCategoryDisplayMode(categoryName);
             const cfg = getCategoryConfig(categoryName);
@@ -655,16 +882,36 @@
                 const end = Math.min(currentIndex + chunkSize, totalWords);
                 const chunk = words.slice(currentIndex, end);
 
-                // Preload images/audio in this chunk
-                const loadPromises = chunk.map((word) => {
-                    return Promise.all([
-                        (needsAudio && word.audio ? loadAudio(word.audio) : Promise.resolve()),
-                        (needsImage && word.image ? loadImage(word.image) : Promise.resolve())
-                    ]);
-                });
+                const chunkWorkerCount = Math.max(1, Math.min(chunk.length, tuning.categoryMediaChunkConcurrency));
+                let chunkCursor = 0;
+
+                const loadChunk = function () {
+                    const workers = [];
+                    const runWorker = function () {
+                        if (chunkCursor >= chunk.length) {
+                            return Promise.resolve();
+                        }
+                        const index = chunkCursor;
+                        chunkCursor += 1;
+                        const word = chunk[index];
+                        return Promise.all([
+                            (needsAudio && word && word.audio ? loadAudio(word.audio) : Promise.resolve()),
+                            (needsImage && word && word.image ? loadImage(word.image) : Promise.resolve())
+                        ]).catch(function () {
+                            return [];
+                        }).then(runWorker);
+                    };
+
+                    for (let i = 0; i < chunkWorkerCount; i += 1) {
+                        workers.push(runWorker());
+                    }
+                    return Promise.all(workers);
+                };
 
                 // Once all items in the chunk are loaded (or failed), move to the next chunk
-                Promise.all(loadPromises).then(() => {
+                Promise.resolve(loadChunk()).catch(function () {
+                    return [];
+                }).then(() => {
                     currentIndex = end;
 
                     // After loading the first chunk, proceed with the callback function
@@ -677,7 +924,11 @@
                     }
 
                     // Continue loading subsequent chunks in the background
-                    loadNextChunk();
+                    if (chunkDelayMs > 0) {
+                        setTimeout(loadNextChunk, chunkDelayMs);
+                    } else {
+                        loadNextChunk();
+                    }
                 });
             }
 
@@ -720,10 +971,11 @@
             const cfg = categoryConfig || getCategoryConfig(categoryName || (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.currentCategoryName) || '');
             const needsAudio = categoryRequiresAudio(cfg);
             const needsImage = categoryRequiresImage(cfg, displayMode);
+            const shouldPreloadAudio = needsAudio && !opts.skipAudioPreload;
             const shouldPreloadImage = needsImage && !opts.skipImagePreload;
             const audioURL = (typeof word.audio === 'string') ? word.audio : '';
             const imageURL = (typeof word.image === 'string') ? word.image : '';
-            const audioPromise = needsAudio
+            const audioPromise = shouldPreloadAudio
                 ? (audioURL
                     ? loadAudio(audioURL, {
                         maxRetries: opts.audioRetryCount,
@@ -767,7 +1019,7 @@
             ]).then(function (results) {
                 const audioResult = results[0] || { ready: !needsAudio };
                 const imageResult = results[1] || { ready: !shouldPreloadImage };
-                const audioReady = !needsAudio || !!audioResult.ready;
+                const audioReady = !shouldPreloadAudio || !!audioResult.ready;
                 const imageReady = !shouldPreloadImage || !!imageResult.ready;
 
                 return {

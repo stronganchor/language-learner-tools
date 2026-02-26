@@ -47,6 +47,7 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
 - `tests/bin/run-tests.sh` and `tests/bin/run-e2e.sh` load `.env` automatically.
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
+    - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
 
@@ -115,6 +116,17 @@ When behavior changes intentionally:
 Local site returns `500`:
 - Check Local DB service and `DB_HOST` in site `wp-config.php`.
 - Confirm MySQL port matches active Local run config.
+- If `tests/bin/setup-local-env.sh` reports a DB port that refuses connections but `setup-local-http-env.sh` finds the active site, the site `local-site.json` is likely stale.
+- Verify with:
+```bash
+tests/bin/setup-local-env.sh
+tests/bin/setup-local-http-env.sh
+```
+- If needed, inspect the active Local runtime's MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and override:
+```bash
+WP_TEST_DB_HOST=127.0.0.1:<port> tests/bin/run-tests.sh
+```
+- `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and, when runtime detection succeeds, `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` for quick debugging.
 
 `Deadlock found when trying to get lock` during PHPUnit:
 - Usually caused by running multiple `tests/bin/run-tests.sh` commands in parallel against the same `wptests` DB.
@@ -147,3 +159,9 @@ For behavior changes touching quiz/recording flows:
 Wordset-boundary changes should also include:
 
 1. `tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js`
+
+## 9) Known Environment-Dependent Skips
+
+- `ExternalCsvBundleImportTest::test_import_decodes_windows_1255_csv_values_and_generates_quiz_page`
+  - May be skipped when runtime `iconv` / `mbstring` libraries cannot reliably round-trip the non-UTF Hebrew sample.
+  - Treat this as environment capability variance unless related CSV import assertions are otherwise failing.

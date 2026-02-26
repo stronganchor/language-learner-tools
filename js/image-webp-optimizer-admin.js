@@ -358,12 +358,21 @@
             const oversizeCount = Math.max(0, parseInt(summary.oversize_count, 10) || 0);
             const supportedCount = Math.max(0, parseInt(summary.supported_count, 10) || 0);
             const thresholdLabel = String(summary.threshold_label || cfg.thresholdLabel || '300 KB');
+            const animatedThresholdLabel = String(
+                summary.animated_webp_threshold_label
+                || cfg.animatedWebpThresholdLabel
+                || thresholdLabel
+            );
+            const animatedWebpLabel = String(i18n.animatedWebpLabel || 'animated WebP');
+            const oversizeThresholdText = (animatedThresholdLabel && animatedThresholdLabel !== thresholdLabel)
+                ? ('Over ' + thresholdLabel + ' (' + animatedWebpLabel + ': ' + animatedThresholdLabel + ')')
+                : ('Over ' + thresholdLabel);
 
             $summary.html(''
                 + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Flagged</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(queuedCount)) + '</div><div class="ll-webp-stat-card__sub">Current filter queue</div></div>'
                 + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Bytes in Queue</div><div class="ll-webp-stat-card__value">' + escapeHtml(queuedBytesLabel) + '</div><div class="ll-webp-stat-card__sub">Source file sizes</div></div>'
                 + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Needs Format Upgrade</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(nonWebpCount)) + '</div><div class="ll-webp-stat-card__sub">JPEG / PNG to WebP</div></div>'
-                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Oversized WebP</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(oversizeCount)) + '</div><div class="ll-webp-stat-card__sub">Over ' + escapeHtml(thresholdLabel) + ' (' + escapeHtml(String(supportedCount)) + ' supported)</div></div>');
+                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Oversized WebP</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(oversizeCount)) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(oversizeThresholdText) + ' (' + escapeHtml(String(supportedCount)) + ' supported)</div></div>');
         }
 
         function renderCards() {

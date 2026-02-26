@@ -8,12 +8,17 @@ read_first:
   - includes/bootstrap.php
   - includes/template-loader.php
   - includes/assets.php
+  - includes/lib/word-option-rules.php
   - includes/pages/quiz-pages.php
   - includes/pages/embed-page.php
+  - includes/pages/default-shortcode-page-helper.php
   - includes/pages/recording-page.php
+  - includes/pages/editor-hub-page.php
   - includes/shortcodes/flashcard-widget.php
+  - includes/shortcodes/editor-hub-shortcode.php
   - includes/shortcodes/audio-recording-shortcode.php
   - includes/user-study.php
+  - includes/user-progress.php
   - includes/shortcodes/user-study-dashboard.php
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
@@ -44,10 +49,11 @@ read_first:
   - Activation adds `view_ll_tools`, seeds default wordset and recording page via transients.
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
-  - Loads all CPTs, taxonomies, admin tools, shortcodes, utilities, and vendor update checker.
+  - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
+  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, and `includes/login-window.php`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
-  - Public enqueue pulls jQuery UI CSS (code.jquery.com) and canvas-confetti (cdn.jsdelivr).
+  - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
   - Non-admin style lives in `css/non-admin-style.css`.
 - `includes/pages/quiz-pages.php`
   - Creates `/quiz` parent + child pages per `word-category` (meta `_ll_tools_word_category_id`).
@@ -60,6 +66,9 @@ read_first:
 - `includes/pages/recording-page.php`
   - Ensures a default recording page with `[audio_recording_interface]`.
   - Redirects `audio_recorder` users on login to recording page (or user override).
+- `includes/pages/editor-hub-page.php`
+  - Ensures a default Editor Hub page with `[editor_hub]`.
+  - Redirects `ll_tools_editor` users on login to the Editor Hub page (or user override).
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -71,12 +80,19 @@ includes/
   bootstrap.php               # Central includes
   template-loader.php         # Theme override resolver
   lib/
+    sort.php                  # Shared sorting helpers
+    text-display.php          # Display text normalization/helpers
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
+    image-aspect.php          # Image aspect utilities for normalizer/admin tools
+    word-option-rules.php     # Word option group/conflict rules storage/helpers
+    image-hash.php            # Perceptual image hashing/similarity helpers
   pages/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
+    default-shortcode-page-helper.php # Shared ensure/find helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
+    editor-hub-page.php       # Editor Hub page creation + login redirect
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
@@ -84,6 +100,7 @@ includes/
     dictionary-entry-post-type.php
     word-image-post-type.php
     word-audio-post-type.php
+    vocab-lesson-post-type.php
   taxonomies/
     word-category-taxonomy.php
     wordset-taxonomy.php
@@ -94,6 +111,7 @@ includes/
     flashcard-widget.php
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
+    editor-hub-shortcode.php
     word-audio-shortcode.php
     wordset-page-shortcode.php
     audio-recording-shortcode.php
@@ -101,6 +119,7 @@ includes/
     language-switcher-shortcode.php
     user-study-dashboard.php
   admin/
+    admin-dashboard-menu.php
     settings.php
     audio-processor-admin.php
     audio-image-matcher.php
@@ -109,7 +128,10 @@ includes/
     bulk-translation-admin.php
     bulk-word-import-admin.php
     export-import.php
+    example-sentence-migration.php
+    ipa-keyboard-admin.php
     word-option-rules-admin.php
+    split-word-admin.php
     duplicate-category-words-admin.php
     image-aspect-normalizer-admin.php
     image-webp-optimizer-admin.php
@@ -120,11 +142,13 @@ includes/
       audio-upload-form.php
       image-upload-form.php
     api/deepl-api.php
+    api/assemblyai-api.php
   user-study.php
   i18n/language-switcher.php
   user-roles/
     wordset-manager.php
     ll-tools-editor.php
+    learner-role.php
     audio-recorder-role.php
 js/
   flashcard-widget/           # Modular quiz system
@@ -242,7 +266,8 @@ Core settings live in `includes/admin/settings.php`:
 # Flashcard widget architecture
 ## PHP controller
 - `includes/shortcodes/flashcard-widget.php` builds categories, initial words, and localizes JS data into `llToolsFlashcardsData`.
-- Data includes category config, wordset scope, user study preferences, and mode UI labels/icons.
+  - Data includes category config, wordset scope, user study preferences, and mode UI labels/icons.
+  - Editor Hub (`includes/shortcodes/editor-hub-shortcode.php`) reuses much of the same word payload shape and validation helpers for in-browser vocab editing.
 
 ## JS module map (`js/flashcard-widget/`)
 - `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and session guards.
@@ -292,6 +317,8 @@ Core settings live in `includes/admin/settings.php`:
 - Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
 - Image Aspect Normalizer: `includes/admin/image-aspect-normalizer-admin.php`.
 - Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.
+- IPA Keyboard admin: `includes/admin/ipa-keyboard-admin.php`.
+- Example Sentence Migration utility: `includes/admin/example-sentence-migration.php`.
 
 ## Maintenance notes (current)
 - `includes/admin/manage-wordsets.php` is currently unused in normal workflows. Decide later whether to redesign it for usability or remove it.
@@ -311,8 +338,9 @@ Core settings live in `includes/admin/settings.php`:
   3. Plugin fallback: `templates/<template>`
 
 # External dependencies and assets
-- CDNs: jQuery UI CSS (code.jquery.com), canvas-confetti (cdn.jsdelivr), lamejs (cdn.jsdelivr).
+- Feature-scoped CDNs (not global front-end): jQuery UI CSS (code.jquery.com), canvas-confetti (cdn.jsdelivr), lamejs (cdn.jsdelivr).
 - DeepL API integration: `includes/admin/api/deepl-api.php`.
+- AssemblyAI API integration: `includes/admin/api/assemblyai-api.php`.
 - getID3: used for audio validation in `includes/admin/uploads/audio-upload-form.php`.
 - Media proxy may fetch remote image URLs via `wp_remote_get()` fallback.
 

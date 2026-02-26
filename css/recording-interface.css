@@ -209,7 +209,9 @@
     font-weight: 600;
     font-size: 0.92rem;
     line-height: 1.25;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
 }
 
 .ll-hidden-word-category {
@@ -591,10 +593,15 @@
 
 .ll-recording-type-selector select {
     width: 100%;
-    padding: 0.625rem 0.875rem;
+    /* Override theme select sizing that can clip emoji + translated labels. */
+    padding: 0.625rem 0.875rem !important;
     border: 2px solid #ddd;
     border-radius: 6px;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    height: auto !important;
     font-size: 0.95rem;
+    line-height: 1.3 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
     transition: border-color 0.2s;
     text-align: center;

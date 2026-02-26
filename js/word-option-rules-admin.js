@@ -4,6 +4,42 @@
     var audio = new Audio();
     audio.preload = 'none';
     var currentButton = null;
+    var i18n = (window.llWordOptionRulesI18n && typeof window.llWordOptionRulesI18n === 'object')
+        ? window.llWordOptionRulesI18n
+        : {};
+
+    function t(key, fallback) {
+        if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
+            return i18n[key];
+        }
+        return fallback;
+    }
+
+    function formatText(template, values) {
+        var output = String(template || '');
+        var list = Array.isArray(values) ? values : [];
+        var nextIndex = 0;
+
+        output = output.replace(/%(\d+)\$s/g, function (match, index) {
+            var mappedIndex = parseInt(index, 10) - 1;
+            if (!Number.isInteger(mappedIndex) || mappedIndex < 0 || typeof list[mappedIndex] === 'undefined') {
+                return '';
+            }
+            return String(list[mappedIndex]);
+        });
+
+        output = output.replace(/%s/g, function () {
+            if (typeof list[nextIndex] === 'undefined') {
+                nextIndex += 1;
+                return '';
+            }
+            var value = list[nextIndex];
+            nextIndex += 1;
+            return String(value);
+        });
+
+        return output;
+    }
 
     function initGroupManager() {
         var groupList = document.querySelector('[data-ll-group-list]');
@@ -35,7 +71,9 @@
 
         function updateCheckboxLabels(groupId, label) {
             var cells = table.querySelectorAll('td[data-group-id="' + groupId + '"] input[type="checkbox"]');
-            var ariaLabel = label ? 'Assign to group ' + label : 'Assign to group';
+            var ariaLabel = label
+                ? formatText(t('assignToGroupNamedTemplate', 'Assign to group %s'), [label])
+                : t('assignToGroup', 'Assign to group');
             cells.forEach(function (checkbox) {
                 checkbox.setAttribute('aria-label', ariaLabel);
             });
@@ -67,7 +105,12 @@
                 checkbox.type = 'checkbox';
                 checkbox.name = 'group_members[' + groupId + '][]';
                 checkbox.value = wordId;
-                checkbox.setAttribute('aria-label', label ? 'Assign to group ' + label : 'Assign to group');
+                checkbox.setAttribute(
+                    'aria-label',
+                    label
+                        ? formatText(t('assignToGroupNamedTemplate', 'Assign to group %s'), [label])
+                        : t('assignToGroup', 'Assign to group')
+                );
                 labelEl.appendChild(checkbox);
                 td.appendChild(labelEl);
                 row.appendChild(td);
@@ -105,7 +148,7 @@
             removeBtn.type = 'button';
             removeBtn.className = 'button button-secondary ll-tools-button ll-tools-word-options-remove-group';
             removeBtn.setAttribute('data-group-remove', '');
-            removeBtn.textContent = 'Remove';
+            removeBtn.textContent = t('remove', 'Remove');
 
             row.appendChild(input);
             row.appendChild(removeBtn);

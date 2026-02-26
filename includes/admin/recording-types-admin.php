@@ -19,7 +19,7 @@ add_action('admin_menu', 'll_register_recording_types_admin_page');
 
 function ll_render_recording_types_admin_page() {
     if (!current_user_can('manage_options')) {
-        wp_die(__('You do not have sufficient permissions to access this page.'));
+        wp_die(__('You do not have sufficient permissions to access this page.', 'll-tools-text-domain'));
     }
 
     // Handle term deletion

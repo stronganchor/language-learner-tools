@@ -48,6 +48,17 @@ fi
 
 cd "$TESTS_DIR"
 
+lock_dir="$TESTS_DIR/.run-tests.lock"
+if ! mkdir "$lock_dir" 2>/dev/null; then
+    echo "Another tests/bin/run-tests.sh process appears to be running (lock: $lock_dir)." >&2
+    echo "Run PHPUnit serially to avoid wptests database deadlocks." >&2
+    exit 1
+fi
+cleanup_ll_tools_test_lock() {
+    rmdir "$lock_dir" >/dev/null 2>&1 || true
+}
+trap cleanup_ll_tools_test_lock EXIT
+
 php_family="$("$PHP_LOCAL" -r "echo PHP_OS_FAMILY;")"
 
 normalize_phpunit_arg() {
@@ -114,11 +125,13 @@ if [[ "$needs_install" == "1" ]]; then
 fi
 
 if [[ -f "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" ]]; then
-    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
+    "$PHP_LOCAL" "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
+    exit $?
 fi
 
 if [[ -x "$TESTS_DIR/vendor/bin/phpunit" ]]; then
-    exec "$PHP_LOCAL" "$TESTS_DIR/vendor/bin/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
+    "$PHP_LOCAL" "$TESTS_DIR/vendor/bin/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
+    exit $?
 fi
 
 echo "PHPUnit was not found after dependency install." >&2

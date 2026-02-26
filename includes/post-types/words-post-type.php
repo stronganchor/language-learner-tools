@@ -359,6 +359,42 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
     ksort($normalized, SORT_NUMERIC);
 
     update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $normalized, false);
+
+    if (function_exists('ll_tools_bump_category_cache_version')) {
+        $touched_word_ids = [];
+        foreach (array_keys($owner_to_wrong_ids) as $owner_id_raw) {
+            $owner_id = (int) $owner_id_raw;
+            if ($owner_id > 0) {
+                $touched_word_ids[$owner_id] = true;
+            }
+        }
+        foreach (array_keys($existing_wrong_lookup) as $wrong_id_raw) {
+            $wrong_id = (int) $wrong_id_raw;
+            if ($wrong_id > 0) {
+                $touched_word_ids[$wrong_id] = true;
+            }
+        }
+
+        if (!empty($touched_word_ids)) {
+            $touched_category_ids = [];
+            foreach (array_keys($touched_word_ids) as $word_id) {
+                $category_ids = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+                if (is_wp_error($category_ids)) {
+                    continue;
+                }
+                foreach ((array) $category_ids as $category_id_raw) {
+                    $category_id = (int) $category_id_raw;
+                    if ($category_id > 0) {
+                        $touched_category_ids[$category_id] = true;
+                    }
+                }
+            }
+            if (!empty($touched_category_ids)) {
+                ll_tools_bump_category_cache_version(array_keys($touched_category_ids));
+            }
+        }
+    }
+
     return $normalized;
 }
 
@@ -766,7 +802,7 @@ function ll_tools_display_vocab_content($content) {
                 // Decode any HTML entities, then escape for safe output.
                 $decoded_name = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
                 $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
-                                    . esc_html($decoded_name)
+                                    . ll_tools_esc_html_display($decoded_name)
                                     . '</a>';
 
                 // Walk up the parent chain to include ancestors.
@@ -777,7 +813,7 @@ function ll_tools_display_vocab_content($content) {
                     }
                     $decoded_parent = html_entity_decode($category->name, ENT_QUOTES, 'UTF-8');
                     $category_links[] = '<a href="' . esc_url(get_term_link($category)) . '">'
-                                        . esc_html($decoded_parent)
+                                        . ll_tools_esc_html_display($decoded_parent)
                                         . '</a>';
                 }
             }
@@ -812,12 +848,12 @@ function ll_tools_display_vocab_content($content) {
         }
 
         // Show the English meaning as a heading.
-        $custom_content .= '<h2>' . esc_html__('Meaning:', 'll-tools-text-domain') . ' ' . esc_html($word_english_meaning) . '</h2>';
+        $custom_content .= '<h2>' . esc_html__('Meaning:', 'll-tools-text-domain') . ' ' . ll_tools_esc_html_display($word_english_meaning) . '</h2>';
 
         // Show example sentence and its translation, if available.
         if ($word_example_sentence && $word_example_translation) {
-            $custom_content .= '<p>' . esc_html($word_example_sentence) . '</p>';
-            $custom_content .= '<p><em>' . esc_html($word_example_translation) . '</em></p>';
+            $custom_content .= '<p>' . ll_tools_esc_html_display($word_example_sentence) . '</p>';
+            $custom_content .= '<p><em>' . ll_tools_esc_html_display($word_example_translation) . '</em></p>';
         }
 
         // Include an audio player if an audio file URL is provided.

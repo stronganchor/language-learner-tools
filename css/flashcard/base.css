@@ -911,6 +911,13 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 /* Flashcard Container Styles */
+#ll-tools-flashcard-container {
+    --ll-answer-option-font-weight: 700;
+    --ll-answer-option-font-size-px: 48px;
+    --ll-answer-option-text-line-height: 1.22;
+    --ll-answer-option-text-line-height-marked: 1.4;
+}
+
 .flashcard-container {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     padding: 0;
@@ -949,6 +956,18 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     width: 220px;
     max-width: 220px;
     height: 150px;
+}
+
+.flashcard-container.text-based .quiz-text,
+.flashcard-container.audio-option .quiz-text {
+    font-family: var(--ll-answer-option-font-family, inherit);
+    font-weight: var(--ll-answer-option-font-weight, 700);
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.flashcard-container.text-based .quiz-text {
+    line-height: var(--ll-answer-option-line-height-ratio, var(--ll-answer-option-text-line-height, 1.22));
 }
 
 .flashcard-container.audio-option {
@@ -998,8 +1017,9 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 .flashcard-container.audio-option .quiz-text {
     padding: 0 8px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-weight: var(--ll-answer-option-font-weight, 700);
+    line-height: var(--ll-answer-option-line-height-ratio, var(--ll-answer-option-text-line-height, 1.22));
+    font-size: clamp(14px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.42), 26px);
 }
 
 .flashcard-container.audio-option.audio-line-option {
@@ -1083,13 +1103,13 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 .flashcard-container.audio-option.audio-line-option .quiz-text {
     padding: 0;
     text-align: left;
-    font-size: 17px;
+    font-size: clamp(14px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.35), 22px);
     line-height: 1.4;
     flex: 1;
 }
 
 .flashcard-container.audio-option.audio-line-option .ll-audio-option-label {
-    font-weight: 600;
+    font-weight: var(--ll-answer-option-font-weight, 700);
     color: #111827;
 }
 

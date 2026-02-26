@@ -4,6 +4,143 @@ const path = require('path');
 
 const listeningScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/listening.js');
 
+test('listening initialize defers bulk category loads until after startup', async ({ page }) => {
+  await page.goto('about:blank');
+
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    window.__llCategoryLoadCalls = [];
+    window.FlashcardLoader = {
+      loadedCategories: [],
+      loadResourcesForCategory: function (categoryName, callback) {
+        window.__llCategoryLoadCalls.push(String(categoryName || ''));
+        if (typeof callback === 'function') {
+          callback();
+        }
+        return Promise.resolve({ success: true, category: String(categoryName || '') });
+      }
+    };
+
+    window.llToolsFlashcardsData = {};
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        categoryNames: ['CatA', 'CatB', 'CatC', 'CatD'],
+        wordsByCategory: {},
+        wordsLinear: [],
+        listeningHistory: [],
+        listeningLoop: false,
+        starModeOverride: null
+      },
+      Dom: {},
+      Cards: {},
+      Results: {},
+      Util: {},
+      Modes: {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  const result = await page.evaluate(() => {
+    const Listening = window.LLFlashcards && window.LLFlashcards.Modes
+      ? window.LLFlashcards.Modes.Listening
+      : null;
+    if (!Listening || typeof Listening.initialize !== 'function') {
+      return { error: 'missing listening module' };
+    }
+
+    const initOk = Listening.initialize();
+    return {
+      initOk: !!initOk,
+      categoryLoadCalls: Array.isArray(window.__llCategoryLoadCalls) ? window.__llCategoryLoadCalls.slice() : []
+    };
+  });
+
+  expect(result.error).toBeUndefined();
+  expect(result.initOk).toBe(true);
+  expect(result.categoryLoadCalls).toEqual([]);
+});
+
+test('listening progress uses estimated total while multi-category loads are still pending', async ({ page }) => {
+  await page.goto('about:blank');
+
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    window.FlashcardLoader = {
+      loadedCategories: []
+    };
+    window.llToolsFlashcardsData = {
+      wordset: 'set-a',
+      wordsetFallback: false,
+      lastLaunchPlan: {
+        estimated_results_total: 90
+      },
+      categories: [
+        { id: 1, name: 'CatA', count: 30 },
+        { id: 2, name: 'CatB', count: 30 },
+        { id: 3, name: 'CatC', count: 30 }
+      ]
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        categoryNames: ['CatA', 'CatB', 'CatC'],
+        wordsByCategory: {
+          CatA: [{ id: 101, title: 'a1', label: 'a1' }],
+          CatB: [],
+          CatC: []
+        },
+        wordsLinear: Array.from({ length: 12 }, (_, idx) => ({ id: 1000 + idx, title: 'w' + idx, label: 'w' + idx })),
+        listeningHistory: Array.from({ length: 4 }, (_, idx) => ({ id: 2000 + idx })),
+        listeningLoop: false,
+        starModeOverride: null,
+        listenIndex: 4
+      },
+      Dom: {},
+      Cards: {},
+      Results: {},
+      Util: {},
+      Modes: {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  const result = await page.evaluate(() => {
+    const Listening = window.LLFlashcards && window.LLFlashcards.Modes
+      ? window.LLFlashcards.Modes.Listening
+      : null;
+    if (!Listening || typeof Listening.getProgressDisplayState !== 'function') {
+      return { error: 'missing listening progress helper' };
+    }
+
+    const pendingProgress = Listening.getProgressDisplayState();
+
+    window.LLFlashcards.State.wordsByCategory.CatB = [{ id: 102, title: 'b1', label: 'b1' }];
+    window.LLFlashcards.State.wordsByCategory.CatC = [{ id: 103, title: 'c1', label: 'c1' }];
+    window.LLFlashcards.State.wordsLinear = Array.from({ length: 36 }, (_, idx) => ({ id: 3000 + idx }));
+
+    const loadedProgress = Listening.getProgressDisplayState();
+
+    return { pendingProgress, loadedProgress };
+  });
+
+  expect(result.error).toBeUndefined();
+  expect(result.pendingProgress).toMatchObject({
+    current: 4,
+    total: 90
+  });
+  expect(result.loadedProgress).toMatchObject({
+    current: 4,
+    total: 36
+  });
+});
+
 test('listening sequence de-duplicates shared words unless weighted mode allows a second starred play', async ({ page }) => {
   await page.goto('about:blank');
 

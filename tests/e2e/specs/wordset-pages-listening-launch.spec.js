@@ -82,6 +82,32 @@ function buildCategoryWords() {
   };
 }
 
+function buildAnalyticsWordsWithHardCount(hardCount) {
+  const count = Math.max(0, Number(hardCount) || 0);
+  const rows = [];
+  const wordIds = [1101, 1102, 2201, 2202, 3301, 3302];
+
+  wordIds.forEach((id, index) => {
+    const categoryId = Number(String(id).slice(0, 2));
+    rows.push({
+      id,
+      title: `W${id}`,
+      translation: `W${id}`,
+      category_id: categoryId,
+      category_ids: [categoryId],
+      status: 'studied',
+      difficulty_score: index < count ? 4 : 0,
+      total_coverage: 3,
+      incorrect: 0,
+      lapse_count: 0,
+      last_seen_at: '',
+      is_starred: false
+    });
+  });
+
+  return rows;
+}
+
 function buildPageConfig({ isLoggedIn }) {
   return {
     view: 'main',
@@ -378,6 +404,79 @@ test('logged-in listening launches ignore recommendation chunk IDs for top and s
   expect(selectionLaunch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
 });
 
+test('selection listening launch skips dashboard bulk word fetch and opens immediately', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    const $ = window.jQuery;
+    const originalPost = $.post.bind($);
+
+    window.__llFetchWordsCalls = 0;
+    window.__llFetchWordsPending = 0;
+    window.__llFetchWordsResolvers = [];
+
+    $.post = function (url, request) {
+      const action = request && request.action ? String(request.action) : '';
+      if (action === 'll_user_study_fetch_words') {
+        window.__llFetchWordsCalls += 1;
+        window.__llFetchWordsPending += 1;
+        const deferred = $.Deferred();
+        window.__llFetchWordsResolvers.push(() => {
+          window.__llFetchWordsPending = Math.max(0, (window.__llFetchWordsPending || 0) - 1);
+          deferred.resolve({
+            success: true,
+            data: {
+              words_by_category: {}
+            }
+          });
+        });
+        return deferred.promise();
+      }
+      return originalPost(url, request);
+    };
+
+    window.__llReleaseFetchWords = function () {
+      const resolvers = Array.isArray(window.__llFetchWordsResolvers)
+        ? window.__llFetchWordsResolvers.splice(0)
+        : [];
+      resolvers.forEach((resolve) => {
+        try { resolve(); } catch (_) {}
+      });
+    };
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]')).toBeEnabled();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const state = await page.evaluate(() => ({
+    fetchCalls: Number(window.__llFetchWordsCalls || 0),
+    fetchPending: Number(window.__llFetchWordsPending || 0)
+  }));
+
+  expect(state.fetchCalls).toBe(0);
+  expect(state.fetchPending).toBe(0);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('listening');
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+
+  await page.evaluate(() => {
+    if (typeof window.__llReleaseFetchWords === 'function') {
+      window.__llReleaseFetchWords();
+    }
+  });
+});
+
 test('logged-in practice top launch falls back to visible categories when recommendation categories are stale', async ({ page }) => {
   await mountWordsetPage(page, {
     isLoggedIn: true,
@@ -660,6 +759,42 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await page.locator('[data-ll-wordset-select-all]').click();
 
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
+});
+
+test('selection shows hard-only only when at least five hard words are in selected categories', async ({ page }) => {
+  const hardToggle = page.locator('.ll-wordset-selection-bar__hard-toggle');
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      analytics: {
+        scope: {},
+        summary: {},
+        daily_activity: { days: [], max_events: 0, window_days: 14 },
+        categories: [],
+        words: buildAnalyticsWordsWithHardCount(4)
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(hardToggle).toBeHidden();
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    configPatch: {
+      analytics: {
+        scope: {},
+        summary: {},
+        daily_activity: { days: [], max_events: 0, window_days: 14 },
+        categories: [],
+        words: buildAnalyticsWordsWithHardCount(5)
+      }
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(hardToggle).toBeVisible();
 });
 
 test('learning starred selection mixes only compatible categories and fills to eight words', async ({ page }) => {

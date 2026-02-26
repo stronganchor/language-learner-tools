@@ -84,6 +84,7 @@ SVG;
         'gender'           => __('Gender', 'll-tools-text-domain'),
         'listening'        => __('Listen', 'll-tools-text-domain'),
         'noCategories'     => __('No categories available for this word set yet.', 'll-tools-text-domain'),
+        'pickCategory'     => __('Pick at least one category.', 'll-tools-text-domain'),
         'noWords'          => __('Select a category to see its words.', 'll-tools-text-domain'),
         'starAll'          => __('Star all', 'll-tools-text-domain'),
         'unstarAll'        => __('Unstar all', 'll-tools-text-domain'),

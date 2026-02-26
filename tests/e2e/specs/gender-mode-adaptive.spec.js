@@ -298,6 +298,45 @@ test('level-one gender starts with a two-word intro batch instead of introducing
   expect(result.uniqueCount).toBe(2);
 });
 
+test('level-one intro prefers a mixed-gender first pair when available', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 67,
+    categoryWords: {
+      CatA: [
+        makeNounWord(671, 'CatA', 'masculine'),
+        makeNounWord(672, 'CatA', 'masculine'),
+        makeNounWord(673, 'CatA', 'feminine'),
+        makeNounWord(674, 'CatA', 'feminine')
+      ]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [671, 672, 673, 674],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_level1_intro_mixed_gender_pair'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const firstPick = Gender.selectTargetWord();
+    const words = Array.isArray(firstPick) ? firstPick.filter(Boolean) : [];
+    const genders = words.map((word) => String(word.grammatical_gender || '').toLowerCase());
+    return {
+      ids: words.map((word) => Number(word && word.id) || 0).filter((id) => id > 0),
+      uniqueGenderCount: Array.from(new Set(genders.filter(Boolean))).length
+    };
+  });
+
+  expect(result.ids).toHaveLength(2);
+  expect(result.uniqueGenderCount).toBe(2);
+});
+
 test('level-one still schedules intro for the first pair even when words were introduced before', async ({ page }) => {
   await openHarnessPage(page);
   await bootstrapGenderHarness(page, {

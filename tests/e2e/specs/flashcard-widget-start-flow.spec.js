@@ -14,7 +14,11 @@ async function gotoPageWithWidgetStartButton(page) {
   ].filter((value, index, list) => value && list.indexOf(value) === index);
 
   for (const path of candidates) {
-    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    try {
+      await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    } catch {
+      continue;
+    }
     const startButton = page.locator('#ll-tools-start-flashcard');
     if ((await startButton.count()) === 0) {
       continue;

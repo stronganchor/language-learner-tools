@@ -964,28 +964,28 @@
                     <div class="ll-file-options">
                         <label>
                             <input type="checkbox" class="ll-file-trim" ${options.enableTrim ? 'checked' : ''}>
-                            Trim
+                            ${escapeHtml(t('trimLabel', 'Trim'))}
                         </label>
                         <label>
                             <input type="checkbox" class="ll-file-noise" ${options.enableNoise ? 'checked' : ''}>
-                            Noise Reduction
+                            ${escapeHtml(t('noiseReductionLabel', 'Noise Reduction'))}
                         </label>
                         <label>
                             <input type="checkbox" class="ll-file-loudness" ${options.enableLoudness ? 'checked' : ''}>
-                            Loudness
+                            ${escapeHtml(t('loudnessLabel', 'Loudness'))}
                         </label>
                     </div>
                     <div class="ll-review-options">
                         ${recordingTypeSelect}
                     </div>
-                    <button class="ll-btn-secondary ll-remove-review-btn" data-post-id="${postId}" type="button" title="Remove from this batch">
-                        Remove
+                    <button class="ll-btn-secondary ll-remove-review-btn" data-post-id="${postId}" type="button" title="${escapeHtml(t('removeFromBatchTitle', 'Remove from this batch'))}">
+                        ${escapeHtml(t('removeFromBatchButton', 'Remove'))}
                     </button>
-                    <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="Delete this recording">
+                    <button class="button button-link-delete ll-delete-review-btn" data-post-id="${postId}" title="${escapeHtml(t('deleteRecordingTitle', 'Delete this recording'))}">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                         </svg>
-                        Delete
+                        ${escapeHtml(t('deleteRecordingButton', 'Delete'))}
                     </button>
                 </div>
             </div>
@@ -1323,7 +1323,7 @@
 
         const postIds = Array.from(state.selected);
 
-        if (!confirm(`Delete ${postIds.length} recording(s)? This action cannot be undone.`)) {
+        if (!confirm(formatText(t('deleteSelectedConfirmTemplate', 'Delete %d recording(s)? This action cannot be undone.'), [postIds.length]))) {
             return;
         }
 
@@ -1332,7 +1332,7 @@
 
         state.deleting = true;
         if (deleteBtnLabel) {
-            deleteBtnLabel.textContent = 'Deleting...';
+            deleteBtnLabel.textContent = t('deleteButtonDeleting', 'Deleting...');
         }
         updateSelectedCount();
 
@@ -1355,14 +1355,14 @@
 
         state.deleting = false;
         if (deleteBtnLabel) {
-            deleteBtnLabel.textContent = 'Delete Selected';
+            deleteBtnLabel.textContent = t('deleteSelectedButtonDefault', 'Delete Selected');
         }
         updateSelectedCount();
 
         if (deleted > 0 && failed === 0) {
-            alert(`Deleted ${deleted} recording(s).`);
+            alert(formatText(t('deleteSuccessTemplate', 'Deleted %d recording(s).'), [deleted]));
         } else if (failed > 0) {
-            alert(`Deleted ${deleted} recording(s). Failed to delete ${failed}.`);
+            alert(formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]));
         }
 
         const remainingItems = document.querySelectorAll('.ll-recording-item');
@@ -1403,9 +1403,9 @@
         const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
         if (!item) return;
 
-        const title = item.querySelector('strong')?.textContent || 'this recording';
+        const title = item.querySelector('strong')?.textContent || t('recordingFallbackLabel', 'this recording');
 
-        if (!confirm(`Delete "${title}"? This action cannot be undone.`)) {
+        if (!confirm(formatText(t('deleteSingleConfirmTemplate', 'Delete "%s"? This action cannot be undone.'), [title]))) {
             return;
         }
 
@@ -1445,14 +1445,17 @@
                         }
                     }, 300);
                 } else {
-                    alert('Error: ' + (data.data || 'Failed to delete recording'));
+                    alert(
+                        t('deleteErrorPrefix', 'Error:') + ' ' +
+                        (data.data || t('deleteFailed', 'Failed to delete recording'))
+                    );
                     button.disabled = false;
                     button.style.opacity = '1';
                 }
             })
             .catch(error => {
                 console.error('Delete error:', error);
-                alert('Error deleting recording: ' + error.message);
+                alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [error.message]));
                 button.disabled = false;
                 button.style.opacity = '1';
             });
@@ -1465,9 +1468,9 @@
         if (!reviewFile) return;
 
         const data = state.reviewData.get(postId);
-        const title = data ? data.recording.title : 'this recording';
+        const title = data ? data.recording.title : t('recordingFallbackLabel', 'this recording');
 
-        if (!confirm(`Delete "${title}"? This action cannot be undone.`)) {
+        if (!confirm(formatText(t('deleteSingleConfirmTemplate', 'Delete "%s"? This action cannot be undone.'), [title]))) {
             return;
         }
 
@@ -1504,7 +1507,10 @@
                         }
                     }, 300);
                 } else {
-                    alert('Error: ' + (result.data || 'Failed to delete recording'));
+                    alert(
+                        t('deleteErrorPrefix', 'Error:') + ' ' +
+                        (result.data || t('deleteFailed', 'Failed to delete recording'))
+                    );
                     if (deleteBtn) {
                         deleteBtn.disabled = false;
                         deleteBtn.style.opacity = '1';
@@ -1513,7 +1519,7 @@
             })
             .catch(error => {
                 console.error('Delete error:', error);
-                alert('Error deleting recording: ' + error.message);
+                alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [error.message]));
                 if (deleteBtn) {
                     deleteBtn.disabled = false;
                     deleteBtn.style.opacity = '1';
@@ -1528,9 +1534,9 @@
         if (!reviewFile) return;
 
         const data = state.reviewData.get(postId);
-        const title = data ? data.recording.title : 'this recording';
+        const title = data ? data.recording.title : t('recordingFallbackLabel', 'this recording');
 
-        if (!confirm(`Remove "${title}" from this batch? It will remain unprocessed.`)) {
+        if (!confirm(formatText(t('removeFromBatchConfirmTemplate', 'Remove "%s" from this batch? It will remain unprocessed.'), [title]))) {
             return;
         }
 
@@ -1554,14 +1560,14 @@
         const count = state.reviewData.size;
         if (count === 0) return;
 
-        if (!confirm(`Delete all ${count} recording(s)? This action cannot be undone.`)) {
+        if (!confirm(formatText(t('deleteSelectedConfirmTemplate', 'Delete %d recording(s)? This action cannot be undone.'), [count]))) {
             return;
         }
 
         const deleteBtn = document.getElementById('ll-delete-all-review');
         if (deleteBtn) {
             deleteBtn.disabled = true;
-            deleteBtn.textContent = 'Deleting...';
+            deleteBtn.textContent = t('deleteButtonDeleting', 'Deleting...');
         }
 
         const postIds = Array.from(state.reviewData.keys());
@@ -1594,13 +1600,13 @@
         }))
             .then(() => {
                 if (failed === 0) {
-                    alert(`Successfully deleted ${deleted} recording(s)`);
+                    alert(formatText(t('deleteAllSuccessTemplate', 'Successfully deleted %d recording(s)'), [deleted]));
                     location.reload();
                 } else {
-                    alert(`Deleted ${deleted} recording(s). Failed to delete ${failed}.`);
+                    alert(formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]));
                     if (deleteBtn) {
                         deleteBtn.disabled = false;
-                        deleteBtn.textContent = 'Delete All';
+                        deleteBtn.textContent = t('deleteAllButtonDefault', 'Delete All');
                     }
                 }
             });
@@ -1873,7 +1879,7 @@
         if (state.saving) {
             return;
         }
-        if (confirm('Are you sure you want to cancel? All processing will be lost.')) {
+        if (confirm(t('cancelReviewConfirm', 'Are you sure you want to cancel? All processing will be lost.'))) {
             location.reload();
         }
     }

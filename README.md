@@ -47,7 +47,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - Optional: store a DeepL API key and enable category term translations in the UI.
 
 - **Templating**
-  - Child/parent theme template overrides via `templates/ll-tools/...` with a safe loader.
+  - Child/parent theme template overrides via `ll-tools/...` inside the active theme, with a safe loader.
 
 - **Roles**
   - `wordset_manager` – Can manage wordsets and basic content.
