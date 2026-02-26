@@ -55,55 +55,75 @@ jQuery(document).ready(function ($) {
 
     /**
      * Initializes the autocomplete feature on the #wordset-language input field.
+     *
+     * Guarded so missing jQuery UI autocomplete (or missing localized data) does not
+     * break the rest of the script, which now includes save-critical form compaction.
      */
-    $("#wordset-language").autocomplete({
-        /**
-         * Source callback for autocomplete suggestions.
-         *
-         * @param {Object} request - Contains the term entered by the user.
-         * @param {Function} response - Callback to pass the matched suggestions.
-         */
-        source: function (request, response) {
-            var matcher = new RegExp($.ui.autocomplete.escapeRegex(request.term), "i");
-            var sortedArray = manageWordSetData.availableLanguages.sort(function (a, b) {
-                var startsWithA = a.label.toUpperCase().startsWith(request.term.toUpperCase());
-                var startsWithB = b.label.toUpperCase().startsWith(request.term.toUpperCase());
-                if (startsWithA && !startsWithB) {
-                    return -1;
-                } else if (!startsWithA && startsWithB) {
-                    return 1;
-                } else {
-                    return localeTextCompare(a.label, b.label);
-                }
-            });
-            response($.grep(sortedArray, function (item) {
-                return matcher.test(item.label);
-            }));
-        },
-        minLength: 1,
-        /**
-         * Handler for selecting an autocomplete suggestion.
-         *
-         * @param {Event} event - The event object.
-         * @param {Object} ui - Contains the selected item's information.
-         * @returns {boolean} False to prevent the default behavior.
-         */
-        select: function (event, ui) {
-            $("#wordset-language").val(ui.item.label);
-            return false;
-        },
-        /**
-         * Handler for focusing on an autocomplete suggestion.
-         *
-         * @param {Event} event - The event object.
-         * @param {Object} ui - Contains the focused item's information.
-         * @returns {boolean} False to prevent the default behavior.
-         */
-        focus: function (event, ui) {
-            $("#wordset-language").val(ui.item.label);
-            return false;
+    (function initWordsetLanguageAutocomplete() {
+        var $languageInput = $("#wordset-language");
+        if (!$languageInput.length) {
+            return;
         }
-    });
+        if (!$.fn || typeof $.fn.autocomplete !== 'function' || !$.ui || !$.ui.autocomplete) {
+            return;
+        }
+
+        var localized = (typeof window.manageWordSetData === 'object' && window.manageWordSetData)
+            ? window.manageWordSetData
+            : {};
+        var availableLanguages = Array.isArray(localized.availableLanguages)
+            ? localized.availableLanguages.slice()
+            : [];
+
+        $languageInput.autocomplete({
+            /**
+             * Source callback for autocomplete suggestions.
+             *
+             * @param {Object} request - Contains the term entered by the user.
+             * @param {Function} response - Callback to pass the matched suggestions.
+             */
+            source: function (request, response) {
+                var matcher = new RegExp($.ui.autocomplete.escapeRegex(request.term), "i");
+                var sortedArray = availableLanguages.slice().sort(function (a, b) {
+                    var startsWithA = a.label.toUpperCase().startsWith(request.term.toUpperCase());
+                    var startsWithB = b.label.toUpperCase().startsWith(request.term.toUpperCase());
+                    if (startsWithA && !startsWithB) {
+                        return -1;
+                    } else if (!startsWithA && startsWithB) {
+                        return 1;
+                    } else {
+                        return localeTextCompare(a.label, b.label);
+                    }
+                });
+                response($.grep(sortedArray, function (item) {
+                    return matcher.test(item.label);
+                }));
+            },
+            minLength: 1,
+            /**
+             * Handler for selecting an autocomplete suggestion.
+             *
+             * @param {Event} event - The event object.
+             * @param {Object} ui - Contains the selected item's information.
+             * @returns {boolean} False to prevent the default behavior.
+             */
+            select: function (event, ui) {
+                $languageInput.val(ui.item.label);
+                return false;
+            },
+            /**
+             * Handler for focusing on an autocomplete suggestion.
+             *
+             * @param {Event} event - The event object.
+             * @param {Object} ui - Contains the focused item's information.
+             * @returns {boolean} False to prevent the default behavior.
+             */
+            focus: function (event, ui) {
+                $languageInput.val(ui.item.label);
+                return false;
+            }
+        });
+    })();
 
     (function initCategoryOrderingUI() {
         var $root = $('[data-ll-wordset-category-ordering]');

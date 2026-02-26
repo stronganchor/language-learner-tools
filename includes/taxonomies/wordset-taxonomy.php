@@ -1255,6 +1255,8 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
             <p class="description"><?php esc_html_e('Save the word set first, then return to configure category ordering and prerequisites.', 'll-tools-text-domain'); ?></p>
         <?php else : ?>
             <input type="hidden" name="ll_wordset_category_order_category_ids" value="<?php echo esc_attr($category_ids_csv); ?>">
+            <input type="hidden" name="ll_wordset_category_prereqs_compact" value="">
+            <input type="hidden" name="ll_wordset_category_prereqs_compact_mode" value="">
 
             <?php if (empty($category_ids)) : ?>
                 <p class="description"><?php esc_html_e('No quizzable categories were found for this word set yet. Add words/categories first, then refresh this page.', 'll-tools-text-domain'); ?></p>
@@ -1334,7 +1336,8 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
                                         </td>
                                         <td style="vertical-align:top;">
                                             <select
-                                                name="ll_wordset_category_prereqs[<?php echo esc_attr((string) $cid); ?>][]"
+                                                data-ll-wordset-prereq-select="1"
+                                                data-ll-wordset-prereq-category-id="<?php echo esc_attr((string) $cid); ?>"
                                                 multiple
                                                 size="<?php echo esc_attr((string) $multi_select_size); ?>"
                                                 style="min-width:260px; width:100%;"
