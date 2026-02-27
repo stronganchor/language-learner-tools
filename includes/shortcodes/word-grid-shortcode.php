@@ -2115,7 +2115,7 @@ function ll_tools_word_grid_shortcode($atts) {
             $answer_option_font_weight = function_exists('ll_tools_wordset_normalize_answer_option_font_weight')
                 ? ll_tools_wordset_normalize_answer_option_font_weight((string) ($answer_option_style['fontWeight'] ?? '700'))
                 : trim((string) ($answer_option_style['fontWeight'] ?? '700'));
-            if ($answer_option_font_weight !== '' && $answer_option_font_weight !== '700') {
+            if ($answer_option_font_weight !== '') {
                 $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-weight:' . $answer_option_font_weight;
             }
             if ($answer_option_font_family !== '') {

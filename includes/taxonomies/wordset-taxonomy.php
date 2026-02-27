@@ -8,6 +8,9 @@ if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY', 'll_wordset_answer_option_text_font_weight');
 }
+if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY_V2')) {
+    define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY_V2', 'll_wordset_answer_option_text_font_weight_v2');
+}
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY', 'll_wordset_answer_option_text_font_size_px');
 }
@@ -162,7 +165,8 @@ function ll_tools_wordset_sanitize_answer_option_font_family_choice($value): str
 
 function ll_tools_wordset_normalize_answer_option_font_weight($value): string {
     $weight = preg_replace('/[^0-9]/', '', (string) $value);
-    $allowed = array_keys(ll_tools_wordset_get_answer_option_font_weight_choices());
+    // Keep keys as strings so strict checks accept posted values like "400".
+    $allowed = array_map('strval', array_keys(ll_tools_wordset_get_answer_option_font_weight_choices()));
     if (in_array($weight, $allowed, true)) {
         return $weight;
     }
@@ -178,6 +182,43 @@ function ll_tools_wordset_normalize_answer_option_font_size_px($value): int {
     return max(12, min(72, $size));
 }
 
+function ll_tools_wordset_answer_option_font_weight_primary_meta_key(): string {
+    return (string) LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY_V2;
+}
+
+function ll_tools_wordset_answer_option_font_weight_legacy_meta_keys(): array {
+    $keys = ['ll_wordset_answer_option_text_font_weight'];
+    if (defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY')) {
+        $legacy_defined = trim((string) LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY);
+        if ($legacy_defined !== '' && !in_array($legacy_defined, $keys, true)) {
+            $keys[] = $legacy_defined;
+        }
+    }
+    return array_values(array_unique($keys));
+}
+
+function ll_tools_wordset_get_answer_option_font_weight_raw_meta_value(int $wordset_id): string {
+    if ($wordset_id <= 0) {
+        return '';
+    }
+
+    $primary_key = ll_tools_wordset_answer_option_font_weight_primary_meta_key();
+    $raw_primary = get_term_meta($wordset_id, $primary_key, true);
+    if ($raw_primary !== '' && $raw_primary !== null) {
+        return (string) $raw_primary;
+    }
+
+    foreach (ll_tools_wordset_answer_option_font_weight_legacy_meta_keys() as $legacy_key) {
+        $raw_legacy = get_term_meta($wordset_id, $legacy_key, true);
+        if ($raw_legacy === '' || $raw_legacy === null) {
+            continue;
+        }
+        return (string) $raw_legacy;
+    }
+
+    return '';
+}
+
 function ll_tools_wordset_get_answer_option_text_style_config(int $wordset_id): array {
     $defaults = ll_tools_wordset_get_answer_option_text_style_defaults();
     $config = $defaults;
@@ -190,7 +231,7 @@ function ll_tools_wordset_get_answer_option_text_style_config(int $wordset_id): 
         get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY, true)
     );
     $config['fontWeight'] = ll_tools_wordset_normalize_answer_option_font_weight(
-        get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY, true)
+        ll_tools_wordset_get_answer_option_font_weight_raw_meta_value($wordset_id)
     );
     $config['fontSizePx'] = ll_tools_wordset_normalize_answer_option_font_size_px(
         get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true)
@@ -2197,6 +2238,44 @@ function ll_suggest_languages() {
 }
 add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 
+function ll_tools_wordset_verify_core_term_form_nonce(array $request): bool {
+    if (!isset($request['_wpnonce'])) {
+        return false;
+    }
+
+    $raw_nonce = $request['_wpnonce'];
+    if (is_array($raw_nonce)) {
+        return false;
+    }
+    $nonce = function_exists('wp_unslash')
+        ? wp_unslash((string) $raw_nonce)
+        : (string) $raw_nonce;
+    $nonce = trim($nonce);
+    if ($nonce === '') {
+        return false;
+    }
+
+    $raw_action = isset($request['action']) ? $request['action'] : '';
+    if (is_array($raw_action)) {
+        $raw_action = '';
+    }
+    $action = sanitize_key(function_exists('wp_unslash') ? wp_unslash((string) $raw_action) : (string) $raw_action);
+
+    if ($action === 'editedtag') {
+        $tag_id = isset($request['tag_ID']) ? (int) $request['tag_ID'] : 0;
+        if ($tag_id <= 0) {
+            return false;
+        }
+        return (bool) wp_verify_nonce($nonce, 'update-tag_' . $tag_id);
+    }
+
+    if ($action === 'add-tag') {
+        return (bool) wp_verify_nonce($nonce, 'add-tag');
+    }
+
+    return false;
+}
+
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
@@ -2225,7 +2304,16 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_has_verb_mood'])
         || isset($_POST['ll_wordset_verb_mood_options']);
     if ($has_meta_input) {
-        if (!isset($_POST['ll_wordset_meta_nonce']) || !wp_verify_nonce($_POST['ll_wordset_meta_nonce'], 'll_wordset_meta')) {
+        $custom_meta_nonce_valid = false;
+        if (isset($_POST['ll_wordset_meta_nonce']) && !is_array($_POST['ll_wordset_meta_nonce'])) {
+            $custom_meta_nonce = function_exists('wp_unslash')
+                ? wp_unslash((string) $_POST['ll_wordset_meta_nonce'])
+                : (string) $_POST['ll_wordset_meta_nonce'];
+            $custom_meta_nonce_valid = (bool) wp_verify_nonce($custom_meta_nonce, 'll_wordset_meta');
+        }
+
+        $core_term_form_nonce_valid = ll_tools_wordset_verify_core_term_form_nonce($_POST);
+        if (!$custom_meta_nonce_valid && !$core_term_form_nonce_valid) {
             return;
         }
         if (!current_user_can('edit_wordsets')) {
@@ -2263,10 +2351,21 @@ function ll_save_wordset_language($term_id) {
             $answer_font_weight = ll_tools_wordset_normalize_answer_option_font_weight(
                 wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_weight'])
             );
+            $answer_font_weight_primary_meta_key = ll_tools_wordset_answer_option_font_weight_primary_meta_key();
+            $answer_font_weight_legacy_meta_keys = ll_tools_wordset_answer_option_font_weight_legacy_meta_keys();
             if ($answer_font_weight === (string) ($answer_style_defaults['fontWeight'] ?? '700')) {
-                delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY);
+                delete_term_meta($term_id, $answer_font_weight_primary_meta_key);
+                foreach ($answer_font_weight_legacy_meta_keys as $legacy_weight_meta_key) {
+                    delete_term_meta($term_id, $legacy_weight_meta_key);
+                }
             } else {
-                update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY, $answer_font_weight);
+                update_term_meta($term_id, $answer_font_weight_primary_meta_key, $answer_font_weight);
+                foreach ($answer_font_weight_legacy_meta_keys as $legacy_weight_meta_key) {
+                    if ($legacy_weight_meta_key === $answer_font_weight_primary_meta_key) {
+                        continue;
+                    }
+                    delete_term_meta($term_id, $legacy_weight_meta_key);
+                }
             }
         }
 

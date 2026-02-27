@@ -2060,6 +2060,124 @@ function ll_tools_wordset_page_summary_counts(array $analytics): array {
     ];
 }
 
+function ll_tools_wordset_page_collect_category_starred_lookup_from_analytics_words(array $analytics_word_rows): array {
+    $category_starred_word_lookup = [];
+    foreach ($analytics_word_rows as $analytics_word_row) {
+        if (!is_array($analytics_word_row) || empty($analytics_word_row['is_starred'])) {
+            continue;
+        }
+
+        $word_id = isset($analytics_word_row['id']) ? (int) $analytics_word_row['id'] : 0;
+        $word_category_ids = [];
+        foreach ((array) ($analytics_word_row['category_ids'] ?? []) as $word_category_id) {
+            $cid = (int) $word_category_id;
+            if ($cid > 0) {
+                $word_category_ids[] = $cid;
+            }
+        }
+        if (empty($word_category_ids)) {
+            $fallback_category_id = isset($analytics_word_row['category_id']) ? (int) $analytics_word_row['category_id'] : 0;
+            if ($fallback_category_id > 0) {
+                $word_category_ids[] = $fallback_category_id;
+            }
+        }
+        $word_category_ids = array_values(array_unique($word_category_ids));
+
+        foreach ($word_category_ids as $word_category_id) {
+            if (!isset($category_starred_word_lookup[$word_category_id]) || !is_array($category_starred_word_lookup[$word_category_id])) {
+                $category_starred_word_lookup[$word_category_id] = [];
+            }
+            if ($word_id > 0) {
+                $category_starred_word_lookup[$word_category_id][$word_id] = true;
+            } else {
+                $category_starred_word_lookup[$word_category_id][] = true;
+            }
+        }
+    }
+
+    $category_starred_lookup = [];
+    foreach ($category_starred_word_lookup as $word_category_id => $word_lookup) {
+        $category_starred_lookup[(int) $word_category_id] = count((array) $word_lookup);
+    }
+
+    return $category_starred_lookup;
+}
+
+function ll_tools_wordset_page_collect_category_starred_lookup_from_study_state(array $study_state, int $wordset_id, array $allowed_category_ids = []): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !($wpdb instanceof wpdb)) {
+        return [];
+    }
+
+    $starred_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($study_state['starred_word_ids'] ?? [])), static function ($id): bool {
+        return $id > 0;
+    })));
+    if (empty($starred_word_ids)) {
+        return [];
+    }
+
+    $allowed_category_ids = array_values(array_unique(array_filter(array_map('intval', (array) $allowed_category_ids), static function ($id): bool {
+        return $id > 0;
+    })));
+    if (empty($allowed_category_ids)) {
+        return [];
+    }
+
+    $word_placeholders = implode(',', array_fill(0, count($starred_word_ids), '%d'));
+    $category_placeholders = implode(',', array_fill(0, count($allowed_category_ids), '%d'));
+    $sql = "SELECT DISTINCT c.object_id AS word_id, ctt.term_id AS category_id
+        FROM {$wpdb->term_relationships} AS c
+        INNER JOIN {$wpdb->term_taxonomy} AS ctt ON ctt.term_taxonomy_id = c.term_taxonomy_id
+        INNER JOIN {$wpdb->term_relationships} AS w ON w.object_id = c.object_id
+        INNER JOIN {$wpdb->term_taxonomy} AS wtt ON wtt.term_taxonomy_id = w.term_taxonomy_id
+        INNER JOIN {$wpdb->posts} AS p ON p.ID = c.object_id
+        WHERE ctt.taxonomy = 'word-category'
+            AND wtt.taxonomy = 'wordset'
+            AND wtt.term_id = %d
+            AND c.object_id IN ($word_placeholders)
+            AND ctt.term_id IN ($category_placeholders)
+            AND p.post_type = 'words'
+            AND p.post_status = 'publish'";
+
+    $prepared = $wpdb->prepare(
+        $sql,
+        array_merge([$wordset_id], $starred_word_ids, $allowed_category_ids)
+    );
+    if (!is_string($prepared) || $prepared === '') {
+        return [];
+    }
+
+    $rows = $wpdb->get_results($prepared, ARRAY_A);
+    if (!is_array($rows) || empty($rows)) {
+        return [];
+    }
+
+    $category_starred_lookup = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+        if ($category_id <= 0) {
+            continue;
+        }
+        $category_starred_lookup[$category_id] = ($category_starred_lookup[$category_id] ?? 0) + 1;
+    }
+
+    return $category_starred_lookup;
+}
+
+function ll_tools_wordset_page_collect_category_starred_lookup(array $analytics, array $study_state, int $wordset_id, array $allowed_category_ids = []): array {
+    $analytics_words_loaded = array_key_exists('words', $analytics) && is_array($analytics['words']);
+    if ($analytics_words_loaded) {
+        return ll_tools_wordset_page_collect_category_starred_lookup_from_analytics_words((array) $analytics['words']);
+    }
+
+    return ll_tools_wordset_page_collect_category_starred_lookup_from_study_state($study_state, $wordset_id, $allowed_category_ids);
+}
+
 function ll_tools_wordset_page_enqueue_scripts(): void {
     if (function_exists('ll_tools_enqueue_confetti_asset')) {
         ll_tools_enqueue_confetti_asset();
@@ -2773,44 +2891,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'new' => $new_words,
         ];
     }
-    $category_starred_lookup = [];
-    $category_starred_word_lookup = [];
-    $analytics_word_rows = (isset($analytics['words']) && is_array($analytics['words'])) ? $analytics['words'] : [];
-    foreach ($analytics_word_rows as $analytics_word_row) {
-        if (!is_array($analytics_word_row) || empty($analytics_word_row['is_starred'])) {
-            continue;
-        }
-
-        $word_id = isset($analytics_word_row['id']) ? (int) $analytics_word_row['id'] : 0;
-        $word_category_ids = [];
-        foreach ((array) ($analytics_word_row['category_ids'] ?? []) as $word_category_id) {
-            $cid = (int) $word_category_id;
-            if ($cid > 0) {
-                $word_category_ids[] = $cid;
-            }
-        }
-        if (empty($word_category_ids)) {
-            $fallback_category_id = isset($analytics_word_row['category_id']) ? (int) $analytics_word_row['category_id'] : 0;
-            if ($fallback_category_id > 0) {
-                $word_category_ids[] = $fallback_category_id;
-            }
-        }
-        $word_category_ids = array_values(array_unique($word_category_ids));
-
-        foreach ($word_category_ids as $word_category_id) {
-            if (!isset($category_starred_word_lookup[$word_category_id]) || !is_array($category_starred_word_lookup[$word_category_id])) {
-                $category_starred_word_lookup[$word_category_id] = [];
-            }
-            if ($word_id > 0) {
-                $category_starred_word_lookup[$word_category_id][$word_id] = true;
-            } else {
-                $category_starred_word_lookup[$word_category_id][] = true;
-            }
-        }
-    }
-    foreach ($category_starred_word_lookup as $word_category_id => $word_lookup) {
-        $category_starred_lookup[(int) $word_category_id] = count((array) $word_lookup);
-    }
+    $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
+        $analytics,
+        $study_state,
+        $wordset_id,
+        $visible_category_ids
+    );
 
     $progress_reset_category_options = [];
     $progress_reset_notice = null;

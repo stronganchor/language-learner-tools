@@ -477,6 +477,38 @@
         listeningCategoryOrder = [];
     }
 
+    function mergeListeningHistoryWithSequence(sequence) {
+        const seq = Array.isArray(sequence) ? sequence.slice() : [];
+        const history = getListeningHistory().slice();
+        if (!history.length) {
+            return seq;
+        }
+        if (!seq.length) {
+            return history;
+        }
+
+        // Preserve already-heard words at the front when rebuilding so new category
+        // arrivals cannot push early words back into the future queue.
+        const pendingHistoryCounts = {};
+        history.forEach(function (word) {
+            const wordId = parseInt(word && word.id, 10);
+            if (!wordId) { return; }
+            pendingHistoryCounts[wordId] = (pendingHistoryCounts[wordId] || 0) + 1;
+        });
+
+        const remaining = [];
+        seq.forEach(function (word) {
+            const wordId = parseInt(word && word.id, 10);
+            if (wordId && pendingHistoryCounts[wordId] > 0) {
+                pendingHistoryCounts[wordId] -= 1;
+                return;
+            }
+            remaining.push(word);
+        });
+
+        return history.concat(remaining);
+    }
+
     function rebuildWordsLinear() {
         const seq = [];
         if (State.categoryNames && State.wordsByCategory) {
@@ -516,7 +548,15 @@
             }
         }
 
-        State.wordsLinear = seq;
+        State.wordsLinear = mergeListeningHistoryWithSequence(seq);
+        const clampedListenIndex = Math.max(
+            0,
+            Math.min(
+                parseInt(State.listenIndex, 10) || 0,
+                (State.wordsLinear || []).length
+            )
+        );
+        State.listenIndex = clampedListenIndex;
         State.totalWordCount = (State.wordsLinear || []).length || 0;
         return State.totalWordCount;
     }
@@ -929,23 +969,22 @@
         const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
         const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
         let total = Math.max(historyLen, wordsTotal);
+        const categoryCount = getSelectedCategoryNames().length;
+        let pendingLoads = false;
+
+        try {
+            pendingLoads = hasPendingCategoryLoads(loader || FlashcardLoader);
+        } catch (_) {
+            pendingLoads = false;
+        }
 
         // Fast-start listening may only have a subset of categories loaded at first.
         // Use the launch estimate as a temporary denominator so the bar doesn't jump
         // ahead and then move backwards when more categories finish loading.
-        const categoryCount = getSelectedCategoryNames().length;
-        if (categoryCount > 1) {
-            let pendingLoads = false;
-            try {
-                pendingLoads = hasPendingCategoryLoads(loader || FlashcardLoader);
-            } catch (_) {
-                pendingLoads = false;
-            }
-            if (pendingLoads) {
-                const estimatedTotal = getListeningLaunchEstimatedTotal();
-                if (estimatedTotal > total) {
-                    total = estimatedTotal;
-                }
+        if (categoryCount > 1 && pendingLoads) {
+            const estimatedTotal = getListeningLaunchEstimatedTotal();
+            if (estimatedTotal > total) {
+                total = estimatedTotal;
             }
         }
 
@@ -955,7 +994,8 @@
             total: total,
             index: cur,
             historyLen: historyLen,
-            wordsTotal: wordsTotal
+            wordsTotal: wordsTotal,
+            deferProgressUi: categoryCount > 1 && pendingLoads
         };
     }
 
@@ -972,9 +1012,17 @@
         const historyLen = Math.max(0, parseInt(progress.historyLen, 10) || 0);
         const total = Math.max(0, parseInt(progress.total, 10) || 0);
         const cur = Math.max(0, parseInt(progress.index, 10) || 0);
-        if (State && State.isListeningMode && Dom && typeof Dom.updateSimpleProgress === 'function') {
+        const deferProgressUi = !!(progress && progress.deferProgressUi);
+        if (State && State.isListeningMode) {
             try {
-                Dom.updateSimpleProgress(Math.max(0, parseInt(progress.current, 10) || 0), total);
+                if (deferProgressUi) {
+                    const $progress = $jq('#ll-tools-learning-progress');
+                    if ($progress && $progress.length) {
+                        $progress.hide();
+                    }
+                } else if (Dom && typeof Dom.updateSimpleProgress === 'function') {
+                    Dom.updateSimpleProgress(Math.max(0, parseInt(progress.current, 10) || 0), total);
+                }
             } catch (_) { /* no-op */ }
         }
         const canBack = cur > 0 && historyLen > 0; // never go before first
