@@ -2112,6 +2112,12 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($wordset_id > 0 && function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
             $answer_option_style = ll_tools_wordset_get_answer_option_text_style_config((int) $wordset_id);
             $answer_option_font_family = isset($answer_option_style['fontFamily']) ? trim((string) $answer_option_style['fontFamily']) : '';
+            $answer_option_font_weight = function_exists('ll_tools_wordset_normalize_answer_option_font_weight')
+                ? ll_tools_wordset_normalize_answer_option_font_weight((string) ($answer_option_style['fontWeight'] ?? '700'))
+                : trim((string) ($answer_option_style['fontWeight'] ?? '700'));
+            if ($answer_option_font_weight !== '' && $answer_option_font_weight !== '700') {
+                $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-weight:' . $answer_option_font_weight;
+            }
             if ($answer_option_font_family !== '') {
                 $grid_classes .= ' ll-word-grid--answer-option-font-custom';
                 $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-family:' . $answer_option_font_family;

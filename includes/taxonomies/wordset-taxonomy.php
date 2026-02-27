@@ -1454,7 +1454,7 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
         return $runtime_cache[$wordset_id];
     }
 
-    $transient_key = 'll_ws_ans_prev_samples_' . $wordset_id;
+    $transient_key = 'll_ws_ans_prev_samples_v2_' . $wordset_id;
     $cached_samples = get_transient($transient_key);
     if (is_array($cached_samples)) {
         $runtime_cache[$wordset_id] = $cached_samples;
@@ -1594,43 +1594,16 @@ function ll_tools_wordset_get_answer_option_preview_samples(int $wordset_id): ar
         return [];
     }
 
-    usort($items, static function (array $a, array $b): int {
-        $len_cmp = ((int) $a['length']) <=> ((int) $b['length']);
-        if ($len_cmp !== 0) {
-            return $len_cmp;
-        }
-        return strcasecmp((string) $a['text'], (string) $b['text']);
-    });
-
-    $last_index = count($items) - 1;
-    $mean_length = 0.0;
-    foreach ($items as $item) {
-        $mean_length += (int) ($item['length'] ?? 0);
-    }
-    $mean_length = $mean_length / max(1, count($items));
-
-    $average_index = 0;
-    $best_distance = null;
-    foreach ($items as $index => $item) {
-        if (count($items) > 2 && ($index === 0 || $index === $last_index)) {
-            continue;
-        }
-        $distance = abs(((int) ($item['length'] ?? 0)) - $mean_length);
-        if ($best_distance === null || $distance < $best_distance) {
-            $best_distance = $distance;
-            $average_index = (int) $index;
-            continue;
-        }
-        if ($distance === $best_distance && $index < $average_index) {
-            $average_index = (int) $index;
-        }
+    if (count($items) > 1) {
+        shuffle($items);
     }
 
-    $result = [
-        'shortest' => $items[0],
-        'average'  => $items[$average_index] ?? $items[0],
-        'longest'  => $items[$last_index],
-    ];
+    $pool_limit = max(2, min(24, (int) apply_filters('ll_tools_wordset_preview_pool_limit', 10, $wordset_id)));
+    if (count($items) > $pool_limit) {
+        $items = array_slice($items, 0, $pool_limit);
+    }
+
+    $result = array_values($items);
 
     $runtime_cache[$wordset_id] = $result;
     set_transient($transient_key, $result, 15 * MINUTE_IN_SECONDS);
@@ -1658,21 +1631,61 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
         $line_height_ratio_marked = 2.4;
     }
 
-    $samples = ll_tools_wordset_get_answer_option_preview_samples($wordset_id);
-    $has_real_samples = !empty($samples);
-    $role_labels = [
-        'shortest' => __('Shortest', 'll-tools-text-domain'),
-        'average'  => __('Average length', 'll-tools-text-domain'),
-        'longest'  => __('Longest', 'll-tools-text-domain'),
+    $preview_pool = ll_tools_wordset_get_answer_option_preview_samples($wordset_id);
+    $has_real_samples = !empty($preview_pool);
+    $slot_labels = [
+        __('Random sample 1', 'll-tools-text-domain'),
+        __('Random sample 2', 'll-tools-text-domain'),
     ];
 
     if (!$has_real_samples) {
-        $samples = [
-            'shortest' => ['text' => __('Sample', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Sample', 'll-tools-text-domain'))],
-            'average'  => ['text' => __('Preview answer option', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Preview answer option', 'll-tools-text-domain'))],
-            'longest'  => ['text' => __('Longer preview answer option text', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Longer preview answer option text', 'll-tools-text-domain'))],
+        $preview_pool = [
+            ['text' => __('Sample', 'll-tools-text-domain')],
+            ['text' => __('Preview answer option', 'll-tools-text-domain')],
+            ['text' => __('Longer preview answer option text', 'll-tools-text-domain')],
+            ['text' => __('Another example', 'll-tools-text-domain')],
         ];
     }
+
+    $normalized_preview_pool = [];
+    foreach ((array) $preview_pool as $sample) {
+        if (!is_array($sample)) {
+            continue;
+        }
+        $sample_text = trim((string) ($sample['text'] ?? ''));
+        if ($sample_text === '') {
+            continue;
+        }
+        $normalized_preview_pool[] = [
+            'text' => $sample_text,
+            'length' => isset($sample['length'])
+                ? max(0, (int) $sample['length'])
+                : ll_tools_wordset_preview_text_length($sample_text),
+        ];
+    }
+
+    if (empty($normalized_preview_pool)) {
+        $normalized_preview_pool = [
+            ['text' => __('Sample', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Sample', 'll-tools-text-domain'))],
+            ['text' => __('Preview answer option', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Preview answer option', 'll-tools-text-domain'))],
+        ];
+        $has_real_samples = false;
+    }
+
+    while (count($normalized_preview_pool) < 2) {
+        $duplicate = $normalized_preview_pool[0] ?? ['text' => __('Sample', 'll-tools-text-domain'), 'length' => ll_tools_wordset_preview_text_length(__('Sample', 'll-tools-text-domain'))];
+        $normalized_preview_pool[] = [
+            'text' => (string) ($duplicate['text'] ?? ''),
+            'length' => (int) ($duplicate['length'] ?? 0),
+        ];
+    }
+
+    $initial_preview_cards = array_slice($normalized_preview_pool, 0, 2);
+    $preview_pool_json = wp_json_encode(array_values($normalized_preview_pool));
+    if (!is_string($preview_pool_json)) {
+        $preview_pool_json = '[]';
+    }
+    $can_cycle_preview = count($normalized_preview_pool) > 2;
 
     $style_parts = [
         '--ll-ws-answer-preview-font-weight:' . $font_weight,
@@ -1745,6 +1758,10 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
                 font-size: 12px;
                 line-height: 1.3;
             }
+            .ll-wordset-answer-option-preview__actions {
+                display: flex;
+                justify-content: center;
+            }
             .ll-wordset-answer-option-preview__note {
                 margin: 0;
                 color: #50575e;
@@ -1757,11 +1774,12 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
     ?>
     <div class="ll-wordset-answer-option-preview" data-ll-answer-option-preview-root style="<?php echo esc_attr($inline_style); ?>">
         <div class="ll-wordset-answer-option-preview__grid">
-            <?php foreach (['shortest', 'average', 'longest'] as $role_key) : ?>
+            <?php foreach ([0, 1] as $slot_index) : ?>
                 <?php
-                $sample = isset($samples[$role_key]) && is_array($samples[$role_key]) ? $samples[$role_key] : ['text' => '', 'length' => 0];
+                $sample = isset($initial_preview_cards[$slot_index]) && is_array($initial_preview_cards[$slot_index]) ? $initial_preview_cards[$slot_index] : ['text' => '', 'length' => 0];
                 $sample_text = trim((string) ($sample['text'] ?? ''));
                 $sample_length = (int) ($sample['length'] ?? 0);
+                $slot_label = (string) ($slot_labels[$slot_index] ?? __('Random sample', 'll-tools-text-domain'));
                 ?>
                 <div class="ll-wordset-answer-option-preview__item">
                     <div class="ll-wordset-answer-option-preview__card" data-ll-answer-option-preview-card>
@@ -1770,29 +1788,35 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
                         </div>
                     </div>
                     <div class="ll-wordset-answer-option-preview__meta">
-                        <?php
-                        echo esc_html(
-                            sprintf(
-                                __('%1$s (%2$d chars)', 'll-tools-text-domain'),
-                                (string) ($role_labels[$role_key] ?? $role_key),
-                                max(0, $sample_length)
-                            )
-                        );
-                        ?>
+                        <span data-ll-answer-option-preview-meta-label><?php echo esc_html($slot_label); ?></span>
+                        <span aria-hidden="true"> · </span>
+                        <span data-ll-answer-option-preview-meta-length><?php echo esc_html((string) max(0, $sample_length)); ?></span>
+                        <span><?php esc_html_e('chars', 'll-tools-text-domain'); ?></span>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
+        <?php if ($can_cycle_preview) : ?>
+            <div class="ll-wordset-answer-option-preview__actions">
+                <button type="button" class="button button-secondary" data-ll-answer-option-preview-next>
+                    <?php esc_html_e('Show 2 Other Words', 'll-tools-text-domain'); ?>
+                </button>
+            </div>
+            <script type="application/json" data-ll-answer-option-preview-pool-json><?php echo $preview_pool_json; ?></script>
+        <?php endif; ?>
         <p class="ll-wordset-answer-option-preview__note">
             <?php
             if ($wordset_id > 0 && $has_real_samples) {
-                echo esc_html__('Preview cards use real answer-option text from text-based quiz categories in this word set and auto-fit text like quiz text answer cards.', 'll-tools-text-domain');
+                echo esc_html__('Preview cards use random real answer-option text from text-based quiz categories in this word set and auto-fit text like quiz text answer cards.', 'll-tools-text-domain');
             } elseif ($wordset_id > 0) {
-                echo esc_html__('No text-based answer option labels were found in this word set yet. Add words to a text-based quiz category to see shortest/average/longest previews.', 'll-tools-text-domain');
+                echo esc_html__('No text-based answer option labels were found in this word set yet. Add words to a text-based quiz category to preview real examples here.', 'll-tools-text-domain');
             } else {
                 echo esc_html__('Save the word set first to preview real words from this word set.', 'll-tools-text-domain');
             }
             ?>
+        </p>
+        <p class="ll-wordset-answer-option-preview__note">
+            <?php esc_html_e('These settings are used for quiz answer-option text. Font family and font weight are also applied to this word set\'s lesson/word-grid word text where supported.', 'll-tools-text-domain'); ?>
         </p>
     </div>
     <?php
@@ -1958,7 +1982,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text preview', 'll-tools-text-domain'),
         $answer_option_preview_html,
         '',
-        __('Previews show shortest/average/longest answer-option text labels from text-based quiz categories in this word set. The quiz still auto-resizes text to fit each answer card.', 'll-tools-text-domain')
+        __('Preview shows 2 random answer-option labels from text-based quiz categories in this word set. Use the button to cycle to 2 more examples. The quiz still auto-resizes text to fit each answer card.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1967,7 +1991,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text font', 'll-tools-text-domain'),
         $answer_option_font_family_field_html,
         'll-wordset-answer-option-font-family',
-        __('Choose from fonts currently available on this site. Leave empty for the theme/device default.', 'll-tools-text-domain')
+        __('Choose from fonts currently available on this site. Leave empty for the theme/device default. This font is also used for this word set\'s lesson/word-grid word text where supported.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1976,7 +2000,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text weight', 'll-tools-text-domain'),
         $answer_option_font_weight_select,
         'll-wordset-answer-option-font-weight',
-        __('Default weight for text answer options.', 'll-tools-text-domain')
+        __('Default weight for text answer options. This weight is also used for this word set\'s lesson/word-grid word text where supported.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -1985,7 +2009,7 @@ function ll_add_wordset_language_field($term) {
         __('Answer option text size', 'll-tools-text-domain'),
         '<input type="number" id="ll-wordset-answer-option-font-size" name="ll_wordset_answer_option_text_font_size_px" min="12" max="72" step="1" value="' . esc_attr((string) $answer_option_font_size_px) . '" />',
         'll-wordset-answer-option-font-size',
-        __('Preferred size for text answer cards (in px). The quiz still scales text down when needed to fit smaller screens or longer words.', 'll-tools-text-domain')
+        __('Preferred size for quiz text answer cards (in px). The quiz still scales text down when needed to fit smaller screens or longer words.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -2235,22 +2259,26 @@ function ll_save_wordset_language($term_id) {
             }
         }
 
-        $answer_font_weight = isset($_POST['ll_wordset_answer_option_text_font_weight'])
-            ? ll_tools_wordset_normalize_answer_option_font_weight(wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_weight']))
-            : (string) ($answer_style_defaults['fontWeight'] ?? '700');
-        if ($answer_font_weight === (string) ($answer_style_defaults['fontWeight'] ?? '700')) {
-            delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY);
-        } else {
-            update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY, $answer_font_weight);
+        if (array_key_exists('ll_wordset_answer_option_text_font_weight', $_POST)) {
+            $answer_font_weight = ll_tools_wordset_normalize_answer_option_font_weight(
+                wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_weight'])
+            );
+            if ($answer_font_weight === (string) ($answer_style_defaults['fontWeight'] ?? '700')) {
+                delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY);
+            } else {
+                update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY, $answer_font_weight);
+            }
         }
 
-        $answer_font_size_px = isset($_POST['ll_wordset_answer_option_text_font_size_px'])
-            ? ll_tools_wordset_normalize_answer_option_font_size_px(wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_size_px']))
-            : (int) ($answer_style_defaults['fontSizePx'] ?? 48);
-        if ($answer_font_size_px === (int) ($answer_style_defaults['fontSizePx'] ?? 48)) {
-            delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY);
-        } else {
-            update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, $answer_font_size_px);
+        if (array_key_exists('ll_wordset_answer_option_text_font_size_px', $_POST)) {
+            $answer_font_size_px = ll_tools_wordset_normalize_answer_option_font_size_px(
+                wp_unslash((string) $_POST['ll_wordset_answer_option_text_font_size_px'])
+            );
+            if ($answer_font_size_px === (int) ($answer_style_defaults['fontSizePx'] ?? 48)) {
+                delete_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY);
+            } else {
+                update_term_meta($term_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, $answer_font_size_px);
+            }
         }
 
         $ordering_mode_raw = isset($_POST['ll_wordset_category_ordering_mode'])

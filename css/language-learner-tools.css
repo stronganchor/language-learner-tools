@@ -86,6 +86,7 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-text {
     display: inline;
     color: #000000 !important;
+    font-weight: var(--ll-word-grid-answer-option-font-weight, inherit) !important;
 }
 
 .word-grid.ll-word-grid.ll-word-grid--answer-option-font-custom .ll-word-text {
