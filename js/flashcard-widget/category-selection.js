@@ -31,6 +31,18 @@
 
     syncWordsetFromDataset();
 
+    function warmupVisualizerContext() {
+        try {
+            var ll = window.LLFlashcards || {};
+            var viz = ll.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            var p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
     // ---- tiny shim: safely call init no matter load order ----
     function startWidget(selectedCategories, mode) {  // ADD mode parameter
         // wait until either the namespaced or legacy global init is available
@@ -215,6 +227,7 @@
 
     // Event handler for the "Start Quiz" button
     $('#ll-tools-start-selected-quiz').on('click', function () {
+        warmupVisualizerContext();
         var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function () {
             return $(this).val();
         }).get();
@@ -228,6 +241,7 @@
 
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function () {
+        warmupVisualizerContext();
         syncWordsetFromDataset(this);
         $('body').addClass('ll-tools-flashcard-open');
         $('#ll-tools-flashcard-popup').show();

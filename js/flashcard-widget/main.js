@@ -30,6 +30,17 @@
         } catch (_) { /* no-op */ }
     }
 
+    function warmupVisualizerContext() {
+        try {
+            const viz = root.LLFlashcards && root.LLFlashcards.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            const p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -1990,6 +2001,10 @@
             return;
         }
 
+        // Mode changes happen from user interaction; use that gesture window to
+        // unlock the analyser AudioContext for listen-mode visualizer updates.
+        warmupVisualizerContext();
+
         if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
@@ -3113,6 +3128,10 @@
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
+        // Launch is user-initiated (button click). Warm up visualizer AudioContext
+        // here so listening autoplay can use analyser data instead of fallback waves.
+        warmupVisualizerContext();
+
         // Deduplicate concurrent init calls; reuse in-flight promise
         if (initInProgressPromise) {
             return initInProgressPromise;
@@ -3303,6 +3322,7 @@
                     .off('.llAutoplayKick')
                     .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
                         const $content = $('#ll-tools-flashcard-content');
+                        warmupVisualizerContext();
                         try {
                             const audioApi = root.FlashcardAudio;
                             const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'

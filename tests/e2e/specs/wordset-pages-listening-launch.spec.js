@@ -262,8 +262,18 @@ async function mountWordsetPage(page, options = {}) {
     window.llWordsetPageData = bootstrap.config;
     window.__llLaunches = [];
     window.__llAlerts = [];
+    window.__llLaunchTrace = [];
+    window.__llVisualizerWarmups = 0;
     window.alert = function (message) {
       window.__llAlerts.push(String(message || ''));
+    };
+
+    window.LLFlashcards = window.LLFlashcards || {};
+    window.LLFlashcards.AudioVisualizer = window.LLFlashcards.AudioVisualizer || {};
+    window.LLFlashcards.AudioVisualizer.warmup = function () {
+      window.__llVisualizerWarmups = Number(window.__llVisualizerWarmups || 0) + 1;
+      window.__llLaunchTrace.push('warmup');
+      return Promise.resolve(true);
     };
 
     window.initFlashcardWidget = function (catNames, mode) {
@@ -284,6 +294,7 @@ async function mountWordsetPage(page, options = {}) {
           : (Array.isArray(userStudyState.category_ids) ? userStudyState.category_ids.slice() : []),
         source: String(plan.source || '')
       });
+      window.__llLaunchTrace.push('init');
       return Promise.resolve();
     };
 
@@ -402,6 +413,26 @@ test('logged-in listening launches ignore recommendation chunk IDs for top and s
   expect(selectionLaunch.mode).toBe('listening');
   expect(selectionLaunch.sessionWordIds).toEqual([]);
   expect(selectionLaunch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+});
+
+test('listening top launch warms visualizer before async init path', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: true });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="listening"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const trace = await page.evaluate(() => ({
+    warmups: Number(window.__llVisualizerWarmups || 0),
+    order: Array.isArray(window.__llLaunchTrace) ? window.__llLaunchTrace.slice() : []
+  }));
+
+  expect(trace.warmups).toBeGreaterThan(0);
+  expect(trace.order.length).toBeGreaterThan(1);
+  expect(trace.order[0]).toBe('warmup');
+  expect(trace.order).toContain('init');
 });
 
 test('selection listening launch skips dashboard bulk word fetch and opens immediately', async ({ page }) => {

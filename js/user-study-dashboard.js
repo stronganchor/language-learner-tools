@@ -118,6 +118,18 @@
     let checkScrollTouched = false;
     const CHECK_SPRINKLE_EVERY = 4;
     const CHECK_AUTO_ADVANCE_DELAY_MS = 700;
+
+    function warmupFlashcardVisualizerContext() {
+        try {
+            const ll = window.LLFlashcards || {};
+            const viz = ll.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            const p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
+        } catch (_) { /* no-op */ }
+    }
     const CHECK_AUDIO_FAIL_DELAY_MS = 900;
     const CHECK_AUDIO_TIMEOUT_MS = 10000;
     const SESSION_CHUNK_MIN = 8;
@@ -2026,6 +2038,7 @@
     }
 
     function launchDashboardPlan(plan) {
+        warmupFlashcardVisualizerContext();
         const target = (plan && typeof plan === 'object') ? plan : null;
         if (!target || !target.mode) {
             return;
@@ -3869,6 +3882,7 @@
     }
 
     function startFlashcards(mode, launchOptions) {
+        warmupFlashcardVisualizerContext();
         const options = (launchOptions && typeof launchOptions === 'object') ? launchOptions : {};
         const launchSource = String(options.source || 'dashboard');
         const requestedFromOptions = uniqueIntList(options.category_ids || options.categoryIds || []);
@@ -4054,6 +4068,7 @@
     }
 
     function startModeWithChunk(mode, categoryIds, triggerButton) {
+        warmupFlashcardVisualizerContext();
         const requestedMode = normalizeProgressMode(mode);
         const requestedCategoryIds = uniqueIntList(categoryIds || state.category_ids).filter(function (id) {
             return !isCategoryIgnored(id);

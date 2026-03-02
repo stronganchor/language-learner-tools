@@ -770,6 +770,66 @@
         return false;
     }
 
+    function resetSettingsPanelPosition($panel) {
+        if (!$panel || !$panel.length) { return; }
+        $panel.each(function () {
+            if (!this || !this.style) { return; }
+            this.style.removeProperty('left');
+            this.style.removeProperty('right');
+        });
+    }
+
+    function clampSettingsPanelToViewport($panel) {
+        if (!$panel || !$panel.length) { return; }
+        const panel = $panel.get(0);
+        if (!panel || !panel.style || typeof panel.getBoundingClientRect !== 'function') { return; }
+
+        panel.style.setProperty('left', 'auto', 'important');
+        panel.style.setProperty('right', '0px', 'important');
+
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (viewportWidth <= 0) { return; }
+
+        const safePadding = 8;
+        const rect = panel.getBoundingClientRect();
+        if (!rect || rect.width <= 0) { return; }
+
+        const maxRight = viewportWidth - safePadding;
+        let rightOffset = 0;
+
+        if (rect.left < safePadding) {
+            rightOffset -= (safePadding - rect.left);
+        }
+        if (rect.right > maxRight) {
+            rightOffset += (rect.right - maxRight);
+        }
+
+        if (Math.abs(rightOffset) > 0.5) {
+            panel.style.setProperty('right', String(rightOffset) + 'px', 'important');
+        }
+    }
+
+    function queueSettingsPanelViewportClamp($panel) {
+        if (!$panel || !$panel.length) { return; }
+        const run = function () {
+            clampSettingsPanelToViewport($panel);
+        };
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                run();
+                window.requestAnimationFrame(run);
+            });
+            return;
+        }
+        setTimeout(run, 0);
+    }
+
+    function repositionOpenSettingsPanels() {
+        $('.ll-vocab-lesson-settings-panel[aria-hidden="false"], .ll-vocab-lesson-bulk-panel[aria-hidden="false"]').each(function () {
+            clampSettingsPanelToViewport($(this));
+        });
+    }
+
     function setLessonSettingsOpen($wrap, shouldOpen) {
         if (!$wrap || !$wrap.length) { return; }
         const $panel = $wrap.find('.ll-vocab-lesson-settings-panel');
@@ -780,7 +840,10 @@
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
         if (open) {
+            queueSettingsPanelViewportClamp($panel);
             updateStarModeButtons();
+        } else {
+            resetSettingsPanelPosition($panel);
         }
     }
 
@@ -802,6 +865,11 @@
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
+        if (open) {
+            queueSettingsPanelViewportClamp($panel);
+        } else {
+            resetSettingsPanelPosition($panel);
+        }
     }
 
     function closeBulkEditors(except) {
@@ -979,6 +1047,10 @@
             }
         });
     }
+
+    $(window).on('resize.llLessonPanelBounds orientationchange.llLessonPanelBounds', function () {
+        repositionOpenSettingsPanels();
+    });
 
     if ($starModeButtons.length) {
         $starModeButtons.on('click', function (e) {

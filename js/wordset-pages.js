@@ -109,6 +109,18 @@
     let categoryProgressVisibilityEventBound = false;
     const pendingCategoryProgressUpdates = {};
 
+    function warmupFlashcardVisualizerContext() {
+        try {
+            const ll = window.LLFlashcards || {};
+            const viz = ll.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            const p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
     const SUMMARY_COUNT_KEYS = ['mastered', 'studied', 'new', 'starred', 'hard'];
     const PERFECT_CELEBRATION_MAX_AGE_MS = 15000;
     const CATEGORY_PROGRESS_ANIMATION_DURATION_MS = 1520;
@@ -6871,6 +6883,10 @@
     }
 
     function launchFlashcards(mode, categoryIds, sessionWordIds, options) {
+        // Run inside the original user-gesture click stack when possible so
+        // listening-mode visualizer can use analyser-driven bars instead of fallback waves.
+        warmupFlashcardVisualizerContext();
+
         const opts = (options && typeof options === 'object') ? options : {};
         const normalizedMode = normalizeMode(mode) || 'practice';
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');

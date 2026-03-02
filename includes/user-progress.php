@@ -1554,9 +1554,15 @@ function ll_tools_normalize_recommendation_activity($raw): ?array {
     $category_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($raw['category_ids'] ?? [])), function ($id) {
         return $id > 0;
     })));
-    $session_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($raw['session_word_ids'] ?? [])), function ($id) {
+    $session_word_ids_raw = array_values(array_unique(array_filter(array_map('intval', (array) ($raw['session_word_ids'] ?? [])), function ($id) {
         return $id > 0;
     })));
+    $session_word_ids = function_exists('ll_tools_recommendation_enforce_session_word_bounds')
+        ? ll_tools_recommendation_enforce_session_word_bounds($session_word_ids_raw)
+        : $session_word_ids_raw;
+    if (empty($session_word_ids)) {
+        return null;
+    }
     $activity = [
         'type' => sanitize_key((string) ($raw['type'] ?? 'review_chunk')),
         'reason_code' => sanitize_key((string) ($raw['reason_code'] ?? 'recommended')),
@@ -2213,28 +2219,76 @@ function ll_tools_category_pipeline_sequence(array $category_meta): array {
     return $sequence;
 }
 
+function ll_tools_recommendation_session_word_bounds(): array {
+    $min = (int) apply_filters('ll_tools_recommendation_min_words', 8);
+    $max = (int) apply_filters('ll_tools_recommendation_max_words', 15);
+
+    $min = max(1, min(30, $min));
+    $max = max($min, min(30, $max));
+
+    return [$min, $max];
+}
+
+function ll_tools_recommendation_enforce_session_word_bounds(array $session_word_ids, array $primary_pool_ids = [], array $fallback_pool_ids = []): array {
+    [$min_words, $max_words] = ll_tools_recommendation_session_word_bounds();
+
+    $normalized = [];
+    $seen = [];
+    $append_ids = static function (array $ids, int $limit) use (&$normalized, &$seen): void {
+        foreach ($ids as $raw_id) {
+            $id = (int) $raw_id;
+            if ($id <= 0 || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $normalized[] = $id;
+            if (count($normalized) >= $limit) {
+                break;
+            }
+        }
+    };
+
+    $append_ids($session_word_ids, $max_words);
+    if (count($normalized) < $min_words) {
+        $append_ids($primary_pool_ids, $min_words);
+    }
+    if (count($normalized) < $min_words) {
+        $append_ids($fallback_pool_ids, $min_words);
+    }
+    if (count($normalized) < $min_words) {
+        return [];
+    }
+    if (count($normalized) > $max_words) {
+        $normalized = array_slice($normalized, 0, $max_words);
+    }
+
+    return $normalized;
+}
+
 function ll_tools_recommendation_chunk_size_for_pool(int $pool_size, int $preferred = 12): int {
+    [$min_words, $max_words] = ll_tools_recommendation_session_word_bounds();
+
     $pool = max(0, (int) $pool_size);
     if ($pool <= 0) {
         return 0;
     }
 
-    if ($pool <= 15) {
+    if ($pool <= $max_words) {
         return $pool;
     }
 
-    $target = max(8, min(15, (int) $preferred));
+    $target = max($min_words, min($max_words, (int) $preferred));
     if ($pool >= 60) {
-        $target = 15;
+        $target = $max_words;
     } elseif ($pool >= 40) {
-        $target = 13;
+        $target = min($max_words, max($min_words, 13));
     } elseif ($pool >= 24) {
-        $target = 12;
+        $target = min($max_words, max($min_words, 12));
     } else {
-        $target = 10;
+        $target = min($max_words, max($min_words, 10));
     }
 
-    return max(8, min(15, min($pool, $target)));
+    return max($min_words, min($max_words, min($pool, $target)));
 }
 
 /**
@@ -2247,11 +2301,13 @@ function ll_tools_recommendation_chunk_size_for_pool(int $pool_size, int $prefer
  * }
  */
 function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_rows, array $goals, int $chunk_size = 12, array $starred_lookup = []): array {
+    [, $max_words] = ll_tools_recommendation_session_word_bounds();
+
     $all_word_ids = array_values(array_unique(array_filter(array_map('intval', $all_word_ids), function ($id) {
         return $id > 0;
     })));
 
-    $size = max(1, min(15, (int) $chunk_size));
+    $size = max(1, min($max_words, (int) $chunk_size));
     if (empty($all_word_ids)) {
         return [
             'rows' => [],
@@ -2820,6 +2876,13 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         }
     }
 
+    $selected = [];
+    $words_by_category = [];
+    $all_word_ids = [];
+    $word_category_lookup = [];
+    $category_word_ids_lookup = [];
+    $scope_words_loaded = false;
+
     $activity_has_category_scope_changed = static function (array $before, array $after): bool {
         $left = array_values(array_unique(array_filter(array_map('intval', $before), function ($id) {
             return $id > 0;
@@ -2879,8 +2942,98 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         return $activity;
     };
 
-    $finalize = static function (array $activity) use ($excluded_queue_lookup, $enforce_single_aspect_bucket): ?array {
+    $load_scope_words = static function () use (&$scope_words_loaded, &$words_by_category, &$all_word_ids, &$word_category_lookup, &$category_word_ids_lookup, &$selected, $wordset_id): void {
+        if ($scope_words_loaded) {
+            return;
+        }
+        $scope_words_loaded = true;
+
+        $words_by_category = [];
+        $all_word_ids = [];
+        $word_category_lookup = [];
+        $category_word_ids_lookup = [];
+
+        if (empty($selected) || !function_exists('ll_tools_user_study_words')) {
+            return;
+        }
+
+        $words_by_category = ll_tools_user_study_words($selected, (int) $wordset_id);
+        foreach ($selected as $cid_raw) {
+            $cid = (int) $cid_raw;
+            if ($cid <= 0) {
+                continue;
+            }
+
+            if (!isset($category_word_ids_lookup[$cid])) {
+                $category_word_ids_lookup[$cid] = [];
+            }
+
+            $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
+            foreach ($rows as $word) {
+                if (!is_array($word)) {
+                    continue;
+                }
+                $wid = isset($word['id']) ? (int) $word['id'] : 0;
+                if ($wid <= 0) {
+                    continue;
+                }
+                $category_word_ids_lookup[$cid][] = $wid;
+                if (!isset($word_category_lookup[$wid])) {
+                    $word_category_lookup[$wid] = $cid;
+                }
+            }
+
+            if (!empty($category_word_ids_lookup[$cid])) {
+                $category_word_ids_lookup[$cid] = array_values(array_unique(array_filter(array_map('intval', $category_word_ids_lookup[$cid]), static function ($id): bool {
+                    return $id > 0;
+                })));
+                $all_word_ids = array_merge($all_word_ids, $category_word_ids_lookup[$cid]);
+            }
+        }
+
+        $all_word_ids = array_values(array_unique(array_filter(array_map('intval', $all_word_ids), static function ($id): bool {
+            return $id > 0;
+        })));
+    };
+
+    $finalize = static function (array $activity) use ($excluded_queue_lookup, $enforce_single_aspect_bucket, $load_scope_words, &$all_word_ids, &$category_word_ids_lookup): ?array {
         $activity = $enforce_single_aspect_bucket($activity);
+
+        $raw_session_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($activity['session_word_ids'] ?? [])), static function ($id): bool {
+            return $id > 0;
+        })));
+
+        $load_scope_words();
+        $activity_category_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($activity['category_ids'] ?? [])), static function ($id): bool {
+            return $id > 0;
+        })));
+        $primary_pool_ids = [];
+        foreach ($activity_category_ids as $activity_cid) {
+            $category_ids = isset($category_word_ids_lookup[$activity_cid]) && is_array($category_word_ids_lookup[$activity_cid])
+                ? $category_word_ids_lookup[$activity_cid]
+                : [];
+            if (!empty($category_ids)) {
+                $primary_pool_ids = array_merge($primary_pool_ids, $category_ids);
+            }
+        }
+
+        $normalized_session_ids = ll_tools_recommendation_enforce_session_word_bounds(
+            $raw_session_ids,
+            $primary_pool_ids,
+            $all_word_ids
+        );
+        if (empty($normalized_session_ids)) {
+            return null;
+        }
+        $activity['session_word_ids'] = $normalized_session_ids;
+        if ($normalized_session_ids !== $raw_session_ids) {
+            if (!isset($activity['details']) || !is_array($activity['details'])) {
+                $activity['details'] = [];
+            }
+            $activity['details']['session_word_ids_enforced'] = true;
+            $activity['details']['chunk_size'] = count($normalized_session_ids);
+        }
+
         $normalized = ll_tools_normalize_recommendation_activity($activity);
         if (!$normalized) {
             return null;
@@ -2982,27 +3135,19 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                 }
 
                 $pipeline_chunk_word_ids = [];
-                if (function_exists('ll_tools_user_study_words')) {
-                    $pipeline_words_by_category = ll_tools_user_study_words([$cid], (int) $wordset_id);
-                    $pipeline_rows = isset($pipeline_words_by_category[$cid]) && is_array($pipeline_words_by_category[$cid])
-                        ? $pipeline_words_by_category[$cid]
-                        : [];
-                    $pipeline_word_ids = [];
-                    foreach ($pipeline_rows as $word) {
-                        $wid = isset($word['id']) ? (int) $word['id'] : 0;
-                        if ($wid > 0) {
-                            $pipeline_word_ids[] = $wid;
-                        }
-                    }
-                    $pipeline_word_ids = array_values(array_unique($pipeline_word_ids));
-                    if (!empty($pipeline_word_ids)) {
-                        $pipeline_progress_rows = ll_tools_get_user_word_progress_rows($uid, $pipeline_word_ids);
-                        $pipeline_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($pipeline_word_ids));
-                        $pipeline_chunk = ll_tools_select_review_chunk_rows($pipeline_word_ids, $pipeline_progress_rows, $goals, $pipeline_chunk_size, $starred_lookup);
-                        $pipeline_chunk_word_ids = $pipeline_chunk['word_ids'];
-                        if (empty($pipeline_chunk_word_ids)) {
-                            $pipeline_chunk_word_ids = array_slice($pipeline_word_ids, 0, $pipeline_chunk_size);
-                        }
+                $load_scope_words();
+                $pipeline_word_ids = isset($category_word_ids_lookup[$cid]) && is_array($category_word_ids_lookup[$cid])
+                    ? array_values(array_unique(array_filter(array_map('intval', $category_word_ids_lookup[$cid]), static function ($id): bool {
+                        return $id > 0;
+                    })))
+                    : [];
+                if (!empty($pipeline_word_ids)) {
+                    $pipeline_progress_rows = ll_tools_get_user_word_progress_rows($uid, $pipeline_word_ids);
+                    $pipeline_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($pipeline_word_ids));
+                    $pipeline_chunk = ll_tools_select_review_chunk_rows($pipeline_word_ids, $pipeline_progress_rows, $goals, $pipeline_chunk_size, $starred_lookup);
+                    $pipeline_chunk_word_ids = $pipeline_chunk['word_ids'];
+                    if (empty($pipeline_chunk_word_ids)) {
+                        $pipeline_chunk_word_ids = array_slice($pipeline_word_ids, 0, $pipeline_chunk_size);
                     }
                 }
                 $pipeline_activity = $finalize([
@@ -3026,50 +3171,12 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
 
     // 2) Review chunk recommendation (typically 8-15 words) shaped by user priorities.
     if (!function_exists('ll_tools_user_study_words')) {
-        $fallback_mode = ($preferred_mode !== '') ? $preferred_mode : ll_tools_pick_recommendation_mode($enabled_modes, $selected, $category_lookup);
-        return $finalize([
-            'type'             => 'fallback',
-            'reason_code'      => 'no_word_loader',
-            'mode'             => $fallback_mode,
-            'category_ids'     => array_slice($selected, 0, 3),
-            'session_word_ids' => [],
-            'details'          => [],
-        ]);
+        return null;
     }
 
-    $words_by_category = ll_tools_user_study_words($selected, (int) $wordset_id);
-    $all_word_ids = [];
-    $word_category_lookup = [];
-    $category_word_ids_lookup = [];
-    foreach ($selected as $cid) {
-        $rows = isset($words_by_category[$cid]) && is_array($words_by_category[$cid]) ? $words_by_category[$cid] : [];
-        if (!isset($category_word_ids_lookup[$cid])) {
-            $category_word_ids_lookup[$cid] = [];
-        }
-        foreach ($rows as $word) {
-            $wid = isset($word['id']) ? (int) $word['id'] : 0;
-            if ($wid <= 0) {
-                continue;
-            }
-            $all_word_ids[] = $wid;
-            $category_word_ids_lookup[$cid][] = $wid;
-            if (!isset($word_category_lookup[$wid])) {
-                $word_category_lookup[$wid] = $cid;
-            }
-        }
-    }
-
-    $all_word_ids = array_values(array_unique($all_word_ids));
+    $load_scope_words();
     if (empty($all_word_ids)) {
-        $fallback_mode = ($preferred_mode !== '') ? $preferred_mode : ll_tools_pick_recommendation_mode($enabled_modes, $selected, $category_lookup);
-        return $finalize([
-            'type'             => 'fallback',
-            'reason_code'      => 'no_words_in_scope',
-            'mode'             => $fallback_mode,
-            'category_ids'     => array_slice($selected, 0, 3),
-            'session_word_ids' => [],
-            'details'          => [],
-        ]);
+        return null;
     }
 
     $total_pool_count = count($all_word_ids);

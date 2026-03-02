@@ -271,9 +271,6 @@ function ll_tools_get_category_display_name($term, array $args = []) {
         }
 
         $cached = wp_cache_get($cache_key, $cache_group);
-        if ($cached === false) {
-            $cached = get_transient($cache_key);
-        }
         if (is_string($cached)) {
             $request_cache[$cache_key] = $cached;
             return $cached;
@@ -306,7 +303,6 @@ function ll_tools_get_category_display_name($term, array $args = []) {
     if ($cacheable) {
         $request_cache[$cache_key] = $result;
         wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
-        set_transient($cache_key, $result, $cache_ttl);
     }
 
     return $result;
@@ -436,9 +432,6 @@ function ll_tools_get_category_quiz_config($term): array {
     }
 
     $cached = wp_cache_get($cache_key, $cache_group);
-    if ($cached === false) {
-        $cached = get_transient($cache_key);
-    }
     if (is_array($cached)) {
         $request_cache[$cache_key] = $cached;
         return $cached;
@@ -471,7 +464,6 @@ function ll_tools_get_category_quiz_config($term): array {
 
     $request_cache[$cache_key] = $result;
     wp_cache_set($cache_key, $result, $cache_group, $cache_ttl);
-    set_transient($cache_key, $result, $cache_ttl);
 
     return $result;
 }

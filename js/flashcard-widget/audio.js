@@ -479,14 +479,19 @@
 
             var audioSrc = normalizeUrlToPageOrigin(targetWord.audio);
 
-            // Create new audio in DOM
-            var audioElement = $('<audio>', {
-                src: audioSrc,
-                controls: true,
-                crossorigin: 'anonymous'
-            }).appendTo('#ll-tools-flashcard');
+            // Build with crossOrigin set before src so analyser access is reliable.
+            var mount = document.getElementById('ll-tools-flashcard');
+            var audioElement = document.createElement('audio');
+            try { audioElement.controls = true; } catch (_) { /* no-op */ }
+            try { audioElement.crossOrigin = 'anonymous'; } catch (_) { /* no-op */ }
+            audioElement.src = audioSrc;
+            if (mount) {
+                mount.appendChild(audioElement);
+            } else {
+                $('body').append(audioElement);
+            }
 
-            currentTargetAudio = audioElement[0];
+            currentTargetAudio = audioElement;
             currentTargetAudio.__sessionId = currentSession;
             activeAudioElements.set(currentTargetAudio, currentSession);
             try { currentTargetAudio.preload = 'auto'; } catch (_) { /* no-op */ }
