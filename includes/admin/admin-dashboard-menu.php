@@ -681,7 +681,7 @@ function ll_tools_normalize_admin_title_for_dashboard_pages($admin_title, $title
 
     return sprintf(
         /* translators: 1: Admin page title, 2: Site name */
-        __('%1$s ‹ %2$s — WordPress'),
+        __('%1$s ‹ %2$s — WordPress', 'll-tools-text-domain'),
         $page_title,
         $site_name
     );

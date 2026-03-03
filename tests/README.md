@@ -146,6 +146,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - `[flashcard_widget]` primary render path with localized initial words/categories.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
+- Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Additional integration tests also cover import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
 
 ## 6) Browser E2E tests (Playwright)
@@ -174,8 +175,12 @@ Current primary-flow E2E specs:
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
   - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints.
+- `tests/e2e/specs/listening-visualizer-regression.spec.js`
+  - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups.
+- `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
+  - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`

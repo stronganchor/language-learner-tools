@@ -25,7 +25,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - **Audio Recorder Role**: Dedicated user role for contributors to record audio.
   - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
-  - **Audio Review**: Admin page to review and manage audio quality.
+  - **Audio-Image Matcher**: Admin tool to quickly match audio and images where needed.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
 
 - **Other shortcodes**
@@ -38,7 +38,6 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 - **Admin UX**
   - Bulk **audio** and **image** uploaders that can create/update posts and try to match media to posts by name.
   - **Audio Processor**: Batch-process uploaded audio files and attach them to words.
-  - **Audio Review**: Review and manage audio quality and associations.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
   - Wordset manager workflows via the plugin’s custom wordset pages.
   - Settings page (translations, DeepL API key, image size, font, option caps, etc.).
@@ -175,17 +174,12 @@ Or link to: `/quiz/animals?mode=learning`
    - Assign recording types (introduction, isolation, question, sentence).
    - Create `word_audio` posts and attach to words.
 
-2. **Audio Review** (`Tools → Audio Review`):
-   - Review audio quality and associations.
-   - Listen to audio and verify word matches.
-   - Edit or remove incorrect associations.
-
-3. **Audio-Image Matcher** (`Tools → Audio-Image Matcher`):
+2. **Audio-Image Matcher** (`Tools → Audio-Image Matcher`):
    - Match audio files to images.
    - Uses fuzzy matching and scoring.
    - Tracks image usage to promote variety.
 
-4. **Recording Types Admin** (`Tools → Recording Types`):
+3. **Recording Types Admin** (`Tools → Recording Types`):
    - Manage the recording type taxonomy.
    - Categorize audio for contextual use.
 

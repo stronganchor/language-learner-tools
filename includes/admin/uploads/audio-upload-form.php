@@ -207,47 +207,11 @@ function ll_add_bulk_audio_upload_tool_admin_page() {
     // Check if we're on the 'edit.php' page for the 'words' custom post type
     if ( isset($screen->id) && $screen->id === 'edit-words' ) {
         // Directly echo the output of the shortcode function
-        echo '<h2>Bulk Audio Upload for Words</h2>';
+        echo '<h2>' . esc_html__('Bulk Audio Upload for Words', 'll-tools-text-domain') . '</h2>';
         echo ll_audio_upload_form_shortcode();
     }
 }
 add_action('admin_notices', 'll_add_bulk_audio_upload_tool_admin_page');
-
-/**
- * Displays a dropdown of available word sets based on user role.
- */
-function ll_display_wordsets_dropdown() {
-    $user = wp_get_current_user();
-    $wordsets = array();
-
-    if (user_can($user, 'manage_options')) {
-        // If the user is an administrator, get all word sets
-        $wordsets = get_terms('wordset', array('hide_empty' => false));
-    } elseif (in_array('wordset_manager', (array) $user->roles, true)) {
-        // If the user is a word set manager, get only the word sets they manage
-        $managed_wordsets = function_exists('ll_tools_get_user_managed_wordset_ids')
-            ? ll_tools_get_user_managed_wordset_ids((int) $user->ID)
-            : (array) get_user_meta($user->ID, 'managed_wordsets', true);
-        if (!empty($managed_wordsets)) {
-            $wordsets = get_terms(array(
-                'taxonomy' => 'wordset',
-                'hide_empty' => false,
-                'include' => array_map('intval', (array) $managed_wordsets),
-            ));
-        }
-    }
-
-    if (!empty($wordsets)) {
-        echo '<select name="selected_wordset">';
-        echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
-        foreach ($wordsets as $wordset) {
-            echo '<option value="' . esc_attr($wordset->term_id) . '">' . esc_html($wordset->name) . '</option>';
-        }
-        echo '</select>';
-    } else {
-        echo '<p>' . esc_html__('No word sets available.', 'll-tools-text-domain') . '</p>';
-    }
-}
 
 /**
  * Handles the processing of uploaded audio files.
@@ -288,7 +252,12 @@ function ll_handle_audio_file_uploads() {
 
         $upload_result = ll_upload_file($tmp_name, $original_name, $upload_dir['path']);
         if (is_wp_error($upload_result)) {
-            $failed_matches[] = $original_name . ' (' . $upload_result->get_error_message() . ')';
+            $failed_matches[] = sprintf(
+                /* translators: 1: Uploaded file name, 2: Upload error message. */
+                __('%1$s (%2$s)', 'll-tools-text-domain'),
+                $original_name,
+                $upload_result->get_error_message()
+            );
             continue;
         }
 
@@ -311,16 +280,34 @@ function ll_handle_audio_file_uploads() {
             }
             if ($existing_post) {
                 ll_update_existing_post_audio($existing_post->ID, $relative_upload_path, $_POST);
-                $success_matches[] = $original_name . ' -> Post ID: ' . $existing_post->ID;
+                $success_matches[] = sprintf(
+                    /* translators: 1: Uploaded file name, 2: Existing post ID. */
+                    __('%1$s -> Post ID: %2$d', 'll-tools-text-domain'),
+                    $original_name,
+                    (int) $existing_post->ID
+                );
             } else {
-                $failed_matches[] = $original_name . ' (No matching post found)';
+                $failed_matches[] = sprintf(
+                    /* translators: %s: Uploaded file name. */
+                    __('%s (No matching post found)', 'll-tools-text-domain'),
+                    $original_name
+                );
             }
         } else {
             $post_id = ll_create_new_word_post($formatted_title, $relative_upload_path, $_POST, $selected_categories, $upload_dir);
             if ($post_id && !is_wp_error($post_id)) {
-                $success_matches[] = $original_name . ' -> New Post ID: ' . $post_id;
+                $success_matches[] = sprintf(
+                    /* translators: 1: Uploaded file name, 2: New post ID. */
+                    __('%1$s -> New Post ID: %2$d', 'll-tools-text-domain'),
+                    $original_name,
+                    (int) $post_id
+                );
             } else {
-                $failed_matches[] = $original_name . ' (Failed to create post)';
+                $failed_matches[] = sprintf(
+                    /* translators: %s: Uploaded file name. */
+                    __('%s (Failed to create post)', 'll-tools-text-domain'),
+                    $original_name
+                );
             }
         }
     }
@@ -378,7 +365,7 @@ function ll_handle_audio_file_uploads() {
 
     // Fallback: show the summary like before if no redirect was possible
     ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts);
-    echo '<p><a href="' . esc_url(wp_get_referer()) . '">Go back to the previous page</a></p>';
+    echo '<p><a href="' . esc_url(wp_get_referer()) . '">' . esc_html__('Go back to the previous page', 'll-tools-text-domain') . '</a></p>';
 }
 add_action('admin_post_process_audio_files', 'll_handle_audio_file_uploads');
 
@@ -398,12 +385,21 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
     $mime_type = finfo_file($finfo, $tmp_name);
     finfo_close($finfo);
     if (!in_array($mime_type, $allowed_types)) {
-        return $original_name . ' (Invalid file type: ' . esc_html($mime_type) . ')';
+        return sprintf(
+            /* translators: 1: Uploaded file name, 2: MIME type. */
+            __('%1$s (Invalid file type: %2$s)', 'll-tools-text-domain'),
+            $original_name,
+            esc_html($mime_type)
+        );
     }
 
     // Check if the file size is within the allowed limit
     if ($file_size > $max_size) {
-        return $original_name . ' (File size exceeds the limit)';
+        return sprintf(
+            /* translators: %s: Uploaded file name. */
+            __('%s (File size exceeds the limit)', 'll-tools-text-domain'),
+            $original_name
+        );
     }
 
     // Perform additional audio file validation using getID3 library
@@ -411,7 +407,11 @@ function ll_validate_uploaded_file($tmp_name, $original_name, $file_size, $allow
     $getID3 = new getID3();
     $file_info = $getID3->analyze($tmp_name);
     if (!isset($file_info['audio'])) {
-        return $original_name . ' (Invalid audio file)';
+        return sprintf(
+            /* translators: %s: Uploaded file name. */
+            __('%s (Invalid audio file)', 'll-tools-text-domain'),
+            $original_name
+        );
     }
 
     return true;
@@ -443,7 +443,7 @@ function ll_upload_file($tmp_name, $original_name, $upload_path) {
     if (move_uploaded_file($tmp_name, $destination)) {
         return $destination;
     } else {
-        return new WP_Error('upload_error', 'Failed to move uploaded file.');
+        return new WP_Error('upload_error', __('Failed to move uploaded file.', 'll-tools-text-domain'));
     }
 }
 
@@ -603,16 +603,6 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
         }
 
-        if (!is_wp_error($audio_post_id)) {
-            update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
-            update_post_meta($audio_post_id, 'speaker_user_id', get_current_user_id());
-            update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
-            update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
-
-            // Assign default recording type
-            wp_set_object_terms($audio_post_id, 'isolation', 'recording_type');
-        }
-
         // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
         $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
 
@@ -678,7 +668,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         return $post_id;
     }
 
-    return new WP_Error('ll_create_word_failed', 'Failed to create the post.');
+    return new WP_Error('ll_create_word_failed', __('Failed to create the post.', 'll-tools-text-domain'));
 }
 
 /**
@@ -689,12 +679,12 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
  * @param bool   $match_existing_posts Whether matching existing posts was enabled.
  */
 function ll_display_upload_results($success_matches, $failed_matches, $match_existing_posts) {
-    echo '<h3>Upload Results:</h3>';
+    echo '<h3>' . esc_html__('Upload Results:', 'll-tools-text-domain') . '</h3>';
     if (!empty($success_matches)) {
         if ($match_existing_posts) {
-            echo '<h4>Updated Posts:</h4>';
+            echo '<h4>' . esc_html__('Updated Posts:', 'll-tools-text-domain') . '</h4>';
         } else {
-            echo '<h4>Created Posts:</h4>';
+            echo '<h4>' . esc_html__('Created Posts:', 'll-tools-text-domain') . '</h4>';
         }
         echo '<ul>';
         foreach ($success_matches as $match) {
@@ -705,9 +695,9 @@ function ll_display_upload_results($success_matches, $failed_matches, $match_exi
 
     if (!empty($failed_matches)) {
         if ($match_existing_posts) {
-            echo '<h4>Failed Updates:</h4>';
+            echo '<h4>' . esc_html__('Failed Updates:', 'll-tools-text-domain') . '</h4>';
         } else {
-            echo '<h4>Failed Creations:</h4>';
+            echo '<h4>' . esc_html__('Failed Creations:', 'll-tools-text-domain') . '</h4>';
         }
         echo '<ul>';
         foreach ($failed_matches as $match) {
