@@ -108,7 +108,6 @@ function ll_tools_post_content_has_public_assets_shortcodes($post): bool {
         'll_wordset_page',
         'audio_recording_interface',
         'editor_hub',
-        'user_study_dashboard',
         'image_copyright_grid',
         'audio_upload_form',
         'image_upload_form',

@@ -143,25 +143,6 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
         $this->assertSame($newPageId, (int) get_option('ll_default_editor_hub_page_id'));
     }
 
-    public function test_find_editor_hub_page_migrates_legacy_missing_text_shortcode(): void
-    {
-        $legacyPageId = self::factory()->post->create([
-            'post_type' => 'page',
-            'post_status' => 'publish',
-            'post_title' => 'Legacy Missing Text Page',
-            'post_content' => '[missing_text_interface foo=\"bar\"]',
-        ]);
-
-        $foundPageId = ll_find_editor_hub_page();
-
-        $this->assertSame($legacyPageId, $foundPageId);
-        $this->assertSame($legacyPageId, (int) get_option('ll_default_editor_hub_page_id'));
-
-        $updatedContent = (string) get_post_field('post_content', $legacyPageId);
-        $this->assertStringContainsString('[editor_hub', $updatedContent);
-        $this->assertStringNotContainsString('[missing_text_interface', $updatedContent);
-    }
-
     /**
      * @param array<string, string> $overrides
      * @return array<string, string>
@@ -235,7 +216,6 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
     private function cleanupEditorHubPageState(): void
     {
         delete_option('ll_default_editor_hub_page_id');
-        delete_option('ll_default_missing_text_page_id');
         delete_option('ll_tools_force_create_editor_hub_page');
         delete_transient('ll_editor_hub_page_creation_attempt');
         delete_transient('ll_editor_hub_page_created');

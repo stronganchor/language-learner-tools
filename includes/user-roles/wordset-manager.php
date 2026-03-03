@@ -63,16 +63,6 @@ function hide_admin_bar_for_non_admins() {
 }
 add_filter('show_admin_bar', 'hide_admin_bar_for_non_admins');
 
-// Adds [manage_word_sets] shortcode to display the Word Sets page within a post or page
-function manage_word_sets_shortcode() {
-    if (!current_user_can('manage_options') && !current_user_can('manage_wordsets')) {
-        return 'You do not have permission to view this content.';
-    }
-
-    $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
-    return '<div class="custom-admin-page"><iframe src="' . $iframe_url . '" style="width:100%; height:800px; border:none;"></iframe></div>';
-}
-
 /**
  * Redirect word set managers to a custom front-end page after login.
  * Keep wp-admin accessible for now because some manager tools still live there.

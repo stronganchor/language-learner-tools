@@ -49,35 +49,42 @@ function ll_tools_register_or_refresh_learner_role() {
 add_action('plugins_loaded', 'll_tools_register_or_refresh_learner_role', 1);
 add_action('init', 'll_tools_register_or_refresh_learner_role', 1);
 
-/**
- * Find the first published page that contains the user study dashboard shortcode.
- */
-function ll_tools_find_study_dashboard_page_id(): int {
-    $pages = get_posts([
-        'post_type'      => 'page',
-        'post_status'    => 'publish',
-        'posts_per_page' => 1,
-        'fields'         => 'ids',
-        's'              => '[ll_user_study_dashboard',
-    ]);
-
-    if (empty($pages)) {
-        return 0;
+function ll_tools_get_learner_redirect_wordset_term() {
+    $wordset_id = function_exists('ll_tools_get_active_wordset_id')
+        ? (int) ll_tools_get_active_wordset_id()
+        : 0;
+    if ($wordset_id > 0) {
+        $term = get_term($wordset_id, 'wordset');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            return $term;
+        }
     }
 
-    return (int) $pages[0];
+    $terms = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'number'     => 1,
+        'orderby'    => 'term_id',
+        'order'      => 'ASC',
+    ]);
+    if (is_wp_error($terms) || empty($terms) || !($terms[0] instanceof WP_Term)) {
+        return null;
+    }
+
+    return $terms[0];
 }
 
 /**
- * Resolve the default study dashboard URL for learner redirects.
+ * Resolve the default learner URL.
  */
-function ll_tools_get_study_dashboard_redirect_url(): string {
-    $page_id = ll_tools_find_study_dashboard_page_id();
-    if ($page_id > 0 && get_post_status($page_id) === 'publish') {
-        $url = get_permalink($page_id);
-        if (is_string($url) && $url !== '') {
-            return $url;
-        }
+function ll_tools_get_learner_redirect_url(): string {
+    if (!function_exists('ll_tools_get_wordset_page_view_url')) {
+        return home_url('/');
+    }
+
+    $wordset_term = ll_tools_get_learner_redirect_wordset_term();
+    if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) {
+        return ll_tools_get_wordset_page_view_url($wordset_term);
     }
 
     return home_url('/');
@@ -105,6 +112,6 @@ function ll_tools_learner_login_redirect($redirect_to, $request, $user) {
         return $requested_redirect;
     }
 
-    return ll_tools_get_study_dashboard_redirect_url();
+    return ll_tools_get_learner_redirect_url();
 }
 add_filter('login_redirect', 'll_tools_learner_login_redirect', 997, 3);

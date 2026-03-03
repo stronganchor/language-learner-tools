@@ -27,10 +27,6 @@ function ll_tools_get_import_page_slug(): string {
     return 'll-import';
 }
 
-function ll_tools_get_legacy_export_import_page_slug(): string {
-    return 'll-export-import';
-}
-
 function ll_tools_get_export_import_page_url(string $page_slug, array $args = []): string {
     $page_slug = sanitize_key($page_slug);
     if (function_exists('ll_tools_get_tools_page_url')) {
@@ -70,17 +66,6 @@ function ll_tools_register_export_import_page() {
         add_action('load-' . $import_hook, 'll_tools_prime_import_admin_title');
     }
 
-    // Backward-compatible slug for existing bookmarks/links.
-    $legacy_hook = add_management_page(
-        __('LL Export/Import', 'll-tools-text-domain'),
-        __('LL Export/Import', 'll-tools-text-domain'),
-        $capability,
-        ll_tools_get_legacy_export_import_page_slug(),
-        'll_tools_render_legacy_export_import_page'
-    );
-    if (is_string($legacy_hook) && $legacy_hook !== '') {
-        add_action('load-' . $legacy_hook, 'll_tools_handle_legacy_export_import_redirect');
-    }
 }
 add_action('admin_menu', 'll_tools_register_export_import_page');
 
@@ -111,7 +96,6 @@ function ll_tools_enqueue_export_import_assets($hook) {
     $allowed_hooks = [
         'tools_page_' . ll_tools_get_export_page_slug(),
         'tools_page_' . ll_tools_get_import_page_slug(),
-        'tools_page_' . ll_tools_get_legacy_export_import_page_slug(),
     ];
 
     if (!in_array((string) $hook, $allowed_hooks, true)) {
@@ -760,29 +744,6 @@ function ll_tools_render_export_page() {
 
 function ll_tools_render_import_page() {
     ll_tools_render_export_import_page('import');
-}
-
-function ll_tools_handle_legacy_export_import_redirect() {
-    if (!ll_tools_current_user_can_export_import()) {
-        return;
-    }
-
-    $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
-    $target_page = $import_preview_token !== '' ? ll_tools_get_import_page_slug() : ll_tools_get_export_page_slug();
-
-    $redirect_url = ll_tools_get_export_import_page_url($target_page, $import_preview_token !== '' ? [
-        'll_import_preview' => $import_preview_token,
-    ] : []);
-    if ($import_preview_token !== '') {
-        $redirect_url .= '#ll-tools-import-preview';
-    }
-
-    wp_safe_redirect($redirect_url);
-    exit;
-}
-
-function ll_tools_render_legacy_export_import_page() {
-    ll_tools_render_export_import_page();
 }
 
 function ll_tools_import_history_created_summary(array $stats): string {

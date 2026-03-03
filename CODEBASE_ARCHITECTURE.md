@@ -19,7 +19,6 @@ read_first:
   - includes/shortcodes/audio-recording-shortcode.php
   - includes/user-study.php
   - includes/user-progress.php
-  - includes/shortcodes/user-study-dashboard.php
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
   - includes/post-types/words-post-type.php
@@ -117,7 +116,6 @@ includes/
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
-    user-study-dashboard.php
   admin/
     admin-dashboard-menu.php
     settings.php
@@ -136,7 +134,6 @@ includes/
     image-aspect-normalizer-admin.php
     image-webp-optimizer-admin.php
     word-images-fixer.php
-    manage-wordsets.php
     metabox-word-audio-parent.php
     uploads/
       audio-upload-form.php
@@ -156,7 +153,6 @@ js/
   audio-image-matcher.js
   audio-recorder.js
   quiz-pages.js
-  user-study-dashboard.js
   word-audio.js
   manage-wordsets.js
   bulk-category-edit.js
@@ -167,7 +163,6 @@ css/
   recording-interface.css
   audio-processor.css
   audio-image-matcher.css
-  user-study-dashboard.css
   flashcard/
     base.css
     mode-practice.css
@@ -255,7 +250,6 @@ Core settings live in `includes/admin/settings.php`:
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
 - `[language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
-- `[ll_user_study_dashboard]` (`includes/shortcodes/user-study-dashboard.php`).
 
 ## Routes
 - `/quiz/<category>` auto pages (created/synced by `includes/pages/quiz-pages.php`).
@@ -311,7 +305,6 @@ Core settings live in `includes/admin/settings.php`:
 - Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments).
 - Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
-- Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).
 - Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
 - Word Option Rules: `includes/admin/word-option-rules-admin.php` (option conflict/group editing).
 - Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
@@ -319,10 +312,6 @@ Core settings live in `includes/admin/settings.php`:
 - Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.
 - IPA Keyboard admin: `includes/admin/ipa-keyboard-admin.php`.
 - Example Sentence Migration utility: `includes/admin/example-sentence-migration.php`.
-
-## Maintenance notes (current)
-- `includes/admin/manage-wordsets.php` is currently unused in normal workflows. Decide later whether to redesign it for usability or remove it.
-- `includes/shortcodes/user-study-dashboard.php` is largely superseded by newer `wordset` page flows. Decide later whether to deprecate/remove it or keep only a minimal compatibility surface.
 
 ## Audio workflow (end to end)
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
@@ -353,7 +342,7 @@ Core settings live in `includes/admin/settings.php`:
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
-- Wordset scope is strict: learn/practice/listening flows (including study dashboard launches) must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
+- Wordset scope is strict: learn/practice/listening flows must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
 - Wordset-page activity launches and recommendations must enforce a hard minimum pool of 5 available words (after applying session/category filters); do not launch or suggest an activity below that threshold.
 - Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
@@ -401,7 +390,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
 ## Review checklist for UI color changes
 - Confirm no old conflicting shades were reintroduced.
 - Confirm new user-facing status colors map to the canonical palette above.
-- Confirm related surfaces (wordset page, flashcard modes, self-check, user-study dashboard) stay aligned.
+- Confirm related surfaces (wordset page, flashcard modes, self-check) stay aligned.
 
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.
@@ -412,7 +401,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
 - Tune audio/image matching: `includes/lib/ll-matching.php`, `includes/admin/audio-image-matcher.php`.
 - Adjust recording interface: `includes/shortcodes/audio-recording-shortcode.php`, `js/audio-recorder.js`, `css/recording-interface.css`.
 - Change audio processing: `includes/admin/audio-processor-admin.php`, `js/audio-processor.js`, `css/audio-processor.css`.
-- Modify user study dashboard: `includes/user-study.php`, `includes/shortcodes/user-study-dashboard.php`, `js/user-study-dashboard.js`.
+- Modify user study state/recommendations: `includes/user-study.php`, `includes/user-progress.php`, `js/wordset-pages.js`.
 - Update settings/options: `includes/admin/settings.php`.
 
 # Search hints (ripgrep)

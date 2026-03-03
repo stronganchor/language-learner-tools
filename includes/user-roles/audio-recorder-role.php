@@ -448,8 +448,8 @@ function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin
     $target = home_url('/');
     if ($is_recorder && function_exists('ll_get_recording_redirect_url')) {
         $target = ll_get_recording_redirect_url((int) $user->ID);
-    } elseif ($is_learner && function_exists('ll_tools_get_study_dashboard_redirect_url')) {
-        $target = ll_tools_get_study_dashboard_redirect_url();
+    } elseif ($is_learner && function_exists('ll_tools_get_learner_redirect_url')) {
+        $target = ll_tools_get_learner_redirect_url();
     }
 
     return (string) wp_validate_redirect($target, home_url('/'));

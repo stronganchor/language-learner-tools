@@ -1049,7 +1049,7 @@ function ll_tools_user_study_category_mode_session_counts(int $user_id, int $wor
 }
 
 /**
- * Build analytics used by the user study dashboard.
+ * Build analytics used by learner-facing study surfaces.
  *
  * @return array<string,mixed>
  */

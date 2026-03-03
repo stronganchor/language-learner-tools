@@ -64,7 +64,6 @@ if (!function_exists('ll_tools_should_load_admin_modules')) {
 
 if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/admin-dashboard-menu.php');
-    require_once(__DIR__ . '/admin/manage-wordsets.php');
     require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
     require_once(__DIR__ . '/admin/audio-image-matcher.php');
     require_once(__DIR__ . '/admin/settings.php');
@@ -105,7 +104,6 @@ require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
-require_once(__DIR__ . '/shortcodes/user-study-dashboard.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
 
 // Include the plugin update checker only on admin/cron/CLI requests.

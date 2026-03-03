@@ -40,7 +40,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - **Audio Processor**: Batch-process uploaded audio files and attach them to words.
   - **Audio Review**: Review and manage audio quality and associations.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
-  - "Manage Word Sets" admin surface.
+  - Wordset manager workflows via the plugin’s custom wordset pages.
   - Settings page (translations, DeepL API key, image size, font, option caps, etc.).
 
 - **DeepL integration**

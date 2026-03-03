@@ -64,7 +64,6 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-bulk-translations',
             'll-export',
             'll-import',
-            'll-export-import',
             'll-ipa-keyboard',
             'll-word-option-rules',
             'll-image-aspect-normalizer',

@@ -19,13 +19,15 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $this->assertSame(get_permalink($recording_page_id), $redirect);
     }
 
-    public function test_login_redirect_routes_learner_to_study_dashboard_by_default(): void
+    public function test_login_redirect_routes_learner_to_wordset_page_by_default(): void
     {
         ll_tools_register_or_refresh_learner_role();
 
-        $dashboard_page_id = $this->create_page_with_shortcode('Study Dashboard', '[ll_user_study_dashboard]');
-        $expected_url = get_permalink($dashboard_page_id);
-        $this->assertSame($expected_url, ll_tools_get_study_dashboard_redirect_url());
+        $wordset_term = $this->create_wordset('Learner Redirect');
+        update_option('ll_default_wordset_id', (int) $wordset_term->term_id);
+
+        $expected_url = ll_tools_get_wordset_page_view_url($wordset_term);
+        $this->assertSame($expected_url, ll_tools_get_learner_redirect_url());
 
         $user_id = self::factory()->user->create(['role' => 'll_tools_learner']);
         $user = get_user_by('id', $user_id);
@@ -78,11 +80,12 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         ll_create_ll_tools_editor_role();
 
         $recording_page_id = $this->create_page_with_shortcode('Recorder Page', '[audio_recording_interface]');
-        $dashboard_page_id = $this->create_page_with_shortcode('Study Dashboard', '[ll_user_study_dashboard]');
+        $wordset_term = $this->create_wordset('Learner External Redirect');
         $editor_hub_page_id = $this->create_page_with_shortcode('Editor Hub', '[editor_hub]');
 
         update_option('ll_default_recording_page_id', $recording_page_id);
         update_option('ll_default_editor_hub_page_id', $editor_hub_page_id);
+        update_option('ll_default_wordset_id', (int) $wordset_term->term_id);
 
         $external_request = 'https://evil.example/phish';
 
@@ -95,7 +98,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
             apply_filters('login_redirect', admin_url(), $external_request, $recorder)
         );
         $this->assertSame(
-            get_permalink($dashboard_page_id),
+            ll_tools_get_wordset_page_view_url($wordset_term),
             apply_filters('login_redirect', admin_url(), $external_request, $learner)
         );
         $this->assertSame(
@@ -110,8 +113,9 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         ll_tools_register_or_refresh_learner_role();
 
         $recording_page_id = $this->create_page_with_shortcode('Recorder Page', '[audio_recording_interface]');
-        $dashboard_page_id = $this->create_page_with_shortcode('Study Dashboard', '[ll_user_study_dashboard]');
+        $wordset_term = $this->create_wordset('Learner Admin Redirect');
         update_option('ll_default_recording_page_id', $recording_page_id);
+        update_option('ll_default_wordset_id', (int) $wordset_term->term_id);
 
         $recorder = $this->create_user_with_role('audio_recorder');
         $learner = $this->create_user_with_role('ll_tools_learner');
@@ -121,7 +125,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
             ll_tools_get_limited_role_admin_redirect_target($recorder, true, false)
         );
         $this->assertSame(
-            get_permalink($dashboard_page_id),
+            ll_tools_get_wordset_page_view_url($wordset_term),
             ll_tools_get_limited_role_admin_redirect_target($learner, true, false)
         );
     }
@@ -170,6 +174,18 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
             'post_title' => $title,
             'post_content' => $shortcode,
         ]);
+    }
+
+    private function create_wordset(string $name): WP_Term
+    {
+        $term_id = self::factory()->term->create([
+            'taxonomy' => 'wordset',
+            'name' => $name,
+            'slug' => sanitize_title($name . '-' . wp_generate_password(6, false, false)),
+        ]);
+        $term = get_term((int) $term_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $term);
+        return $term;
     }
 
     private function create_user_with_role(string $role): WP_User

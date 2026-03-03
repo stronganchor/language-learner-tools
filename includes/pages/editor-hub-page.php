@@ -15,7 +15,6 @@ function ll_tools_ensure_editor_hub_page() {
         return;
     }
 
-    ll_tools_editor_hub_migrate_legacy_page_option();
     ll_tools_ensure_default_shortcode_page([
         'option_key'                 => 'll_default_editor_hub_page_id',
         'force_option_key'           => 'll_tools_force_create_editor_hub_page',
@@ -215,44 +214,5 @@ function ll_find_editor_hub_page() {
         return $page_id;
     }
 
-    $legacy_pages = get_posts([
-        'post_type' => 'page',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        's' => '[missing_text_interface',
-        'fields' => 'ids',
-    ]);
-    if (!empty($legacy_pages)) {
-        $page_id = (int) $legacy_pages[0];
-        if ($page_id > 0) {
-            $content = (string) get_post_field('post_content', $page_id);
-            if (strpos($content, '[missing_text_interface') !== false) {
-                $updated = str_replace('[missing_text_interface', '[editor_hub', $content);
-                wp_update_post([
-                    'ID' => $page_id,
-                    'post_content' => $updated,
-                ]);
-            }
-            update_option('ll_default_editor_hub_page_id', $page_id);
-            return $page_id;
-        }
-    }
-
     return 0;
-}
-
-/**
- * Migrate legacy Missing Text option key to Editor Hub.
- */
-function ll_tools_editor_hub_migrate_legacy_page_option() {
-    $existing_page_id = (int) get_option('ll_default_editor_hub_page_id');
-    if ($existing_page_id > 0) {
-        return;
-    }
-
-    $legacy_page_id = (int) get_option('ll_default_missing_text_page_id');
-    if ($legacy_page_id > 0) {
-        update_option('ll_default_editor_hub_page_id', $legacy_page_id);
-        delete_option('ll_default_missing_text_page_id');
-    }
 }

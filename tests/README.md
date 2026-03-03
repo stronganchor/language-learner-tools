@@ -166,8 +166,6 @@ Current primary-flow E2E specs:
   - Verifies selected card category/mode/wordset are forwarded into widget state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
-- `tests/e2e/specs/user-study-dashboard-mode-options.spec.js`
-  - Verifies study panel mode buttons include base quiz modes and conditionally reveal Gender mode when selected categories support it.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
   - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
@@ -200,8 +198,8 @@ Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Loca
 Run one E2E spec with either path style:
 
 ```bash
-tests/bin/run-e2e.sh tests/e2e/specs/user-study-dashboard-mode-options.spec.js
-tests/bin/run-e2e.sh specs/user-study-dashboard-mode-options.spec.js
+tests/bin/run-e2e.sh tests/e2e/specs/wordset-pages-listening-launch.spec.js
+tests/bin/run-e2e.sh specs/wordset-pages-listening-launch.spec.js
 ```
 
 ## Notes

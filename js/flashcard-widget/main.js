@@ -805,7 +805,7 @@
         } catch (_) { /* no-op */ }
     }
 
-    // --- Study star helpers (user study dashboard only) ---
+    // --- Study star helpers (shared across wordset/study surfaces) ---
     const StarManager = (function () {
         let currentWord = null;
         let $starRow = null;

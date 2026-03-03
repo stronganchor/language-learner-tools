@@ -344,12 +344,11 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertIsArray($response['data']['remaining_types'] ?? null);
     }
 
-    public function test_manage_word_sets_shortcode_uses_ll_tools_handler(): void
+    public function test_manage_word_sets_shortcode_is_not_registered(): void
     {
         global $shortcode_tags;
         $this->assertIsArray($shortcode_tags);
-        $this->assertArrayHasKey('manage_word_sets', $shortcode_tags);
-        $this->assertSame('ll_manage_word_sets_shortcode', $shortcode_tags['manage_word_sets']);
+        $this->assertArrayNotHasKey('manage_word_sets', $shortcode_tags);
     }
 
     public function test_wordset_manager_menu_trim_uses_role_membership(): void
