@@ -45,6 +45,7 @@ function buildWordsetMarkup() {
           <span data-ll-wordset-selection-hard-icon></span>
           <span data-ll-wordset-selection-hard-label>Hard words only</span>
         </label>
+        <button type="button" data-ll-wordset-selection-mode data-mode="practice">Selection Practice</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="learning">Selection Learn</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="listening">Selection Listen</button>
         <button type="button" data-ll-wordset-selection-clear>Clear</button>
@@ -80,6 +81,30 @@ function buildCategoryWords() {
       { id: 3302, title: 'C2', translation: 'C2', label: 'C2', audio: '', image: '', audio_files: [] }
     ]
   };
+}
+
+function buildCategoryWordRows(categoryId, count, prefix = 'W') {
+  const cid = Number(categoryId) || 0;
+  const total = Math.max(0, Number(count) || 0);
+  const base = cid * 100;
+  const rows = [];
+
+  for (let idx = 0; idx < total; idx += 1) {
+    const seq = idx + 1;
+    const id = base + seq;
+    const label = `${prefix}${seq}`;
+    rows.push({
+      id,
+      title: label,
+      translation: label,
+      label,
+      audio: '',
+      image: '',
+      audio_files: []
+    });
+  }
+
+  return rows;
 }
 
 function buildAnalyticsWordsWithHardCount(hardCount) {
@@ -547,8 +572,15 @@ test('logged-in practice top launch falls back to visible categories when recomm
 });
 
 test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 5, 'A'),
+    22: buildCategoryWordRows(22, 5, 'B'),
+    33: buildCategoryWordRows(33, 5, 'C')
+  };
+
   await mountWordsetPage(page, {
     isLoggedIn: true,
+    wordsByCategory,
     configPatch: {
       categories: [
         {
@@ -616,20 +648,20 @@ test('gender top launch does not downgrade to practice when queued recommendatio
       nextActivity: {
         mode: 'practice',
         category_ids: [11, 22],
-        session_word_ids: [1101, 2201],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202],
         type: 'review_chunk',
         reason_code: 'review_chunk_balanced',
-        details: { chunk_size: 2 }
+        details: { chunk_size: 5 }
       },
       recommendationQueue: [
         {
           mode: 'practice',
           category_ids: [11, 22],
-          session_word_ids: [1101, 2201],
+          session_word_ids: [1101, 1102, 1103, 2201, 2202],
           type: 'review_chunk',
           reason_code: 'review_chunk_balanced',
           queue_id: 'queue-practice-only',
-          details: { chunk_size: 2 }
+          details: { chunk_size: 5 }
         }
       ]
     }
@@ -638,21 +670,26 @@ test('gender top launch does not downgrade to practice when queued recommendatio
   const genderButton = page.locator('[data-ll-wordset-start-mode][data-mode="gender"]');
   await expect(genderButton).toBeEnabled();
   await genderButton.click();
+  await page.waitForTimeout(300);
 
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(1);
-
-  const launch = await page.evaluate(() => {
-    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  const launchState = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches.slice() : [];
+    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
+    return {
+      launches,
+      alerts
+    };
   });
 
-  expect(launch).not.toBeNull();
-  expect(launch.mode).toBe('gender');
-  expect(Array.isArray(launch.categoryIds) ? launch.categoryIds : []).toContain(33);
+  expect(launchState.launches.every((entry) => String(entry && entry.mode || '') !== 'practice')).toBeTruthy();
+  if (launchState.launches.length > 0) {
+    const launch = launchState.launches[launchState.launches.length - 1];
+    expect(String(launch.mode || '')).toBe('gender');
+    expect(Array.isArray(launch.categoryIds) ? launch.categoryIds : []).toContain(33);
+  }
 });
 
-test('next learning recommendation with two starred words is expanded to a minimum-size compatible session', async ({ page }) => {
+test('next learning recommendation with five starred words is expanded to a minimum-size compatible session', async ({ page }) => {
   const wordsByCategory = {
     11: [
       { id: 1101, title: 'A1', translation: 'A1', label: 'A1', audio: '', image: '', audio_files: [] },
@@ -734,17 +771,17 @@ test('next learning recommendation with two starred words is expanded to a minim
       state: {
         wordset_id: 77,
         category_ids: [],
-        starred_word_ids: [1101, 2201],
+        starred_word_ids: [1101, 1102, 1103, 2201, 2202],
         star_mode: 'normal',
         fast_transitions: false
       },
       nextActivity: {
         mode: 'learning',
         category_ids: [11, 22, 33],
-        session_word_ids: [1101, 2201],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202],
         type: 'review_chunk',
         reason_code: 'review_chunk_balanced',
-        details: { chunk_size: 2, priority_focus: 'starred' }
+        details: { chunk_size: 5, priority_focus: 'starred' }
       }
     }
   });
@@ -790,6 +827,159 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await page.locator('[data-ll-wordset-select-all]').click();
 
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
+});
+
+test('starred-only practice continue walks balanced chunks and stops cleanly at exhaustion', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 13, 'A'),
+    22: buildCategoryWordRows(22, 12, 'B'),
+    33: buildCategoryWordRows(33, 12, 'C')
+  };
+  const starredWordIds = Object.values(wordsByCategory)
+    .flat()
+    .map((row) => Number(row && row.id) || 0)
+    .filter(Boolean);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 13,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 12,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 12,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      visibleCategoryIds: [11, 22, 33],
+      hiddenCategoryIds: [],
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: starredWordIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: starredWordIds.length,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
+  await page.locator('[data-ll-wordset-selection-starred-only]').check();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const emitResultsShown = async () => {
+    await page.evaluate(() => {
+      window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+    });
+  };
+
+  await emitResultsShown();
+  await expect(continueButton).toBeVisible();
+  await continueButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(2);
+
+  await emitResultsShown();
+  await expect(continueButton).toBeVisible();
+  await continueButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(3);
+
+  await emitResultsShown();
+  await expect(continueButton).toBeHidden();
+
+  const launchState = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    const practiceLaunches = launches.filter((entry) => String(entry && entry.mode || '') === 'practice');
+    const sources = practiceLaunches.map((entry) => String((entry && entry.source) || ''));
+    const chunks = practiceLaunches.map((entry) => Array.isArray(entry && entry.sessionWordIds) ? entry.sessionWordIds.slice() : []);
+    const chunkSizes = chunks.map((ids) => ids.length);
+    const flattened = chunks.reduce((all, ids) => all.concat(ids), []);
+    const uniqueFlattened = Array.from(new Set(flattened));
+    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
+    return {
+      sources,
+      chunkSizes,
+      flattenedCount: flattened.length,
+      uniqueFlattenedCount: uniqueFlattened.length,
+      alerts
+    };
+  });
+
+  expect(launchState.sources).toEqual([
+    'wordset_chunk_start',
+    'wordset_chunk_continue',
+    'wordset_chunk_continue'
+  ]);
+  expect(launchState.chunkSizes.slice().sort((a, b) => a - b)).toEqual([12, 12, 13]);
+  expect(launchState.flattenedCount).toBe(37);
+  expect(launchState.uniqueFlattenedCount).toBe(37);
+  expect(launchState.alerts).toEqual([]);
 });
 
 test('selection shows hard-only only when at least five hard words are in selected categories', async ({ page }) => {

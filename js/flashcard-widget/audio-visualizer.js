@@ -20,6 +20,11 @@
     let currentAudio = null;
     let barLevels = [];
     let zeroEnergyFrames = 0;
+    let noiseGateOpen = false;
+    let noiseGateHoldFrames = 0;
+    const NOISE_GATE_OPEN_THRESHOLD = 0.2;
+    const NOISE_GATE_CLOSE_THRESHOLD = 0.12;
+    const NOISE_GATE_HOLD_FRAMES = 5;
 
     function getContainer() {
         // Use only the dedicated listening-mode visualizer container.
@@ -126,6 +131,8 @@
             barLevels[i] = 0;
         }
         zeroEnergyFrames = 0;
+        noiseGateOpen = false;
+        noiseGateHoldFrames = 0;
     }
 
     function revealVisualizer() {
@@ -224,26 +231,58 @@
             sumSquares += deviation * deviation;
         }
         const rms = Math.min(1, Math.sqrt(sumSquares / timeDomainData.length) / 66);
-        const loudFrame = rms > 0.55;
+        let spectrumSum = 0;
+        for (let i = 0; i < analyserData.length; i++) {
+            spectrumSum += analyserData[i];
+        }
+        const spectrumAvg = spectrumSum / analyserData.length;
+        const rmsSignal = Math.max(0, Math.min(1, (rms - 0.035) / 0.1));
+        const spectrumSignal = Math.max(0, Math.min(1, (spectrumAvg - 28) / 80));
+        // De-emphasize spectrum-only activity so static/hiss does not open the gate too easily.
+        const frameSignal = Math.max(rmsSignal, spectrumSignal * 0.55);
+
+        if (frameSignal >= NOISE_GATE_OPEN_THRESHOLD) {
+            noiseGateOpen = true;
+            noiseGateHoldFrames = NOISE_GATE_HOLD_FRAMES;
+        } else if (noiseGateOpen) {
+            if (frameSignal >= NOISE_GATE_CLOSE_THRESHOLD) {
+                noiseGateHoldFrames = NOISE_GATE_HOLD_FRAMES;
+            } else if (noiseGateHoldFrames > 0) {
+                noiseGateHoldFrames -= 1;
+            } else {
+                noiseGateOpen = false;
+            }
+        }
+
+        const loudFrame = noiseGateOpen && rms > 0.55;
 
         for (let i = 0; i < bars.length; i++) {
+            const previous = barLevels[i] || 0;
+
+            if (!noiseGateOpen) {
+                const level = previous * 0.7;
+                barLevels[i] = level;
+                bars[i].style.setProperty('--level', level.toFixed(3));
+                continue;
+            }
+
             let sum = 0;
             for (let j = 0; j < slice; j++) {
                 sum += analyserData[(i * slice) + j] || 0;
             }
 
             const avg = sum / slice;
-            const normalized = Math.max(0, (avg - 30) / 220);
-            const combined = Math.min(1, (normalized * 0.62) + (rms * 0.72));
-            const boosted = Math.min(1, combined * 1.28);
+            const normalized = Math.max(0, (avg - 40) / 220);
+            const combined = Math.min(1, (normalized * 0.64) + (rms * 0.72));
+            const boosted = Math.min(1, combined * 1.22);
             const shaped = Math.pow(boosted, 1.22);
-            const eased = Math.min(loudFrame ? 1 : 0.86, shaped);
+            const gateBoost = 0.18 + (frameSignal * 0.82);
+            const eased = Math.min(loudFrame ? 1 : 0.84, shaped * gateBoost);
 
-            const previous = barLevels[i] || 0;
-            const level = previous + (eased - previous) * 0.42;
+            const level = previous + (eased - previous) * 0.38;
             barLevels[i] = level;
 
-            if (level > 0.01) {
+            if (level > 0.03) {
                 hasEnergy = true;
             }
 
@@ -254,7 +293,11 @@
             zeroEnergyFrames = 0;
         } else {
             zeroEnergyFrames++;
-            if (currentAudio && !currentAudio.paused && !currentAudio.ended) {
+            if (
+                currentAudio && !currentAudio.paused && !currentAudio.ended &&
+                noiseGateOpen && frameSignal >= NOISE_GATE_CLOSE_THRESHOLD &&
+                zeroEnergyFrames > 10
+            ) {
                 renderTimelineLevels(currentAudio);
             }
         }

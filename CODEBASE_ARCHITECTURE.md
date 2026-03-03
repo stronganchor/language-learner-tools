@@ -354,6 +354,8 @@ Core settings live in `includes/admin/settings.php`:
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
 - Wordset scope is strict: learn/practice/listening flows (including study dashboard launches) must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
+- Wordset-page activity launches and recommendations must enforce a hard minimum pool of 5 available words (after applying session/category filters); do not launch or suggest an activity below that threshold.
+- Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
 - Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.

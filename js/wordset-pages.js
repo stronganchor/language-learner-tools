@@ -23,6 +23,7 @@
     const turkishSortLocales = withTurkishSortLocales(sortLocales);
 
     const CHUNK_SIZE = 15;
+    const MIN_ACTIVITY_WORDS = 5;
     const LEARNING_MIN_CHUNK_SIZE = Math.max(8, parseInt(cfg.learningMinChunkSize, 10) || 8);
     const HARD_WORD_DIFFICULTY_THRESHOLD = Math.max(1, parseInt(cfg.hardWordDifficultyThreshold, 10) || 4);
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
@@ -494,6 +495,9 @@
         return (Array.isArray(raw) ? raw : []).map(function (item) {
             const activity = normalizeNextActivity(item);
             if (!activity) { return null; }
+            if (!activityHasMinimumWordPool(activity.mode, activity.category_ids, activity.session_word_ids)) {
+                return null;
+            }
             const queueId = String((item && item.queue_id) || activity.queue_id || '');
             activity.queue_id = queueId;
             if (queueId && seen[queueId]) {
@@ -511,18 +515,40 @@
         if (mode) {
             for (let idx = 0; idx < recommendationQueue.length; idx += 1) {
                 const activity = normalizeNextActivity(recommendationQueue[idx]);
-                if (activity && activity.mode === mode) {
+                if (activity && activity.mode === mode &&
+                    activityHasMinimumWordPool(activity.mode, activity.category_ids, activity.session_word_ids)) {
                     return activity;
                 }
             }
         }
         for (let idx = 0; idx < recommendationQueue.length; idx += 1) {
             const activity = normalizeNextActivity(recommendationQueue[idx]);
-            if (activity) {
+            if (activity &&
+                activityHasMinimumWordPool(activity.mode, activity.category_ids, activity.session_word_ids)) {
                 return activity;
             }
         }
         return null;
+    }
+
+    function resolvePreferredNextActivity(preferredMode) {
+        const preferred = normalizeMode(preferredMode || '');
+        const direct = normalizeNextActivity(nextActivity);
+        const directAllowed = !!(direct &&
+            activityHasMinimumWordPool(direct.mode, direct.category_ids, direct.session_word_ids));
+
+        if (preferred) {
+            if (directAllowed && direct.mode === preferred) {
+                return direct;
+            }
+            return recommendationQueueHead(preferred);
+        }
+
+        if (directAllowed) {
+            return direct;
+        }
+
+        return recommendationQueueHead();
     }
 
     function resolveQueueIdForActivity(activity) {
@@ -562,6 +588,9 @@
         }
         if (Object.prototype.hasOwnProperty.call(payload, 'next_activity')) {
             nextActivity = normalizeNextActivity(payload.next_activity);
+        }
+        if (nextActivity && !activityHasMinimumWordPool(nextActivity.mode, nextActivity.category_ids, nextActivity.session_word_ids)) {
+            nextActivity = null;
         }
         if ((!nextActivity || !nextActivity.mode) && recommendationQueue.length) {
             const preferredMode = normalizeMode(opts.preferredMode || '');
@@ -2348,6 +2377,10 @@
             alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
             return;
         }
+        if (selectedWordIds.length < getSelectionMinimumWordCount()) {
+            alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+            return;
+        }
 
         const selectedCategoryIds = getProgressSelectionCategoryIds(selectedWordIds);
         const categoryIds = filterCategoryIdsForMode(normalizedMode, selectedCategoryIds);
@@ -2892,11 +2925,75 @@
     }
 
     function getSelectionMinimumWordCount() {
-        return Math.max(1, parseInt(genderCfg.min_count, 10) || 1);
+        return Math.max(MIN_ACTIVITY_WORDS, parseInt(genderCfg.min_count, 10) || 1);
     }
 
     function getSelectionFilteredMinimumWordCount() {
         return Math.max(getSelectionMinimumWordCount(), LEARNING_MIN_CHUNK_SIZE);
+    }
+
+    function countActivityWordsFromLoadedCategories(categoryIds, sessionWordIds) {
+        const ids = uniqueIntList(categoryIds || []);
+        if (!ids.length) {
+            return { count: 0, fullyLoaded: false };
+        }
+
+        const explicitSessionIds = uniqueIntList(sessionWordIds || []);
+        const explicitLookup = {};
+        explicitSessionIds.forEach(function (id) {
+            explicitLookup[id] = true;
+        });
+        const useExplicit = explicitSessionIds.length > 0;
+
+        const seen = {};
+        let count = 0;
+        let fullyLoaded = true;
+        ids.forEach(function (categoryId) {
+            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : null;
+            if (!rows) {
+                fullyLoaded = false;
+                return;
+            }
+            rows.forEach(function (row) {
+                const wordId = parseInt(row && row.id, 10) || 0;
+                if (!wordId || seen[wordId]) { return; }
+                if (useExplicit && !explicitLookup[wordId]) { return; }
+                seen[wordId] = true;
+                count += 1;
+            });
+        });
+
+        return { count: count, fullyLoaded: fullyLoaded };
+    }
+
+    function estimateActivityWordPool(mode, categoryIds, sessionWordIds) {
+        const normalizedMode = normalizeMode(mode);
+        if (!normalizedMode) {
+            return 0;
+        }
+
+        const ids = filterCategoryIdsForMode(normalizedMode, categoryIds || []);
+        if (!ids.length) {
+            return 0;
+        }
+
+        const explicitSessionIds = uniqueIntList(sessionWordIds || []);
+        const fromLoaded = countActivityWordsFromLoadedCategories(ids, explicitSessionIds);
+        if (fromLoaded.fullyLoaded) {
+            return fromLoaded.count;
+        }
+        if (explicitSessionIds.length) {
+            return explicitSessionIds.length;
+        }
+
+        return ids.reduce(function (sum, categoryId) {
+            const cat = getCategoryById(categoryId);
+            return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
+        }, 0);
+    }
+
+    function activityHasMinimumWordPool(mode, categoryIds, sessionWordIds) {
+        return estimateActivityWordPool(mode, categoryIds, sessionWordIds) >= getSelectionMinimumWordCount();
     }
 
     function hasActiveCategorySelection() {
@@ -3193,7 +3290,7 @@
                 $nextCard.addClass('is-disabled').attr('aria-disabled', 'true').prop('disabled', true);
             } else {
                 $nextCard.prop('disabled', false);
-                const next = normalizeNextActivity(nextActivity) || recommendationQueueHead();
+                const next = resolvePreferredNextActivity();
                 const hasNext = !!(next && next.mode);
                 $nextCard.toggleClass('is-disabled', !hasNext).attr('aria-disabled', hasNext ? 'false' : 'true');
             }
@@ -5342,7 +5439,7 @@
             return;
         }
 
-        const next = normalizeNextActivity(nextActivity) || recommendationQueueHead();
+        const next = resolvePreferredNextActivity();
         if (!next || !next.mode) {
             $nextCard.addClass('is-disabled').attr('aria-disabled', 'true').prop('disabled', true);
             setNextCardText(i18n.nextNone || 'No recommendation yet. Do one round first.', '');
@@ -5664,7 +5761,7 @@
         const allowGender = selectionHasGenderSupport(ids);
         const effectiveWordCount = Math.max(0, parseInt(opts.effectiveWordCount, 10) || 0);
         const hasEnoughWords = effectiveWordCount >= getSelectionMinimumWordCount();
-        const hasEnoughLearningWords = effectiveWordCount >= Math.max(3, getSelectionMinimumWordCount());
+        const hasEnoughLearningWords = effectiveWordCount >= getSelectionMinimumWordCount();
 
         $root.find('[data-ll-wordset-selection-mode]').each(function () {
             const $btn = $(this);
@@ -6005,7 +6102,10 @@
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
-        const minimumWords = Math.max(3, parseInt(opts.minimumWords, 10) || LEARNING_MIN_CHUNK_SIZE);
+        const minimumWords = Math.max(
+            getSelectionMinimumWordCount(),
+            parseInt(opts.minimumWords, 10) || LEARNING_MIN_CHUNK_SIZE
+        );
         const criteriaKey = resolveSelectionCriteriaKey(opts);
         if (!ids.length) {
             return {
@@ -6088,35 +6188,42 @@
         const minimumChunkSize = Math.max(0, parseInt(opts.minChunkSize, 10) || 0);
         const ids = shuffleList(uniqueIntList(wordIds || []));
         if (!ids.length) { return []; }
+        const total = ids.length;
+        if (total <= chunkSize) {
+            return [ids];
+        }
+
+        let chunkCount = Math.max(1, Math.ceil(total / chunkSize));
+        if (minimumChunkSize > 1) {
+            while (chunkCount > 1 && Math.floor(total / chunkCount) < minimumChunkSize) {
+                chunkCount -= 1;
+            }
+        }
+        if (chunkCount <= 1) {
+            return [ids];
+        }
+
+        const baseSize = Math.floor(total / chunkCount);
+        const remainder = total % chunkCount;
         const chunks = [];
-        for (let i = 0; i < ids.length; i += chunkSize) {
-            chunks.push(ids.slice(i, i + chunkSize));
+        let cursor = 0;
+        for (let idx = 0; idx < chunkCount; idx += 1) {
+            const nextSize = baseSize + (idx < remainder ? 1 : 0);
+            if (nextSize <= 0) { continue; }
+            chunks.push(ids.slice(cursor, cursor + nextSize));
+            cursor += nextSize;
         }
 
         if (minimumChunkSize > 1 && chunks.length > 1) {
-            const lastChunk = chunks[chunks.length - 1];
-            if (lastChunk.length < minimumChunkSize) {
-                for (let chunkIndex = chunks.length - 2; chunkIndex >= 0 && lastChunk.length < minimumChunkSize; chunkIndex -= 1) {
-                    const sourceChunk = chunks[chunkIndex];
-                    while (sourceChunk.length > minimumChunkSize && lastChunk.length < minimumChunkSize) {
-                        const movedWordId = sourceChunk.pop();
-                        if (!movedWordId) {
-                            break;
-                        }
-                        lastChunk.unshift(movedWordId);
-                    }
-                }
-
-                if (lastChunk.length < minimumChunkSize) {
-                    const merged = [];
-                    chunks.forEach(function (chunk) {
-                        merged.push.apply(merged, chunk);
-                    });
-                    return [merged];
-                }
+            const hasTooSmallChunk = chunks.some(function (chunk) {
+                return !Array.isArray(chunk) || chunk.length < minimumChunkSize;
+            });
+            if (hasTooSmallChunk) {
+                return [ids];
             }
         }
-        return chunks;
+
+        return chunks.length ? chunks : [ids];
     }
 
     function setResultsButtonContent($button, iconMarkup, label, options) {
@@ -6457,6 +6564,9 @@
             const baseIds = uniqueIntList(activity.category_ids || []);
             const categoryIds = pickCandidateCategoryIds(baseIds.length ? baseIds : getVisibleCategoryIds());
             if (!categoryIds.length) { continue; }
+            if (!activityHasMinimumWordPool(mode, categoryIds, [])) {
+                continue;
+            }
             return {
                 mode: mode,
                 category_ids: categoryIds,
@@ -6468,6 +6578,9 @@
 
         const fallbackIds = pickCandidateCategoryIds(getVisibleCategoryIds());
         if (!fallbackIds.length) {
+            return null;
+        }
+        if (!activityHasMinimumWordPool(mode, fallbackIds, [])) {
             return null;
         }
         return {
@@ -6501,6 +6614,9 @@
 
         for (let idx = 0; idx < candidates.length; idx += 1) {
             const activity = candidates[idx];
+            if (!activityHasMinimumWordPool(activity.mode, activity.category_ids, activity.session_word_ids)) {
+                continue;
+            }
             const mode = normalizeMode(activity.mode);
             if (!mode || mode === currentMode || !isModeEnabledForResultsActions(mode)) {
                 continue;
@@ -6950,6 +7066,10 @@
                     return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
                 }, 0);
             }
+            if (estimatedResultsTotal < getSelectionMinimumWordCount()) {
+                abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                return;
+            }
 
             lastFlashcardLaunch = {
                 mode: finalMode,
@@ -7070,7 +7190,9 @@
             if (finalMode === 'learning') {
                 const criteriaKey = normalizePriorityFocus(launchDetails.priority_focus || '');
                 const isCriteriaFiltered = criteriaKey === 'starred' || criteriaKey === 'hard';
-                const minimumWords = isCriteriaFiltered ? LEARNING_MIN_CHUNK_SIZE : 3;
+                const minimumWords = isCriteriaFiltered
+                    ? LEARNING_MIN_CHUNK_SIZE
+                    : getSelectionMinimumWordCount();
                 const shouldRebuildLearningPlan = isCriteriaFiltered || (
                     effectiveSessionIds.length > 0 && effectiveSessionIds.length < minimumWords
                 );
@@ -7158,21 +7280,15 @@
                 return;
             }
 
-            if (finalMode === 'learning') {
-                if (effectiveSessionIds.length > 0 && effectiveSessionIds.length <= 2) {
-                    abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
-                    return;
-                }
-                if (!effectiveSessionIds.length) {
-                    let availableWordCount = 0;
-                    selectedCats.forEach(function (cat) {
-                        availableWordCount += getWordRowsForCategory(cat.id, null).length;
-                    });
-                    if (availableWordCount <= 2) {
-                        abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
-                        return;
-                    }
-                }
+            const availableWordCount = estimateFlashcardResultsWordCount(
+                finalMode,
+                effectiveSessionIds,
+                selectedCats,
+                effectiveLookup
+            );
+            if (availableWordCount < getSelectionMinimumWordCount()) {
+                abortLaunch(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                return;
             }
 
             if (effectiveSessionIds.length && !randomizeSessionCategoryOrder) {
@@ -7202,6 +7318,7 @@
 
     function launchSelectionMode(mode) {
         const normalizedMode = normalizeMode(mode) || 'practice';
+        const minimumWordCount = getSelectionMinimumWordCount();
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
@@ -7260,7 +7377,7 @@
                     alert(resolveEmptyMessage());
                     return;
                 }
-                if (learningWordIds.length <= 2) {
+                if (learningWordIds.length < minimumWordCount) {
                     alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
                     return;
                 }
@@ -7331,6 +7448,10 @@
             }
 
             const randomizedWordIds = shuffleList(wordIds);
+            if (randomizedWordIds.length < minimumWordCount) {
+                alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+                return;
+            }
 
             if (normalizedMode === 'listening') {
                 chunkSession = null;
@@ -7342,7 +7463,9 @@
                 return;
             }
 
-            const chunks = buildChunkList(randomizedWordIds);
+            const chunks = buildChunkList(randomizedWordIds, {
+                minChunkSize: minimumWordCount
+            });
             if (!chunks.length) {
                 alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
                 return;
@@ -7421,14 +7544,14 @@
             });
         };
 
-        const queued = recommendationQueueHead(preferredMode);
+        const queued = resolvePreferredNextActivity(preferredMode);
         if (queued) {
             launchWithActivity(queued, 'wordset_top_start_queue');
             return;
         }
 
         refreshRecommendation({ preferredMode: preferredMode, forceRefresh: true }).always(function () {
-            const refreshed = recommendationQueueHead(preferredMode) || normalizeNextActivity(nextActivity);
+            const refreshed = resolvePreferredNextActivity(preferredMode);
             if (refreshed) {
                 launchWithActivity(refreshed, 'wordset_top_start_refreshed');
                 return;
@@ -7527,7 +7650,7 @@
     }
 
     function removeCurrentNextActivityWithTransition() {
-        const next = normalizeNextActivity(nextActivity) || recommendationQueueHead();
+        const next = resolvePreferredNextActivity();
         const queueId = resolveQueueIdForActivity(next);
         if (!queueId) {
             return;
@@ -7729,7 +7852,7 @@
                 if (hasActiveCategorySelection() || $nextCard.hasClass('is-disabled') || String($nextCard.attr('aria-disabled') || '') === 'true') {
                     return;
                 }
-                const next = normalizeNextActivity(nextActivity) || recommendationQueueHead();
+                const next = resolvePreferredNextActivity();
                 if (!next || !next.mode) {
                     refreshRecommendation({ forceRefresh: true });
                     return;
