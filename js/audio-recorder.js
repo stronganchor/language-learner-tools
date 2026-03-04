@@ -630,7 +630,7 @@
             : [];
         if (getRecordingTypeEntry(slug, rows)) {
             const display = getRecordingTypeDisplay(slug, rows);
-            const fromDisplay = String(display.selectText || display.text || display.label || '').trim();
+            const fromDisplay = String(display.text || display.selectText || display.label || '').trim();
             if (fromDisplay) return fromDisplay;
         }
         return getRecordingTypeOptionDisplayText(fallbackOption) || String(slug || '');
@@ -1550,22 +1550,6 @@
         return recordingTypeIcons.default || '';
     }
 
-    function getRecordingTypeTextIcon(slug) {
-        const key = String(slug || '').trim().toLowerCase();
-        switch (key) {
-        case 'isolation':
-            return '◉';
-        case 'introduction':
-            return '◆';
-        case 'question':
-            return '?';
-        case 'sentence':
-            return '▦';
-        default:
-            return '●';
-        }
-    }
-
     function humanizeRecordingTypeSlug(rawValue) {
         return String(rawValue || '')
             .split(/[-_]+/)
@@ -1632,13 +1616,12 @@
         const label = getRecordingTypeLabel(slug, typeList);
         const iconFromEntry = (entry && typeof entry.icon === 'string') ? entry.icon.trim() : '';
         const icon = iconFromEntry || getRecordingTypeIcon(slug);
-        const textIcon = getRecordingTypeTextIcon(slug);
-        const selectText = textIcon ? `${label} ${textIcon}` : label;
+        const decorated = icon ? `${icon} ${label}` : label;
         return {
             icon,
             label,
-            text: textIcon ? `${textIcon} ${label}` : label,
-            selectText
+            text: decorated,
+            selectText: decorated
         };
     }
 
