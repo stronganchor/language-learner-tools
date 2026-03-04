@@ -344,6 +344,7 @@ function ll_tools_get_image_aspect_ratio_for_size(int $attachment_id, string $si
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     $limit = max(1, (int) $limit);
     $items = [];
+    $seen_preview_word_ids = [];
     $query_limit = max($limit * 3, $limit);
     $deepest_only = function_exists('ll_get_deepest_categories');
     $use_images = ($requires_images !== null) ? (bool) $requires_images : true;
@@ -403,8 +404,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
             $did_set_ratio = false;
             $did_select_size = false;
             $first_dimensions = [];
-            $seen_preview_image_ids = [];
-            $duplicate_image_items = [];
+            $seen_preview_image_keys = [];
             foreach ($image_query->posts as $word_id) {
                 if ($deepest_only) {
                     $deepest_terms = ll_get_deepest_categories($word_id);
@@ -443,6 +443,29 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 if ($image_url === '') {
                     continue;
                 }
+
+                $image_dedupe_keys = ['id:' . (int) $image_id, 'url:' . $image_url];
+                $attached_file = trim((string) get_post_meta($image_id, '_wp_attached_file', true));
+                if ($attached_file !== '') {
+                    $image_dedupe_keys[] = 'file:' . wp_normalize_path($attached_file);
+                }
+
+                $is_duplicate_preview_image = false;
+                foreach ($image_dedupe_keys as $dedupe_key) {
+                    if ($dedupe_key !== '' && isset($seen_preview_image_keys[$dedupe_key])) {
+                        $is_duplicate_preview_image = true;
+                        break;
+                    }
+                }
+                if ($is_duplicate_preview_image) {
+                    continue;
+                }
+                foreach ($image_dedupe_keys as $dedupe_key) {
+                    if ($dedupe_key !== '') {
+                        $seen_preview_image_keys[$dedupe_key] = true;
+                    }
+                }
+
                 $dimensions = $first_dimensions;
                 if (empty($dimensions)) {
                     $dimensions = ll_tools_get_image_dimensions_for_size($image_id, $image_size);
@@ -472,31 +495,17 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     'width' => $width,
                     'height' => $height,
                 ];
-
-                if (!isset($seen_preview_image_ids[$image_id])) {
-                    $seen_preview_image_ids[$image_id] = true;
-                    $items[] = $item;
-                } else {
-                    $duplicate_image_items[] = $item;
-                }
+                $items[] = $item;
+                $seen_preview_word_ids[(int) $word_id] = true;
 
                 if (count($items) >= $limit) {
                     break;
                 }
             }
-
-            if (count($items) < $limit && !empty($duplicate_image_items)) {
-                foreach ($duplicate_image_items as $duplicate_item) {
-                    $items[] = $duplicate_item;
-                    if (count($items) >= $limit) {
-                        break;
-                    }
-                }
-            }
         }
     }
 
-    if (empty($items)) {
+    if (count($items) < $limit) {
         $text_query = new WP_Query([
             'post_type'      => 'words',
             'post_status'    => 'publish',
@@ -527,6 +536,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     continue;
                 }
             }
+            if (isset($seen_preview_word_ids[(int) $word_id])) {
+                continue;
+            }
             $label = get_the_title($word_id);
             if ($label === '') {
                 continue;
@@ -535,6 +547,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 'type'  => 'text',
                 'label' => $label,
             ];
+            $seen_preview_word_ids[(int) $word_id] = true;
             if (count($items) >= $limit) {
                 break;
             }
