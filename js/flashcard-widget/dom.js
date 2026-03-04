@@ -430,15 +430,23 @@
                 </div>
             `).show();
         },
-        updateSimpleProgress(currentCount, totalCount) {
+        updateSimpleProgress(currentCount, totalCount, options) {
             const $progress = $('#ll-tools-learning-progress');
             if (!$progress.length) return;
+            const opts = (options && typeof options === 'object') ? options : {};
 
             const total = Math.max(0, parseInt(totalCount, 10) || 0);
             const current = Math.max(0, parseInt(currentCount, 10) || 0);
             const clampedCurrent = total > 0 ? Math.min(total, current) : 0;
             const rawPercent = total > 0 ? ((clampedCurrent / total) * 100) : 0;
-            const displayPercent = Math.max(0, Math.min(100, rawPercent));
+            let displayPercent = Math.max(0, Math.min(100, rawPercent));
+            const minDisplayRatio = parseFloat(opts.minDisplayRatio);
+            if (Number.isFinite(minDisplayRatio)) {
+                const minDisplayPercent = Math.max(0, Math.min(100, minDisplayRatio * 100));
+                if (displayPercent < minDisplayPercent) {
+                    displayPercent = minDisplayPercent;
+                }
+            }
             const widthPercent = Math.round(displayPercent * 100) / 100;
             const widthValue = String(widthPercent).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') + '%';
 

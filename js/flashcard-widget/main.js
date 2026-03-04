@@ -17,6 +17,7 @@
     let savePrefsTimer = null;
     let firstRoundRecoveryAttempts = 0;
     let sessionWordFilterRecoveryAttempts = 0;
+    let practiceProgressMinDisplayRatio = 0;
 
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
@@ -164,6 +165,7 @@
         __LLTimers.clear();
         firstRoundRecoveryAttempts = 0;
         sessionWordFilterRecoveryAttempts = 0;
+        practiceProgressMinDisplayRatio = 0;
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
         setStarModeOverride(null);
@@ -184,6 +186,7 @@
     // used/completed markers from the prior session.
     function resetRoundStateForLaunch() {
         State.clearActiveTimeouts();
+        practiceProgressMinDisplayRatio = 0;
 
         State.usedWordIDs = [];
         State.categoryRoundCount = {};
@@ -800,8 +803,15 @@
         if (total <= 0) return;
 
         const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        const safeTotal = Math.max(1, total);
+        const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
+        // Categories load asynchronously in practice mode; keep display monotonic
+        // so late category loads cannot make progress appear to move backwards.
+        practiceProgressMinDisplayRatio = Math.max(practiceProgressMinDisplayRatio, rawRatio);
         try {
-            Dom.updateSimpleProgress(answeredUnique, total);
+            Dom.updateSimpleProgress(answeredUnique, total, {
+                minDisplayRatio: practiceProgressMinDisplayRatio
+            });
         } catch (_) { /* no-op */ }
     }
 
