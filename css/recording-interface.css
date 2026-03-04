@@ -1,25 +1,29 @@
 .ll-recording-interface {
-    max-width: 700px;
+    --ll-recorder-space: clamp(0.45rem, 1.2vw, 0.9rem);
+    --ll-recorder-card-pad: clamp(0.75rem, 1.8vw, 1.25rem);
+    --ll-recorder-main-gap: clamp(0.75rem, 1.6vw, 1.25rem);
+    --ll-recorder-image-size: clamp(112px, 21vh, 160px);
+    --ll-recorder-record-size: clamp(58px, 9.2vh, 76px);
+    --ll-recorder-record-icon: clamp(24px, 3.8vh, 31px);
+    max-width: min(980px, calc(100vw - 1rem));
     margin: 0 auto;
-    padding: 1rem;
+    padding: var(--ll-recorder-space);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
 }
 
 /* Compact header - all info in one row */
 .ll-recording-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: clamp(0.45rem, 1vw, 0.85rem);
     flex-wrap: wrap;
-    padding: 0.75rem 1rem;
+    padding: clamp(0.45rem, 1vw, 0.7rem) clamp(0.55rem, 1.1vw, 0.9rem);
     background: #f0f0f1;
     border-radius: 8px;
-    margin-bottom: 1.5rem;
-    font-size: 0.9rem;
+    margin-bottom: clamp(0.5rem, 1.4vw, 1rem);
+    font-size: 0.85rem;
 }
 
 .ll-recording-progress {
@@ -35,7 +39,7 @@
 
 .ll-category-selector {
     flex: 1;
-    min-width: 180px;
+    min-width: 150px;
 }
 
 .ll-category-selector label {
@@ -61,8 +65,8 @@
     align-items: center;
     gap: 0.5rem;
     color: #50575e;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
     background: white;
     border-radius: 6px;
     border: 1px solid #ddd;
@@ -75,7 +79,7 @@
 .ll-recorder-info {
     margin-left: auto;
     color: #50575e;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     white-space: nowrap;
 }
 
@@ -130,12 +134,39 @@
     text-align: center;
 }
 
+.ll-hidden-words-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-hidden-words-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-hidden-words-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.42);
+}
+
 .ll-hidden-words-panel {
-    margin: -0.75rem 0 1.25rem;
-    padding: 0.9rem;
+    position: relative;
+    margin: 0;
+    padding: 0.85rem;
+    width: min(700px, calc(100vw - 1.2rem));
+    max-height: min(82dvh, 620px);
     border: 1px solid #dcdcde;
     border-radius: 10px;
     background: #ffffff;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.25);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .ll-hidden-words-panel[hidden] {
@@ -184,6 +215,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-right: 0.1rem;
 }
 
 .ll-hidden-word-item {
@@ -246,12 +281,38 @@
     font-size: 0.85rem;
 }
 
+.ll-new-word-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-new-word-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-new-word-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.46);
+}
+
 .ll-new-word-panel {
+    position: relative;
     background: #fff;
     border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: clamp(0.85rem, 2vw, 1.25rem);
+    margin: 0;
     border: 1px solid #e2e4e7;
+    width: min(820px, calc(100vw - 1rem));
+    max-height: min(92dvh, 760px);
+    overflow: auto;
+    box-sizing: border-box;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.26);
 }
 
 .ll-new-word-card h3 {
@@ -523,12 +584,12 @@
 /* Main content - horizontal layout */
 .ll-recording-main {
     display: flex;
-    gap: 1.5rem;
+    gap: var(--ll-recorder-main-gap);
     align-items: flex-start;
     background: #fff;
     border-radius: 12px;
-    padding: 1.5rem;
-    min-height: 400px;
+    padding: var(--ll-recorder-card-pad);
+    overflow: hidden;
 }
 
 .ll-recording-image-container {
@@ -542,22 +603,37 @@
     margin: 0;
 }
 
+.ll-recording-interface .flashcard-container.flashcard-size-small,
+.ll-recording-interface .flashcard-container.flashcard-size-medium,
+.ll-recording-interface .flashcard-container.flashcard-size-large {
+    width: var(--ll-recorder-image-size);
+    height: var(--ll-recorder-image-size);
+    max-width: var(--ll-recorder-image-size);
+    max-height: var(--ll-recorder-image-size);
+}
+
+.ll-recording-interface .flashcard-container.text-based {
+    width: min(100%, clamp(180px, 34vw, 260px));
+    max-width: min(100%, clamp(180px, 34vw, 260px));
+    height: clamp(110px, 18vh, 150px);
+}
+
 .ll-recording-image-container .ll-text-display {
     width: 100%;
     box-sizing: border-box;
 }
 
 .ll-image-title {
-    font-size: 1.2rem;
+    font-size: clamp(1rem, 2.2vw, 1.15rem);
     font-weight: 600;
-    margin: 1rem 0 0.25rem;
+    margin: 0.7rem 0 0.2rem;
     color: #1a1a1a;
     text-align: center;
     min-height: 1.5rem;
 }
 
 .ll-image-category {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: #666;
     margin: 0.25rem 0;
     font-weight: 500;
@@ -569,7 +645,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.875rem;
+    gap: clamp(0.5rem, 1.2vh, 0.85rem);
     min-width: 200px;
     max-width: 320px;
     align-items: center;
@@ -585,22 +661,22 @@
 .ll-recording-type-selector label {
     display: block;
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
     color: #1a1a1a;
-    font-size: 0.9rem;
+    font-size: 0.83rem;
     text-align: center;
 }
 
 .ll-recording-type-selector select {
     width: 100%;
     /* Override theme select sizing that can clip emoji + translated labels. */
-    padding: 0.625rem 0.875rem !important;
+    padding: 0.45rem 0.7rem !important;
     border: 2px solid #ddd;
     border-radius: 6px;
     box-sizing: border-box;
-    min-height: 2.75rem;
+    min-height: 2.35rem;
     height: auto !important;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     line-height: 1.3 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
     transition: border-color 0.2s;
@@ -622,7 +698,7 @@
 
 .ll-recording-buttons {
     display: flex;
-    gap: 1rem;
+    gap: clamp(0.5rem, 1vw, 0.85rem);
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
@@ -657,10 +733,10 @@
 
 .ll-recording-interface .ll-btn-record {
     background: #e74c3c !important;
-    width: 80px !important;
-    height: 80px !important;
-    min-width: 80px !important;
-    min-height: 80px !important;
+    width: var(--ll-recorder-record-size) !important;
+    height: var(--ll-recorder-record-size) !important;
+    min-width: var(--ll-recorder-record-size) !important;
+    min-height: var(--ll-recorder-record-size) !important;
     border-radius: 50% !important;
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
     padding: 0 !important;
@@ -677,10 +753,10 @@
 }
 
 .ll-recording-interface .ll-btn-record svg {
-    width: 32px !important;
-    height: 32px !important;
-    min-width: 32px !important;
-    min-height: 32px !important;
+    width: var(--ll-recorder-record-icon) !important;
+    height: var(--ll-recorder-record-icon) !important;
+    min-width: var(--ll-recorder-record-icon) !important;
+    min-height: var(--ll-recorder-record-icon) !important;
     fill: white !important;
     flex-shrink: 0;
 }
@@ -700,9 +776,9 @@
 .ll-recording-interface .ll-btn-skip {
     background: #95a5a6 !important;
     color: white !important;
-    padding: 0.75rem 1.25rem !important;
+    padding: 0.58rem 0.95rem !important;
     border-radius: 8px !important;
-    font-size: 0.9rem !important;
+    font-size: 0.82rem !important;
 }
 
 .ll-recording-interface .ll-btn-skip svg {
@@ -718,9 +794,9 @@
 .ll-recording-interface .ll-btn-hide {
     background: #3c4b5c !important;
     color: #ffffff !important;
-    padding: 0.75rem !important;
-    min-width: 46px !important;
-    min-height: 46px !important;
+    padding: 0.55rem !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
     border-radius: 8px !important;
 }
 
@@ -737,7 +813,7 @@
 .ll-recording-interface .ll-btn-primary {
     background: #27ae60 !important;
     color: white !important;
-    padding: 0.75rem 1.5rem !important;
+    padding: 0.58rem 1.1rem !important;
     border-radius: 8px !important;
 }
 
@@ -754,7 +830,7 @@
 .ll-recording-interface .ll-btn-secondary {
     background: #f39c12 !important;
     color: white !important;
-    padding: 0.75rem 1.5rem !important;
+    padding: 0.58rem 1.1rem !important;
     border-radius: 8px !important;
 }
 
@@ -788,15 +864,15 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: 600;
     color: #e74c3c;
 }
 
 .ll-recording-dot {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     background: #e74c3c;
     border-radius: 50%;
     animation: blink 1s infinite;
@@ -817,7 +893,7 @@
 .ll-playback-controls {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     width: 100%;
     max-width: 400px;
 }
@@ -828,23 +904,22 @@
 
 .ll-playback-actions {
     display: flex;
-    gap: 1.25rem;
+    gap: 0.75rem;
     justify-content: center;
 }
 
 .ll-upload-status {
-    padding: 0.875rem;
+    padding: 0.55rem 0.75rem;
     border-radius: 6px;
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: 0.86rem;
     text-align: center;
     width: 100%;
     max-width: 400px;
-    min-height: 48px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: auto;
     transition: opacity 0.3s ease;
 }
 
@@ -872,6 +947,46 @@
 .ll-upload-status.info {
     background: #d1ecf1;
     color: #0c5460;
+}
+
+.ll-recording-review-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100055;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-recording-review-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-recording-review-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.48);
+}
+
+.ll-recording-review-shell {
+    position: relative;
+    width: min(880px, calc(100vw - 1rem));
+    max-height: min(92dvh, 760px);
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 12px;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.28);
+    padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.ll-recording-review-shell .ll-recording-review-slot {
+    margin: 0;
+}
+
+.ll-recording-review-shell .ll-recording-review {
+    margin-top: 0;
 }
 
 .ll-recording-complete {
@@ -977,84 +1092,89 @@
     transition: transform 0.2s ease;
 }
 
+@media (max-height: 720px) {
+    .ll-recording-interface {
+        --ll-recorder-image-size: clamp(94px, 17vh, 124px);
+        --ll-recorder-record-size: clamp(50px, 7.8vh, 62px);
+        --ll-recorder-record-icon: clamp(20px, 3.4vh, 27px);
+    }
+
+    .ll-recording-header {
+        margin-bottom: 0.45rem;
+    }
+
+    .ll-wordset-display span,
+    .ll-recorder-info {
+        display: none;
+    }
+
+    .ll-recording-type-selector label {
+        margin-bottom: 0.2rem;
+    }
+
+    .ll-hidden-words-panel,
+    .ll-new-word-panel,
+    .ll-recording-review-shell {
+        max-height: min(88dvh, 640px);
+    }
+}
+
 /* Tablet responsiveness */
 @media (max-width: 900px) {
     .ll-recording-interface {
-        padding: 0.5rem;
+        max-width: min(920px, calc(100vw - 0.75rem));
     }
 
     .ll-recording-main {
-        gap: 1.25rem;
-        padding: 1.25rem;
-        min-height: 380px;
-    }
-
-    .ll-recording-image-container {
-        max-width: 240px;
+        padding: clamp(0.65rem, 1.6vw, 1rem);
     }
 
     .ll-recording-controls-column {
-        gap: 0.75rem;
-        max-width: 300px;
+        max-width: 295px;
     }
 }
 
 /* Mobile responsiveness - stack vertically */
 @media (max-width: 768px) {
-    .ll-recording-header {
-        font-size: 0.85rem;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
-    }
-
-    .ll-category-selector {
-        min-width: 150px;
+    .ll-recording-interface {
+        --ll-recorder-image-size: clamp(96px, 18vh, 130px);
+        --ll-recorder-record-size: clamp(52px, 8vh, 64px);
+        --ll-recorder-record-icon: clamp(21px, 3.4vh, 27px);
+        max-width: calc(100vw - 0.6rem);
+        padding: 0.35rem;
     }
 
     .ll-recording-main {
         flex-direction: column;
         align-items: center;
-        padding: 1.25rem 0.875rem;
-        min-height: auto;
-        gap: 1rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 260px;
+        padding: 0.75rem;
+        gap: 0.6rem;
     }
 
     .ll-recording-controls-column {
         width: 100%;
         max-width: 100%;
-        gap: 0.75rem;
+    }
+
+    .ll-recording-type-selector {
+        max-width: 100%;
     }
 
     .ll-playback-actions {
-        gap: 1rem;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        padding: 0.625rem 1.25rem !important;
+        width: 100%;
     }
 
     .ll-hidden-word-item {
-        padding: 0.5rem 0.55rem;
+        padding: 0.45rem 0.5rem;
     }
 }
 
 /* Very small mobile - full vertical stack */
 @media (max-width: 480px) {
-    .ll-recording-interface {
-        margin: 0.5rem auto;
-        padding: 0.5rem;
-    }
-
     .ll-recording-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 0.5rem;
-        padding: 0.625rem;
+        gap: 0.45rem;
     }
 
     .ll-recording-progress {
@@ -1062,18 +1182,10 @@
     }
 
     .ll-category-selector,
-    .ll-wordset-display {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .ll-recorder-info {
-        margin-left: 0;
-        text-align: center;
-    }
-
+    .ll-wordset-display,
     .ll-hidden-words-toggle {
         width: 100%;
+        min-width: 0;
     }
 
     .ll-recording-interface .ll-hidden-words-toggle-btn {
@@ -1081,153 +1193,19 @@
         justify-content: center;
     }
 
-    .ll-recording-main {
-        padding: 1rem 0.625rem;
-        gap: 0.875rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 220px;
-    }
-
-    .ll-image-title {
-        font-size: 1.05rem;
-    }
-
-    .ll-recording-interface .ll-btn-record {
-        width: 65px !important;
-        height: 65px !important;
-        min-width: 65px !important;
-        min-height: 65px !important;
-    }
-
-    .ll-recording-interface .ll-btn-record svg {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-    }
-
-    .ll-playback-actions {
-        gap: 0.875rem;
-        width: 100%;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        flex: 1;
-        padding: 0.625rem 1rem !important;
-        font-size: 0.9rem !important;
-    }
-}
-
-/* Mobile responsiveness - stack vertically */
-@media (max-width: 768px) {
-    .ll-recording-header {
-        font-size: 0.85rem;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
-    }
-
-    .ll-category-selector {
-        min-width: 150px;
-    }
-
-    .ll-recording-main {
-        flex-direction: column;
-        align-items: center;
-        padding: 1.25rem 0.875rem;
-        min-height: auto;
-        gap: 1rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 260px;
-    }
-
     .ll-recording-controls-column {
-        width: 100%;
-        max-width: 100%;
-        gap: 0.75rem;
-    }
-
-    .ll-playback-actions {
-        gap: 1rem;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        padding: 0.625rem 1.25rem !important;
-    }
-}
-
-/* Very small mobile - full vertical stack */
-@media (max-width: 480px) {
-    .ll-recording-interface {
-        margin: 0.5rem auto;
-        padding: 0.5rem;
-    }
-
-    .ll-recording-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-        padding: 0.625rem;
-    }
-
-    .ll-recording-progress {
-        text-align: center;
-    }
-
-    .ll-category-selector,
-    .ll-wordset-display {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .ll-recorder-info {
-        margin-left: 0;
-        text-align: center;
-    }
-
-    .ll-recording-main {
-        padding: 1rem 0.625rem;
-        gap: 0.875rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 220px;
-    }
-
-    .ll-image-title {
-        font-size: 1.05rem;
-    }
-
-    .ll-recording-interface .ll-btn-record {
-        width: 65px !important;
-        height: 65px !important;
-        min-width: 65px !important;
-        min-height: 65px !important;
-    }
-
-    .ll-recording-interface .ll-btn-record svg {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-    }
-
-    .ll-playback-actions {
-        gap: 0.875rem;
-        width: 100%;
+        gap: 0.55rem;
     }
 
     .ll-recording-interface .ll-btn-primary,
     .ll-recording-interface .ll-btn-secondary {
         flex: 1;
-        padding: 0.625rem 1rem !important;
-        font-size: 0.9rem !important;
     }
+}
+
+html.ll-recorder-overlay-open,
+body.ll-recorder-overlay-open {
+    overflow: hidden !important;
 }
 
 .ll-diagnostic-message {

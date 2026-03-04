@@ -1191,23 +1191,28 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
         </div>
 
-        <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" hidden>
-            <div class="ll-hidden-words-panel-head">
-                <h3 class="ll-hidden-words-title"><?php esc_html_e('Hidden words', 'll-tools-text-domain'); ?></h3>
-                <button type="button" class="ll-btn ll-hidden-words-close" id="ll-hidden-words-close" title="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">
-                    <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-                        <path d="M6.7 5.3a1 1 0 0 0-1.4 1.4L10.6 12l-5.3 5.3a1 1 0 0 0 1.4 1.4l5.3-5.3 5.3 5.3a1 1 0 0 0 1.4-1.4L13.4 12l5.3-5.3a1 1 0 0 0-1.4-1.4L12 10.6Z" fill="currentColor" />
-                    </svg>
-                </button>
+        <div class="ll-hidden-words-overlay" id="ll-hidden-words-overlay" hidden>
+            <div class="ll-hidden-words-overlay-backdrop" id="ll-hidden-words-backdrop"></div>
+            <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" role="dialog" aria-modal="true" aria-labelledby="ll-hidden-words-title" hidden>
+                <div class="ll-hidden-words-panel-head">
+                    <h3 class="ll-hidden-words-title" id="ll-hidden-words-title"><?php esc_html_e('Hidden words', 'll-tools-text-domain'); ?></h3>
+                    <button type="button" class="ll-btn ll-hidden-words-close" id="ll-hidden-words-close" title="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">
+                        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                            <path d="M6.7 5.3a1 1 0 0 0-1.4 1.4L10.6 12l-5.3 5.3a1 1 0 0 0 1.4 1.4l5.3-5.3 5.3 5.3a1 1 0 0 0 1.4-1.4L13.4 12l5.3-5.3a1 1 0 0 0-1.4-1.4L12 10.6Z" fill="currentColor" />
+                        </svg>
+                    </button>
+                </div>
+                <ul id="ll-hidden-words-list" class="ll-hidden-words-list"></ul>
+                <p id="ll-hidden-words-empty" class="ll-hidden-words-empty"><?php esc_html_e('No hidden words yet.', 'll-tools-text-domain'); ?></p>
             </div>
-            <ul id="ll-hidden-words-list" class="ll-hidden-words-list"></ul>
-            <p id="ll-hidden-words-empty" class="ll-hidden-words-empty"><?php esc_html_e('No hidden words yet.', 'll-tools-text-domain'); ?></p>
         </div>
 
         <?php if ($allow_new_words): ?>
-        <div class="ll-new-word-panel" style="display: none;">
-            <div class="ll-new-word-card">
-                <h3><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
+        <div class="ll-new-word-overlay" id="ll-new-word-overlay" hidden>
+            <div class="ll-new-word-overlay-backdrop"></div>
+            <div class="ll-new-word-panel" id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" style="display: none;">
+                <div class="ll-new-word-card">
+                <h3 id="ll-new-word-title"><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
                 <div class="ll-new-word-row">
                     <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
                     <select id="ll-new-word-category">
@@ -1320,6 +1325,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                     <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
                 </div>
             </div>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -1408,13 +1414,18 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
 
         <?php if ($auto_process_recordings): ?>
-        <div id="ll-recording-review-slot" class="ll-recording-review-slot">
-            <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
-                <h2><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
-                <div id="ll-review-files-container"></div>
-                <div class="ll-review-actions">
-                    <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
-                    <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
+        <div class="ll-recording-review-overlay" id="ll-recording-review-overlay" hidden>
+            <div class="ll-recording-review-overlay-backdrop"></div>
+            <div class="ll-recording-review-shell" role="dialog" aria-modal="true" aria-labelledby="ll-recording-review-title">
+                <div id="ll-recording-review-slot" class="ll-recording-review-slot">
+                    <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
+                        <h2 id="ll-recording-review-title"><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
+                        <div id="ll-review-files-container"></div>
+                        <div class="ll-review-actions">
+                            <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                            <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

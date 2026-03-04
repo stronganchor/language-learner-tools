@@ -192,10 +192,12 @@
         if (window.llRecorder && window.llRecorder.hideBtn) {
             window.llRecorder.hideBtn.innerHTML = icons.hide;
         }
+        syncOverlayScrollLock();
     }
 
     function setupElements() {
         window.llRecorder = {
+            interfaceRoot: document.querySelector('.ll-recording-interface'),
             image: document.getElementById('ll-current-image'),
             imageContainer: document.querySelector('.ll-recording-image-container'),
             title: document.getElementById('ll-image-title'),
@@ -211,6 +213,8 @@
             status: document.getElementById('ll-upload-status'),
             hiddenToggleBtn: document.getElementById('ll-hidden-words-toggle'),
             hiddenCount: document.getElementById('ll-hidden-words-count'),
+            hiddenOverlay: document.getElementById('ll-hidden-words-overlay'),
+            hiddenBackdrop: document.getElementById('ll-hidden-words-backdrop'),
             hiddenPanel: document.getElementById('ll-hidden-words-panel'),
             hiddenList: document.getElementById('ll-hidden-words-list'),
             hiddenEmpty: document.getElementById('ll-hidden-words-empty'),
@@ -223,6 +227,7 @@
             categorySelect: document.getElementById('ll-category-select'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
             newWordToggle: document.getElementById('ll-new-word-toggle'),
+            newWordOverlay: document.getElementById('ll-new-word-overlay'),
             newWordPanel: document.querySelector('.ll-new-word-panel'),
             newWordAutoStatus: document.getElementById('ll-new-word-auto-status'),
             newWordAutoIcon: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-icon'),
@@ -246,10 +251,32 @@
             newWordPlaybackAudio: document.getElementById('ll-new-word-playback-audio'),
             newWordRedoBtn: document.getElementById('ll-new-word-redo-btn'),
             processingReview: document.getElementById('ll-recording-review'),
+            processingReviewOverlay: document.getElementById('ll-recording-review-overlay'),
             reviewContainer: document.getElementById('ll-review-files-container'),
             reviewRedoBtn: document.getElementById('ll-review-redo'),
             reviewSubmitBtn: document.getElementById('ll-review-submit'),
         };
+    }
+
+    function isOverlayVisible(element) {
+        return !!element && !element.hasAttribute('hidden');
+    }
+
+    function isAnyOverlayOpen() {
+        const el = window.llRecorder;
+        if (!el) return false;
+        if (hiddenWordsPanelOpen) return true;
+        if (isOverlayVisible(el.newWordOverlay)) return true;
+        if (isOverlayVisible(el.processingReviewOverlay)) return true;
+        return false;
+    }
+
+    function syncOverlayScrollLock() {
+        const lock = isAnyOverlayOpen();
+        const root = document.documentElement;
+        const body = document.body;
+        if (root) root.classList.toggle('ll-recorder-overlay-open', lock);
+        if (body) body.classList.toggle('ll-recorder-overlay-open', lock);
     }
 
     function isNewWordPanelActive() {
@@ -546,12 +573,21 @@
         const el = window.llRecorder;
         if (!el || !el.hiddenPanel || !el.hiddenToggleBtn) return;
         hiddenWordsPanelOpen = !!open;
+        if (el.hiddenOverlay) {
+            if (hiddenWordsPanelOpen) {
+                el.hiddenOverlay.removeAttribute('hidden');
+            } else {
+                el.hiddenOverlay.setAttribute('hidden', 'hidden');
+            }
+        }
         if (hiddenWordsPanelOpen) {
             el.hiddenPanel.removeAttribute('hidden');
+            el.hiddenPanel.scrollTop = 0;
         } else {
             el.hiddenPanel.setAttribute('hidden', 'hidden');
         }
         el.hiddenToggleBtn.setAttribute('aria-expanded', hiddenWordsPanelOpen ? 'true' : 'false');
+        syncOverlayScrollLock();
     }
 
     function cloneImages(list) {
@@ -611,9 +647,11 @@
         activeRecordingControls = null;
         resetNewWordAutoState();
         syncProcessingReviewSlot();
+        if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
         if (el.newWordPanel) el.newWordPanel.style.display = 'none';
         if (el.newWordToggle) el.newWordToggle.disabled = false;
         if (el.categorySelect) el.categorySelect.disabled = false;
+        syncOverlayScrollLock();
 
         if (!savedExistingState) {
             if (el.mainScreen) el.mainScreen.style.display = images.length ? 'flex' : 'none';
@@ -662,12 +700,14 @@
         newWordUsingPanel = true;
         if (el.mainScreen) el.mainScreen.style.display = 'none';
         if (el.completeScreen) el.completeScreen.style.display = 'none';
+        if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
         if (el.newWordPanel) el.newWordPanel.style.display = 'block';
         if (el.categorySelect) el.categorySelect.disabled = true;
         if (el.newWordToggle) el.newWordToggle.disabled = true;
         resetNewWordForm();
         syncProcessingReviewSlot();
-        scrollToTop();
+        if (el.newWordPanel) el.newWordPanel.scrollTop = 0;
+        syncOverlayScrollLock();
     }
 
     function resetNewWordForm() {
@@ -913,14 +953,8 @@
     }
 
     function scrollToTop() {
-        const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const behavior = prefersReduced ? 'auto' : 'smooth';
-        try {
-            window.scrollTo({ top: 0, behavior });
-        } catch (_) {
-            document.documentElement.scrollTop = 0;
-            document.body.scrollTop = 0;
-        }
+        // Intentionally no-op: recorder actions must not change page scroll position.
+        return;
     }
 
     function getReviewSlots() {
@@ -961,9 +995,13 @@
     function syncProcessingReviewSlot() {
         if (newWordMode && newWordUsingPanel) {
             moveProcessingReviewToNewWordSlot();
+            if (window.llRecorder?.processingReviewOverlay) {
+                window.llRecorder.processingReviewOverlay.setAttribute('hidden', 'hidden');
+            }
         } else {
             moveProcessingReviewToMainSlot();
         }
+        syncOverlayScrollLock();
     }
 
     async function handleNewWordRecordToggle() {
@@ -1685,9 +1723,11 @@
             if (el.newWordToggle) el.newWordToggle.disabled = true;
 
             if (keepPanel) {
+                if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'block';
                 if (el.mainScreen) el.mainScreen.style.display = 'none';
             } else {
+                if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
                 if (el.mainScreen) el.mainScreen.style.display = 'flex';
             }
@@ -1828,6 +1868,7 @@
         if (requireAll && remaining.length > 0) {
             if (isNewWordPanelActive()) {
                 newWordUsingPanel = false;
+                if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
                 if (el.mainScreen) el.mainScreen.style.display = 'flex';
                 syncProcessingReviewSlot();
@@ -1869,6 +1910,11 @@
         }
         if (el.hiddenCloseBtn) {
             el.hiddenCloseBtn.addEventListener('click', () => {
+                setHiddenWordsPanelOpen(false);
+            });
+        }
+        if (el.hiddenBackdrop) {
+            el.hiddenBackdrop.addEventListener('click', () => {
                 setHiddenWordsPanelOpen(false);
             });
         }
@@ -2072,6 +2118,9 @@
         if (el.processingReview) {
             el.processingReview.style.display = 'none';
         }
+        if (el.processingReviewOverlay) {
+            el.processingReviewOverlay.setAttribute('hidden', 'hidden');
+        }
         if (el.reviewContainer) {
             el.reviewContainer.innerHTML = '';
         }
@@ -2083,13 +2132,16 @@
         }
         if (newWordMode) {
             if (newWordUsingPanel) {
+                if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'block';
                 if (el.mainScreen) el.mainScreen.style.display = 'none';
             } else if (el.mainScreen) {
+                if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 el.mainScreen.style.display = 'flex';
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
             }
         } else if (el.mainScreen) {
+            if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
             el.mainScreen.style.display = 'flex';
             if (el.newWordPanel) el.newWordPanel.style.display = 'none';
         }
@@ -2097,6 +2149,7 @@
         audioChunks = [];
         processingState = null;
         activeRecordingControls = null;
+        syncOverlayScrollLock();
     }
 
     async function toggleRecording() {
@@ -2348,6 +2401,9 @@
         if (el.processingReview) {
             el.processingReview.style.display = 'none';
         }
+        if (el.processingReviewOverlay) {
+            el.processingReviewOverlay.setAttribute('hidden', 'hidden');
+        }
         if (el.reviewContainer) {
             el.reviewContainer.innerHTML = '';
         }
@@ -2355,6 +2411,7 @@
             el.mainScreen.style.display = 'flex';
         }
         if (!controls.playbackControls || !controls.playbackAudio) {
+            syncOverlayScrollLock();
             return;
         }
 
@@ -2370,6 +2427,7 @@
         }
 
         controls.playbackAudio.play().catch(() => {});
+        syncOverlayScrollLock();
     }
 
     function showProcessingReview() {
@@ -2387,10 +2445,14 @@
         processingState.reviewReady = true;
         if (!isNewWordPanelActive() && el.mainScreen) {
             el.mainScreen.style.display = 'none';
+            if (el.processingReviewOverlay) {
+                el.processingReviewOverlay.removeAttribute('hidden');
+            }
         }
         if (el.playbackControls) {
             el.playbackControls.style.display = 'none';
         }
+        syncOverlayScrollLock();
 
         requestAnimationFrame(() => {
             renderWaveform(reviewFile, processingState.originalBuffer, processingState.trimStart, processingState.trimEnd);
@@ -3535,6 +3597,9 @@
             showNewWordPanel();
             return;
         }
+        setHiddenWordsPanelOpen(false);
+        if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
+        if (el.processingReviewOverlay) el.processingReviewOverlay.setAttribute('hidden', 'hidden');
         if (el.mainScreen) el.mainScreen.style.display = 'none';
 
         // Mark current category as exhausted since we completed all its images
@@ -3588,6 +3653,7 @@
             p.textContent = i18n.all_complete || 'All recordings completed for the selected set. Thank you!';
             document.querySelector('.ll-recording-wrapper')?.appendChild(p);
         }
+        syncOverlayScrollLock();
     }
 
     function getNextCategory() {

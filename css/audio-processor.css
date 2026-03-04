@@ -487,14 +487,14 @@
 }
 
 /* Playback Controls */
-.ll-playback-controls {
+.ll-review-interface .ll-playback-controls {
     display: flex;
     align-items: center;
     gap: 15px;
     margin-top: 15px;
 }
 
-.ll-playback-controls audio {
+.ll-review-interface .ll-playback-controls audio {
     flex: 1;
 }
 

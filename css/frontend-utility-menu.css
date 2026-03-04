@@ -187,6 +187,63 @@
     box-shadow: 0 0 0 3px rgba(22, 115, 70, 0.16);
 }
 
+.ll-wordset-utility-bar--context-recorder {
+    margin-top: 0.45rem;
+    margin-bottom: 0.45rem;
+    gap: 8px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__identity {
+    padding: 6px 10px;
+    font-size: 12px;
+    gap: 6px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__identity-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__identity-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__identity-logout svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__links {
+    column-gap: 6px;
+    row-gap: 6px;
+}
+
+.ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__link {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 6px;
+}
+
+@media (max-height: 720px) {
+    .ll-wordset-utility-bar--context-recorder {
+        margin-top: 0.35rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__identity {
+        padding: 5px 9px;
+        font-size: 11px;
+    }
+
+    .ll-wordset-utility-bar--context-recorder .ll-wordset-utility-bar__link {
+        min-height: 28px;
+        padding: 4px 9px;
+        font-size: 11px;
+    }
+}
+
 @media (max-width: 800px) {
     .ll-wordset-utility-bar--shared {
         width: calc(100vw - 1.25rem);
