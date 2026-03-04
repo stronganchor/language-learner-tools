@@ -6263,6 +6263,95 @@
         };
     }
 
+    function buildCategoryCompatibilityGroups(categoryIds, options) {
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
+            return !isCategoryHidden(id);
+        });
+        if (!ids.length) {
+            return [];
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const groups = {};
+        ids.forEach(function (id, index) {
+            const key = getCategoryCompatibilityKey(id, opts);
+            if (!groups[key]) {
+                groups[key] = {
+                    key: key,
+                    order: index,
+                    category_ids: []
+                };
+            }
+            groups[key].category_ids.push(id);
+        });
+
+        return Object.keys(groups).map(function (key) {
+            return groups[key];
+        }).sort(function (left, right) {
+            return left.order - right.order;
+        });
+    }
+
+    function buildSelectionChunkLaunchPlan(categoryIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
+            return !isCategoryHidden(id);
+        });
+        if (!ids.length) {
+            return {
+                entries: [],
+                filteredWordCount: 0
+            };
+        }
+
+        const minimumWords = Math.max(1, parseInt(opts.minimumWords, 10) || getSelectionMinimumWordCount());
+        const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || CHUNK_SIZE);
+        const minimumChunkSize = Math.max(1, parseInt(opts.minChunkSize, 10) || minimumWords);
+        const requireMatchingPresentation = !!opts.requireMatchingPresentation;
+        const wordLists = buildWordIdListsByCategory(ids, {
+            starOnly: !!opts.starOnly,
+            hardOnly: !!opts.hardOnly
+        });
+        const groups = buildCategoryCompatibilityGroups(ids, {
+            requireMatchingPresentation: requireMatchingPresentation
+        });
+        const entries = [];
+
+        groups.forEach(function (group) {
+            const groupCategoryIds = uniqueIntList(group.category_ids || []);
+            if (!groupCategoryIds.length) {
+                return;
+            }
+
+            const groupWordIds = collectUniqueWordIdsFromCategoryLists(groupCategoryIds, wordLists.filteredByCategory);
+            if (groupWordIds.length < minimumWords) {
+                return;
+            }
+
+            const chunks = buildChunkList(groupWordIds, {
+                chunkSize: chunkSize,
+                minChunkSize: minimumChunkSize
+            });
+            chunks.forEach(function (chunkWordIds) {
+                const sessionWordIds = uniqueIntList(chunkWordIds || []);
+                if (sessionWordIds.length < minimumWords) {
+                    return;
+                }
+                entries.push({
+                    category_ids: groupCategoryIds.slice(),
+                    session_word_ids: sessionWordIds.slice(),
+                    category_label_override: '',
+                    details: {}
+                });
+            });
+        });
+
+        return {
+            entries: entries,
+            filteredWordCount: uniqueIntList(wordLists.filteredWordIds || []).length
+        };
+    }
+
     function buildChunkList(wordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || CHUNK_SIZE);
@@ -6963,6 +7052,54 @@
         return true;
     }
 
+    function getChunkSessionEntry(sessionLike, index) {
+        const session = (sessionLike && typeof sessionLike === 'object') ? sessionLike : null;
+        if (!session || !Array.isArray(session.chunks) || !session.chunks.length) {
+            return null;
+        }
+
+        const position = parseInt(index, 10);
+        if (position < 0 || position >= session.chunks.length) {
+            return null;
+        }
+
+        const fallbackCategoryIds = uniqueIntList(session.category_ids || []);
+        const fallbackCategoryLabel = String(session.category_label_override || '').trim();
+        const fallbackDetails = (session.details && typeof session.details === 'object')
+            ? Object.assign({}, session.details)
+            : {};
+        const rawEntry = session.chunks[position];
+
+        if (Array.isArray(rawEntry)) {
+            const sessionWordIds = uniqueIntList(rawEntry);
+            if (!sessionWordIds.length) {
+                return null;
+            }
+            return {
+                category_ids: fallbackCategoryIds,
+                session_word_ids: sessionWordIds,
+                category_label_override: fallbackCategoryLabel,
+                details: fallbackDetails
+            };
+        }
+
+        const entry = (rawEntry && typeof rawEntry === 'object') ? rawEntry : {};
+        const categoryIds = uniqueIntList(entry.category_ids || fallbackCategoryIds);
+        const sessionWordIds = uniqueIntList(entry.session_word_ids || entry.word_ids || []);
+        if (!categoryIds.length || !sessionWordIds.length) {
+            return null;
+        }
+
+        return {
+            category_ids: categoryIds,
+            session_word_ids: sessionWordIds,
+            category_label_override: String(entry.category_label_override || fallbackCategoryLabel).trim(),
+            details: (entry.details && typeof entry.details === 'object')
+                ? Object.assign({}, fallbackDetails, entry.details)
+                : fallbackDetails
+        };
+    }
+
     function renderChunkResultsActions() {
         if (!chunkSession || !chunkSession.chunks || !chunkSession.chunks.length) {
             return false;
@@ -6988,12 +7125,14 @@
             $same.show().off('click').on('click.llWordsetChunk', function (e) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
-                const currentChunk = chunkSession.chunks[chunkSession.index] || [];
-                launchFlashcards(chunkSession.mode, chunkSession.category_ids, currentChunk, {
+                const currentEntry = getChunkSessionEntry(chunkSession, chunkSession.index);
+                if (!currentEntry) { return; }
+                launchFlashcards(chunkSession.mode, currentEntry.category_ids, currentEntry.session_word_ids, {
                     source: 'wordset_chunk_repeat',
                     chunked: true,
                     sessionStarMode: chunkSession.star_mode || 'normal',
-                    categoryLabelOverride: String(chunkSession.category_label_override || '').trim()
+                    categoryLabelOverride: currentEntry.category_label_override,
+                    details: currentEntry.details
                 });
             });
 
@@ -7009,12 +7148,14 @@
                 if (!chunkSession) { return; }
                 if (chunkSession.index >= chunkSession.chunks.length - 1) { return; }
                 chunkSession.index += 1;
-                const nextChunk = chunkSession.chunks[chunkSession.index] || [];
-                launchFlashcards(chunkSession.mode, chunkSession.category_ids, nextChunk, {
+                const nextEntry = getChunkSessionEntry(chunkSession, chunkSession.index);
+                if (!nextEntry) { return; }
+                launchFlashcards(chunkSession.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
                     source: 'wordset_chunk_continue',
                     chunked: true,
                     sessionStarMode: chunkSession.star_mode || 'normal',
-                    categoryLabelOverride: String(chunkSession.category_label_override || '').trim()
+                    categoryLabelOverride: nextEntry.category_label_override,
+                    details: nextEntry.details
                 });
             });
         } else {
@@ -7486,7 +7627,8 @@
                         chunks: chunks,
                         index: 0,
                         star_mode: starredOnlyActive ? 'only' : 'normal',
-                        category_label_override: categoryLabelOverride
+                        category_label_override: categoryLabelOverride,
+                        details: launchDetails
                     };
                     launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], {
                         source: 'wordset_chunk_start',
@@ -7511,32 +7653,33 @@
                 return;
             }
 
-            const ids = filterCategoryIdsByAspectBucket(selectedIds, {
-                preferCategoryId: selectedIds[0] || 0
-            });
-            if (!ids.length) {
-                alert(i18n.noCategoriesSelected || 'Select at least one category.');
-                return;
-            }
-
-            const wordIds = collectWordIdsForCategories(ids, {
+            const launchPlan = buildSelectionChunkLaunchPlan(selectedIds, {
                 starOnly: starredOnlyActive,
-                hardOnly: hardOnlyActive
+                hardOnly: hardOnlyActive,
+                minimumWords: minimumWordCount,
+                minChunkSize: minimumWordCount,
+                requireMatchingPresentation: true
             });
-            if (!wordIds.length) {
-                alert(resolveEmptyMessage());
-                return;
-            }
+            const chunkEntries = Array.isArray(launchPlan.entries) ? launchPlan.entries : [];
 
-            const randomizedWordIds = shuffleList(wordIds);
-            if (randomizedWordIds.length < minimumWordCount) {
-                alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+            if (!chunkEntries.length) {
+                const filteredWordCount = Math.max(0, parseInt(launchPlan.filteredWordCount, 10) || 0);
+                alert(filteredWordCount > 0
+                    ? (i18n.noWordsInSelection || 'No quiz words are available for this selection.')
+                    : resolveEmptyMessage());
                 return;
             }
 
             if (normalizedMode === 'listening') {
+                const listeningCategoryIds = uniqueIntList(chunkEntries.reduce(function (out, entry) {
+                    const categoryIds = uniqueIntList(entry && entry.category_ids ? entry.category_ids : []);
+                    categoryIds.forEach(function (id) {
+                        out.push(id);
+                    });
+                    return out;
+                }, []));
                 chunkSession = null;
-                launchFlashcards(normalizedMode, ids, [], {
+                launchFlashcards(normalizedMode, listeningCategoryIds, [], {
                     source: 'wordset_selection_start',
                     chunked: false,
                     sessionStarMode: starredOnlyActive ? 'only' : 'normal'
@@ -7544,38 +7687,52 @@
                 return;
             }
 
-            const chunks = buildChunkList(randomizedWordIds, {
-                minChunkSize: minimumWordCount
-            });
-            if (!chunks.length) {
+            const firstEntry = getChunkSessionEntry({
+                category_ids: [],
+                category_label_override: '',
+                details: {},
+                chunks: chunkEntries
+            }, 0);
+            if (!firstEntry) {
                 alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
                 return;
             }
 
-            if (chunks.length > 1) {
+            if (chunkEntries.length > 1) {
                 chunkSession = {
                     mode: normalizedMode,
-                    category_ids: ids.slice(),
-                    chunks: chunks,
+                    category_ids: firstEntry.category_ids.slice(),
+                    chunks: chunkEntries.map(function (entry) {
+                        return {
+                            category_ids: uniqueIntList(entry.category_ids || []),
+                            session_word_ids: uniqueIntList(entry.session_word_ids || []),
+                            category_label_override: String(entry.category_label_override || '').trim(),
+                            details: (entry.details && typeof entry.details === 'object') ? Object.assign({}, entry.details) : {}
+                        };
+                    }),
                     index: 0,
                     star_mode: starredOnlyActive ? 'only' : 'normal',
                     category_label_override: ''
                 };
-                launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], {
+                launchFlashcards(chunkSession.mode, firstEntry.category_ids, firstEntry.session_word_ids, {
                     source: 'wordset_chunk_start',
                     chunked: true,
                     sessionStarMode: chunkSession.star_mode,
-                    randomizeSessionCategoryOrder: true
+                    randomizeSessionCategoryOrder: true,
+                    categoryLabelOverride: firstEntry.category_label_override,
+                    details: firstEntry.details
                 });
                 return;
             }
 
             chunkSession = null;
-            launchFlashcards(normalizedMode, ids, chunks[0], {
+            launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
                 source: 'wordset_selection_start',
                 chunked: false,
                 sessionStarMode: starredOnlyActive ? 'only' : 'normal',
-                randomizeSessionCategoryOrder: true
+                randomizeSessionCategoryOrder: true,
+                categoryLabelOverride: firstEntry.category_label_override,
+                details: firstEntry.details
             });
         });
     }
