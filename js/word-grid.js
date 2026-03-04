@@ -1037,7 +1037,7 @@
         });
 
         $(document).on('pointerdown.llLessonBulk', function (e) {
-            if ($(e.target).closest('[data-ll-word-grid-bulk]').length) { return; }
+            if ($(e.target).closest('[data-ll-word-grid-bulk], .ll-vocab-lesson-prereq-autocomplete').length) { return; }
             closeBulkEditors();
         });
 
@@ -3154,6 +3154,13 @@
             $input.data('llPrereqAutocompleteReady', true);
 
             const $panel = $editor.closest('.ll-vocab-lesson-bulk-panel');
+            const applyPrereqSelection = function (item) {
+                const selectedItem = (item && typeof item === 'object') ? item : {};
+                if (addPrereqSelection($editor, selectedItem)) {
+                    setPrereqEditorStatus($editor, '', false);
+                }
+                $input.val('');
+            };
             $input.autocomplete({
                 minLength: 0,
                 delay: 100,
@@ -3204,15 +3211,19 @@
                 },
                 select: function (event, ui) {
                     event.preventDefault();
-                    if (addPrereqSelection($editor, ui.item || {})) {
-                        setPrereqEditorStatus($editor, '', false);
-                    }
-                    $input.val('');
+                    applyPrereqSelection(ui && ui.item ? ui.item : {});
+                    return false;
                 }
             });
 
             const instance = $input.autocomplete('instance');
             if (instance) {
+                const $menu = instance.menu && instance.menu.element ? instance.menu.element : $();
+                if ($menu.length) {
+                    $menu.on('pointerdown.llPrereqMenu click.llPrereqMenu', function (event) {
+                        event.stopPropagation();
+                    });
+                }
                 instance._renderItem = function (ul, item) {
                     const $line = $('<div>', { class: 'll-vocab-lesson-prereq-menu-item' });
                     $line.append($('<span>', {
