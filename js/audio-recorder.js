@@ -163,6 +163,7 @@
         setupElements();
         hiddenWords = normalizeHiddenWords(hiddenWords);
         renderHiddenWordsList();
+        setupRecordingTypeChoices();
         setupCategorySelector();
         setupNewWordMode();
         if (images.length > 0) {
@@ -225,7 +226,9 @@
             completedCount: document.querySelector('.ll-completed-count'),
             mainScreen: document.querySelector('.ll-recording-main'),
             categorySelect: document.getElementById('ll-category-select'),
+            recordingTypeSelector: document.querySelector('.ll-recording-type-selector'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
+            recordingTypeChoices: null,
             newWordToggle: document.getElementById('ll-new-word-toggle'),
             newWordOverlay: document.getElementById('ll-new-word-overlay'),
             newWordPanel: document.querySelector('.ll-new-word-panel'),
@@ -598,6 +601,96 @@
         }));
     }
 
+    function setSelectOptionDisplayText(option, text) {
+        if (!option) return;
+        const safeText = String(text || '');
+        // Keep mirrored surfaces in sync. Set textContent last because some engines
+        // normalize option.text and may strip leading icon glyphs.
+        option.dataset.llDisplayText = safeText;
+        try { option.label = safeText; } catch (_) { /* no-op */ }
+        try { option.setAttribute('label', safeText); } catch (_) { /* no-op */ }
+        try { option.text = safeText; } catch (_) { /* no-op */ }
+        option.textContent = safeText;
+    }
+
+    function getRecordingTypeOptionDisplayText(option) {
+        if (!option) return '';
+        const fromDataset = option.dataset && option.dataset.llDisplayText
+            ? String(option.dataset.llDisplayText).trim()
+            : '';
+        if (fromDataset) return fromDataset;
+        const fromLabel = option.label ? String(option.label).trim() : '';
+        if (fromLabel) return fromLabel;
+        return String(option.textContent || option.value || '').trim();
+    }
+
+    function getRecordingTypeChoiceText(slug, fallbackOption) {
+        const rows = Array.isArray(window.ll_recorder_data?.recording_types)
+            ? window.ll_recorder_data.recording_types
+            : [];
+        if (getRecordingTypeEntry(slug, rows)) {
+            const display = getRecordingTypeDisplay(slug, rows);
+            const fromDisplay = String(display.selectText || display.text || display.label || '').trim();
+            if (fromDisplay) return fromDisplay;
+        }
+        return getRecordingTypeOptionDisplayText(fallbackOption) || String(slug || '');
+    }
+
+    function renderRecordingTypeChoices() {
+        const el = window.llRecorder;
+        if (!el?.recordingTypeSelect || !el.recordingTypeChoices) return;
+
+        const selectedValue = String(el.recordingTypeSelect.value || '');
+        const disabled = !!el.recordingTypeSelect.disabled;
+        const options = Array.from(el.recordingTypeSelect.options);
+
+        el.recordingTypeChoices.innerHTML = '';
+        options.forEach(option => {
+            const value = String(option.value || '');
+            if (!value) return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'll-recording-type-choice';
+            if (value === selectedValue) {
+                button.classList.add('is-active');
+            }
+            button.setAttribute('data-recording-type-value', value);
+            button.setAttribute('aria-pressed', value === selectedValue ? 'true' : 'false');
+            button.disabled = disabled;
+            button.textContent = getRecordingTypeChoiceText(value, option);
+            el.recordingTypeChoices.appendChild(button);
+        });
+    }
+
+    function setupRecordingTypeChoices() {
+        const el = window.llRecorder;
+        if (!el?.recordingTypeSelector || !el.recordingTypeSelect) return;
+
+        let choices = el.recordingTypeSelector.querySelector('.ll-recording-type-choices');
+        if (!choices) {
+            choices = document.createElement('div');
+            choices.className = 'll-recording-type-choices';
+            el.recordingTypeSelector.appendChild(choices);
+        }
+        el.recordingTypeChoices = choices;
+        el.recordingTypeSelector.classList.add('ll-recording-type-selector--enhanced');
+
+        choices.addEventListener('click', event => {
+            const trigger = event.target && event.target.closest
+                ? event.target.closest('.ll-recording-type-choice')
+                : null;
+            if (!trigger || trigger.disabled) return;
+            const value = String(trigger.getAttribute('data-recording-type-value') || '');
+            if (!value || value === el.recordingTypeSelect.value) return;
+            el.recordingTypeSelect.value = value;
+            el.recordingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            renderRecordingTypeChoices();
+        });
+
+        el.recordingTypeSelect.addEventListener('change', renderRecordingTypeChoices);
+        renderRecordingTypeChoices();
+    }
+
     function captureExistingState() {
         const el = window.llRecorder;
         return {
@@ -607,7 +700,7 @@
             recordingTypeOptions: el.recordingTypeSelect
                 ? Array.from(el.recordingTypeSelect.options).map(opt => ({
                     value: opt.value,
-                    text: opt.textContent || opt.value,
+                    text: opt.label || opt.textContent || opt.value,
                 }))
                 : [],
         };
@@ -677,9 +770,10 @@
             restored.recordingTypeOptions.forEach(opt => {
                 const option = document.createElement('option');
                 option.value = opt.value;
-                option.textContent = opt.text;
+                setSelectOptionDisplayText(option, opt.text);
                 el.recordingTypeSelect.appendChild(option);
             });
+            renderRecordingTypeChoices();
         }
 
         if (el.categorySelect && restored.category) {
@@ -1456,6 +1550,22 @@
         return recordingTypeIcons.default || '';
     }
 
+    function getRecordingTypeTextIcon(slug) {
+        const key = String(slug || '').trim().toLowerCase();
+        switch (key) {
+        case 'isolation':
+            return '◉';
+        case 'introduction':
+            return '◆';
+        case 'question':
+            return '?';
+        case 'sentence':
+            return '▦';
+        default:
+            return '●';
+        }
+    }
+
     function humanizeRecordingTypeSlug(rawValue) {
         return String(rawValue || '')
             .split(/[-_]+/)
@@ -1522,11 +1632,13 @@
         const label = getRecordingTypeLabel(slug, typeList);
         const iconFromEntry = (entry && typeof entry.icon === 'string') ? entry.icon.trim() : '';
         const icon = iconFromEntry || getRecordingTypeIcon(slug);
-        const payloadLabel = (entry && typeof entry.label === 'string') ? entry.label.trim() : '';
+        const textIcon = getRecordingTypeTextIcon(slug);
+        const selectText = textIcon ? `${label} ${textIcon}` : label;
         return {
             icon,
             label,
-            text: payloadLabel || (icon ? `${icon} ${label}` : label)
+            text: textIcon ? `${textIcon} ${label}` : label,
+            selectText
         };
     }
 
@@ -1653,9 +1765,10 @@
             const display = getRecordingTypeDisplay(slug, orderedTypes);
             const option = document.createElement('option');
             option.value = slug;
-            option.textContent = display.text || display.label || slug;
+            setSelectOptionDisplayText(option, display.selectText || display.text || display.label || slug);
             el.recordingTypeSelect.appendChild(option);
         });
+        renderRecordingTypeChoices();
         updateNewWordRecordingTypeLabel();
     }
 
@@ -1870,7 +1983,7 @@
             opt = document.createElement('option');
             opt.value = next;
             const display = getRecordingTypeDisplay(next, window.ll_recorder_data?.recording_types || []);
-            opt.textContent = display.text || display.label || next;
+            setSelectOptionDisplayText(opt, display.selectText || display.text || display.label || next);
             el.recordingTypeSelect.appendChild(opt);
         }
 
@@ -1879,6 +1992,7 @@
             // Some themes/polyfills need a change event to redraw the visible part
             el.recordingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        renderRecordingTypeChoices();
         updateNewWordRecordingTypeLabel();
     }
 
@@ -3523,6 +3637,8 @@
 
         showStatus(i18n.switching_category || 'Switching category...', 'info');
         el.categorySelect.disabled = true;
+        if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = true;
+        renderRecordingTypeChoices();
         el.recordBtn.disabled = true;
         el.skipBtn.disabled = true;
         if (el.hideBtn) el.hideBtn.disabled = true;
@@ -3567,6 +3683,8 @@
                     if (nextCategory && nextCategory.slug !== newCategory) {
                         el.categorySelect.value = nextCategory.slug;
                         el.categorySelect.disabled = false;
+                        if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
+                        renderRecordingTypeChoices();
                         el.recordBtn.disabled = false;
                         el.skipBtn.disabled = false;
                         if (el.hideBtn) el.hideBtn.disabled = false;
@@ -3576,6 +3694,8 @@
                         // No more categories to try
                         showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
                         el.categorySelect.disabled = false;
+                        if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
+                        renderRecordingTypeChoices();
                         if (el.hideBtn) el.hideBtn.disabled = false;
                         return;
                     }
@@ -3606,6 +3726,8 @@
             showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
         } finally {
             el.categorySelect.disabled = false;
+            if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
+            renderRecordingTypeChoices();
             el.recordBtn.disabled = false;
             el.skipBtn.disabled = false;
             if (el.hideBtn) el.hideBtn.disabled = false;
