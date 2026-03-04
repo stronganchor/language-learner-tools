@@ -39,6 +39,7 @@
     let analytics = normalizeAnalytics(cfg.analytics || null);
     let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
     let summaryMetricsLoadingToken = 0;
+    let cardProgressInitialLoading = (view === 'main' && summaryMetricsLoading);
     let selectedCategoryIds = [];
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
@@ -4399,6 +4400,17 @@
         };
     }
 
+    function setWordsetCardProgressLoadingState(isLoading) {
+        const loading = !!isLoading;
+        $root.find('.ll-wordset-card__progress-track').toggleClass('is-loading', loading);
+    }
+
+    function clearInitialWordsetCardProgressLoading() {
+        if (!cardProgressInitialLoading) { return; }
+        cardProgressInitialLoading = false;
+        setWordsetCardProgressLoadingState(false);
+    }
+
     function syncWordsetCardProgressSegmentVisualState($card) {
         const segments = getWordsetCardProgressSegments($card);
         const ordered = [segments.mastered, segments.studied, segments.new].filter(function ($segment) {
@@ -5032,6 +5044,7 @@
         if (!isLoggedIn || !ajaxUrl || !nonce) {
             setSummaryMetricsLoadingState(false);
             categoryProgressHoldForMetrics = false;
+            clearInitialWordsetCardProgressLoading();
             complete({ hasCountChanges: false, skipped: true });
             return;
         }
@@ -5059,6 +5072,7 @@
             if (!analytics || !analytics.summary || typeof analytics.summary !== 'object') {
                 finishMetricsLoading();
                 categoryProgressHoldForMetrics = false;
+                clearInitialWordsetCardProgressLoading();
                 complete({ hasCountChanges: false, skipped: true });
                 return;
             }
@@ -5067,6 +5081,7 @@
                 syncAllImmediately: syncAllCategoryProgressImmediately,
                 animateCards: animate
             });
+            clearInitialWordsetCardProgressLoading();
             const summary = analytics.summary;
             const mastered = Math.max(0, parseInt(summary.mastered_words, 10) || 0);
             const studiedTotal = Math.max(0, parseInt(summary.studied_words, 10) || 0);
@@ -5113,6 +5128,7 @@
         }).fail(function () {
             finishMetricsLoading();
             categoryProgressHoldForMetrics = false;
+            clearInitialWordsetCardProgressLoading();
             if (stickyMiniSession) {
                 releaseStickyProgressMiniForMetricsAnimation(stickyMiniSession, { immediate: true });
                 stickyMiniSession = null;
@@ -8456,6 +8472,7 @@
     }
 
     if (view === 'main') {
+        setWordsetCardProgressLoadingState(cardProgressInitialLoading);
         setSummaryMetricsLoadingState(summaryMetricsLoading);
         syncAllWordsetCardProgressSegmentVisualState();
         bindSettingsControls();

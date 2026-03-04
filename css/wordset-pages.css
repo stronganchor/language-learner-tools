@@ -1861,6 +1861,32 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     transform: translateZ(0);
 }
 
+.ll-wordset-card__progress-track.is-loading {
+    position: relative;
+    isolation: isolate;
+}
+
+.ll-wordset-card__progress-track.is-loading .ll-wordset-card__progress-segment {
+    background: #e2e8f0;
+    border-color: transparent;
+}
+
+.ll-wordset-card__progress-track.is-loading .ll-wordset-card__progress-icon {
+    opacity: 0;
+}
+
+.ll-wordset-card__progress-track.is-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.18) 16%, rgba(255, 255, 255, 0.78) 34%, rgba(255, 255, 255, 0.18) 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+    pointer-events: none;
+    z-index: 3;
+}
+
 .ll-wordset-card__progress-segment {
     min-height: 14px;
     display: flex;
@@ -5459,6 +5485,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-next-card__line--skeleton,
     .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton,
     .ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill::after,
+    .ll-wordset-card__progress-track.is-loading::after,
     .ll-wordset-page .ll-wordset-select-all.is-loading::after,
     .ll-wordset-preview-item--image.ll-image-load-pending::after,
     .ll-wordset-queue-thumb--image.ll-image-load-pending::after,

@@ -4401,7 +4401,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </div>
                             </a>
                             <div class="ll-wordset-card__progress" aria-hidden="true">
-                                <span class="ll-wordset-card__progress-track">
+                                <span class="ll-wordset-card__progress-track<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>">
                                     <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: <?php echo esc_attr(number_format((float) $card_mastered_pct, 2, '.', '')); ?>%;">
                                         <?php echo ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                     </span>
