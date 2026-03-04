@@ -1456,34 +1456,77 @@
         return recordingTypeIcons.default || '';
     }
 
-    function getRecordingTypeLabel(slug, typeList) {
-        if (!slug) return '';
-        const types = Array.isArray(typeList) && typeList.length
-            ? typeList
-            : (Array.isArray(window.ll_recorder_data?.recording_types)
-                ? window.ll_recorder_data.recording_types
-                : []);
-        const match = types.find(item => getRecordingTypeSlug(item) === slug);
-        if (typeof match === 'object' && match) {
-            return match.name || match.slug || slug;
-        }
-        if (typeof match === 'string') {
-            return match;
-        }
-        return slug
+    function humanizeRecordingTypeSlug(rawValue) {
+        return String(rawValue || '')
             .split(/[-_]+/)
             .filter(Boolean)
             .map(part => part.charAt(0).toUpperCase() + part.slice(1))
             .join(' ');
     }
 
+    function getRecordingTypeEntry(slug, typeList) {
+        if (!slug) return null;
+        const normalizedSlug = String(slug);
+        const localTypes = Array.isArray(typeList) ? typeList : [];
+        const localMatch = localTypes.find(item => getRecordingTypeSlug(item) === normalizedSlug);
+        if (localMatch && typeof localMatch === 'object') {
+            return localMatch;
+        }
+
+        const globalTypes = Array.isArray(window.ll_recorder_data?.recording_types)
+            ? window.ll_recorder_data.recording_types
+            : [];
+        const globalMatch = globalTypes.find(item => getRecordingTypeSlug(item) === normalizedSlug);
+        if (globalMatch && typeof globalMatch === 'object') {
+            return globalMatch;
+        }
+        return null;
+    }
+
+    function getRecordingTypeLabel(slug, typeList) {
+        if (!slug) return '';
+        const entry = getRecordingTypeEntry(slug, typeList);
+        if (entry) {
+            const name = (typeof entry.name === 'string') ? entry.name.trim() : '';
+            if (name) {
+                return name;
+            }
+
+            const rawLabel = (typeof entry.label === 'string') ? entry.label.trim() : '';
+            if (rawLabel) {
+                const icon = (typeof entry.icon === 'string') ? entry.icon.trim() : '';
+                if (icon && rawLabel.indexOf(icon) === 0) {
+                    const labelWithoutIcon = rawLabel.slice(icon.length).trim();
+                    if (labelWithoutIcon) {
+                        return labelWithoutIcon;
+                    }
+                }
+                return rawLabel;
+            }
+        }
+
+        const types = Array.isArray(typeList) && typeList.length
+            ? typeList
+            : (Array.isArray(window.ll_recorder_data?.recording_types)
+                ? window.ll_recorder_data.recording_types
+                : []);
+        const match = types.find(item => getRecordingTypeSlug(item) === slug);
+        if (typeof match === 'string') {
+            return humanizeRecordingTypeSlug(match);
+        }
+        return humanizeRecordingTypeSlug(slug);
+    }
+
     function getRecordingTypeDisplay(slug, typeList) {
+        const entry = getRecordingTypeEntry(slug, typeList);
         const label = getRecordingTypeLabel(slug, typeList);
-        const icon = getRecordingTypeIcon(slug);
+        const iconFromEntry = (entry && typeof entry.icon === 'string') ? entry.icon.trim() : '';
+        const icon = iconFromEntry || getRecordingTypeIcon(slug);
+        const payloadLabel = (entry && typeof entry.label === 'string') ? entry.label.trim() : '';
         return {
             icon,
             label,
-            text: icon ? `${icon} ${label}` : label
+            text: payloadLabel || (icon ? `${icon} ${label}` : label)
         };
     }
 
