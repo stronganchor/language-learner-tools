@@ -66,8 +66,7 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
             return $id > 0;
         }));
         $this->assertNotEmpty($session_word_ids);
-        $this->assertGreaterThanOrEqual(8, count($session_word_ids));
-        $this->assertLessThanOrEqual(15, count($session_word_ids));
+        $this->assert_recommendation_word_count_within_bounds($recommendation, 'pipeline');
     }
 
     public function test_placement_known_category_biases_recommendation_to_self_check(): void
@@ -133,15 +132,14 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
         $session_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($recommendation['session_word_ids'] ?? [])))));
         sort($session_word_ids, SORT_NUMERIC);
 
-        $this->assertGreaterThanOrEqual(8, count($session_word_ids));
-        $this->assertLessThanOrEqual(15, count($session_word_ids));
+        $this->assert_recommendation_word_count_within_bounds($recommendation, 'single-category');
         $this->assertSame($expected_word_ids, $session_word_ids);
     }
 
     public function test_recommendation_returns_null_when_scope_cannot_reach_minimum_session_words(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
-        $fixture = $this->create_wordset_category_with_words(6);
+        $fixture = $this->create_wordset_category_with_words(4);
 
         ll_tools_save_user_study_goals([
             'enabled_modes' => ['learning', 'practice', 'self-check', 'listening'],
@@ -399,7 +397,7 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
     {
         [$min_words, $max_words] = function_exists('ll_tools_recommendation_session_word_bounds')
             ? ll_tools_recommendation_session_word_bounds()
-            : [8, 15];
+            : [5, 15];
         $session_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($recommendation['session_word_ids'] ?? [])), static function ($id): bool {
             return $id > 0;
         })));

@@ -29,6 +29,7 @@
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
 
+    let wordsByCategory = {};
     let categories = normalizeCategories(cfg.categories || []);
     let goals = normalizeGoals(cfg.goals || {});
     let state = normalizeState(cfg.state || {});
@@ -41,7 +42,6 @@
     let selectedCategoryIds = [];
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
-    let wordsByCategory = {};
     let saveStateTimer = null;
     let goalsSaveRequestToken = 0;
     let analyticsTimer = null;
@@ -531,6 +531,86 @@
         return null;
     }
 
+    function buildStarterFallbackNextActivity() {
+        const visibleIds = getVisibleCategoryIds();
+        if (!visibleIds.length) {
+            return null;
+        }
+
+        let learningCategoryId = 0;
+        for (let idx = 0; idx < visibleIds.length; idx += 1) {
+            const cat = getCategoryById(visibleIds[idx]);
+            if (!cat) {
+                continue;
+            }
+            if (!Object.prototype.hasOwnProperty.call(cat, 'learning_supported') || !!cat.learning_supported) {
+                learningCategoryId = visibleIds[idx];
+                break;
+            }
+        }
+
+        const candidateActivities = [];
+        if (learningCategoryId > 0) {
+            candidateActivities.push({
+                mode: 'learning',
+                category_ids: [learningCategoryId],
+                session_word_ids: [],
+                type: 'starter',
+                reason_code: 'starter_first_activity',
+                details: {
+                    starter: true,
+                    fallback: true
+                }
+            });
+        }
+
+        const firstCategoryId = parseInt(visibleIds[0], 10) || 0;
+        if (firstCategoryId > 0) {
+            candidateActivities.push({
+                mode: 'practice',
+                category_ids: [firstCategoryId],
+                session_word_ids: [],
+                type: 'starter',
+                reason_code: 'starter_first_activity',
+                details: {
+                    starter: true,
+                    fallback: true
+                }
+            });
+        }
+
+        if (visibleIds.length > 1) {
+            candidateActivities.push({
+                mode: 'practice',
+                category_ids: visibleIds.slice(),
+                session_word_ids: [],
+                type: 'starter',
+                reason_code: 'starter_first_activity',
+                details: {
+                    starter: true,
+                    fallback: true,
+                    multi_category: true
+                }
+            });
+        }
+
+        let fallback = null;
+        for (let idx = 0; idx < candidateActivities.length; idx += 1) {
+            const candidate = normalizeNextActivity(candidateActivities[idx]);
+            if (!candidate || !candidate.mode) {
+                continue;
+            }
+            if (!fallback) {
+                fallback = candidate;
+            }
+            if (activityHasMinimumWordPool(candidate.mode, candidate.category_ids, candidate.session_word_ids)) {
+                return candidate;
+            }
+        }
+
+        return fallback;
+    }
+
     function resolvePreferredNextActivity(preferredMode) {
         const preferred = normalizeMode(preferredMode || '');
         const direct = normalizeNextActivity(nextActivity);
@@ -548,7 +628,7 @@
             return direct;
         }
 
-        return recommendationQueueHead();
+        return recommendationQueueHead() || buildStarterFallbackNextActivity();
     }
 
     function resolveQueueIdForActivity(activity) {
@@ -5442,7 +5522,8 @@
         const next = resolvePreferredNextActivity();
         if (!next || !next.mode) {
             $nextCard.addClass('is-disabled').attr('aria-disabled', 'true').prop('disabled', true);
-            setNextCardText(i18n.nextNone || 'No recommendation yet. Do one round first.', '');
+            setNextCardText('', '');
+            $nextCard.attr('aria-label', String(i18n.nextLoading || 'Loading next recommendation...'));
             if ($nextIcon.length) {
                 $nextIcon.empty();
             }

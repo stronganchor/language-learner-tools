@@ -3085,7 +3085,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'learningMinChunkSize' => 8,
         'hardWordDifficultyThreshold' => 4,
         'i18n' => [
-            'nextNone' => __('No recommendation yet. Do one round first.', 'll-tools-text-domain'),
+            'nextNone' => __('Loading next recommendation...', 'll-tools-text-domain'),
             'nextLoading' => __('Loading next recommendation...', 'll-tools-text-domain'),
             'nextReady' => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
             'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
@@ -4255,7 +4255,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-next-card__main">
                                 <span class="ll-wordset-next-card__icon" data-ll-wordset-next-icon aria-hidden="true"></span>
                                 <span class="ll-wordset-next-card__preview" data-ll-wordset-next-preview aria-hidden="true"></span>
-                                <span class="ll-wordset-next-card__text" data-ll-wordset-next-text><?php echo esc_html__('No recommendation yet. Do one round first.', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-wordset-next-card__text" data-ll-wordset-next-text><?php echo esc_html__('Loading next recommendation...', 'll-tools-text-domain'); ?></span>
                             </span>
                         </button>
                         <span class="ll-wordset-next-card__meta">

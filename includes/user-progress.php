@@ -2220,10 +2220,12 @@ function ll_tools_category_pipeline_sequence(array $category_meta): array {
 }
 
 function ll_tools_recommendation_session_word_bounds(): array {
-    $min = (int) apply_filters('ll_tools_recommendation_min_words', 8);
+    $quiz_min = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $default_min = max(5, $quiz_min);
+    $min = (int) apply_filters('ll_tools_recommendation_min_words', $default_min);
     $max = (int) apply_filters('ll_tools_recommendation_max_words', 15);
 
-    $min = max(1, min(30, $min));
+    $min = max(5, min(30, $min));
     $max = max($min, min(30, $max));
 
     return [$min, $max];
