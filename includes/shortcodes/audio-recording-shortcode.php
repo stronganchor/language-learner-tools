@@ -64,6 +64,38 @@ function ll_get_recording_type_name($slug, $term_name = '') {
 }
 
 /**
+ * Apply recorder-request locale for front-end AJAX calls when provided.
+ */
+function ll_tools_recorder_apply_ajax_locale(): void {
+    if (!(defined('DOING_AJAX') && DOING_AJAX)) {
+        return;
+    }
+
+    $requested = '';
+    if (isset($_REQUEST['ll_locale'])) {
+        $requested = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale']));
+    } elseif (defined('LL_TOOLS_I18N_COOKIE') && !empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
+        $requested = sanitize_text_field(wp_unslash((string) $_COOKIE[LL_TOOLS_I18N_COOKIE]));
+    }
+
+    if ($requested === '') {
+        return;
+    }
+
+    $is_valid = function_exists('ll_tools_is_valid_switcher_locale')
+        ? ll_tools_is_valid_switcher_locale($requested)
+        : (bool) preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/', $requested);
+
+    if (!$is_valid) {
+        return;
+    }
+
+    if (function_exists('switch_to_locale')) {
+        switch_to_locale($requested);
+    }
+}
+
+/**
  * Returns an ordered list of recording type slugs for prompting.
  *
  * @return string[]
@@ -1650,6 +1682,7 @@ add_action('wp_ajax_ll_get_images_for_recording', 'll_get_images_for_recording_h
 
 function ll_get_images_for_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -1789,6 +1822,7 @@ add_action('wp_ajax_ll_get_recording_types_for_category', 'll_get_recording_type
 
 function ll_get_recording_types_for_category_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -1849,6 +1883,7 @@ add_action('wp_ajax_ll_prepare_new_word_recording', 'll_prepare_new_word_recordi
 
 function ll_prepare_new_word_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));

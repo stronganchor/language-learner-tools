@@ -39,6 +39,7 @@
     const i18n = window.ll_recorder_data?.i18n || {};
     const sortLocales = buildSortLocales(window.ll_recorder_data?.sort_locale || document.documentElement.lang || '');
     const turkishSortLocales = withTurkishSortLocales(sortLocales);
+    const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
     const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
     const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
@@ -157,6 +158,11 @@
                 return a < b ? -1 : (a > b ? 1 : 0);
             }
         }
+    }
+
+    function appendRequestLocale(formData) {
+        if (!formData || !requestLocale) return;
+        formData.append('ll_locale', requestLocale);
     }
 
     function init() {
@@ -1163,6 +1169,7 @@
         const formData = new FormData();
         formData.append('action', 'll_update_new_word_text');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('word_id', wordId);
         formData.append('word_text_target', targetText);
         formData.append('word_text_translation', translationText);
@@ -1303,6 +1310,7 @@
             const formData = new FormData();
             formData.append('action', 'll_transcribe_recording_status');
             formData.append('nonce', nonce);
+            appendRequestLocale(formData);
             formData.append('transcript_id', transcriptId);
             formData.append('wordset_ids', JSON.stringify(wordsetIds));
             formData.append('wordset', wordsetLegacy);
@@ -1356,6 +1364,7 @@
         const formData = new FormData();
         formData.append('action', 'll_translate_recording_text');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('text', text);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
@@ -1433,6 +1442,7 @@
         const formData = new FormData();
         formData.append('action', 'll_transcribe_recording');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('audio', blob, filename);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
@@ -1654,6 +1664,7 @@
         const formData = new FormData();
         formData.append('action', 'll_get_recording_types_for_category');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('category', categorySlug);
         formData.append('include_types', window.ll_recorder_data?.include_types || '');
         formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
@@ -1786,6 +1797,7 @@
         const formData = new FormData();
         formData.append('action', 'll_prepare_new_word_recording');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('category', category);
         formData.append('create_category', createCategory ? '1' : '0');
         formData.append('new_category_name', newCategoryName);
@@ -2707,6 +2719,7 @@
         const formData = new FormData();
         formData.append('action', 'll_unhide_recording_word');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('hide_key', hideKey);
 
         try {
@@ -2756,6 +2769,7 @@
         const formData = new FormData();
         formData.append('action', 'll_hide_recording_word');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('hide_key', hideKey);
         formData.append('image_id', img.id || 0);
         formData.append('word_id', img.word_id || 0);
@@ -2903,6 +2917,7 @@
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('image_id', img.id || 0);
         formData.append('word_id', img.word_id || 0);
         formData.append('recording_type', recordingType);
@@ -2983,6 +2998,7 @@
             const fd = new FormData();
             fd.append('action', 'll_verify_recording');
             fd.append('nonce', nonce);
+            appendRequestLocale(fd);
             fd.append('image_id', img.id || 0);
             fd.append('word_id', img.word_id || 0);
             fd.append('recording_type', recordingType);
@@ -3629,6 +3645,7 @@
         const formData = new FormData();
         formData.append('action', 'll_get_images_for_recording');
         formData.append('nonce', nonce);
+        appendRequestLocale(formData);
         formData.append('category', newCategory);
         formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
         formData.append('include_types', window.ll_recorder_data?.include_types || '');
