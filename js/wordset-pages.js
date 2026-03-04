@@ -44,6 +44,10 @@
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
     let saveStateTimer = null;
+    let stateSaveInFlightRequest = null;
+    let stateSaveQueued = false;
+    let stateSaveRequestToken = 0;
+    let stateSaveLatestToken = 0;
     let goalsSaveRequestToken = 0;
     let analyticsTimer = null;
     let analyticsRequestToken = 0;
@@ -3406,8 +3410,17 @@
     function saveStateDebounced(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (!isLoggedIn || !ajaxUrl || !nonce) { return; }
-        const saveNow = function () {
-            $.post(ajaxUrl, {
+
+        const runStateSave = function () {
+            stateSaveQueued = true;
+            if (stateSaveInFlightRequest) {
+                return;
+            }
+
+            stateSaveQueued = false;
+            const requestToken = ++stateSaveRequestToken;
+            stateSaveLatestToken = requestToken;
+            stateSaveInFlightRequest = $.post(ajaxUrl, {
                 action: 'll_user_study_save',
                 nonce: nonce,
                 wordset_id: wordsetId,
@@ -3416,6 +3429,10 @@
                 star_mode: normalizeStarMode(state.star_mode),
                 fast_transitions: state.fast_transitions ? 1 : 0
             }).done(function (res) {
+                // Ignore stale responses when a newer save is queued or has already run.
+                if (stateSaveQueued || requestToken !== stateSaveLatestToken) {
+                    return;
+                }
                 if (res && res.success && res.data && res.data.state) {
                     state = normalizeState(Object.assign({}, state, res.data.state));
                     if (Object.prototype.hasOwnProperty.call(res.data, 'next_activity') || Object.prototype.hasOwnProperty.call(res.data, 'recommendation_queue')) {
@@ -3426,15 +3443,20 @@
                     renderProgressAnalytics();
                     scheduleProgressAnalyticsRefresh(180, { silent: true });
                 }
+            }).always(function () {
+                stateSaveInFlightRequest = null;
+                if (stateSaveQueued) {
+                    runStateSave();
+                }
             });
         };
 
         clearTimeout(saveStateTimer);
         if (opts.immediate) {
-            saveNow();
+            runStateSave();
             return;
         }
-        saveStateTimer = setTimeout(saveNow, 250);
+        saveStateTimer = setTimeout(runStateSave, 250);
     }
 
     function isLatestGoalsSaveRequest(token) {
