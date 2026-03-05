@@ -702,7 +702,8 @@
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: thin;
-    padding-bottom: 0.08rem;
+    padding-top: 0.16rem;
+    padding-bottom: 0.16rem;
 }
 
 .ll-recording-type-choice {
