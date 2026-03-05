@@ -383,13 +383,20 @@ body.ll-word-edit-modal-open {
     overflow: hidden !important;
 }
 
+body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
+    content-visibility: visible !important;
+    contain: none !important;
+    overflow: visible !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-backdrop {
     position: fixed !important;
     inset: 0 !important;
-    z-index: 99990 !important;
+    z-index: 999990 !important;
     background: rgba(15, 23, 42, 0.58) !important;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
+    pointer-events: auto;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-backdrop[hidden],
@@ -399,13 +406,15 @@ body.ll-word-edit-modal-open {
 
 .word-grid.ll-word-grid .ll-word-edit-panel {
     position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: min(960px, calc(100vw - 24px)) !important;
-    max-height: calc(100vh - 28px) !important;
+    top: 2vh !important;
+    left: 2vw !important;
+    transform: none !important;
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 96vh !important;
     overflow: auto !important;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     margin: 0 !important;
     padding: 14px;
     border-radius: 14px;
@@ -414,7 +423,8 @@ body.ll-word-edit-modal-open {
     text-align: left;
     box-sizing: border-box;
     box-shadow: 0 24px 64px rgba(2, 6, 23, 0.36);
-    z-index: 99991 !important;
+    z-index: 999991 !important;
+    pointer-events: auto;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-panel[aria-hidden="true"] {
@@ -423,8 +433,11 @@ body.ll-word-edit-modal-open {
 
 @media (max-width: 782px) {
     .word-grid.ll-word-grid .ll-word-edit-panel {
-        width: calc(100vw - 12px) !important;
-        max-height: calc(100vh - 12px) !important;
+        top: 1vh !important;
+        left: 1vw !important;
+        width: 98vw !important;
+        max-width: 98vw !important;
+        max-height: 98vh !important;
         padding: 12px;
         border-radius: 12px;
     }
