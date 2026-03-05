@@ -145,6 +145,60 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame(['question'], $speaker_two_types);
     }
 
+    public function test_images_needing_audio_include_prompt_and_user_existing_types(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Prompt Types', 'recorder-prompt-types');
+        $type_isolation = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        $type_question = $this->ensure_term('recording_type', 'Question', 'question');
+        $type_introduction = $this->ensure_term('recording_type', 'Introduction', 'introduction');
+
+        update_option('ll_uncategorized_desired_recording_types', ['isolation', 'question', 'introduction']);
+
+        $current_speaker = self::factory()->user->create(['role' => 'author']);
+        $other_speaker = self::factory()->user->create(['role' => 'author']);
+        wp_set_current_user($current_speaker);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Prompt Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset');
+
+        $audio_isolation = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_author' => $current_speaker,
+            'post_title' => 'Recorder Prompt Isolation',
+        ]);
+        wp_set_object_terms($audio_isolation, [$type_isolation], 'recording_type');
+
+        $audio_question = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_author' => $other_speaker,
+            'post_title' => 'Recorder Prompt Question',
+        ]);
+        wp_set_object_terms($audio_question, [$type_question], 'recording_type');
+
+        $images = ll_get_images_needing_audio('', [$wordset_id], '', '');
+        $this->assertNotEmpty($images);
+
+        $target = null;
+        foreach ($images as $row) {
+            if ((int) ($row['word_id'] ?? 0) === (int) $word_id) {
+                $target = $row;
+                break;
+            }
+        }
+
+        $this->assertIsArray($target);
+        $this->assertSame(['isolation', 'introduction', 'question'], array_values((array) ($target['prompt_types'] ?? [])));
+        $this->assertSame(['isolation'], array_values((array) ($target['my_existing_types'] ?? [])));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

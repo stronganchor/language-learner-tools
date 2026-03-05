@@ -73,14 +73,30 @@
         return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
     }
 
-    images.forEach(item => {
-        if (Array.isArray(item?.missing_types)) {
-            item.missing_types = sortRecordingTypes(item.missing_types);
-        }
-        if (Array.isArray(item?.existing_types)) {
-            item.existing_types = sortRecordingTypes(item.existing_types);
-        }
-    });
+    function normalizeImageRecordingTypeState(item) {
+        if (!item || typeof item !== 'object') return item;
+        const missingTypes = sortRecordingTypes(Array.isArray(item.missing_types) ? item.missing_types : []);
+        const existingTypes = sortRecordingTypes(Array.isArray(item.existing_types) ? item.existing_types : []);
+        const promptFromPayload = Array.isArray(item.prompt_types) && item.prompt_types.length
+            ? sortRecordingTypes(item.prompt_types)
+            : [];
+        const promptTypes = promptFromPayload.length
+            ? promptFromPayload
+            : sortRecordingTypes(missingTypes.concat(existingTypes));
+        const myExistingTypes = Array.isArray(item.my_existing_types)
+            ? sortRecordingTypes(item.my_existing_types)
+            : [];
+
+        item.missing_types = missingTypes;
+        item.existing_types = existingTypes;
+        item.prompt_types = promptTypes;
+        item.my_existing_types = promptTypes.length
+            ? sortRecordingTypes(myExistingTypes.filter(slug => promptTypes.includes(slug)))
+            : myExistingTypes;
+        return item;
+    }
+
+    images.forEach(normalizeImageRecordingTypeState);
 
     if (images.length === 0 && !allowNewWords && hiddenWords.length === 0) return;
 
@@ -604,6 +620,8 @@
             ...item,
             missing_types: Array.isArray(item.missing_types) ? item.missing_types.slice() : [],
             existing_types: Array.isArray(item.existing_types) ? item.existing_types.slice() : [],
+            prompt_types: Array.isArray(item.prompt_types) ? item.prompt_types.slice() : [],
+            my_existing_types: Array.isArray(item.my_existing_types) ? item.my_existing_types.slice() : [],
         }));
     }
 
@@ -630,40 +648,142 @@
         return String(option.textContent || option.value || '').trim();
     }
 
-    function getRecordingTypeChoiceText(slug, fallbackOption) {
-        const rows = Array.isArray(window.ll_recorder_data?.recording_types)
-            ? window.ll_recorder_data.recording_types
-            : [];
-        if (getRecordingTypeEntry(slug, rows)) {
-            const display = getRecordingTypeDisplay(slug, rows);
-            const fromDisplay = String(display.text || display.selectText || display.label || '').trim();
-            if (fromDisplay) return fromDisplay;
+    function getPromptTypesForImage(img) {
+        if (!img || typeof img !== 'object') {
+            return [];
         }
-        return getRecordingTypeOptionDisplayText(fallbackOption) || String(slug || '');
+        normalizeImageRecordingTypeState(img);
+        if (Array.isArray(img.prompt_types) && img.prompt_types.length) {
+            return sortRecordingTypes(img.prompt_types);
+        }
+        const fallback = [];
+        if (Array.isArray(img.missing_types)) {
+            fallback.push(...img.missing_types);
+        }
+        if (Array.isArray(img.existing_types)) {
+            fallback.push(...img.existing_types);
+        }
+        return sortRecordingTypes(fallback);
+    }
+
+    function syncRecordingTypeSelectOptionsForImage(img, preferredValue = '') {
+        const el = window.llRecorder;
+        if (!el?.recordingTypeSelect) return '';
+
+        const select = el.recordingTypeSelect;
+        const selectableSlugs = getPromptTypesForImage(img);
+        const currentValue = String(select.value || '');
+        select.innerHTML = '';
+
+        selectableSlugs.forEach(slug => {
+            const display = getRecordingTypeDisplay(slug, window.ll_recorder_data?.recording_types || []);
+            const option = document.createElement('option');
+            option.value = slug;
+            setSelectOptionDisplayText(option, display.selectText || display.text || display.label || slug);
+            select.appendChild(option);
+        });
+
+        let nextValue = '';
+        if (preferredValue && selectableSlugs.includes(preferredValue)) {
+            nextValue = preferredValue;
+        } else if (currentValue && selectableSlugs.includes(currentValue)) {
+            nextValue = currentValue;
+        } else {
+            const missingTypes = Array.isArray(img?.missing_types) ? img.missing_types : [];
+            const firstMissing = missingTypes.find(slug => selectableSlugs.includes(slug));
+            nextValue = firstMissing || selectableSlugs[0] || '';
+        }
+
+        if (nextValue) {
+            select.value = nextValue;
+        }
+        return nextValue;
+    }
+
+    function getRecordingTypeChoiceStateLabel(isActive, isRecordedByMe, isNeeded) {
+        if (isActive) return i18n.type_state_active || 'Selected';
+        if (isRecordedByMe) return i18n.type_state_recorded_by_me || 'Recorded by you';
+        if (isNeeded) return i18n.type_state_needed || 'Needs recording';
+        return i18n.type_state_optional || 'Available';
+    }
+
+    function getRecordingTypeChoiceAriaLabel(typeLabel, stateLabel) {
+        const cleanType = String(typeLabel || '').trim();
+        const cleanState = String(stateLabel || '').trim();
+        const template = String(i18n.type_chip_aria_template || '').trim();
+        if (template && template.includes('%1$s') && template.includes('%2$s')) {
+            return template.replace(/%1\$s/g, cleanType).replace(/%2\$s/g, cleanState);
+        }
+        if (cleanType && cleanState) {
+            return `${cleanType} (${cleanState})`;
+        }
+        return cleanType || cleanState;
     }
 
     function renderRecordingTypeChoices() {
         const el = window.llRecorder;
         if (!el?.recordingTypeSelect || !el.recordingTypeChoices) return;
 
+        const currentImage = images[currentImageIndex];
+        if (currentImage) {
+            normalizeImageRecordingTypeState(currentImage);
+        }
         const selectedValue = String(el.recordingTypeSelect.value || '');
         const disabled = !!el.recordingTypeSelect.disabled;
         const options = Array.from(el.recordingTypeSelect.options);
+        const missingSet = new Set(Array.isArray(currentImage?.missing_types) ? currentImage.missing_types : []);
+        const recordedByMeSet = new Set(Array.isArray(currentImage?.my_existing_types) ? currentImage.my_existing_types : []);
 
         el.recordingTypeChoices.innerHTML = '';
         options.forEach(option => {
             const value = String(option.value || '');
             if (!value) return;
+            const display = getRecordingTypeDisplay(value, window.ll_recorder_data?.recording_types || []);
+            const fallbackText = getRecordingTypeOptionDisplayText(option) || String(value || '');
+            const typeLabel = String(display.label || fallbackText).trim() || fallbackText;
+            const iconText = String(display.icon || '').trim() || '🎙️';
+            const isActive = value === selectedValue;
+            const isRecordedByMe = recordedByMeSet.has(value);
+            const isNeeded = missingSet.has(value);
+            const stateLabel = getRecordingTypeChoiceStateLabel(isActive, isRecordedByMe, isNeeded);
+            const ariaLabel = getRecordingTypeChoiceAriaLabel(typeLabel, stateLabel);
+
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'll-recording-type-choice';
-            if (value === selectedValue) {
-                button.classList.add('is-active');
-            }
+            if (isActive) button.classList.add('is-active');
+            if (!isActive) button.classList.add('is-collapsed');
+            if (isRecordedByMe) button.classList.add('is-recorded-by-me');
+            if (isNeeded) button.classList.add('is-needed');
+            if (!isRecordedByMe && !isNeeded) button.classList.add('is-optional');
             button.setAttribute('data-recording-type-value', value);
-            button.setAttribute('aria-pressed', value === selectedValue ? 'true' : 'false');
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            if (isActive) {
+                button.setAttribute('aria-current', 'true');
+            } else {
+                button.removeAttribute('aria-current');
+            }
+            button.setAttribute('aria-label', ariaLabel);
+            button.title = ariaLabel;
             button.disabled = disabled;
-            button.textContent = getRecordingTypeChoiceText(value, option);
+
+            const icon = document.createElement('span');
+            icon.className = 'll-recording-type-choice-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = iconText;
+
+            const label = document.createElement('span');
+            label.className = 'll-recording-type-choice-label';
+            label.textContent = typeLabel;
+
+            const check = document.createElement('span');
+            check.className = 'll-recording-type-choice-check';
+            check.setAttribute('aria-hidden', 'true');
+            check.textContent = '✓';
+
+            button.appendChild(icon);
+            button.appendChild(label);
+            button.appendChild(check);
             el.recordingTypeChoices.appendChild(button);
         });
     }
@@ -694,7 +814,7 @@
         });
 
         el.recordingTypeSelect.addEventListener('change', renderRecordingTypeChoices);
-        renderRecordingTypeChoices();
+        setTypeForCurrentImage();
     }
 
     function captureExistingState() {
@@ -1743,27 +1863,12 @@
 
     function updateRecordingTypeOptions(types) {
         const el = window.llRecorder;
-        if (!el.recordingTypeSelect) return;
-        el.recordingTypeSelect.innerHTML = '';
+        if (!el?.recordingTypeSelect) return;
         const orderedTypes = sortRecordingTypes(types);
-        if (orderedTypes.length === 0) {
-            updateNewWordRecordingTypeLabel();
-            return;
-        }
         if (orderedTypes.length && typeof orderedTypes[0] === 'object') {
             window.ll_recorder_data.recording_types = orderedTypes;
         }
-        orderedTypes.forEach(type => {
-            const slug = typeof type === 'string' ? type : type.slug;
-            if (!slug) return;
-            const display = getRecordingTypeDisplay(slug, orderedTypes);
-            const option = document.createElement('option');
-            option.value = slug;
-            setSelectOptionDisplayText(option, display.selectText || display.text || display.label || slug);
-            el.recordingTypeSelect.appendChild(option);
-        });
-        renderRecordingTypeChoices();
-        updateNewWordRecordingTypeLabel();
+        setTypeForCurrentImage();
     }
 
     async function prepareNewWordRecording(options = {}) {
@@ -1836,12 +1941,7 @@
                 throw new Error(i18n.new_word_missing_data || 'Missing word data');
             }
             const recordingTypes = sortRecordingTypes(data.data?.recording_types || []);
-            if (Array.isArray(word.missing_types)) {
-                word.missing_types = sortRecordingTypes(word.missing_types);
-            }
-            if (Array.isArray(word.existing_types)) {
-                word.existing_types = sortRecordingTypes(word.existing_types);
-            }
+            normalizeImageRecordingTypeState(word);
 
             if (data.data?.category?.slug && el.newWordCategory) {
                 const slug = data.data.category.slug;
@@ -1966,27 +2066,28 @@
         if (!el.recordingTypeSelect) return;
 
         const img = images[currentImageIndex];
-        const next = (img && Array.isArray(img.missing_types) && img.missing_types.length)
+        if (img) {
+            normalizeImageRecordingTypeState(img);
+        }
+
+        const previousValue = String(el.recordingTypeSelect.value || '');
+        const preferredValue = (img && Array.isArray(img.missing_types) && img.missing_types.length)
             ? img.missing_types[0]
-            : el.recordingTypeSelect.value;
+            : previousValue;
+        const nextValue = syncRecordingTypeSelectOptionsForImage(img, preferredValue);
 
-        if (!next) return;
-
-        // Ensure the option exists; if not, create it so selection always shows
-        let opt = Array.from(el.recordingTypeSelect.options).find(o => o.value === next);
-        if (!opt) {
-            opt = document.createElement('option');
-            opt.value = next;
-            const display = getRecordingTypeDisplay(next, window.ll_recorder_data?.recording_types || []);
-            setSelectOptionDisplayText(opt, display.selectText || display.text || display.label || next);
-            el.recordingTypeSelect.appendChild(opt);
+        if (!nextValue) {
+            renderRecordingTypeChoices();
+            updateNewWordRecordingTypeLabel();
+            return;
         }
 
-        if (el.recordingTypeSelect.value !== next) {
-            el.recordingTypeSelect.value = next;
-            // Some themes/polyfills need a change event to redraw the visible part
+        if (previousValue !== nextValue) {
+            // Trigger dependent listeners so mirrored UI and labels stay in sync.
             el.recordingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            return;
         }
+
         renderRecordingTypeChoices();
         updateNewWordRecordingTypeLabel();
     }
@@ -2008,12 +2109,27 @@
 
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         const el = window.llRecorder;
+        normalizeImageRecordingTypeState(images[currentImageIndex]);
         if (!Array.isArray(images[currentImageIndex].existing_types)) {
             images[currentImageIndex].existing_types = [];
         }
         if (recordingType && !images[currentImageIndex].existing_types.includes(recordingType)) {
             images[currentImageIndex].existing_types.push(recordingType);
             images[currentImageIndex].existing_types = sortRecordingTypes(images[currentImageIndex].existing_types);
+        }
+        if (!Array.isArray(images[currentImageIndex].my_existing_types)) {
+            images[currentImageIndex].my_existing_types = [];
+        }
+        if (recordingType && !images[currentImageIndex].my_existing_types.includes(recordingType)) {
+            images[currentImageIndex].my_existing_types.push(recordingType);
+            images[currentImageIndex].my_existing_types = sortRecordingTypes(images[currentImageIndex].my_existing_types);
+        }
+        if (!Array.isArray(images[currentImageIndex].prompt_types)) {
+            images[currentImageIndex].prompt_types = [];
+        }
+        if (recordingType && !images[currentImageIndex].prompt_types.includes(recordingType)) {
+            images[currentImageIndex].prompt_types.push(recordingType);
+            images[currentImageIndex].prompt_types = sortRecordingTypes(images[currentImageIndex].prompt_types);
         }
         images[currentImageIndex].missing_types = sortRecordingTypes(remaining.slice());
 
@@ -2161,6 +2277,7 @@
             scrollToTop();
         }
         const img = images[index];
+        normalizeImageRecordingTypeState(img);
         const el = window.llRecorder;
         syncProcessingReviewSlot();
 
@@ -2676,6 +2793,7 @@
         if (!el.recordingTypeSelect) return;
 
         const img = images[currentImageIndex];
+        normalizeImageRecordingTypeState(img);
         if (!img || !Array.isArray(img.missing_types) || img.missing_types.length === 0) {
             loadImage(currentImageIndex + 1);
             return;
@@ -3666,14 +3784,7 @@
 
             if (data.success) {
                 const newImages = Array.isArray(data.data?.images) ? data.data.images : [];
-                newImages.forEach(item => {
-                    if (Array.isArray(item?.missing_types)) {
-                        item.missing_types = sortRecordingTypes(item.missing_types);
-                    }
-                    if (Array.isArray(item?.existing_types)) {
-                        item.existing_types = sortRecordingTypes(item.existing_types);
-                    }
-                });
+                newImages.forEach(normalizeImageRecordingTypeState);
                 if (newImages.length === 0) {
                     // Mark this category as exhausted
                     exhaustedCategories.add(newCategory);

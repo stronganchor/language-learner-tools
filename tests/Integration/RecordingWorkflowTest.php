@@ -76,6 +76,8 @@ final class RecordingWorkflowTest extends LL_Tools_TestCase
 
         $this->assertContains('isolation', $recording_types);
         $this->assertContains('question', $recording_types);
+        $this->assertSame(['isolation', 'question'], array_values((array) ($word_data['prompt_types'] ?? [])));
+        $this->assertSame([], array_values((array) ($word_data['my_existing_types'] ?? [])));
     }
 
     /**

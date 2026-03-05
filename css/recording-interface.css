@@ -696,39 +696,117 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.42rem;
+    align-items: center;
+    gap: 0.4rem;
     width: 100%;
 }
 
 .ll-recording-type-choice {
     appearance: none;
-    border: 1px solid #c9d2dc;
-    background: #ffffff;
-    color: #1a1a1a;
+    border: 1px solid #64748b;
+    background: #eceff3;
+    color: #64748b;
     border-radius: 999px;
-    padding: 0.32rem 0.66rem;
+    padding: 0.34rem 0.66rem;
     font-size: 0.82rem;
-    line-height: 1.2;
+    line-height: 1.1;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    min-height: 2.02rem;
+    min-width: 2.02rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.34rem;
+    position: relative;
+    box-sizing: border-box;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.ll-recording-type-choice-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+}
+
+.ll-recording-type-choice-label {
+    line-height: 1.1;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.ll-recording-type-choice-check {
+    display: none;
+    position: absolute;
+    top: -0.22rem;
+    right: -0.12rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 999px;
+    background: #15803d;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 1px #fff;
+}
+
+.ll-recording-type-choice.is-collapsed {
+    width: 2.02rem;
+    padding: 0.2rem;
+}
+
+.ll-recording-type-choice.is-collapsed .ll-recording-type-choice-label {
+    display: none;
+}
+
+.ll-recording-type-choice.is-recorded-by-me {
+    border-color: #15803d;
+    background: #d7f8dd;
+    color: #15803d;
+}
+
+.ll-recording-type-choice.is-recorded-by-me .ll-recording-type-choice-check {
+    display: inline-flex;
+}
+
+.ll-recording-type-choice.is-needed {
+    border-color: #64748b;
+    background: #eceff3;
+    color: #64748b;
+}
+
+.ll-recording-type-choice.is-optional {
+    border-color: #ccd5de;
+    background: #f6f7f7;
+    color: #6b7280;
 }
 
 .ll-recording-type-choice:hover,
 .ll-recording-type-choice:focus-visible {
-    border-color: #2271b1;
+    border-color: #1d4d99;
+    color: #1d4d99;
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.18);
     outline: none;
 }
 
 .ll-recording-type-choice.is-active {
-    border-color: #2271b1;
-    background: #eaf3ff;
-    color: #0f3c61;
+    border-color: #1d4d99;
+    background: #d8e8ff;
+    color: #1d4d99;
+    padding: 0.34rem 0.74rem;
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.14);
 }
 
 .ll-recording-type-choice:disabled {
-    opacity: 0.55;
+    opacity: 0.58;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .ll-recording-controls {

@@ -39,6 +39,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         // Compatibility guard: preserve critical IDs used by recorder JS.
         $this->assertStringContainsString('id="ll-record-btn"', $output);
         $this->assertStringContainsString('id="ll-category-select"', $output);
+        $this->assertStringContainsString('class="ll-recording-type-selector"', $output);
         $this->assertStringContainsString('id="ll-recording-type"', $output);
         $this->assertStringContainsString('id="ll-playback-controls"', $output);
     }
