@@ -727,7 +727,22 @@
         return value.length <= 8;
     }
 
-    function getRecordingTypeChoiceIcon(display, fallbackText) {
+    function getCanonicalRecordingTypeIcon(slug) {
+        const key = String(slug || '').trim();
+        const canonical = {
+            question: '\u2753',
+            isolation: '\u{1F50D}',
+            introduction: '\u{1F4AC}',
+            sentence: '\u{1F4DD}'
+        };
+        return canonical[key] || '';
+    }
+
+    function getRecordingTypeChoiceIcon(slug, display, fallbackText) {
+        const canonical = getCanonicalRecordingTypeIcon(slug);
+        if (canonical) {
+            return canonical;
+        }
         const fallback = String(fallbackText || '').trim();
         if (fallback) {
             const firstToken = fallback.split(/\s+/)[0] || '';
@@ -763,7 +778,7 @@
             const display = getRecordingTypeDisplay(value, window.ll_recorder_data?.recording_types || []);
             const fallbackText = getRecordingTypeOptionDisplayText(option) || String(value || '');
             const typeLabel = String(display.label || fallbackText).trim() || fallbackText;
-            const iconText = getRecordingTypeChoiceIcon(display, fallbackText);
+            const iconText = getRecordingTypeChoiceIcon(value, display, fallbackText);
             const isActive = value === selectedValue;
             const isRecordedByMe = recordedByMeSet.has(value);
             const isNeeded = missingSet.has(value);
