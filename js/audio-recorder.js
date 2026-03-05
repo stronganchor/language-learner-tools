@@ -720,6 +720,28 @@
         return cleanType || cleanState;
     }
 
+    function tokenLooksLikeIcon(token) {
+        const value = String(token || '').trim();
+        if (!value) return false;
+        if (/[A-Za-z0-9]/.test(value)) return false;
+        return value.length <= 8;
+    }
+
+    function getRecordingTypeChoiceIcon(display, fallbackText) {
+        const fallback = String(fallbackText || '').trim();
+        if (fallback) {
+            const firstToken = fallback.split(/\s+/)[0] || '';
+            if (tokenLooksLikeIcon(firstToken)) {
+                return firstToken;
+            }
+        }
+        const explicit = String(display?.icon || '').trim();
+        if (explicit) {
+            return explicit;
+        }
+        return String(recordingTypeIcons.default || '🎙️').trim() || '🎙️';
+    }
+
     function renderRecordingTypeChoices() {
         const el = window.llRecorder;
         if (!el?.recordingTypeSelect || !el.recordingTypeChoices) return;
@@ -741,7 +763,7 @@
             const display = getRecordingTypeDisplay(value, window.ll_recorder_data?.recording_types || []);
             const fallbackText = getRecordingTypeOptionDisplayText(option) || String(value || '');
             const typeLabel = String(display.label || fallbackText).trim() || fallbackText;
-            const iconText = String(display.icon || '').trim() || '🎙️';
+            const iconText = getRecordingTypeChoiceIcon(display, fallbackText);
             const isActive = value === selectedValue;
             const isRecordedByMe = recordedByMeSet.has(value);
             const isNeeded = missingSet.has(value);

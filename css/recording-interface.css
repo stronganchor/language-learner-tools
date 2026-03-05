@@ -647,7 +647,7 @@
     flex-direction: column;
     gap: clamp(0.5rem, 1.2vh, 0.85rem);
     min-width: 200px;
-    max-width: 320px;
+    max-width: min(100%, 620px);
     align-items: center;
     justify-content: flex-start;
     position: relative;
@@ -655,7 +655,7 @@
 
 .ll-recording-type-selector {
     width: 100%;
-    max-width: 350px;
+    max-width: none;
 }
 
 .ll-recording-type-selector label {
@@ -694,11 +694,15 @@
 
 .ll-recording-type-choices {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     align-items: center;
     gap: 0.4rem;
     width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-bottom: 0.08rem;
 }
 
 .ll-recording-type-choice {
@@ -727,9 +731,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 1.02rem;
     line-height: 1;
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
 }
 
 .ll-recording-type-choice-label {
@@ -1251,7 +1254,7 @@
     }
 
     .ll-recording-controls-column {
-        max-width: 295px;
+        max-width: min(100%, 520px);
     }
 }
 
@@ -1279,6 +1282,13 @@
 
     .ll-recording-type-selector {
         max-width: 100%;
+    }
+
+    .ll-recording-type-choices {
+        flex-wrap: wrap;
+        justify-content: center;
+        overflow: visible;
+        padding-bottom: 0;
     }
 
     .ll-playback-actions {
