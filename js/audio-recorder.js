@@ -727,22 +727,15 @@
         return value.length <= 8;
     }
 
-    function getCanonicalRecordingTypeIcon(slug) {
+    function usesCanonicalRecordingIcon(slug) {
         const key = String(slug || '').trim();
-        const canonical = {
-            question: '\u2753',
-            isolation: '\u{1F50D}',
-            introduction: '\u{1F4AC}',
-            sentence: '\u{1F4DD}'
-        };
-        return canonical[key] || '';
+        return key === 'question'
+            || key === 'isolation'
+            || key === 'introduction'
+            || key === 'sentence';
     }
 
-    function getRecordingTypeChoiceIcon(slug, display, fallbackText) {
-        const canonical = getCanonicalRecordingTypeIcon(slug);
-        if (canonical) {
-            return canonical;
-        }
+    function getCustomRecordingTypeChoiceIcon(display, fallbackText) {
         const fallback = String(fallbackText || '').trim();
         if (fallback) {
             const firstToken = fallback.split(/\s+/)[0] || '';
@@ -778,7 +771,8 @@
             const display = getRecordingTypeDisplay(value, window.ll_recorder_data?.recording_types || []);
             const fallbackText = getRecordingTypeOptionDisplayText(option) || String(value || '');
             const typeLabel = String(display.label || fallbackText).trim() || fallbackText;
-            const iconText = getRecordingTypeChoiceIcon(value, display, fallbackText);
+            const useCanonicalIcon = usesCanonicalRecordingIcon(value);
+            const customIcon = useCanonicalIcon ? '' : getCustomRecordingTypeChoiceIcon(display, fallbackText);
             const isActive = value === selectedValue;
             const isRecordedByMe = recordedByMeSet.has(value);
             const isNeeded = missingSet.has(value);
@@ -811,15 +805,9 @@
             const icon = document.createElement('span');
             icon.className = 'll-recording-type-choice-icon ll-study-recording-icon';
             icon.setAttribute('aria-hidden', 'true');
-            icon.textContent = iconText;
-
-            const visualizer = document.createElement('span');
-            visualizer.className = 'll-recording-type-choice-visualizer ll-study-recording-visualizer';
-            visualizer.setAttribute('aria-hidden', 'true');
-            for (let i = 0; i < 4; i++) {
-                const bar = document.createElement('span');
-                bar.className = 'bar';
-                visualizer.appendChild(bar);
+            if (customIcon) {
+                icon.classList.add('has-custom-icon');
+                icon.textContent = customIcon;
             }
 
             const label = document.createElement('span');
@@ -832,7 +820,6 @@
             check.textContent = '✓';
 
             button.appendChild(icon);
-            button.appendChild(visualizer);
             button.appendChild(label);
             button.appendChild(check);
             el.recordingTypeChoices.appendChild(button);
