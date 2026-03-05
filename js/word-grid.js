@@ -1118,6 +1118,7 @@
 
     const editMessages = {
         saving: editI18n.saving || 'Saving...',
+        savingBackground: editI18n.savingBackground || 'Saving in background...',
         saved: editI18n.saved || 'Saved.',
         error: editI18n.error || 'Unable to save changes.'
     };
@@ -1324,6 +1325,54 @@
         if (!$status.length) { return; }
         $status.text(message || '');
         $status.toggleClass('is-error', !!isError);
+    }
+
+    function clearWordSaveStatusTimer($item) {
+        const timer = parseInt($item.data('llWordSaveStatusTimer'), 10) || 0;
+        if (timer > 0) {
+            window.clearTimeout(timer);
+        }
+        $item.removeData('llWordSaveStatusTimer');
+    }
+
+    function setWordSaveStatus($item, message, state) {
+        const $status = $item.find('[data-ll-word-save-status]').first();
+        if (!$status.length) { return; }
+        clearWordSaveStatusTimer($item);
+        const normalizedState = (state || '').toString();
+        $status
+            .text(message || '')
+            .removeClass('is-pending is-success is-error')
+            .toggleClass('is-pending', normalizedState === 'pending')
+            .toggleClass('is-success', normalizedState === 'success')
+            .toggleClass('is-error', normalizedState === 'error');
+    }
+
+    function scheduleWordSaveStatusClear($item, delayMs) {
+        const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+        if (delay <= 0) {
+            setWordSaveStatus($item, '', '');
+            return;
+        }
+        clearWordSaveStatusTimer($item);
+        const timer = window.setTimeout(function () {
+            setWordSaveStatus($item, '', '');
+        }, delay);
+        $item.data('llWordSaveStatusTimer', timer);
+    }
+
+    function setWordSaveBusy($item, isBusy) {
+        const busy = !!isBusy;
+        const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+        $item.toggleClass('ll-word-save-pending', busy);
+        if (busy) {
+            $item.attr('aria-busy', 'true');
+        } else {
+            $item.removeAttr('aria-busy');
+        }
+        if ($toggle.length) {
+            $toggle.prop('disabled', busy);
+        }
     }
 
     function formatBulkMessage(template, count) {
@@ -3787,6 +3836,7 @@
             const $item = $(this).closest('.word-item');
             restoreOriginalInputs($item);
             setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
             setEditPanelOpen($item, false);
         });
 
@@ -3795,16 +3845,31 @@
             e.stopPropagation();
             const $item = $(this).closest('.word-item');
             const wordId = parseInt($item.data('word-id'), 10) || 0;
-            if (!wordId) { return; }
+            if (!wordId || $item.hasClass('ll-word-save-pending')) { return; }
 
             const wordText = ($item.find('[data-ll-word-input="word"]').val() || '').toString();
             const wordTranslation = ($item.find('[data-ll-word-input="translation"]').val() || '').toString();
             const wordNote = ($item.find('[data-ll-word-input="note"]').val() || '').toString();
             const partOfSpeech = ($item.find('[data-ll-word-input="part_of_speech"]').val() || '').toString();
+            const partOfSpeechLabel = partOfSpeech
+                ? (($item.find('[data-ll-word-input="part_of_speech"] option:selected').text() || '').toString().trim())
+                : '';
             const gender = ($item.find('[data-ll-word-input="gender"]').val() || '').toString();
+            const genderLabel = gender
+                ? (($item.find('[data-ll-word-input="gender"] option:selected').text() || '').toString().trim())
+                : '';
             const plurality = ($item.find('[data-ll-word-input="plurality"]').val() || '').toString();
+            const pluralityLabel = plurality
+                ? (($item.find('[data-ll-word-input="plurality"] option:selected').text() || '').toString().trim())
+                : '';
             const verbTense = ($item.find('[data-ll-word-input="verb_tense"]').val() || '').toString();
+            const verbTenseLabel = verbTense
+                ? (($item.find('[data-ll-word-input="verb_tense"] option:selected').text() || '').toString().trim())
+                : '';
             const verbMood = ($item.find('[data-ll-word-input="verb_mood"]').val() || '').toString();
+            const verbMoodLabel = verbMood
+                ? (($item.find('[data-ll-word-input="verb_mood"] option:selected').text() || '').toString().trim())
+                : '';
             const dictionaryEntryId = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
             const dictionaryEntryTitle = ($item.find('[data-ll-word-input="dictionary_entry_lookup"]').val() || '').toString();
             const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
@@ -3826,8 +3891,43 @@
             const $cancelBtn = $item.find('[data-ll-word-edit-cancel]');
             $saveBtn.prop('disabled', true);
             $cancelBtn.prop('disabled', true);
-            $item.attr('aria-busy', 'true');
             setEditStatus($item, editMessages.saving, false);
+
+            if (typeof wordText === 'string') {
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(wordText));
+            }
+            if (typeof wordTranslation === 'string') {
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(wordTranslation));
+            }
+            setWordNote($item, wordNote);
+            applyDictionaryEntryData($item, {
+                id: dictionaryEntryId,
+                title: dictionaryEntryTitle
+            });
+            applyPosMetaUpdate(
+                $item,
+                { slug: partOfSpeech, label: partOfSpeechLabel },
+                { value: gender, label: genderLabel },
+                { value: plurality, label: pluralityLabel },
+                { value: verbTense, label: verbTenseLabel },
+                { value: verbMood, label: verbMoodLabel }
+            );
+            if (recordings.length) {
+                applyRecordingCaptions($item, recordings.map(function (entry) {
+                    return {
+                        id: entry.id,
+                        recording_text: entry.text,
+                        recording_translation: entry.translation,
+                        recording_ipa: normalizeIpaOutput(entry.ipa)
+                    };
+                }));
+            }
+            updateGridLayouts();
+            setRecordingsPanelOpen($item, false);
+            setEditPanelOpen($item, false);
+            setEditStatus($item, '', false);
+            setWordSaveBusy($item, true);
+            setWordSaveStatus($item, editMessages.savingBackground, 'pending');
 
             const requestData = {
                 action: 'll_tools_word_grid_update_word',
@@ -3852,7 +3952,9 @@
 
             $.post(ajaxUrl, requestData).done(function (response) {
                 if (!response || response.success !== true) {
+                    setWordSaveStatus($item, editMessages.error, 'error');
                     setEditStatus($item, editMessages.error, true);
+                    setEditPanelOpen($item, true);
                     return;
                 }
                 const data = response.data || {};
@@ -3900,12 +4002,16 @@
                 setEditStatus($item, '');
                 setRecordingsPanelOpen($item, false);
                 setEditPanelOpen($item, false);
+                setWordSaveStatus($item, editMessages.saved, 'success');
+                scheduleWordSaveStatusClear($item, 1800);
             }).fail(function () {
+                setWordSaveStatus($item, editMessages.error, 'error');
                 setEditStatus($item, editMessages.error, true);
+                setEditPanelOpen($item, true);
             }).always(function () {
                 $saveBtn.prop('disabled', false);
                 $cancelBtn.prop('disabled', false);
-                $item.removeAttr('aria-busy');
+                setWordSaveBusy($item, false);
             });
         });
     }

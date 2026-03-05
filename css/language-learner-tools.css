@@ -311,10 +311,72 @@ p:has(.ll-word-audio) {
     outline-offset: 2px;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-toggle:disabled {
+    cursor: progress !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-toggle svg {
     width: 16px;
     height: 16px;
     display: block;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status {
+    margin: 8px auto 0;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: #334155;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status:empty {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status.is-pending {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status.is-pending::after {
+    content: "";
+    width: 56px;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, #3b82f6 45%, rgba(59, 130, 246, 0.15) 100%);
+    background-size: 180% 100%;
+    animation: ll-word-save-status-progress 0.9s linear infinite;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status.is-success {
+    border-color: #86efac;
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.word-grid.ll-word-grid .ll-word-save-status.is-error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+@keyframes ll-word-save-status-progress {
+    0% {
+        background-position: 100% 0;
+    }
+    100% {
+        background-position: -100% 0;
+    }
 }
 
 .word-grid.ll-word-grid .ll-word-edit-panel {
@@ -819,6 +881,10 @@ p:has(.ll-word-audio) {
     background: #e0f2fe !important;
 }
 
+.word-grid.ll-word-grid .ll-word-save-pending .ll-word-edit-toggle {
+    opacity: 0.6;
+}
+
 .word-grid.ll-word-grid .word-item.ll-word-edit-open .ll-word-title-row {
     margin-top: 0 !important;
 }
@@ -922,6 +988,10 @@ p:has(.ll-word-audio) {
     .word-image,
     .word-grid.ll-word-grid .word-image-container::before {
         transition: none !important;
+    }
+
+    .word-grid.ll-word-grid .ll-word-save-status.is-pending::after {
+        animation: none !important;
     }
 }
 

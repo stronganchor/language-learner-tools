@@ -1240,6 +1240,50 @@ function ll_tools_word_grid_update_wordset_ipa_letter_map(int $word_id): void {
     }
 }
 
+if (!defined('LL_TOOLS_WORD_GRID_IPA_REBUILD_HOOK')) {
+    define('LL_TOOLS_WORD_GRID_IPA_REBUILD_HOOK', 'll_tools_word_grid_rebuild_wordset_ipa_maps');
+}
+
+function ll_tools_word_grid_schedule_wordset_ipa_rebuild(int $word_id, int $delay_seconds = 8): void {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return;
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($wordset_ids) || empty($wordset_ids)) {
+        return;
+    }
+
+    $delay_seconds = (int) apply_filters('ll_tools_word_grid_ipa_rebuild_delay_seconds', $delay_seconds, $word_id);
+    $delay_seconds = max(1, (int) $delay_seconds);
+    foreach ($wordset_ids as $wordset_id) {
+        $wordset_id = (int) $wordset_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+
+        $args = [$wordset_id];
+        if (!wp_next_scheduled(LL_TOOLS_WORD_GRID_IPA_REBUILD_HOOK, $args)) {
+            $scheduled = wp_schedule_single_event(time() + $delay_seconds, LL_TOOLS_WORD_GRID_IPA_REBUILD_HOOK, $args);
+            if ($scheduled === false) {
+                ll_tools_word_grid_run_wordset_ipa_rebuild($wordset_id);
+            }
+        }
+    }
+}
+
+add_action(LL_TOOLS_WORD_GRID_IPA_REBUILD_HOOK, 'll_tools_word_grid_run_wordset_ipa_rebuild', 10, 1);
+function ll_tools_word_grid_run_wordset_ipa_rebuild($wordset_id): void {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return;
+    }
+
+    ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+    ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+}
+
 function ll_tools_word_grid_prepare_ipa_letter_suggestions(array $auto_map, array $manual_map = [], int $limit = 6, array $blocklist = []): array {
     $limit = max(1, $limit);
     $output = [];
@@ -2033,6 +2077,7 @@ function ll_tools_word_grid_shortcode($atts) {
         ],
         'editI18n'   => [
             'saving' => __('Saving...', 'll-tools-text-domain'),
+            'savingBackground' => __('Saving in background...', 'll-tools-text-domain'),
             'saved'  => __('Saved.', 'll-tools-text-domain'),
             'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
             'ipaCommon' => __('Common IPA symbols', 'll-tools-text-domain'),
@@ -2425,6 +2470,7 @@ function ll_tools_word_grid_shortcode($atts) {
             }
 
             if ($can_edit_words) {
+                echo '<div class="ll-word-save-status" data-ll-word-save-status aria-live="polite"></div>';
                 $word_input_id = 'll-word-edit-word-' . $word_id;
                 $translation_input_id = 'll-word-edit-translation-' . $word_id;
                 $note_input_id = 'll-word-edit-note-' . $word_id;
@@ -3475,14 +3521,13 @@ function ll_tools_word_grid_update_word_handler() {
 
         $recordings_out[] = [
             'id' => $recording_id,
-            'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
-            'recording_translation' => (string) get_post_meta($recording_id, 'recording_translation', true),
-            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true)),
+            'recording_text' => $recording_text,
+            'recording_translation' => $recording_translation,
+            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output($recording_ipa),
         ];
     }
 
-    ll_tools_word_grid_update_wordset_ipa_special_chars($word_id, '');
-    ll_tools_word_grid_update_wordset_ipa_letter_map($word_id);
+    ll_tools_word_grid_schedule_wordset_ipa_rebuild($word_id);
 
     ll_tools_word_grid_bump_category_cache_for_words([$word_id]);
 
