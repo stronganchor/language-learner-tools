@@ -736,6 +736,25 @@
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
 }
 
+.ll-recording-type-choice-visualizer {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-height: 12px;
+}
+
+.ll-recording-type-choice-visualizer .bar {
+    width: 4px;
+    height: var(--base, 12px);
+    border-radius: 999px;
+    background: #1d4d99;
+}
+
+.ll-recording-type-choice-visualizer .bar:nth-child(1) { --base: 8px; }
+.ll-recording-type-choice-visualizer .bar:nth-child(2) { --base: 12px; }
+.ll-recording-type-choice-visualizer .bar:nth-child(3) { --base: 10px; }
+.ll-recording-type-choice-visualizer .bar:nth-child(4) { --base: 14px; }
+
 .ll-recording-type-choice-label {
     line-height: 1.1;
     white-space: nowrap;
@@ -761,8 +780,8 @@
 }
 
 .ll-recording-type-choice.is-collapsed {
-    width: 2.02rem;
-    padding: 0.2rem;
+    width: auto;
+    padding: 0.24rem 0.46rem;
 }
 
 .ll-recording-type-choice.is-collapsed .ll-recording-type-choice-label {
@@ -779,16 +798,28 @@
     display: inline-flex;
 }
 
+.ll-recording-type-choice.is-recorded-by-me .ll-recording-type-choice-visualizer .bar {
+    background: #15803d;
+}
+
 .ll-recording-type-choice.is-needed {
     border-color: #64748b;
     background: #eceff3;
     color: #64748b;
 }
 
+.ll-recording-type-choice.is-needed .ll-recording-type-choice-visualizer .bar {
+    background: #1d4d99;
+}
+
 .ll-recording-type-choice.is-optional {
     border-color: #ccd5de;
     background: #f6f7f7;
     color: #6b7280;
+}
+
+.ll-recording-type-choice.is-optional .ll-recording-type-choice-visualizer .bar {
+    background: #64748b;
 }
 
 .ll-recording-type-choice:hover,

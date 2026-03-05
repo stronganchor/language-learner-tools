@@ -1081,6 +1081,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             'upload_failed' => __('Upload failed:', 'll-tools-text-domain'),
             'saved_next_type' => __('Saved. Next type selected.', 'll-tools-text-domain'),
             'skipped_type' => __('Skipped this type. Next type selected.', 'll-tools-text-domain'),
+            'skipped_word' => __('Word skipped. Moving to next item.', 'll-tools-text-domain'),
             'all_complete' => __('All recordings completed for the selected set. Thank you!', 'll-tools-text-domain'),
             'category' => __('Category:', 'll-tools-text-domain'),
             'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),

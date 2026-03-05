@@ -788,6 +788,10 @@
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'll-recording-type-choice';
+            const safeTypeClass = value.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
+            if (safeTypeClass) {
+                button.classList.add(`ll-study-recording-btn--${safeTypeClass}`);
+            }
             if (isActive) button.classList.add('is-active');
             if (!isActive) button.classList.add('is-collapsed');
             if (isRecordedByMe) button.classList.add('is-recorded-by-me');
@@ -805,9 +809,18 @@
             button.disabled = disabled;
 
             const icon = document.createElement('span');
-            icon.className = 'll-recording-type-choice-icon';
+            icon.className = 'll-recording-type-choice-icon ll-study-recording-icon';
             icon.setAttribute('aria-hidden', 'true');
             icon.textContent = iconText;
+
+            const visualizer = document.createElement('span');
+            visualizer.className = 'll-recording-type-choice-visualizer ll-study-recording-visualizer';
+            visualizer.setAttribute('aria-hidden', 'true');
+            for (let i = 0; i < 4; i++) {
+                const bar = document.createElement('span');
+                bar.className = 'bar';
+                visualizer.appendChild(bar);
+            }
 
             const label = document.createElement('span');
             label.className = 'll-recording-type-choice-label';
@@ -819,6 +832,7 @@
             check.textContent = '✓';
 
             button.appendChild(icon);
+            button.appendChild(visualizer);
             button.appendChild(label);
             button.appendChild(check);
             el.recordingTypeChoices.appendChild(button);
@@ -2822,33 +2836,9 @@
     }
 
     async function skipToNext() {
-        if (!requireAll) {
-            loadImage(currentImageIndex + 1);
-            return;
-        }
-        const el = window.llRecorder;
-        if (!el.recordingTypeSelect) return;
-
-        const img = images[currentImageIndex];
-        normalizeImageRecordingTypeState(img);
-        if (!img || !Array.isArray(img.missing_types) || img.missing_types.length === 0) {
-            loadImage(currentImageIndex + 1);
-            return;
-        }
-
-        const curType = el.recordingTypeSelect.value;
-        if (!curType) return;
-
-        // Remove the current type for this session only
-        images[currentImageIndex].missing_types = sortRecordingTypes(img.missing_types.filter(t => t !== curType));
-
-        if (images[currentImageIndex].missing_types.length > 0) {
-            setTypeForCurrentImage();
-            resetRecordingState();
-            showStatus(i18n.skipped_type || 'Skipped this type. Next type selected.', 'info');
-        } else {
-            loadImage(currentImageIndex + 1);
-        }
+        resetRecordingState();
+        showStatus(i18n.skipped_word || 'Word skipped. Moving to next item.', 'info');
+        loadImage(currentImageIndex + 1);
     }
 
     async function handleHiddenListClick(event) {
