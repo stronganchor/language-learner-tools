@@ -127,6 +127,11 @@
     let vizAudio = null;
     let vizSource = null;
 
+    function syncEditModalBodyLock() {
+        const hasOpenPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').length > 0;
+        $('body').toggleClass('ll-word-edit-modal-open', hasOpenPanel);
+    }
+
     function protectMaqafNoBreak(value) {
         const text = (value === null || value === undefined) ? '' : String(value);
         if (!text) { return ''; }
@@ -1271,23 +1276,41 @@
     function setEditPanelOpen($item, shouldOpen) {
         const $panel = $item.find('[data-ll-word-edit-panel]').first();
         const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+        const $backdrop = $item.find('[data-ll-word-edit-backdrop]').first();
         if (!$panel.length || !$toggle.length) { return; }
         const open = !!shouldOpen;
+        if (open) {
+            $grids.find('.word-item').not($item).each(function () {
+                const $otherItem = $(this);
+                const $otherPanel = $otherItem.find('[data-ll-word-edit-panel]').first();
+                if ($otherPanel.length && $otherPanel.attr('aria-hidden') === 'false') {
+                    setEditPanelOpen($otherItem, false);
+                }
+            });
+        }
         $panel.attr('aria-hidden', open ? 'false' : 'true');
+        if ($backdrop.length) {
+            $backdrop.attr('aria-hidden', open ? 'false' : 'true').prop('hidden', !open);
+        }
         $toggle.attr('aria-expanded', open ? 'true' : 'false');
         $item.toggleClass('ll-word-edit-open', open);
         if (open) {
-            const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-            $item.data('llEditScrollY', scrollY);
+            window.requestAnimationFrame(function () {
+                const $firstFocusable = $panel
+                    .find('input, textarea, select, button')
+                    .filter(':enabled:visible')
+                    .first();
+                if ($firstFocusable.length) {
+                    $firstFocusable.trigger('focus');
+                }
+            });
         } else {
-            const scrollY = $item.data('llEditScrollY');
-            if (typeof scrollY === 'number') {
-                $item.removeData('llEditScrollY');
-                window.requestAnimationFrame(function () {
-                    window.scrollTo(0, scrollY);
-                });
+            if ($panel.find(document.activeElement).length) {
+                $toggle.trigger('focus');
             }
+            hideIpaKeyboards();
         }
+        syncEditModalBodyLock();
     }
 
     function setRecordingsPanelOpen($item, shouldOpen) {
@@ -2984,6 +3007,7 @@
     }
 
     if (canEdit && ajaxUrl && editNonce) {
+        syncEditModalBodyLock();
         $grids.find('.word-item').each(function () {
             cacheOriginalInputs($(this));
         });
@@ -3677,6 +3701,16 @@
             }
         });
 
+        $grids.on('click', '[data-ll-word-edit-backdrop]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            restoreOriginalInputs($item);
+            setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
+            setEditPanelOpen($item, false);
+        });
+
         $grids.on('click', '[data-ll-word-recordings-toggle]', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -3828,6 +3862,19 @@
                 return;
             }
             hideIpaKeyboards();
+        });
+
+        $(document).on('keydown.llWordEditModal', function (event) {
+            if (!event || event.key !== 'Escape') { return; }
+            if ($('.ui-autocomplete:visible').length) { return; }
+            const $openPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').first();
+            if (!$openPanel.length) { return; }
+            event.preventDefault();
+            const $item = $openPanel.closest('.word-item');
+            restoreOriginalInputs($item);
+            setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
+            setEditPanelOpen($item, false);
         });
 
         $grids.on('click', '[data-ll-word-edit-cancel]', function (e) {

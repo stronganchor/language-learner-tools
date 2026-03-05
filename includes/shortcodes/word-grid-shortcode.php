@@ -2474,6 +2474,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $word_input_id = 'll-word-edit-word-' . $word_id;
                 $translation_input_id = 'll-word-edit-translation-' . $word_id;
                 $note_input_id = 'll-word-edit-note-' . $word_id;
+                echo '<div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="true" hidden></div>';
                 echo '<div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">';
                 echo '<div class="ll-word-edit-fields">';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($word_input_id) . '">' . esc_html($edit_labels['word']) . '</label>';
