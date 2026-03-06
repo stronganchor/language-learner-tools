@@ -4,6 +4,7 @@ declare(strict_types=1);
 final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
+    private const ALT_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQf4xX0AAAAASUVORK5CYII=';
 
     public function test_preview_does_not_repeat_identical_images_for_category_cards(): void
     {
@@ -48,13 +49,63 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         );
     }
 
-    private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title): int
+    public function test_preview_skips_duplicate_content_from_separate_attachments_and_keeps_searching(): void
     {
-        $word_id = self::factory()->post->create([
+        $wordset = wp_insert_term('Preview File Dedup Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Preview File Dedup Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        $duplicate_attachment_a = $this->createImageAttachment('preview-dedup-file-a.png');
+        $duplicate_attachment_b = $this->createImageAttachment('preview-dedup-file-b.png');
+        $unique_attachment = $this->createImageAttachment('preview-dedup-file-c.png', self::ALT_PIXEL_PNG_BASE64);
+
+        $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_a, 'Preview File Dedup Word A', '2026-01-01 00:00:03');
+        $this->createWordWithThumbnail($category_id, $wordset_id, $duplicate_attachment_b, 'Preview File Dedup Word B', '2026-01-01 00:00:02');
+        $this->createWordWithThumbnail($category_id, $wordset_id, $unique_attachment, 'Preview File Dedup Word C', '2026-01-01 00:00:01');
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $category_id, 2, true);
+        $this->assertIsArray($preview);
+
+        $image_urls = $this->extractPreviewImageUrls($preview);
+        $this->assertCount(2, $image_urls, 'Expected two image preview items when a unique fallback image exists.');
+
+        $duplicate_url_a = (string) wp_get_attachment_image_url($duplicate_attachment_a, 'medium');
+        if ($duplicate_url_a === '') {
+            $duplicate_url_a = (string) wp_get_attachment_url($duplicate_attachment_a);
+        }
+        $duplicate_url_b = (string) wp_get_attachment_image_url($duplicate_attachment_b, 'medium');
+        if ($duplicate_url_b === '') {
+            $duplicate_url_b = (string) wp_get_attachment_url($duplicate_attachment_b);
+        }
+        $unique_url = (string) wp_get_attachment_image_url($unique_attachment, 'medium');
+        if ($unique_url === '') {
+            $unique_url = (string) wp_get_attachment_url($unique_attachment);
+        }
+
+        $this->assertContains($unique_url, $image_urls, 'The preview should keep searching until it finds a non-duplicate image.');
+        $duplicate_matches = array_values(array_intersect($image_urls, [$duplicate_url_a, $duplicate_url_b]));
+        $this->assertCount(1, $duplicate_matches, 'Only one of the duplicate-content attachments should appear in the preview.');
+    }
+
+    private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title, string $post_date = ''): int
+    {
+        $post_data = [
             'post_type' => 'words',
             'post_status' => 'publish',
             'post_title' => $title,
-        ]);
+        ];
+        if ($post_date !== '') {
+            $post_data['post_date'] = $post_date;
+            $post_data['post_date_gmt'] = $post_date;
+        }
+
+        $word_id = self::factory()->post->create($post_data);
 
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
@@ -63,9 +114,9 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         return (int) $word_id;
     }
 
-    private function createImageAttachment(string $filename): int
+    private function createImageAttachment(string $filename, string $base64 = self::ONE_PIXEL_PNG_BASE64): int
     {
-        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $bytes = base64_decode($base64, true);
         $this->assertIsString($bytes);
 
         $upload = wp_upload_bits($filename, null, $bytes);
@@ -96,5 +147,19 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function extractPreviewImageUrls(array $preview): array
+    {
+        $items = array_values((array) ($preview['items'] ?? []));
+        $image_items = array_values(array_filter($items, static function ($item): bool {
+            return is_array($item)
+                && (($item['type'] ?? '') === 'image')
+                && !empty($item['url']);
+        }));
+
+        return array_values(array_filter(array_map(static function (array $item): string {
+            return (string) ($item['url'] ?? '');
+        }, $image_items)));
     }
 }

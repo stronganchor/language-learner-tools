@@ -341,6 +341,58 @@ function ll_tools_get_image_aspect_ratio_for_size(int $attachment_id, string $si
     return $dimensions['ratio'] ?? '';
 }
 
+function ll_tools_get_wordset_preview_attachment_file_hash(int $attachment_id): string {
+    static $cache = [];
+
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0) {
+        return '';
+    }
+    if (array_key_exists($attachment_id, $cache)) {
+        return $cache[$attachment_id];
+    }
+
+    $path = get_attached_file($attachment_id);
+    if (!is_string($path) || $path === '' || !is_readable($path)) {
+        $cache[$attachment_id] = '';
+        return '';
+    }
+
+    $hash = hash_file('sha1', $path);
+    if (!is_string($hash) || $hash === '') {
+        $cache[$attachment_id] = '';
+        return '';
+    }
+
+    $cache[$attachment_id] = strtolower($hash);
+    return $cache[$attachment_id];
+}
+
+function ll_tools_get_wordset_preview_attachment_visual_hash(int $attachment_id): string {
+    static $cache = [];
+
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0) {
+        return '';
+    }
+    if (array_key_exists($attachment_id, $cache)) {
+        return $cache[$attachment_id];
+    }
+    if (!function_exists('ll_tools_get_attachment_image_hash')) {
+        $cache[$attachment_id] = '';
+        return '';
+    }
+
+    $hash = strtolower(trim((string) ll_tools_get_attachment_image_hash($attachment_id)));
+    if ($hash === '') {
+        $cache[$attachment_id] = '';
+        return '';
+    }
+
+    $cache[$attachment_id] = $hash;
+    return $cache[$attachment_id];
+}
+
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     $limit = max(1, (int) $limit);
     $items = [];
@@ -448,6 +500,14 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 $attached_file = trim((string) get_post_meta($image_id, '_wp_attached_file', true));
                 if ($attached_file !== '') {
                     $image_dedupe_keys[] = 'file:' . wp_normalize_path($attached_file);
+                }
+                $file_hash = ll_tools_get_wordset_preview_attachment_file_hash($image_id);
+                if ($file_hash !== '') {
+                    $image_dedupe_keys[] = 'sha1:' . $file_hash;
+                }
+                $visual_hash = ll_tools_get_wordset_preview_attachment_visual_hash($image_id);
+                if ($visual_hash !== '') {
+                    $image_dedupe_keys[] = 'dhash:' . $visual_hash;
                 }
 
                 $is_duplicate_preview_image = false;
