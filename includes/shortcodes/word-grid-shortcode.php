@@ -1949,6 +1949,139 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     return $config;
 }
 
+function ll_tools_word_grid_normalize_css_aspect_ratio(string $ratio): string {
+    $ratio = trim($ratio);
+    if ($ratio === '') {
+        return '';
+    }
+
+    if (!preg_match('/^(\d+)\s*([:\/])\s*(\d+)$/', $ratio, $matches)) {
+        return '';
+    }
+
+    $width = (int) ($matches[1] ?? 0);
+    $height = (int) ($matches[3] ?? 0);
+    if ($width <= 0 || $height <= 0) {
+        return '';
+    }
+
+    $divisor = 1;
+    if (function_exists('ll_tools_aspect_gcd')) {
+        $divisor = max(1, (int) ll_tools_aspect_gcd($width, $height));
+    }
+
+    $width = max(1, (int) round($width / $divisor));
+    $height = max(1, (int) round($height / $divisor));
+
+    return $width . ' / ' . $height;
+}
+
+function ll_tools_word_grid_get_shell_media_aspect_ratio(array $context): string {
+    static $request_cache = [];
+
+    $default_ratio = '1 / 1';
+    $category_term = $context['category_term'] ?? null;
+    $category_id = ($category_term instanceof WP_Term && !is_wp_error($category_term))
+        ? (int) $category_term->term_id
+        : 0;
+    $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    $deepest_only = !empty($context['deepest_only']);
+
+    $cache_key = $category_id . ':' . $wordset_id . ':' . ($deepest_only ? '1' : '0');
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $aspect_ratio = '';
+
+    if ($category_id > 0 && defined('LL_TOOLS_CATEGORY_CANONICAL_ASPECT_META_KEY')) {
+        $stored_ratio = (string) get_term_meta($category_id, LL_TOOLS_CATEGORY_CANONICAL_ASPECT_META_KEY, true);
+        $aspect_ratio = ll_tools_word_grid_normalize_css_aspect_ratio($stored_ratio);
+    }
+
+    if ($aspect_ratio === '' && $category_id > 0 && $wordset_id > 0) {
+        $candidate_word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'posts_per_page' => 8,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'orderby' => 'date',
+            'order' => 'DESC',
+            'suppress_filters' => true,
+            'tax_query' => [
+                [
+                    'taxonomy' => 'word-category',
+                    'field' => 'term_id',
+                    'terms' => [$category_id],
+                ],
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
+                ],
+            ],
+            'meta_query' => [
+                [
+                    'key' => '_thumbnail_id',
+                    'compare' => 'EXISTS',
+                ],
+            ],
+        ]);
+
+        $word_grid_image_size = apply_filters('ll_tools_word_grid_image_size', 'medium_large', $wordset_id, $category_term);
+        if (!is_string($word_grid_image_size)) {
+            $word_grid_image_size = 'medium_large';
+        }
+        $word_grid_image_size = trim($word_grid_image_size);
+        if ($word_grid_image_size === '') {
+            $word_grid_image_size = 'medium_large';
+        }
+
+        foreach ((array) $candidate_word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+
+            if ($deepest_only && function_exists('ll_get_deepest_categories')) {
+                $deepest_terms = ll_get_deepest_categories($word_id);
+                $deepest_ids = wp_list_pluck((array) $deepest_terms, 'term_id');
+                if (!in_array($category_id, $deepest_ids, true)) {
+                    continue;
+                }
+            }
+
+            $attachment_id = (int) get_post_thumbnail_id($word_id);
+            if ($attachment_id <= 0) {
+                continue;
+            }
+
+            if (function_exists('ll_tools_get_image_aspect_ratio_for_size')) {
+                $aspect_ratio = ll_tools_word_grid_normalize_css_aspect_ratio(
+                    (string) ll_tools_get_image_aspect_ratio_for_size($attachment_id, $word_grid_image_size)
+                );
+            }
+
+            if ($aspect_ratio === '' && function_exists('ll_tools_get_attachment_aspect_data')) {
+                $aspect = ll_tools_get_attachment_aspect_data($attachment_id);
+                $aspect_ratio = ll_tools_word_grid_normalize_css_aspect_ratio((string) ($aspect['ratio_key'] ?? ''));
+            }
+
+            if ($aspect_ratio !== '') {
+                break;
+            }
+        }
+    }
+
+    if ($aspect_ratio === '') {
+        $aspect_ratio = $default_ratio;
+    }
+
+    $request_cache[$cache_key] = $aspect_ratio;
+    return $aspect_ratio;
+}
+
 function ll_tools_word_grid_get_shell_spec(array $context): array {
     $grid_classes = 'word-grid ll-word-grid';
     if (!empty($context['is_text_based'])) {
@@ -1980,6 +2113,8 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
             $word_grid_style_parts[] = '--ll-word-grid-answer-option-line-height:' . rtrim(rtrim(number_format($line_height, 2, '.', ''), '0'), '.');
         }
     }
+
+    $word_grid_style_parts[] = '--ll-word-grid-shell-image-aspect:' . ll_tools_word_grid_get_shell_media_aspect_ratio($context);
 
     $attributes = [
         'id' => 'word-grid',

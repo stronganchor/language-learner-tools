@@ -677,9 +677,14 @@
 }
 
 .ll-vocab-lesson-skeleton-media {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: 18px;
+    display: block;
+    width: min(100%, 200px);
+    max-width: 200px;
+    aspect-ratio: var(--ll-word-grid-shell-image-aspect, 1 / 1);
+    justify-self: center;
+    margin: 0 auto 18px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ll-vocab-lesson-skeleton-line {
