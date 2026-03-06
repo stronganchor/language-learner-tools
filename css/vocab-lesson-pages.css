@@ -671,9 +671,9 @@
 .ll-vocab-lesson-skeleton-dot {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(90deg, rgba(230, 222, 209, 0.7) 0%, rgba(255, 255, 255, 0.96) 50%, rgba(230, 222, 209, 0.7) 100%);
+    background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
     background-size: 220% 100%;
-    animation: ll-vocab-lesson-skeleton-shimmer 1.2s linear infinite;
+    animation: ll-vocab-lesson-skeleton-shimmer 1.15s linear infinite;
 }
 
 .ll-vocab-lesson-skeleton-media {
@@ -757,10 +757,10 @@
 
 @keyframes ll-vocab-lesson-skeleton-shimmer {
     0% {
-        background-position: 200% 0;
+        background-position: 100% 0;
     }
     100% {
-        background-position: -200% 0;
+        background-position: -100% 0;
     }
 }
 
