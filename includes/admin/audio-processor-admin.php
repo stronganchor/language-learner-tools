@@ -119,14 +119,17 @@ function ll_enqueue_audio_processor_assets($hook) {
             'saveUnexpectedError' => __('Unexpected error while saving. Please try again.', 'll-tools-text-domain'),
             'saveCountTemplate' => __('%1$d / %2$d complete', 'll-tools-text-domain'),
             'beforeUnloadWarning' => __('Saving is still in progress. Leaving this page will interrupt uploads.', 'll-tools-text-domain'),
-            'editTitleButton' => __('Edit title', 'll-tools-text-domain'),
-            'saveTitleButton' => __('Save title', 'll-tools-text-domain'),
-            'cancelTitleButton' => __('Cancel', 'll-tools-text-domain'),
-            'titleInputLabel' => __('Word title', 'll-tools-text-domain'),
-            'titleInputPlaceholder' => __('Enter word title', 'll-tools-text-domain'),
-            'titleRequired' => __('Title cannot be empty.', 'll-tools-text-domain'),
-            'titleSaving' => __('Saving...', 'll-tools-text-domain'),
-            'titleSaveFailed' => __('Could not update title.', 'll-tools-text-domain'),
+            'editWordButton' => __('Edit word', 'll-tools-text-domain'),
+            'saveWordButton' => __('Save changes', 'll-tools-text-domain'),
+            'cancelWordButton' => __('Cancel', 'll-tools-text-domain'),
+            'wordInputLabel' => __('Word', 'll-tools-text-domain'),
+            'wordInputPlaceholder' => __('Enter word', 'll-tools-text-domain'),
+            'translationInputLabel' => __('Translation', 'll-tools-text-domain'),
+            'translationInputPlaceholder' => __('Enter translation', 'll-tools-text-domain'),
+            'wordRequired' => __('Word cannot be empty.', 'll-tools-text-domain'),
+            'translationRequired' => __('Translation cannot be empty for this word.', 'll-tools-text-domain'),
+            'wordSaving' => __('Saving...', 'll-tools-text-domain'),
+            'wordSaveFailed' => __('Could not update word details.', 'll-tools-text-domain'),
             'deleteSelectedConfirmTemplate' => __('Delete %d recording(s)? This action cannot be undone.', 'll-tools-text-domain'),
             'deleteButtonDeleting' => __('Deleting...', 'll-tools-text-domain'),
             'deleteSelectedButtonDefault' => __('Delete Selected', 'll-tools-text-domain'),
@@ -159,6 +162,49 @@ add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
 function ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug) {
     $type_key = $recording_type_slug ? $recording_type_slug : '__none__';
     return $parent_word_id . '::' . $type_key;
+}
+
+function ll_audio_processor_get_word_editor_values($word_id) {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return [
+            'word_text' => '',
+            'translation_text' => '',
+            'store_in_title' => true,
+        ];
+    }
+
+    if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+        $values = ll_tools_word_grid_resolve_display_text($word_id);
+        return [
+            'word_text' => trim((string) ($values['word_text'] ?? '')),
+            'translation_text' => trim((string) ($values['translation_text'] ?? '')),
+            'store_in_title' => isset($values['store_in_title']) ? (bool) $values['store_in_title'] : true,
+        ];
+    }
+
+    $store_in_title = function_exists('ll_tools_should_store_word_in_title')
+        ? (bool) ll_tools_should_store_word_in_title($word_id)
+        : true;
+    $word_title = trim((string) get_the_title($word_id));
+    $word_translation = trim((string) get_post_meta($word_id, 'word_translation', true));
+    if ($store_in_title && $word_translation === '') {
+        $word_translation = trim((string) get_post_meta($word_id, 'word_english_meaning', true));
+    }
+
+    if ($store_in_title) {
+        $word_text = $word_title;
+        $translation_text = $word_translation;
+    } else {
+        $word_text = $word_translation !== '' ? $word_translation : $word_title;
+        $translation_text = $word_title;
+    }
+
+    return [
+        'word_text' => trim((string) $word_text),
+        'translation_text' => trim((string) $translation_text),
+        'store_in_title' => $store_in_title,
+    ];
 }
 
 function ll_audio_processor_get_published_recording_map($parent_word_ids) {
@@ -227,7 +273,8 @@ function ll_get_unprocessed_recordings() {
             $parent_word_id = wp_get_post_parent_id($audio_post_id);
 
             if ($audio_file && $parent_word_id) {
-                $word_title = get_the_title($parent_word_id);
+                $word_values = ll_audio_processor_get_word_editor_values($parent_word_id);
+                $word_title = (string) ($word_values['word_text'] ?? '');
                 $categories = wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']);
 
                 // Get wordset names
@@ -261,6 +308,9 @@ function ll_get_unprocessed_recordings() {
                 $recordings[] = [
                     'id' => $audio_post_id,
                     'title' => $word_title,
+                    'wordText' => $word_title,
+                    'translationText' => (string) ($word_values['translation_text'] ?? ''),
+                    'storeInTitle' => !empty($word_values['store_in_title']),
                     'audioUrl' => site_url($audio_file),
                     'uploadDate' => get_post_meta($audio_post_id, 'recording_date', true),
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
@@ -352,6 +402,16 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     } elseif ($duplicate_reason === 'queued') {
         $duplicate_label = __('Duplicate in queue', 'll-tools-text-domain');
     }
+
+    $word_text = trim((string) ($recording['wordText'] ?? $recording['title'] ?? ''));
+    $translation_text = trim((string) ($recording['translationText'] ?? ''));
+    $store_in_title = !empty($recording['storeInTitle']);
+    $display_word_text = function_exists('ll_tools_esc_html_display')
+        ? ll_tools_esc_html_display($word_text)
+        : esc_html($word_text);
+    $display_translation_text = function_exists('ll_tools_esc_html_display')
+        ? ll_tools_esc_html_display($translation_text)
+        : esc_html($translation_text);
     ?>
     <div
         class="ll-recording-item"
@@ -361,31 +421,60 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
         <div class="ll-recording-label">
             <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
             <div class="ll-recording-info">
-                <div class="ll-word-title-block" data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>">
+                <div
+                    class="ll-word-title-block"
+                    data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>"
+                    data-word-text="<?php echo esc_attr($word_text); ?>"
+                    data-translation-text="<?php echo esc_attr($translation_text); ?>"
+                    data-store-in-title="<?php echo $store_in_title ? '1' : '0'; ?>"
+                >
                     <div class="ll-word-title-display-row">
-                        <strong class="ll-recording-title-text"><?php echo esc_html($recording['title']); ?></strong>
+                        <span class="ll-word-title-display-text">
+                            <strong class="ll-recording-title-text" dir="auto"><?php echo $display_word_text; ?></strong>
+                            <span class="ll-recording-translation-text" dir="auto" <?php echo $translation_text === '' ? 'hidden' : ''; ?>>
+                                <?php echo $display_translation_text; ?>
+                            </span>
+                        </span>
                         <button type="button" class="ll-edit-word-title-btn button-link">
-                            <?php echo esc_html__('Edit title', 'll-tools-text-domain'); ?>
+                            <?php echo esc_html__('Edit word', 'll-tools-text-domain'); ?>
                         </button>
                     </div>
                     <div class="ll-word-title-editor" hidden>
-                        <label class="screen-reader-text" for="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>">
-                            <?php echo esc_html__('Word title', 'll-tools-text-domain'); ?>
-                        </label>
-                        <input
-                            id="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>"
-                            type="text"
-                            class="ll-word-title-input"
-                            value="<?php echo esc_attr($recording['title']); ?>"
-                            placeholder="<?php echo esc_attr__('Enter word title', 'll-tools-text-domain'); ?>"
-                            maxlength="200"
-                        >
-                        <button type="button" class="button button-small ll-save-word-title-btn">
-                            <?php echo esc_html__('Save title', 'll-tools-text-domain'); ?>
-                        </button>
-                        <button type="button" class="button button-small ll-cancel-word-title-btn">
-                            <?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?>
-                        </button>
+                        <div class="ll-word-editor-field">
+                            <label for="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>">
+                                <?php echo esc_html__('Word', 'll-tools-text-domain'); ?>
+                            </label>
+                            <input
+                                id="<?php echo esc_attr('ll-word-title-input-' . (int) $recording['id']); ?>"
+                                type="text"
+                                class="ll-word-title-input"
+                                value="<?php echo esc_attr($word_text); ?>"
+                                placeholder="<?php echo esc_attr__('Enter word', 'll-tools-text-domain'); ?>"
+                                maxlength="200"
+                                dir="auto"
+                            >
+                        </div>
+                        <div class="ll-word-editor-field">
+                            <label for="<?php echo esc_attr('ll-word-translation-input-' . (int) $recording['id']); ?>">
+                                <?php echo esc_html__('Translation', 'll-tools-text-domain'); ?>
+                            </label>
+                            <input
+                                id="<?php echo esc_attr('ll-word-translation-input-' . (int) $recording['id']); ?>"
+                                type="text"
+                                class="ll-word-translation-input"
+                                value="<?php echo esc_attr($translation_text); ?>"
+                                placeholder="<?php echo esc_attr__('Enter translation', 'll-tools-text-domain'); ?>"
+                                dir="auto"
+                            >
+                        </div>
+                        <div class="ll-word-editor-actions">
+                            <button type="button" class="button button-small ll-save-word-title-btn">
+                                <?php echo esc_html__('Save changes', 'll-tools-text-domain'); ?>
+                            </button>
+                            <button type="button" class="button button-small ll-cancel-word-title-btn">
+                                <?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="ll-recording-meta">
@@ -764,9 +853,10 @@ function ll_save_processed_audio_handler() {
     ]);
 }
 
-add_action('wp_ajax_ll_audio_processor_update_word_title', 'll_audio_processor_update_word_title_handler');
+add_action('wp_ajax_ll_audio_processor_update_word_text', 'll_audio_processor_update_word_text_handler');
+add_action('wp_ajax_ll_audio_processor_update_word_title', 'll_audio_processor_update_word_text_handler');
 
-function ll_audio_processor_update_word_title_handler() {
+function ll_audio_processor_update_word_text_handler() {
     check_ajax_referer('ll_audio_processor', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
@@ -774,9 +864,21 @@ function ll_audio_processor_update_word_title_handler() {
     }
 
     $word_id = isset($_POST['word_id']) ? intval($_POST['word_id']) : 0;
-    $title = isset($_POST['title']) ? sanitize_text_field(wp_unslash($_POST['title'])) : '';
+    $word_text_raw = isset($_POST['word_text'])
+        ? wp_unslash($_POST['word_text'])
+        : (isset($_POST['title']) ? wp_unslash($_POST['title']) : '');
+    $translation_text_raw = isset($_POST['translation_text']) ? wp_unslash($_POST['translation_text']) : '';
 
-    if (!$word_id || $title === '') {
+    $word_text = function_exists('ll_sanitize_word_title_text')
+        ? ll_sanitize_word_title_text($word_text_raw)
+        : trim(sanitize_text_field((string) $word_text_raw));
+    $translation_text = sanitize_text_field((string) $translation_text_raw);
+    if (function_exists('ll_tools_strip_display_word_joiners')) {
+        $translation_text = ll_tools_strip_display_word_joiners($translation_text);
+    }
+    $translation_text = trim((string) $translation_text);
+
+    if (!$word_id || $word_text === '') {
         wp_send_json_error(__('Missing required data', 'll-tools-text-domain'));
     }
 
@@ -789,18 +891,47 @@ function ll_audio_processor_update_word_title_handler() {
         wp_send_json_error(__('Insufficient permissions to edit this word.', 'll-tools-text-domain'));
     }
 
+    $store_in_title = function_exists('ll_tools_should_store_word_in_title')
+        ? (bool) ll_tools_should_store_word_in_title($word_id)
+        : true;
+    if (!$store_in_title && $translation_text === '') {
+        wp_send_json_error(__('Translation cannot be empty for this word.', 'll-tools-text-domain'));
+    }
+
+    $new_title = $store_in_title ? $word_text : $translation_text;
     $updated = wp_update_post([
         'ID' => $word_id,
-        'post_title' => $title,
+        'post_title' => $new_title,
     ], true);
 
     if (is_wp_error($updated)) {
-        wp_send_json_error(__('Could not update title.', 'll-tools-text-domain'));
+        wp_send_json_error(__('Could not update word details.', 'll-tools-text-domain'));
     }
+
+    if ($translation_text !== '') {
+        update_post_meta($word_id, 'word_english_meaning', $translation_text);
+    } else {
+        delete_post_meta($word_id, 'word_english_meaning');
+    }
+
+    if ($store_in_title) {
+        if ($translation_text !== '') {
+            update_post_meta($word_id, 'word_translation', $translation_text);
+        } else {
+            delete_post_meta($word_id, 'word_translation');
+        }
+    } else {
+        update_post_meta($word_id, 'word_translation', $word_text);
+    }
+
+    $word_values = ll_audio_processor_get_word_editor_values($word_id);
 
     wp_send_json_success([
         'word_id' => $word_id,
-        'title' => get_the_title($word_id),
+        'title' => (string) ($word_values['word_text'] ?? ''),
+        'wordText' => (string) ($word_values['word_text'] ?? ''),
+        'translationText' => (string) ($word_values['translation_text'] ?? ''),
+        'storeInTitle' => !empty($word_values['store_in_title']),
     ]);
 }
 
