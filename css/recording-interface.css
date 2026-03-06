@@ -1061,6 +1061,86 @@
     justify-content: center;
 }
 
+.ll-upload-feedback {
+    position: fixed;
+    left: 50%;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 1rem));
+    padding: 0.7rem 0.8rem;
+    border: 1px solid #c3d9ea;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(6px);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    z-index: 100070;
+    pointer-events: none;
+}
+
+.ll-upload-feedback[hidden] {
+    display: none !important;
+}
+
+.ll-upload-feedback-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.ll-upload-feedback-label {
+    color: #0c5460;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ll-upload-feedback-value {
+    color: #0c5460;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.1;
+    min-width: 3ch;
+    text-align: right;
+}
+
+.ll-upload-progress-bar {
+    position: relative;
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #d9eaf2;
+    overflow: hidden;
+}
+
+.ll-upload-progress-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2271b1 0%, #58a7d9 100%);
+    transition: width 0.2s ease;
+}
+
+.ll-upload-feedback.is-indeterminate .ll-upload-progress-fill {
+    width: 38%;
+    animation: ll-upload-progress-indeterminate 1.15s ease-in-out infinite;
+}
+
+@keyframes ll-upload-progress-indeterminate {
+    0% {
+        transform: translateX(-130%);
+    }
+
+    100% {
+        transform: translateX(290%);
+    }
+}
+
 .ll-upload-status {
     padding: 0.55rem 0.75rem;
     border-radius: 6px;

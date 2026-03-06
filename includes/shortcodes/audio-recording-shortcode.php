@@ -1097,6 +1097,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'hidden_count'    => count($hidden_recording_words),
         'i18n' => [
             'uploading' => __('Uploading...', 'll-tools-text-domain'),
+            'checking_upload' => __('Checking upload...', 'll-tools-text-domain'),
             'success' => __('Success! Recording will be processed later.', 'll-tools-text-domain'),
             'success_processed' => __('Success! Recording published.', 'll-tools-text-domain'),
             'error_prefix' => __('Error:', 'll-tools-text-domain'),
@@ -1494,6 +1495,16 @@ function ll_audio_recording_interface_shortcode($atts) {
         <div class="ll-recording-complete" style="display:none;">
             <h2>✓</h2>
             <p><span class="ll-completed-count"></span> <?php _e('recordings completed', 'll-tools-text-domain'); ?></p>
+        </div>
+
+        <div id="ll-upload-feedback" class="ll-upload-feedback" hidden role="status" aria-live="polite" aria-busy="false">
+            <div class="ll-upload-feedback-row">
+                <span id="ll-upload-feedback-label" class="ll-upload-feedback-label"></span>
+                <span id="ll-upload-feedback-value" class="ll-upload-feedback-value" hidden></span>
+            </div>
+            <div id="ll-upload-progress-bar" class="ll-upload-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="ll-upload-progress-fill" class="ll-upload-progress-fill"></span>
+            </div>
         </div>
     </div>
     <?php

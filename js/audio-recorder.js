@@ -30,6 +30,7 @@
     let processingState = null;
     let processingAudioContext = null;
     let hiddenWordsPanelOpen = false;
+    let uploadLockState = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -280,6 +281,11 @@
             reviewContainer: document.getElementById('ll-review-files-container'),
             reviewRedoBtn: document.getElementById('ll-review-redo'),
             reviewSubmitBtn: document.getElementById('ll-review-submit'),
+            uploadFeedback: document.getElementById('ll-upload-feedback'),
+            uploadFeedbackLabel: document.getElementById('ll-upload-feedback-label'),
+            uploadFeedbackValue: document.getElementById('ll-upload-feedback-value'),
+            uploadProgressBar: document.getElementById('ll-upload-progress-bar'),
+            uploadProgressFill: document.getElementById('ll-upload-progress-fill'),
         };
     }
 
@@ -2145,6 +2151,178 @@
         if (type) el.status.classList.add(type);
     }
 
+    function clearUploadFeedback() {
+        const el = window.llRecorder;
+        if (!el?.uploadFeedback) return;
+        el.uploadFeedback.hidden = true;
+        el.uploadFeedback.classList.remove('is-indeterminate');
+        el.uploadFeedback.setAttribute('aria-busy', 'false');
+        if (el.uploadFeedbackLabel) {
+            el.uploadFeedbackLabel.textContent = '';
+        }
+        if (el.uploadFeedbackValue) {
+            el.uploadFeedbackValue.textContent = '';
+            el.uploadFeedbackValue.hidden = true;
+        }
+        if (el.uploadProgressBar) {
+            el.uploadProgressBar.setAttribute('aria-valuenow', '0');
+            el.uploadProgressBar.removeAttribute('aria-label');
+        }
+        if (el.uploadProgressFill) {
+            el.uploadProgressFill.style.width = '0%';
+        }
+    }
+
+    function setUploadFeedback(message, progress = null, options = {}) {
+        const el = window.llRecorder;
+        if (!el?.uploadFeedback || !el.uploadFeedbackLabel || !el.uploadProgressBar || !el.uploadProgressFill) return;
+
+        const hasProgress = Number.isFinite(progress);
+        const clampedProgress = hasProgress
+            ? Math.max(0, Math.min(100, Math.round(progress)))
+            : null;
+
+        el.uploadFeedback.hidden = false;
+        el.uploadFeedback.classList.toggle('is-indeterminate', !hasProgress || !!options.indeterminate);
+        el.uploadFeedback.setAttribute('aria-busy', options.busy === false ? 'false' : 'true');
+        el.uploadFeedbackLabel.textContent = String(message || i18n.uploading || 'Uploading...');
+        el.uploadProgressBar.setAttribute('aria-label', el.uploadFeedbackLabel.textContent);
+
+        if (hasProgress) {
+            el.uploadProgressBar.setAttribute('aria-valuenow', String(clampedProgress));
+            el.uploadProgressFill.style.width = `${clampedProgress}%`;
+            if (el.uploadFeedbackValue) {
+                el.uploadFeedbackValue.hidden = false;
+                el.uploadFeedbackValue.textContent = `${clampedProgress}%`;
+            }
+            return;
+        }
+
+        el.uploadProgressBar.removeAttribute('aria-valuenow');
+        el.uploadProgressFill.style.width = '';
+        if (el.uploadFeedbackValue) {
+            el.uploadFeedbackValue.textContent = '';
+            el.uploadFeedbackValue.hidden = true;
+        }
+    }
+
+    function beginUploadLock() {
+        const el = window.llRecorder;
+        if (!el) return;
+        if (uploadLockState) return;
+
+        const controls = [
+            el.categorySelect,
+            el.recordingTypeSelect,
+            el.recordBtn,
+            el.skipBtn,
+            el.hideBtn,
+            el.submitBtn,
+            el.redoBtn,
+            el.reviewSubmitBtn,
+            el.reviewRedoBtn,
+            el.newWordToggle,
+            el.hiddenToggleBtn,
+            el.newWordStartBtn,
+            el.newWordBackBtn,
+            el.newWordRecordBtn,
+            el.newWordRedoBtn,
+        ].filter(Boolean);
+
+        uploadLockState = controls.map(control => ({
+            control,
+            disabled: !!control.disabled,
+        }));
+
+        uploadLockState.forEach(entry => {
+            entry.control.disabled = true;
+        });
+
+        if (el.status) {
+            el.status.textContent = '';
+            el.status.className = 'll-upload-status';
+        }
+        renderRecordingTypeChoices();
+    }
+
+    function endUploadLock() {
+        if (Array.isArray(uploadLockState)) {
+            uploadLockState.forEach(entry => {
+                if (entry?.control) {
+                    entry.control.disabled = !!entry.disabled;
+                }
+            });
+        }
+        uploadLockState = null;
+        clearUploadFeedback();
+        renderRecordingTypeChoices();
+    }
+
+    function postFormDataWithUploadProgress(formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', ajaxUrl, true);
+            xhr.responseType = 'text';
+
+            xhr.upload.addEventListener('progress', event => {
+                if (typeof onProgress !== 'function') return;
+                if (event.lengthComputable && event.total > 0) {
+                    onProgress({
+                        loaded: event.loaded,
+                        total: event.total,
+                        percent: (event.loaded / event.total) * 100,
+                        lengthComputable: true,
+                    });
+                    return;
+                }
+                onProgress({
+                    loaded: event.loaded || 0,
+                    total: event.total || 0,
+                    percent: null,
+                    lengthComputable: false,
+                });
+            });
+
+            xhr.addEventListener('load', () => {
+                if (typeof onProgress === 'function') {
+                    onProgress({
+                        loaded: 1,
+                        total: 1,
+                        percent: 100,
+                        lengthComputable: true,
+                    });
+                }
+
+                const contentType = xhr.getResponseHeader('content-type') || '';
+                let data = null;
+                if (contentType.includes('application/json')) {
+                    try {
+                        data = JSON.parse(xhr.responseText || 'null');
+                    } catch (_) {
+                        data = null;
+                    }
+                }
+
+                resolve({
+                    ok: xhr.status >= 200 && xhr.status < 300,
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    contentType,
+                    data,
+                });
+            });
+
+            const fail = () => {
+                reject(new Error(i18n.request_failed || 'Request failed'));
+            };
+
+            xhr.addEventListener('error', fail);
+            xhr.addEventListener('abort', fail);
+            xhr.addEventListener('timeout', fail);
+            xhr.send(formData);
+        });
+    }
+
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         const el = window.llRecorder;
         normalizeImageRecordingTypeState(images[currentImageIndex]);
@@ -2412,6 +2590,7 @@
             el.status.textContent = '';
             el.status.className = 'll-upload-status';
         }
+        clearUploadFeedback();
         if (el.newWordRecordBtn) {
             el.newWordRecordBtn.style.display = 'inline-flex';
             el.newWordRecordBtn.innerHTML = icons.record;
@@ -2949,20 +3128,6 @@
         }
     }
 
-    function restoreUploadControls() {
-        const el = window.llRecorder;
-        if (!el) return;
-        if (el.submitBtn) el.submitBtn.disabled = false;
-        if (el.redoBtn) el.redoBtn.disabled = false;
-        if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
-        if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
-        if (el.skipBtn) el.skipBtn.disabled = false;
-        if (el.hideBtn) el.hideBtn.disabled = false;
-        if (isNewWordPanelActive()) {
-            setNewWordActionState(false);
-        }
-    }
-
     function getAjaxErrorMessage(payload, fallback = '') {
         if (!payload || typeof payload !== 'object') return fallback;
         if (typeof payload.data === 'string' && payload.data.trim()) {
@@ -2987,6 +3152,10 @@
     }
 
     async function submitAndNext() {
+        if (uploadLockState) {
+            return;
+        }
+
         if (!currentBlob) {
             const msg = newWordMode
                 ? (i18n.new_word_missing_recording || 'Record audio before saving this word.')
@@ -3035,16 +3204,8 @@
             ? (img.category_slug || el.newWordCategory?.value || '')
             : (el.categorySelect?.value || '');
 
-        showStatus(i18n.uploading || 'Uploading...', 'uploading');
-        if (el.submitBtn) el.submitBtn.disabled = true;
-        if (el.redoBtn) el.redoBtn.disabled = true;
-        if (el.skipBtn) el.skipBtn.disabled = true;
-        if (el.hideBtn) el.hideBtn.disabled = true;
-        if (isNewWordPanelActive()) {
-            setNewWordActionState(true);
-        }
-        if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = true;
-        if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = true;
+        beginUploadLock();
+        setUploadFeedback(i18n.uploading || 'Uploading...', 0);
 
         const formData = new FormData();
         formData.append('action', 'll_upload_recording');
@@ -3069,19 +3230,18 @@
         }
 
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
-
-            let data = null;
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                try {
-                    data = await response.json();
-                } catch (parseError) {
-                    data = null;
+            const response = await postFormDataWithUploadProgress(formData, progress => {
+                if (progress?.lengthComputable) {
+                    setUploadFeedback(i18n.uploading || 'Uploading...', progress.percent);
+                    return;
                 }
-            }
+                setUploadFeedback(i18n.uploading || 'Uploading...', null, { indeterminate: true });
+            });
+
+            const data = response.data;
 
             if (response.ok && data?.success) {
+                endUploadLock();
                 if (data.data?.word_id && !img.word_id) {
                     img.word_id = data.data.word_id;
                 }
@@ -3092,8 +3252,8 @@
 
             const uploadErrorMessage = getAjaxErrorMessage(data);
             if (data && uploadErrorMessage !== '' && response.status < 500) {
+                endUploadLock();
                 showUploadError(uploadErrorMessage);
-                restoreUploadControls();
                 return;
             }
 
@@ -3126,6 +3286,7 @@
         const activeCategory = isNewWordPanelActive()
             ? (img?.category_slug || el?.newWordCategory?.value || '')
             : (el?.categorySelect?.value || '');
+        setUploadFeedback(i18n.checking_upload || 'Checking upload...', null, { indeterminate: true });
         try {
             const fd = new FormData();
             fd.append('action', 'll_verify_recording');
@@ -3146,6 +3307,7 @@
             const verifyData = await verifyResp.json();
 
             if (verifyData?.success && verifyData.data?.found_audio_post_id) {
+                endUploadLock();
                 const remaining = Array.isArray(verifyData.data.remaining_types) ? verifyData.data.remaining_types : [];
                 handleSuccessfulUpload(recordingType, remaining, autoProcessed);
                 return;
@@ -3156,7 +3318,7 @@
             console.error('Verify error:', e);
             showUploadError(uploadErrorMessage || e.message || (i18n.verify_failed || 'Verify failed'));
         } finally {
-            restoreUploadControls();
+            endUploadLock();
         }
     }
 

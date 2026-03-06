@@ -42,6 +42,13 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('class="ll-recording-type-selector"', $output);
         $this->assertStringContainsString('id="ll-recording-type"', $output);
         $this->assertStringContainsString('id="ll-playback-controls"', $output);
+        $this->assertStringContainsString('id="ll-upload-feedback"', $output);
+        $this->assertStringContainsString('id="ll-upload-progress-bar"', $output);
+
+        $this->assertTrue(wp_script_is('ll-audio-recorder', 'enqueued'));
+        $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
+        $this->assertIsString($localized);
+        $this->assertStringContainsString('checking_upload', $localized);
     }
 
     private function ensure_term(string $taxonomy, string $name, string $slug): int
