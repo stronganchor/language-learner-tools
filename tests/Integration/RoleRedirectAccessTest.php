@@ -19,6 +19,26 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $this->assertSame(get_permalink($recording_page_id), $redirect);
     }
 
+    public function test_login_redirect_routes_audio_recorder_to_recording_page_with_saved_locale(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $recording_page_id = $this->create_page_with_shortcode('Recorder Page', '[audio_recording_interface]');
+        update_option('ll_default_recording_page_id', $recording_page_id);
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($user_id, 'locale', 'tr_TR');
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+
+        $redirect = apply_filters('login_redirect', admin_url(), '', $user);
+
+        $this->assertSame(
+            add_query_arg('ll_locale', 'tr_TR', get_permalink($recording_page_id)),
+            $redirect
+        );
+    }
+
     public function test_login_redirect_routes_learner_to_wordset_page_by_default(): void
     {
         ll_tools_register_or_refresh_learner_role();

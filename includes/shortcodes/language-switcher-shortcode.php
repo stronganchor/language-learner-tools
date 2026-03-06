@@ -92,60 +92,159 @@ function ll_tools_set_locale_cookie($locale) {
 }
 
 /**
+ * Return the current front-end locale cookie value when it is valid.
+ */
+function ll_tools_get_locale_cookie_preference() {
+    if (empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
+        return '';
+    }
+
+    $chosen = sanitize_text_field(wp_unslash((string) $_COOKIE[LL_TOOLS_I18N_COOKIE]));
+    return ll_tools_is_valid_switcher_locale($chosen) ? $chosen : '';
+}
+
+/**
+ * Return the site default locale used when the user has not set a preference.
+ */
+function ll_tools_get_site_default_locale_preference() {
+    $site_default = trim((string) get_option('WPLANG'));
+    if ($site_default === '') {
+        $site_default = 'en_US';
+    }
+
+    return ll_tools_is_valid_switcher_locale($site_default) ? $site_default : 'en_US';
+}
+
+/**
+ * Read a stored user locale preference without invoking get_locale() recursion.
+ */
+function ll_tools_get_user_locale_preference($user_id = 0, $fallback_to_site_default = false) {
+    $user_id = (int) $user_id;
+    if ($user_id <= 0 && function_exists('get_current_user_id')) {
+        $user_id = (int) get_current_user_id();
+    }
+    if ($user_id <= 0) {
+        return $fallback_to_site_default ? ll_tools_get_site_default_locale_preference() : '';
+    }
+
+    $user_locale = '';
+    if (function_exists('get_user_meta')) {
+        $user_locale = (string) get_user_meta($user_id, 'locale', true);
+    } else {
+        $user = get_userdata($user_id);
+        if ($user instanceof WP_User && isset($user->locale)) {
+            $user_locale = (string) $user->locale;
+        }
+    }
+
+    if (ll_tools_is_valid_switcher_locale($user_locale)) {
+        return $user_locale;
+    }
+
+    return $fallback_to_site_default ? ll_tools_get_site_default_locale_preference() : '';
+}
+
+/**
+ * Persist a locale preference to the cookie and, for logged-in users, their account.
+ */
+function ll_tools_persist_locale_preference($locale, $user_id = 0) {
+    if (!ll_tools_is_valid_switcher_locale($locale)) {
+        return false;
+    }
+
+    $updated = false;
+    if (ll_tools_set_locale_cookie($locale)) {
+        $updated = true;
+    }
+    $_COOKIE[LL_TOOLS_I18N_COOKIE] = $locale;
+
+    $user_id = (int) $user_id;
+    if ($user_id <= 0 && function_exists('get_current_user_id')) {
+        $user_id = (int) get_current_user_id();
+    }
+    if ($user_id > 0 && function_exists('update_user_meta')) {
+        update_user_meta($user_id, 'locale', $locale);
+        $updated = true;
+    }
+
+    return $updated;
+}
+
+/**
+ * Return a requested locale from the current request when it is valid.
+ */
+function ll_tools_get_requested_switcher_locale($require_available = false) {
+    if (!isset($_REQUEST['ll_locale'])) {
+        return '';
+    }
+
+    $requested = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale']));
+    if (!ll_tools_is_valid_switcher_locale($requested)) {
+        return '';
+    }
+
+    if ($require_available) {
+        $available = ll_tools_get_plugin_locales();
+        if (!in_array($requested, $available, true)) {
+            return '';
+        }
+    }
+
+    return $requested;
+}
+
+/**
+ * Add the preferred locale to an internal URL so redirects land in the right UI language.
+ */
+function ll_tools_append_preferred_locale_to_url($url, $user_id = 0) {
+    $url = is_string($url) ? trim($url) : '';
+    if ($url === '') {
+        return '';
+    }
+
+    $validated = (string) wp_validate_redirect($url, '');
+    if ($validated === '') {
+        return $url;
+    }
+
+    $preferred = ll_tools_get_user_locale_preference($user_id, false);
+    if ($preferred === '') {
+        $preferred = ll_tools_get_locale_cookie_preference();
+    }
+    if ($preferred === '') {
+        return $url;
+    }
+
+    return (string) add_query_arg('ll_locale', $preferred, $validated);
+}
+
+/**
  * Sync the front-end locale cookie to the user's profile locale on login.
- *
- * This makes front-end language follow the account "Language" setting after
- * sign-in, while still allowing later manual overrides via the switcher.
  */
 function ll_tools_sync_locale_cookie_on_login($user_login, $user) {
     if (!($user instanceof WP_User)) {
         return;
     }
 
-    $user_locale = '';
-    if (function_exists('get_user_meta')) {
-        $user_locale = (string) get_user_meta((int) $user->ID, 'locale', true);
-    }
-    if ($user_locale === '') {
-        $site_default = (string) get_option('WPLANG');
-        $user_locale = ($site_default !== '') ? $site_default : 'en_US';
-    }
-
-    if (!ll_tools_is_valid_switcher_locale($user_locale)) {
+    $user_locale = ll_tools_get_user_locale_preference((int) $user->ID, false);
+    if ($user_locale !== '') {
+        ll_tools_persist_locale_preference($user_locale, (int) $user->ID);
         return;
     }
 
-    ll_tools_set_locale_cookie($user_locale);
-    // Make the new locale visible during the remainder of the current request.
-    $_COOKIE[LL_TOOLS_I18N_COOKIE] = $user_locale;
+    ll_tools_persist_locale_preference(ll_tools_get_site_default_locale_preference(), 0);
 }
 add_action('wp_login', 'll_tools_sync_locale_cookie_on_login', 10, 2);
 
 /**
- * Front-end fallback to a logged-in user's preferred locale when no explicit
- * switcher cookie exists. Reads raw user meta to avoid get_locale() recursion.
+ * Front-end locale for a logged-in user's account preference.
  */
 function ll_tools_get_logged_in_user_locale_preference() {
     if (!function_exists('is_user_logged_in') || !is_user_logged_in()) {
         return '';
     }
-    if (!function_exists('wp_get_current_user')) {
-        return '';
-    }
 
-    $user = wp_get_current_user();
-    if (!($user instanceof WP_User) || empty($user->ID)) {
-        return '';
-    }
-
-    $user_locale = '';
-    if (function_exists('get_user_meta')) {
-        $user_locale = (string) get_user_meta((int) $user->ID, 'locale', true);
-    } elseif (isset($user->locale)) {
-        $user_locale = (string) $user->locale;
-    }
-
-    return ll_tools_is_valid_switcher_locale($user_locale) ? $user_locale : '';
+    return ll_tools_get_user_locale_preference(0, false);
 }
 
 /**
@@ -210,15 +309,10 @@ function ll_tools_handle_locale_switch() {
     if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
         return; // front-end only
     }
-    if (!isset($_GET['ll_locale'])) return;
+    $requested = ll_tools_get_requested_switcher_locale(true);
+    if ($requested === '') return;
 
-    $requested = sanitize_text_field(wp_unslash($_GET['ll_locale']));
-    $available = ll_tools_get_plugin_locales();
-
-    if (!in_array($requested, $available, true)) return;
-
-    ll_tools_set_locale_cookie($requested);
-    $_COOKIE[LL_TOOLS_I18N_COOKIE] = $requested;
+    ll_tools_persist_locale_preference($requested);
 
     // Redirect to a clean URL (remove the param). Use current URL as base safely.
     $target = remove_query_arg('ll_locale');
@@ -235,26 +329,50 @@ function ll_tools_handle_locale_switch() {
 add_action('template_redirect', 'll_tools_handle_locale_switch');
 
 /**
- * Apply the chosen locale (from cookie) to all requests, if it's allowed.
+ * Keep the locale cookie aligned with the logged-in user's saved preference.
+ */
+function ll_tools_sync_frontend_locale_cookie_from_user_preference() {
+    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
+        return;
+    }
+
+    $user_locale = ll_tools_get_logged_in_user_locale_preference();
+    if ($user_locale === '') {
+        return;
+    }
+
+    if (ll_tools_get_locale_cookie_preference() === $user_locale) {
+        return;
+    }
+
+    ll_tools_persist_locale_preference($user_locale);
+}
+add_action('init', 'll_tools_sync_frontend_locale_cookie_from_user_preference', 20);
+
+/**
+ * Apply the chosen locale to all requests, if it's allowed.
  */
 function ll_tools_filter_locale($locale) {
-    // Only front-end cookie override; never run in admin/AJAX/REST.
+    // Only front-end overrides; never run in admin/AJAX/REST.
     if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
         return $locale;
     }
-    if (!empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
-        $chosen = sanitize_text_field(wp_unslash($_COOKIE[LL_TOOLS_I18N_COOKIE]));
 
-        // Accept only well-formed locales; DO NOT scan files or call get_locale() here.
-        if (ll_tools_is_valid_switcher_locale($chosen)) {
-            return $chosen;
-        }
+    $requested = ll_tools_get_requested_switcher_locale(true);
+    if ($requested !== '') {
+        return $requested;
     }
 
     $user_locale = ll_tools_get_logged_in_user_locale_preference();
     if ($user_locale !== '') {
         return $user_locale;
     }
+
+    $cookie_locale = ll_tools_get_locale_cookie_preference();
+    if ($cookie_locale !== '') {
+        return $cookie_locale;
+    }
+
     return $locale;
 }
 add_filter('locale', 'll_tools_filter_locale');

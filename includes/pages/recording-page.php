@@ -155,24 +155,35 @@ function ll_get_recording_redirect_url($user_id = 0) {
     if ($user_id) {
         $custom_redirect = get_user_meta($user_id, 'll_recording_page_url', true);
         if (!empty($custom_redirect)) {
-            return $custom_redirect;
+            return function_exists('ll_tools_append_preferred_locale_to_url')
+                ? ll_tools_append_preferred_locale_to_url($custom_redirect, (int) $user_id)
+                : $custom_redirect;
         }
     }
 
     // Default: use the stored recording page
     $recording_page_id = get_option('ll_default_recording_page_id');
     if ($recording_page_id && get_post_status($recording_page_id) === 'publish') {
-        return get_permalink($recording_page_id);
+        $url = get_permalink($recording_page_id);
+        return function_exists('ll_tools_append_preferred_locale_to_url')
+            ? ll_tools_append_preferred_locale_to_url($url, (int) $user_id)
+            : $url;
     }
 
     // Fallback: try to find any page with the shortcode
     $recording_page = ll_find_recording_page();
     if ($recording_page) {
-        return get_permalink($recording_page);
+        $url = get_permalink($recording_page);
+        return function_exists('ll_tools_append_preferred_locale_to_url')
+            ? ll_tools_append_preferred_locale_to_url($url, (int) $user_id)
+            : $url;
     }
 
     // Final fallback to home page
-    return home_url();
+    $url = home_url();
+    return function_exists('ll_tools_append_preferred_locale_to_url')
+        ? ll_tools_append_preferred_locale_to_url($url, (int) $user_id)
+        : $url;
 }
 
 /**

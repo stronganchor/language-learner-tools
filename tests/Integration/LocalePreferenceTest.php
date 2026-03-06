@@ -1,0 +1,59 @@
+<?php
+declare(strict_types=1);
+
+final class LocalePreferenceTest extends LL_Tools_TestCase
+{
+    protected function tearDown(): void
+    {
+        unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_REQUEST['ll_locale'], $_GET['ll_locale']);
+        parent::tearDown();
+    }
+
+    public function test_filter_locale_prefers_logged_in_user_locale_over_conflicting_cookie(): void
+    {
+        $user_id = self::factory()->user->create();
+        update_user_meta($user_id, 'locale', 'tr_TR');
+        wp_set_current_user($user_id);
+        $_COOKIE[LL_TOOLS_I18N_COOKIE] = 'en_US';
+
+        $this->assertSame('tr_TR', ll_tools_filter_locale('en_US'));
+    }
+
+    public function test_persist_locale_preference_updates_current_user_locale_and_cookie(): void
+    {
+        $user_id = self::factory()->user->create();
+        wp_set_current_user($user_id);
+
+        $this->assertTrue(ll_tools_persist_locale_preference('tr_TR'));
+        $this->assertSame('tr_TR', (string) get_user_meta($user_id, 'locale', true));
+        $this->assertSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
+    public function test_append_preferred_locale_to_url_uses_saved_user_locale(): void
+    {
+        $user_id = self::factory()->user->create();
+        update_user_meta($user_id, 'locale', 'tr_TR');
+
+        $url = home_url('/record-audio/');
+
+        $this->assertSame(
+            add_query_arg('ll_locale', 'tr_TR', $url),
+            ll_tools_append_preferred_locale_to_url($url, $user_id)
+        );
+    }
+
+    public function test_recorder_ajax_locale_preference_prefers_explicit_request_then_user_locale(): void
+    {
+        $user_id = self::factory()->user->create();
+        update_user_meta($user_id, 'locale', 'tr_TR');
+        wp_set_current_user($user_id);
+        $_COOKIE[LL_TOOLS_I18N_COOKIE] = 'en_US';
+
+        $this->assertSame('tr_TR', ll_tools_get_recorder_ajax_locale_preference());
+
+        $_REQUEST['ll_locale'] = 'en_US';
+        $_GET['ll_locale'] = 'en_US';
+
+        $this->assertSame('en_US', ll_tools_get_recorder_ajax_locale_preference());
+    }
+}

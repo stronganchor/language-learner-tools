@@ -64,6 +64,42 @@ function ll_get_recording_type_name($slug, $term_name = '') {
 }
 
 /**
+ * Resolve the effective recorder locale for the current request.
+ */
+function ll_tools_get_recorder_ajax_locale_preference(): string {
+    if (function_exists('ll_tools_get_requested_switcher_locale')) {
+        $requested = ll_tools_get_requested_switcher_locale(false);
+        if ($requested !== '') {
+            return $requested;
+        }
+    }
+
+    if (function_exists('ll_tools_get_logged_in_user_locale_preference')) {
+        $user_locale = ll_tools_get_logged_in_user_locale_preference();
+        if ($user_locale !== '') {
+            return $user_locale;
+        }
+    }
+
+    if (function_exists('ll_tools_get_locale_cookie_preference')) {
+        $cookie_locale = ll_tools_get_locale_cookie_preference();
+        if ($cookie_locale !== '') {
+            return $cookie_locale;
+        }
+    } elseif (defined('LL_TOOLS_I18N_COOKIE') && !empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
+        $requested = sanitize_text_field(wp_unslash((string) $_COOKIE[LL_TOOLS_I18N_COOKIE]));
+        $is_valid = function_exists('ll_tools_is_valid_switcher_locale')
+            ? ll_tools_is_valid_switcher_locale($requested)
+            : (bool) preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/', $requested);
+        if ($is_valid) {
+            return $requested;
+        }
+    }
+
+    return '';
+}
+
+/**
  * Apply recorder-request locale for front-end AJAX calls when provided.
  */
 function ll_tools_recorder_apply_ajax_locale(): void {
@@ -71,22 +107,8 @@ function ll_tools_recorder_apply_ajax_locale(): void {
         return;
     }
 
-    $requested = '';
-    if (isset($_REQUEST['ll_locale'])) {
-        $requested = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale']));
-    } elseif (defined('LL_TOOLS_I18N_COOKIE') && !empty($_COOKIE[LL_TOOLS_I18N_COOKIE])) {
-        $requested = sanitize_text_field(wp_unslash((string) $_COOKIE[LL_TOOLS_I18N_COOKIE]));
-    }
-
+    $requested = ll_tools_get_recorder_ajax_locale_preference();
     if ($requested === '') {
-        return;
-    }
-
-    $is_valid = function_exists('ll_tools_is_valid_switcher_locale')
-        ? ll_tools_is_valid_switcher_locale($requested)
-        : (bool) preg_match('/^[a-z]{2,3}(?:_[A-Z]{2})?$/', $requested);
-
-    if (!$is_valid) {
         return;
     }
 
@@ -1743,6 +1765,7 @@ function ll_get_images_for_recording_handler() {
 add_action('wp_ajax_ll_hide_recording_word', 'll_hide_recording_word_handler');
 function ll_hide_recording_word_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -1797,6 +1820,7 @@ function ll_hide_recording_word_handler() {
 add_action('wp_ajax_ll_unhide_recording_word', 'll_unhide_recording_word_handler');
 function ll_unhide_recording_word_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -2284,6 +2308,7 @@ function ll_tools_should_store_word_in_title($word_id) {
 add_action('wp_ajax_ll_update_new_word_text', 'll_update_new_word_text_handler');
 function ll_update_new_word_text_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -2537,6 +2562,7 @@ function ll_tools_prepare_transcription_response_data($raw_transcript, $posted_i
 add_action('wp_ajax_ll_transcribe_recording', 'll_transcribe_recording_handler');
 function ll_transcribe_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -2600,6 +2626,7 @@ function ll_transcribe_recording_handler() {
 add_action('wp_ajax_ll_transcribe_recording_status', 'll_transcribe_recording_status_handler');
 function ll_transcribe_recording_status_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -2658,6 +2685,7 @@ function ll_transcribe_recording_status_handler() {
 add_action('wp_ajax_ll_translate_recording_text', 'll_translate_recording_text_handler');
 function ll_translate_recording_text_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
@@ -2704,6 +2732,7 @@ add_action('wp_ajax_ll_verify_recording', 'll_verify_recording_handler');
 
 function ll_verify_recording_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in to verify recordings.', 'll-tools-text-domain'));
@@ -3689,6 +3718,7 @@ add_action('wp_ajax_ll_skip_recording_type', 'll_skip_recording_type_handler');
 
 function ll_skip_recording_type_handler() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in to skip recordings.', 'll-tools-text-domain'));
@@ -4313,6 +4343,7 @@ add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
 
 function ll_handle_recording_upload() {
     check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
         wp_send_json_error(__('You must be logged in to upload recordings', 'll-tools-text-domain'));
