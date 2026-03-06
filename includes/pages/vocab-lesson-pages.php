@@ -909,11 +909,18 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
     add_action('wp_footer', 'll_qpg_print_flashcard_shell_once', 5);
 }
 
+function ll_tools_vocab_lesson_should_preload_flashcards(): bool {
+    return (bool) apply_filters('ll_tools_vocab_lesson_preload_flashcards', false);
+}
+
 function ll_tools_vocab_lesson_enqueue_assets() {
     if (!is_singular('ll_vocab_lesson')) {
         return;
     }
-    ll_tools_vocab_lesson_bootstrap_flashcards();
+    ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
+    if (ll_tools_vocab_lesson_should_preload_flashcards()) {
+        ll_tools_vocab_lesson_bootstrap_flashcards();
+    }
     ll_enqueue_asset_by_timestamp('/css/vocab-lesson-pages.css', 'll-vocab-lesson-pages-css', ['ll-tools-flashcard-style']);
 }
 add_action('wp_enqueue_scripts', 'll_tools_vocab_lesson_enqueue_assets');

@@ -200,6 +200,41 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertSame([1, 2], array_slice($recording_counts, 0, 2));
     }
 
+    public function test_bulk_deepest_filter_keeps_only_words_where_the_requested_category_is_deepest(): void
+    {
+        $parent = wp_insert_term('Deepest Parent', 'word-category', ['slug' => 'deepest-parent']);
+        $this->assertIsArray($parent);
+        $parent_id = (int) $parent['term_id'];
+
+        $child = wp_insert_term('Deepest Child', 'word-category', [
+            'slug' => 'deepest-child',
+            'parent' => $parent_id,
+        ]);
+        $this->assertIsArray($child);
+        $child_id = (int) $child['term_id'];
+
+        $parent_only_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Parent Only',
+        ]);
+        wp_set_post_terms($parent_only_word_id, [$parent_id], 'word-category', false);
+
+        $child_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Child Word',
+        ]);
+        wp_set_post_terms($child_word_id, [$parent_id, $child_id], 'word-category', false);
+
+        $filtered_ids = ll_tools_word_grid_filter_word_ids_to_deepest_category(
+            [$parent_only_word_id, $child_word_id],
+            $child_id
+        );
+
+        $this->assertSame([$child_word_id], array_values($filtered_ids));
+    }
+
     private function createImageAttachment(string $filename): int
     {
         $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
