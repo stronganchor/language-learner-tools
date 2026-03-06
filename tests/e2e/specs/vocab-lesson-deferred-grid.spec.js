@@ -7,6 +7,10 @@ const wordGridScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/word-grid.js'),
   'utf8'
 );
+const vocabLessonCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
+  'utf8'
+);
 const vocabLessonScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/vocab-lesson-page.js'),
   'utf8'
@@ -103,4 +107,17 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
   await expect(page.locator('.word-item[data-word-id="11"]')).toHaveCount(1);
   await expect(page.locator('.ll-vocab-lesson-skeleton-card')).toHaveCount(0);
   await expect(page.locator('[data-ll-vocab-lesson-grid-feedback]')).toHaveAttribute('hidden', 'hidden');
+});
+
+test('hidden lesson feedback stays invisible when theme overrides hidden styling', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addStyleTag({ content: '[hidden] { display: block !important; }' });
+  await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.setContent(buildDeferredLessonMarkup());
+
+  const feedback = page.locator('[data-ll-vocab-lesson-grid-feedback]');
+
+  await expect(feedback).toHaveJSProperty('hidden', true);
+  await expect(feedback).toBeHidden();
+  expect(await feedback.evaluate((node) => window.getComputedStyle(node).display)).toBe('none');
 });

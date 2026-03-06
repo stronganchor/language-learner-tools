@@ -726,6 +726,10 @@
     box-shadow: 0 10px 20px rgba(46, 42, 36, 0.08);
 }
 
+.ll-vocab-lesson-grid-feedback[hidden] {
+    display: none !important;
+}
+
 .ll-vocab-lesson-grid-feedback__text {
     margin: 0;
     color: #991b1b;
