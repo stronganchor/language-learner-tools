@@ -516,6 +516,72 @@ test('level-one intro sequence plays three clips when only one recording is avai
   expect(introStats.introCalls).toBe(3);
 });
 
+test('level-one intro clears compact gender-option layout state before rendering intro cards', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+        <div id="ll-tools-flashcard"></div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 690,
+    categoryWords: {
+      CatA: [makeNounWord(6901, 'CatA', 'feminine')]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [6901],
+      launch_source: 'direct',
+      force_intro: true,
+      reason_code: 'test_intro_clears_compact_layout_state'
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const contentEl = document.getElementById('ll-tools-flashcard-content');
+    const containerEl = document.getElementById('ll-tools-flashcard');
+    Gender.initialize();
+
+    contentEl.classList.add('ll-gender-options-mode', 'll-gender-layout-compact');
+    containerEl.classList.add('ll-gender-options-layout');
+    contentEl.style.setProperty('--ll-gender-layout-scale', '0.68');
+    contentEl.style.setProperty('--ll-gender-safe-bottom', '42px');
+    containerEl.style.setProperty('--ll-gender-layout-scale', '0.68');
+
+    const intro = Gender.selectTargetWord();
+    Gender.handlePostSelection(intro, { startQuizRound: function () {} });
+
+    return {
+      hasOptionsMode: contentEl.classList.contains('ll-gender-options-mode'),
+      hasCompactMode: contentEl.classList.contains('ll-gender-layout-compact'),
+      hasOptionsLayout: containerEl.classList.contains('ll-gender-options-layout'),
+      contentLayoutScale: contentEl.style.getPropertyValue('--ll-gender-layout-scale'),
+      contentSafeBottom: contentEl.style.getPropertyValue('--ll-gender-safe-bottom'),
+      containerLayoutScale: containerEl.style.getPropertyValue('--ll-gender-layout-scale'),
+      introCardCount: containerEl.querySelectorAll('.ll-gender-intro-card').length
+    };
+  });
+
+  expect(result.hasOptionsMode).toBe(false);
+  expect(result.hasCompactMode).toBe(false);
+  expect(result.hasOptionsLayout).toBe(false);
+  expect(result.contentLayoutScale).toBe('');
+  expect(result.contentSafeBottom).toBe('');
+  expect(result.containerLayoutScale).toBe('');
+  expect(result.introCardCount).toBe(1);
+});
+
 test('level-one requires three correct answers before a word is marked complete', async ({ page }) => {
   await openHarnessPage(page);
   await page.setContent(`
