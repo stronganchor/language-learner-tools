@@ -661,14 +661,16 @@
 
 .ll-vocab-lesson-skeleton-card {
     display: grid;
-    gap: 12px;
+    justify-items: center;
+    align-content: start;
+    gap: 14px;
     pointer-events: none;
+    text-align: center;
 }
 
 .ll-vocab-lesson-skeleton-media,
-.ll-vocab-lesson-skeleton-line,
-.ll-vocab-lesson-skeleton-pill,
-.ll-vocab-lesson-skeleton-dot {
+.ll-vocab-lesson-skeleton-title,
+.ll-vocab-lesson-skeleton-recording-button {
     position: relative;
     overflow: hidden;
     background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
@@ -680,57 +682,36 @@
     display: block;
     width: min(100%, 200px);
     max-width: 200px;
-    aspect-ratio: var(--ll-word-grid-shell-image-aspect, 1 / 1);
+    aspect-ratio: var(--ll-word-grid-shell-card-image-aspect, var(--ll-word-grid-shell-image-aspect, 1 / 1));
     justify-self: center;
     margin: 0 auto 18px;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-.ll-vocab-lesson-skeleton-line {
-    height: 14px;
+.ll-vocab-lesson-skeleton-title {
+    width: var(--ll-word-grid-shell-card-title-width, 68%);
+    max-width: calc(100% - 24px);
+    height: 28px;
     border-radius: 999px;
-}
-
-.ll-vocab-lesson-skeleton-line--title {
-    width: 72%;
-    height: 18px;
-}
-
-.ll-vocab-lesson-skeleton-line--subtitle {
-    width: 48%;
-}
-
-.ll-vocab-lesson-skeleton-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.ll-vocab-lesson-skeleton-pill {
-    width: 82px;
-    height: 26px;
-    border-radius: 999px;
-}
-
-.ll-vocab-lesson-skeleton-pill--short {
-    width: 60px;
-}
-
-.ll-vocab-lesson-skeleton-pill--tiny {
-    width: 44px;
 }
 
 .ll-vocab-lesson-skeleton-recordings {
     display: flex;
-    gap: 10px;
     align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
 }
 
-.ll-vocab-lesson-skeleton-dot {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
+.ll-vocab-lesson-skeleton-recording-button {
+    width: 74px;
+    min-width: 74px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    box-sizing: border-box;
 }
 
 .ll-vocab-lesson-grid-feedback {

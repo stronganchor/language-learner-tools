@@ -601,23 +601,56 @@ if (have_posts()) {
                         <?php echo esc_html__('Loading lesson words...', 'll-tools-text-domain'); ?>
                     </div>
                     <div <?php echo $render_html_attributes((array) ($grid_shell_spec['attributes'] ?? [])); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-                        <?php for ($skeleton_index = 0; $skeleton_index < 6; $skeleton_index++) : ?>
-                            <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true">
-                                <div class="ll-vocab-lesson-skeleton-media"></div>
-                                <div class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--title"></div>
-                                <div class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--subtitle"></div>
-                                <div class="ll-vocab-lesson-skeleton-meta">
-                                    <span class="ll-vocab-lesson-skeleton-pill"></span>
-                                    <span class="ll-vocab-lesson-skeleton-pill ll-vocab-lesson-skeleton-pill--short"></span>
-                                    <span class="ll-vocab-lesson-skeleton-pill ll-vocab-lesson-skeleton-pill--tiny"></span>
-                                </div>
-                                <div class="ll-vocab-lesson-skeleton-recordings">
-                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
-                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
-                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
-                                </div>
+                        <?php
+                        $shell_cards = isset($grid_shell_spec['cards']) && is_array($grid_shell_spec['cards'])
+                            ? array_values($grid_shell_spec['cards'])
+                            : [];
+                        $show_shell_media = !isset($grid_shell_spec['show_media']) || !empty($grid_shell_spec['show_media']);
+                        $show_shell_title = !isset($grid_shell_spec['show_title']) || !empty($grid_shell_spec['show_title']);
+                        if (empty($shell_cards)) {
+                            $shell_cards = array_fill(0, 6, [
+                                'media_aspect_ratio' => '',
+                                'title_width' => '68%',
+                                'recording_count' => 3,
+                            ]);
+                        }
+                        ?>
+                        <?php foreach ($shell_cards as $shell_card) : ?>
+                            <?php
+                            $card_attributes = [
+                                'class' => 'word-item ll-vocab-lesson-skeleton-card',
+                                'aria-hidden' => 'true',
+                            ];
+                            $card_style_parts = [];
+                            $card_ratio = trim((string) ($shell_card['media_aspect_ratio'] ?? ''));
+                            if ($card_ratio !== '') {
+                                $card_style_parts[] = '--ll-word-grid-shell-card-image-aspect:' . $card_ratio;
+                            }
+                            $card_title_width = trim((string) ($shell_card['title_width'] ?? ''));
+                            if ($card_title_width !== '') {
+                                $card_style_parts[] = '--ll-word-grid-shell-card-title-width:' . $card_title_width;
+                            }
+                            if (!empty($card_style_parts)) {
+                                $card_attributes['style'] = implode(';', $card_style_parts) . ';';
+                            }
+                            $recording_count = max(0, (int) ($shell_card['recording_count'] ?? 3));
+                            ?>
+                            <article <?php echo $render_html_attributes($card_attributes); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                                <?php if ($show_shell_media) : ?>
+                                    <div class="ll-vocab-lesson-skeleton-media"></div>
+                                <?php endif; ?>
+                                <?php if ($show_shell_title) : ?>
+                                    <div class="ll-vocab-lesson-skeleton-title"></div>
+                                <?php endif; ?>
+                                <?php if ($recording_count > 0) : ?>
+                                    <div class="ll-vocab-lesson-skeleton-recordings">
+                                        <?php for ($recording_index = 0; $recording_index < $recording_count; $recording_index++) : ?>
+                                            <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                                        <?php endfor; ?>
+                                    </div>
+                                <?php endif; ?>
                             </article>
-                        <?php endfor; ?>
+                        <?php endforeach; ?>
                     </div>
                     <div class="ll-vocab-lesson-grid-feedback" data-ll-vocab-lesson-grid-feedback hidden></div>
                 </div>

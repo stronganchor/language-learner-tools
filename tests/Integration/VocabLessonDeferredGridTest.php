@@ -161,6 +161,45 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('--ll-word-grid-shell-image-aspect:4 / 3;', $style);
     }
 
+    public function test_shell_spec_cards_follow_visible_recording_button_counts(): void
+    {
+        $wordset = wp_insert_term('Shell Card Count Wordset', 'wordset', ['slug' => 'shell-card-count-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Shell Card Count Category', 'word-category', ['slug' => 'shell-card-count-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+
+        $this->createRecordingType('question', 'Question');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $first_word_id = $this->createWordWithThumbnail('Shell Card One', $category_id, $wordset_id, 'shell-card-one.png');
+        $second_word_id = $this->createWordWithThumbnail('Shell Card Two', $category_id, $wordset_id, 'shell-card-two.png');
+
+        $this->createAudioRecording($first_word_id, 'question', 'shell-card-one-question.mp3');
+        $this->createAudioRecording($second_word_id, 'question', 'shell-card-two-question.mp3');
+        $this->createAudioRecording($second_word_id, 'isolation', 'shell-card-two-isolation.mp3');
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'shell-card-count-category',
+            'wordset' => 'shell-card-count-wordset',
+            'deepest_only' => true,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+        $cards = isset($spec['cards']) && is_array($spec['cards']) ? array_values($spec['cards']) : [];
+
+        $this->assertCount(2, $cards);
+        $recording_counts = array_map(static function (array $card): int {
+            return (int) ($card['recording_count'] ?? 0);
+        }, $cards);
+        sort($recording_counts);
+        $this->assertSame([1, 2], $recording_counts);
+    }
+
     private function createImageAttachment(string $filename): int
     {
         $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
@@ -194,5 +233,51 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function createWordWithThumbnail(string $title, int $category_id, int $wordset_id, string $image_filename): int
+    {
+        $attachment_id = $this->createImageAttachment($image_filename);
+        wp_update_attachment_metadata($attachment_id, [
+            'width' => 300,
+            'height' => 300,
+            'file' => (string) get_post_meta($attachment_id, '_wp_attached_file', true),
+        ]);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        set_post_thumbnail($word_id, $attachment_id);
+
+        return (int) $word_id;
+    }
+
+    private function createAudioRecording(int $word_id, string $recording_type, string $audio_file_name): int
+    {
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $recording_type . ' ' . $word_id,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
+        wp_set_post_terms($audio_post_id, [$recording_type], 'recording_type', false);
+
+        return (int) $audio_post_id;
+    }
+
+    private function createRecordingType(string $slug, string $label): void
+    {
+        $existing_term = get_term_by('slug', $slug, 'recording_type');
+        if ($existing_term && !is_wp_error($existing_term)) {
+            return;
+        }
+
+        $result = wp_insert_term($label, 'recording_type', ['slug' => $slug]);
+        $this->assertIsArray($result);
     }
 }
