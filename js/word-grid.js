@@ -581,6 +581,21 @@
     updateGridLayouts();
     $(window).on('resize.llWordTitleWrap', scheduleTitleWrapUpdate);
 
+    $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const $scope = info.scope && info.scope.jquery
+            ? info.scope
+            : $(info.scope || []);
+        if ($scope.length) {
+            $scope.each(function () {
+                if (this && this.nodeType === 1) {
+                    scanWordGridImages(this);
+                }
+            });
+        }
+        updateGridLayouts();
+    });
+
     if (!isLoggedIn) { return; }
 
     let starredIds = normalizeIds(state.starred_word_ids);
@@ -590,6 +605,7 @@
     const $starModeButtons = $('.ll-vocab-lesson-star-mode');
     const $lessonSettings = $('.ll-vocab-lesson-settings');
     const $bulkEditors = $('[data-ll-word-grid-bulk]');
+    let initRenderedGridItems = null;
 
     function getStudySettings() {
         return (window.LLFlashcards && window.LLFlashcards.StudySettings)
@@ -756,6 +772,18 @@
             $btn.prop('disabled', shouldDisable).attr('aria-disabled', shouldDisable ? 'true' : 'false');
         });
     }
+
+    $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const $scope = info.scope && info.scope.jquery
+            ? info.scope
+            : $(info.scope || []);
+        if (typeof initRenderedGridItems === 'function' && $scope.length) {
+            initRenderedGridItems($scope);
+        }
+        updateAllStarToggles();
+        updateStarModeButtons();
+    });
 
     function applyStarModeSelection(mode) {
         const normalized = normalizeStarMode(mode);
@@ -1636,6 +1664,21 @@
         });
         syncDictionaryEntrySelectionState($item);
     }
+
+    initRenderedGridItems = function ($scope) {
+        const $root = ($scope && $scope.jquery) ? $scope : $($scope || []);
+        if (!$root.length) { return; }
+
+        $root.find('.word-item').each(function () {
+            const $item = $(this);
+            cacheOriginalInputs($item);
+            setMetaFieldState($item);
+        });
+        $root.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
+            initDictionaryEntryAutocomplete($(this));
+        });
+        syncEditModalBodyLock();
+    };
 
     function collectRecordingInputs($item) {
         const recordings = [];

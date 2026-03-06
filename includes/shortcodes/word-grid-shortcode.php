@@ -1718,23 +1718,15 @@ function ll_tools_user_can_edit_vocab_words(int $wordset_id = 0): bool {
     return false;
 }
 
-/**
- * The callback function for the 'word_grid' shortcode.
- *
- * @param array $atts Shortcode attributes.
- * @return string HTML content to display the grid.
- */
-function ll_tools_word_grid_shortcode($atts) {
-    // Shortcode attributes with defaults
-    $atts = shortcode_atts(array(
-        'category' => '', // Default category to empty
-        'wordset'  => '', // Optional wordset filter
-        'deepest_only' => '', // When truthy, restrict to lowest-level categories.
-    ), $atts);
+function ll_tools_word_grid_resolve_context($atts): array {
+    $atts = shortcode_atts([
+        'category' => '',
+        'wordset'  => '',
+        'deepest_only' => '',
+    ], (array) $atts);
 
-    // Sanitize the category attribute
-    $sanitized_category = sanitize_text_field($atts['category']);
-    $sanitized_wordset = sanitize_text_field($atts['wordset']);
+    $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
+    $sanitized_wordset = sanitize_text_field((string) ($atts['wordset'] ?? ''));
     $deepest_only = false;
     if (!empty($atts['deepest_only'])) {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
@@ -1768,9 +1760,11 @@ function ll_tools_word_grid_shortcode($atts) {
             $wordset_term = null;
         }
     }
+
     if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_should_hide_lesson_grid_text')) {
         $hide_lesson_grid_text = ll_tools_should_hide_lesson_grid_text($category_term, $wordset_id);
     }
+
     $wordset_has_gender = false;
     if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
         $wordset_has_gender = ll_tools_wordset_has_grammatical_gender($wordset_id);
@@ -1787,13 +1781,12 @@ function ll_tools_word_grid_shortcode($atts) {
     if ($wordset_id > 0 && function_exists('ll_tools_wordset_has_verb_mood')) {
         $wordset_has_verb_mood = ll_tools_wordset_has_verb_mood($wordset_id);
     }
-    if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
-        ll_tools_enqueue_jquery_ui_autocomplete_assets();
-    }
-    ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', ['jquery', 'jquery-ui-autocomplete'], true);
 
     $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id)
-        && is_singular('ll_vocab_lesson');
+        && (
+            is_singular('ll_vocab_lesson')
+            || (!empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) && wp_doing_ajax())
+        );
 
     $user_study_state = [
         'wordset_id'       => 0,
@@ -1805,6 +1798,257 @@ function ll_tools_word_grid_shortcode($atts) {
     if (is_user_logged_in() && function_exists('ll_tools_get_user_study_state')) {
         $user_study_state = ll_tools_get_user_study_state();
     }
+
+    return [
+        'atts'                         => $atts,
+        'sanitized_category'           => $sanitized_category,
+        'sanitized_wordset'            => $sanitized_wordset,
+        'deepest_only'                 => $deepest_only,
+        'category_term'                => $category_term,
+        'wordset_term'                 => $wordset_term,
+        'wordset_id'                   => $wordset_id,
+        'is_text_based'                => $is_text_based,
+        'has_text_only_answer_options' => $has_text_only_answer_options,
+        'hide_lesson_grid_text'        => $hide_lesson_grid_text,
+        'wordset_has_gender'           => $wordset_has_gender,
+        'wordset_has_plurality'        => $wordset_has_plurality,
+        'wordset_has_verb_tense'       => $wordset_has_verb_tense,
+        'wordset_has_verb_mood'        => $wordset_has_verb_mood,
+        'can_edit_words'               => $can_edit_words,
+        'user_study_state'             => $user_study_state,
+    ];
+}
+
+function ll_tools_word_grid_build_base_frontend_config(array $context): array {
+    $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    $can_edit_words = !empty($context['can_edit_words']);
+    $user_study_state = isset($context['user_study_state']) && is_array($context['user_study_state'])
+        ? $context['user_study_state']
+        : [
+            'wordset_id'       => 0,
+            'category_ids'     => [],
+            'starred_word_ids' => [],
+            'star_mode'        => 'normal',
+            'fast_transitions' => false,
+        ];
+
+    $ipa_special_chars = [];
+    $ipa_letter_map = [];
+    if ($can_edit_words && $wordset_id > 0) {
+        $ipa_special_chars = function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
+            ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
+            : [];
+        if (!empty($ipa_special_chars)) {
+            $normalized_chars = [];
+            foreach ((array) $ipa_special_chars as $char) {
+                $normalized = ll_tools_word_grid_normalize_ipa_output((string) $char);
+                if ($normalized === '' || in_array($normalized, $normalized_chars, true)) {
+                    continue;
+                }
+                $normalized_chars[] = $normalized;
+            }
+            $ipa_special_chars = $normalized_chars;
+        }
+
+        $letter_maps = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_maps')
+            ? ll_tools_word_grid_get_wordset_ipa_letter_maps($wordset_id)
+            : [];
+        $blocklist = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_blocklist')
+            ? ll_tools_word_grid_get_wordset_ipa_letter_blocklist($wordset_id)
+            : [];
+        if (!empty($letter_maps['auto']) || !empty($letter_maps['manual'])) {
+            $ipa_letter_map = ll_tools_word_grid_prepare_ipa_letter_suggestions(
+                (array) ($letter_maps['auto'] ?? []),
+                (array) ($letter_maps['manual'] ?? []),
+                6,
+                (array) $blocklist
+            );
+        }
+    }
+
+    return [
+        'ajaxUrl'    => admin_url('admin-ajax.php'),
+        'nonce'      => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
+        'isLoggedIn' => is_user_logged_in(),
+        'canEdit'    => $can_edit_words,
+        'editNonce'  => $can_edit_words ? wp_create_nonce('ll_word_grid_edit') : '',
+        'supportsIpaExtended' => ll_tools_word_grid_supports_ipa_extended(),
+        'state'      => $user_study_state,
+        'i18n'       => [
+            'starLabel'      => __('Star word', 'll-tools-text-domain'),
+            'unstarLabel'    => __('Unstar word', 'll-tools-text-domain'),
+            'starAllLabel'   => __('Star all', 'll-tools-text-domain'),
+            'unstarAllLabel' => __('Unstar all', 'll-tools-text-domain'),
+        ],
+        'editI18n'   => [
+            'saving' => __('Saving...', 'll-tools-text-domain'),
+            'savingBackground' => __('Saving in background...', 'll-tools-text-domain'),
+            'saved'  => __('Saved.', 'll-tools-text-domain'),
+            'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
+            'ipaCommon' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'ipaWordset' => __('Wordset IPA symbols', 'll-tools-text-domain'),
+        ],
+        'bulkI18n' => [
+            'saving' => __('Updating...', 'll-tools-text-domain'),
+            'posSuccess' => __('Updated %d words.', 'll-tools-text-domain'),
+            'genderSuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
+            'pluralitySuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
+            'verbTenseSuccess' => __('Updated %d verbs.', 'll-tools-text-domain'),
+            'verbMoodSuccess' => __('Updated %d verbs.', 'll-tools-text-domain'),
+            'posMissing' => __('Choose a part of speech.', 'll-tools-text-domain'),
+            'genderMissing' => __('Choose a gender.', 'll-tools-text-domain'),
+            'pluralityMissing' => __('Choose a plurality option.', 'll-tools-text-domain'),
+            'verbTenseMissing' => __('Choose a verb tense option.', 'll-tools-text-domain'),
+            'verbMoodMissing' => __('Choose a verb mood option.', 'll-tools-text-domain'),
+            'error' => __('Unable to update words.', 'll-tools-text-domain'),
+        ],
+        'prereqI18n' => [
+            'saving' => __('Saving prerequisites...', 'll-tools-text-domain'),
+            'saved' => __('Prerequisites saved.', 'll-tools-text-domain'),
+            'error' => __('Unable to save prerequisites.', 'll-tools-text-domain'),
+            'empty' => __('No prerequisites selected.', 'll-tools-text-domain'),
+            'remove' => __('Remove %s', 'll-tools-text-domain'),
+            'levelCycle' => __('Cycle', 'll-tools-text-domain'),
+            'levelUnknown' => __('—', 'll-tools-text-domain'),
+        ],
+        'transcribeI18n' => [
+            'confirm'        => __('Transcribe missing recordings for this lesson?', 'll-tools-text-domain'),
+            'confirmReplace' => __('Replace captions for this lesson?', 'll-tools-text-domain'),
+            'confirmClear'   => __('Clear captions for this lesson?', 'll-tools-text-domain'),
+            'working'        => __('Transcribing...', 'll-tools-text-domain'),
+            'progress'       => __('Transcribing %1$d of %2$d...', 'll-tools-text-domain'),
+            'done'           => __('Transcription complete.', 'll-tools-text-domain'),
+            'none'           => __('No recordings need text.', 'll-tools-text-domain'),
+            'clearing'       => __('Clearing captions...', 'll-tools-text-domain'),
+            'cleared'        => __('Captions cleared.', 'll-tools-text-domain'),
+            'cancelled'      => __('Transcription cancelled.', 'll-tools-text-domain'),
+            'error'          => __('Unable to transcribe recordings.', 'll-tools-text-domain'),
+        ],
+        'transcribePollAttempts' => (int) apply_filters('ll_tools_word_grid_transcribe_poll_attempts', 20),
+        'transcribePollIntervalMs' => (int) apply_filters('ll_tools_word_grid_transcribe_poll_interval_ms', 1200),
+        'ipaSpecialChars' => $ipa_special_chars,
+        'ipaLetterMap' => $ipa_letter_map,
+    ];
+}
+
+function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, array $overrides = []): array {
+    $can_edit_words = !empty($context['can_edit_words']);
+    if ($can_edit_words && function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
+        ll_tools_enqueue_jquery_ui_autocomplete_assets();
+    }
+
+    $deps = ['jquery'];
+    if ($can_edit_words) {
+        $deps[] = 'jquery-ui-autocomplete';
+    }
+    ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', $deps, true);
+
+    $config = array_replace_recursive(ll_tools_word_grid_build_base_frontend_config($context), $overrides);
+    wp_localize_script('ll-tools-word-grid', 'llToolsWordGridData', $config);
+
+    return $config;
+}
+
+function ll_tools_word_grid_get_shell_spec(array $context): array {
+    $grid_classes = 'word-grid ll-word-grid';
+    if (!empty($context['is_text_based'])) {
+        $grid_classes .= ' ll-word-grid--text';
+    }
+    if (!empty($context['hide_lesson_grid_text'])) {
+        $grid_classes .= ' ll-word-grid--hide-text';
+    }
+
+    $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    $category_term = $context['category_term'] ?? null;
+
+    $word_grid_style_parts = [];
+    if ($wordset_id > 0 && function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
+        $answer_option_style = ll_tools_wordset_get_answer_option_text_style_config($wordset_id);
+        $answer_option_font_family = isset($answer_option_style['fontFamily']) ? trim((string) $answer_option_style['fontFamily']) : '';
+        $answer_option_font_weight = function_exists('ll_tools_wordset_normalize_answer_option_font_weight')
+            ? ll_tools_wordset_normalize_answer_option_font_weight((string) ($answer_option_style['fontWeight'] ?? '700'))
+            : trim((string) ($answer_option_style['fontWeight'] ?? '700'));
+        if ($answer_option_font_weight !== '') {
+            $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-weight:' . $answer_option_font_weight;
+        }
+        if ($answer_option_font_family !== '') {
+            $grid_classes .= ' ll-word-grid--answer-option-font-custom';
+            $word_grid_style_parts[] = '--ll-word-grid-answer-option-font-family:' . $answer_option_font_family;
+        }
+        $line_height = isset($answer_option_style['lineHeight']) ? (float) $answer_option_style['lineHeight'] : 0.0;
+        if ($line_height > 0) {
+            $word_grid_style_parts[] = '--ll-word-grid-answer-option-line-height:' . rtrim(rtrim(number_format($line_height, 2, '.', ''), '0'), '.');
+        }
+    }
+
+    $attributes = [
+        'id' => 'word-grid',
+        'class' => $grid_classes,
+        'data-ll-word-grid' => '',
+    ];
+    if ($wordset_id > 0) {
+        $attributes['data-ll-wordset-id'] = (string) $wordset_id;
+    }
+    if ($category_term instanceof WP_Term && !is_wp_error($category_term)) {
+        $attributes['data-ll-category-id'] = (string) ((int) $category_term->term_id);
+    }
+    if (!empty($context['wordset_has_gender'])) {
+        $attributes['data-ll-gender-enabled'] = '1';
+    }
+    if (!empty($context['wordset_has_plurality'])) {
+        $attributes['data-ll-plurality-enabled'] = '1';
+    }
+    if (!empty($context['wordset_has_verb_tense'])) {
+        $attributes['data-ll-verb-tense-enabled'] = '1';
+    }
+    if (!empty($context['wordset_has_verb_mood'])) {
+        $attributes['data-ll-verb-mood-enabled'] = '1';
+    }
+    if (!empty($word_grid_style_parts)) {
+        $attributes['style'] = implode(';', $word_grid_style_parts) . ';';
+    }
+
+    return [
+        'class' => $grid_classes,
+        'attributes' => $attributes,
+    ];
+}
+
+/**
+ * The callback function for the 'word_grid' shortcode.
+ *
+ * @param array $atts Shortcode attributes.
+ * @return string HTML content to display the grid.
+ */
+function ll_tools_word_grid_shortcode($atts) {
+    $context = ll_tools_word_grid_resolve_context($atts);
+    $atts = $context['atts'];
+    $sanitized_category = $context['sanitized_category'];
+    $sanitized_wordset = $context['sanitized_wordset'];
+    $deepest_only = !empty($context['deepest_only']);
+    $category_term = $context['category_term'];
+    $wordset_term = $context['wordset_term'];
+    $wordset_id = (int) ($context['wordset_id'] ?? 0);
+    $is_text_based = !empty($context['is_text_based']);
+    $has_text_only_answer_options = !empty($context['has_text_only_answer_options']);
+    $hide_lesson_grid_text = !empty($context['hide_lesson_grid_text']);
+    $wordset_has_gender = !empty($context['wordset_has_gender']);
+    $wordset_has_plurality = !empty($context['wordset_has_plurality']);
+    $wordset_has_verb_tense = !empty($context['wordset_has_verb_tense']);
+    $wordset_has_verb_mood = !empty($context['wordset_has_verb_mood']);
+    $can_edit_words = !empty($context['can_edit_words']);
+    $user_study_state = is_array($context['user_study_state'] ?? null)
+        ? $context['user_study_state']
+        : [
+            'wordset_id'       => 0,
+            'category_ids'     => [],
+            'starred_word_ids' => [],
+            'star_mode'        => 'normal',
+            'fast_transitions' => false,
+        ];
+
+    ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
+
     $part_of_speech_terms = [];
     if ($can_edit_words) {
         $part_of_speech_terms = get_terms([

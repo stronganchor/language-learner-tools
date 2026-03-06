@@ -651,6 +651,119 @@
     margin-top: 12px;
 }
 
+.ll-vocab-lesson-grid-shell {
+    position: relative;
+}
+
+.ll-vocab-lesson-grid-shell.is-loading [data-ll-word-grid] {
+    min-height: 320px;
+}
+
+.ll-vocab-lesson-skeleton-card {
+    display: grid;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.ll-vocab-lesson-skeleton-media,
+.ll-vocab-lesson-skeleton-line,
+.ll-vocab-lesson-skeleton-pill,
+.ll-vocab-lesson-skeleton-dot {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(230, 222, 209, 0.7) 0%, rgba(255, 255, 255, 0.96) 50%, rgba(230, 222, 209, 0.7) 100%);
+    background-size: 220% 100%;
+    animation: ll-vocab-lesson-skeleton-shimmer 1.2s linear infinite;
+}
+
+.ll-vocab-lesson-skeleton-media {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 18px;
+}
+
+.ll-vocab-lesson-skeleton-line {
+    height: 14px;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-skeleton-line--title {
+    width: 72%;
+    height: 18px;
+}
+
+.ll-vocab-lesson-skeleton-line--subtitle {
+    width: 48%;
+}
+
+.ll-vocab-lesson-skeleton-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ll-vocab-lesson-skeleton-pill {
+    width: 82px;
+    height: 26px;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-skeleton-pill--short {
+    width: 60px;
+}
+
+.ll-vocab-lesson-skeleton-pill--tiny {
+    width: 44px;
+}
+
+.ll-vocab-lesson-skeleton-recordings {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ll-vocab-lesson-skeleton-dot {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+}
+
+.ll-vocab-lesson-grid-feedback {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+    margin-top: 16px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(185, 28, 28, 0.16);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 10px 20px rgba(46, 42, 36, 0.08);
+}
+
+.ll-vocab-lesson-grid-feedback__text {
+    margin: 0;
+    color: #991b1b;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.ll-vocab-lesson-grid-feedback__retry {
+    margin: 0;
+}
+
+.ll-vocab-lesson-grid-empty {
+    display: block;
+}
+
+@keyframes ll-vocab-lesson-skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
 @media (max-width: 600px) {
     .ll-vocab-lesson-hero {
         flex-direction: column;
@@ -683,5 +796,13 @@
     .ll-vocab-lesson-mode-button,
     .ll-vocab-lesson-page .ll-study-btn {
         transition: none;
+    }
+
+    .ll-vocab-lesson-skeleton-media,
+    .ll-vocab-lesson-skeleton-line,
+    .ll-vocab-lesson-skeleton-pill,
+    .ll-vocab-lesson-skeleton-dot {
+        animation: none;
+        background-position: 50% 0;
     }
 }

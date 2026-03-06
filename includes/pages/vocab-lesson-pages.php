@@ -918,6 +918,59 @@ function ll_tools_vocab_lesson_enqueue_assets() {
 }
 add_action('wp_enqueue_scripts', 'll_tools_vocab_lesson_enqueue_assets');
 
+add_action('wp_ajax_ll_tools_get_vocab_lesson_grid', 'll_tools_get_vocab_lesson_grid_handler');
+add_action('wp_ajax_nopriv_ll_tools_get_vocab_lesson_grid', 'll_tools_get_vocab_lesson_grid_handler');
+function ll_tools_get_vocab_lesson_grid_handler() {
+    $lesson_id = isset($_POST['lesson_id'])
+        ? (int) wp_unslash((string) $_POST['lesson_id'])
+        : 0;
+    $nonce = isset($_POST['nonce'])
+        ? wp_unslash((string) $_POST['nonce'])
+        : '';
+
+    if ($lesson_id <= 0) {
+        wp_send_json_error(['message' => __('Missing lesson.', 'll-tools-text-domain')], 400);
+    }
+    if ($nonce === '' || !wp_verify_nonce($nonce, 'll_vocab_lesson_grid_' . $lesson_id)) {
+        wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 403);
+    }
+
+    $lesson = get_post($lesson_id);
+    if (!$lesson instanceof WP_Post || $lesson->post_type !== 'll_vocab_lesson' || $lesson->post_status !== 'publish') {
+        wp_send_json_error(['message' => __('Lesson not found.', 'll-tools-text-domain')], 404);
+    }
+
+    $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        wp_send_json_error(['message' => __('Lesson metadata is missing.', 'll-tools-text-domain')], 400);
+    }
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id)) {
+        wp_send_json_error(['message' => __('Lesson not found.', 'll-tools-text-domain')], 404);
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    $category = get_term($category_id, 'word-category');
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset) || !($category instanceof WP_Term) || is_wp_error($category)) {
+        wp_send_json_error(['message' => __('Lesson terms are missing.', 'll-tools-text-domain')], 400);
+    }
+
+    $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+    try {
+        $html = ll_tools_word_grid_shortcode([
+            'category' => (string) $category->slug,
+            'wordset' => (string) $wordset->slug,
+            'deepest_only' => true,
+        ]);
+    } finally {
+        unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+    }
+
+    wp_send_json_success([
+        'html' => is_string($html) ? $html : '',
+    ]);
+}
+
 function ll_tools_vocab_lesson_post_link($post_link, $post) {
     if (!$post || $post->post_type !== 'll_vocab_lesson') {
         return $post_link;

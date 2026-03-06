@@ -156,6 +156,51 @@ if (have_posts()) {
             }
         }
     }
+
+    $defer_grid = $wordset_id > 0
+        && $category_id > 0
+        && function_exists('ll_tools_word_grid_resolve_context')
+        && function_exists('ll_tools_word_grid_enqueue_frontend_assets_for_context')
+        && function_exists('ll_tools_word_grid_get_shell_spec')
+        && (bool) apply_filters('ll_tools_vocab_lesson_defer_grid', true, $post_id, $wordset_id, $category_id);
+    $grid_shell_spec = null;
+    $grid_shell_nonce = '';
+    $render_html_attributes = static function (array $attributes): string {
+        $parts = [];
+        foreach ($attributes as $name => $value) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                continue;
+            }
+            if ($value === '') {
+                $parts[] = esc_attr($name);
+                continue;
+            }
+            $parts[] = esc_attr($name) . '="' . esc_attr((string) $value) . '"';
+        }
+        return implode(' ', $parts);
+    };
+    if ($defer_grid) {
+        $grid_context = ll_tools_word_grid_resolve_context([
+            'category' => $category_slug,
+            'wordset' => $wordset_slug,
+            'deepest_only' => true,
+        ]);
+        ll_tools_word_grid_enqueue_frontend_assets_for_context($grid_context);
+        ll_enqueue_asset_by_timestamp('/js/vocab-lesson-page.js', 'll-tools-vocab-lesson-page', ['jquery', 'll-tools-word-grid'], true);
+        wp_localize_script('ll-tools-vocab-lesson-page', 'llToolsVocabLessonData', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'action' => 'll_tools_get_vocab_lesson_grid',
+            'i18n' => [
+                'loading' => __('Loading lesson words...', 'll-tools-text-domain'),
+                'loaded' => __('Lesson words loaded.', 'll-tools-text-domain'),
+                'error' => __('Unable to load this lesson right now.', 'll-tools-text-domain'),
+                'retry' => __('Retry', 'll-tools-text-domain'),
+            ],
+        ]);
+        $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
+        $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
+    }
     ?>
     <main class="ll-vocab-lesson-page" data-ll-vocab-lesson>
         <header class="ll-vocab-lesson-hero">
@@ -545,7 +590,40 @@ if (have_posts()) {
         </header>
 
         <div class="ll-vocab-lesson-content">
-            <?php the_content(); ?>
+            <?php if ($defer_grid && is_array($grid_shell_spec)) : ?>
+                <div
+                    class="ll-vocab-lesson-grid-shell is-loading"
+                    data-ll-vocab-lesson-grid-shell
+                    data-lesson-id="<?php echo esc_attr($post_id); ?>"
+                    data-nonce="<?php echo esc_attr($grid_shell_nonce); ?>"
+                    aria-busy="true">
+                    <div class="screen-reader-text" data-ll-vocab-lesson-grid-status role="status" aria-live="polite">
+                        <?php echo esc_html__('Loading lesson words...', 'll-tools-text-domain'); ?>
+                    </div>
+                    <div <?php echo $render_html_attributes((array) ($grid_shell_spec['attributes'] ?? [])); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                        <?php for ($skeleton_index = 0; $skeleton_index < 6; $skeleton_index++) : ?>
+                            <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true">
+                                <div class="ll-vocab-lesson-skeleton-media"></div>
+                                <div class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--title"></div>
+                                <div class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--subtitle"></div>
+                                <div class="ll-vocab-lesson-skeleton-meta">
+                                    <span class="ll-vocab-lesson-skeleton-pill"></span>
+                                    <span class="ll-vocab-lesson-skeleton-pill ll-vocab-lesson-skeleton-pill--short"></span>
+                                    <span class="ll-vocab-lesson-skeleton-pill ll-vocab-lesson-skeleton-pill--tiny"></span>
+                                </div>
+                                <div class="ll-vocab-lesson-skeleton-recordings">
+                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
+                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
+                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
+                                </div>
+                            </article>
+                        <?php endfor; ?>
+                    </div>
+                    <div class="ll-vocab-lesson-grid-feedback" data-ll-vocab-lesson-grid-feedback hidden></div>
+                </div>
+            <?php else : ?>
+                <?php the_content(); ?>
+            <?php endif; ?>
         </div>
     </main>
     <?php
