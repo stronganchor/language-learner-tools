@@ -1656,6 +1656,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-card__select-box {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
     width: 22px;
     height: 22px;
     border-radius: 7px;
@@ -1672,13 +1675,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-card__select input:checked + .ll-wordset-card__select-box::after {
     content: "";
     position: absolute;
-    left: 5px;
-    top: 1px;
-    width: 6px;
-    height: 11px;
-    border-right: 2px solid var(--ll-wp-accent);
-    border-bottom: 2px solid var(--ll-wp-accent);
-    transform: rotate(40deg);
+    inset: 0;
+    width: 12px;
+    height: 12px;
+    margin: auto;
+    background-color: var(--ll-wp-accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23000' d='M6.37 11.32 2.84 7.79l1.06-1.06 2.47 2.47 5.73-5.73 1.06 1.06-6.79 6.79Z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23000' d='M6.37 11.32 2.84 7.79l1.06-1.06 2.47 2.47 5.73-5.73 1.06 1.06-6.79 6.79Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .ll-wordset-card__heading {
