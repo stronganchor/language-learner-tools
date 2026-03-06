@@ -77,6 +77,17 @@
         return !!($popup.length && $popup.is(':visible'));
     }
 
+    function shouldHideCategoryDisplay() {
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        const override = String(flashData.categoryDisplayOverride || flashData.category_display_override || '').trim();
+        if (override) {
+            return false;
+        }
+        return !!(flashData.hideCategoryDisplay || flashData.hide_category_display);
+    }
+
     function applyLoadingVisibility(visible, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const instant = !!opts.instant;
@@ -333,7 +344,12 @@
             $('#ll-tools-learning-progress').hide();
             const selfCheckActive = !!(State && State.isSelfCheckMode);
             if (!selfCheckActive) {
-                $('#ll-tools-category-stack, #ll-tools-category-display').show();
+                $('#ll-tools-category-stack').show();
+                if (shouldHideCategoryDisplay()) {
+                    $('#ll-tools-category-display').hide().text('');
+                } else {
+                    $('#ll-tools-category-display').show();
+                }
                 Dom.setRepeatButton('play');
             }
             setSelfCheckLayout(selfCheckActive);
@@ -341,6 +357,11 @@
         updateCategoryNameDisplay(name) {
             const $el = $('#ll-tools-category-display');
             if (!$el.length) return;
+            if (shouldHideCategoryDisplay()) {
+                $el.text('').hide();
+                return;
+            }
+            $el.show();
             const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
                 ? root.llToolsFlashcardsData
                 : {};
