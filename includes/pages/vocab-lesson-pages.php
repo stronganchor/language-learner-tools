@@ -910,7 +910,9 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
 }
 
 function ll_tools_vocab_lesson_should_preload_flashcards(): bool {
-    return (bool) apply_filters('ll_tools_vocab_lesson_preload_flashcards', false);
+    // Lesson pages ship quiz launch buttons in the header, so the shared
+    // flashcard launcher must be ready before users click them.
+    return (bool) apply_filters('ll_tools_vocab_lesson_preload_flashcards', true);
 }
 
 function ll_tools_vocab_lesson_enqueue_assets() {
