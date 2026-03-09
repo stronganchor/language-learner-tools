@@ -234,6 +234,67 @@
         });
     }
 
+    function getScrollTop() {
+        return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    }
+
+    function initScrollPersistence() {
+        var form = document.querySelector('.ll-tools-word-options-form');
+        var scrollInput = form ? form.querySelector('[data-ll-scroll-input]') : null;
+        var url;
+        var scrollTop;
+        var attempts = 0;
+        var hasRestored = false;
+
+        if (form && scrollInput) {
+            form.addEventListener('submit', function () {
+                scrollInput.value = String(Math.max(0, Math.round(getScrollTop())));
+            });
+        }
+
+        try {
+            url = new URL(window.location.href);
+        } catch (err) {
+            return;
+        }
+
+        scrollTop = parseInt(url.searchParams.get('ll_scroll') || '', 10);
+        if (!Number.isInteger(scrollTop) || scrollTop <= 0) {
+            return;
+        }
+
+        function cleanUrl() {
+            if (!window.history || typeof window.history.replaceState !== 'function') {
+                return;
+            }
+
+            url.searchParams.delete('ll_scroll');
+            window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+        }
+
+        function applyScroll() {
+            if (hasRestored) {
+                return;
+            }
+
+            window.scrollTo(0, scrollTop);
+            attempts += 1;
+
+            if (attempts < 6 && Math.abs(getScrollTop() - scrollTop) > 2) {
+                window.requestAnimationFrame(applyScroll);
+                return;
+            }
+
+            hasRestored = true;
+            cleanUrl();
+        }
+
+        window.requestAnimationFrame(applyScroll);
+        window.addEventListener('load', function () {
+            window.requestAnimationFrame(applyScroll);
+        }, { once: true });
+    }
+
     function stopAudio() {
         if (currentButton) {
             currentButton.classList.remove('is-playing');
@@ -252,6 +313,7 @@
 
     initWordsetMemory();
     initGroupManager();
+    initScrollPersistence();
 
     document.addEventListener('click', function (event) {
         var btn = event.target.closest('.ll-study-recording-btn');

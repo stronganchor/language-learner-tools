@@ -259,6 +259,14 @@ function ll_tools_word_option_rules_get_redirect_url(int $wordset_id, int $categ
     ], $extra_query), admin_url('tools.php'));
 }
 
+function ll_tools_word_option_rules_get_submitted_scroll_position(): int {
+    if (!isset($_POST['ll_scroll'])) {
+        return 0;
+    }
+
+    return max(0, (int) wp_unslash($_POST['ll_scroll']));
+}
+
 function ll_enqueue_word_option_rules_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-word-option-rules') {
         return;
@@ -1087,6 +1095,7 @@ function ll_render_word_option_rules_admin_page() {
     echo '<input type="hidden" name="action" value="ll_tools_save_word_option_rules" />';
     echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
     echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
+    echo '<input type="hidden" name="ll_scroll" value="0" data-ll-scroll-input />';
     if ($is_iframe && $lesson_id > 0) {
         echo '<input type="hidden" name="ll_iframe" value="1" />';
         echo '<input type="hidden" name="lesson_id" value="' . esc_attr($lesson_id) . '" />';
@@ -1406,14 +1415,19 @@ function ll_tools_handle_word_option_rules_save() {
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
+    $scroll_position = ll_tools_word_option_rules_get_submitted_scroll_position();
     if ($wordset_id > 0 && !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
         wp_die(__('Permission denied.', 'll-tools-text-domain'));
     }
 
     if ($wordset_id <= 0 || $category_id <= 0) {
-        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+        $redirect_args = [
             'll_word_options_error' => 1,
-        ]));
+        ];
+        if ($scroll_position > 0) {
+            $redirect_args['ll_scroll'] = $scroll_position;
+        }
+        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
         exit;
     }
 
@@ -1617,17 +1631,25 @@ function ll_tools_handle_word_option_rules_save() {
     $pairs = array_values($pairs_map);
 
     if (!function_exists('ll_tools_update_word_option_rules')) {
-        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+        $redirect_args = [
             'll_word_options_error' => 1,
-        ]));
+        ];
+        if ($scroll_position > 0) {
+            $redirect_args['ll_scroll'] = $scroll_position;
+        }
+        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
         exit;
     }
 
     ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, array_values($similar_image_override_map));
 
-    wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+    $redirect_args = [
         'll_word_options_updated' => 1,
-    ]));
+    ];
+    if ($scroll_position > 0) {
+        $redirect_args['ll_scroll'] = $scroll_position;
+    }
+    wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
     exit;
 }
 add_action('admin_post_ll_tools_save_word_option_rules', 'll_tools_handle_word_option_rules_save');
