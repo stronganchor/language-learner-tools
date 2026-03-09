@@ -6,12 +6,8 @@
 
 if (!defined('WPINC')) { die; }
 
-/**
- * Create default audio recording page if it doesn't exist
- * Runs on admin_init and checks if page needs to be created
- */
-function ll_tools_ensure_recording_page() {
-    ll_tools_ensure_default_shortcode_page([
+function ll_tools_get_recording_page_config(): array {
+    return [
         'option_key'                 => 'll_default_recording_page_id',
         'force_option_key'           => 'll_tools_force_create_recording_page',
         'creation_attempt_transient' => 'll_recording_page_creation_attempt',
@@ -20,7 +16,25 @@ function ll_tools_ensure_recording_page() {
         'post_title'                 => __('Record Audio', 'll-tools-text-domain'),
         'post_content'               => '[audio_recording_interface]',
         'error_context'              => 'recording page',
-    ]);
+        'notice_title'               => __('Audio Recording Page Created!', 'll-tools-text-domain'),
+        'notice_message'             => __('A default recording page has been created at %s', 'll-tools-text-domain'),
+        'settings_label'             => __('Default Recording Page', 'll-tools-text-domain'),
+        'none_found_text'            => __('No recording page found.', 'll-tools-text-domain'),
+        'create_label'               => __('Create Recording Page', 'll-tools-text-domain'),
+        'recreate_label'             => __('Recreate Recording Page', 'll-tools-text-domain'),
+        'confirm_text'               => __('Create a new recording page?', 'll-tools-text-domain'),
+        'button_id'                  => 'll-create-recording-page',
+        'ajax_action'                => 'll_create_recording_page',
+        'ajax_nonce_action'          => 'll_create_recording_page',
+    ];
+}
+
+/**
+ * Create default audio recording page if it doesn't exist
+ * Runs on admin_init and checks if page needs to be created
+ */
+function ll_tools_ensure_recording_page() {
+    ll_tools_ensure_default_shortcode_page(ll_tools_get_recording_page_config());
 }
 add_action('admin_init', 'll_tools_ensure_recording_page', 20);
 
@@ -28,29 +42,7 @@ add_action('admin_init', 'll_tools_ensure_recording_page', 20);
  * Show admin notice when recording page is created
  */
 function ll_recording_page_created_notice() {
-    $page_id = get_transient('ll_recording_page_created');
-    if (!$page_id) {
-        return;
-    }
-
-    delete_transient('ll_recording_page_created');
-
-    $edit_link = get_edit_post_link($page_id);
-    $view_link = get_permalink($page_id);
-
-    ?>
-    <div class="notice notice-success is-dismissible">
-        <p>
-            <strong><?php _e('Audio Recording Page Created!', 'll-tools-text-domain'); ?></strong><br>
-            <?php printf(
-                __('A default recording page has been created at %s', 'll-tools-text-domain'),
-                '<a href="' . esc_url($view_link) . '" target="_blank">' . esc_html(get_the_title($page_id)) . '</a>'
-            ); ?>
-            |
-            <a href="<?php echo esc_url($edit_link); ?>"><?php _e('Edit Page', 'll-tools-text-domain'); ?></a>
-        </p>
-    </div>
-    <?php
+    ll_tools_render_default_shortcode_page_created_notice(ll_tools_get_recording_page_config());
 }
 add_action('admin_notices', 'll_recording_page_created_notice');
 
@@ -58,59 +50,7 @@ add_action('admin_notices', 'll_recording_page_created_notice');
  * Add manual creation button to settings page
  */
 function ll_recording_page_settings_section() {
-    $page_id = get_option('ll_default_recording_page_id');
-    $page_exists = $page_id && get_post_status($page_id) === 'publish';
-
-    ?>
-    <tr valign="top">
-        <th scope="row"><?php _e('Default Recording Page', 'll-tools-text-domain'); ?></th>
-        <td>
-            <?php if ($page_exists): ?>
-                <p>
-                    <strong><?php _e('Current:', 'll-tools-text-domain'); ?></strong>
-                    <a href="<?php echo esc_url(get_permalink($page_id)); ?>" target="_blank">
-                        <?php echo esc_html(get_the_title($page_id)); ?>
-                    </a>
-                    |
-                    <a href="<?php echo esc_url(get_edit_post_link($page_id)); ?>">
-                        <?php _e('Edit', 'll-tools-text-domain'); ?>
-                    </a>
-                </p>
-            <?php else: ?>
-                <p class="description">
-                    <?php _e('No recording page found.', 'll-tools-text-domain'); ?>
-                </p>
-            <?php endif; ?>
-
-            <p>
-                <button type="button" class="button" id="ll-create-recording-page">
-                    <?php echo $page_exists ? __('Recreate Recording Page', 'll-tools-text-domain') : __('Create Recording Page', 'll-tools-text-domain'); ?>
-                </button>
-            </p>
-
-            <script>
-            jQuery(document).ready(function($) {
-                $('#ll-create-recording-page').on('click', function() {
-                    if (!confirm('<?php echo esc_js(__('Create a new recording page?', 'll-tools-text-domain')); ?>')) {
-                        return;
-                    }
-
-                    $.post(ajaxurl, {
-                        action: 'll_create_recording_page',
-                        nonce: '<?php echo esc_js(wp_create_nonce('ll_create_recording_page')); ?>'
-                    }, function(response) {
-                        if (response.success) {
-                            location.reload();
-                        } else {
-                            window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + (response.data || '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>'));
-                        }
-                    });
-                });
-            });
-            </script>
-        </td>
-    </tr>
-    <?php
+    ll_tools_render_default_shortcode_page_settings_row(ll_tools_get_recording_page_config());
 }
 add_action('ll_tools_settings_after_translations', 'll_recording_page_settings_section');
 
@@ -118,33 +58,7 @@ add_action('ll_tools_settings_after_translations', 'll_recording_page_settings_s
  * AJAX handler to manually create recording page
  */
 function ll_ajax_create_recording_page() {
-    check_ajax_referer('ll_create_recording_page', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
-    }
-
-    // Clear the old page ID
-    delete_option('ll_default_recording_page_id');
-    delete_transient('ll_recording_page_creation_attempt');
-
-    // Set flag to create page
-    update_option('ll_tools_force_create_recording_page', 1);
-
-    // Trigger creation
-    ll_tools_ensure_recording_page();
-
-    $page_id = get_option('ll_default_recording_page_id');
-
-    if ($page_id) {
-        wp_send_json_success([
-            'page_id' => $page_id,
-            'edit_link' => get_edit_post_link($page_id),
-            'view_link' => get_permalink($page_id),
-        ]);
-    } else {
-        wp_send_json_error(__('Failed to create page', 'll-tools-text-domain'));
-    }
+    ll_tools_handle_default_shortcode_page_creation_ajax(ll_tools_get_recording_page_config());
 }
 add_action('wp_ajax_ll_create_recording_page', 'll_ajax_create_recording_page');
 

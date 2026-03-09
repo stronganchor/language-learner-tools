@@ -6,6 +6,29 @@
 
 if (!defined('WPINC')) { die; }
 
+function ll_tools_get_editor_hub_page_config(): array {
+    return [
+        'option_key'                 => 'll_default_editor_hub_page_id',
+        'force_option_key'           => 'll_tools_force_create_editor_hub_page',
+        'creation_attempt_transient' => 'll_editor_hub_page_creation_attempt',
+        'created_notice_transient'   => 'll_editor_hub_page_created',
+        'shortcode_search'           => '[editor_hub',
+        'post_title'                 => __('Editor Hub', 'll-tools-text-domain'),
+        'post_content'               => '[editor_hub]',
+        'error_context'              => 'editor hub page',
+        'notice_title'               => __('Editor Hub Page Created!', 'll-tools-text-domain'),
+        'notice_message'             => __('A default Editor Hub page has been created at %s', 'll-tools-text-domain'),
+        'settings_label'             => __('Default Editor Hub Page', 'll-tools-text-domain'),
+        'none_found_text'            => __('No editor hub page found.', 'll-tools-text-domain'),
+        'create_label'               => __('Create Editor Hub Page', 'll-tools-text-domain'),
+        'recreate_label'             => __('Recreate Editor Hub Page', 'll-tools-text-domain'),
+        'confirm_text'               => __('Create a new editor hub page?', 'll-tools-text-domain'),
+        'button_id'                  => 'll-create-editor-hub-page',
+        'ajax_action'                => 'll_create_editor_hub_page',
+        'ajax_nonce_action'          => 'll_create_editor_hub_page',
+    ];
+}
+
 /**
  * Create default Editor Hub page if it doesn't exist.
  * Runs on admin_init and checks if page needs to be created.
@@ -15,16 +38,7 @@ function ll_tools_ensure_editor_hub_page() {
         return;
     }
 
-    ll_tools_ensure_default_shortcode_page([
-        'option_key'                 => 'll_default_editor_hub_page_id',
-        'force_option_key'           => 'll_tools_force_create_editor_hub_page',
-        'creation_attempt_transient' => 'll_editor_hub_page_creation_attempt',
-        'created_notice_transient'   => 'll_editor_hub_page_created',
-        'shortcode_search'           => '[editor_hub',
-        'post_title'                 => __('Editor Hub', 'll-tools-text-domain'),
-        'post_content'               => '[editor_hub]',
-        'error_context'              => 'editor hub page',
-    ]);
+    ll_tools_ensure_default_shortcode_page(ll_tools_get_editor_hub_page_config());
 }
 add_action('admin_init', 'll_tools_ensure_editor_hub_page', 21);
 
@@ -32,32 +46,7 @@ add_action('admin_init', 'll_tools_ensure_editor_hub_page', 21);
  * Show admin notice when editor hub page is created.
  */
 function ll_editor_hub_page_created_notice() {
-    $page_id = (int) get_transient('ll_editor_hub_page_created');
-    if ($page_id <= 0) {
-        return;
-    }
-
-    delete_transient('ll_editor_hub_page_created');
-
-    $edit_link = get_edit_post_link($page_id);
-    $view_link = get_permalink($page_id);
-
-    ?>
-    <div class="notice notice-success is-dismissible">
-        <p>
-            <strong><?php esc_html_e('Editor Hub Page Created!', 'll-tools-text-domain'); ?></strong><br>
-            <?php
-            printf(
-                /* translators: %s: linked page title */
-                esc_html__('A default Editor Hub page has been created at %s', 'll-tools-text-domain'),
-                '<a href="' . esc_url($view_link) . '" target="_blank" rel="noopener">' . esc_html(get_the_title($page_id)) . '</a>'
-            );
-            ?>
-            |
-            <a href="<?php echo esc_url($edit_link); ?>"><?php esc_html_e('Edit Page', 'll-tools-text-domain'); ?></a>
-        </p>
-    </div>
-    <?php
+    ll_tools_render_default_shortcode_page_created_notice(ll_tools_get_editor_hub_page_config());
 }
 add_action('admin_notices', 'll_editor_hub_page_created_notice');
 
@@ -65,57 +54,7 @@ add_action('admin_notices', 'll_editor_hub_page_created_notice');
  * Add manual creation button to settings page.
  */
 function ll_editor_hub_page_settings_section() {
-    $page_id = (int) get_option('ll_default_editor_hub_page_id');
-    $page_exists = ($page_id > 0 && get_post_status($page_id) === 'publish');
-    ?>
-    <tr valign="top">
-        <th scope="row"><?php esc_html_e('Default Editor Hub Page', 'll-tools-text-domain'); ?></th>
-        <td>
-            <?php if ($page_exists): ?>
-                <p>
-                    <strong><?php esc_html_e('Current:', 'll-tools-text-domain'); ?></strong>
-                    <a href="<?php echo esc_url(get_permalink($page_id)); ?>" target="_blank" rel="noopener">
-                        <?php echo esc_html(get_the_title($page_id)); ?>
-                    </a>
-                    |
-                    <a href="<?php echo esc_url(get_edit_post_link($page_id)); ?>">
-                        <?php esc_html_e('Edit', 'll-tools-text-domain'); ?>
-                    </a>
-                </p>
-            <?php else: ?>
-                <p class="description"><?php esc_html_e('No editor hub page found.', 'll-tools-text-domain'); ?></p>
-            <?php endif; ?>
-
-            <p>
-                <button type="button" class="button" id="ll-create-editor-hub-page">
-                    <?php echo $page_exists ? esc_html__('Recreate Editor Hub Page', 'll-tools-text-domain') : esc_html__('Create Editor Hub Page', 'll-tools-text-domain'); ?>
-                </button>
-            </p>
-
-            <script>
-            jQuery(function($) {
-                $('#ll-create-editor-hub-page').on('click', function() {
-                    if (!window.confirm('<?php echo esc_js(__('Create a new editor hub page?', 'll-tools-text-domain')); ?>')) {
-                        return;
-                    }
-
-                    $.post(ajaxurl, {
-                        action: 'll_create_editor_hub_page',
-                        nonce: '<?php echo esc_js(wp_create_nonce('ll_create_editor_hub_page')); ?>'
-                    }, function(response) {
-                        if (response && response.success) {
-                            window.location.reload();
-                            return;
-                        }
-                        var message = (response && response.data) ? response.data : '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>';
-                        window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + message);
-                    });
-                });
-            });
-            </script>
-        </td>
-    </tr>
-    <?php
+    ll_tools_render_default_shortcode_page_settings_row(ll_tools_get_editor_hub_page_config());
 }
 add_action('ll_tools_settings_after_translations', 'll_editor_hub_page_settings_section');
 
@@ -123,28 +62,7 @@ add_action('ll_tools_settings_after_translations', 'll_editor_hub_page_settings_
  * AJAX handler to manually create editor hub page.
  */
 function ll_ajax_create_editor_hub_page() {
-    check_ajax_referer('ll_create_editor_hub_page', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
-    }
-
-    delete_option('ll_default_editor_hub_page_id');
-    delete_transient('ll_editor_hub_page_creation_attempt');
-    update_option('ll_tools_force_create_editor_hub_page', 1);
-    ll_tools_ensure_editor_hub_page();
-
-    $page_id = (int) get_option('ll_default_editor_hub_page_id');
-    if ($page_id > 0) {
-        wp_send_json_success([
-            'page_id' => $page_id,
-            'edit_link' => get_edit_post_link($page_id),
-            'view_link' => get_permalink($page_id),
-        ]);
-        return;
-    }
-
-    wp_send_json_error(__('Failed to create page', 'll-tools-text-domain'));
+    ll_tools_handle_default_shortcode_page_creation_ajax(ll_tools_get_editor_hub_page_config());
 }
 add_action('wp_ajax_ll_create_editor_hub_page', 'll_ajax_create_editor_hub_page');
 

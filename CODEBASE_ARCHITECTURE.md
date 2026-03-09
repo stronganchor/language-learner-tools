@@ -64,10 +64,12 @@ read_first:
   - Posts `ll-embed-ready` to parent when initialized.
 - `includes/pages/recording-page.php`
   - Ensures a default recording page with `[audio_recording_interface]`.
-  - Redirects `audio_recorder` users on login to recording page (or user override).
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Redirects `audio_recorder` users on login to the default recording page or a per-user page override.
 - `includes/pages/editor-hub-page.php`
   - Ensures a default Editor Hub page with `[editor_hub]`.
-  - Redirects `ll_tools_editor` users on login to the Editor Hub page (or user override).
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Redirects `ll_tools_editor` users on login to the default Editor Hub page or a per-user page override.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -89,7 +91,7 @@ includes/
   pages/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
-    default-shortcode-page-helper.php # Shared ensure/find helpers for plugin-owned shortcode pages
+    default-shortcode-page-helper.php # Shared ensure/find/admin-action helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
@@ -225,7 +227,7 @@ vendor/
   - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_star_mode`, `ll_user_fast_transitions`.
 - Audio recorder config (from `includes/user-roles/audio-recorder-role.php`):
   - `ll_recording_config` (wordset, category, recording type filters, allow_new_words, auto_process_recordings).
-  - `ll_recording_page_url` (custom redirect on login).
+  - `ll_recording_page_id` (custom internal page override on login; legacy same-site URLs are migrated when encountered).
 
 # Settings and options
 Core settings live in `includes/admin/settings.php`:

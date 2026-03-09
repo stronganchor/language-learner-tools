@@ -12,8 +12,8 @@ function ll_register_settings_page() {
         : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
 
     add_options_page(
-        'Language Learning Tools Settings', // Page title
-        'Language Learning Tools', // Menu title
+        __('Language Learning Tools Settings', 'll-tools-text-domain'),
+        __('Language Learning Tools', 'll-tools-text-domain'),
         'view_ll_tools', // Capability required to see the page
         $settings_slug, // Menu slug
         'll_render_settings_page' // Function to display the settings page
@@ -231,23 +231,35 @@ function ll_render_settings_page() {
 
     if ( isset( $_POST['ll_tools_purge_legacy_audio'] ) ) {
         if ( ! isset( $_POST['ll_tools_purge_legacy_audio_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_purge_legacy_audio_nonce'], 'll_tools_purge_legacy_audio' ) ) {
-            $purge_notice = '<div class="notice notice-error"><p>Purge failed security check. Please try again.</p></div>';
+            $purge_notice = '<div class="notice notice-error"><p>' . esc_html__('Purge failed security check. Please try again.', 'll-tools-text-domain') . '</p></div>';
         } else {
             $purge_result = ll_tools_purge_legacy_word_audio_meta();
             $bumped = ll_tools_bump_word_category_cache();
-            $purge_notice = '<div class="notice notice-success"><p>Purged ' . esc_html( (string) $purge_result['deleted'] ) . ' legacy meta rows.</p></div>';
+            $purge_notice = '<div class="notice notice-success"><p>'
+                . sprintf(
+                    /* translators: %d: number of deleted rows */
+                    esc_html__('Purged %d legacy meta rows.', 'll-tools-text-domain'),
+                    (int) $purge_result['deleted']
+                )
+                . '</p></div>';
             if ( $bumped > 0 ) {
-                $purge_notice .= '<div class="notice notice-success"><p>Cache bumped for ' . esc_html( (string) $bumped ) . ' word categories.</p></div>';
+                $purge_notice .= '<div class="notice notice-success"><p>'
+                    . sprintf(
+                        /* translators: %d: number of word categories */
+                        esc_html__('Cache bumped for %d word categories.', 'll-tools-text-domain'),
+                        (int) $bumped
+                    )
+                    . '</p></div>';
             }
         }
     }
 
     if ( isset( $_POST['ll_tools_flush_quiz_cache'] ) ) {
         if ( ! isset( $_POST['ll_tools_flush_quiz_cache_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_flush_quiz_cache_nonce'], 'll_tools_flush_quiz_cache' ) ) {
-            $cache_notice = '<div class="notice notice-error"><p>Cache flush failed security check. Please try again.</p></div>';
+            $cache_notice = '<div class="notice notice-error"><p>' . esc_html__('Cache flush failed security check. Please try again.', 'll-tools-text-domain') . '</p></div>';
         } else {
             $cache_result = ll_tools_flush_quiz_word_caches();
-            $cache_notice = '<div class="notice notice-success"><p>Flushed quiz caches and bumped category cache versions.</p></div>';
+            $cache_notice = '<div class="notice notice-success"><p>' . esc_html__('Flushed quiz caches and bumped category cache versions.', 'll-tools-text-domain') . '</p></div>';
         }
     }
 
@@ -275,7 +287,7 @@ function ll_render_settings_page() {
     );
     ?>
     <div class="wrap">
-        <h2>Language Learning Tools Settings</h2>
+        <h2><?php esc_html_e('Language Learning Tools Settings', 'll-tools-text-domain'); ?></h2>
         <?php echo $purge_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php echo $cache_notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <form action="options.php" method="post">
@@ -289,59 +301,59 @@ function ll_render_settings_page() {
             
             <table class="form-table">
                 <tr valign="top">
-                    <th scope="row">Target Language (e.g., "TR" for Turkish):</th>
+                    <th scope="row"><?php esc_html_e('Target Language (e.g., "TR" for Turkish):', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="text" name="ll_target_language" id="ll_target_language" value="<?php echo esc_attr($target_language); ?>" />
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Translation Language (e.g., "EN" for English):</th>
+                    <th scope="row"><?php esc_html_e('Translation Language (e.g., "EN" for English):', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="text" name="ll_translation_language" id="ll_translation_language" value="<?php echo esc_attr($translation_language); ?>" />
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Word Title Language:</th>
+                    <th scope="row"><?php esc_html_e('Word Title Language:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <select name="ll_word_title_language_role" id="ll_word_title_language_role">
-                            <option value="target" <?php selected($word_title_role, 'target'); ?>>Target (language being learned)</option>
-                            <option value="translation" <?php selected($word_title_role, 'translation'); ?>>Translation (helper/known language)</option>
+                            <option value="target" <?php selected($word_title_role, 'target'); ?>><?php esc_html_e('Target (language being learned)', 'll-tools-text-domain'); ?></option>
+                            <option value="translation" <?php selected($word_title_role, 'translation'); ?>><?php esc_html_e('Translation (helper/known language)', 'll-tools-text-domain'); ?></option>
                         </select>
-                        <p class="description">If set to Translation, tools and lookups treat post titles as being in the translation language and <code>word_translation</code> meta as the language being learned.</p>
+                        <p class="description"><?php esc_html_e('If set to Translation, tools and lookups treat post titles as being in the translation language and word_translation meta as the language being learned.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Enable Category Name Translations:</th>
+                    <th scope="row"><?php esc_html_e('Enable Category Name Translations:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="checkbox" name="ll_enable_category_translation" id="ll_enable_category_translation" value="1" <?php checked(1, $enable_translation, true); ?> />
-                        <p class="description">Check this box to enable automatic or manual translations of category names.</p>
+                        <p class="description"><?php esc_html_e('Check this box to enable automatic or manual translations of category names.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Max Number of Options:</th>
+                    <th scope="row"><?php esc_html_e('Max Number of Options:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="number" name="ll_max_options_override" id="ll_max_options_override" value="<?php echo esc_attr(get_option('ll_max_options_override', 9)); ?>" min="2" />
-                        <p class="description">Set the maximum number of options in flashcards. Minimum is 2.</p>
+                        <p class="description"><?php esc_html_e('Set the maximum number of options in flashcards. Minimum is 2.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Flashcard Image Size:</th>
+                    <th scope="row"><?php esc_html_e('Flashcard Image Size:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <?php
                         $flashcard_image_size = get_option('ll_flashcard_image_size', 'small');
                         ?>
                         <select name="ll_flashcard_image_size" id="ll_flashcard_image_size">
-                            <option value="small" <?php selected($flashcard_image_size, 'small'); ?>>Small (150×150)</option>
-                            <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>>Medium (200×200)</option>
-                            <option value="large" <?php selected($flashcard_image_size, 'large'); ?>>Large (250×250)</option>
+                            <option value="small" <?php selected($flashcard_image_size, 'small'); ?>><?php esc_html_e('Small (150×150)', 'll-tools-text-domain'); ?></option>
+                            <option value="medium" <?php selected($flashcard_image_size, 'medium'); ?>><?php esc_html_e('Medium (200×200)', 'll-tools-text-domain'); ?></option>
+                            <option value="large" <?php selected($flashcard_image_size, 'large'); ?>><?php esc_html_e('Large (250×250)', 'll-tools-text-domain'); ?></option>
                         </select>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Hide Word Titles in Recording Interface:</th>
+                    <th scope="row"><?php esc_html_e('Hide Word Titles in Recording Interface:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <input type="checkbox" name="ll_hide_recording_titles" id="ll_hide_recording_titles" value="1" <?php checked(1, get_option('ll_hide_recording_titles', 0), true); ?> />
-                        <p class="description">Check this box to hide word titles from audio recorders by default. This helps prevent pronunciation bias from reading the word.</p>
+                        <p class="description"><?php esc_html_e('Check this box to hide word titles from audio recorders by default. This helps prevent pronunciation bias from reading the word.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
@@ -357,25 +369,24 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Quiz Font (for text mode):</th>
+                    <th scope="row"><?php esc_html_e('Quiz Font (for text mode):', 'll-tools-text-domain'); ?></th>
                     <td>
                         <?php
                         $available_fonts = ll_get_site_available_fonts();
                         $selected_font = get_option('ll_quiz_font');
                         if ( !empty( $available_fonts ) ) {
                             echo '<select name="ll_quiz_font" id="ll_quiz_font">';
-                            echo '<option value="">-- Select a Font --</option>';
+                            echo '<option value="">' . esc_html__( '-- Select a Font --', 'll-tools-text-domain' ) . '</option>';
                             foreach ( $available_fonts as $font ) {
                                 echo '<option value="' . esc_attr($font) . '" ' . selected( $selected_font, $font, false ) . '>' . esc_html( $font ) . '</option>';
                             }
                             echo '</select>';
                         } else {
-                            echo '<p>No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin.</p>';
+                            echo '<p>' . esc_html__('No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin.', 'll-tools-text-domain') . '</p>';
                         }
                         ?>
                         <p class="description">
-                            Choose one of the fonts that are already loaded on your site.
-                            If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually.
+                            <?php esc_html_e('Choose one of the fonts that are already loaded on your site. If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually.', 'll-tools-text-domain'); ?>
                         </p>
                         <p style="margin:12px 0 6px 0;">
                             <label for="ll_quiz_font_url"><strong><?php echo esc_html__('Font stylesheet URL (Google Fonts or local CSS)', 'll-tools-text-domain'); ?></strong></label>
@@ -398,7 +409,7 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Translate Category Names From:</th>
+                    <th scope="row"><?php esc_html_e('Translate Category Names From:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <select name="ll_category_translation_source" id="ll_category_translation_source" <?php echo ($enable_translation && $target_language && $translation_language) ? '' : 'disabled'; ?>>
                             <option value="target" <?php selected($translation_source, 'target'); ?>>
@@ -408,17 +419,26 @@ function ll_render_settings_page() {
                                 <?php echo esc_html($options['translation']); ?>
                             </option>
                         </select>
-                        <p class="description">Choose whether category names are originally written in <strong><?php echo esc_html($target_language_name); ?></strong> or <strong><?php echo esc_html($translation_language_name); ?></strong>.</p>
+                        <p class="description">
+                            <?php
+                            printf(
+                                /* translators: 1: target language name, 2: translation language name */
+                                esc_html__('Choose whether category names are originally written in %1$s or %2$s.', 'll-tools-text-domain'),
+                                esc_html($target_language_name),
+                                esc_html($translation_language_name)
+                            );
+                            ?>
+                        </p>
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row">Update Branch:</th>
+                    <th scope="row"><?php esc_html_e('Update Branch:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <select name="ll_update_branch" id="ll_update_branch">
-                            <option value="main" <?php selected($update_branch, 'main'); ?>>Main (stable)</option>
-                            <option value="dev" <?php selected($update_branch, 'dev'); ?>>Dev (testing)</option>
+                            <option value="main" <?php selected($update_branch, 'main'); ?>><?php esc_html_e('Main (stable)', 'll-tools-text-domain'); ?></option>
+                            <option value="dev" <?php selected($update_branch, 'dev'); ?>><?php esc_html_e('Dev (testing)', 'll-tools-text-domain'); ?></option>
                         </select>
-                        <p class="description">Switch to Dev to have this site pull plugin updates from the GitHub dev branch for testing. Use Main for normal production updates.</p>
+                        <p class="description"><?php esc_html_e('Switch to Dev to have this site pull plugin updates from the GitHub dev branch for testing. Use Main for normal production updates.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <?php do_action('ll_tools_settings_after_translations'); ?>
@@ -429,44 +449,42 @@ function ll_render_settings_page() {
 
         <hr />
 
-        <h2>Flush quiz caches</h2>
+        <h2><?php esc_html_e('Flush quiz caches', 'll-tools-text-domain'); ?></h2>
         <p>
-            Clears cached quiz word payload transients and increments cache versions for all
-            <code>word-category</code> terms.
+            <?php esc_html_e('Clears cached quiz word payload transients and increments cache versions for all word-category terms.', 'll-tools-text-domain'); ?>
         </p>
 
         <form method="post">
             <?php wp_nonce_field( 'll_tools_flush_quiz_cache', 'll_tools_flush_quiz_cache_nonce' ); ?>
             <p class="submit">
                 <button type="submit" name="ll_tools_flush_quiz_cache" class="button button-secondary">
-                    Flush Quiz Caches
+                    <?php esc_html_e('Flush Quiz Caches', 'll-tools-text-domain'); ?>
                 </button>
             </p>
             <?php if ( is_array( $cache_result ) ) : ?>
-                <p><strong>Transient rows deleted:</strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
-                   <strong>Categories bumped:</strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?> |
-                   <strong>Object cache flushed:</strong> <?php echo ! empty( $cache_result['object_cache_flushed'] ) ? 'yes' : 'no'; ?></p>
+                <p><strong><?php esc_html_e('Transient rows deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
+                   <strong><?php esc_html_e('Categories bumped:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?> |
+                   <strong><?php esc_html_e('Object cache flushed:', 'll-tools-text-domain'); ?></strong> <?php echo ! empty( $cache_result['object_cache_flushed'] ) ? esc_html__('yes', 'll-tools-text-domain') : esc_html__('no', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
         </form>
 
         <hr />
 
-        <h2>Purge legacy word audio meta</h2>
+        <h2><?php esc_html_e('Purge legacy word audio meta', 'll-tools-text-domain'); ?></h2>
         <p>
-            Removes <code>word_audio_file</code> meta from <code>words</code> posts now that audio is stored in
-            <code>word_audio</code> children. This is irreversible. Make a backup first.
+            <?php esc_html_e('Removes word_audio_file meta from words posts now that audio is stored in word_audio children. This is irreversible. Make a backup first.', 'll-tools-text-domain'); ?>
         </p>
 
         <form method="post">
             <?php wp_nonce_field( 'll_tools_purge_legacy_audio', 'll_tools_purge_legacy_audio_nonce' ); ?>
             <p class="submit">
                 <button type="submit" name="ll_tools_purge_legacy_audio" class="button button-secondary">
-                    Purge Legacy Meta
+                    <?php esc_html_e('Purge Legacy Meta', 'll-tools-text-domain'); ?>
                 </button>
             </p>
             <?php if ( is_array( $purge_result ) ) : ?>
-                <p><strong>Legacy rows found:</strong> <?php echo esc_html( (string) $purge_result['count'] ); ?> |
-                   <strong>Deleted:</strong> <?php echo esc_html( (string) $purge_result['deleted'] ); ?></p>
+                <p><strong><?php esc_html_e('Legacy rows found:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['count'] ); ?> |
+                   <strong><?php esc_html_e('Deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['deleted'] ); ?></p>
             <?php endif; ?>
         </form>
     </div>
@@ -544,7 +562,12 @@ function ll_auto_translate_existing_categories($old_value, $new_value, $option_n
                 } else {
                     $results['errors'][] = [
                         'original' => $category->name,
-                        'error' => "Translation failed for category ID {$category->term_id} ({$category->name}).",
+                        'error' => sprintf(
+                            /* translators: 1: category ID, 2: category name */
+                            __('Translation failed for category ID %1$d (%2$s).', 'll-tools-text-domain'),
+                            (int) $category->term_id,
+                            (string) $category->name
+                        ),
                     ];
                 }
             }
@@ -567,17 +590,24 @@ function ll_display_translation_results() {
 
         // Display translation direction
         echo '<div class="notice notice-info is-dismissible">';
-        echo "<p><strong>Category Translations:</strong> Translating from <strong>$source_language</strong> to <strong>$target_language</strong>.</p>";
+        echo '<p><strong>' . esc_html__('Category Translations:', 'll-tools-text-domain') . '</strong> '
+            . sprintf(
+                /* translators: 1: source language code, 2: target language code */
+                esc_html__('Translating from %1$s to %2$s.', 'll-tools-text-domain'),
+                '<strong>' . esc_html($source_language) . '</strong>',
+                '<strong>' . esc_html($target_language) . '</strong>'
+            )
+            . '</p>';
         echo '</div>';
 
         // Display success results
         if (!empty($results['success'])) {
             echo '<div class="notice notice-success is-dismissible">';
-            echo '<p><strong>Translation Results:</strong></p>';
+            echo '<p><strong>' . esc_html__('Translation Results:', 'll-tools-text-domain') . '</strong></p>';
             echo '<ul>';
             foreach ($results['success'] as $success) {
-                echo '<li><strong>Original:</strong> ' . esc_html($success['original']) . 
-                     ' <strong>Translated:</strong> ' . esc_html($success['translated']) . '</li>';
+                echo '<li><strong>' . esc_html__('Original:', 'll-tools-text-domain') . '</strong> ' . esc_html($success['original'])
+                     . ' <strong>' . esc_html__('Translated:', 'll-tools-text-domain') . '</strong> ' . esc_html($success['translated']) . '</li>';
             }
             echo '</ul>';
             echo '</div>';
@@ -586,11 +616,11 @@ function ll_display_translation_results() {
         // Display error results
         if (!empty($results['errors'])) {
             echo '<div class="notice notice-error is-dismissible">';
-            echo '<p><strong>Translation Errors:</strong></p>';
+            echo '<p><strong>' . esc_html__('Translation Errors:', 'll-tools-text-domain') . '</strong></p>';
             echo '<ul>';
             foreach ($results['errors'] as $error) {
-                echo '<li><strong>Original:</strong> ' . esc_html($error['original']) . 
-                     ' <strong>Error:</strong> ' . esc_html($error['error']) . '</li>';
+                echo '<li><strong>' . esc_html__('Original:', 'll-tools-text-domain') . '</strong> ' . esc_html($error['original'])
+                     . ' <strong>' . esc_html__('Error:', 'll-tools-text-domain') . '</strong> ' . esc_html($error['error']) . '</li>';
             }
             echo '</ul>';
             echo '</div>';

@@ -225,3 +225,153 @@ function ll_tools_ensure_default_shortcode_page(array $config): int {
 
     return 0;
 }
+
+/**
+ * Render the admin notice for a newly created shortcode page.
+ */
+function ll_tools_render_default_shortcode_page_created_notice(array $config): void {
+    $created_notice_transient = isset($config['created_notice_transient']) ? (string) $config['created_notice_transient'] : '';
+    if ($created_notice_transient === '') {
+        return;
+    }
+
+    $page_id = (int) get_transient($created_notice_transient);
+    if ($page_id <= 0) {
+        return;
+    }
+
+    delete_transient($created_notice_transient);
+
+    $edit_link = get_edit_post_link($page_id);
+    $view_link = get_permalink($page_id);
+    $notice_title = isset($config['notice_title']) ? (string) $config['notice_title'] : '';
+    $notice_message = isset($config['notice_message']) ? (string) $config['notice_message'] : '';
+    ?>
+    <div class="notice notice-success is-dismissible">
+        <p>
+            <?php if ($notice_title !== '') : ?>
+                <strong><?php echo esc_html($notice_title); ?></strong><br>
+            <?php endif; ?>
+            <?php
+            if ($notice_message !== '') {
+                printf(
+                    /* translators: %s: linked page title */
+                    esc_html($notice_message),
+                    '<a href="' . esc_url($view_link) . '" target="_blank" rel="noopener">' . esc_html(get_the_title($page_id)) . '</a>'
+                );
+            }
+            ?>
+            |
+            <a href="<?php echo esc_url($edit_link); ?>"><?php esc_html_e('Edit Page', 'll-tools-text-domain'); ?></a>
+        </p>
+    </div>
+    <?php
+}
+
+/**
+ * Render the settings-row UI for creating/recreating a shortcode page.
+ */
+function ll_tools_render_default_shortcode_page_settings_row(array $config): void {
+    $option_key = isset($config['option_key']) ? (string) $config['option_key'] : '';
+    $page_label = isset($config['settings_label']) ? (string) $config['settings_label'] : '';
+    $empty_message = isset($config['none_found_text']) ? (string) $config['none_found_text'] : '';
+    $create_label = isset($config['create_label']) ? (string) $config['create_label'] : '';
+    $recreate_label = isset($config['recreate_label']) ? (string) $config['recreate_label'] : '';
+    $confirm_message = isset($config['confirm_text']) ? (string) $config['confirm_text'] : '';
+    $button_id = isset($config['button_id']) ? (string) $config['button_id'] : '';
+    $ajax_action = isset($config['ajax_action']) ? (string) $config['ajax_action'] : '';
+    $ajax_nonce_action = isset($config['ajax_nonce_action']) ? (string) $config['ajax_nonce_action'] : '';
+
+    if ($option_key === '' || $page_label === '' || $button_id === '' || $ajax_action === '' || $ajax_nonce_action === '') {
+        return;
+    }
+
+    $page_id = (int) get_option($option_key);
+    $page_exists = ($page_id > 0 && get_post_status($page_id) === 'publish');
+    ?>
+    <tr valign="top">
+        <th scope="row"><?php echo esc_html($page_label); ?></th>
+        <td>
+            <?php if ($page_exists): ?>
+                <p>
+                    <strong><?php esc_html_e('Current:', 'll-tools-text-domain'); ?></strong>
+                    <a href="<?php echo esc_url(get_permalink($page_id)); ?>" target="_blank" rel="noopener">
+                        <?php echo esc_html(get_the_title($page_id)); ?>
+                    </a>
+                    |
+                    <a href="<?php echo esc_url(get_edit_post_link($page_id)); ?>">
+                        <?php esc_html_e('Edit', 'll-tools-text-domain'); ?>
+                    </a>
+                </p>
+            <?php elseif ($empty_message !== ''): ?>
+                <p class="description"><?php echo esc_html($empty_message); ?></p>
+            <?php endif; ?>
+
+            <p>
+                <button type="button" class="button" id="<?php echo esc_attr($button_id); ?>">
+                    <?php echo esc_html($page_exists ? $recreate_label : $create_label); ?>
+                </button>
+            </p>
+
+            <script>
+            jQuery(function($) {
+                $('#<?php echo esc_js($button_id); ?>').on('click', function() {
+                    if (!window.confirm('<?php echo esc_js($confirm_message); ?>')) {
+                        return;
+                    }
+
+                    $.post(ajaxurl, {
+                        action: '<?php echo esc_js($ajax_action); ?>',
+                        nonce: '<?php echo esc_js(wp_create_nonce($ajax_nonce_action)); ?>'
+                    }, function(response) {
+                        if (response && response.success) {
+                            window.location.reload();
+                            return;
+                        }
+
+                        var message = (response && response.data) ? response.data : '<?php echo esc_js(__('Unknown error.', 'll-tools-text-domain')); ?>';
+                        window.alert('<?php echo esc_js(__('Error:', 'll-tools-text-domain')); ?> ' + message);
+                    });
+                });
+            });
+            </script>
+        </td>
+    </tr>
+    <?php
+}
+
+/**
+ * Shared AJAX handler for creating/recreating a shortcode page on demand.
+ */
+function ll_tools_handle_default_shortcode_page_creation_ajax(array $config): void {
+    $ajax_nonce_action = isset($config['ajax_nonce_action']) ? (string) $config['ajax_nonce_action'] : '';
+    $option_key = isset($config['option_key']) ? (string) $config['option_key'] : '';
+    $creation_attempt_transient = isset($config['creation_attempt_transient']) ? (string) $config['creation_attempt_transient'] : '';
+    $force_option_key = isset($config['force_option_key']) ? (string) $config['force_option_key'] : '';
+
+    if ($ajax_nonce_action === '' || $option_key === '' || $creation_attempt_transient === '' || $force_option_key === '') {
+        wp_send_json_error(__('Invalid shortcode page configuration.', 'll-tools-text-domain'));
+    }
+
+    check_ajax_referer($ajax_nonce_action, 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
+    }
+
+    delete_option($option_key);
+    delete_transient($creation_attempt_transient);
+    update_option($force_option_key, 1);
+    ll_tools_ensure_default_shortcode_page($config);
+
+    $page_id = (int) get_option($option_key);
+    if ($page_id <= 0) {
+        wp_send_json_error(__('Failed to create page', 'll-tools-text-domain'));
+    }
+
+    wp_send_json_success([
+        'page_id' => $page_id,
+        'edit_link' => get_edit_post_link($page_id),
+        'view_link' => get_permalink($page_id),
+    ]);
+}
