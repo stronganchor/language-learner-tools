@@ -324,6 +324,13 @@
     gap: 8px;
 }
 
+.ll-vocab-lesson-bulk-heading-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
 .ll-vocab-lesson-bulk-heading {
     font-size: 11px;
     font-weight: 700;
@@ -432,6 +439,56 @@
 
 .ll-vocab-lesson-bulk-control-status-message {
     display: none;
+}
+
+.ll-vocab-lesson-bulk-control-undo {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid #dbe3ee;
+    background: #ffffff;
+    color: #334155;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.ll-vocab-lesson-bulk-control-undo[hidden] {
+    display: none;
+}
+
+.ll-vocab-lesson-bulk-control-undo:hover {
+    background: #f8fafc;
+    color: #16352d;
+    border-color: #aac8be;
+}
+
+.ll-vocab-lesson-bulk-control-undo:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    outline-offset: 1px;
+}
+
+.ll-vocab-lesson-bulk-control-undo:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.ll-vocab-lesson-bulk-control-undo-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ll-vocab-lesson-bulk-control-undo-icon svg {
+    width: 14px;
+    height: 14px;
+    display: block;
 }
 
 .ll-vocab-lesson-bulk-section--prereq {

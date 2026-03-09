@@ -307,6 +307,25 @@ if (have_posts()) {
                             $verb_mood_options = $verb_mood_enabled && function_exists('ll_tools_wordset_get_verb_mood_options')
                                 ? ll_tools_wordset_get_verb_mood_options($wordset_id)
                                 : [];
+                            $lesson_word_ids = function_exists('ll_tools_get_lesson_word_ids_for_transcription')
+                                ? ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id)
+                                : [];
+                            $bulk_defaults = function_exists('ll_tools_word_grid_get_bulk_control_defaults')
+                                ? ll_tools_word_grid_get_bulk_control_defaults($wordset_id, $lesson_word_ids)
+                                : [
+                                    'part_of_speech' => '',
+                                    'grammatical_gender' => '',
+                                    'grammatical_plurality' => '',
+                                    'verb_tense' => '',
+                                    'verb_mood' => '',
+                                ];
+                            $bulk_pos_default = isset($bulk_defaults['part_of_speech']) ? (string) $bulk_defaults['part_of_speech'] : '';
+                            $bulk_gender_default = isset($bulk_defaults['grammatical_gender']) ? (string) $bulk_defaults['grammatical_gender'] : '';
+                            $bulk_plurality_default = isset($bulk_defaults['grammatical_plurality']) ? (string) $bulk_defaults['grammatical_plurality'] : '';
+                            $bulk_verb_tense_default = isset($bulk_defaults['verb_tense']) ? (string) $bulk_defaults['verb_tense'] : '';
+                            $bulk_verb_mood_default = isset($bulk_defaults['verb_mood']) ? (string) $bulk_defaults['verb_mood'] : '';
+                            $bulk_undo_aria = esc_attr__('Undo last bulk change', 'll-tools-text-domain');
+                            $bulk_undo_text = esc_html__('Undo', 'll-tools-text-domain');
                             $lesson_prereq_editor = [
                                 'show' => false,
                                 'options_json' => '[]',
@@ -478,19 +497,37 @@ if (have_posts()) {
                                     <div class="ll-vocab-lesson-bulk-section">
                                         <div class="ll-vocab-lesson-bulk-heading-row">
                                             <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></div>
-                                            <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="pos" data-state="idle" role="status" aria-live="polite" hidden>
-                                                <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                            </span>
+                                            <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="pos" data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                                <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="pos" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                </button>
+                                            </div>
                                         </div>
                                         <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Part of speech', 'll-tools-text-domain'); ?>">
                                             <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-pos aria-label="<?php echo esc_attr__('Select part of speech', 'll-tools-text-domain'); ?>">
                                                 <option value=""><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></option>
+                                                <?php $bulk_pos_found = false; ?>
                                                 <?php foreach ($pos_terms as $term) : ?>
                                                     <?php if (!empty($term->slug)) : ?>
-                                                        <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
+                                                        <?php if ((string) $term->slug === $bulk_pos_default) : ?>
+                                                            <?php $bulk_pos_found = true; ?>
+                                                        <?php endif; ?>
+                                                        <option value="<?php echo esc_attr($term->slug); ?>" <?php selected((string) $term->slug, $bulk_pos_default); ?>><?php echo esc_html($term->name); ?></option>
                                                     <?php endif; ?>
                                                 <?php endforeach; ?>
+                                                <?php if ($bulk_pos_default !== '' && !$bulk_pos_found) : ?>
+                                                    <option value="<?php echo esc_attr($bulk_pos_default); ?>" selected><?php echo esc_html($bulk_pos_default); ?></option>
+                                                <?php endif; ?>
                                             </select>
                                         </div>
                                     </div>
@@ -498,24 +535,47 @@ if (have_posts()) {
                                         <div class="ll-vocab-lesson-bulk-section">
                                             <div class="ll-vocab-lesson-bulk-heading-row">
                                                 <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></div>
-                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="gender" data-state="idle" role="status" aria-live="polite" hidden>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                                </span>
+                                                <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="gender" data-state="idle" role="status" aria-live="polite" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                    </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="gender" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                                <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Noun gender', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-gender aria-label="<?php echo esc_attr__('Select gender', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></option>
+                                                    <?php $bulk_gender_found = false; ?>
                                                     <?php foreach ($gender_options as $option) : ?>
                                                         <?php if (!empty($option)) : ?>
                                                             <?php
                                                             $option_label = function_exists('ll_tools_wordset_format_gender_display_label')
                                                                 ? ll_tools_wordset_format_gender_display_label($option)
                                                                 : $option;
+                                                            if ((string) $option === $bulk_gender_default) {
+                                                                $bulk_gender_found = true;
+                                                            }
                                                             ?>
-                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option_label); ?></option>
+                                                            <option value="<?php echo esc_attr($option); ?>" <?php selected((string) $option, $bulk_gender_default); ?>><?php echo esc_html($option_label); ?></option>
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
+                                                    <?php if ($bulk_gender_default !== '' && !$bulk_gender_found) : ?>
+                                                        <?php
+                                                        $bulk_gender_fallback_label = function_exists('ll_tools_wordset_get_gender_label')
+                                                            ? ll_tools_wordset_get_gender_label($wordset_id, $bulk_gender_default)
+                                                            : $bulk_gender_default;
+                                                        ?>
+                                                        <option value="<?php echo esc_attr($bulk_gender_default); ?>" selected><?php echo esc_html($bulk_gender_fallback_label); ?></option>
+                                                    <?php endif; ?>
                                                 </select>
                                             </div>
                                         </div>
@@ -524,19 +584,42 @@ if (have_posts()) {
                                         <div class="ll-vocab-lesson-bulk-section">
                                             <div class="ll-vocab-lesson-bulk-heading-row">
                                                 <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Plurality', 'll-tools-text-domain'); ?></div>
-                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="plurality" data-state="idle" role="status" aria-live="polite" hidden>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                                </span>
+                                                <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="plurality" data-state="idle" role="status" aria-live="polite" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                    </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="plurality" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                                <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Noun plurality', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-plurality aria-label="<?php echo esc_attr__('Select plurality', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Plurality', 'll-tools-text-domain'); ?></option>
+                                                    <?php $bulk_plurality_found = false; ?>
                                                     <?php foreach ($plurality_options as $option) : ?>
                                                         <?php if (!empty($option)) : ?>
-                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                                                            <?php if ((string) $option === $bulk_plurality_default) : ?>
+                                                                <?php $bulk_plurality_found = true; ?>
+                                                            <?php endif; ?>
+                                                            <option value="<?php echo esc_attr($option); ?>" <?php selected((string) $option, $bulk_plurality_default); ?>><?php echo esc_html($option); ?></option>
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
+                                                    <?php if ($bulk_plurality_default !== '' && !$bulk_plurality_found) : ?>
+                                                        <?php
+                                                        $bulk_plurality_fallback_label = function_exists('ll_tools_wordset_get_plurality_label')
+                                                            ? ll_tools_wordset_get_plurality_label($wordset_id, $bulk_plurality_default)
+                                                            : $bulk_plurality_default;
+                                                        ?>
+                                                        <option value="<?php echo esc_attr($bulk_plurality_default); ?>" selected><?php echo esc_html($bulk_plurality_fallback_label); ?></option>
+                                                    <?php endif; ?>
                                                 </select>
                                             </div>
                                         </div>
@@ -545,19 +628,42 @@ if (have_posts()) {
                                         <div class="ll-vocab-lesson-bulk-section">
                                             <div class="ll-vocab-lesson-bulk-heading-row">
                                                 <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></div>
-                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-tense" data-state="idle" role="status" aria-live="polite" hidden>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                                </span>
+                                                <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-tense" data-state="idle" role="status" aria-live="polite" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                    </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="verb-tense" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                                <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb tense', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-tense aria-label="<?php echo esc_attr__('Select verb tense', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></option>
+                                                    <?php $bulk_verb_tense_found = false; ?>
                                                     <?php foreach ($verb_tense_options as $option) : ?>
                                                         <?php if (!empty($option)) : ?>
-                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                                                            <?php if ((string) $option === $bulk_verb_tense_default) : ?>
+                                                                <?php $bulk_verb_tense_found = true; ?>
+                                                            <?php endif; ?>
+                                                            <option value="<?php echo esc_attr($option); ?>" <?php selected((string) $option, $bulk_verb_tense_default); ?>><?php echo esc_html($option); ?></option>
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
+                                                    <?php if ($bulk_verb_tense_default !== '' && !$bulk_verb_tense_found) : ?>
+                                                        <?php
+                                                        $bulk_verb_tense_fallback_label = function_exists('ll_tools_wordset_get_verb_tense_label')
+                                                            ? ll_tools_wordset_get_verb_tense_label($wordset_id, $bulk_verb_tense_default)
+                                                            : $bulk_verb_tense_default;
+                                                        ?>
+                                                        <option value="<?php echo esc_attr($bulk_verb_tense_default); ?>" selected><?php echo esc_html($bulk_verb_tense_fallback_label); ?></option>
+                                                    <?php endif; ?>
                                                 </select>
                                             </div>
                                         </div>
@@ -566,19 +672,42 @@ if (have_posts()) {
                                         <div class="ll-vocab-lesson-bulk-section">
                                             <div class="ll-vocab-lesson-bulk-heading-row">
                                                 <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></div>
-                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-mood" data-state="idle" role="status" aria-live="polite" hidden>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
-                                                </span>
+                                                <div class="ll-vocab-lesson-bulk-heading-actions">
+                                                    <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-mood" data-state="idle" role="status" aria-live="polite" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                        <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                    </span>
+                                                    <button type="button" class="ll-vocab-lesson-bulk-control-undo" data-ll-bulk-control-undo="verb-mood" aria-label="<?php echo $bulk_undo_aria; ?>" title="<?php echo $bulk_undo_aria; ?>" hidden>
+                                                        <span class="ll-vocab-lesson-bulk-control-undo-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                                <path d="M8 6 4.5 9.5 8 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                                <path d="M5.2 9.5h5.3a4 4 0 1 1 0 8h-1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                                            </svg>
+                                                        </span>
+                                                        <span class="screen-reader-text"><?php echo $bulk_undo_text; ?></span>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb mood', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-mood aria-label="<?php echo esc_attr__('Select verb mood', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></option>
+                                                    <?php $bulk_verb_mood_found = false; ?>
                                                     <?php foreach ($verb_mood_options as $option) : ?>
                                                         <?php if (!empty($option)) : ?>
-                                                            <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                                                            <?php if ((string) $option === $bulk_verb_mood_default) : ?>
+                                                                <?php $bulk_verb_mood_found = true; ?>
+                                                            <?php endif; ?>
+                                                            <option value="<?php echo esc_attr($option); ?>" <?php selected((string) $option, $bulk_verb_mood_default); ?>><?php echo esc_html($option); ?></option>
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
+                                                    <?php if ($bulk_verb_mood_default !== '' && !$bulk_verb_mood_found) : ?>
+                                                        <?php
+                                                        $bulk_verb_mood_fallback_label = function_exists('ll_tools_wordset_get_verb_mood_label')
+                                                            ? ll_tools_wordset_get_verb_mood_label($wordset_id, $bulk_verb_mood_default)
+                                                            : $bulk_verb_mood_default;
+                                                        ?>
+                                                        <option value="<?php echo esc_attr($bulk_verb_mood_default); ?>" selected><?php echo esc_html($bulk_verb_mood_fallback_label); ?></option>
+                                                    <?php endif; ?>
                                                 </select>
                                             </div>
                                         </div>

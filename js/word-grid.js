@@ -1158,6 +1158,9 @@
     const bulkMessages = {
         saving: bulkI18n.saving || 'Updating...',
         saved: bulkI18n.saved || 'Saved.',
+        undoLabel: bulkI18n.undoLabel || 'Undo last bulk change',
+        undoSuccess: bulkI18n.undoSuccess || 'Bulk changes undone.',
+        undoError: bulkI18n.undoError || 'Unable to undo bulk changes.',
         posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
         genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',
         pluralitySuccess: bulkI18n.pluralitySuccess || 'Updated %d nouns.',
@@ -1450,6 +1453,76 @@
         if (!$status.length) { return; }
         $status.text(message || '');
         $status.toggleClass('is-error', !!isError);
+    }
+
+    function getWordBulkFieldValue($item, fieldName) {
+        if (!$item || !$item.length || !fieldName) { return ''; }
+        return ($item.find('[data-ll-word-input="' + fieldName + '"]').val() || '').toString();
+    }
+
+    function getWordBulkFieldLabel($item, fieldName, fallbackSelector) {
+        if (!$item || !$item.length || !fieldName) { return ''; }
+        const $input = $item.find('[data-ll-word-input="' + fieldName + '"]').first();
+        const selectedLabel = $input.length
+            ? (($input.find('option:selected').text() || '').toString().trim())
+            : '';
+        if (selectedLabel) {
+            return selectedLabel;
+        }
+        if (!fallbackSelector) {
+            return '';
+        }
+        const $fallback = $item.find(fallbackSelector).first();
+        if (!$fallback.length) {
+            return '';
+        }
+        return (($fallback.attr('aria-label') || $fallback.text() || '').toString().trim());
+    }
+
+    function captureCurrentBulkWordSnapshot($item) {
+        const wordId = parseInt($item && $item.data('word-id'), 10) || 0;
+        if (!wordId) { return null; }
+
+        const posValue = getWordBulkFieldValue($item, 'part_of_speech');
+        const genderValue = getWordBulkFieldValue($item, 'gender');
+        const pluralityValue = getWordBulkFieldValue($item, 'plurality');
+        const verbTenseValue = getWordBulkFieldValue($item, 'verb_tense');
+        const verbMoodValue = getWordBulkFieldValue($item, 'verb_mood');
+        const $genderMeta = $item.find('[data-ll-word-gender]').first();
+
+        return {
+            word_id: wordId,
+            raw: {
+                part_of_speech: posValue,
+                grammatical_gender: genderValue,
+                grammatical_plurality: pluralityValue,
+                verb_tense: verbTenseValue,
+                verb_mood: verbMoodValue
+            },
+            part_of_speech: {
+                slug: posValue,
+                label: getWordBulkFieldLabel($item, 'part_of_speech', '[data-ll-word-pos]')
+            },
+            grammatical_gender: {
+                value: genderValue,
+                label: getWordBulkFieldLabel($item, 'gender', '[data-ll-word-gender]'),
+                role: ($genderMeta.attr('data-ll-gender-role') || '').toString(),
+                style: ($genderMeta.attr('style') || '').toString(),
+                html: genderValue ? ($genderMeta.html() || '').toString() : ''
+            },
+            grammatical_plurality: {
+                value: pluralityValue,
+                label: getWordBulkFieldLabel($item, 'plurality', '[data-ll-word-plurality]')
+            },
+            verb_tense: {
+                value: verbTenseValue,
+                label: getWordBulkFieldLabel($item, 'verb_tense', '[data-ll-word-verb-tense]')
+            },
+            verb_mood: {
+                value: verbMoodValue,
+                label: getWordBulkFieldLabel($item, 'verb_mood', '[data-ll-word-verb-mood]')
+            }
+        };
     }
 
     function parseJsonArrayAttr($el, attrName) {
@@ -3098,6 +3171,7 @@
             const busy = !!isBusy;
             $wrap.toggleClass('ll-vocab-lesson-bulk--busy', busy);
             $wrap.attr('aria-busy', busy ? 'true' : 'false');
+            $wrap.find('[data-ll-bulk-control-undo]').prop('disabled', busy);
         }
 
         function getBulkControlStatusElement($wrap, controlKey) {
@@ -3179,10 +3253,52 @@
                 activeKey: '',
                 activeValue: '',
                 queueOrder: [],
-                queueValues: {}
+                queueValues: {},
+                undoSnapshots: {}
             };
             $wrap.data('llBulkAutoState', state);
             return state;
+        }
+
+        function getBulkControlUndoButton($wrap, controlKey) {
+            if (!$wrap || !$wrap.length || !controlKey) { return $(); }
+            return $wrap.find('[data-ll-bulk-control-undo="' + controlKey + '"]').first();
+        }
+
+        function setBulkControlsDisabled($wrap, isDisabled) {
+            const disabled = !!isDisabled;
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-control-undo]')
+                .prop('disabled', disabled);
+        }
+
+        function setBulkControlUndoSnapshot($wrap, controlKey, snapshot) {
+            const state = getBulkAutoState($wrap);
+            const $button = getBulkControlUndoButton($wrap, controlKey);
+            if (!state || !$button.length || !controlKey) { return; }
+
+            if (!snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length) {
+                delete state.undoSnapshots[controlKey];
+                $button.attr('hidden', 'hidden');
+                return;
+            }
+
+            state.undoSnapshots[controlKey] = snapshot;
+            $button.removeAttr('hidden');
+        }
+
+        function clearAllBulkControlUndoSnapshots($wrap, exceptKey) {
+            const state = getBulkAutoState($wrap);
+            if (!state) { return; }
+
+            const keepKey = (exceptKey || '').toString();
+            Object.keys(state.undoSnapshots || {}).forEach(function (controlKey) {
+                if (keepKey && controlKey === keepKey) {
+                    return;
+                }
+                delete state.undoSnapshots[controlKey];
+                getBulkControlUndoButton($wrap, controlKey).attr('hidden', 'hidden');
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+            });
         }
 
         function getPrereqEditorState($editor) {
@@ -3811,6 +3927,8 @@
                 statusKey: 'pos',
                 selector: '[data-ll-bulk-pos]',
                 mode: 'pos',
+                defaultField: 'part_of_speech',
+                scope: 'all',
                 requestField: 'part_of_speech',
                 successTemplate: bulkMessages.posSuccess,
                 applyResponse: function (context, data) {
@@ -3836,6 +3954,8 @@
                 statusKey: 'gender',
                 selector: '[data-ll-bulk-gender]',
                 mode: 'gender',
+                defaultField: 'grammatical_gender',
+                scope: 'noun',
                 requestField: 'grammatical_gender',
                 successTemplate: bulkMessages.genderSuccess,
                 applyResponse: function (context, data) {
@@ -3853,6 +3973,8 @@
                 statusKey: 'plurality',
                 selector: '[data-ll-bulk-plurality]',
                 mode: 'plurality',
+                defaultField: 'grammatical_plurality',
+                scope: 'noun',
                 requestField: 'grammatical_plurality',
                 successTemplate: bulkMessages.pluralitySuccess,
                 applyResponse: function (context, data) {
@@ -3870,6 +3992,8 @@
                 statusKey: 'verb-tense',
                 selector: '[data-ll-bulk-verb-tense]',
                 mode: 'verb_tense',
+                defaultField: 'verb_tense',
+                scope: 'verb',
                 requestField: 'verb_tense',
                 successTemplate: bulkMessages.verbTenseSuccess,
                 applyResponse: function (context, data) {
@@ -3887,6 +4011,8 @@
                 statusKey: 'verb-mood',
                 selector: '[data-ll-bulk-verb-mood]',
                 mode: 'verb_mood',
+                defaultField: 'verb_mood',
+                scope: 'verb',
                 requestField: 'verb_mood',
                 successTemplate: bulkMessages.verbMoodSuccess,
                 applyResponse: function (context, data) {
@@ -3901,6 +4027,167 @@
                 }
             }
         };
+
+        function getBulkControlWordItems(context, controlKey) {
+            const config = bulkControlConfigs[controlKey] || null;
+            if (!context || !context.$grid || !config) { return $(); }
+
+            const $items = context.$grid.find('.word-item');
+            if (!$items.length) {
+                return $items;
+            }
+
+            if (config.scope === 'noun') {
+                return $items.filter(function () {
+                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'noun';
+                });
+            }
+            if (config.scope === 'verb') {
+                return $items.filter(function () {
+                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'verb';
+                });
+            }
+
+            return $items;
+        }
+
+        function collectBulkUndoSnapshot(context, controlKey) {
+            const $items = getBulkControlWordItems(context, controlKey);
+            const rows = [];
+
+            $items.each(function () {
+                const snapshot = captureCurrentBulkWordSnapshot($(this));
+                if (snapshot) {
+                    rows.push(snapshot);
+                }
+            });
+
+            return {
+                controlKey: controlKey,
+                rows: rows
+            };
+        }
+
+        function summarizeBulkDefaultValues(values) {
+            const list = Array.isArray(values) ? values : [];
+            if (!list.length) {
+                return '';
+            }
+
+            const first = (list[0] || '').toString().trim();
+            if (!first) {
+                return '';
+            }
+
+            for (let index = 1; index < list.length; index += 1) {
+                if ((list[index] || '').toString().trim() !== first) {
+                    return '';
+                }
+            }
+
+            return first;
+        }
+
+        function computeBulkControlDefaultsFromGrid($wrap) {
+            const defaults = {
+                part_of_speech: '',
+                grammatical_gender: '',
+                grammatical_plurality: '',
+                verb_tense: '',
+                verb_mood: ''
+            };
+            const context = getBulkContext($wrap);
+            if (!context || !context.$grid || !context.$grid.length) {
+                return null;
+            }
+
+            const $items = context.$grid.find('.word-item');
+            if (!$items.length) {
+                return null;
+            }
+
+            const posValues = [];
+            const genderValues = [];
+            const pluralityValues = [];
+            const verbTenseValues = [];
+            const verbMoodValues = [];
+
+            $items.each(function () {
+                const $item = $(this);
+                const posValue = getWordBulkFieldValue($item, 'part_of_speech');
+                posValues.push(posValue);
+
+                if (posValue === 'noun') {
+                    genderValues.push(getWordBulkFieldValue($item, 'gender'));
+                    pluralityValues.push(getWordBulkFieldValue($item, 'plurality'));
+                }
+                if (posValue === 'verb') {
+                    verbTenseValues.push(getWordBulkFieldValue($item, 'verb_tense'));
+                    verbMoodValues.push(getWordBulkFieldValue($item, 'verb_mood'));
+                }
+            });
+
+            defaults.part_of_speech = summarizeBulkDefaultValues(posValues);
+            defaults.grammatical_gender = summarizeBulkDefaultValues(genderValues);
+            defaults.grammatical_plurality = summarizeBulkDefaultValues(pluralityValues);
+            defaults.verb_tense = summarizeBulkDefaultValues(verbTenseValues);
+            defaults.verb_mood = summarizeBulkDefaultValues(verbMoodValues);
+
+            return defaults;
+        }
+
+        function syncBulkControlSelectDefaults($wrap, providedDefaults) {
+            const defaults = (providedDefaults && typeof providedDefaults === 'object')
+                ? providedDefaults
+                : computeBulkControlDefaultsFromGrid($wrap);
+            if (!defaults || typeof defaults !== 'object') {
+                return;
+            }
+
+            Object.keys(bulkControlConfigs).forEach(function (controlKey) {
+                const config = bulkControlConfigs[controlKey];
+                const $select = getBulkControlSelect($wrap, controlKey);
+                if (!$select.length || !config || !config.defaultField) {
+                    return;
+                }
+
+                const nextValue = ((defaults[config.defaultField] || '') + '').trim();
+                $select.find('option[data-ll-bulk-temp-option]').remove();
+
+                if (nextValue && !$select.find('option').filter(function () {
+                    return (($(this).val() || '').toString() === nextValue);
+                }).length) {
+                    $select.append($('<option>', {
+                        value: nextValue,
+                        text: nextValue,
+                        'data-ll-bulk-temp-option': '1'
+                    }));
+                }
+
+                $select.val(nextValue);
+            });
+        }
+
+        function applyBulkUndoWords(context, words) {
+            if (!context || !context.$grid || !Array.isArray(words)) { return; }
+
+            words.forEach(function (word) {
+                const wordId = parseInt(word && word.word_id, 10) || 0;
+                if (!wordId) { return; }
+                const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                if (!$item.length) { return; }
+
+                applyPosMetaUpdate(
+                    $item,
+                    word.part_of_speech || {},
+                    word.grammatical_gender || {},
+                    word.grammatical_plurality || {},
+                    word.verb_tense || {},
+                    word.verb_mood || {}
+                );
+                updateOriginalInputs($item);
+            });
+        }
 
         function getBulkControlConfigForSelect($select) {
             if (!$select || !$select.length) { return null; }
@@ -3975,6 +4262,7 @@
                 return;
             }
 
+            const undoSnapshot = collectBulkUndoSnapshot(context, controlKey);
             state.activeKey = controlKey;
             state.activeValue = requestValue;
             setBulkBusy($wrap, true);
@@ -4006,8 +4294,12 @@
                 const updatedCount = typeof config.applyResponse === 'function'
                     ? (parseInt(config.applyResponse(context, data), 10) || 0)
                     : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
+                const hasUndoSnapshot = !!(undoSnapshot && Array.isArray(undoSnapshot.rows) && undoSnapshot.rows.length && updatedCount > 0);
 
                 updateGridLayouts();
+                syncBulkControlSelectDefaults($wrap);
+                clearAllBulkControlUndoSnapshots($wrap, controlKey);
+                setBulkControlUndoSnapshot($wrap, controlKey, hasUndoSnapshot ? undoSnapshot : null);
                 setBulkStatus($wrap, '', false);
                 setBulkControlStatus(
                     $wrap,
@@ -4015,7 +4307,9 @@
                     'saved',
                     config.successTemplate ? formatBulkMessage(config.successTemplate, updatedCount) : bulkMessages.saved
                 );
-                scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                if (!hasUndoSnapshot) {
+                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                }
             }).fail(function (jqXHR) {
                 const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.error);
                 setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
@@ -4041,9 +4335,85 @@
             });
         }
 
+        function undoBulkControlUpdate($wrap, controlKey) {
+            const state = getBulkAutoState($wrap);
+            const config = bulkControlConfigs[controlKey] || null;
+            const context = getBulkContext($wrap);
+            const snapshot = state && state.undoSnapshots ? state.undoSnapshots[controlKey] : null;
+
+            if (!state || !config || !context || !snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length || state.activeKey) {
+                return;
+            }
+
+            state.activeKey = controlKey;
+            state.activeValue = '';
+            setBulkControlsDisabled($wrap, true);
+            setBulkBusy($wrap, true);
+            setBulkStatus($wrap, '', false);
+            setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
+
+            const payloadRows = snapshot.rows.map(function (row) {
+                const raw = row && row.raw && typeof row.raw === 'object' ? row.raw : {};
+                return {
+                    word_id: parseInt(row && row.word_id, 10) || 0,
+                    part_of_speech: (raw.part_of_speech || '').toString(),
+                    grammatical_gender: (raw.grammatical_gender || '').toString(),
+                    grammatical_plurality: (raw.grammatical_plurality || '').toString(),
+                    verb_tense: (raw.verb_tense || '').toString(),
+                    verb_mood: (raw.verb_mood || '').toString()
+                };
+            }).filter(function (row) {
+                return row.word_id > 0;
+            });
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_bulk_undo',
+                nonce: editNonce,
+                mode: config.mode,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId,
+                snapshot: JSON.stringify(payloadRows)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && typeof response.data === 'string'
+                        ? response.data
+                        : (response && response.data && typeof response.data.message === 'string'
+                            ? response.data.message
+                            : bulkMessages.undoError);
+                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
+                    setBulkStatus($wrap, responseMessage, true);
+                    return;
+                }
+
+                const data = response.data || {};
+                applyBulkUndoWords(context, Array.isArray(data.words) ? data.words : []);
+                updateGridLayouts();
+                syncBulkControlSelectDefaults($wrap);
+                clearAllBulkControlUndoSnapshots($wrap);
+                setBulkStatus($wrap, '', false);
+                setBulkControlStatus($wrap, controlKey, 'saved', (typeof data.message === 'string' && data.message) ? data.message : bulkMessages.undoSuccess);
+                scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+            }).fail(function (jqXHR) {
+                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.undoError);
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
+                setBulkStatus($wrap, errorMessage, true);
+            }).always(function () {
+                const currentState = getBulkAutoState($wrap);
+                if (currentState) {
+                    currentState.activeKey = '';
+                    currentState.activeValue = '';
+                }
+                setBulkControlsDisabled($wrap, false);
+                setBulkBusy($wrap, false);
+            });
+        }
+
         if ($bulkEditors.length) {
             $bulkEditors.find('[data-ll-prereq-editor]').each(function () {
                 initPrereqEditor($(this));
+            });
+            $bulkEditors.each(function () {
+                syncBulkControlSelectDefaults($(this));
             });
 
             $bulkEditors.on('input', '[data-ll-prereq-input]', function () {
@@ -4122,6 +4492,17 @@
                     setPrereqEditorStatus($editor, 'idle', '');
                     schedulePrereqEditorSave($editor, prereqSaveDelayMs);
                 }
+            });
+
+            $bulkEditors.on('click', '[data-ll-bulk-control-undo]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $wrap = $btn.closest('[data-ll-word-grid-bulk]');
+                const controlKey = ($btn.attr('data-ll-bulk-control-undo') || '').toString();
+                if (!$wrap.length || !controlKey) { return; }
+                undoBulkControlUpdate($wrap, controlKey);
             });
 
             $bulkEditors.on('change', '[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood]', function () {
@@ -4508,6 +4889,11 @@
                 }
                 updateGridLayouts();
                 updateOriginalInputs($item);
+                const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
+                if ($bulkWrap.length) {
+                    clearAllBulkControlUndoSnapshots($bulkWrap);
+                    syncBulkControlSelectDefaults($bulkWrap);
+                }
                 setEditStatus($item, '');
                 setRecordingsPanelOpen($item, false);
                 setEditPanelOpen($item, false);
