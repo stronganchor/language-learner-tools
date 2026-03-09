@@ -3,6 +3,7 @@
     --ll-recorder-card-pad: clamp(0.75rem, 1.8vw, 1.25rem);
     --ll-recorder-main-gap: clamp(0.75rem, 1.6vw, 1.25rem);
     --ll-recorder-image-size: clamp(112px, 21vh, 160px);
+    --ll-recorder-image-column-width: clamp(196px, 28vw, 260px);
     --ll-recorder-record-size: clamp(58px, 9.2vh, 76px);
     --ll-recorder-record-icon: clamp(24px, 3.8vh, 31px);
     max-width: min(980px, calc(100vw - 1rem));
@@ -593,7 +594,10 @@
 }
 
 .ll-recording-image-container {
-    flex: 0 0 auto;
+    flex: 0 0 var(--ll-recorder-image-column-width);
+    width: var(--ll-recorder-image-column-width);
+    min-width: var(--ll-recorder-image-column-width);
+    max-width: var(--ll-recorder-image-column-width);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -655,7 +659,10 @@
     color: #1a1a1a;
     text-align: center;
     min-height: 1.5rem;
+    width: 100%;
+    max-width: 100%;
     position: relative;
+    box-sizing: border-box;
 }
 
 .ll-image-category {
@@ -665,7 +672,10 @@
     font-weight: 500;
     text-align: center;
     min-height: 1rem;
+    width: 100%;
+    max-width: 100%;
     position: relative;
+    box-sizing: border-box;
 }
 
 .ll-recording-image-container.is-loading .ll-image-title,
@@ -1431,6 +1441,7 @@
 @media (max-width: 768px) {
     .ll-recording-interface {
         --ll-recorder-image-size: clamp(96px, 18vh, 130px);
+        --ll-recorder-image-column-width: min(100%, clamp(196px, 72vw, 260px));
         --ll-recorder-record-size: clamp(52px, 8vh, 64px);
         --ll-recorder-record-icon: clamp(21px, 3.4vh, 27px);
         max-width: calc(100vw - 0.6rem);
@@ -1447,6 +1458,13 @@
     .ll-recording-controls-column {
         width: 100%;
         max-width: 100%;
+    }
+
+    .ll-recording-image-container {
+        width: 100%;
+        min-width: 0;
+        max-width: var(--ll-recorder-image-column-width);
+        flex-basis: auto;
     }
 
     .ll-recording-type-selector {
