@@ -41,6 +41,45 @@
         return output;
     }
 
+    function initWordsetMemory() {
+        var select = document.querySelector('#ll-word-option-wordset');
+        var storageKey = 'llWordOptionRulesLastWordsetId';
+        if (!select || !window.localStorage) {
+            return;
+        }
+
+        function hasOption(value) {
+            return Array.prototype.some.call(select.options, function (option) {
+                return option && option.value === value;
+            });
+        }
+
+        try {
+            var storedValue = window.localStorage.getItem(storageKey) || '';
+            if (!select.value && storedValue && hasOption(storedValue)) {
+                select.value = storedValue;
+            }
+
+            if (select.value) {
+                window.localStorage.setItem(storageKey, select.value);
+            }
+        } catch (err) {
+            return;
+        }
+
+        select.addEventListener('change', function () {
+            try {
+                if (select.value) {
+                    window.localStorage.setItem(storageKey, select.value);
+                } else {
+                    window.localStorage.removeItem(storageKey);
+                }
+            } catch (err) {
+                // Ignore storage failures and keep the admin screen usable.
+            }
+        });
+    }
+
     function initGroupManager() {
         var groupList = document.querySelector('[data-ll-group-list]');
         var addBtn = document.querySelector('[data-group-add]');
@@ -211,6 +250,7 @@
         }
     });
 
+    initWordsetMemory();
     initGroupManager();
 
     document.addEventListener('click', function (event) {

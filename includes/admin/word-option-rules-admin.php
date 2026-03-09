@@ -5,14 +5,121 @@ if (!defined('WPINC')) { die; }
 function ll_register_word_option_rules_admin_page() {
     add_submenu_page(
         'tools.php',
-        __('Language Learner Tools - Word Options', 'll-tools-text-domain'),
-        __('LL Word Options', 'll-tools-text-domain'),
+        __('Language Learner Tools - Word Option Rules', 'll-tools-text-domain'),
+        __('Word Option Rules', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-word-option-rules',
         'll_render_word_option_rules_admin_page'
     );
 }
 add_action('admin_menu', 'll_register_word_option_rules_admin_page');
+
+function ll_tools_word_option_rules_last_wordset_meta_key(): string {
+    return 'll_tools_word_option_rules_last_wordset_id';
+}
+
+function ll_tools_word_option_rules_get_last_wordset_id(): int {
+    if (!is_user_logged_in()) {
+        return 0;
+    }
+
+    $user_id = (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return 0;
+    }
+
+    $wordset_id = (int) get_user_meta($user_id, ll_tools_word_option_rules_last_wordset_meta_key(), true);
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+
+    if (!term_exists($wordset_id, 'wordset')) {
+        delete_user_meta($user_id, ll_tools_word_option_rules_last_wordset_meta_key());
+        return 0;
+    }
+
+    return $wordset_id;
+}
+
+function ll_tools_word_option_rules_remember_wordset(int $wordset_id): void {
+    if (!is_user_logged_in()) {
+        return;
+    }
+
+    $user_id = (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return;
+    }
+
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        delete_user_meta($user_id, ll_tools_word_option_rules_last_wordset_meta_key());
+        return;
+    }
+
+    update_user_meta($user_id, ll_tools_word_option_rules_last_wordset_meta_key(), $wordset_id);
+}
+
+function ll_tools_word_option_rules_get_default_wordset_id(): int {
+    if (function_exists('ll_tools_get_active_wordset_id')) {
+        $active_wordset_id = (int) ll_tools_get_active_wordset_id();
+        if ($active_wordset_id > 0) {
+            return $active_wordset_id;
+        }
+    }
+
+    if (function_exists('ll_get_default_wordset_term_id')) {
+        $default_wordset_id = (int) ll_get_default_wordset_term_id();
+        if ($default_wordset_id > 0) {
+            return $default_wordset_id;
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_word_option_rules_wordset_is_available(int $wordset_id, array $wordsets): bool {
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        return false;
+    }
+
+    if (empty($wordsets)) {
+        return true;
+    }
+
+    foreach ($wordsets as $wordset) {
+        if ($wordset instanceof WP_Term && (int) $wordset->term_id === $wordset_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_word_option_rules_resolve_wordset_id(array $wordsets, int $requested_wordset_id = 0): int {
+    $candidate_ids = [];
+    if ($requested_wordset_id > 0) {
+        $candidate_ids[] = $requested_wordset_id;
+    }
+
+    $last_wordset_id = ll_tools_word_option_rules_get_last_wordset_id();
+    if ($last_wordset_id > 0) {
+        $candidate_ids[] = $last_wordset_id;
+    }
+
+    $default_wordset_id = ll_tools_word_option_rules_get_default_wordset_id();
+    if ($default_wordset_id > 0) {
+        $candidate_ids[] = $default_wordset_id;
+    }
+
+    $candidate_ids = array_values(array_unique(array_map('intval', $candidate_ids)));
+    foreach ($candidate_ids as $candidate_id) {
+        if (ll_tools_word_option_rules_wordset_is_available($candidate_id, $wordsets)) {
+            return $candidate_id;
+        }
+    }
+
+    return 0;
+}
 
 function ll_enqueue_word_option_rules_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-word-option-rules') {
@@ -556,6 +663,10 @@ function ll_render_word_option_rules_admin_page() {
         'orderby' => 'name',
         'order' => 'ASC',
     ]);
+    $wordset_id = ll_tools_word_option_rules_resolve_wordset_id(is_array($wordsets) ? $wordsets : [], $wordset_id);
+    if ($wordset_id > 0) {
+        ll_tools_word_option_rules_remember_wordset($wordset_id);
+    }
 
     $categories = get_terms([
         'taxonomy' => 'word-category',
@@ -569,7 +680,7 @@ function ll_render_word_option_rules_admin_page() {
     $has_selection = $wordset_term && !is_wp_error($wordset_term) && $category_term && !is_wp_error($category_term);
 
     echo '<div class="wrap ll-tools-word-options">';
-    echo '<h1>' . esc_html__('Word Option Pairing', 'll-tools-text-domain') . '</h1>';
+    echo '<h1>' . esc_html__('Word Option Rules', 'll-tools-text-domain') . '</h1>';
     echo '<p class="description">' . esc_html__('Group words that should appear together as quiz options, and block pairs that should never be wrong answers for each other.', 'll-tools-text-domain') . '</p>';
 
     if (!empty($_GET['ll_word_options_updated'])) {
