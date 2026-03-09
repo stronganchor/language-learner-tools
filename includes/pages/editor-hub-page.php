@@ -17,6 +17,7 @@ function ll_tools_get_editor_hub_page_config(): array {
         'post_content'               => '[editor_hub]',
         'error_context'              => 'editor hub page',
         'notice_title'               => __('Editor Hub Page Created!', 'll-tools-text-domain'),
+        /* translators: %s: URL of the created editor hub page */
         'notice_message'             => __('A default Editor Hub page has been created at %s', 'll-tools-text-domain'),
         'settings_label'             => __('Default Editor Hub Page', 'll-tools-text-domain'),
         'none_found_text'            => __('No editor hub page found.', 'll-tools-text-domain'),
@@ -70,14 +71,6 @@ add_action('wp_ajax_ll_create_editor_hub_page', 'll_ajax_create_editor_hub_page'
  * Helper: Build best editor hub page URL for a user.
  */
 function ll_get_editor_hub_redirect_url($user_id = 0) {
-    $user_id = (int) $user_id;
-    if ($user_id > 0) {
-        $custom_redirect = ll_tools_get_user_custom_page_url($user_id, 'll_editor_hub_page_id', 'll_editor_hub_page_url');
-        if ($custom_redirect !== '') {
-            return $custom_redirect;
-        }
-    }
-
     $page_id = (int) get_option('ll_default_editor_hub_page_id');
     if ($page_id > 0 && get_post_status($page_id) === 'publish') {
         return get_permalink($page_id);

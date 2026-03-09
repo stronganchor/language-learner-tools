@@ -17,6 +17,7 @@ function ll_tools_get_recording_page_config(): array {
         'post_content'               => '[audio_recording_interface]',
         'error_context'              => 'recording page',
         'notice_title'               => __('Audio Recording Page Created!', 'll-tools-text-domain'),
+        /* translators: %s: URL of the created recording page */
         'notice_message'             => __('A default recording page has been created at %s', 'll-tools-text-domain'),
         'settings_label'             => __('Default Recording Page', 'll-tools-text-domain'),
         'none_found_text'            => __('No recording page found.', 'll-tools-text-domain'),

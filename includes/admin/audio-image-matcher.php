@@ -9,8 +9,8 @@ if (!defined('WPINC')) { die; }
 function ll_register_audio_image_matcher_admin_page() {
     add_submenu_page(
         'tools.php',
-        'Language Learner Tools - Audio/Image Matcher',
-        'LL Tools Audio/Image Matcher',
+        __('Language Learner Tools - Audio/Image Matcher', 'll-tools-text-domain'),
+        __('LL Tools Audio/Image Matcher', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-audio-image-matcher',
         'll_render_audio_image_matcher_page'
@@ -69,6 +69,19 @@ function ll_aim_enqueue_admin_assets($hook) {
     wp_localize_script('ll-audio-image-matcher', 'llAimData', [
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce'   => wp_create_nonce('ll_aim_admin'),
+        'i18n'    => [
+            'loadingDefault' => __('Loading…', 'll-tools-text-domain'),
+            'loadingImages' => __('Loading images…', 'll-tools-text-domain'),
+            'loadingNextAudio' => __('Loading next audio…', 'll-tools-text-domain'),
+            'allDoneCategory' => __('All done in this category.', 'll-tools-text-domain'),
+            'translationPrefix' => __('Translation:', 'll-tools-text-domain'),
+            'currentImageCaption' => __('Current image (will be replaced if you pick a new one)', 'll-tools-text-domain'),
+            'noImagesFound' => __('No images found in this category.', 'll-tools-text-domain'),
+            'pickedBadge' => __('Picked', 'll-tools-text-domain'),
+            'savingMatch' => __('Saving match…', 'll-tools-text-domain'),
+            'saveError' => __('Error saving match.', 'll-tools-text-domain'),
+            'selectCategoryPrompt' => __('Please select a category.', 'll-tools-text-domain'),
+        ],
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
@@ -103,7 +116,13 @@ function ll_render_audio_image_matcher_page() {
     if (file_exists($template)) {
         include $template; // expects $cats, $wordsets, $pre_term_id, $pre_wordset_id, $pre_rematch
     } else {
-        echo '<div class="notice notice-error"><p>Template not found: <code>' . esc_html($template) . '</code></p></div>';
+        echo '<div class="notice notice-error"><p>'
+            . sprintf(
+                /* translators: %s: absolute template path */
+                esc_html__('Template not found: %s', 'll-tools-text-domain'),
+                '<code>' . esc_html($template) . '</code>'
+            )
+            . '</p></div>';
     }
 }
 

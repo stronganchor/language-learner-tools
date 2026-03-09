@@ -1828,9 +1828,9 @@
         const options = [];
 
         if (state.recordingTypes.length === 0) {
-            options.push('<option value="">No recording types found</option>');
+            options.push(`<option value="">${escapeHtml(t('recordingTypeNoneFound', 'No recording types found'))}</option>`);
         } else {
-            options.push('<option value="">Select type</option>');
+            options.push(`<option value="">${escapeHtml(t('recordingTypeSelectPlaceholder', 'Select type'))}</option>`);
             state.recordingTypes.forEach(type => {
                 const isSelected = type.slug === selectedType;
                 const display = getRecordingTypeDisplay(type);
@@ -1850,7 +1850,7 @@
 
         return `
             <label class="ll-recording-type-label">
-                <span>Recording Type</span>
+                <span>${escapeHtml(t('recordingTypeLabel', 'Recording Type'))}</span>
                 <select class="ll-recording-type-select" data-post-id="${postId}">
                     ${options.join('')}
                 </select>

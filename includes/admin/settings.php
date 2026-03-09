@@ -282,8 +282,10 @@ function ll_render_settings_page() {
 
     // Options for dropdown
     $options = array(
-        'target' => sprintf(__('%s to %s', 'll-tools-text-domain'), $target_language_name, $translation_language_name),
-        'translation' => sprintf(__('%s to %s', 'll-tools-text-domain'), $translation_language_name, $target_language_name),
+        /* translators: 1: source language label, 2: destination language label */
+        'target' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $target_language_name, $translation_language_name),
+        /* translators: 1: source language label, 2: destination language label */
+        'translation' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $translation_language_name, $target_language_name),
     );
     ?>
     <div class="wrap">

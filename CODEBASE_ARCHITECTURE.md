@@ -69,7 +69,7 @@ read_first:
 - `includes/pages/editor-hub-page.php`
   - Ensures a default Editor Hub page with `[editor_hub]`.
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
-  - Redirects `ll_tools_editor` users on login to the default Editor Hub page or a per-user page override.
+  - Redirects `ll_tools_editor` users on login to the default Editor Hub page.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 

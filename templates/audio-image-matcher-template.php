@@ -11,16 +11,16 @@ if (!defined('WPINC')) { die; }
  */
 ?>
 <div class="wrap">
-    <h1>Audio ↔ Image Matcher</h1>
+    <h1><?php esc_html_e('Audio ↔ Image Matcher', 'll-tools-text-domain'); ?></h1>
     <p>
-        Select a word set and category, then click <em>Start Matching</em>.
-        In <strong>Rematch mode</strong>, already-matched words are included and picking an image will replace the current featured image.
+        <?php esc_html_e('Select a word set and category, then click Start Matching.', 'll-tools-text-domain'); ?>
+        <?php esc_html_e('In Rematch mode, already-matched words are included and picking an image will replace the current featured image.', 'll-tools-text-domain'); ?>
     </p>
 
     <div id="ll-aim-controls" style="margin:16px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
-        <label for="ll-aim-wordset"><strong>Word Set:</strong></label>
+        <label for="ll-aim-wordset"><strong><?php esc_html_e('Word Set:', 'll-tools-text-domain'); ?></strong></label>
         <select id="ll-aim-wordset">
-            <option value="0">— Default / Auto —</option>
+            <option value="0"><?php esc_html_e('— Default / Auto —', 'll-tools-text-domain'); ?></option>
             <?php foreach ($wordsets as $ws): ?>
                 <option value="<?php echo esc_attr($ws->term_id); ?>" <?php selected($pre_wordset_id, $ws->term_id); ?>>
                     <?php echo esc_html($ws->name . ' ('.$ws->slug.')'); ?>
@@ -28,11 +28,11 @@ if (!defined('WPINC')) { die; }
             <?php endforeach; ?>
         </select>
 
-        <label for="ll-aim-category"><strong>Category:</strong></label>
+        <label for="ll-aim-category"><strong><?php esc_html_e('Category:', 'll-tools-text-domain'); ?></strong></label>
         <select id="ll-aim-category">
-            <option value="">— Select —</option>
+            <option value=""><?php esc_html_e('— Select —', 'll-tools-text-domain'); ?></option>
             <?php foreach ($cats as $t): ?>
-                <option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($pre_term_id, $t->term_id); ?>>
+                <option value="<?php echo esc_attr($t->term_id); ?>" data-slug="<?php echo esc_attr($t->slug); ?>" <?php selected($pre_term_id, $t->term_id); ?>>
                     <?php echo esc_html($t->name . ' ('.$t->slug.')'); ?>
                 </option>
             <?php endforeach; ?>
@@ -40,16 +40,16 @@ if (!defined('WPINC')) { die; }
 
         <label style="display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="ll-aim-rematch" <?php checked($pre_rematch, true); ?> />
-            Rematch mode (include already-matched words)
+            <?php esc_html_e('Rematch mode (include already-matched words)', 'll-tools-text-domain'); ?>
         </label>
 
         <label style="display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="ll-aim-hide-used" checked />
-            Hide images already matched
+            <?php esc_html_e('Hide images already matched', 'll-tools-text-domain'); ?>
         </label>
 
-        <button class="button button-primary" id="ll-aim-start">Start Matching</button>
-        <button class="button" id="ll-aim-skip" disabled>Skip</button>
+        <button class="button button-primary" id="ll-aim-start"><?php esc_html_e('Start Matching', 'll-tools-text-domain'); ?></button>
+        <button class="button" id="ll-aim-skip" disabled><?php esc_html_e('Skip', 'll-tools-text-domain'); ?></button>
     </div>
 
     <div id="ll-aim-stage" style="display:none;">

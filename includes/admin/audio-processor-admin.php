@@ -8,8 +8,8 @@ if (!defined('WPINC')) { die; }
 function ll_register_audio_processor_page() {
     add_submenu_page(
         'tools.php',
-        'Audio Processor - Language Learner Tools',
-        'LL Audio Processor',
+        __('Audio Processor - Language Learner Tools', 'll-tools-text-domain'),
+        __('LL Audio Processor', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-audio-processor',
         'll_render_audio_processor_page'
@@ -113,14 +113,19 @@ function ll_enqueue_audio_processor_assets($hook) {
         'recordingTypeIcons' => ll_audio_processor_get_recording_type_icons_map(),
         'i18n' => [
             'saveNoFiles' => __('No files to save.', 'll-tools-text-domain'),
+            /* translators: %d: number of processed audio files ready to save */
             'saveConfirmTemplate' => __('Save %d processed audio file(s)?', 'll-tools-text-domain'),
             'saveButtonDefault' => __('Save All Changes', 'll-tools-text-domain'),
             'saveButtonSaving' => __('Saving...', 'll-tools-text-domain'),
             'savePreparing' => __('Preparing uploads...', 'll-tools-text-domain'),
+            /* translators: 1: recording title, 2: current item number, 3: total items */
             'saveStatusTemplate' => __('Saving: %1$s (%2$d/%3$d)', 'll-tools-text-domain'),
+            /* translators: 1: saved file count, 2: total file count */
             'saveSuccessTemplate' => __('Success! Saved %1$d of %2$d files.', 'll-tools-text-domain'),
+            /* translators: 1: saved file count, 2: failed file count */
             'saveErrorSummaryTemplate' => __('Completed with errors: %1$d saved, %2$d failed.', 'll-tools-text-domain'),
             'saveUnexpectedError' => __('Unexpected error while saving. Please try again.', 'll-tools-text-domain'),
+            /* translators: 1: completed file count, 2: total file count */
             'saveCountTemplate' => __('%1$d / %2$d complete', 'll-tools-text-domain'),
             'beforeUnloadWarning' => __('Saving is still in progress. Leaving this page will interrupt uploads.', 'll-tools-text-domain'),
             'editWordButton' => __('Edit word', 'll-tools-text-domain'),
@@ -134,12 +139,16 @@ function ll_enqueue_audio_processor_assets($hook) {
             'translationRequired' => __('Translation cannot be empty for this word.', 'll-tools-text-domain'),
             'wordSaving' => __('Saving...', 'll-tools-text-domain'),
             'wordSaveFailed' => __('Could not update word details.', 'll-tools-text-domain'),
+            /* translators: %d: number of selected recordings */
             'deleteSelectedConfirmTemplate' => __('Delete %d recording(s)? This action cannot be undone.', 'll-tools-text-domain'),
             'deleteButtonDeleting' => __('Deleting...', 'll-tools-text-domain'),
             'deleteSelectedButtonDefault' => __('Delete Selected', 'll-tools-text-domain'),
             'deleteAllButtonDefault' => __('Delete All', 'll-tools-text-domain'),
+            /* translators: %d: number of deleted recordings */
             'deleteSuccessTemplate' => __('Deleted %d recording(s).', 'll-tools-text-domain'),
+            /* translators: 1: deleted recording count, 2: failed deletion count */
             'deletePartialTemplate' => __('Deleted %1$d recording(s). Failed to delete %2$d.', 'll-tools-text-domain'),
+            /* translators: %d: number of deleted recordings */
             'deleteAllSuccessTemplate' => __('Successfully deleted %d recording(s)', 'll-tools-text-domain'),
             /* translators: %s: recording title */
             'deleteSingleConfirmTemplate' => __('Delete "%s"? This action cannot be undone.', 'll-tools-text-domain'),
@@ -154,6 +163,9 @@ function ll_enqueue_audio_processor_assets($hook) {
             'trimLabel' => __('Trim', 'll-tools-text-domain'),
             'noiseReductionLabel' => __('Noise Reduction', 'll-tools-text-domain'),
             'loudnessLabel' => __('Loudness', 'll-tools-text-domain'),
+            'recordingTypeLabel' => __('Recording Type', 'll-tools-text-domain'),
+            'recordingTypeSelectPlaceholder' => __('Select type', 'll-tools-text-domain'),
+            'recordingTypeNoneFound' => __('No recording types found', 'll-tools-text-domain'),
             'removeFromBatchButton' => __('Remove', 'll-tools-text-domain'),
             'removeFromBatchTitle' => __('Remove from this batch', 'll-tools-text-domain'),
             'deleteRecordingButton' => __('Delete', 'll-tools-text-domain'),

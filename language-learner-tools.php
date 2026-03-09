@@ -383,6 +383,7 @@ function ll_tools_maybe_render_plugin_update_dashboard_notice() {
             <?php
             echo esc_html(
                 sprintf(
+                    /* translators: %s: available plugin version */
                     __('Language Learner Tools update available: version %s.', 'll-tools-text-domain'),
                     $version
                 )
@@ -392,6 +393,7 @@ function ll_tools_maybe_render_plugin_update_dashboard_notice() {
                 <?php
                 echo esc_html(
                     sprintf(
+                        /* translators: %s: available plugin version */
                         __('Update to %s', 'll-tools-text-domain'),
                         $version
                     )
