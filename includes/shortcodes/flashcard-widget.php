@@ -813,6 +813,49 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
 }
 
 /**
+ * Resolve the effective quiz config for a category, including the audio-to-text
+ * fallback used by category availability checks and dashboard card metadata.
+ */
+function ll_tools_resolve_effective_category_quiz_config($category, int $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, array $wordset_ids = []): array {
+    if (!($category instanceof WP_Term)) {
+        $category = get_term($category, 'word-category');
+    }
+    if (!($category instanceof WP_Term)) {
+        return [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            'learning_supported' => true,
+            'use_titles' => false,
+            'word_count' => 0,
+        ];
+    }
+
+    $config = ll_tools_get_category_quiz_config($category);
+    $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
+    $learning_supported = !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']);
+    $word_count = ll_get_words_by_category_count($category->name, $option_type, $wordset_ids, $config);
+
+    if ($word_count < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
+        $fallback_config = $config;
+        $fallback_config['option_type'] = 'text_translation';
+        $fallback_count = ll_get_words_by_category_count($category->name, 'text', $wordset_ids, $fallback_config);
+        if ($fallback_count >= $min_word_count) {
+            $option_type = 'text_translation';
+            $learning_supported = ($prompt_type === 'image') ? false : $learning_supported;
+            $word_count = $fallback_count;
+        }
+    }
+
+    $config['prompt_type'] = $prompt_type;
+    $config['option_type'] = $option_type;
+    $config['learning_supported'] = $learning_supported;
+    $config['word_count'] = (int) $word_count;
+
+    return $config;
+}
+
+/**
  * Processes categories for the flashcard widget.
  */
 function ll_process_categories($categories, $use_translations, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
@@ -843,27 +886,14 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             continue;
         }
 
-        $config = ll_tools_get_category_quiz_config($category);
-        $learning_supported = $config['learning_supported'];
-
-        // Resolve the effective option type (fall back to text if the preferred audio-based mode has too few words)
-        $option_type = $config['option_type'];
+        $config = ll_tools_resolve_effective_category_quiz_config($category, $min_word_count, $wordset_ids);
+        $learning_supported = !empty($config['learning_supported']);
+        $option_type = (string) ($config['option_type'] ?? 'image');
         $words_in_mode = [];
-        $word_count = ll_get_words_by_category_count($category->name, $option_type, $wordset_ids, $config);
-        if ($word_count < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
-            $fallback_config = $config;
-            $fallback_config['option_type'] = 'text_translation';
-            $fallback_count = ll_get_words_by_category_count($category->name, 'text', $wordset_ids, $fallback_config);
-            if ($fallback_count >= $min_word_count) {
-                $option_type = 'text_translation';
-                $learning_supported = ($config['prompt_type'] === 'image') ? false : $learning_supported;
-                $word_count = $fallback_count;
-            }
-        }
+        $word_count = (int) ($config['word_count'] ?? 0);
         if ($word_count < $min_word_count) {
             continue;
         }
-        $config['option_type'] = $option_type;
 
         if ($gender_enabled) {
             $words_in_mode = ll_get_words_by_category($category->name, $option_type, $wordset_ids, $config);

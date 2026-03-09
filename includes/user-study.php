@@ -232,6 +232,7 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
     }
 
     $uid = (int) get_current_user_id();
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
     $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
     $terms = get_terms([
         'taxonomy'   => 'word-category',
@@ -255,6 +256,9 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
         $config = function_exists('ll_tools_get_category_quiz_config')
             ? ll_tools_get_category_quiz_config($term)
             : ['prompt_type' => 'audio', 'option_type' => 'image'];
+        if (function_exists('ll_tools_resolve_effective_category_quiz_config')) {
+            $config = ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, $wordset_ids);
+        }
         $option_type = isset($config['option_type']) ? $config['option_type'] : 'image';
         $prompt_type = isset($config['prompt_type']) ? $config['prompt_type'] : 'audio';
         $merged_config = array_merge($config, [
