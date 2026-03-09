@@ -21,6 +21,46 @@ if (is_singular('ll_vocab_lesson') && function_exists('ll_tools_user_can_view_wo
     }
 }
 
+$ll_vocab_lesson_print_requested = function_exists('ll_tools_is_vocab_lesson_image_print_request')
+    && ll_tools_is_vocab_lesson_image_print_request();
+if ($ll_vocab_lesson_print_requested) {
+    $print_post_id = (int) get_queried_object_id();
+    $print_post = ($print_post_id > 0) ? get_post($print_post_id) : null;
+    $print_wordset_id = ($print_post_id > 0) ? (int) get_post_meta($print_post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true) : 0;
+    $print_category_id = ($print_post_id > 0) ? (int) get_post_meta($print_post_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true) : 0;
+    $print_wordset = ($print_wordset_id > 0) ? get_term($print_wordset_id, 'wordset') : null;
+    $print_category = ($print_category_id > 0) ? get_term($print_category_id, 'word-category') : null;
+    $print_display_name = ($print_category instanceof WP_Term && !is_wp_error($print_category) && function_exists('ll_tools_get_category_display_name'))
+        ? ll_tools_get_category_display_name($print_category)
+        : (($print_category instanceof WP_Term && !is_wp_error($print_category)) ? $print_category->name : (($print_post instanceof WP_Post) ? get_the_title($print_post) : ''));
+    $print_allowed = !$ll_vocab_lesson_access_denied
+        && ($print_post instanceof WP_Post)
+        && $print_post->post_type === 'll_vocab_lesson'
+        && function_exists('ll_tools_verify_vocab_lesson_image_print_request')
+        && ll_tools_verify_vocab_lesson_image_print_request($print_post_id);
+    $print_items = ($print_allowed && function_exists('ll_tools_get_vocab_lesson_print_items'))
+        ? ll_tools_get_vocab_lesson_print_items($print_wordset_id, $print_category_id)
+        : [];
+
+    status_header($print_allowed ? 200 : ($ll_vocab_lesson_access_denied ? 404 : 403));
+    nocache_headers();
+
+    ll_tools_render_template('vocab-lesson-print-template.php', [
+        'lesson'                => $print_post,
+        'lesson_id'             => $print_post_id,
+        'wordset'               => $print_wordset,
+        'wordset_id'            => $print_wordset_id,
+        'category'              => $print_category,
+        'category_id'           => $print_category_id,
+        'display_name'          => $print_display_name,
+        'print_items'           => $print_items,
+        'print_request_allowed' => $print_allowed,
+        'print_error_status'    => $ll_vocab_lesson_access_denied ? 404 : 403,
+        'auto_print'            => $print_allowed && !empty($print_items),
+    ]);
+    return;
+}
+
 get_header();
 
 if ($ll_vocab_lesson_access_denied) {
@@ -42,6 +82,8 @@ if (have_posts()) {
     $can_edit_words = function_exists('ll_tools_user_can_edit_vocab_words')
         ? ll_tools_user_can_edit_vocab_words($wordset_id)
         : (is_user_logged_in() && current_user_can('view_ll_tools'));
+    $can_print_lesson_images = function_exists('ll_tools_user_can_print_vocab_lesson_images')
+        && ll_tools_user_can_print_vocab_lesson_images();
     $can_transcribe = $can_edit_words
         && function_exists('ll_tools_can_transcribe_recordings')
         && ll_tools_can_transcribe_recordings();
@@ -60,6 +102,9 @@ if (have_posts()) {
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
     $wordset_url = ($wordset_slug !== '')
         ? trailingslashit(home_url($wordset_slug))
+        : '';
+    $print_image_url = ($can_print_lesson_images && function_exists('ll_tools_get_vocab_lesson_image_print_url'))
+        ? ll_tools_get_vocab_lesson_image_print_url($post_id)
         : '';
     $category_slug = ($category && !is_wp_error($category)) ? $category->slug : '';
     $category_name = ($category && !is_wp_error($category)) ? $category->name : $display_name;
@@ -271,6 +316,24 @@ if (have_posts()) {
                                 </div>
                                 <span class="ll-vocab-lesson-transcribe-status" data-ll-transcribe-status aria-live="polite"></span>
                             </div>
+                        <?php endif; ?>
+                        <?php if ($print_image_url !== '') : ?>
+                            <a
+                                class="ll-study-btn tiny ll-vocab-lesson-print-button"
+                                href="<?php echo esc_url($print_image_url); ?>"
+                                target="_blank"
+                                rel="noopener"
+                                aria-label="<?php echo esc_attr__('Print image sheet', 'll-tools-text-domain'); ?>">
+                                <span class="ll-vocab-lesson-print-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                        <path d="M7 8V4h10v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M7 17H5.5A2.5 2.5 0 0 1 3 14.5v-4A2.5 2.5 0 0 1 5.5 8h13A2.5 2.5 0 0 1 21 10.5v4a2.5 2.5 0 0 1-2.5 2.5H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <circle cx="17.5" cy="11.5" r="1" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Print images', 'll-tools-text-domain'); ?></span>
+                            </a>
                         <?php endif; ?>
                         <?php if ($can_edit_words && $wordset_id > 0 && $category_id > 0) : ?>
                             <?php
