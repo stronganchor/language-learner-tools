@@ -33,6 +33,8 @@
     let uploadLockState = null;
     let displayLoadToken = 0;
     let categorySelectResizeBound = false;
+    let categorySelectObserver = null;
+    let categorySelectDocumentBound = false;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -376,6 +378,15 @@
         return base.slice(0, Math.max(0, maxBaseLength - 1)).trimEnd() + '…' + suffix;
     }
 
+    function shouldUseCustomCategorySelector() {
+        if (window.matchMedia) {
+            try {
+                return window.matchMedia('(max-width: 768px)').matches;
+            } catch (_) { /* no-op */ }
+        }
+        return (window.innerWidth || document.documentElement.clientWidth || 0) <= 768;
+    }
+
     function applyResponsiveCategorySelectLabels() {
         const el = window.llRecorder;
         const select = el && el.categorySelect;
@@ -395,15 +406,188 @@
         });
     }
 
+    function getCategorySelectorRoot() {
+        const el = window.llRecorder;
+        if (!el || !el.categorySelect || !el.categorySelect.closest) return null;
+        return el.categorySelect.closest('.ll-category-selector');
+    }
+
+    function getMobileCategorySelector() {
+        const root = getCategorySelectorRoot();
+        if (!root || typeof root.querySelector !== 'function') return null;
+        return root.querySelector('.ll-category-selector-mobile');
+    }
+
+    function closeMobileCategorySelector() {
+        const mobile = getMobileCategorySelector();
+        if (!mobile) return;
+        const trigger = mobile.querySelector('.ll-category-selector-mobile__trigger');
+        const panel = mobile.querySelector('.ll-category-selector-mobile__panel');
+        mobile.classList.remove('is-open');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (panel) panel.hidden = true;
+    }
+
+    function buildMobileCategorySelector() {
+        const root = getCategorySelectorRoot();
+        const el = window.llRecorder;
+        const select = el && el.categorySelect;
+        if (!root || !select) return null;
+
+        let mobile = getMobileCategorySelector();
+        if (mobile) return mobile;
+
+        mobile = document.createElement('div');
+        mobile.className = 'll-category-selector-mobile';
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'll-category-selector-mobile__trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        const triggerLabel = document.createElement('span');
+        triggerLabel.className = 'll-category-selector-mobile__label';
+        trigger.appendChild(triggerLabel);
+
+        const triggerIcon = document.createElement('span');
+        triggerIcon.className = 'll-category-selector-mobile__icon';
+        triggerIcon.setAttribute('aria-hidden', 'true');
+        triggerIcon.innerHTML = '<svg viewBox="0 0 20 20" focusable="false" aria-hidden="true"><path d="M5.25 7.5 10 12.25 14.75 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        trigger.appendChild(triggerIcon);
+
+        const panel = document.createElement('div');
+        panel.className = 'll-category-selector-mobile__panel';
+        panel.hidden = true;
+
+        const options = document.createElement('div');
+        options.className = 'll-category-selector-mobile__options';
+        options.setAttribute('role', 'listbox');
+        panel.appendChild(options);
+
+        trigger.addEventListener('click', function () {
+            if (select.disabled) return;
+            const shouldOpen = !mobile.classList.contains('is-open');
+            closeMobileCategorySelector();
+            if (!shouldOpen) return;
+            mobile.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            panel.hidden = false;
+        });
+
+        panel.addEventListener('click', function (event) {
+            const optionBtn = event.target && event.target.closest
+                ? event.target.closest('.ll-category-selector-mobile__option')
+                : null;
+            if (!optionBtn || optionBtn.disabled) return;
+            const value = String(optionBtn.getAttribute('data-category-value') || '');
+            if (!value) {
+                closeMobileCategorySelector();
+                return;
+            }
+            if (value !== select.value) {
+                select.value = value;
+                closeMobileCategorySelector();
+                syncCategorySelectorUi();
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+            closeMobileCategorySelector();
+        });
+
+        mobile.appendChild(trigger);
+        mobile.appendChild(panel);
+        root.appendChild(mobile);
+        return mobile;
+    }
+
+    function syncCategorySelectorUi() {
+        const el = window.llRecorder;
+        const select = el && el.categorySelect;
+        if (!select || !select.options) return;
+
+        applyResponsiveCategorySelectLabels();
+        const mobile = buildMobileCategorySelector();
+        if (!mobile) return;
+
+        const trigger = mobile.querySelector('.ll-category-selector-mobile__trigger');
+        const triggerLabel = mobile.querySelector('.ll-category-selector-mobile__label');
+        const optionsHost = mobile.querySelector('.ll-category-selector-mobile__options');
+        const selectedOption = select.options[select.selectedIndex] || select.options[0] || null;
+        const selectedFullLabel = selectedOption
+            ? String(selectedOption.dataset.llFullLabel || selectedOption.textContent || selectedOption.value || '')
+            : '';
+
+        if (trigger) {
+            trigger.disabled = !!select.disabled;
+            trigger.title = selectedFullLabel;
+            trigger.setAttribute('aria-label', selectedFullLabel);
+        }
+        if (triggerLabel) {
+            triggerLabel.textContent = selectedFullLabel;
+        }
+
+        if (optionsHost) {
+            optionsHost.innerHTML = '';
+            Array.from(select.options).forEach(option => {
+                if (!option) return;
+                const fullLabel = String(option.dataset.llFullLabel || option.textContent || option.value || '');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'll-category-selector-mobile__option';
+                btn.setAttribute('role', 'option');
+                btn.setAttribute('data-category-value', option.value);
+                btn.setAttribute('aria-selected', option.value === select.value ? 'true' : 'false');
+                btn.textContent = fullLabel;
+                btn.title = fullLabel;
+                if (option.value === select.value) {
+                    btn.classList.add('is-selected');
+                }
+                optionsHost.appendChild(btn);
+            });
+        }
+
+        mobile.classList.toggle('is-disabled', !!select.disabled);
+        mobile.classList.toggle('is-active', shouldUseCustomCategorySelector());
+        if (!shouldUseCustomCategorySelector() || select.disabled) {
+            closeMobileCategorySelector();
+        }
+    }
+
     function setupCategorySelector() {
         const el = window.llRecorder;
         if (el.categorySelect) {
+            el.categorySelect.addEventListener('change', function () {
+                syncCategorySelectorUi();
+            });
             el.categorySelect.addEventListener('change', switchCategory);
-            applyResponsiveCategorySelectLabels();
+            syncCategorySelectorUi();
             if (!categorySelectResizeBound) {
                 categorySelectResizeBound = true;
-                window.addEventListener('resize', applyResponsiveCategorySelectLabels, { passive: true });
-                window.addEventListener('orientationchange', applyResponsiveCategorySelectLabels, { passive: true });
+                window.addEventListener('resize', syncCategorySelectorUi, { passive: true });
+                window.addEventListener('orientationchange', syncCategorySelectorUi, { passive: true });
+            }
+            if (!categorySelectObserver && typeof MutationObserver !== 'undefined') {
+                categorySelectObserver = new MutationObserver(function () {
+                    syncCategorySelectorUi();
+                });
+                categorySelectObserver.observe(el.categorySelect, {
+                    attributes: true,
+                    attributeFilter: ['disabled']
+                });
+            }
+            if (!categorySelectDocumentBound) {
+                categorySelectDocumentBound = true;
+                document.addEventListener('click', function (event) {
+                    const root = getCategorySelectorRoot();
+                    if (!root || root.contains(event.target)) return;
+                    closeMobileCategorySelector();
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        closeMobileCategorySelector();
+                    }
+                });
             }
         }
     }
@@ -998,6 +1182,7 @@
 
         if (el.categorySelect && restored.category) {
             el.categorySelect.value = restored.category;
+            syncCategorySelectorUi();
         }
 
         if (images.length > 0) {
@@ -4143,6 +4328,7 @@
                     const nextCategory = getNextCategoryAfter(newCategory);
                     if (nextCategory && nextCategory.slug !== newCategory) {
                         el.categorySelect.value = nextCategory.slug;
+                        syncCategorySelectorUi();
                         el.categorySelect.disabled = false;
                         if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
                         renderRecordingTypeChoices();
@@ -4156,6 +4342,7 @@
                         showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
                         if (previousCategory) {
                             el.categorySelect.value = previousCategory;
+                            syncCategorySelectorUi();
                         }
                         if (images[previousIndex]) {
                             loadImage(previousIndex);
@@ -4190,6 +4377,7 @@
                 const errorMsg = data.data || data.message || (i18n.switch_failed_message || 'Switch failed');
                 if (previousCategory) {
                     el.categorySelect.value = previousCategory;
+                    syncCategorySelectorUi();
                 }
                 if (images[previousIndex]) {
                     loadImage(previousIndex);
@@ -4202,6 +4390,7 @@
             console.error('Category switch error:', err);
             if (previousCategory) {
                 el.categorySelect.value = previousCategory;
+                syncCategorySelectorUi();
             }
             if (images[previousIndex]) {
                 loadImage(previousIndex);

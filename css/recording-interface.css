@@ -41,6 +41,7 @@
 .ll-category-selector {
     flex: 1;
     min-width: 150px;
+    position: relative;
 }
 
 .ll-category-selector label {
@@ -68,6 +69,121 @@
 .ll-category-selector select:focus {
     outline: none;
     border-color: #2271b1;
+}
+
+.ll-category-selector-mobile {
+    display: none;
+    width: 100%;
+    position: relative;
+}
+
+.ll-category-selector-mobile__trigger {
+    width: 100%;
+    min-height: 2.35rem;
+    padding: 0.5rem 0.7rem;
+    border: 2px solid #ddd !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    box-sizing: border-box;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    text-align: left;
+    font-size: 0.9rem !important;
+    line-height: 1.25 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+
+.ll-category-selector-mobile__trigger:hover:not(:disabled),
+.ll-category-selector-mobile__trigger:focus-visible {
+    border-color: #2271b1 !important;
+    outline: none;
+}
+
+.ll-category-selector-mobile__trigger:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+.ll-category-selector-mobile__label {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ll-category-selector-mobile__icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
+}
+
+.ll-category-selector-mobile__icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.ll-category-selector-mobile.is-open .ll-category-selector-mobile__trigger {
+    border-color: #2271b1 !important;
+}
+
+.ll-category-selector-mobile__panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: #ffffff;
+    border: 1px solid #ccd0d4;
+    border-radius: 10px;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+    overflow: hidden;
+}
+
+.ll-category-selector-mobile__options {
+    max-height: min(52vh, 320px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.ll-category-selector-mobile__option {
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 0 !important;
+    border-bottom: 1px solid #eef2f6 !important;
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    box-sizing: border-box;
+    text-align: left;
+    display: block !important;
+    font-size: 0.9rem !important;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ll-category-selector-mobile__option:last-child {
+    border-bottom: 0 !important;
+}
+
+.ll-category-selector-mobile__option:hover,
+.ll-category-selector-mobile__option:focus-visible {
+    background: #f6f9fc !important;
+    outline: none;
+}
+
+.ll-category-selector-mobile__option.is-selected {
+    background: #e9f2fb !important;
+    color: #135e96 !important;
+    font-weight: 600 !important;
 }
 
 .ll-wordset-display {
@@ -1479,6 +1595,24 @@
         padding: 0.46rem 1.85rem 0.46rem 0.65rem;
     }
 
+    .ll-category-selector select {
+        display: none;
+    }
+
+    .ll-category-selector-mobile {
+        display: block;
+    }
+
+    .ll-category-selector-mobile__trigger {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem) !important;
+        padding: 0.46rem 0.65rem !important;
+    }
+
+    .ll-category-selector-mobile__option {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem) !important;
+        padding: 0.58rem 0.65rem !important;
+    }
+
     .ll-recording-image-container {
         width: 100%;
         min-width: 0;
@@ -1528,6 +1662,16 @@
     .ll-category-selector select {
         font-size: clamp(0.78rem, 3.4vw, 0.84rem);
         padding: 0.42rem 1.7rem 0.42rem 0.58rem;
+    }
+
+    .ll-category-selector-mobile__trigger {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem) !important;
+        padding: 0.42rem 0.58rem !important;
+    }
+
+    .ll-category-selector-mobile__option {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem) !important;
+        padding: 0.54rem 0.58rem !important;
     }
 
     .ll-recording-interface .ll-hidden-words-toggle-btn {
