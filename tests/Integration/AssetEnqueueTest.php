@@ -54,6 +54,21 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertFalse(wp_script_is($handle, 'enqueued'));
     }
 
+    public function test_public_asset_bundle_enqueues_login_window_styles(): void
+    {
+        ll_tools_enqueue_public_assets();
+
+        $this->assertTrue(wp_style_is('ll-tools-login-window', 'registered'));
+        $this->assertTrue(wp_style_is('ll-tools-login-window', 'enqueued'));
+
+        $registered = wp_styles()->registered['ll-tools-login-window'] ?? null;
+        $this->assertNotNull($registered);
+        $this->assertSame(
+            (string) filemtime(LL_TOOLS_BASE_PATH . 'css/login-window.css'),
+            (string) $registered->ver
+        );
+    }
+
     public function test_request_needs_public_assets_false_for_plain_singular_page(): void
     {
         $page_id = self::factory()->post->create([

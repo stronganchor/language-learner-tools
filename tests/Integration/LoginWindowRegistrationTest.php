@@ -48,6 +48,8 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_tools_register_learner', $markup);
         $this->assertStringContainsString('name="ll_tools_register_username"', $markup);
         $this->assertStringContainsString('name="ll_tools_register_email"', $markup);
+        $this->assertStringContainsString('width="20"', $markup);
+        $this->assertStringContainsString('height="20"', $markup);
     }
 
     public function test_login_window_hides_registration_form_when_disabled(): void

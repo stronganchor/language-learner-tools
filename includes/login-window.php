@@ -287,6 +287,12 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
 add_action('admin_post_nopriv_ll_tools_register_learner', 'll_tools_handle_frontend_learner_registration');
 add_action('admin_post_ll_tools_register_learner', 'll_tools_handle_frontend_learner_registration');
 
+if (!function_exists('ll_tools_enqueue_login_window_assets')) {
+    function ll_tools_enqueue_login_window_assets(): void {
+        ll_enqueue_asset_by_timestamp('/css/login-window.css', 'll-tools-login-window');
+    }
+}
+
 if (!function_exists('ll_tools_render_login_window')) {
     function ll_tools_render_login_window(array $args = []): string {
         $defaults = [
@@ -304,7 +310,9 @@ if (!function_exists('ll_tools_render_login_window')) {
         ];
         $args = wp_parse_args($args, $defaults);
 
-        ll_enqueue_asset_by_timestamp('/css/login-window.css', 'll-tools-login-window');
+        if (!did_action('wp_head') && function_exists('ll_tools_enqueue_login_window_assets')) {
+            ll_tools_enqueue_login_window_assets();
+        }
 
         $redirect_to = trim((string) $args['redirect_to']);
         if ($redirect_to === '') {
@@ -378,7 +386,7 @@ if (!function_exists('ll_tools_render_login_window')) {
         <div class="<?php echo esc_attr($container_class); ?>">
             <div class="ll-tools-login-window" role="group" aria-label="<?php echo esc_attr($title); ?>">
                 <span class="ll-tools-login-window__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false">
+                    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
                         <path d="M17 10h-1V7a4 4 0 10-8 0v3H7a2 2 0 00-2 2v7a2 2 0 002 2h10a2 2 0 002-2v-7a2 2 0 00-2-2zm-3 0h-4V7a2 2 0 114 0v3zm-2 8a2 2 0 110-4 2 2 0 010 4z"></path>
                     </svg>
                 </span>
