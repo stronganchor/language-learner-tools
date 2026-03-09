@@ -843,9 +843,9 @@ if (have_posts()) {
                                     title="<?php echo esc_attr__('Edit category title', 'll-tools-text-domain'); ?>">
                                     <span class="ll-vocab-lesson-title-text" data-ll-vocab-lesson-title-text><?php echo esc_html($display_name); ?></span>
                                     <span class="ll-vocab-lesson-title-edit-icon" aria-hidden="true">
-                                        <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                                            <path d="M4 14.5V16h1.5l8.7-8.7-1.5-1.5L4 14.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-                                            <path d="m11.9 4.1 1.5 1.5 1-1a1.1 1.1 0 1 0-1.5-1.5l-1 1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                            <path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                     </span>
                                 </button>
@@ -886,7 +886,7 @@ if (have_posts()) {
                                         </svg>
                                     </button>
                                 </div>
-                                <span class="ll-vocab-lesson-title-status" data-ll-vocab-lesson-title-status aria-live="polite"></span>
+                                <span class="ll-vocab-lesson-title-status" data-ll-vocab-lesson-title-status aria-live="polite" hidden></span>
                             </form>
                         </div>
                     <?php else : ?>

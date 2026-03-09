@@ -59,7 +59,7 @@
                 type: 'button',
                 class: 'll-study-btn tiny ll-vocab-lesson-grid-feedback__retry',
                 'data-ll-vocab-lesson-grid-retry': '1',
-                text: getMessage('retry', 'Retry')
+                text: getGridMessage('retry', 'Retry')
             }).appendTo($feedback);
         }
     }
@@ -159,8 +159,18 @@
         const $status = $editor.find('[data-ll-vocab-lesson-title-status]').first();
         if (!$status.length) { return; }
 
+        const text = (message || '').toString();
+        if (!text) {
+            $status
+                .text('')
+                .attr('hidden', 'hidden')
+                .removeClass('is-error is-success');
+            return;
+        }
+
         $status
-            .text((message || '').toString())
+            .text(text)
+            .removeAttr('hidden')
             .removeClass('is-error is-success');
 
         if (state === 'error') {
@@ -191,6 +201,7 @@
         if (!$editor.length) { return; }
 
         clearTitleTimer($editor);
+        setTitleStatus($editor, '');
         $editor.addClass('is-editing');
         $editor.find('[data-ll-vocab-lesson-title-form]').first().prop('hidden', false);
         $editor.find('[data-ll-vocab-lesson-title-trigger]').first().attr('aria-expanded', 'true');
@@ -207,6 +218,7 @@
         if (!$editor.length) { return; }
 
         clearTitleTimer($editor);
+        setTitleStatus($editor, '');
         if (restoreValue) {
             const $input = $editor.find('[data-ll-vocab-lesson-title-input]').first();
             if ($input.length) {
