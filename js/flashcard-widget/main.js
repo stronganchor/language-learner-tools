@@ -2171,6 +2171,8 @@
 
             // Full reset for a clean session
             State.reset();
+            // Reset clears widgetActive, but mode switches keep the popup session alive.
+            State.widgetActive = true;
 
             // IMPORTANT: allow operations again before we start the next round
             State.abortAllOperations = false;
@@ -3674,6 +3676,8 @@
         const wasGender = State.isGenderMode;
         const wasSelfCheck = State.isSelfCheckMode;
         State.reset();
+        // Reset clears widgetActive, but restart stays inside the active popup session.
+        State.widgetActive = true;
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
         State.isGenderMode = wasGender;

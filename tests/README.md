@@ -163,6 +163,8 @@ Current primary-flow E2E specs:
   - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
 - `tests/e2e/specs/quiz-popup-open-close.spec.js`
   - Verifies quiz popup open/close behavior and page-state cleanup.
+- `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
   - Verifies selected card category/mode/wordset are forwarded into widget state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
