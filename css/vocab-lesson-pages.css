@@ -508,12 +508,19 @@
     background: #ffffff;
     color: #0f172a;
     text-align: left;
+    line-height: 1.35;
+    text-decoration: none;
     cursor: pointer;
 }
 
 .ll-vocab-lesson-prereq-option:hover {
     border-color: #aac8be;
     background: #f8fcfa;
+    color: #16352d !important;
+}
+
+.ll-vocab-lesson-prereq-option:hover .ll-vocab-lesson-prereq-option-level {
+    color: #16352d;
 }
 
 .ll-vocab-lesson-prereq-option:focus-visible {
@@ -591,7 +598,10 @@
 }
 
 .ll-vocab-lesson-prereq-option-label {
+    display: block;
     min-width: 0;
+    line-height: 1.35;
+    padding-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
