@@ -415,8 +415,10 @@
 .ll-vocab-lesson-prereq-search-icon {
     position: absolute;
     top: 50%;
-    left: 11px;
+    left: 13px;
     transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -426,7 +428,7 @@
 
 .ll-vocab-lesson-prereq-input {
     width: 100%;
-    padding: 7px 34px 7px 34px;
+    padding: 7px 34px 7px 42px;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
     background: #ffffff;
@@ -543,15 +545,27 @@
 }
 
 .ll-vocab-lesson-prereq-option-toggle::before {
-    content: "+";
+    content: "";
     position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #64748b;
-    font-size: 12px;
-    line-height: 1;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 1.5px;
+    border-radius: 999px;
+    background: #64748b;
+    transform: translate(-50%, -50%);
+}
+
+.ll-vocab-lesson-prereq-option-toggle::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1.5px;
+    height: 8px;
+    border-radius: 999px;
+    background: #64748b;
+    transform: translate(-50%, -50%);
 }
 
 .ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle {
@@ -570,6 +584,10 @@
     right: auto;
     bottom: auto;
     transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle::after {
+    display: none;
 }
 
 .ll-vocab-lesson-prereq-option-label {
