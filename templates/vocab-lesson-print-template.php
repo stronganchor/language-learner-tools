@@ -61,6 +61,9 @@ if (is_string($print_image_size)) {
         <?php else : ?>
             <?php foreach ($pages as $page_index => $page_items) : ?>
                 <section class="ll-vocab-lesson-print-sheet">
+                    <h1 class="ll-vocab-lesson-print-sheet__title">
+                        <?php echo esc_html($display_name !== '' ? $display_name : __('Print Images', 'll-tools-text-domain')); ?>
+                    </h1>
                     <div class="ll-vocab-lesson-print-grid" data-ll-vocab-lesson-print-grid data-page-index="<?php echo esc_attr($page_index + 1); ?>">
                         <?php foreach ($page_items as $item) : ?>
                             <?php

@@ -19,6 +19,7 @@ function buildPrintMarkup() {
   return (
     '<main class="ll-vocab-lesson-print-page">' +
       '<section class="ll-vocab-lesson-print-sheet">' +
+        '<h1 class="ll-vocab-lesson-print-sheet__title">Print Category</h1>' +
         '<div class="ll-vocab-lesson-print-grid" data-ll-vocab-lesson-print-grid>' +
           cards +
         '</div>' +
@@ -40,7 +41,10 @@ test('print sheet keeps a fixed three-column layout on narrow screens', async ({
     const computed = window.getComputedStyle(node).gridTemplateColumns || '';
     return computed.split(' ').filter(Boolean).length;
   });
+  const gapValue = await grid.evaluate((node) => window.getComputedStyle(node).gap || '');
 
   expect(columnCount).toBe(3);
+  expect(gapValue).toBe('0px');
+  await expect(page.locator('.ll-vocab-lesson-print-sheet__title')).toHaveText('Print Category');
   await expect(page.locator('.ll-vocab-lesson-print-card')).toHaveCount(12);
 });

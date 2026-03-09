@@ -1163,7 +1163,8 @@
 }
 
 .ll-vocab-lesson-print-sheet {
-    display: block;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     margin: 0 0 10mm;
     padding: 0;
     height: calc(297mm - 20mm);
@@ -1177,14 +1178,23 @@
     page-break-after: auto;
 }
 
+.ll-vocab-lesson-print-sheet__title {
+    margin: 0;
+    padding: 5mm 6mm 3mm;
+    font-size: 18pt;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+}
+
 .ll-vocab-lesson-print-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 3mm;
+    gap: 0;
     width: 100%;
     height: 100%;
-    padding: 6mm;
+    padding: 0 6mm 6mm;
     box-sizing: border-box;
 }
 
@@ -1413,8 +1423,13 @@
         height: calc(297mm - 20mm);
     }
 
+    .ll-vocab-lesson-print-sheet__title {
+        padding: 4mm 0 2mm;
+        font-size: 16pt;
+    }
+
     .ll-vocab-lesson-print-grid {
-        gap: 3mm;
+        gap: 0;
         padding: 0;
     }
 }
