@@ -428,7 +428,8 @@
 
 .ll-vocab-lesson-prereq-input {
     width: 100%;
-    padding: 7px 34px 7px 42px;
+    padding: 7px 34px 7px 50px !important;
+    padding-inline-start: 50px !important;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
     background: #ffffff;
@@ -436,6 +437,11 @@
     font-size: 13px;
     line-height: 1.35;
     box-sizing: border-box;
+}
+
+.ll-vocab-lesson-prereq-input::placeholder {
+    color: #8a94a8;
+    opacity: 1;
 }
 
 .ll-vocab-lesson-prereq-input:focus {

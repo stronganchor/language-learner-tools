@@ -1511,7 +1511,7 @@
         }
         const numeric = parseInt(level, 10);
         if (Number.isFinite(numeric) && numeric >= 0) {
-            return String(numeric);
+            return 'L' + String(numeric);
         }
         return prereqMessages.levelUnknown;
     }

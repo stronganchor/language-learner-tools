@@ -392,7 +392,11 @@ if (have_posts()) {
                             $lesson_prereq_input_id = 'll-vocab-lesson-prereq-input-' . $post_id . '-' . $category_id;
                             $lesson_prereq_level_display = ($lesson_prereq_editor['current_level'] === null)
                                 ? esc_html__('—', 'll-tools-text-domain')
-                                : (string) ((int) $lesson_prereq_editor['current_level']);
+                                : sprintf(
+                                    /* translators: %d is the prerequisite level number for the current lesson category. */
+                                    esc_html__('L%d', 'll-tools-text-domain'),
+                                    (int) $lesson_prereq_editor['current_level']
+                                );
                             ?>
                             <div class="ll-vocab-lesson-bulk ll-tools-settings-control" data-ll-word-grid-bulk>
                                 <button type="button" class="ll-vocab-lesson-bulk-button ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Bulk edit', 'll-tools-text-domain'); ?>">
