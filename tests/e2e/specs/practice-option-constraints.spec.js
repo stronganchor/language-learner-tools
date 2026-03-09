@@ -11,6 +11,10 @@ const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
 );
+const mainSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/main.js'),
+  'utf8'
+);
 const practiceSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/practice.js'),
   'utf8'
@@ -141,6 +145,9 @@ async function mountPracticeModeHarness(page, options = {}) {
     window.__practiceStartQuizRoundCalls = 0;
     window.__practiceShowResultsCalls = 0;
     window.__practiceLastTransition = null;
+    window.llToolsFlashcardsData = Object.assign({
+      isUserLoggedIn: !!bootstrap.isUserLoggedIn
+    }, bootstrap.flashcardsData || {});
 
     window.LLFlashcards = {
       State: Object.assign({
@@ -171,11 +178,222 @@ async function mountPracticeModeHarness(page, options = {}) {
     };
   }, {
     state,
-    hasPracticeBridgeWordAvailable: !!options.hasPracticeBridgeWordAvailable
+    hasPracticeBridgeWordAvailable: !!options.hasPracticeBridgeWordAvailable,
+    flashcardsData: options.flashcardsData || {},
+    isUserLoggedIn: !!options.isUserLoggedIn
   });
 
   await page.addScriptTag({ content: practiceSource });
 }
+
+async function mountPracticeExposureHarness(page, options = {}) {
+  const categoryName = String(options.categoryName || 'Actions');
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-prompt"></div>
+      <div id="ll-tools-flashcard"></div>
+      <button id="ll-tools-repeat-flashcard" type="button"></button>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate((bootstrap) => {
+    const noop = function () {};
+
+    window.__LLFlashcardsMainLoaded = false;
+    window.llToolsFlashcardsData = {
+      isUserLoggedIn: true,
+      categories: [
+        {
+          id: 1,
+          name: bootstrap.categoryName,
+          prompt_type: 'audio',
+          option_type: 'image'
+        }
+      ]
+    };
+    window.llToolsStudyPrefs = {
+      starredWordIds: [],
+      starred_word_ids: [],
+      starMode: 'normal',
+      star_mode: 'normal'
+    };
+
+    window.LLFlashcards = {
+      State: {
+        STATES: {
+          PROCESSING_ANSWER: 'processing_answer',
+          QUIZ_READY: 'quiz_ready'
+        },
+        canProcessAnswer: function () {
+          return true;
+        },
+        getState: function () {
+          return 'quiz_ready';
+        },
+        transitionTo: function () {
+          return true;
+        },
+        forceTransitionTo: function () {
+          return true;
+        },
+        clearActiveTimeouts: noop,
+        currentCategoryName: bootstrap.categoryName,
+        currentPromptType: 'audio',
+        currentOptionType: 'image',
+        categoryRoundCount: {
+          [bootstrap.categoryName]: 0
+        },
+        categoryRepetitionQueues: {},
+        practiceForcedReplays: {},
+        usedWordIDs: [],
+        completedCategories: {},
+        wrongIndexes: [],
+        userClickedCorrectAnswer: false,
+        hadWrongAnswerThisTurn: false,
+        quizResults: { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} },
+        isLearningMode: false,
+        isListeningMode: false,
+        isGenderMode: false,
+        isSelfCheckMode: false,
+        widgetActive: true,
+        wordsByCategory: {
+          [bootstrap.categoryName]: []
+        },
+        categoryNames: [bootstrap.categoryName]
+      },
+      Util: {
+        randomInt: function (min) {
+          return Number(min) || 0;
+        }
+      },
+      Dom: {
+        updateSimpleProgress: noop,
+        restoreHeaderUI: noop,
+        clearRepeatButtonBinding: noop,
+        updateCategoryNameDisplay: noop
+      },
+      Effects: {
+        startConfetti: noop
+      },
+      Selection: {
+        getCategoryConfig: function () {
+          return { option_type: 'image', prompt_type: 'audio' };
+        },
+        getCurrentDisplayMode: function () {
+          return 'image';
+        }
+      },
+      Cards: {},
+      Results: {
+        hideResults: noop,
+        showResults: noop
+      },
+      StateMachine: {},
+      ModeConfig: {},
+      Modes: {},
+      ProgressTracker: {
+        trackWordExposure: noop,
+        trackWordOutcome: noop
+      }
+    };
+
+    window.FlashcardAudio = {
+      initializeAudio: noop,
+      playFeedback: noop,
+      pauseAllAudio: noop,
+      getCorrectAudioURL: function () { return ''; },
+      getWrongAudioURL: function () { return ''; }
+    };
+    window.FlashcardLoader = {
+      loadAudio: noop
+    };
+    window.FlashcardOptions = {
+      initializeOptionsCount: noop
+    };
+  }, {
+    categoryName
+  });
+
+  await page.addScriptTag({ content: practiceSource });
+  await page.addScriptTag({ content: mainSource });
+}
+
+test('practice mode rotates logged-in prompts by exposure count', async ({ page }) => {
+  await mountPracticeModeHarness(page, { isUserLoggedIn: true });
+
+  const outcome = await page.evaluate(() => {
+    const target = {
+      id: 901,
+      title: 'Walking',
+      practice_exposure_count: 1,
+      practice_correct_recording_types: ['question'],
+      practice_recording_types: ['question', 'isolation', 'introduction'],
+      audio_files: [
+        { recording_type: 'question', url: 'https://audio.test/question.mp3' },
+        { recording_type: 'isolation', url: 'https://audio.test/isolation.mp3' },
+        { recording_type: 'introduction', url: 'https://audio.test/introduction.mp3' }
+      ]
+    };
+
+    window.LLFlashcards.Modes.Practice.configureTargetAudio(target);
+
+    return {
+      type: target.__practiceRecordingType,
+      audio: target.audio
+    };
+  });
+
+  expect(outcome).toEqual({
+    type: 'isolation',
+    audio: 'https://audio.test/isolation.mp3'
+  });
+});
+
+test('practice mode advances the next prompt on the same page after tracking an exposure', async ({ page }) => {
+  await mountPracticeExposureHarness(page);
+
+  const outcome = await page.evaluate(() => {
+    const target = {
+      id: 902,
+      title: 'Walking',
+      audio: 'https://audio.test/question.mp3',
+      practice_exposure_count: 0,
+      practice_correct_recording_types: [],
+      practice_recording_types: ['question', 'isolation', 'introduction'],
+      audio_files: [
+        { recording_type: 'question', url: 'https://audio.test/question.mp3' },
+        { recording_type: 'isolation', url: 'https://audio.test/isolation.mp3' },
+        { recording_type: 'introduction', url: 'https://audio.test/introduction.mp3' }
+      ]
+    };
+
+    window.LLFlashcards.State.wordsByCategory.Actions = [target];
+    window.LLFlashcards.Modes.Practice.configureTargetAudio(target);
+    const firstType = target.__practiceRecordingType;
+
+    const $wrong = window.jQuery('<div class="flashcard-container"></div>').appendTo('#ll-tools-flashcard');
+    window.LLFlashcards.Main.onWrongAnswer(target, 1, $wrong);
+
+    delete target.__practiceRecordingType;
+    delete target.__practiceRecordingText;
+    window.LLFlashcards.Modes.Practice.configureTargetAudio(target);
+
+    return {
+      firstType,
+      nextType: target.__practiceRecordingType,
+      exposureCount: Number(target.practice_exposure_count) || 0
+    };
+  });
+
+  expect(outcome).toEqual({
+    firstType: 'question',
+    nextType: 'isolation',
+    exposureCount: 1
+  });
+});
 
 test('practice options stay within the target category pool', async ({ page }) => {
   const targetCategory = 'Baby animals';

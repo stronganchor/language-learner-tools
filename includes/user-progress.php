@@ -335,6 +335,7 @@ function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id 
             : [];
 
         $words[$idx]['practice_correct_recording_types'] = ll_tools_get_progress_row_practice_correct_recording_types($row);
+        $words[$idx]['practice_exposure_count'] = max(0, (int) ($row['coverage_practice'] ?? 0));
     }
 
     return $words;

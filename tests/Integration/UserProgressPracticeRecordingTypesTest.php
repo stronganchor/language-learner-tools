@@ -153,6 +153,61 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_attach_user_practice_progress_to_words_includes_exposure_count(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        [$word_id, $category_id, $wordset_id] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+            'isolation' => 'Isolation text',
+        ]);
+
+        $tables = ll_tools_user_progress_table_names();
+        $table = $tables['words'];
+        $now = gmdate('Y-m-d H:i:s');
+
+        $inserted = $wpdb->replace($table, [
+            'user_id' => $user_id,
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'first_seen_at' => $now,
+            'last_seen_at' => $now,
+            'last_mode' => 'practice',
+            'total_coverage' => 3,
+            'coverage_learning' => 0,
+            'coverage_practice' => 3,
+            'coverage_listening' => 0,
+            'coverage_gender' => 0,
+            'coverage_self_check' => 0,
+            'practice_required_recording_types' => wp_json_encode(['question', 'isolation']),
+            'practice_correct_recording_types' => wp_json_encode(['question']),
+            'correct_clean' => 1,
+            'correct_after_retry' => 0,
+            'incorrect' => 0,
+            'lapse_count' => 0,
+            'stage' => 1,
+            'due_at' => $now,
+            'updated_at' => $now,
+        ], [
+            '%d', '%d', '%d', '%d', '%s', '%s', '%s',
+            '%d', '%d', '%d', '%d', '%d', '%d',
+            '%s', '%s',
+            '%d', '%d', '%d', '%d', '%d', '%s', '%s',
+        ]);
+
+        $this->assertNotFalse($inserted);
+
+        $words = ll_tools_attach_user_practice_progress_to_words([
+            ['id' => $word_id],
+        ], $user_id);
+
+        $this->assertCount(1, $words);
+        $this->assertSame(['question'], $words[0]['practice_correct_recording_types'] ?? []);
+        $this->assertSame(3, (int) ($words[0]['practice_exposure_count'] ?? 0));
+    }
+
     /**
      * @param array<string,string> $recording_types
      * @return array{0:int,1:int,2:int}

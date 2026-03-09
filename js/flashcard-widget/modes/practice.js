@@ -148,6 +148,31 @@
         word.practice_correct_recording_types = sortRecordingTypes(types);
     }
 
+    function getPracticeExposureCount(word) {
+        if (!word || typeof word !== 'object') {
+            return 0;
+        }
+
+        const raw = parseInt(word.practice_exposure_count, 10);
+        return Number.isFinite(raw) && raw > 0 ? raw : 0;
+    }
+
+    function normalizeRecordingTypesInOrder(types) {
+        const seen = {};
+        const ordered = [];
+
+        (Array.isArray(types) ? types : []).forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (!key || seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            ordered.push(key);
+        });
+
+        return ordered;
+    }
+
     function getRecordingTextForType(word, recordingType) {
         const key = normalizeRecordingType(recordingType);
         if (!word || typeof word !== 'object' || !key) {
@@ -185,7 +210,7 @@
         }
 
         const files = Array.isArray(word.audio_files) ? word.audio_files : [];
-        const orderedTypes = sortRecordingTypes(preferredTypes);
+        const orderedTypes = normalizeRecordingTypesInOrder(preferredTypes);
         const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
         const hasUrl = function (entry) {
             return !!(entry && typeof entry.url === 'string' && entry.url.trim() !== '');
@@ -248,7 +273,12 @@
         const correctTypes = isUserLoggedIn() ? getCorrectRecordingTypes(word) : [];
         let selectedType = '';
 
-        if (isUserLoggedIn()) {
+        if (isUserLoggedIn() && availableTypes.length) {
+            const progressIndex = Math.max(getPracticeExposureCount(word), correctTypes.length);
+            selectedType = availableTypes[progressIndex % availableTypes.length] || '';
+        }
+
+        if (!selectedType && isUserLoggedIn()) {
             selectedType = availableTypes.find(function (type) {
                 return correctTypes.indexOf(type) === -1;
             }) || '';
