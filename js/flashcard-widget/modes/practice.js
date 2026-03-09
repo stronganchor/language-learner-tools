@@ -455,6 +455,9 @@
             );
 
             if (queuedOnlyLastShown && !hasBridgeWord) {
+                if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
+                    ctx.updatePracticeModeProgress({ allowCompletedState: true });
+                }
                 State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Practice replay deadlock avoided');
                 Results.showResults && Results.showResults();
                 return true;
@@ -474,6 +477,9 @@
             return true;
         }
 
+        if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
+            ctx.updatePracticeModeProgress({ allowCompletedState: true });
+        }
         State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
         Results.showResults && Results.showResults();
         return true;

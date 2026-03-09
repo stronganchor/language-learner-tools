@@ -138,6 +138,155 @@ async function mountRestartHarness(page) {
   await page.addScriptTag({ content: mainSource });
 }
 
+async function mountPracticeProgressHarness(page) {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-popup">
+      <div id="ll-tools-flashcard-quiz-popup">
+        <button id="ll-tools-close-flashcard" type="button"></button>
+        <div id="ll-tools-flashcard-header"></div>
+        <div id="ll-tools-learning-progress"></div>
+        <div id="ll-tools-prompt"></div>
+        <div id="ll-tools-flashcard-content"></div>
+        <div id="ll-tools-flashcard"></div>
+        <div id="quiz-results"></div>
+        <button id="ll-tools-repeat-flashcard" type="button"></button>
+      </div>
+    </div>
+  `);
+
+  await page.addScriptTag({ content: jquerySource });
+  await page.addScriptTag({ content: stateSource });
+
+  await page.evaluate(() => {
+    window.__LLFlashcardsMainLoaded = false;
+    window.__progressCalls = [];
+    window.__showResultsCount = 0;
+    window.__currentTarget = null;
+    window.__targets = [
+      { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+      { id: 502, title: 'Plate', __categoryName: 'Kitchen' },
+      { id: 501, title: 'Cup', __categoryName: 'Kitchen' }
+    ];
+
+    window.llToolsFlashcardsData = {
+      debug: false,
+      firstCategoryName: 'Kitchen',
+      imageSize: 'small',
+      categories: [
+        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text' }
+      ],
+      modeUi: {},
+      isUserLoggedIn: false
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', fastTransitions: true };
+
+    window.LLFlashcards = window.LLFlashcards || {};
+    window.LLFlashcards.Util = {
+      randomlySort(items) {
+        return Array.isArray(items) ? items.slice() : [];
+      }
+    };
+    window.LLFlashcards.Dom = {
+      clearRepeatButtonBinding() {},
+      restoreHeaderUI() {},
+      showLoading() {},
+      hideLoading() { return Promise.resolve(); },
+      hideLoadingImmediately() { return Promise.resolve(); },
+      setRepeatButton() {},
+      updateCategoryNameDisplay() {},
+      enableRepeatButton() {},
+      disableRepeatButton() {},
+      bindRepeatButtonAudio() {},
+      hideAutoplayBlockedOverlay() {},
+      updateSimpleProgress(currentCount, totalCount) {
+        window.__progressCalls.push({
+          current: Number(currentCount) || 0,
+          total: Number(totalCount) || 0
+        });
+      }
+    };
+    window.LLFlashcards.Effects = {
+      startConfetti() {}
+    };
+    window.LLFlashcards.Selection = {
+      isLearningSupportedForCategories() { return true; },
+      isGenderSupportedForCategories() { return true; },
+      getCategoryConfig() {
+        return { option_type: 'text', prompt_type: 'image', learning_supported: true };
+      },
+      getCurrentDisplayMode() { return 'text'; },
+      getTargetCategoryName(word) {
+        return (word && word.__categoryName) || 'Kitchen';
+      },
+      selectTargetWordAndCategory() {
+        const next = window.__targets.length ? window.__targets.shift() : null;
+        window.__currentTarget = next;
+        return next;
+      },
+      fillQuizOptions(targetWord) {
+        const $container = window.jQuery('#ll-tools-flashcard');
+        $container.empty();
+        window.jQuery('<button class="flashcard-container correct-card" type="button"></button>')
+          .attr('data-word-id', targetWord.id)
+          .appendTo($container);
+        return Promise.resolve({ ready: true });
+      }
+    };
+    window.LLFlashcards.Cards = {};
+    window.LLFlashcards.Results = {
+      hideResults() {},
+      showResults() {
+        window.__showResultsCount += 1;
+      }
+    };
+    window.LLFlashcards.StateMachine = {};
+    window.LLFlashcards.ModeConfig = {};
+    window.LLFlashcards.Modes = {};
+
+    window.FlashcardOptions = {
+      initializeOptionsCount() {},
+      categoryOptionsCount: { Kitchen: 2 }
+    };
+    window.FlashcardLoader = {
+      loadAudio() {},
+      loadResourcesForCategory() {},
+      loadResourcesForWord() {
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      }
+    };
+    window.FlashcardAudio = {
+      initializeAudio() {},
+      getCorrectAudioURL() { return ''; },
+      getWrongAudioURL() { return ''; },
+      pauseAllAudio() {},
+      setTargetAudioHasPlayed() {},
+      setTargetWordAudio() {},
+      getCurrentTargetAudio() { return null; }
+    };
+
+    const state = window.LLFlashcards.State;
+    state.widgetActive = true;
+    state.currentFlowState = state.STATES.QUIZ_READY;
+    state.isFirstRound = false;
+    state.categoryNames = ['Kitchen'];
+    state.initialCategoryNames = ['Kitchen'];
+    state.wordsByCategory = {
+      Kitchen: [
+        { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+        { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
+      ]
+    };
+    state.currentCategoryName = 'Kitchen';
+    state.currentCategory = state.wordsByCategory.Kitchen;
+    window.wordsByCategory = state.wordsByCategory;
+    window.categoryNames = state.categoryNames;
+    window.categoryRoundCount = state.categoryRoundCount;
+  });
+
+  await page.addScriptTag({ content: mainSource });
+}
+
 test('switchMode keeps the popup session active after resetting state', async ({ page }) => {
   await mountRestartHarness(page);
 
@@ -176,4 +325,45 @@ test('restartQuiz keeps the popup session active after resetting state', async (
 
   expect(state.widgetActive).toBe(true);
   expect(['loading', 'quiz_ready']).toContain(state.flowState);
+});
+
+test('practice progress stays below full until the last displayed replay is answered', async ({ page }) => {
+  await mountPracticeProgressHarness(page);
+
+  const answerCurrentRound = async () => {
+    await page.evaluate(() => {
+      window.LLFlashcards.Main.onCorrectAnswer(
+        window.__currentTarget,
+        window.jQuery('.correct-card')
+      );
+    });
+  };
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  let progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 0, total: 2 });
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__progressCalls.length >= 2);
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__progressCalls.length >= 3);
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+
+  await answerCurrentRound();
+  await page.waitForFunction(() => window.__showResultsCount === 1);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 2, total: 2 });
 });

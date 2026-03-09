@@ -798,22 +798,27 @@
         return count;
     }
 
-    function updatePracticeModeProgress() {
+    function updatePracticeModeProgress(options) {
         const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
         if (!isPracticeMode) return;
         if (!Dom || typeof Dom.updateSimpleProgress !== 'function') return;
+        const opts = (options && typeof options === 'object') ? options : {};
 
         const total = getPracticeProgressTotalCount();
         if (total <= 0) return;
 
         const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        let displayCount = answeredUnique;
+        if (!opts.allowCompletedState && answeredUnique >= total) {
+            displayCount = Math.max(0, total - 1);
+        }
         const safeTotal = Math.max(1, total);
-        const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
+        const rawRatio = Math.max(0, Math.min(1, displayCount / safeTotal));
         // Categories load asynchronously in practice mode; keep display monotonic
         // so late category loads cannot make progress appear to move backwards.
         practiceProgressMinDisplayRatio = Math.max(practiceProgressMinDisplayRatio, rawRatio);
         try {
-            Dom.updateSimpleProgress(answeredUnique, total, {
+            Dom.updateSimpleProgress(displayCount, total, {
                 minDisplayRatio: practiceProgressMinDisplayRatio
             });
         } catch (_) { /* no-op */ }
@@ -2962,7 +2967,8 @@
                     Results,
                     State,
                     runQuizRound,
-                    startQuizRound
+                    startQuizRound,
+                    updatePracticeModeProgress
                 }))
                 : false;
 
@@ -2989,6 +2995,7 @@
                     return;
                 }
             }
+            updatePracticeModeProgress({ allowCompletedState: true });
             State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
             Results.showResults();
             return;
