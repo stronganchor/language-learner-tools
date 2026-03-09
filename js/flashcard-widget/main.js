@@ -15,6 +15,10 @@
     let __LastWordsetKey = null;
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
+    let savePrefsQueued = false;
+    let savePrefsInFlightRequest = null;
+    let savePrefsRequestToken = 0;
+    let savePrefsLatestToken = 0;
     let firstRoundRecoveryAttempts = 0;
     let sessionWordFilterRecoveryAttempts = 0;
     let practiceProgressMinDisplayRatio = 0;
@@ -868,6 +872,7 @@
                 next = ids.filter(id => id !== targetId);
             }
             prefs.starredWordIds = normalizeIds(next);
+            prefs.starred_word_ids = prefs.starredWordIds.slice();
             if (root.llToolsFlashcardsData) {
                 const synced = prefs.starredWordIds.slice();
                 root.llToolsFlashcardsData.starredWordIds = synced;
@@ -1246,7 +1251,7 @@
                 adjustLearning(wordId, starredNow, starMode);
             }
             broadcastStarChange(wordId, starredNow);
-            persistStudyPrefsDebounced();
+            persistStudyPrefsDebounced({ immediate: true });
             updateForWord(currentWord, { variant: State.isListeningMode ? 'listening' : 'content' });
         }
 
@@ -1809,30 +1814,88 @@
         };
     }
 
-    function persistStudyPrefs() {
+    function applySavedStudyState(savedState) {
+        if (!savedState || typeof savedState !== 'object') {
+            return;
+        }
+
+        const prefs = ensureStudyPrefs();
+        const seenIds = {};
+        const normalizedIds = (Array.isArray(savedState.starred_word_ids) ? savedState.starred_word_ids : [])
+            .map(function (val) { return parseInt(val, 10) || 0; })
+            .filter(function (id) { return id > 0 && !seenIds[id] && (seenIds[id] = true); });
+
+        prefs.starredWordIds = normalizedIds;
+        prefs.starred_word_ids = normalizedIds.slice();
+        prefs.starMode = normalizeStarMode(savedState.star_mode || prefs.starMode || prefs.star_mode || 'normal');
+        prefs.star_mode = prefs.starMode;
+        prefs.fastTransitions = parseBool(savedState.fast_transitions);
+        prefs.fast_transitions = prefs.fastTransitions;
+        root.llToolsStudyPrefs = prefs;
+
+        if (root.llToolsFlashcardsData) {
+            root.llToolsFlashcardsData.userStudyState = savedState;
+            root.llToolsFlashcardsData.starredWordIds = normalizedIds.slice();
+            root.llToolsFlashcardsData.starred_word_ids = normalizedIds.slice();
+            root.llToolsFlashcardsData.starMode = prefs.starMode;
+            root.llToolsFlashcardsData.star_mode = prefs.starMode;
+            root.llToolsFlashcardsData.fastTransitions = !!prefs.fastTransitions;
+            root.llToolsFlashcardsData.fast_transitions = !!prefs.fastTransitions;
+        }
+    }
+
+    function queueStudyPrefsSave() {
         if (!isUserLoggedIn()) return;
         const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
         const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
         if (!ajaxUrl || !nonce) return;
 
+        savePrefsQueued = true;
+        if (savePrefsInFlightRequest) {
+            return;
+        }
+
+        savePrefsQueued = false;
+        const requestToken = ++savePrefsRequestToken;
+        savePrefsLatestToken = requestToken;
         const payload = buildStudyPrefsPayload();
-        $.post(ajaxUrl, Object.assign({
+
+        // Serialize preference saves so an older request cannot overwrite a
+        // newer star change when users toggle several items in one session.
+        savePrefsInFlightRequest = $.post(ajaxUrl, Object.assign({
             action: 'll_user_study_save',
             nonce: nonce
         }, payload)).done(function (res) {
-            if (res && res.success && res.data && res.data.state && root.llToolsFlashcardsData) {
-                root.llToolsFlashcardsData.userStudyState = res.data.state;
+            if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
+                return;
+            }
+            if (res && res.success && res.data && res.data.state) {
+                applySavedStudyState(res.data.state);
             }
         }).fail(function (err) {
             console.warn('LL Tools: failed to save study prefs', err);
+        }).always(function () {
+            savePrefsInFlightRequest = null;
+            if (savePrefsQueued) {
+                queueStudyPrefsSave();
+            }
         });
     }
 
-    function persistStudyPrefsDebounced() {
+    function persistStudyPrefsDebounced(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         if (savePrefsTimer) {
             clearTimeout(savePrefsTimer);
+            savePrefsTimer = null;
         }
-        savePrefsTimer = setTimeout(persistStudyPrefs, 250);
+        if (opts.immediate) {
+            queueStudyPrefsSave();
+            return;
+        }
+        savePrefsTimer = setTimeout(function () {
+            savePrefsTimer = null;
+            queueStudyPrefsSave();
+        }, 250);
     }
 
     function applyStudyPrefsFromUI(updates) {
