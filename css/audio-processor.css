@@ -188,6 +188,13 @@
     gap: 16px;
     padding: 12px 0;
     border-bottom: 1px solid #e2e4e7;
+    scroll-margin-top: 72px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ll-recording-item.is-return-focus {
+    background: #fff8d9;
+    box-shadow: inset 4px 0 0 #dba617;
 }
 
 .ll-recording-item:last-child {
@@ -218,6 +225,13 @@
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+.ll-word-title-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .ll-word-title-display-text {
@@ -255,6 +269,15 @@
 .ll-edit-word-title-btn:hover,
 .ll-edit-word-title-btn:focus {
     color: #135e96;
+}
+
+.ll-split-word-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    white-space: nowrap;
+    text-decoration: none;
 }
 
 .ll-word-title-editor {

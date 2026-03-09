@@ -38,6 +38,131 @@ function ll_tools_get_split_word_base_url() {
     return admin_url('edit.php?post_type=words');
 }
 
+/**
+ * Default admin destination for split workflow redirects.
+ *
+ * @return string
+ */
+function ll_tools_get_split_word_default_redirect_url() {
+    return add_query_arg(
+        [
+            'post_type' => 'words',
+        ],
+        admin_url('edit.php')
+    );
+}
+
+/**
+ * Validate an optional split workflow return URL.
+ *
+ * Only wp-admin URLs on the current site are allowed.
+ *
+ * @param mixed $url Raw candidate URL.
+ * @return string Empty string when invalid.
+ */
+function ll_tools_validate_split_word_return_url($url) {
+    if (!is_scalar($url)) {
+        return '';
+    }
+
+    $raw_url = trim(wp_unslash((string) $url));
+    if ($raw_url === '') {
+        return '';
+    }
+
+    $validated = wp_validate_redirect($raw_url, '');
+    if (!is_string($validated) || $validated === '') {
+        return '';
+    }
+
+    $admin_path = (string) wp_parse_url(admin_url(), PHP_URL_PATH);
+    $validated_path = (string) wp_parse_url($validated, PHP_URL_PATH);
+    if ($admin_path === '' || $validated_path === '') {
+        return '';
+    }
+
+    $admin_base = untrailingslashit($admin_path);
+    $candidate_base = untrailingslashit($validated_path);
+    if ($candidate_base !== $admin_base && strpos($candidate_base . '/', $admin_base . '/') !== 0) {
+        return '';
+    }
+
+    return $validated;
+}
+
+/**
+ * Read the optional split return URL from GET or POST.
+ *
+ * @param string $source Either `get`, `post`, or `request`.
+ * @return string Empty string when missing or invalid.
+ */
+function ll_tools_get_split_word_return_url_from_request($source = 'request') {
+    if ($source === 'get') {
+        return ll_tools_validate_split_word_return_url($_GET['ll_return_to'] ?? '');
+    }
+
+    if ($source === 'post') {
+        return ll_tools_validate_split_word_return_url($_POST['ll_return_to'] ?? '');
+    }
+
+    return ll_tools_validate_split_word_return_url($_REQUEST['ll_return_to'] ?? '');
+}
+
+/**
+ * Build the split workflow completion redirect.
+ *
+ * @param array  $args      Query args to append.
+ * @param string $return_to Optional validated admin return URL.
+ * @return string
+ */
+function ll_tools_get_split_word_redirect_url($args = [], $return_to = '') {
+    $base_url = $return_to !== ''
+        ? $return_to
+        : ll_tools_get_split_word_default_redirect_url();
+
+    if (!empty($args)) {
+        $base_url = add_query_arg($args, $base_url);
+    }
+
+    return $base_url;
+}
+
+/**
+ * Whether a URL points at the audio processor admin page.
+ *
+ * @param string $url Candidate URL.
+ * @return bool
+ */
+function ll_tools_is_audio_processor_return_url($url) {
+    if (!is_string($url) || $url === '') {
+        return false;
+    }
+
+    $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+    if ($query === '') {
+        return false;
+    }
+
+    $query_args = [];
+    parse_str($query, $query_args);
+
+    return sanitize_key((string) ($query_args['page'] ?? '')) === 'll-audio-processor';
+}
+
+/**
+ * Label for the split workflow cancel/back button.
+ *
+ * @param string $return_to Optional validated admin return URL.
+ * @return string
+ */
+function ll_tools_get_split_word_back_label($return_to = '') {
+    if (ll_tools_is_audio_processor_return_url($return_to)) {
+        return __('Back to Audio Processor', 'll-tools-text-domain');
+    }
+
+    return __('Back to Words', 'll-tools-text-domain');
+}
+
 add_filter('post_row_actions', 'll_tools_add_split_word_row_action', 10, 2);
 function ll_tools_add_split_word_row_action($actions, $post) {
     if (!is_admin() || !($post instanceof WP_Post) || $post->post_type !== 'words') {
@@ -86,14 +211,18 @@ function ll_tools_get_split_word_audio_children($word_id) {
  * @param array $args    Optional extra query args.
  * @return string
  */
-function ll_tools_get_split_word_page_url($word_id, $args = []) {
-    $url = add_query_arg(
-        [
-            'page'    => 'll-tools-split-word',
-            'word_id' => (int) $word_id,
-        ],
-        ll_tools_get_split_word_base_url()
-    );
+function ll_tools_get_split_word_page_url($word_id, $args = [], $return_to = '') {
+    $query_args = [
+        'page'    => 'll-tools-split-word',
+        'word_id' => (int) $word_id,
+    ];
+
+    $return_to = ll_tools_validate_split_word_return_url($return_to);
+    if ($return_to !== '') {
+        $query_args['ll_return_to'] = $return_to;
+    }
+
+    $url = add_query_arg($query_args, ll_tools_get_split_word_base_url());
 
     if (!empty($args)) {
         $url = add_query_arg($args, $url);
@@ -143,6 +272,9 @@ function ll_tools_render_split_word_admin_page() {
     $error_code = isset($_GET['ll_split_error']) ? sanitize_key((string) $_GET['ll_split_error']) : '';
     $error_message = ll_tools_get_split_word_error_message($error_code);
     $default_new_title = (string) $word_post->post_title;
+    $return_to = ll_tools_get_split_word_return_url_from_request('get');
+    $cancel_url = ll_tools_get_split_word_redirect_url([], $return_to);
+    $cancel_label = ll_tools_get_split_word_back_label($return_to);
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('Split Word Audio', 'll-tools-text-domain'); ?></h1>
@@ -165,8 +297,8 @@ function ll_tools_render_split_word_admin_page() {
                 <p><?php echo esc_html__('No audio recordings were found for this word.', 'll-tools-text-domain'); ?></p>
             </div>
             <p>
-                <a class="button" href="<?php echo esc_url(admin_url('edit.php?post_type=words')); ?>">
-                    <?php echo esc_html__('Back to Words', 'll-tools-text-domain'); ?>
+                <a class="button" href="<?php echo esc_url($cancel_url); ?>">
+                    <?php echo esc_html($cancel_label); ?>
                 </a>
             </p>
             <?php
@@ -177,6 +309,7 @@ function ll_tools_render_split_word_admin_page() {
         <form id="ll-tools-split-word-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="ll_tools_split_word_save">
             <input type="hidden" name="ll_source_word_id" value="<?php echo esc_attr($word_id); ?>">
+            <input type="hidden" name="ll_return_to" value="<?php echo esc_attr($return_to); ?>">
             <?php wp_nonce_field('ll_tools_split_word_save_' . $word_id, 'll_tools_split_word_nonce'); ?>
 
             <table class="form-table" role="presentation">
@@ -287,8 +420,8 @@ function ll_tools_render_split_word_admin_page() {
 
             <p class="submit">
                 <button type="submit" class="button button-primary"><?php echo esc_html__('Split Word', 'll-tools-text-domain'); ?></button>
-                <a class="button" href="<?php echo esc_url(admin_url('edit.php?post_type=words')); ?>">
-                    <?php echo esc_html__('Cancel', 'll-tools-text-domain'); ?>
+                <a class="button" href="<?php echo esc_url($cancel_url); ?>">
+                    <?php echo esc_html($cancel_label); ?>
                 </a>
             </p>
         </form>
@@ -330,33 +463,32 @@ function ll_tools_handle_split_word_save() {
         wp_die(esc_html__('You do not have permission to perform this action.', 'll-tools-text-domain'), 403);
     }
 
+    $return_to = ll_tools_get_split_word_return_url_from_request('post');
     $source_word_id = isset($_POST['ll_source_word_id']) ? absint($_POST['ll_source_word_id']) : 0;
     if (!$source_word_id) {
-        $redirect = add_query_arg(
+        $redirect = ll_tools_get_split_word_redirect_url(
             [
-                'post_type'      => 'words',
                 'll_split_error' => 'invalid_word',
             ],
-            admin_url('edit.php')
+            $return_to
         );
         wp_safe_redirect($redirect);
         exit;
     }
 
     if (!isset($_POST['ll_tools_split_word_nonce']) || !wp_verify_nonce($_POST['ll_tools_split_word_nonce'], 'll_tools_split_word_save_' . $source_word_id)) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'nonce']);
+        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'nonce'], $return_to);
         wp_safe_redirect($redirect);
         exit;
     }
 
     $source_word = get_post($source_word_id);
     if (!$source_word || $source_word->post_type !== 'words' || !current_user_can('edit_post', $source_word_id)) {
-        $redirect = add_query_arg(
+        $redirect = ll_tools_get_split_word_redirect_url(
             [
-                'post_type'      => 'words',
                 'll_split_error' => 'permission',
             ],
-            admin_url('edit.php')
+            $return_to
         );
         wp_safe_redirect($redirect);
         exit;
@@ -364,7 +496,7 @@ function ll_tools_handle_split_word_save() {
 
     $audio_posts = ll_tools_get_split_word_audio_children($source_word_id);
     if (empty($audio_posts)) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_audio']);
+        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_audio'], $return_to);
         wp_safe_redirect($redirect);
         exit;
     }
@@ -379,7 +511,7 @@ function ll_tools_handle_split_word_save() {
     $move_ids = array_values(array_intersect($move_ids, $source_audio_ids));
 
     if (empty($move_ids)) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_selection']);
+        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_selection'], $return_to);
         wp_safe_redirect($redirect);
         exit;
     }
@@ -390,7 +522,7 @@ function ll_tools_handle_split_word_save() {
 
     $new_word_id = ll_tools_create_split_word_clone($source_word, $new_word_title);
     if (is_wp_error($new_word_id) || !$new_word_id) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'create_failed']);
+        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'create_failed'], $return_to);
         wp_safe_redirect($redirect);
         exit;
     }
@@ -462,7 +594,7 @@ function ll_tools_handle_split_word_save() {
         $redirect_args['ll_split_error'] = 'partial_move_fail';
     }
 
-    $redirect = add_query_arg($redirect_args, admin_url('edit.php'));
+    $redirect = ll_tools_get_split_word_redirect_url($redirect_args, $return_to);
     wp_safe_redirect($redirect);
     exit;
 }
@@ -610,12 +742,12 @@ function ll_tools_split_word_admin_notices() {
     }
 
     global $pagenow;
-    if ($pagenow !== 'edit.php') {
-        return;
-    }
+    $is_words_page = $pagenow === 'edit.php'
+        && (isset($_GET['post_type']) ? sanitize_key((string) $_GET['post_type']) : '') === 'words';
+    $is_audio_processor_page = $pagenow === 'tools.php'
+        && (isset($_GET['page']) ? sanitize_key((string) $_GET['page']) : '') === 'll-audio-processor';
 
-    $post_type = isset($_GET['post_type']) ? sanitize_key((string) $_GET['post_type']) : '';
-    if ($post_type !== 'words') {
+    if (!$is_words_page && !$is_audio_processor_page) {
         return;
     }
 

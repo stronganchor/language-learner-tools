@@ -66,6 +66,10 @@ function ll_audio_processor_get_recording_type_label($slug, $term_name = '') {
     return trim($icon . ' ' . $name);
 }
 
+function ll_audio_processor_get_page_url($args = []) {
+    return add_query_arg($args, admin_url('tools.php?page=ll-audio-processor'));
+}
+
 function ll_enqueue_audio_processor_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-processor') return;
 
@@ -406,6 +410,17 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     $word_text = trim((string) ($recording['wordText'] ?? $recording['title'] ?? ''));
     $translation_text = trim((string) ($recording['translationText'] ?? ''));
     $store_in_title = !empty($recording['storeInTitle']);
+    $parent_word_id = (int) ($recording['parentWordId'] ?? 0);
+    $processor_return_url = ll_audio_processor_get_page_url();
+    $split_word_url = '';
+    if (
+        $parent_word_id > 0 &&
+        current_user_can('view_ll_tools') &&
+        current_user_can('edit_post', $parent_word_id) &&
+        function_exists('ll_tools_get_split_word_page_url')
+    ) {
+        $split_word_url = ll_tools_get_split_word_page_url($parent_word_id, [], $processor_return_url);
+    }
     $display_word_text = function_exists('ll_tools_esc_html_display')
         ? ll_tools_esc_html_display($word_text)
         : esc_html($word_text);
@@ -416,14 +431,14 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     <div
         class="ll-recording-item"
         data-id="<?php echo esc_attr($recording['id']); ?>"
-        data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>"
+        data-parent-word-id="<?php echo esc_attr($parent_word_id); ?>"
     >
         <div class="ll-recording-label">
             <input type="checkbox" class="ll-recording-checkbox" value="<?php echo esc_attr($recording['id']); ?>">
             <div class="ll-recording-info">
                 <div
                     class="ll-word-title-block"
-                    data-parent-word-id="<?php echo esc_attr((int) ($recording['parentWordId'] ?? 0)); ?>"
+                    data-parent-word-id="<?php echo esc_attr($parent_word_id); ?>"
                     data-word-text="<?php echo esc_attr($word_text); ?>"
                     data-translation-text="<?php echo esc_attr($translation_text); ?>"
                     data-store-in-title="<?php echo $store_in_title ? '1' : '0'; ?>"
@@ -435,9 +450,21 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
                                 <?php echo $display_translation_text; ?>
                             </span>
                         </span>
-                        <button type="button" class="ll-edit-word-title-btn button-link">
-                            <?php echo esc_html__('Edit word', 'll-tools-text-domain'); ?>
-                        </button>
+                        <span class="ll-word-title-actions">
+                            <button type="button" class="ll-edit-word-title-btn button-link">
+                                <?php echo esc_html__('Edit word', 'll-tools-text-domain'); ?>
+                            </button>
+                            <?php if ($split_word_url !== '') : ?>
+                                <a
+                                    href="<?php echo esc_url($split_word_url); ?>"
+                                    class="button button-secondary button-small ll-split-word-link"
+                                    data-split-word-url="<?php echo esc_attr($split_word_url); ?>"
+                                    data-return-base-url="<?php echo esc_attr($processor_return_url); ?>"
+                                >
+                                    <?php echo esc_html__('Split word', 'll-tools-text-domain'); ?>
+                                </a>
+                            <?php endif; ?>
+                        </span>
                     </div>
                     <div class="ll-word-title-editor" hidden>
                         <div class="ll-word-editor-field">
@@ -527,6 +554,10 @@ function ll_render_audio_processor_page() {
     $duplicate_recordings = isset($recording_sets['duplicates']) ? $recording_sets['duplicates'] : [];
     $has_recordings = !empty($queue_recordings) || !empty($duplicate_recordings);
     $active_tab = !empty($queue_recordings) ? 'queue' : 'duplicates';
+    $requested_tab = isset($_GET['ll_ap_tab']) ? sanitize_key((string) $_GET['ll_ap_tab']) : '';
+    if (in_array($requested_tab, ['queue', 'duplicates'], true)) {
+        $active_tab = $requested_tab;
+    }
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1>Audio Processor</h1>

@@ -427,8 +427,94 @@
             : {};
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         initTabs();
+        enhanceSplitWordLinks();
         wireEventListeners();
+        restoreReturnedRecordingFocus();
         updateSelectedCount();
+    }
+
+    function getSplitWordLinkTab(link) {
+        if (!link) {
+            return state.activeTab;
+        }
+
+        const list = link.closest('.ll-recordings-list');
+        if (list && typeof list.dataset.tab === 'string' && list.dataset.tab !== '') {
+            return list.dataset.tab;
+        }
+
+        return state.activeTab;
+    }
+
+    function enhanceSplitWordLinks() {
+        document.querySelectorAll('.ll-split-word-link[data-split-word-url][data-return-base-url]').forEach(link => {
+            link.addEventListener('click', () => {
+                const splitWordUrl = String(link.dataset.splitWordUrl || '').trim();
+                const returnBaseUrl = String(link.dataset.returnBaseUrl || '').trim();
+
+                if (!splitWordUrl || !returnBaseUrl) {
+                    return;
+                }
+
+                try {
+                    const tab = getSplitWordLinkTab(link);
+                    const item = link.closest('.ll-recording-item');
+                    const recordingId = item ? parseInt(item.dataset.id, 10) : 0;
+                    const returnUrl = new URL(returnBaseUrl, window.location.origin);
+                    const splitUrl = new URL(splitWordUrl, window.location.origin);
+
+                    if (tab) {
+                        returnUrl.searchParams.set('ll_ap_tab', tab);
+                    }
+
+                    if (Number.isInteger(recordingId) && recordingId > 0) {
+                        returnUrl.searchParams.set('ll_ap_focus_recording', String(recordingId));
+                    }
+
+                    splitUrl.searchParams.set('ll_return_to', returnUrl.toString());
+                    link.href = splitUrl.toString();
+                } catch (error) {
+                    // Keep the server-rendered href as the fallback navigation target.
+                }
+            });
+        });
+    }
+
+    function restoreReturnedRecordingFocus() {
+        let url;
+        try {
+            url = new URL(window.location.href);
+        } catch (error) {
+            return;
+        }
+
+        const focusRecordingId = parseInt(url.searchParams.get('ll_ap_focus_recording'), 10);
+        if (!Number.isInteger(focusRecordingId) || focusRecordingId <= 0) {
+            return;
+        }
+
+        const target = document.querySelector(`.ll-recording-item[data-id="${focusRecordingId}"]`);
+
+        if (window.history && typeof window.history.replaceState === 'function') {
+            url.searchParams.delete('ll_ap_focus_recording');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+
+        if (!target) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            target.classList.add('is-return-focus');
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+
+            window.setTimeout(() => {
+                target.classList.remove('is-return-focus');
+            }, 3200);
+        });
     }
 
     function initTabs() {
