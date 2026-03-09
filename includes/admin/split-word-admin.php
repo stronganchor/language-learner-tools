@@ -163,6 +163,20 @@ function ll_tools_get_split_word_back_label($return_to = '') {
     return __('Back to Words', 'll-tools-text-domain');
 }
 
+/**
+ * Label for the split workflow submit button.
+ *
+ * @param string $return_to Optional validated admin return URL.
+ * @return string
+ */
+function ll_tools_get_split_word_submit_label($return_to = '') {
+    if (ll_tools_is_audio_processor_return_url($return_to)) {
+        return __('Split Word & Return to Audio Processor', 'll-tools-text-domain');
+    }
+
+    return __('Split Word', 'll-tools-text-domain');
+}
+
 add_filter('post_row_actions', 'll_tools_add_split_word_row_action', 10, 2);
 function ll_tools_add_split_word_row_action($actions, $post) {
     if (!is_admin() || !($post instanceof WP_Post) || $post->post_type !== 'words') {
@@ -275,6 +289,8 @@ function ll_tools_render_split_word_admin_page() {
     $return_to = ll_tools_get_split_word_return_url_from_request('get');
     $cancel_url = ll_tools_get_split_word_redirect_url([], $return_to);
     $cancel_label = ll_tools_get_split_word_back_label($return_to);
+    $submit_label = ll_tools_get_split_word_submit_label($return_to);
+    $show_cancel_button = !ll_tools_is_audio_processor_return_url($return_to);
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('Split Word Audio', 'll-tools-text-domain'); ?></h1>
@@ -419,10 +435,12 @@ function ll_tools_render_split_word_admin_page() {
             </table>
 
             <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__('Split Word', 'll-tools-text-domain'); ?></button>
-                <a class="button" href="<?php echo esc_url($cancel_url); ?>">
-                    <?php echo esc_html($cancel_label); ?>
-                </a>
+                <button type="submit" class="button button-primary"><?php echo esc_html($submit_label); ?></button>
+                <?php if ($show_cancel_button) : ?>
+                    <a class="button" href="<?php echo esc_url($cancel_url); ?>">
+                        <?php echo esc_html($cancel_label); ?>
+                    </a>
+                <?php endif; ?>
             </p>
         </form>
     </div>
@@ -581,7 +599,6 @@ function ll_tools_handle_split_word_save() {
     }
 
     $redirect_args = [
-        'post_type'                 => 'words',
         'll_split_word'             => '1',
         'll_split_source'           => (int) $source_word_id,
         'll_split_new'              => (int) $new_word_id,

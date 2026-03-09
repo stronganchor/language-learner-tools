@@ -54,6 +54,7 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
         $this->assertSame('1', (string) ($query['ll_split_word'] ?? ''));
         $this->assertSame((string) $source_word_id, (string) ($query['ll_split_source'] ?? ''));
         $this->assertSame('1', (string) ($query['ll_split_moved'] ?? ''));
+        $this->assertArrayNotHasKey('post_type', $query);
 
         $new_word_id = (int) ($query['ll_split_new'] ?? 0);
         $this->assertGreaterThan(0, $new_word_id);
