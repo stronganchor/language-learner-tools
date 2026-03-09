@@ -17,6 +17,24 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertFalse(ll_tools_is_learner_self_registration_enabled());
     }
 
+    public function test_registration_setting_syncs_wordpress_registration_when_enabled(): void
+    {
+        update_option('users_can_register', 0);
+
+        update_option('ll_allow_learner_self_registration', 1);
+
+        $this->assertSame(1, (int) get_option('users_can_register', 0));
+    }
+
+    public function test_registration_setting_syncs_wordpress_registration_when_disabled(): void
+    {
+        update_option('users_can_register', 1);
+
+        update_option('ll_allow_learner_self_registration', 0);
+
+        $this->assertSame(0, (int) get_option('users_can_register', 1));
+    }
+
     public function test_login_window_renders_registration_form_when_enabled(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
