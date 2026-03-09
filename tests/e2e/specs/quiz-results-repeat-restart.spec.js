@@ -367,3 +367,27 @@ test('practice progress stays below full until the last displayed replay is answ
   progressCalls = await page.evaluate(() => window.__progressCalls.slice());
   expect(progressCalls.at(-1)).toEqual({ current: 2, total: 2 });
 });
+
+test('practice progress advances after a correct answer even if the turn had a wrong guess first', async ({ page }) => {
+  await mountPracticeProgressHarness(page);
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  const outcome = await page.evaluate(() => {
+    window.LLFlashcards.State.hadWrongAnswerThisTurn = true;
+    window.LLFlashcards.Main.onCorrectAnswer(
+      window.__currentTarget,
+      window.jQuery('.correct-card')
+    );
+    return {
+      flowState: window.LLFlashcards.State.getState(),
+      progressCalls: window.__progressCalls.slice()
+    };
+  });
+
+  expect(outcome.flowState).toBe('processing_answer');
+  expect(outcome.progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+});
