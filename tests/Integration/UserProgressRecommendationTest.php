@@ -69,6 +69,50 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
         $this->assert_recommendation_word_count_within_bounds($recommendation, 'pipeline');
     }
 
+    public function test_pipeline_recommendation_rotates_to_next_category_after_last_recommendation(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->create_wordset_with_category_counts([12, 12, 12]);
+
+        ll_tools_save_user_study_goals([
+            'enabled_modes' => ['learning', 'practice', 'self-check', 'listening'],
+            'ignored_category_ids' => [],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [],
+            'daily_new_word_target' => 2,
+        ], $user_id);
+
+        $first = ll_tools_build_next_activity_recommendation(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            $fixture['categories_payload']
+        );
+
+        $this->assertIsArray($first);
+        $this->assertSame('pipeline', $first['type']);
+        $this->assertSame('learning', $first['mode']);
+
+        ll_tools_save_user_last_recommendation_activity($first, $user_id, (int) $fixture['wordset_id']);
+
+        $second = ll_tools_build_next_activity_recommendation(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            $fixture['categories_payload']
+        );
+
+        $this->assertIsArray($second);
+        $this->assertSame('pipeline', $second['type']);
+
+        $first_category_id = (int) (($first['category_ids'][0] ?? 0));
+        $second_category_id = (int) (($second['category_ids'][0] ?? 0));
+
+        $this->assertGreaterThan(0, $first_category_id);
+        $this->assertGreaterThan(0, $second_category_id);
+        $this->assertNotSame($first_category_id, $second_category_id);
+    }
+
     public function test_placement_known_category_biases_recommendation_to_self_check(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -134,6 +178,54 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
 
         $this->assert_recommendation_word_count_within_bounds($recommendation, 'single-category');
         $this->assertSame($expected_word_ids, $session_word_ids);
+    }
+
+    public function test_review_chunk_spreads_equal_score_words_across_multiple_categories(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->create_wordset_with_category_counts([20, 20, 20]);
+
+        ll_tools_save_user_study_goals([
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [],
+            'daily_new_word_target' => 2,
+        ], $user_id);
+
+        foreach ($fixture['category_ids'] as $category_id) {
+            ll_tools_record_category_exposure($user_id, (int) $category_id, 'practice', (int) $fixture['wordset_id'], 1);
+        }
+
+        $recommendation = ll_tools_build_next_activity_recommendation(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            $fixture['categories_payload']
+        );
+
+        $this->assertIsArray($recommendation);
+        $this->assertSame('review_chunk', $recommendation['type']);
+        $this->assert_recommendation_word_count_within_bounds($recommendation, 'balanced-multi-category');
+
+        $session_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($recommendation['session_word_ids'] ?? [])), static function ($id): bool {
+            return $id > 0;
+        })));
+        $session_category_lookup = [];
+        foreach ((array) ($fixture['word_ids_by_category'] ?? []) as $cid_raw => $category_word_ids) {
+            $category_id = (int) $cid_raw;
+            $category_word_lookup = array_fill_keys(array_values(array_filter(array_map('intval', (array) $category_word_ids), static function ($id): bool {
+                return $id > 0;
+            })), true);
+            foreach ($session_word_ids as $word_id) {
+                if (!empty($category_word_lookup[$word_id])) {
+                    $session_category_lookup[$category_id] = true;
+                }
+            }
+        }
+
+        $this->assertGreaterThanOrEqual(2, count($session_category_lookup));
+        $this->assertGreaterThanOrEqual(2, count((array) ($recommendation['category_ids'] ?? [])));
     }
 
     public function test_recommendation_returns_null_when_scope_cannot_reach_minimum_session_words(): void

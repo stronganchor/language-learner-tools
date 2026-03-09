@@ -2195,6 +2195,78 @@ function ll_tools_user_study_word_priority_score(int $word_id, ?array $progress_
     ];
 }
 
+function ll_tools_recommendation_rotate_category_ids(array $category_ids, int $user_id = 0, int $wordset_id = 0, array $args = []): array {
+    $normalized = array_values(array_unique(array_filter(array_map('intval', $category_ids), function ($id) {
+        return $id > 0;
+    })));
+    if (count($normalized) < 2) {
+        return $normalized;
+    }
+
+    $ordering_mode = function_exists('ll_tools_wordset_get_category_ordering_mode')
+        ? ll_tools_wordset_get_category_ordering_mode($wordset_id)
+        : 'none';
+    if ($ordering_mode !== 'none') {
+        return $normalized;
+    }
+
+    $anchor_category_ids = [];
+    if (isset($args['anchor_category_ids']) && is_array($args['anchor_category_ids'])) {
+        $anchor_category_ids = array_values(array_unique(array_filter(array_map('intval', $args['anchor_category_ids']), function ($id) {
+            return $id > 0;
+        })));
+    }
+    if (empty($anchor_category_ids) && $user_id > 0 && $wordset_id > 0) {
+        $last_activity = ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id);
+        if (is_array($last_activity)) {
+            $anchor_category_ids = ll_tools_recommendation_activity_category_ids($last_activity);
+        }
+    }
+
+    $rotation_start = null;
+    if (!empty($anchor_category_ids)) {
+        $index_lookup = array_flip($normalized);
+        $anchor_index = null;
+        foreach ($anchor_category_ids as $anchor_category_id) {
+            if (!isset($index_lookup[$anchor_category_id])) {
+                continue;
+            }
+            $candidate_index = (int) $index_lookup[$anchor_category_id];
+            if ($anchor_index === null || $candidate_index > $anchor_index) {
+                $anchor_index = $candidate_index;
+            }
+        }
+        if ($anchor_index !== null) {
+            $rotation_start = ($anchor_index + 1) % count($normalized);
+        }
+    }
+
+    if ($rotation_start === null) {
+        $rotation_seed = $user_id . ':' . $wordset_id . ':' . implode(',', $normalized);
+        $rotation_start = (int) (sprintf('%u', crc32($rotation_seed)) % count($normalized));
+    }
+
+    if ($rotation_start <= 0) {
+        return $normalized;
+    }
+
+    return array_merge(
+        array_slice($normalized, $rotation_start),
+        array_slice($normalized, 0, $rotation_start)
+    );
+}
+
+function ll_tools_recommendation_category_rank_lookup(array $category_ids): array {
+    $normalized = array_values(array_unique(array_filter(array_map('intval', $category_ids), function ($id) {
+        return $id > 0;
+    })));
+    $out = [];
+    foreach ($normalized as $index => $category_id) {
+        $out[(int) $category_id] = (int) $index;
+    }
+    return $out;
+}
+
 function ll_tools_pick_recommendation_mode(array $enabled_modes, array $category_ids, array $category_lookup): string {
     $ordered_modes = ll_tools_recommendation_ordered_modes($enabled_modes);
     foreach ($ordered_modes as $mode) {
@@ -2302,7 +2374,7 @@ function ll_tools_recommendation_chunk_size_for_pool(int $pool_size, int $prefer
  *   counts:array{weak:int,new:int,due:int,score_total:int,priority_match:int}
  * }
  */
-function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_rows, array $goals, int $chunk_size = 12, array $starred_lookup = []): array {
+function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_rows, array $goals, int $chunk_size = 12, array $starred_lookup = [], array $context = []): array {
     [, $max_words] = ll_tools_recommendation_session_word_bounds();
 
     $all_word_ids = array_values(array_unique(array_filter(array_map('intval', $all_word_ids), function ($id) {
@@ -2320,6 +2392,32 @@ function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_
 
     $priority_flags = ll_tools_user_study_priority_flags($goals);
     $priority_focus = (string) ($priority_flags['focus'] ?? '');
+    $word_category_lookup = isset($context['word_category_lookup']) && is_array($context['word_category_lookup'])
+        ? $context['word_category_lookup']
+        : [];
+    $category_rank_lookup = isset($context['category_rank_lookup']) && is_array($context['category_rank_lookup'])
+        ? $context['category_rank_lookup']
+        : [];
+    $category_rank_lookup = array_combine(
+        array_map('intval', array_keys($category_rank_lookup)),
+        array_map('intval', array_values($category_rank_lookup))
+    );
+    if (!is_array($category_rank_lookup)) {
+        $category_rank_lookup = [];
+    }
+    if (empty($category_rank_lookup) && !empty($word_category_lookup)) {
+        $derived_category_ids = [];
+        foreach ($all_word_ids as $word_id_for_rank) {
+            $derived_category_id = isset($word_category_lookup[$word_id_for_rank]) ? (int) $word_category_lookup[$word_id_for_rank] : 0;
+            if ($derived_category_id <= 0 || isset($derived_category_ids[$derived_category_id])) {
+                continue;
+            }
+            $derived_category_ids[$derived_category_id] = true;
+        }
+        $category_rank_lookup = ll_tools_recommendation_category_rank_lookup(array_keys($derived_category_ids));
+    }
+    $category_group_count = max(1, count($category_rank_lookup));
+    $category_sequence_lookup = [];
     $entries = [];
     foreach ($all_word_ids as $wid) {
         $progress = isset($progress_rows[$wid]) && is_array($progress_rows[$wid]) ? $progress_rows[$wid] : null;
@@ -2328,6 +2426,15 @@ function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_
         $is_priority_match = ll_tools_user_study_word_matches_priority_focus($wid, $progress, $priority_focus, $starred_lookup);
         $weight = $is_priority_match ? 2 : 1;
         $normalized_coverage = $weight > 0 ? ($total_coverage / $weight) : (float) $total_coverage;
+        $category_id = isset($word_category_lookup[$wid]) ? (int) $word_category_lookup[$wid] : 0;
+        $category_rank = ($category_id > 0 && isset($category_rank_lookup[$category_id]))
+            ? (int) $category_rank_lookup[$category_id]
+            : $category_group_count;
+        $category_position = 0;
+        if ($category_id > 0) {
+            $category_position = (int) ($category_sequence_lookup[$category_id] ?? 0);
+            $category_sequence_lookup[$category_id] = $category_position + 1;
+        }
         $entry = [
             'word_id' => $wid,
             'score' => (int) ($priority['score'] ?? 0),
@@ -2338,6 +2445,10 @@ function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_
             'is_priority_match' => $is_priority_match,
             'total_coverage' => $total_coverage,
             'normalized_coverage' => $normalized_coverage,
+            'category_id' => $category_id,
+            'category_rotation_slot' => ($category_id > 0)
+                ? (($category_position * $category_group_count) + $category_rank)
+                : PHP_INT_MAX,
         ];
         $entries[] = $entry;
     }
@@ -2352,6 +2463,14 @@ function ll_tools_select_review_chunk_rows(array $all_word_ids, array $progress_
         }
         if (!empty($a['is_weak']) !== !empty($b['is_weak'])) {
             return !empty($a['is_weak']) ? -1 : 1;
+        }
+        $coverage_compare = ((int) ($a['total_coverage'] ?? 0)) <=> ((int) ($b['total_coverage'] ?? 0));
+        if ($coverage_compare !== 0) {
+            return $coverage_compare;
+        }
+        $rotation_compare = ((int) ($a['category_rotation_slot'] ?? PHP_INT_MAX)) <=> ((int) ($b['category_rotation_slot'] ?? PHP_INT_MAX));
+        if ($rotation_compare !== 0) {
+            return $rotation_compare;
         }
         return ((int) ($a['word_id'] ?? 0)) <=> ((int) ($b['word_id'] ?? 0));
     };
@@ -2850,7 +2969,7 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         $preferred_mode_raw = 'self-check';
     }
     $preferred_mode = in_array($preferred_mode_raw, ll_tools_progress_modes(), true) ? $preferred_mode_raw : '';
-    if ($preferred_mode !== '' && empty($enabled_lookup[$preferred_mode])) {
+    if ($preferred_mode !== '' && !isset($enabled_lookup[$preferred_mode])) {
         $preferred_mode = '';
     }
 
@@ -3087,6 +3206,9 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         return null;
     }
 
+    $selected = ll_tools_recommendation_rotate_category_ids($selected, $uid, (int) $wordset_id);
+    $category_rank_lookup = ll_tools_recommendation_category_rank_lookup($selected);
+
     $category_lookup = [];
     foreach ((array) $categories_payload as $cat) {
         $cid = isset($cat['id']) ? (int) $cat['id'] : 0;
@@ -3121,7 +3243,7 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
             $progress_for_cat = $category_progress[$cid]['exposure_by_mode'] ?? [];
 
             foreach ($pipeline as $mode) {
-                if (empty($enabled_lookup[$mode])) {
+                if (!isset($enabled_lookup[$mode])) {
                     continue;
                 }
                 if ($mode === 'gender' && empty($meta['gender_supported'])) {
@@ -3146,7 +3268,10 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                 if (!empty($pipeline_word_ids)) {
                     $pipeline_progress_rows = ll_tools_get_user_word_progress_rows($uid, $pipeline_word_ids);
                     $pipeline_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($pipeline_word_ids));
-                    $pipeline_chunk = ll_tools_select_review_chunk_rows($pipeline_word_ids, $pipeline_progress_rows, $goals, $pipeline_chunk_size, $starred_lookup);
+                    $pipeline_chunk = ll_tools_select_review_chunk_rows($pipeline_word_ids, $pipeline_progress_rows, $goals, $pipeline_chunk_size, $starred_lookup, [
+                        'word_category_lookup' => array_fill_keys($pipeline_word_ids, $cid),
+                        'category_rank_lookup' => [$cid => 0],
+                    ]);
                     $pipeline_chunk_word_ids = $pipeline_chunk['word_ids'];
                     if (empty($pipeline_chunk_word_ids)) {
                         $pipeline_chunk_word_ids = array_slice($pipeline_word_ids, 0, $pipeline_chunk_size);
@@ -3302,7 +3427,10 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                     return $id > 0;
                 })));
                 $category_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($category_word_ids));
-                $category_chunk_selection = ll_tools_select_review_chunk_rows($category_word_ids, $priority_progress_rows, $goals, $category_chunk_size, $starred_lookup);
+                $category_chunk_selection = ll_tools_select_review_chunk_rows($category_word_ids, $priority_progress_rows, $goals, $category_chunk_size, $starred_lookup, [
+                    'word_category_lookup' => array_fill_keys($category_word_ids, $best_cid),
+                    'category_rank_lookup' => [$best_cid => 0],
+                ]);
                 $category_session_word_ids = array_values(array_filter(array_map('intval', (array) ($category_chunk_selection['word_ids'] ?? [])), function ($id) {
                     return $id > 0;
                 }));
@@ -3334,7 +3462,10 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         sort($focus_word_ids, SORT_NUMERIC);
         if (!empty($focus_word_ids)) {
             $priority_chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($focus_word_ids));
-            $priority_selection = ll_tools_select_review_chunk_rows($focus_word_ids, $priority_progress_rows, $goals, $priority_chunk_size, $starred_lookup);
+            $priority_selection = ll_tools_select_review_chunk_rows($focus_word_ids, $priority_progress_rows, $goals, $priority_chunk_size, $starred_lookup, [
+                'word_category_lookup' => $word_category_lookup,
+                'category_rank_lookup' => $category_rank_lookup,
+            ]);
             $priority_session_word_ids = array_values(array_filter(array_map('intval', (array) ($priority_selection['word_ids'] ?? [])), function ($id) {
                 return $id > 0;
             }));
@@ -3442,7 +3573,10 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
 
     $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     $chunk_size = ll_tools_recommendation_chunk_size_for_pool(count($all_word_ids));
-    $chunk_selection = ll_tools_select_review_chunk_rows($all_word_ids, $progress_rows, $goals, $chunk_size, $starred_lookup);
+    $chunk_selection = ll_tools_select_review_chunk_rows($all_word_ids, $progress_rows, $goals, $chunk_size, $starred_lookup, [
+        'word_category_lookup' => $word_category_lookup,
+        'category_rank_lookup' => $category_rank_lookup,
+    ]);
     $selected_rows = $chunk_selection['rows'];
     $session_word_ids = $chunk_selection['word_ids'];
     $weak_selected = (int) ($chunk_selection['counts']['weak'] ?? 0);
