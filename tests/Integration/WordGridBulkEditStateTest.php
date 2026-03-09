@@ -59,6 +59,43 @@ final class WordGridBulkEditStateTest extends LL_Tools_TestCase
         $this->assertSame('Indicative', (string) ($defaults['verb_mood'] ?? ''));
     }
 
+    public function test_word_grid_meta_payload_normalizes_case_insensitive_meta_values(): void
+    {
+        ll_register_part_of_speech_taxonomy();
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $wordset_id = $this->createWordset();
+        $category_id = $this->createCategory('Bulk Render');
+        $this->enableBulkWordsetMeta($wordset_id);
+
+        $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $verb_term_id = $this->ensurePartOfSpeechTerm('verb', 'Verb');
+
+        $noun_word_id = $this->createWord($wordset_id, $category_id, 'Render Noun');
+        wp_set_object_terms($noun_word_id, [$noun_term_id], 'part_of_speech', false);
+        update_post_meta($noun_word_id, 'll_grammatical_gender', 'masculine');
+        update_post_meta($noun_word_id, 'll_grammatical_plurality', 'singular');
+
+        $verb_word_id = $this->createWord($wordset_id, $category_id, 'Render Verb');
+        wp_set_object_terms($verb_word_id, [$verb_term_id], 'part_of_speech', false);
+        update_post_meta($verb_word_id, 'll_verb_tense', 'present');
+        update_post_meta($verb_word_id, 'll_verb_mood', 'indicative');
+
+        $noun_payload = ll_tools_word_grid_get_word_meta_payload($noun_word_id, $wordset_id);
+        $verb_payload = ll_tools_word_grid_get_word_meta_payload($verb_word_id, $wordset_id);
+
+        $this->assertSame('Masculine', (string) ($noun_payload['grammatical_gender']['value'] ?? ''));
+        $this->assertSame('Singular', (string) ($noun_payload['grammatical_plurality']['value'] ?? ''));
+        $this->assertSame('Present', (string) ($verb_payload['verb_tense']['value'] ?? ''));
+        $this->assertSame('Indicative', (string) ($verb_payload['verb_mood']['value'] ?? ''));
+    }
+
     public function test_bulk_undo_handler_restores_previous_word_meta_state(): void
     {
         ll_register_part_of_speech_taxonomy();

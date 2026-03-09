@@ -4136,7 +4136,8 @@
             return defaults;
         }
 
-        function syncBulkControlSelectDefaults($wrap, providedDefaults) {
+        function syncBulkControlSelectDefaults($wrap, providedDefaults, options) {
+            const syncOptions = (options && typeof options === 'object') ? options : {};
             const defaults = (providedDefaults && typeof providedDefaults === 'object')
                 ? providedDefaults
                 : computeBulkControlDefaultsFromGrid($wrap);
@@ -4151,7 +4152,11 @@
                     return;
                 }
 
-                const nextValue = ((defaults[config.defaultField] || '') + '').trim();
+                const currentValue = (($select.val() || '') + '').trim();
+                let nextValue = ((defaults[config.defaultField] || '') + '').trim();
+                if (!nextValue && syncOptions.preserveExistingOnEmpty && currentValue) {
+                    nextValue = currentValue;
+                }
                 $select.find('option[data-ll-bulk-temp-option]').remove();
 
                 if (nextValue && !$select.find('option').filter(function () {
@@ -4413,7 +4418,7 @@
                 initPrereqEditor($(this));
             });
             $bulkEditors.each(function () {
-                syncBulkControlSelectDefaults($(this));
+                syncBulkControlSelectDefaults($(this), null, { preserveExistingOnEmpty: true });
             });
 
             $bulkEditors.on('input', '[data-ll-prereq-input]', function () {

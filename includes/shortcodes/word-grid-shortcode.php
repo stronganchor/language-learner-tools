@@ -2904,8 +2904,14 @@ function ll_tools_word_grid_shortcode($atts) {
             if ($wordset_has_gender && $wordset_id > 0 && $is_noun) {
                 $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
                 if ($gender_value !== '') {
+                    if (function_exists('ll_tools_wordset_normalize_gender_value_for_options')) {
+                        $gender_value = ll_tools_wordset_normalize_gender_value_for_options($gender_value, $gender_options);
+                    } elseif (function_exists('ll_tools_word_grid_match_option_value_case_insensitive')) {
+                        $gender_value = ll_tools_word_grid_match_option_value_case_insensitive($gender_value, $gender_options);
+                    }
                     if (function_exists('ll_tools_wordset_get_gender_display_data')) {
                         $gender_display = ll_tools_wordset_get_gender_display_data($wordset_id, $gender_value);
+                        $gender_value = (string) ($gender_display['value'] ?? $gender_value);
                         $gender_label = (string) ($gender_display['label'] ?? '');
                     } elseif (function_exists('ll_tools_wordset_get_gender_label')) {
                         $gender_label = ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
@@ -2920,6 +2926,9 @@ function ll_tools_word_grid_shortcode($atts) {
             $plurality_label = '';
             if ($wordset_has_plurality && $wordset_id > 0 && $is_noun) {
                 $plurality_value = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
+                if ($plurality_value !== '' && function_exists('ll_tools_word_grid_match_option_value_case_insensitive')) {
+                    $plurality_value = ll_tools_word_grid_match_option_value_case_insensitive($plurality_value, $plurality_options);
+                }
                 if ($plurality_value !== '' && function_exists('ll_tools_wordset_get_plurality_label')) {
                     $plurality_label = ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value);
                 } else {
@@ -2930,6 +2939,9 @@ function ll_tools_word_grid_shortcode($atts) {
             $verb_tense_label = '';
             if ($wordset_has_verb_tense && $wordset_id > 0 && $is_verb) {
                 $verb_tense_value = trim((string) get_post_meta($word_id, 'll_verb_tense', true));
+                if ($verb_tense_value !== '' && function_exists('ll_tools_word_grid_match_option_value_case_insensitive')) {
+                    $verb_tense_value = ll_tools_word_grid_match_option_value_case_insensitive($verb_tense_value, $verb_tense_options);
+                }
                 if ($verb_tense_value !== '' && function_exists('ll_tools_wordset_get_verb_tense_label')) {
                     $verb_tense_label = ll_tools_wordset_get_verb_tense_label($wordset_id, $verb_tense_value);
                 } else {
@@ -2940,6 +2952,9 @@ function ll_tools_word_grid_shortcode($atts) {
             $verb_mood_label = '';
             if ($wordset_has_verb_mood && $wordset_id > 0 && $is_verb) {
                 $verb_mood_value = trim((string) get_post_meta($word_id, 'll_verb_mood', true));
+                if ($verb_mood_value !== '' && function_exists('ll_tools_word_grid_match_option_value_case_insensitive')) {
+                    $verb_mood_value = ll_tools_word_grid_match_option_value_case_insensitive($verb_mood_value, $verb_mood_options);
+                }
                 if ($verb_mood_value !== '' && function_exists('ll_tools_wordset_get_verb_mood_label')) {
                     $verb_mood_label = ll_tools_wordset_get_verb_mood_label($wordset_id, $verb_mood_value);
                 } else {

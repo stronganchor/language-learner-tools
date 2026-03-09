@@ -16,7 +16,8 @@ const vocabLessonCssSource = fs.readFileSync(
   'utf8'
 );
 
-function buildMinimalWordGridMarkup() {
+function buildMinimalWordGridMarkup(options = {}) {
+  const useBlankNounMetaInputs = !!options.useBlankNounMetaInputs;
   return `
     <div class="ll-vocab-lesson-page" style="padding: 10px; box-sizing: border-box;">
       <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="2">
@@ -57,6 +58,30 @@ function buildMinimalWordGridMarkup() {
                   </select>
                 </div>
               </div>
+              <div class="ll-vocab-lesson-bulk-section">
+                <div class="ll-vocab-lesson-bulk-heading-row">
+                  <div class="ll-vocab-lesson-bulk-heading">Gender</div>
+                </div>
+                <div class="ll-vocab-lesson-bulk-controls">
+                  <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-gender>
+                    <option value="">Gender</option>
+                    <option value="Masculine" selected>Masculine</option>
+                    <option value="Feminine">Feminine</option>
+                  </select>
+                </div>
+              </div>
+              <div class="ll-vocab-lesson-bulk-section">
+                <div class="ll-vocab-lesson-bulk-heading-row">
+                  <div class="ll-vocab-lesson-bulk-heading">Plurality</div>
+                </div>
+                <div class="ll-vocab-lesson-bulk-controls">
+                  <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-plurality>
+                    <option value="">Plurality</option>
+                    <option value="Singular" selected>Singular</option>
+                    <option value="Plural">Plural</option>
+                  </select>
+                </div>
+              </div>
               <span class="ll-vocab-lesson-bulk-status" data-ll-bulk-status aria-live="polite"></span>
             </div>
           </div>
@@ -78,13 +103,13 @@ function buildMinimalWordGridMarkup() {
           <div data-ll-word-gender-field>
             <select data-ll-word-input="gender">
               <option value="">Gender</option>
-              <option value="Masculine" selected>Masculine</option>
+              <option value="Masculine"${useBlankNounMetaInputs ? '' : ' selected'}>Masculine</option>
             </select>
           </div>
           <div data-ll-word-plurality-field>
             <select data-ll-word-input="plurality">
               <option value="">Plurality</option>
-              <option value="Singular" selected>Singular</option>
+              <option value="Singular"${useBlankNounMetaInputs ? '' : ' selected'}>Singular</option>
             </select>
           </div>
           <div data-ll-word-verb-tense-field aria-hidden="true">
@@ -117,13 +142,13 @@ function buildMinimalWordGridMarkup() {
           <div data-ll-word-gender-field>
             <select data-ll-word-input="gender">
               <option value="">Gender</option>
-              <option value="Masculine" selected>Masculine</option>
+              <option value="Masculine"${useBlankNounMetaInputs ? '' : ' selected'}>Masculine</option>
             </select>
           </div>
           <div data-ll-word-plurality-field>
             <select data-ll-word-input="plurality">
               <option value="">Plurality</option>
-              <option value="Singular" selected>Singular</option>
+              <option value="Singular"${useBlankNounMetaInputs ? '' : ' selected'}>Singular</option>
             </select>
           </div>
           <div data-ll-word-verb-tense-field aria-hidden="true">
@@ -170,10 +195,10 @@ function buildWordGridConfig() {
   };
 }
 
-async function mountMobileBulkEditor(page) {
+async function mountMobileBulkEditor(page, options = {}) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');
-  await page.setContent(buildMinimalWordGridMarkup());
+  await page.setContent(buildMinimalWordGridMarkup(options));
   await page.addStyleTag({ content: flashcardBaseCssSource });
   await page.addStyleTag({ content: vocabLessonCssSource });
   await page.addScriptTag({ content: jquerySource });
@@ -265,6 +290,15 @@ test('mobile bulk edit panel stays inside viewport bounds', async ({ page }) => 
 
   expect(bounds.left).toBeGreaterThanOrEqual(-0.5);
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewportWidth + 0.5);
+});
+
+test('mobile bulk edit keeps server-selected defaults on first open', async ({ page }) => {
+  await mountMobileBulkEditor(page, { useBlankNounMetaInputs: true });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await expect(page.locator('[data-ll-bulk-pos]')).toHaveValue('noun');
+  await expect(page.locator('[data-ll-bulk-gender]')).toHaveValue('Masculine');
+  await expect(page.locator('[data-ll-bulk-plurality]')).toHaveValue('Singular');
 });
 
 test('mobile bulk edit applies a select change and can undo it', async ({ page }) => {
