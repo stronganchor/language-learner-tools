@@ -6,7 +6,6 @@ $print_items = isset($print_items) && is_array($print_items) ? array_values($pri
 $print_request_allowed = !empty($print_request_allowed);
 $print_error_status = isset($print_error_status) ? (int) $print_error_status : 403;
 $auto_print = !empty($auto_print);
-$wordset_name = ($wordset instanceof WP_Term && !is_wp_error($wordset)) ? (string) $wordset->name : '';
 $items_per_page = (int) apply_filters('ll_tools_vocab_lesson_print_items_per_page', 12, $lesson_id ?? 0, $wordset_id ?? 0, $category_id ?? 0);
 if ($items_per_page < 1) {
     $items_per_page = 12;
@@ -60,30 +59,9 @@ if (is_string($print_image_size)) {
                 <p class="ll-vocab-lesson-print-state__message"><?php echo esc_html__('No printable images were found for this lesson yet.', 'll-tools-text-domain'); ?></p>
             </section>
         <?php else : ?>
-            <?php $page_count = count($pages); ?>
             <?php foreach ($pages as $page_index => $page_items) : ?>
                 <section class="ll-vocab-lesson-print-sheet">
-                    <header class="ll-vocab-lesson-print-sheet__header">
-                        <div class="ll-vocab-lesson-print-sheet__titles">
-                            <h1 class="ll-vocab-lesson-print-sheet__title">
-                                <?php echo esc_html($display_name !== '' ? $display_name : __('Print Images', 'll-tools-text-domain')); ?>
-                            </h1>
-                            <?php if ($wordset_name !== '') : ?>
-                                <p class="ll-vocab-lesson-print-sheet__subtitle"><?php echo esc_html($wordset_name); ?></p>
-                            <?php endif; ?>
-                        </div>
-                        <div class="ll-vocab-lesson-print-sheet__page">
-                            <?php
-                            echo esc_html(sprintf(
-                                /* translators: 1: current page number, 2: total page count. */
-                                __('Page %1$d of %2$d', 'll-tools-text-domain'),
-                                $page_index + 1,
-                                $page_count
-                            ));
-                            ?>
-                        </div>
-                    </header>
-                    <div class="ll-vocab-lesson-print-grid">
+                    <div class="ll-vocab-lesson-print-grid" data-ll-vocab-lesson-print-grid data-page-index="<?php echo esc_attr($page_index + 1); ?>">
                         <?php foreach ($page_items as $item) : ?>
                             <?php
                             $attachment_id = isset($item['attachment_id']) ? (int) $item['attachment_id'] : 0;
@@ -105,10 +83,7 @@ if (is_string($print_image_size)) {
                             }
                             ?>
                             <article class="ll-vocab-lesson-print-card" data-word-id="<?php echo esc_attr((int) ($item['word_id'] ?? 0)); ?>">
-                                <div class="ll-vocab-lesson-print-card__image-wrap">
-                                    <?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </div>
-                                <div class="ll-vocab-lesson-print-card__label"><?php echo esc_html($label); ?></div>
+                                <?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                             </article>
                         <?php endforeach; ?>
                     </div>
