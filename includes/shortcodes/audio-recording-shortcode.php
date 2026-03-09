@@ -996,6 +996,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     // Build the recorder dataset once to avoid repeated full scans on initial page load.
     $all_images_needing_audio = ll_get_images_needing_audio('', $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
     $available_categories = ll_tools_get_recording_categories_from_items($all_images_needing_audio);
+    $available_category_counts = ll_tools_get_recording_category_counts_from_items($all_images_needing_audio);
 
     // If no categories available, provide helpful diagnostics
     if (empty($available_categories)) {
@@ -1006,7 +1007,11 @@ function ll_audio_recording_interface_shortcode($atts) {
         $available_categories = [
             'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
         ];
+        $available_category_counts = [
+            'uncategorized' => 0,
+        ];
     }
+    $available_category_labels = ll_tools_get_recording_category_dropdown_labels($available_categories, $available_category_counts);
 
     // Get images for the initial category (or first if none specified)
     $initial_category = !empty($atts['category']) && isset($available_categories[$atts['category']]) ? $atts['category'] : key($available_categories);
@@ -1204,7 +1209,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                             '<option value="%s" %s>%s</option>',
                             esc_attr($slug),
                             $selected,
-                            esc_html($name)
+                            esc_html($available_category_labels[$slug] ?? $name)
                         );
                     }
                     ?>
@@ -1559,6 +1564,67 @@ function ll_tools_get_recording_categories_from_items(array $items): array {
     }
 
     return $categories;
+}
+
+/**
+ * Count recorder items per category slug.
+ *
+ * @param array<int, array<string, mixed>> $items
+ * @return array<string, int>
+ */
+function ll_tools_get_recording_category_counts_from_items(array $items): array {
+    $counts = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $slug = sanitize_title((string) ($item['category_slug'] ?? ''));
+        if ($slug === '') {
+            $slug = 'uncategorized';
+        }
+
+        if (!isset($counts[$slug])) {
+            $counts[$slug] = 0;
+        }
+
+        $counts[$slug]++;
+    }
+
+    return $counts;
+}
+
+/**
+ * Format a category dropdown label with the ready-to-record item count.
+ */
+function ll_tools_format_recording_category_dropdown_label(string $name, int $count): string {
+    return sprintf(
+        /* translators: 1: word category name, 2: number of ready-to-record words */
+        __('%1$s (%2$d)', 'll-tools-text-domain'),
+        $name,
+        max(0, $count)
+    );
+}
+
+/**
+ * Build category dropdown labels from category names and ready-item counts.
+ *
+ * @param array<string, string> $categories
+ * @param array<string, int>    $counts
+ * @return array<string, string>
+ */
+function ll_tools_get_recording_category_dropdown_labels(array $categories, array $counts): array {
+    $labels = [];
+
+    foreach ($categories as $slug => $name) {
+        $labels[$slug] = ll_tools_format_recording_category_dropdown_label(
+            (string) $name,
+            (int) ($counts[$slug] ?? 0)
+        );
+    }
+
+    return $labels;
 }
 
 /**

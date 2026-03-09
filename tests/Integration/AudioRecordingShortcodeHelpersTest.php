@@ -41,6 +41,52 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame('Food', (string) ($categories['food'] ?? ''));
     }
 
+    public function test_recording_category_dropdown_labels_include_ready_item_counts(): void
+    {
+        $items = [
+            [
+                'id' => 11,
+                'category_slug' => 'food',
+                'category_name' => 'Food',
+            ],
+            [
+                'id' => 12,
+                'category_slug' => '',
+                'category_name' => '',
+            ],
+            [
+                'id' => 13,
+                'category_slug' => 'animals',
+                'category_name' => 'Animals',
+            ],
+            [
+                'id' => 14,
+                'category_slug' => 'animals',
+                'category_name' => 'Animals Duplicate',
+            ],
+        ];
+
+        $categories = ll_tools_get_recording_categories_from_items($items);
+        $counts = ll_tools_get_recording_category_counts_from_items($items);
+        $labels = ll_tools_get_recording_category_dropdown_labels($categories, $counts);
+
+        $this->assertSame(1, (int) ($counts['uncategorized'] ?? 0));
+        $this->assertSame(2, (int) ($counts['animals'] ?? 0));
+        $this->assertSame(1, (int) ($counts['food'] ?? 0));
+        $this->assertSame(
+            ll_tools_format_recording_category_dropdown_label(__('Uncategorized', 'll-tools-text-domain'), 1),
+            (string) ($labels['uncategorized'] ?? '')
+        );
+        $this->assertSame(
+            ll_tools_format_recording_category_dropdown_label('Animals', 2),
+            (string) ($labels['animals'] ?? '')
+        );
+        $this->assertSame(
+            ll_tools_format_recording_category_dropdown_label('Food', 1),
+            (string) ($labels['food'] ?? '')
+        );
+    }
+
     public function test_recording_items_filter_normalizes_uncategorized_slug(): void
     {
         $items = [
