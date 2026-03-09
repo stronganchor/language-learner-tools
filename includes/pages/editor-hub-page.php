@@ -154,8 +154,8 @@ add_action('wp_ajax_ll_create_editor_hub_page', 'll_ajax_create_editor_hub_page'
 function ll_get_editor_hub_redirect_url($user_id = 0) {
     $user_id = (int) $user_id;
     if ($user_id > 0) {
-        $custom_redirect = get_user_meta($user_id, 'll_editor_hub_page_url', true);
-        if (!empty($custom_redirect)) {
+        $custom_redirect = ll_tools_get_user_custom_page_url($user_id, 'll_editor_hub_page_id', 'll_editor_hub_page_url');
+        if ($custom_redirect !== '') {
             return $custom_redirect;
         }
     }

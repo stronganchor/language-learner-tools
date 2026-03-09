@@ -40,6 +40,104 @@ function ll_tools_find_shortcode_page_by_fragment($shortcode_fragment, $fields =
 }
 
 /**
+ * Return the permalink for a published page, otherwise an empty string.
+ */
+function ll_tools_get_published_page_permalink(int $page_id): string {
+    if ($page_id <= 0) {
+        return '';
+    }
+
+    $page = get_post($page_id);
+    if (!($page instanceof WP_Post) || $page->post_type !== 'page' || get_post_status($page_id) !== 'publish') {
+        return '';
+    }
+
+    $permalink = get_permalink($page_id);
+    return is_string($permalink) ? $permalink : '';
+}
+
+/**
+ * Resolve a same-site page permalink into a published page ID.
+ */
+function ll_tools_resolve_internal_page_id_from_url($url): int {
+    $url = is_string($url) ? trim($url) : '';
+    if ($url === '') {
+        return 0;
+    }
+
+    $validated = (string) wp_validate_redirect($url, '');
+    if ($validated === '') {
+        return 0;
+    }
+
+    $home_host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+    $target_host = strtolower((string) wp_parse_url($validated, PHP_URL_HOST));
+    if ($home_host !== '' && $target_host !== '' && $home_host !== $target_host) {
+        return 0;
+    }
+
+    $page_id = url_to_postid($validated);
+    if ($page_id <= 0) {
+        $without_locale = (string) remove_query_arg(['ll_locale', 'll_locale_nonce'], $validated);
+        if ($without_locale !== $validated) {
+            $page_id = url_to_postid($without_locale);
+        }
+    }
+
+    return ll_tools_get_published_page_permalink((int) $page_id) !== '' ? (int) $page_id : 0;
+}
+
+/**
+ * Resolve a per-user custom page redirect, migrating supported legacy URL meta.
+ */
+function ll_tools_get_user_custom_page_url(int $user_id, string $page_id_meta_key, string $legacy_url_meta_key = ''): string {
+    if ($user_id <= 0 || $page_id_meta_key === '') {
+        return '';
+    }
+
+    $page_id = (int) get_user_meta($user_id, $page_id_meta_key, true);
+    $page_url = ll_tools_get_published_page_permalink($page_id);
+    if ($page_url !== '') {
+        return $page_url;
+    }
+    if ($page_id > 0) {
+        delete_user_meta($user_id, $page_id_meta_key);
+    }
+
+    if ($legacy_url_meta_key === '') {
+        return '';
+    }
+
+    $legacy_url = (string) get_user_meta($user_id, $legacy_url_meta_key, true);
+    if ($legacy_url === '') {
+        return '';
+    }
+
+    $validated = (string) wp_validate_redirect($legacy_url, '');
+    if ($validated === '') {
+        delete_user_meta($user_id, $legacy_url_meta_key);
+        return '';
+    }
+
+    $home_host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+    $target_host = strtolower((string) wp_parse_url($validated, PHP_URL_HOST));
+    if ($home_host !== '' && $target_host !== '' && $home_host !== $target_host) {
+        delete_user_meta($user_id, $legacy_url_meta_key);
+        return '';
+    }
+
+    $resolved_page_id = ll_tools_resolve_internal_page_id_from_url($legacy_url);
+    if ($resolved_page_id <= 0) {
+        return '';
+    }
+
+    update_user_meta($user_id, $page_id_meta_key, $resolved_page_id);
+    delete_user_meta($user_id, $legacy_url_meta_key);
+
+    return ll_tools_get_published_page_permalink($resolved_page_id);
+}
+
+/**
  * Ensure a plugin-owned default page exists for a shortcode.
  *
  * @param array{

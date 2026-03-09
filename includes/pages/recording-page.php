@@ -153,8 +153,8 @@ add_action('wp_ajax_ll_create_recording_page', 'll_ajax_create_recording_page');
  */
 function ll_get_recording_redirect_url($user_id = 0) {
     if ($user_id) {
-        $custom_redirect = get_user_meta($user_id, 'll_recording_page_url', true);
-        if (!empty($custom_redirect)) {
+        $custom_redirect = ll_tools_get_user_custom_page_url((int) $user_id, 'll_recording_page_id', 'll_recording_page_url');
+        if ($custom_redirect !== '') {
             return function_exists('ll_tools_append_preferred_locale_to_url')
                 ? ll_tools_append_preferred_locale_to_url($custom_redirect, (int) $user_id)
                 : $custom_redirect;

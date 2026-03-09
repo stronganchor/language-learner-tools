@@ -50,6 +50,7 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
     - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
+- If Local changed ports recently, prefer `eval "$(tests/bin/setup-local-env.sh)"` over stale values left in `tests/.env`.
 
 Recommended `.env` keys to verify before debugging code:
 

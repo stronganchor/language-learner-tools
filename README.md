@@ -31,6 +31,8 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 - **Other shortcodes**
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
+  - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
+  - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
   - `[image_copyright_grid posts_per_page="12"]` – paginated grid of `word_images`.
   - Quiz listings: `[quiz_pages_grid]` and `[quiz_pages_dropdown]`, both support wordset filtering and popup mode.
   - `[audio_recording_interface]` – browser-based audio recording interface.
@@ -103,6 +105,11 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    [audio_recording_interface]
    ```
 
+9. Editor-facing missing-content workflow:
+   ```text
+   [editor_hub]
+   ```
+
 ---
 
 ## Shortcodes (details)
@@ -127,6 +134,12 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 ### `[image_copyright_grid]`
 - **Attributes**:
   - `posts_per_page`: default `12`.
+
+### `[editor_hub]`
+- Editor-facing review flow for missing word fields, dictionary entry links, images, and recording metadata.
+
+### `[wordset_page]` / `[ll_wordset_page]`
+- Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
 
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
 - **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).

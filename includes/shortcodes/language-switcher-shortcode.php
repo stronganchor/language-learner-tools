@@ -194,6 +194,29 @@ function ll_tools_get_requested_switcher_locale($require_available = false) {
 }
 
 /**
+ * Build the nonce action used by locale-switch links.
+ */
+function ll_tools_get_locale_switch_nonce_action(): string {
+    return 'll_tools_switch_locale';
+}
+
+/**
+ * Verify the current locale-switch request nonce.
+ */
+function ll_tools_verify_locale_switch_request_nonce(): bool {
+    if (!isset($_REQUEST['ll_locale_nonce'])) {
+        return false;
+    }
+
+    $nonce = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale_nonce']));
+    if ($nonce === '') {
+        return false;
+    }
+
+    return (bool) wp_verify_nonce($nonce, ll_tools_get_locale_switch_nonce_action());
+}
+
+/**
  * Add the preferred locale to an internal URL so redirects land in the right UI language.
  */
 function ll_tools_append_preferred_locale_to_url($url, $user_id = 0) {
@@ -215,7 +238,10 @@ function ll_tools_append_preferred_locale_to_url($url, $user_id = 0) {
         return $url;
     }
 
-    return (string) add_query_arg('ll_locale', $preferred, $validated);
+    return (string) add_query_arg([
+        'll_locale' => $preferred,
+        'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+    ], $validated);
 }
 
 /**
@@ -311,11 +337,12 @@ function ll_tools_handle_locale_switch() {
     }
     $requested = ll_tools_get_requested_switcher_locale(true);
     if ($requested === '') return;
+    if (!ll_tools_verify_locale_switch_request_nonce()) return;
 
     ll_tools_persist_locale_preference($requested);
 
     // Redirect to a clean URL (remove the param). Use current URL as base safely.
-    $target = remove_query_arg('ll_locale');
+    $target = remove_query_arg(['ll_locale', 'll_locale_nonce']);
     if (!$target) {
         // very defensive fallback
         $target = home_url(add_query_arg([], wp_parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/'));
@@ -359,6 +386,9 @@ function ll_tools_filter_locale($locale) {
     }
 
     $requested = ll_tools_get_requested_switcher_locale(true);
+    if ($requested !== '' && !ll_tools_verify_locale_switch_request_nonce()) {
+        $requested = '';
+    }
     if ($requested !== '') {
         return $requested;
     }
@@ -406,7 +436,10 @@ function ll_language_switcher_shortcode($atts) {
                 $is_current = ($loc === $current);
                 $label = ll_tools_locale_label($loc, $style);
                 $flag  = $show_flags ? ll_tools_locale_flag($loc) : '';
-                $url   = esc_url(add_query_arg('ll_locale', $loc));
+                $url   = esc_url(add_query_arg([
+                    'll_locale' => $loc,
+                    'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+                ]));
             ?>
                 <li class="<?php echo $is_current ? 'is-current' : ''; ?>">
                     <?php if ($is_current): ?>

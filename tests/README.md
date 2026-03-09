@@ -127,6 +127,7 @@ tests/bin/run-tests.sh
 ```
 
 When you run `eval "$(tests/bin/setup-local-env.sh)"` first, exported vars take precedence over `.env`.
+If `tests/.env` points at an old Local DB port, rerun `tests/bin/setup-local-env.sh` and prefer the exported values from the active Local runtime before treating PHPUnit as a plugin regression.
 
 ## 4.3) Run a specific test file
 
@@ -159,36 +160,42 @@ tests/bin/run-e2e.sh
 
 Current primary-flow E2E specs:
 
-- `tests/e2e/specs/quiz-mode-transitions.spec.js`
-  - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
-- `tests/e2e/specs/quiz-popup-open-close.spec.js`
-  - Verifies quiz popup open/close behavior and page-state cleanup.
-- `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
-  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
-- `tests/e2e/specs/quiz-launch-config.spec.js`
-  - Verifies selected card category/mode/wordset are forwarded into widget state.
-- `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
-  - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
-- `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
-  - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
-- `tests/e2e/specs/gender-mode-adaptive.spec.js`
-  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
+- `tests/e2e/specs/admin-import-preview-undo.spec.js`
+  - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
+- `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
+  - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
+- `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
+  - Verifies rapid practice-mode preference saves keep the latest queued study state.
+- `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
+  - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
+- `tests/e2e/specs/gender-mode-adaptive.spec.js`
+  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
   - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints.
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
   - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups.
+- `tests/e2e/specs/quiz-launch-config.spec.js`
+  - Verifies selected card category/mode/wordset are forwarded into widget state.
+- `tests/e2e/specs/quiz-mode-transitions.spec.js`
+  - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
+- `tests/e2e/specs/quiz-popup-fallback-modal.spec.js`
+  - Verifies quiz launch falls back to the iframe modal shell when the inline flashcard launcher is absent.
+- `tests/e2e/specs/quiz-popup-open-close.spec.js`
+  - Verifies quiz popup open/close behavior and page-state cleanup.
+- `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
   - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
+- `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
+  - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
-- `tests/e2e/specs/admin-import-preview-undo.spec.js`
-  - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 
 Optional env vars (set directly or in `tests/.env`):
 

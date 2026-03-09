@@ -32,6 +32,50 @@
     let items = Array.isArray(data.items) ? data.items.slice() : [];
     let currentIndex = 0;
     let isBusy = false;
+    const categoryCache = new Map();
+
+    function cloneDataset(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        try {
+            return JSON.parse(JSON.stringify(payload));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setCachedCategoryPayload(slug, payload) {
+        const normalizedSlug = (slug || '').toString();
+        const cloned = cloneDataset(payload);
+        if (!normalizedSlug || !cloned) {
+            return;
+        }
+
+        categoryCache.set(normalizedSlug, cloned);
+    }
+
+    function getCachedCategoryPayload(slug) {
+        const normalizedSlug = (slug || '').toString();
+        if (!normalizedSlug || !categoryCache.has(normalizedSlug)) {
+            return null;
+        }
+
+        return cloneDataset(categoryCache.get(normalizedSlug));
+    }
+
+    if (selectedCategory) {
+        setCachedCategoryPayload(selectedCategory, {
+            wordset_id: wordsetId,
+            wordset_name: data.wordset_name || '',
+            ui_options: uiOptions,
+            categories: categories,
+            selected_category: selectedCategory,
+            items: items,
+            total_missing: data.total_missing || 0
+        });
+    }
 
     function normalizeHostContainers() {
         const hostSelector = [
@@ -645,8 +689,30 @@
         return 0;
     }
 
-    function loadCategory(categorySlug, preferredIndex, afterSaveState) {
+    function loadCategory(categorySlug, preferredIndex, afterSaveState, forceRefresh) {
         const slug = (categorySlug || '').toString();
+        const useCache = !forceRefresh;
+        const cachedPayload = useCache ? getCachedCategoryPayload(slug) : null;
+
+        if (cachedPayload) {
+            let resolvedPreferredIndex = preferredIndex;
+            if (afterSaveState && typeof afterSaveState === 'object') {
+                resolvedPreferredIndex = resolvePreferredIndexAfterSave(
+                    cachedPayload.items,
+                    afterSaveState.savedWordId,
+                    afterSaveState.previousIndex
+                );
+            }
+
+            applyDataset(cachedPayload, resolvedPreferredIndex);
+            if (!Array.isArray(items) || !items.length) {
+                setStatus(t('no_items', 'No missing items in this category.'), 'info');
+            } else {
+                setStatus('', '');
+            }
+            return;
+        }
+
         setBusy(true);
         setStatus(t('loading', 'Loading…'), 'info');
 
@@ -661,6 +727,8 @@
                 return;
             }
 
+            const responseSlug = (res.data.selected_category || slug || '').toString();
+            setCachedCategoryPayload(responseSlug, res.data);
             selectedCategory = (res.data.selected_category || slug || '').toString();
             let resolvedPreferredIndex = preferredIndex;
             if (afterSaveState && typeof afterSaveState === 'object') {
@@ -706,10 +774,11 @@
             }
 
             setStatus(t('saved', 'Saved.'), 'success');
+            categoryCache.delete(selectedCategory);
             loadCategory(selectedCategory, previousIndex, {
                 savedWordId: savedWordId,
                 previousIndex: previousIndex
-            });
+            }, true);
         }).fail(function () {
             setStatus(t('save_error', 'Unable to save changes.'), 'error');
             setBusy(false);
@@ -763,7 +832,7 @@
         if (isBusy) {
             return;
         }
-        loadCategory(selectedCategory, currentIndex);
+        loadCategory(selectedCategory, currentIndex, null, true);
     });
 
     normalizeHostContainers();
@@ -771,7 +840,7 @@
     renderCurrentItem();
 
     if (!items.length && selectedCategory) {
-        loadCategory(selectedCategory, 0);
+        loadCategory(selectedCategory, 0, null, true);
     } else if (!items.length) {
         setStatus(t('all_done', 'All missing items are complete.'), 'success');
     }

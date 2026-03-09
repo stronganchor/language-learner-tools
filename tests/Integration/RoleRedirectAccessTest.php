@@ -32,11 +32,74 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_User::class, $user);
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
+        $query = wp_parse_args((string) wp_parse_url($redirect, PHP_URL_QUERY));
 
+        $this->assertSame('tr_TR', (string) ($query['ll_locale'] ?? ''));
+        $this->assertSame(get_permalink($recording_page_id), remove_query_arg(['ll_locale', 'll_locale_nonce'], $redirect));
         $this->assertSame(
-            add_query_arg('ll_locale', 'tr_TR', get_permalink($recording_page_id)),
-            $redirect
+            1,
+            wp_verify_nonce(
+                (string) ($query['ll_locale_nonce'] ?? ''),
+                ll_tools_get_locale_switch_nonce_action()
+            )
         );
+    }
+
+    public function test_login_redirect_routes_audio_recorder_to_custom_recording_page_id(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $default_page_id = $this->create_page_with_shortcode('Default Recorder Page', '[audio_recording_interface]');
+        $custom_page_id = $this->create_page_with_shortcode('Custom Recorder Page', '[audio_recording_interface]');
+        update_option('ll_default_recording_page_id', $default_page_id);
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($user_id, 'll_recording_page_id', $custom_page_id);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+
+        $redirect = apply_filters('login_redirect', admin_url(), '', $user);
+
+        $this->assertSame(get_permalink($custom_page_id), $redirect);
+    }
+
+    public function test_login_redirect_migrates_internal_legacy_recording_page_url_to_page_id(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $default_page_id = $this->create_page_with_shortcode('Default Recorder Page', '[audio_recording_interface]');
+        $legacy_page_id = $this->create_page_with_shortcode('Legacy Recorder Page', '[audio_recording_interface]');
+        update_option('ll_default_recording_page_id', $default_page_id);
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($user_id, 'll_recording_page_url', get_permalink($legacy_page_id));
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+
+        $redirect = apply_filters('login_redirect', admin_url(), '', $user);
+
+        $this->assertSame(get_permalink($legacy_page_id), $redirect);
+        $this->assertSame($legacy_page_id, (int) get_user_meta($user_id, 'll_recording_page_id', true));
+        $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_url', true));
+    }
+
+    public function test_login_redirect_ignores_external_legacy_recording_page_url(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $default_page_id = $this->create_page_with_shortcode('Default Recorder Page', '[audio_recording_interface]');
+        update_option('ll_default_recording_page_id', $default_page_id);
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($user_id, 'll_recording_page_url', 'https://evil.example/recorder');
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+
+        $redirect = apply_filters('login_redirect', admin_url(), '', $user);
+
+        $this->assertSame(get_permalink($default_page_id), $redirect);
+        $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_id', true));
+        $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_url', true));
     }
 
     public function test_login_redirect_routes_learner_to_wordset_page_by_default(): void

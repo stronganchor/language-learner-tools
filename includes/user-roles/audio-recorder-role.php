@@ -99,7 +99,12 @@ function ll_audio_recorder_profile_fields($user) {
     }
 
     $config = ll_get_user_recording_config($user->ID);
-    $custom_url = get_user_meta($user->ID, 'll_recording_page_url', true);
+    $custom_page_id = (int) get_user_meta($user->ID, 'll_recording_page_id', true);
+    if ($custom_page_id <= 0) {
+        $custom_page_id = function_exists('ll_tools_resolve_internal_page_id_from_url')
+            ? ll_tools_resolve_internal_page_id_from_url((string) get_user_meta($user->ID, 'll_recording_page_url', true))
+            : 0;
+    }
 
     // Get available wordsets
     $wordsets = get_terms([
@@ -173,12 +178,23 @@ function ll_audio_recorder_profile_fields($user) {
         </tr>
 
         <tr>
-            <th><label for="ll_recording_page_url"><?php _e('Custom Recording Page URL', 'll-tools-text-domain'); ?></label></th>
+            <th><label for="ll_recording_page_id"><?php _e('Custom Recording Page', 'll-tools-text-domain'); ?></label></th>
             <td>
-                <input type="url" name="ll_recording_page_url" id="ll_recording_page_url"
-                       value="<?php echo esc_attr($custom_url); ?>" class="regular-text" />
+                <?php
+                wp_dropdown_pages([
+                    'name' => 'll_recording_page_id',
+                    'id' => 'll_recording_page_id',
+                    'class' => 'regular-text',
+                    'echo' => 1,
+                    'show_option_none' => __('-- Default recording page --', 'll-tools-text-domain'),
+                    'option_none_value' => '0',
+                    'selected' => $custom_page_id,
+                    'sort_column' => 'post_title',
+                    'post_status' => 'publish',
+                ]);
+                ?>
                 <p class="description">
-                    <?php _e('Optional: Specify a custom URL to redirect this user to on login. Leave empty to use the default recording page.', 'll-tools-text-domain'); ?>
+                    <?php _e('Optional: Choose a published page to redirect this user to on login. Leave the default option selected to use the shared recording page.', 'll-tools-text-domain'); ?>
                 </p>
             </td>
         </tr>
@@ -287,11 +303,23 @@ function ll_audio_recorder_new_user_fields() {
         </tr>
 
         <tr>
-            <th><label for="ll_recording_page_url"><?php _e('Custom Recording Page URL', 'll-tools-text-domain'); ?></label></th>
+            <th><label for="ll_recording_page_id"><?php _e('Custom Recording Page', 'll-tools-text-domain'); ?></label></th>
             <td>
-                <input type="url" name="ll_recording_page_url" id="ll_recording_page_url" value="" class="regular-text" />
+                <?php
+                wp_dropdown_pages([
+                    'name' => 'll_recording_page_id',
+                    'id' => 'll_recording_page_id',
+                    'class' => 'regular-text',
+                    'echo' => 1,
+                    'show_option_none' => __('-- Default recording page --', 'll-tools-text-domain'),
+                    'option_none_value' => '0',
+                    'selected' => 0,
+                    'sort_column' => 'post_title',
+                    'post_status' => 'publish',
+                ]);
+                ?>
                 <p class="description">
-                    <?php _e('Optional: Specify a custom URL to redirect this user to on login. Leave empty to use the default recording page.', 'll-tools-text-domain'); ?>
+                    <?php _e('Optional: Choose a published page to redirect this user to on login. Leave the default option selected to use the shared recording page.', 'll-tools-text-domain'); ?>
                 </p>
             </td>
         </tr>
@@ -372,10 +400,18 @@ function ll_save_audio_recorder_profile_fields($user_id) {
         ll_set_user_recording_config($user_id, $config);
     }
 
-    // Save custom URL
-    if (isset($_POST['ll_recording_page_url'])) {
-        $url = esc_url_raw($_POST['ll_recording_page_url']);
-        update_user_meta($user_id, 'll_recording_page_url', $url);
+    if (isset($_POST['ll_recording_page_id'])) {
+        $page_id = max(0, (int) wp_unslash((string) $_POST['ll_recording_page_id']));
+        if ($page_id > 0 && function_exists('ll_tools_get_published_page_permalink')
+            && ll_tools_get_published_page_permalink($page_id) !== ''
+        ) {
+            update_user_meta($user_id, 'll_recording_page_id', $page_id);
+        } else {
+            delete_user_meta($user_id, 'll_recording_page_id');
+        }
+
+        // Remove the legacy raw URL meta once an explicit page selection is saved.
+        delete_user_meta($user_id, 'll_recording_page_url');
     }
 }
 add_action('personal_options_update', 'll_save_audio_recorder_profile_fields');
