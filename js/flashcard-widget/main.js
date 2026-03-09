@@ -1578,9 +1578,25 @@
         });
     }
 
+    function incrementLocalPracticeExposureCount(targetWord) {
+        if (!isUserLoggedIn() || getCurrentModeKey() !== 'practice' || !targetWord || typeof targetWord !== 'object') {
+            return;
+        }
+
+        const raw = parseInt(targetWord.practice_exposure_count, 10);
+        const current = Number.isFinite(raw) && raw > 0 ? raw : 0;
+        targetWord.practice_exposure_count = current + 1;
+    }
+
     function trackWordExposureForProgress(targetWord, fallbackCategoryName) {
+        if (!targetWord || !targetWord.id) {
+            return;
+        }
+
+        incrementLocalPracticeExposureCount(targetWord);
+
         const tracker = getProgressTracker();
-        if (!tracker || typeof tracker.trackWordExposure !== 'function' || !targetWord || !targetWord.id) {
+        if (!tracker || typeof tracker.trackWordExposure !== 'function') {
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
@@ -2170,6 +2186,7 @@
             const targetMode = newMode || (State.isLearningMode ? 'practice' : 'learning');
 
             // Full reset for a clean session
+            practiceProgressMinDisplayRatio = 0;
             State.reset();
             // Reset clears widgetActive, but mode switches keep the popup session alive.
             State.widgetActive = true;
@@ -3675,6 +3692,7 @@
         const wasListening = State.isListeningMode;
         const wasGender = State.isGenderMode;
         const wasSelfCheck = State.isSelfCheckMode;
+        practiceProgressMinDisplayRatio = 0;
         State.reset();
         // Reset clears widgetActive, but restart stays inside the active popup session.
         State.widgetActive = true;
