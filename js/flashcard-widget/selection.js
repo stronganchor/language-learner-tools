@@ -838,6 +838,38 @@
         return id > 0 ? id : 0;
     }
 
+    function hasAlternativePromptWordAvailable(excludedWordId) {
+        const excludedId = normalizeWordId(excludedWordId);
+        const names = Array.isArray(State.categoryNames) && State.categoryNames.length
+            ? State.categoryNames
+            : Object.keys(getActiveWordsByCategory() || {});
+        const activeWords = getActiveWordsByCategory();
+        const queues = State.categoryRepetitionQueues || {};
+
+        for (let i = 0; i < names.length; i += 1) {
+            const name = names[i];
+            const list = Array.isArray(activeWords[name]) ? activeWords[name] : [];
+            for (let j = 0; j < list.length; j += 1) {
+                const word = list[j];
+                const wordId = normalizeWordId(word && word.id);
+                if (!wordId || wordId === excludedId) continue;
+                if (isWordBlockedFromPromptRounds(word)) continue;
+                return true;
+            }
+
+            const queue = Array.isArray(queues[name]) ? queues[name] : [];
+            for (let j = 0; j < queue.length; j += 1) {
+                const queuedWord = queue[j] && queue[j].wordData;
+                const queuedWordId = normalizeWordId(queuedWord && queuedWord.id);
+                if (!queuedWordId || queuedWordId === excludedId) continue;
+                if (isWordBlockedFromPromptRounds(queuedWord)) continue;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     function normalizeWordIdSet(raw) {
         const out = new Set();
         (Array.isArray(raw) ? raw : []).forEach(function (value) {
@@ -1062,6 +1094,8 @@
                 const queuedItem = queue[i];
                 const queuedWord = queuedItem.wordData;
                 const allowOverflow = !!queuedItem.forceReplay; // forceReplay allows wrong answers to bypass max-play caps
+                const allowForcedRepeat = normalizeWordId(queuedWord && queuedWord.id) === normalizeWordId(State.lastWordShownId)
+                    && !hasAlternativePromptWordAvailable(State.lastWordShownId);
                 const playable = queuedWord && isPromptEligibleWord(queuedWord) && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
 
                 if (!playable) {
@@ -1071,7 +1105,7 @@
                 }
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
                     // Skip if this is the same word we just showed
-                    if (queue[i].wordData.id !== State.lastWordShownId) {
+                    if (queue[i].wordData.id !== State.lastWordShownId || allowForcedRepeat) {
                         target = queue[i].wordData;
                         if (queuedItem.forceReplay && State.practiceForcedReplays) {
                             const key = String(queuedWord.id);
@@ -1142,7 +1176,8 @@
             let queueCandidate = queue.find(item => {
                 if (!item || !item.wordData) return false;
                 if (!isPromptEligibleWord(item.wordData)) return false;
-                if (item.wordData.id === State.lastWordShownId) return false;
+                const sameAsLastShown = normalizeWordId(item.wordData.id) === normalizeWordId(State.lastWordShownId);
+                if (sameAsLastShown && hasAlternativePromptWordAvailable(State.lastWordShownId)) return false;
                 return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
             });
 

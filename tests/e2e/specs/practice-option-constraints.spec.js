@@ -26,15 +26,22 @@ async function mountSelectionHarness(page, options = {}) {
     maxCards,
     state: Object.assign({
       DEFAULT_DISPLAY_MODE: 'image',
+      ROUNDS_PER_CATEGORY: 2,
+      isFirstRound: false,
       isLearningMode: false,
+      isListeningMode: false,
       isGenderMode: false,
+      isSelfCheckMode: false,
       currentCategoryName: String(options.targetCategoryName || ''),
       currentCategory: [],
       categoryNames: [],
       categoryRepetitionQueues: {},
+      categoryRoundCount: {},
       completedCategories: {},
       wrongIndexes: [],
-      currentCategoryRoundCount: 0
+      currentCategoryRoundCount: 0,
+      usedWordIDs: [],
+      lastWordShownId: null
     }, options.state || {})
   };
 
@@ -56,6 +63,7 @@ async function mountSelectionHarness(page, options = {}) {
 
     const State = Object.assign({}, bootstrap.state);
     State.currentCategory = bootstrap.wordsByCategory[bootstrap.targetCategoryName] || [];
+    State.wordsByCategory = bootstrap.wordsByCategory || {};
     State.categoryNames = Array.isArray(State.categoryNames) && State.categoryNames.length
       ? State.categoryNames.slice()
       : Object.keys(bootstrap.wordsByCategory || {});
@@ -174,6 +182,97 @@ test('option count never drops below two after wrong answers', async ({ page }) 
   });
 
   expect(nextCount).toBe(2);
+});
+
+test('practice selector replays the same queued word when no other prompt word exists', async ({ page }) => {
+  const category = 'Replay category';
+  const replayWord = {
+    id: 2101,
+    title: 'Only word',
+    label: 'Only word',
+    image: 'https://img.test/only-word.jpg',
+    audio: 'https://audio.test/only-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: {
+      [category]: [replayWord]
+    },
+    optionWordsByCategory: {
+      [category]: [replayWord]
+    },
+    state: {
+      categoryNames: [category],
+      currentCategoryName: category,
+      currentCategoryRoundCount: 3,
+      categoryRoundCount: {
+        [category]: 3
+      },
+      categoryRepetitionQueues: {
+        [category]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
+      },
+      usedWordIDs: [2101],
+      lastWordShownId: 2101
+    }
+  });
+
+  const targetId = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return target ? Number(target.id) : 0;
+  });
+
+  expect(targetId).toBe(2101);
+});
+
+test('practice selector still avoids immediate repeat when another prompt word exists', async ({ page }) => {
+  const category = 'Alternate category';
+  const replayWord = {
+    id: 2201,
+    title: 'Replay word',
+    label: 'Replay word',
+    image: 'https://img.test/replay-word.jpg',
+    audio: 'https://audio.test/replay-word.mp3'
+  };
+  const alternateWord = {
+    id: 2202,
+    title: 'Alternate word',
+    label: 'Alternate word',
+    image: 'https://img.test/alternate-word.jpg',
+    audio: 'https://audio.test/alternate-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: {
+      [category]: [replayWord, alternateWord]
+    },
+    optionWordsByCategory: {
+      [category]: [replayWord, alternateWord]
+    },
+    state: {
+      categoryNames: [category],
+      currentCategoryName: category,
+      currentCategoryRoundCount: 3,
+      categoryRoundCount: {
+        [category]: 3
+      },
+      categoryRepetitionQueues: {
+        [category]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
+      },
+      usedWordIDs: [2201],
+      lastWordShownId: 2201
+    }
+  });
+
+  const targetId = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return target ? Number(target.id) : 0;
+  });
+
+  expect(targetId).toBe(2202);
 });
 
 test('practice options never include duplicate images', async ({ page }) => {
