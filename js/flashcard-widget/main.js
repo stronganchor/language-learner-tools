@@ -798,27 +798,22 @@
         return count;
     }
 
-    function updatePracticeModeProgress(options) {
+    function updatePracticeModeProgress() {
         const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
         if (!isPracticeMode) return;
         if (!Dom || typeof Dom.updateSimpleProgress !== 'function') return;
-        const opts = (options && typeof options === 'object') ? options : {};
 
         const total = getPracticeProgressTotalCount();
         if (total <= 0) return;
 
         const answeredUnique = getPracticeProgressAnsweredUniqueCount();
-        let displayCount = answeredUnique;
-        if (!opts.allowCompletedState && answeredUnique >= total) {
-            displayCount = Math.max(0, total - 1);
-        }
         const safeTotal = Math.max(1, total);
-        const rawRatio = Math.max(0, Math.min(1, displayCount / safeTotal));
+        const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
         // Categories load asynchronously in practice mode; keep display monotonic
         // so late category loads cannot make progress appear to move backwards.
         practiceProgressMinDisplayRatio = Math.max(practiceProgressMinDisplayRatio, rawRatio);
         try {
-            Dom.updateSimpleProgress(displayCount, total, {
+            Dom.updateSimpleProgress(answeredUnique, total, {
                 minDisplayRatio: practiceProgressMinDisplayRatio
             });
         } catch (_) { /* no-op */ }
@@ -2996,7 +2991,7 @@
                     return;
                 }
             }
-            updatePracticeModeProgress({ allowCompletedState: true });
+            updatePracticeModeProgress();
             State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
             Results.showResults();
             return;

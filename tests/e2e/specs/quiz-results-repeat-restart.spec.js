@@ -138,7 +138,13 @@ async function mountRestartHarness(page) {
   await page.addScriptTag({ content: mainSource });
 }
 
-async function mountPracticeProgressHarness(page) {
+async function mountPracticeProgressHarness(page, options = {}) {
+  const targets = Array.isArray(options.targets) && options.targets.length
+    ? options.targets
+    : [
+        { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+        { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
+      ];
   await page.goto('about:blank');
   await page.setContent(`
     <div id="ll-tools-flashcard-popup">
@@ -158,16 +164,12 @@ async function mountPracticeProgressHarness(page) {
   await page.addScriptTag({ content: jquerySource });
   await page.addScriptTag({ content: stateSource });
 
-  await page.evaluate(() => {
+  await page.evaluate((bootstrap) => {
     window.__LLFlashcardsMainLoaded = false;
     window.__progressCalls = [];
     window.__showResultsCount = 0;
     window.__currentTarget = null;
-    window.__targets = [
-      { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
-      { id: 502, title: 'Plate', __categoryName: 'Kitchen' },
-      { id: 501, title: 'Cup', __categoryName: 'Kitchen' }
-    ];
+    window.__targets = bootstrap.targets.slice();
 
     window.llToolsFlashcardsData = {
       debug: false,
@@ -282,7 +284,7 @@ async function mountPracticeProgressHarness(page) {
     window.wordsByCategory = state.wordsByCategory;
     window.categoryNames = state.categoryNames;
     window.categoryRoundCount = state.categoryRoundCount;
-  });
+  }, { targets });
 
   await page.addScriptTag({ content: mainSource });
 }
@@ -327,7 +329,7 @@ test('restartQuiz keeps the popup session active after resetting state', async (
   expect(['loading', 'quiz_ready']).toContain(state.flowState);
 });
 
-test('practice progress stays below full until the last displayed replay is answered', async ({ page }) => {
+test('practice progress reaches full on the actual last answer without inserting an extra replay', async ({ page }) => {
   await mountPracticeProgressHarness(page);
 
   const answerCurrentRound = async () => {
@@ -355,17 +357,17 @@ test('practice progress stays below full until the last displayed replay is answ
   expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
 
   await answerCurrentRound();
-  await page.waitForFunction(() => window.__progressCalls.length >= 3);
-  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
-
-  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
-  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
-
-  await answerCurrentRound();
   await page.waitForFunction(() => window.__showResultsCount === 1);
 
   progressCalls = await page.evaluate(() => window.__progressCalls.slice());
   expect(progressCalls.at(-1)).toEqual({ current: 2, total: 2 });
+
+  const finalState = await page.evaluate(() => ({
+    remainingTargets: window.__targets.length,
+    flowState: window.LLFlashcards.State.getState()
+  }));
+  expect(finalState.remainingTargets).toBe(0);
+  expect(finalState.flowState).toBe('showing_results');
 });
 
 test('practice progress advances after a correct answer even if the turn had a wrong guess first', async ({ page }) => {

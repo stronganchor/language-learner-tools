@@ -966,6 +966,31 @@
         return !!findPracticeBridgeWord(excludedWordId, preferredCategoryName);
     }
 
+    function hasOutstandingPracticeReplay() {
+        const queues = (State && State.categoryRepetitionQueues && typeof State.categoryRepetitionQueues === 'object')
+            ? State.categoryRepetitionQueues
+            : {};
+        const categoryNames = Object.keys(queues);
+        for (let i = 0; i < categoryNames.length; i += 1) {
+            const list = queues[categoryNames[i]];
+            if (Array.isArray(list) && list.length) {
+                return true;
+            }
+        }
+
+        const forced = (State && State.practiceForcedReplays && typeof State.practiceForcedReplays === 'object')
+            ? State.practiceForcedReplays
+            : {};
+        const forcedIds = Object.keys(forced);
+        for (let i = 0; i < forcedIds.length; i += 1) {
+            if ((parseInt(forced[forcedIds[i]], 10) || 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     function commitSelectedTarget(target, categoryName, options) {
         if (!target || !categoryName) {
             return target || null;
@@ -1448,7 +1473,7 @@
         if (!target) {
             // No target anywhere; mark all remaining categories as done so results can show.
             const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
-            if (isPracticeMode) {
+            if (isPracticeMode && hasOutstandingPracticeReplay()) {
                 const bridge = findPracticeBridgeWord(State.lastWordShownId, State.currentCategoryName);
                 if (bridge && bridge.word && bridge.categoryName) {
                     return commitSelectedTarget(bridge.word, bridge.categoryName);

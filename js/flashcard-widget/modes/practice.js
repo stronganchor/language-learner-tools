@@ -456,7 +456,7 @@
 
             if (queuedOnlyLastShown && !hasBridgeWord) {
                 if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
-                    ctx.updatePracticeModeProgress({ allowCompletedState: true });
+                    ctx.updatePracticeModeProgress();
                 }
                 State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Practice replay deadlock avoided');
                 Results.showResults && Results.showResults();
@@ -478,7 +478,7 @@
         }
 
         if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
-            ctx.updatePracticeModeProgress({ allowCompletedState: true });
+            ctx.updatePracticeModeProgress();
         }
         State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
         Results.showResults && Results.showResults();

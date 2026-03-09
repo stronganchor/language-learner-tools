@@ -683,6 +683,70 @@ test('practice selector refuses immediate repeat when no legal bridge word exist
   expect(targetId).toBe(0);
 });
 
+test('practice selector ends cleanly when no replay is pending instead of adding a bridge word', async ({ page }) => {
+  const finishedCategory = 'Finished category';
+  const seenOtherCategory = 'Seen category';
+  const finishedWord = {
+    id: 2171,
+    title: 'Finished word',
+    label: 'Finished word',
+    image: 'https://img.test/finished-word.jpg',
+    audio: 'https://audio.test/finished-word.mp3'
+  };
+  const seenWord = {
+    id: 2172,
+    title: 'Seen word',
+    label: 'Seen word',
+    image: 'https://img.test/seen-word.jpg',
+    audio: 'https://audio.test/seen-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: finishedCategory, prompt_type: 'audio', option_type: 'image' },
+      { name: seenOtherCategory, prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: finishedCategory,
+    wordsByCategory: {
+      [finishedCategory]: [finishedWord],
+      [seenOtherCategory]: [seenWord]
+    },
+    optionWordsByCategory: {
+      [finishedCategory]: [finishedWord],
+      [seenOtherCategory]: [seenWord]
+    },
+    state: {
+      categoryNames: [finishedCategory],
+      initialCategoryNames: [finishedCategory, seenOtherCategory],
+      currentCategoryName: finishedCategory,
+      currentCategoryRoundCount: 3,
+      categoryRoundCount: {
+        [finishedCategory]: 3,
+        [seenOtherCategory]: 1
+      },
+      categoryRepetitionQueues: {},
+      practiceForcedReplays: {},
+      quizResults: {
+        correctOnFirstTry: 2,
+        incorrect: [],
+        wordAttempts: {
+          2171: { seen: 1, clean: 1, hadWrong: false },
+          2172: { seen: 1, clean: 1, hadWrong: false }
+        }
+      },
+      usedWordIDs: [2171, 2172],
+      lastWordShownId: 2171
+    }
+  });
+
+  const targetId = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return target ? Number(target.id) : 0;
+  });
+
+  expect(targetId).toBe(0);
+});
+
 test('practice selector still avoids immediate repeat when another prompt word exists', async ({ page }) => {
   const category = 'Alternate category';
   const replayWord = {
