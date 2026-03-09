@@ -106,6 +106,134 @@ if (!function_exists('ll_tools_is_dashboard_related_page_slug')) {
     }
 }
 
+if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
+    function ll_tools_get_dashboard_related_page_title_map(): array {
+        return [
+            ll_tools_get_admin_menu_slug() => __('Language Learning Tools', 'll-tools-text-domain'),
+            ll_tools_get_tools_hub_page_slug() => __('LL Tools Utilities', 'll-tools-text-domain'),
+            ll_tools_get_admin_settings_page_slug() => __('Language Learning Tools Settings', 'll-tools-text-domain'),
+            'll-audio-processor' => __('Audio Processor', 'll-tools-text-domain'),
+            'll-audio-image-matcher' => __('Audio/Image Matcher', 'll-tools-text-domain'),
+            'language-learner-tools-missing-audio' => __('Missing Audio', 'll-tools-text-domain'),
+            'll-bulk-word-import' => __('Bulk Word Import', 'll-tools-text-domain'),
+            'll-bulk-translations' => __('Bulk Translations', 'll-tools-text-domain'),
+            'll-export' => __('Export', 'll-tools-text-domain'),
+            'll-import' => __('Import', 'll-tools-text-domain'),
+            'll-ipa-keyboard' => __('IPA Keyboard', 'll-tools-text-domain'),
+            'll-word-option-rules' => __('Word Option Rules', 'll-tools-text-domain'),
+            'll-image-aspect-normalizer' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
+            'll-image-webp-optimizer' => __('WebP Image Optimizer', 'll-tools-text-domain'),
+            'll-fix-word-images' => __('Fix Word Images', 'll-tools-text-domain'),
+            'll-recording-types' => __('LL Recording Types', 'll-tools-text-domain'),
+            'deepl-api-key' => __('DeepL API Key', 'll-tools-text-domain'),
+            'assemblyai-api-key' => __('AssemblyAI API Key', 'll-tools-text-domain'),
+            'language-learner-tools-languages' => __('LL Tools Languages', 'll-tools-text-domain'),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_get_dashboard_related_post_types')) {
+    function ll_tools_get_dashboard_related_post_types(): array {
+        return ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson'];
+    }
+}
+
+if (!function_exists('ll_tools_get_dashboard_related_taxonomies')) {
+    function ll_tools_get_dashboard_related_taxonomies(): array {
+        return ['word-category', 'wordset', 'part_of_speech'];
+    }
+}
+
+function ll_tools_get_dashboard_fallback_admin_page_title($screen = null): string {
+    $page = ll_tools_get_current_plugin_page_slug();
+    if ($page !== '') {
+        $page_titles = ll_tools_get_dashboard_related_page_title_map();
+        if (isset($page_titles[$page])) {
+            return (string) $page_titles[$page];
+        }
+    }
+
+    if (!$screen instanceof WP_Screen) {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    }
+
+    if (!$screen instanceof WP_Screen) {
+        return '';
+    }
+
+    $post_type = is_string($screen->post_type) ? $screen->post_type : '';
+    if ($post_type !== '' && in_array($post_type, ll_tools_get_dashboard_related_post_types(), true)) {
+        $post_type_object = get_post_type_object($post_type);
+        if ($post_type_object instanceof WP_Post_Type && isset($post_type_object->labels)) {
+            if ($screen->base === 'post') {
+                if ($screen->action === 'add' && !empty($post_type_object->labels->add_new_item)) {
+                    return (string) $post_type_object->labels->add_new_item;
+                }
+
+                if (!empty($post_type_object->labels->edit_item)) {
+                    return (string) $post_type_object->labels->edit_item;
+                }
+            }
+
+            if (!empty($post_type_object->labels->name)) {
+                return (string) $post_type_object->labels->name;
+            }
+        }
+    }
+
+    $taxonomy = is_string($screen->taxonomy) ? $screen->taxonomy : '';
+    if ($taxonomy !== '' && in_array($taxonomy, ll_tools_get_dashboard_related_taxonomies(), true)) {
+        $taxonomy_object = get_taxonomy($taxonomy);
+        if ($taxonomy_object instanceof WP_Taxonomy && isset($taxonomy_object->labels)) {
+            $is_term_edit_screen = ($screen->base === 'term')
+                || (isset($_GET['action']) && sanitize_key((string) wp_unslash($_GET['action'])) === 'edit');
+
+            if ($is_term_edit_screen && !empty($taxonomy_object->labels->edit_item)) {
+                return (string) $taxonomy_object->labels->edit_item;
+            }
+
+            if (!empty($taxonomy_object->labels->menu_name)) {
+                return (string) $taxonomy_object->labels->menu_name;
+            }
+
+            if (!empty($taxonomy_object->labels->name)) {
+                return (string) $taxonomy_object->labels->name;
+            }
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_prime_admin_title_for_dashboard_pages($screen): void {
+    if (!$screen instanceof WP_Screen) {
+        return;
+    }
+
+    global $title;
+
+    if (is_string($title) && trim($title) !== '') {
+        return;
+    }
+
+    $page = ll_tools_get_current_plugin_page_slug();
+    $post_type = is_string($screen->post_type) ? $screen->post_type : '';
+    $taxonomy = is_string($screen->taxonomy) ? $screen->taxonomy : '';
+    $is_dashboard_related = ($page !== '' && ll_tools_is_dashboard_related_page_slug($page))
+        || in_array($post_type, ll_tools_get_dashboard_related_post_types(), true)
+        || in_array($taxonomy, ll_tools_get_dashboard_related_taxonomies(), true);
+
+    if (!$is_dashboard_related) {
+        return;
+    }
+
+    $fallback_title = trim(wp_strip_all_tags(ll_tools_get_dashboard_fallback_admin_page_title($screen)));
+    if ($fallback_title !== '') {
+        $title = $fallback_title;
+    }
+}
+add_action('current_screen', 'll_tools_prime_admin_title_for_dashboard_pages');
+
 function ll_tools_render_settings_page_menu_wrapper() {
     if (function_exists('ll_render_settings_page')) {
         ll_render_settings_page();
@@ -659,15 +787,7 @@ function ll_tools_normalize_admin_title_for_dashboard_pages($admin_title, $title
 
     $page_title = is_string($title) ? trim($title) : '';
     if ($page_title === '') {
-        $fallback_titles = [
-            'll-image-webp-optimizer' => __('WebP Image Optimizer', 'll-tools-text-domain'),
-            'll-image-aspect-normalizer' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
-            'll-tools-dashboard-tools' => __('LL Tools Utilities', 'll-tools-text-domain'),
-            'll-tools-dashboard-home' => __('Language Learning Tools', 'll-tools-text-domain'),
-        ];
-        if (isset($fallback_titles[$page])) {
-            $page_title = (string) $fallback_titles[$page];
-        }
+        $page_title = trim((string) ll_tools_get_dashboard_fallback_admin_page_title());
     }
 
     if ($page_title === '') {
