@@ -44,6 +44,8 @@ require_once(__DIR__ . '/user-study.php');
 // Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
 require_once(__DIR__ . '/admin/api/assemblyai-api.php');
+// Word option rules now power a lesson-side modal as well as the admin screen.
+require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 
 // Load admin-only tools and screens only for admin/WP-CLI requests.
 if (!function_exists('ll_tools_should_load_admin_modules')) {
@@ -76,7 +78,6 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
-    require_once(__DIR__ . '/admin/word-option-rules-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
     require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
     require_once(__DIR__ . '/admin/split-word-admin.php');

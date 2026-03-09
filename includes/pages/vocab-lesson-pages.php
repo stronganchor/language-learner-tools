@@ -851,6 +851,71 @@ function ll_tools_vocab_lesson_template_include($template) {
 }
 add_filter('template_include', 'll_tools_vocab_lesson_template_include', 20);
 
+function ll_tools_enqueue_vocab_lesson_word_options_modal_assets(): void {
+    if (!is_singular('ll_vocab_lesson') || !is_user_logged_in()) {
+        return;
+    }
+
+    $lesson_id = (int) get_queried_object_id();
+    if ($lesson_id <= 0) {
+        return;
+    }
+
+    $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    if ($wordset_id <= 0 || $category_id <= 0 || !current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    if (!function_exists('ll_tools_user_can_edit_vocab_words') || !ll_tools_user_can_edit_vocab_words($wordset_id)) {
+        return;
+    }
+
+    $iframe_url = function_exists('ll_tools_word_option_rules_build_iframe_url')
+        ? ll_tools_word_option_rules_build_iframe_url($lesson_id)
+        : '';
+    if ($iframe_url === '') {
+        return;
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    $category = get_term($category_id, 'word-category');
+    $wordset_name = ($wordset instanceof WP_Term && !is_wp_error($wordset)) ? $wordset->name : '';
+    $category_name = '';
+    if ($category instanceof WP_Term && !is_wp_error($category)) {
+        $category_name = function_exists('ll_tools_get_category_display_name')
+            ? ll_tools_get_category_display_name($category)
+            : $category->name;
+    }
+
+    ll_enqueue_asset_by_timestamp(
+        '/css/vocab-lesson-word-options-modal.css',
+        'll-tools-vocab-lesson-word-options-modal',
+        ['ll-tools-style']
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/js/vocab-lesson-word-options-modal.js',
+        'll-tools-vocab-lesson-word-options-modal',
+        [],
+        true
+    );
+
+    wp_localize_script('ll-tools-vocab-lesson-word-options-modal', 'llToolsVocabLessonWordOptions', [
+        'iframeUrl' => $iframe_url,
+        'categoryName' => $category_name,
+        'wordsetName' => $wordset_name,
+        'i18n' => [
+            'buttonLabel' => __('Options', 'll-tools-text-domain'),
+            'buttonTitle' => __('Edit word option rules for this lesson', 'll-tools-text-domain'),
+            'dialogTitle' => __('Word options', 'll-tools-text-domain'),
+            'closeLabel' => __('Close', 'll-tools-text-domain'),
+            'loading' => __('Opening word options...', 'll-tools-text-domain'),
+            'iframeTitle' => __('Lesson word option rules', 'll-tools-text-domain'),
+        ],
+    ]);
+}
+add_action('wp_enqueue_scripts', 'll_tools_enqueue_vocab_lesson_word_options_modal_assets', 130);
+
 function ll_tools_vocab_lesson_bootstrap_flashcards() {
     static $bootstrapped = false;
     if ($bootstrapped || !is_singular('ll_vocab_lesson')) {

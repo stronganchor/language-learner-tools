@@ -14,6 +14,102 @@ function ll_register_word_option_rules_admin_page() {
 }
 add_action('admin_menu', 'll_register_word_option_rules_admin_page');
 
+function ll_tools_word_option_rules_is_iframe_request(): bool {
+    if (!is_admin()) {
+        return false;
+    }
+
+    return !empty($_REQUEST['ll_iframe']);
+}
+
+function ll_tools_word_option_rules_get_lesson_context(int $lesson_id): array {
+    $lesson_id = (int) $lesson_id;
+    $empty = [
+        'lesson_id' => 0,
+        'lesson' => null,
+        'wordset_id' => 0,
+        'category_id' => 0,
+        'wordset' => null,
+        'category' => null,
+        'wordset_name' => '',
+        'category_name' => '',
+        'category_display_name' => '',
+    ];
+
+    if ($lesson_id <= 0) {
+        return $empty;
+    }
+
+    $lesson = get_post($lesson_id);
+    if (!($lesson instanceof WP_Post) || $lesson->post_type !== 'll_vocab_lesson') {
+        return $empty;
+    }
+
+    $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    $category = $category_id > 0 ? get_term($category_id, 'word-category') : null;
+
+    if (!$wordset || is_wp_error($wordset)) {
+        $wordset = null;
+        $wordset_id = 0;
+    }
+
+    if (!$category || is_wp_error($category)) {
+        $category = null;
+        $category_id = 0;
+    }
+
+    $category_display_name = '';
+    if ($category instanceof WP_Term) {
+        $category_display_name = function_exists('ll_tools_get_category_display_name')
+            ? ll_tools_get_category_display_name($category)
+            : $category->name;
+    }
+
+    return [
+        'lesson_id' => $lesson_id,
+        'lesson' => $lesson,
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'wordset' => $wordset,
+        'category' => $category,
+        'wordset_name' => $wordset instanceof WP_Term ? $wordset->name : '',
+        'category_name' => $category instanceof WP_Term ? $category->name : '',
+        'category_display_name' => $category_display_name,
+    ];
+}
+
+function ll_tools_word_option_rules_iframe_request_is_valid(int $lesson_id): bool {
+    $lesson_id = (int) $lesson_id;
+    if ($lesson_id <= 0) {
+        return false;
+    }
+
+    $nonce = isset($_REQUEST['ll_word_options_iframe_nonce'])
+        ? sanitize_text_field(wp_unslash((string) $_REQUEST['ll_word_options_iframe_nonce']))
+        : '';
+
+    return $nonce !== '' && wp_verify_nonce($nonce, 'll_word_options_iframe_' . $lesson_id);
+}
+
+function ll_tools_word_option_rules_can_edit_wordset(int $wordset_id): bool {
+    $wordset_id = (int) $wordset_id;
+    if (!is_user_logged_in() || !current_user_can('view_ll_tools')) {
+        return false;
+    }
+
+    if ($wordset_id <= 0) {
+        return current_user_can('manage_options');
+    }
+
+    if (function_exists('ll_tools_user_can_edit_vocab_words')) {
+        return ll_tools_user_can_edit_vocab_words($wordset_id);
+    }
+
+    return current_user_can('manage_options');
+}
+
 function ll_tools_word_option_rules_last_wordset_meta_key(): string {
     return 'll_tools_word_option_rules_last_wordset_id';
 }
@@ -121,6 +217,48 @@ function ll_tools_word_option_rules_resolve_wordset_id(array $wordsets, int $req
     return 0;
 }
 
+function ll_tools_word_option_rules_build_iframe_url(int $lesson_id, array $extra_query = []): string {
+    $context = ll_tools_word_option_rules_get_lesson_context($lesson_id);
+    if (($context['lesson_id'] ?? 0) <= 0 || ($context['wordset_id'] ?? 0) <= 0 || ($context['category_id'] ?? 0) <= 0) {
+        return '';
+    }
+
+    $query = array_merge([
+        'page' => 'll-word-option-rules',
+        'wordset_id' => (int) $context['wordset_id'],
+        'category_id' => (int) $context['category_id'],
+        'lesson_id' => (int) $context['lesson_id'],
+        'll_iframe' => 1,
+    ], $extra_query);
+
+    $url = add_query_arg($query, admin_url('tools.php'));
+    return add_query_arg(
+        'll_word_options_iframe_nonce',
+        wp_create_nonce('ll_word_options_iframe_' . (int) $context['lesson_id']),
+        $url
+    );
+}
+
+function ll_tools_word_option_rules_get_redirect_url(int $wordset_id, int $category_id, array $extra_query = []): string {
+    $wordset_id = (int) $wordset_id;
+    $category_id = (int) $category_id;
+    $is_iframe = !empty($_POST['ll_iframe']) || !empty($_GET['ll_iframe']);
+    $lesson_id = isset($_POST['lesson_id']) ? (int) $_POST['lesson_id'] : (isset($_GET['lesson_id']) ? (int) $_GET['lesson_id'] : 0);
+
+    if ($is_iframe && $lesson_id > 0) {
+        $iframe_url = ll_tools_word_option_rules_build_iframe_url($lesson_id, $extra_query);
+        if ($iframe_url !== '') {
+            return $iframe_url;
+        }
+    }
+
+    return add_query_arg(array_merge([
+        'page' => 'll-word-option-rules',
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+    ], $extra_query), admin_url('tools.php'));
+}
+
 function ll_enqueue_word_option_rules_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-word-option-rules') {
         return;
@@ -136,6 +274,20 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_word_option_rules_admin_assets');
+
+function ll_tools_word_option_rules_admin_body_class($classes): string {
+    if (!ll_tools_word_option_rules_is_iframe_request()) {
+        return $classes;
+    }
+
+    $classes = trim((string) $classes);
+    if ($classes !== '') {
+        $classes .= ' ';
+    }
+
+    return $classes . 'll-tools-word-options-iframe';
+}
+add_filter('admin_body_class', 'll_tools_word_option_rules_admin_body_class');
 
 function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
@@ -654,34 +806,88 @@ function ll_render_word_option_rules_admin_page() {
         wp_die(__('You do not have sufficient permissions to access this page.', 'll-tools-text-domain'));
     }
 
+    $is_iframe = ll_tools_word_option_rules_is_iframe_request();
+    $lesson_id = isset($_GET['lesson_id']) ? (int) $_GET['lesson_id'] : 0;
+    $lesson_context = $is_iframe
+        ? ll_tools_word_option_rules_get_lesson_context($lesson_id)
+        : [
+            'lesson_id' => 0,
+            'wordset_id' => 0,
+            'category_id' => 0,
+            'wordset_name' => '',
+            'category_name' => '',
+            'category_display_name' => '',
+        ];
+
     $wordset_id = isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0;
     $category_id = isset($_GET['category_id']) ? (int) $_GET['category_id'] : 0;
-
-    $wordsets = get_terms([
-        'taxonomy' => 'wordset',
-        'hide_empty' => false,
-        'orderby' => 'name',
-        'order' => 'ASC',
-    ]);
-    $wordset_id = ll_tools_word_option_rules_resolve_wordset_id(is_array($wordsets) ? $wordsets : [], $wordset_id);
-    if ($wordset_id > 0) {
-        ll_tools_word_option_rules_remember_wordset($wordset_id);
+    if ($is_iframe) {
+        $wordset_id = (int) ($lesson_context['wordset_id'] ?? 0);
+        $category_id = (int) ($lesson_context['category_id'] ?? 0);
     }
 
-    $categories = get_terms([
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-        'orderby' => 'name',
-        'order' => 'ASC',
-    ]);
+    $wordsets = [];
+    if (!$is_iframe) {
+        $wordsets = get_terms([
+            'taxonomy' => 'wordset',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        $wordset_id = ll_tools_word_option_rules_resolve_wordset_id(is_array($wordsets) ? $wordsets : [], $wordset_id);
+        if ($wordset_id > 0) {
+            ll_tools_word_option_rules_remember_wordset($wordset_id);
+        }
+    }
+
+    $categories = [];
+    if (!$is_iframe) {
+        $categories = get_terms([
+            'taxonomy' => 'word-category',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+    }
 
     $wordset_term = $wordset_id ? get_term($wordset_id, 'wordset') : null;
     $category_term = $category_id ? get_term($category_id, 'word-category') : null;
     $has_selection = $wordset_term && !is_wp_error($wordset_term) && $category_term && !is_wp_error($category_term);
 
-    echo '<div class="wrap ll-tools-word-options">';
-    echo '<h1>' . esc_html__('Word Option Rules', 'll-tools-text-domain') . '</h1>';
-    echo '<p class="description">' . esc_html__('Group words that should appear together as quiz options, and block pairs that should never be wrong answers for each other.', 'll-tools-text-domain') . '</p>';
+    if ($is_iframe) {
+        if (!ll_tools_word_option_rules_iframe_request_is_valid($lesson_id)) {
+            wp_die(__('This lesson editor link expired. Reload the lesson page and try again.', 'll-tools-text-domain'));
+        }
+        if (!$has_selection || !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+            wp_die(__('You do not have permission to edit word option rules for this lesson.', 'll-tools-text-domain'));
+        }
+    }
+
+    $wrap_class = 'wrap ll-tools-word-options';
+    if ($is_iframe) {
+        $wrap_class .= ' ll-tools-word-options--iframe';
+    }
+    echo '<div class="' . esc_attr($wrap_class) . '">';
+
+    if ($is_iframe) {
+        echo '<div class="ll-tools-word-options-hero">';
+        echo '<div class="ll-tools-word-options-hero__eyebrow">' . esc_html__('Lesson word options', 'll-tools-text-domain') . '</div>';
+        echo '<h1>' . esc_html($lesson_context['category_display_name'] !== '' ? $lesson_context['category_display_name'] : __('Word Option Rules', 'll-tools-text-domain')) . '</h1>';
+        echo '<p class="description">' . esc_html__('Fine-tune which lesson words stay together as distractors and which pairs must stay apart.', 'll-tools-text-domain') . '</p>';
+        echo '<div class="ll-tools-word-options-context">';
+        if (!empty($lesson_context['wordset_name'])) {
+            echo '<span class="ll-tools-word-options-context-chip">' . esc_html($lesson_context['wordset_name']) . '</span>';
+        }
+        if (!empty($lesson_context['category_name'])) {
+            echo '<span class="ll-tools-word-options-context-chip">' . esc_html($lesson_context['category_name']) . '</span>';
+        }
+        echo '</div>';
+        echo '</div>';
+    } else {
+        echo '<h1>' . esc_html__('Word Option Rules', 'll-tools-text-domain') . '</h1>';
+        echo '<p class="description">' . esc_html__('Group words that should appear together as quiz options, and block pairs that should never be wrong answers for each other.', 'll-tools-text-domain') . '</p>';
+    }
 
     if (!empty($_GET['ll_word_options_updated'])) {
         echo '<div class="notice notice-success"><p>' . esc_html__('Word option rules saved.', 'll-tools-text-domain') . '</p></div>';
@@ -689,59 +895,64 @@ function ll_render_word_option_rules_admin_page() {
         echo '<div class="notice notice-error"><p>' . esc_html__('Unable to save word option rules. Please check your selections.', 'll-tools-text-domain') . '</p></div>';
     }
 
-    $import_result = get_transient('ll_word_options_import_result');
-    if ($import_result !== false) {
-        delete_transient('ll_word_options_import_result');
-        $is_success = !empty($import_result['ok']);
-        $notice_class = $is_success ? 'notice-success' : 'notice-error';
-        echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($import_result['message'] ?? '') . '</p></div>';
-    }
-
-    if (!empty($_GET['ll_word_options_import_error'])) {
-        $error_code = sanitize_text_field($_GET['ll_word_options_import_error']);
-        $error_messages = [
-            'missing_file' => __('Select a file to import.', 'll-tools-text-domain'),
-            'read_failed' => __('Unable to read the import file.', 'll-tools-text-domain'),
-            'invalid_json' => __('Import file is not valid JSON.', 'll-tools-text-domain'),
-            'no_hashes' => __('Import file does not contain any image hashes.', 'll-tools-text-domain'),
-            'missing_wordset' => __('Select a word set to apply the import to.', 'll-tools-text-domain'),
-            'no_categories' => __('No categories found for the selected word set.', 'll-tools-text-domain'),
-        ];
-        $msg = $error_messages[$error_code] ?? __('Unable to import word option settings.', 'll-tools-text-domain');
-        echo '<div class="notice notice-error"><p>' . esc_html($msg) . '</p></div>';
-    }
-
-    echo '<form method="get" action="' . esc_url(admin_url('tools.php')) . '" class="ll-tools-word-options-filter">';
-    echo '<input type="hidden" name="page" value="ll-word-option-rules" />';
-    echo '<div class="ll-tools-word-options-field">';
-    echo '<label for="ll-word-option-wordset">' . esc_html__('Word set', 'll-tools-text-domain') . '</label>';
-    echo '<select id="ll-word-option-wordset" name="wordset_id">';
-    echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
-    if (!empty($wordsets) && !is_wp_error($wordsets)) {
-        foreach ($wordsets as $wordset) {
-            echo '<option value="' . esc_attr($wordset->term_id) . '"' . selected($wordset_id, (int) $wordset->term_id, false) . '>' . esc_html($wordset->name) . '</option>';
+    if (!$is_iframe) {
+        $import_result = get_transient('ll_word_options_import_result');
+        if ($import_result !== false) {
+            delete_transient('ll_word_options_import_result');
+            $is_success = !empty($import_result['ok']);
+            $notice_class = $is_success ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($import_result['message'] ?? '') . '</p></div>';
         }
-    }
-    echo '</select>';
-    echo '</div>';
 
-    echo '<div class="ll-tools-word-options-field">';
-    echo '<label for="ll-word-option-category">' . esc_html__('Category', 'll-tools-text-domain') . '</label>';
-    echo '<select id="ll-word-option-category" name="category_id">';
-    echo '<option value="">' . esc_html__('Select a category', 'll-tools-text-domain') . '</option>';
-    if (!empty($categories) && !is_wp_error($categories)) {
-        foreach ($categories as $category) {
-            echo '<option value="' . esc_attr($category->term_id) . '"' . selected($category_id, (int) $category->term_id, false) . '>' . esc_html($category->name) . '</option>';
+        if (!empty($_GET['ll_word_options_import_error'])) {
+            $error_code = sanitize_text_field($_GET['ll_word_options_import_error']);
+            $error_messages = [
+                'missing_file' => __('Select a file to import.', 'll-tools-text-domain'),
+                'read_failed' => __('Unable to read the import file.', 'll-tools-text-domain'),
+                'invalid_json' => __('Import file is not valid JSON.', 'll-tools-text-domain'),
+                'no_hashes' => __('Import file does not contain any image hashes.', 'll-tools-text-domain'),
+                'missing_wordset' => __('Select a word set to apply the import to.', 'll-tools-text-domain'),
+                'no_categories' => __('No categories found for the selected word set.', 'll-tools-text-domain'),
+            ];
+            $msg = $error_messages[$error_code] ?? __('Unable to import word option settings.', 'll-tools-text-domain');
+            echo '<div class="notice notice-error"><p>' . esc_html($msg) . '</p></div>';
         }
-    }
-    echo '</select>';
-    echo '</div>';
 
-    echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Load words', 'll-tools-text-domain') . '</button>';
-    echo '</form>';
+        echo '<form method="get" action="' . esc_url(admin_url('tools.php')) . '" class="ll-tools-word-options-filter">';
+        echo '<input type="hidden" name="page" value="ll-word-option-rules" />';
+        echo '<div class="ll-tools-word-options-field">';
+        echo '<label for="ll-word-option-wordset">' . esc_html__('Word set', 'll-tools-text-domain') . '</label>';
+        echo '<select id="ll-word-option-wordset" name="wordset_id">';
+        echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
+        if (!empty($wordsets) && !is_wp_error($wordsets)) {
+            foreach ($wordsets as $wordset) {
+                echo '<option value="' . esc_attr($wordset->term_id) . '"' . selected($wordset_id, (int) $wordset->term_id, false) . '>' . esc_html($wordset->name) . '</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+
+        echo '<div class="ll-tools-word-options-field">';
+        echo '<label for="ll-word-option-category">' . esc_html__('Category', 'll-tools-text-domain') . '</label>';
+        echo '<select id="ll-word-option-category" name="category_id">';
+        echo '<option value="">' . esc_html__('Select a category', 'll-tools-text-domain') . '</option>';
+        if (!empty($categories) && !is_wp_error($categories)) {
+            foreach ($categories as $category) {
+                echo '<option value="' . esc_attr($category->term_id) . '"' . selected($category_id, (int) $category->term_id, false) . '>' . esc_html($category->name) . '</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+
+        echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Load words', 'll-tools-text-domain') . '</button>';
+        echo '</form>';
+    }
 
     if (!$has_selection) {
-        echo '<p class="description ll-tools-word-options-hint">' . esc_html__('Select a word set and category to manage word option rules.', 'll-tools-text-domain') . '</p>';
+        $hint = $is_iframe
+            ? __('This lesson is missing its word set or category link.', 'll-tools-text-domain')
+            : __('Select a word set and category to manage word option rules.', 'll-tools-text-domain');
+        echo '<p class="description ll-tools-word-options-hint">' . esc_html($hint) . '</p>';
         echo '</div>';
         return;
     }
@@ -876,6 +1087,10 @@ function ll_render_word_option_rules_admin_page() {
     echo '<input type="hidden" name="action" value="ll_tools_save_word_option_rules" />';
     echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
     echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
+    if ($is_iframe && $lesson_id > 0) {
+        echo '<input type="hidden" name="ll_iframe" value="1" />';
+        echo '<input type="hidden" name="lesson_id" value="' . esc_attr($lesson_id) . '" />';
+    }
 
     echo '<h2>' . esc_html__('Groups of words that go together', 'll-tools-text-domain') . '</h2>';
     echo '<p class="description">' . esc_html__('Use the same label for words that should be used together for wrong answers. Leave blank to keep a word ungrouped.', 'll-tools-text-domain') . '</p>';
@@ -987,7 +1202,8 @@ function ll_render_word_option_rules_admin_page() {
     echo '</table>';
 
     echo '<p class="ll-tools-word-options-actions">';
-    echo '<button type="submit" class="button button-primary ll-tools-button" name="save_groups" value="1">' . esc_html__('Save groups', 'll-tools-text-domain') . '</button>';
+    $save_label = $is_iframe ? __('Save lesson rules', 'll-tools-text-domain') : __('Save groups', 'll-tools-text-domain');
+    echo '<button type="submit" class="button button-primary ll-tools-button" name="save_groups" value="1">' . esc_html($save_label) . '</button>';
     echo '</p>';
 
     echo '<h2>' . esc_html__('Blocked Pairs', 'll-tools-text-domain') . '</h2>';
@@ -1090,88 +1306,90 @@ function ll_render_word_option_rules_admin_page() {
 
     echo '</form>';
 
-    echo '<hr>';
-    echo '<div class="ll-tools-word-options-import-export">';
-    echo '<h2>' . esc_html__('Import / Export', 'll-tools-text-domain') . '</h2>';
+    if (!$is_iframe) {
+        echo '<hr>';
+        echo '<div class="ll-tools-word-options-import-export">';
+        echo '<h2>' . esc_html__('Import / Export', 'll-tools-text-domain') . '</h2>';
 
-    echo '<div class="ll-tools-word-options-export">';
-    echo '<h3>' . esc_html__('Export', 'll-tools-text-domain') . '</h3>';
-    echo '<p class="description">' . esc_html__('Download group and pair settings for this category as JSON, mapped to image hashes.', 'll-tools-text-domain') . '</p>';
-    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-    wp_nonce_field('ll_tools_export_word_options');
-    echo '<input type="hidden" name="action" value="ll_tools_export_word_options" />';
-    echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
-    echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
-    echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Download JSON', 'll-tools-text-domain') . '</button>';
-    echo '</form>';
-    echo '</div>';
+        echo '<div class="ll-tools-word-options-export">';
+        echo '<h3>' . esc_html__('Export', 'll-tools-text-domain') . '</h3>';
+        echo '<p class="description">' . esc_html__('Download group and pair settings for this category as JSON, mapped to image hashes.', 'll-tools-text-domain') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        wp_nonce_field('ll_tools_export_word_options');
+        echo '<input type="hidden" name="action" value="ll_tools_export_word_options" />';
+        echo '<input type="hidden" name="wordset_id" value="' . esc_attr($wordset_id) . '" />';
+        echo '<input type="hidden" name="category_id" value="' . esc_attr($category_id) . '" />';
+        echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Download JSON', 'll-tools-text-domain') . '</button>';
+        echo '</form>';
+        echo '</div>';
 
-    echo '<div class="ll-tools-word-options-import">';
-    echo '<h3>' . esc_html__('Import', 'll-tools-text-domain') . '</h3>';
-    echo '<p class="description">' . esc_html__('Upload an exported JSON file and select the word set to apply it to. You will confirm the category on the next step.', 'll-tools-text-domain') . '</p>';
-    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" enctype="multipart/form-data">';
-    wp_nonce_field('ll_tools_prepare_word_options_import');
-    echo '<input type="hidden" name="action" value="ll_tools_prepare_word_options_import" />';
-    echo '<div class="ll-tools-word-options-field">';
-    echo '<label for="ll-word-options-import-file">' . esc_html__('Import file', 'll-tools-text-domain') . '</label>';
-    echo '<input type="file" id="ll-word-options-import-file" name="ll_word_options_import_file" accept=".json,application/json" />';
-    echo '</div>';
-    echo '<div class="ll-tools-word-options-field">';
-    echo '<label for="ll-word-options-import-wordset">' . esc_html__('Apply to word set', 'll-tools-text-domain') . '</label>';
-    echo '<select id="ll-word-options-import-wordset" name="wordset_id">';
-    echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
-    if (!empty($wordsets) && !is_wp_error($wordsets)) {
-        foreach ($wordsets as $wordset) {
-            echo '<option value="' . esc_attr($wordset->term_id) . '"' . selected($wordset_id, (int) $wordset->term_id, false) . '>' . esc_html($wordset->name) . '</option>';
+        echo '<div class="ll-tools-word-options-import">';
+        echo '<h3>' . esc_html__('Import', 'll-tools-text-domain') . '</h3>';
+        echo '<p class="description">' . esc_html__('Upload an exported JSON file and select the word set to apply it to. You will confirm the category on the next step.', 'll-tools-text-domain') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" enctype="multipart/form-data">';
+        wp_nonce_field('ll_tools_prepare_word_options_import');
+        echo '<input type="hidden" name="action" value="ll_tools_prepare_word_options_import" />';
+        echo '<div class="ll-tools-word-options-field">';
+        echo '<label for="ll-word-options-import-file">' . esc_html__('Import file', 'll-tools-text-domain') . '</label>';
+        echo '<input type="file" id="ll-word-options-import-file" name="ll_word_options_import_file" accept=".json,application/json" />';
+        echo '</div>';
+        echo '<div class="ll-tools-word-options-field">';
+        echo '<label for="ll-word-options-import-wordset">' . esc_html__('Apply to word set', 'll-tools-text-domain') . '</label>';
+        echo '<select id="ll-word-options-import-wordset" name="wordset_id">';
+        echo '<option value="">' . esc_html__('Select a word set', 'll-tools-text-domain') . '</option>';
+        if (!empty($wordsets) && !is_wp_error($wordsets)) {
+            foreach ($wordsets as $wordset) {
+                echo '<option value="' . esc_attr($wordset->term_id) . '"' . selected($wordset_id, (int) $wordset->term_id, false) . '>' . esc_html($wordset->name) . '</option>';
+            }
         }
-    }
-    echo '</select>';
-    echo '</div>';
-    echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Continue', 'll-tools-text-domain') . '</button>';
-    echo '</form>';
-    echo '</div>';
+        echo '</select>';
+        echo '</div>';
+        echo '<button type="submit" class="button button-secondary ll-tools-button">' . esc_html__('Continue', 'll-tools-text-domain') . '</button>';
+        echo '</form>';
+        echo '</div>';
 
-    $import_token = isset($_GET['ll_word_options_import_token']) ? sanitize_text_field($_GET['ll_word_options_import_token']) : '';
-    if ($import_token !== '') {
-        $import_payload = get_transient('ll_word_options_import_' . $import_token);
-        if (is_array($import_payload) && !empty($import_payload['data'])) {
-            $match_counts = isset($import_payload['match_counts']) && is_array($import_payload['match_counts'])
-                ? $import_payload['match_counts']
-                : [];
-            $suggested_id = (int) ($import_payload['suggested_id'] ?? 0);
-            $export_total = (int) ($import_payload['export_hash_count'] ?? 0);
-            echo '<div class="ll-tools-word-options-import-confirm">';
-            echo '<h3>' . esc_html__('Confirm Import Target', 'll-tools-text-domain') . '</h3>';
-            $source = $import_payload['data']['source'] ?? [];
-            if (!empty($source['category_name'])) {
-                echo '<p class="description">' . esc_html(sprintf(__('Exported from category: %s', 'll-tools-text-domain'), $source['category_name'])) . '</p>';
-            }
-            echo '<p class="description">' . esc_html__('Select the category to apply these settings to. The suggested category has the most matching images.', 'll-tools-text-domain') . '</p>';
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-            wp_nonce_field('ll_tools_apply_word_options_import');
-            echo '<input type="hidden" name="action" value="ll_tools_apply_word_options_import" />';
-            echo '<input type="hidden" name="import_token" value="' . esc_attr($import_token) . '" />';
-            echo '<div class="ll-tools-word-options-field">';
-            echo '<label for="ll-word-options-import-category">' . esc_html__('Apply to category', 'll-tools-text-domain') . '</label>';
-            echo '<select id="ll-word-options-import-category" name="category_id">';
-            foreach ($match_counts as $cat_id => $count) {
-                $term = get_term((int) $cat_id, 'word-category');
-                if (!$term || is_wp_error($term)) {
-                    continue;
+        $import_token = isset($_GET['ll_word_options_import_token']) ? sanitize_text_field($_GET['ll_word_options_import_token']) : '';
+        if ($import_token !== '') {
+            $import_payload = get_transient('ll_word_options_import_' . $import_token);
+            if (is_array($import_payload) && !empty($import_payload['data'])) {
+                $match_counts = isset($import_payload['match_counts']) && is_array($import_payload['match_counts'])
+                    ? $import_payload['match_counts']
+                    : [];
+                $suggested_id = (int) ($import_payload['suggested_id'] ?? 0);
+                $export_total = (int) ($import_payload['export_hash_count'] ?? 0);
+                echo '<div class="ll-tools-word-options-import-confirm">';
+                echo '<h3>' . esc_html__('Confirm Import Target', 'll-tools-text-domain') . '</h3>';
+                $source = $import_payload['data']['source'] ?? [];
+                if (!empty($source['category_name'])) {
+                    echo '<p class="description">' . esc_html(sprintf(__('Exported from category: %s', 'll-tools-text-domain'), $source['category_name'])) . '</p>';
                 }
-                $label = $term->name;
-                if ($export_total > 0) {
-                    $label .= sprintf(' (%d/%d)', (int) $count, $export_total);
+                echo '<p class="description">' . esc_html__('Select the category to apply these settings to. The suggested category has the most matching images.', 'll-tools-text-domain') . '</p>';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+                wp_nonce_field('ll_tools_apply_word_options_import');
+                echo '<input type="hidden" name="action" value="ll_tools_apply_word_options_import" />';
+                echo '<input type="hidden" name="import_token" value="' . esc_attr($import_token) . '" />';
+                echo '<div class="ll-tools-word-options-field">';
+                echo '<label for="ll-word-options-import-category">' . esc_html__('Apply to category', 'll-tools-text-domain') . '</label>';
+                echo '<select id="ll-word-options-import-category" name="category_id">';
+                foreach ($match_counts as $cat_id => $count) {
+                    $term = get_term((int) $cat_id, 'word-category');
+                    if (!$term || is_wp_error($term)) {
+                        continue;
+                    }
+                    $label = $term->name;
+                    if ($export_total > 0) {
+                        $label .= sprintf(' (%d/%d)', (int) $count, $export_total);
+                    }
+                    echo '<option value="' . esc_attr($term->term_id) . '"' . selected($suggested_id, (int) $term->term_id, false) . '>' . esc_html($label) . '</option>';
                 }
-                echo '<option value="' . esc_attr($term->term_id) . '"' . selected($suggested_id, (int) $term->term_id, false) . '>' . esc_html($label) . '</option>';
+                echo '</select>';
+                echo '</div>';
+                echo '<button type="submit" class="button button-primary ll-tools-button">' . esc_html__('Apply Import', 'll-tools-text-domain') . '</button>';
+                echo '</form>';
+                echo '</div>';
+            } else {
+                echo '<div class="notice notice-error"><p>' . esc_html__('Import session expired. Please upload the file again.', 'll-tools-text-domain') . '</p></div>';
             }
-            echo '</select>';
-            echo '</div>';
-            echo '<button type="submit" class="button button-primary ll-tools-button">' . esc_html__('Apply Import', 'll-tools-text-domain') . '</button>';
-            echo '</form>';
-            echo '</div>';
-        } else {
-            echo '<div class="notice notice-error"><p>' . esc_html__('Import session expired. Please upload the file again.', 'll-tools-text-domain') . '</p></div>';
         }
     }
 
@@ -1188,16 +1406,14 @@ function ll_tools_handle_word_option_rules_save() {
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
-
-    $redirect = [
-        'page' => 'll-word-option-rules',
-        'wordset_id' => $wordset_id,
-        'category_id' => $category_id,
-    ];
+    if ($wordset_id > 0 && !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+        wp_die(__('Permission denied.', 'll-tools-text-domain'));
+    }
 
     if ($wordset_id <= 0 || $category_id <= 0) {
-        $redirect['ll_word_options_error'] = 1;
-        wp_safe_redirect(add_query_arg($redirect, admin_url('tools.php')));
+        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+            'll_word_options_error' => 1,
+        ]));
         exit;
     }
 
@@ -1401,15 +1617,17 @@ function ll_tools_handle_word_option_rules_save() {
     $pairs = array_values($pairs_map);
 
     if (!function_exists('ll_tools_update_word_option_rules')) {
-        $redirect['ll_word_options_error'] = 1;
-        wp_safe_redirect(add_query_arg($redirect, admin_url('tools.php')));
+        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+            'll_word_options_error' => 1,
+        ]));
         exit;
     }
 
     ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, array_values($similar_image_override_map));
 
-    $redirect['ll_word_options_updated'] = 1;
-    wp_safe_redirect(add_query_arg($redirect, admin_url('tools.php')));
+    wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, [
+        'll_word_options_updated' => 1,
+    ]));
     exit;
 }
 add_action('admin_post_ll_tools_save_word_option_rules', 'll_tools_handle_word_option_rules_save');
