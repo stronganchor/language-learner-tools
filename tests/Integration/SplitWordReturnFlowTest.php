@@ -10,6 +10,9 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
     private $requestBackup = [];
 
     /** @var array<string,mixed> */
+    private $getBackup = [];
+
+    /** @var array<string,mixed> */
     private $serverBackup = [];
 
     protected function setUp(): void
@@ -17,6 +20,7 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
         parent::setUp();
         $this->postBackup = $_POST;
         $this->requestBackup = $_REQUEST;
+        $this->getBackup = $_GET;
         $this->serverBackup = $_SERVER;
     }
 
@@ -24,6 +28,7 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
     {
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
+        $_GET = $this->getBackup;
         $_SERVER = $this->serverBackup;
         parent::tearDown();
     }
@@ -80,6 +85,27 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
         $this->assertSame('words', (string) ($query['post_type'] ?? ''));
         $this->assertArrayNotHasKey('page', $query);
         $this->assertSame('1', (string) ($query['ll_split_word'] ?? ''));
+    }
+
+    public function test_split_word_page_from_audio_processor_renders_submit_and_cancel_return_actions(): void
+    {
+        $editor_id = $this->createSplitWordEditor();
+        [$source_word_id] = $this->createSplitWordFixture($editor_id);
+
+        wp_set_current_user($editor_id);
+        $_GET = [
+            'page' => 'll-tools-split-word',
+            'word_id' => (string) $source_word_id,
+            'll_return_to' => admin_url('tools.php?page=ll-audio-processor'),
+        ];
+        $_REQUEST = $_GET;
+
+        ob_start();
+        ll_tools_render_split_word_admin_page();
+        $output = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Split Word &amp; Return to Audio Processor', $output);
+        $this->assertStringContainsString('Cancel &amp; Return to Audio Processor', $output);
     }
 
     private function createSplitWordEditor(): int

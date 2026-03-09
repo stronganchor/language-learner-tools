@@ -164,6 +164,20 @@ function ll_tools_get_split_word_back_label($return_to = '') {
 }
 
 /**
+ * Label for the split workflow cancel button.
+ *
+ * @param string $return_to Optional validated admin return URL.
+ * @return string
+ */
+function ll_tools_get_split_word_cancel_label($return_to = '') {
+    if (ll_tools_is_audio_processor_return_url($return_to)) {
+        return __('Cancel & Return to Audio Processor', 'll-tools-text-domain');
+    }
+
+    return __('Cancel', 'll-tools-text-domain');
+}
+
+/**
  * Label for the split workflow submit button.
  *
  * @param string $return_to Optional validated admin return URL.
@@ -288,9 +302,9 @@ function ll_tools_render_split_word_admin_page() {
     $default_new_title = (string) $word_post->post_title;
     $return_to = ll_tools_get_split_word_return_url_from_request('get');
     $cancel_url = ll_tools_get_split_word_redirect_url([], $return_to);
-    $cancel_label = ll_tools_get_split_word_back_label($return_to);
+    $back_label = ll_tools_get_split_word_back_label($return_to);
+    $cancel_label = ll_tools_get_split_word_cancel_label($return_to);
     $submit_label = ll_tools_get_split_word_submit_label($return_to);
-    $show_cancel_button = !ll_tools_is_audio_processor_return_url($return_to);
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('Split Word Audio', 'll-tools-text-domain'); ?></h1>
@@ -314,7 +328,7 @@ function ll_tools_render_split_word_admin_page() {
             </div>
             <p>
                 <a class="button" href="<?php echo esc_url($cancel_url); ?>">
-                    <?php echo esc_html($cancel_label); ?>
+                    <?php echo esc_html($back_label); ?>
                 </a>
             </p>
             <?php
@@ -436,11 +450,9 @@ function ll_tools_render_split_word_admin_page() {
 
             <p class="submit">
                 <button type="submit" class="button button-primary"><?php echo esc_html($submit_label); ?></button>
-                <?php if ($show_cancel_button) : ?>
-                    <a class="button" href="<?php echo esc_url($cancel_url); ?>">
-                        <?php echo esc_html($cancel_label); ?>
-                    </a>
-                <?php endif; ?>
+                <a class="button" href="<?php echo esc_url($cancel_url); ?>">
+                    <?php echo esc_html($cancel_label); ?>
+                </a>
             </p>
         </form>
     </div>

@@ -249,6 +249,47 @@ function ll_audio_processor_get_published_recording_map($parent_word_ids) {
     return $published_by_key;
 }
 
+function ll_audio_processor_get_word_audio_child_count_map($parent_word_ids) {
+    global $wpdb;
+
+    $parent_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $parent_word_ids))));
+    if (empty($parent_word_ids)) {
+        return [];
+    }
+
+    $allowed_statuses = ['publish', 'draft', 'pending', 'private', 'future'];
+    $status_placeholders = implode(', ', array_fill(0, count($allowed_statuses), '%s'));
+    $parent_placeholders = implode(', ', array_fill(0, count($parent_word_ids), '%d'));
+    $sql = $wpdb->prepare(
+        "
+        SELECT post_parent, COUNT(ID) AS child_count
+        FROM {$wpdb->posts}
+        WHERE post_type = %s
+          AND post_status IN ({$status_placeholders})
+          AND post_parent IN ({$parent_placeholders})
+        GROUP BY post_parent
+        ",
+        array_merge(['word_audio'], $allowed_statuses, $parent_word_ids)
+    );
+
+    $results = $wpdb->get_results($sql, ARRAY_A);
+    if (!is_array($results) || empty($results)) {
+        return [];
+    }
+
+    $count_map = [];
+    foreach ($results as $row) {
+        $parent_id = isset($row['post_parent']) ? (int) $row['post_parent'] : 0;
+        if ($parent_id <= 0) {
+            continue;
+        }
+
+        $count_map[$parent_id] = isset($row['child_count']) ? (int) $row['child_count'] : 0;
+    }
+
+    return $count_map;
+}
+
 function ll_get_unprocessed_recordings() {
     $args = [
         'post_type' => 'word_audio',
@@ -332,6 +373,14 @@ function ll_get_unprocessed_recordings() {
         }
         wp_reset_postdata();
     }
+
+    $audio_child_count_map = ll_audio_processor_get_word_audio_child_count_map($parent_word_ids);
+    foreach ($recordings as &$recording) {
+        $parent_word_id = isset($recording['parentWordId']) ? (int) $recording['parentWordId'] : 0;
+        $recording['splitWordEnabled'] = $parent_word_id > 0
+            && ((int) ($audio_child_count_map[$parent_word_id] ?? 0) > 1);
+    }
+    unset($recording);
 
     $published_by_key = ll_audio_processor_get_published_recording_map($parent_word_ids);
     $queue = [];
@@ -417,6 +466,7 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
         $parent_word_id > 0 &&
         current_user_can('view_ll_tools') &&
         current_user_can('edit_post', $parent_word_id) &&
+        !empty($recording['splitWordEnabled']) &&
         function_exists('ll_tools_get_split_word_page_url')
     ) {
         $split_word_url = ll_tools_get_split_word_page_url($parent_word_id, [], $processor_return_url);
