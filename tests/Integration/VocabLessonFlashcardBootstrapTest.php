@@ -47,6 +47,7 @@ final class VocabLessonFlashcardBootstrapTest extends LL_Tools_TestCase
             ll_tools_vocab_lesson_enqueue_assets();
 
             $this->assertTrue(wp_script_is('ll-flc-main', 'enqueued'));
+            $this->assertTrue(wp_script_is('ll-confetti', 'enqueued'));
             $this->assertNotFalse(has_action('wp_footer', 'll_qpg_print_flashcard_shell_once'));
 
             ob_start();

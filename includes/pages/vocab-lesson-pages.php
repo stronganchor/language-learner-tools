@@ -921,6 +921,9 @@ function ll_tools_vocab_lesson_enqueue_assets() {
     }
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
     if (ll_tools_vocab_lesson_should_preload_flashcards()) {
+        if (function_exists('ll_tools_enqueue_confetti_asset')) {
+            ll_tools_enqueue_confetti_asset();
+        }
         ll_tools_vocab_lesson_bootstrap_flashcards();
     }
     ll_enqueue_asset_by_timestamp('/css/vocab-lesson-pages.css', 'll-vocab-lesson-pages-css', ['ll-tools-flashcard-style']);
