@@ -58,6 +58,67 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('River', $html);
     }
 
+    public function test_lesson_grid_naturally_sorts_visible_word_titles(): void
+    {
+        $wordset = wp_insert_term('Deferred Sort Wordset', 'wordset', ['slug' => 'deferred-sort-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Sort Category', 'word-category', ['slug' => 'deferred-sort-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+
+        $titles = ['Lesson 10', 'Lesson 2', 'Lesson 9'];
+        foreach ($titles as $title) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Sort Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+
+        $position_two = strpos($html, 'Lesson 2');
+        $position_nine = strpos($html, 'Lesson 9');
+        $position_ten = strpos($html, 'Lesson 10');
+
+        $this->assertIsInt($position_two);
+        $this->assertIsInt($position_nine);
+        $this->assertIsInt($position_ten);
+        $this->assertLessThan($position_nine, $position_two);
+        $this->assertLessThan($position_ten, $position_nine);
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -1839,6 +1839,98 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
     return $ordered;
 }
 
+function ll_tools_word_grid_is_lesson_context(array $context): bool {
+    return is_singular('ll_vocab_lesson') || !empty($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+}
+
+function ll_tools_word_grid_should_sort_visible_titles(array $context): bool {
+    if (!ll_tools_word_grid_is_lesson_context($context)) {
+        return false;
+    }
+
+    return empty($context['hide_lesson_grid_text']);
+}
+
+function ll_tools_word_grid_sort_posts_by_display_title(array $posts, array &$display_values_cache = []): array {
+    if (count($posts) < 2) {
+        return $posts;
+    }
+
+    $sortable = [];
+    foreach ($posts as $index => $post) {
+        if (!($post instanceof WP_Post)) {
+            continue;
+        }
+
+        $post_id = (int) $post->ID;
+        if ($post_id <= 0) {
+            continue;
+        }
+
+        if (!isset($display_values_cache[$post_id]) || !is_array($display_values_cache[$post_id])) {
+            $display_values_cache[$post_id] = ll_tools_word_grid_resolve_display_text($post_id);
+        }
+
+        $display_values = $display_values_cache[$post_id];
+        $word_text = html_entity_decode(trim((string) ($display_values['word_text'] ?? '')), ENT_QUOTES, 'UTF-8');
+        $translation_text = html_entity_decode(trim((string) ($display_values['translation_text'] ?? '')), ENT_QUOTES, 'UTF-8');
+        $sort_title = ($word_text !== '') ? $word_text : $translation_text;
+
+        $sortable[] = [
+            'index' => (int) $index,
+            'post' => $post,
+            'sort_title' => $sort_title,
+            'translation_text' => $translation_text,
+            'raw_title' => html_entity_decode((string) $post->post_title, ENT_QUOTES, 'UTF-8'),
+        ];
+    }
+
+    if (count($sortable) < 2) {
+        return $posts;
+    }
+
+    usort($sortable, static function (array $left, array $right): int {
+        $left_title = (string) ($left['sort_title'] ?? '');
+        $right_title = (string) ($right['sort_title'] ?? '');
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $compared = ll_tools_locale_compare_strings($left_title, $right_title);
+        } else {
+            $compared = strnatcasecmp($left_title, $right_title);
+        }
+        if ($compared !== 0) {
+            return $compared;
+        }
+
+        $left_translation = (string) ($left['translation_text'] ?? '');
+        $right_translation = (string) ($right['translation_text'] ?? '');
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $compared = ll_tools_locale_compare_strings($left_translation, $right_translation);
+        } else {
+            $compared = strnatcasecmp($left_translation, $right_translation);
+        }
+        if ($compared !== 0) {
+            return $compared;
+        }
+
+        $left_raw_title = (string) ($left['raw_title'] ?? '');
+        $right_raw_title = (string) ($right['raw_title'] ?? '');
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $compared = ll_tools_locale_compare_strings($left_raw_title, $right_raw_title);
+        } else {
+            $compared = strnatcasecmp($left_raw_title, $right_raw_title);
+        }
+        if ($compared !== 0) {
+            return $compared;
+        }
+
+        return ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0));
+    });
+
+    return array_values(array_map(static function (array $entry) {
+        return $entry['post'];
+    }, $sortable));
+}
+
 function ll_tools_user_can_edit_vocab_words(int $wordset_id = 0): bool {
     if (!is_user_logged_in() || !current_user_can('view_ll_tools')) {
         return false;
@@ -2544,6 +2636,7 @@ function ll_tools_word_grid_shortcode($atts) {
             'star_mode'        => 'normal',
             'fast_transitions' => false,
         ];
+    $sort_visible_titles = ll_tools_word_grid_should_sort_visible_titles($context);
 
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
 
@@ -2660,6 +2753,9 @@ function ll_tools_word_grid_shortcode($atts) {
     }
     $display_values_cache = [];
     $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
+    if ($sort_visible_titles) {
+        $query->posts = ll_tools_word_grid_sort_posts_by_display_title($query->posts, $display_values_cache);
+    }
     $query->post_count = count($query->posts);
     $query->current_post = -1;
     $word_ids = wp_list_pluck($query->posts, 'ID');
