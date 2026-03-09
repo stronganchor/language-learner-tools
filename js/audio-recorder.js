@@ -32,6 +32,7 @@
     let hiddenWordsPanelOpen = false;
     let uploadLockState = null;
     let displayLoadToken = 0;
+    let categorySelectResizeBound = false;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -352,10 +353,58 @@
         if (el.newWordRedoBtn) el.newWordRedoBtn.disabled = !!disabled;
     }
 
+    function isCompactCategoryViewport() {
+        if (window.matchMedia) {
+            try {
+                return window.matchMedia('(max-width: 480px)').matches;
+            } catch (_) { /* no-op */ }
+        }
+        return (window.innerWidth || document.documentElement.clientWidth || 0) <= 480;
+    }
+
+    function buildCompactCategoryOptionLabel(fullLabel) {
+        const raw = String(fullLabel || '').trim();
+        if (!raw) return '';
+
+        const countMatch = raw.match(/\s+\(\d+\)$/u);
+        const suffix = countMatch ? countMatch[0] : '';
+        const base = countMatch ? raw.slice(0, -suffix.length).trim() : raw;
+        const maxBaseLength = suffix ? 18 : 22;
+        if (base.length <= maxBaseLength) {
+            return base + suffix;
+        }
+        return base.slice(0, Math.max(0, maxBaseLength - 1)).trimEnd() + '…' + suffix;
+    }
+
+    function applyResponsiveCategorySelectLabels() {
+        const el = window.llRecorder;
+        const select = el && el.categorySelect;
+        if (!select || !select.options) return;
+
+        const useCompactLabels = isCompactCategoryViewport();
+        Array.from(select.options).forEach(option => {
+            if (!option) return;
+            if (!option.dataset.llFullLabel) {
+                option.dataset.llFullLabel = option.textContent || '';
+            }
+            const fullLabel = String(option.dataset.llFullLabel || '');
+            option.textContent = useCompactLabels
+                ? buildCompactCategoryOptionLabel(fullLabel)
+                : fullLabel;
+            option.title = fullLabel;
+        });
+    }
+
     function setupCategorySelector() {
         const el = window.llRecorder;
         if (el.categorySelect) {
             el.categorySelect.addEventListener('change', switchCategory);
+            applyResponsiveCategorySelectLabels();
+            if (!categorySelectResizeBound) {
+                categorySelectResizeBound = true;
+                window.addEventListener('resize', applyResponsiveCategorySelectLabels, { passive: true });
+                window.addEventListener('orientationchange', applyResponsiveCategorySelectLabels, { passive: true });
+            }
         }
     }
 

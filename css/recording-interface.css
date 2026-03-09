@@ -49,11 +49,20 @@
 
 .ll-category-selector select {
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    max-width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
     border: 2px solid #ddd;
     border-radius: 6px;
+    box-sizing: border-box;
+    min-height: 2.35rem;
+    height: auto;
     font-size: 0.9rem;
+    line-height: 1.25;
     transition: border-color 0.2s;
+}
+
+.ll-category-selector select option {
+    font-size: inherit;
 }
 
 .ll-category-selector select:focus {
@@ -1460,6 +1469,16 @@
         max-width: 100%;
     }
 
+    .ll-category-selector {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ll-category-selector select {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem);
+        padding: 0.46rem 1.85rem 0.46rem 0.65rem;
+    }
+
     .ll-recording-image-container {
         width: 100%;
         min-width: 0;
@@ -1504,6 +1523,11 @@
     .ll-hidden-words-toggle {
         width: 100%;
         min-width: 0;
+    }
+
+    .ll-category-selector select {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem);
+        padding: 0.42rem 1.7rem 0.42rem 0.58rem;
     }
 
     .ll-recording-interface .ll-hidden-words-toggle-btn {
