@@ -983,6 +983,44 @@ function ll_tools_wordset_get_category_prereq_map(int $wordset_id, array $catego
     return ll_tools_wordset_normalize_category_prereq_map($raw, $category_ids);
 }
 
+function ll_tools_wordset_get_blocked_prereq_ids_for_category(int $target_category_id, array $category_ids, array $prereq_map): array {
+    $target_category_id = (int) $target_category_id;
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    if ($target_category_id <= 0 || empty($category_ids) || !in_array($target_category_id, $category_ids, true)) {
+        return [];
+    }
+
+    $graph = ll_tools_wordset_normalize_category_prereq_map($prereq_map, $category_ids);
+    $level_info = ll_tools_wordset_calculate_prereq_levels($category_ids, $graph);
+    if (!empty($level_info['has_cycle'])) {
+        return [];
+    }
+
+    $selected_ids = array_values(array_map('intval', (array) ($graph[$target_category_id] ?? [])));
+    $selected_lookup = array_fill_keys($selected_ids, true);
+    $blocked_ids = [];
+
+    foreach ($category_ids as $candidate_id) {
+        $candidate_id = (int) $candidate_id;
+        if ($candidate_id <= 0 || $candidate_id === $target_category_id || isset($selected_lookup[$candidate_id])) {
+            continue;
+        }
+
+        $test_map = $graph;
+        $test_selected_ids = $selected_ids;
+        $test_selected_ids[] = $candidate_id;
+        $test_map[$target_category_id] = $test_selected_ids;
+        $test_map = ll_tools_wordset_normalize_category_prereq_map($test_map, $category_ids);
+
+        $cycle_check = ll_tools_wordset_find_prereq_cycle($category_ids, $test_map);
+        if (!empty($cycle_check['has_cycle'])) {
+            $blocked_ids[] = $candidate_id;
+        }
+    }
+
+    return ll_tools_wordset_normalize_category_id_list($blocked_ids);
+}
+
 function ll_tools_wordset_get_prereq_level_info(int $wordset_id, array $category_ids): array {
     $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
     if (empty($category_ids)) {

@@ -2131,6 +2131,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         ],
         'bulkI18n' => [
             'saving' => __('Updating...', 'll-tools-text-domain'),
+            'saved' => __('Saved.', 'll-tools-text-domain'),
             'posSuccess' => __('Updated %d words.', 'll-tools-text-domain'),
             'genderSuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
             'pluralitySuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
@@ -2151,6 +2152,8 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'remove' => __('Remove %s', 'll-tools-text-domain'),
             'optionAdd' => __('Add %s', 'll-tools-text-domain'),
             'optionRemove' => __('Remove %s', 'll-tools-text-domain'),
+            'optionBlocked' => __('Cannot add %s because it would create a loop.', 'll-tools-text-domain'),
+            'blockedHint' => __('Would create a prerequisite loop.', 'll-tools-text-domain'),
             'noMatches' => __('No matching categories.', 'll-tools-text-domain'),
             'levelCycle' => __('Cycle', 'll-tools-text-domain'),
             'levelUnknown' => __('—', 'll-tools-text-domain'),
@@ -4358,7 +4361,48 @@ function ll_tools_word_grid_update_category_prereqs_handler() {
     );
     $selected_prereq_ids = array_values(array_map('intval', (array) ($single_map[$category_id] ?? [])));
 
-    $prereq_map = ll_tools_wordset_get_category_prereq_map($wordset_id, $allowed_category_ids);
+    $build_selected_rows = static function (array $selected_ids, array $labels, array $level_info): array {
+        $rows = [];
+        foreach ($selected_ids as $selected_prereq_id) {
+            $selected_prereq_id = (int) $selected_prereq_id;
+            if ($selected_prereq_id <= 0) {
+                continue;
+            }
+            $row = [
+                'id' => $selected_prereq_id,
+                'label' => (string) ($labels[$selected_prereq_id] ?? (string) $selected_prereq_id),
+            ];
+            if (isset($level_info['levels'][$selected_prereq_id]) && empty($level_info['has_cycle'])) {
+                $row['level'] = (int) $level_info['levels'][$selected_prereq_id];
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    };
+
+    $build_editor_state = static function (array $map) use ($allowed_category_ids, $category_id, $label_map, $build_selected_rows): array {
+        $normalized_map = ll_tools_wordset_normalize_category_prereq_map($map, $allowed_category_ids);
+        $level_info = ll_tools_wordset_calculate_prereq_levels($allowed_category_ids, $normalized_map);
+        $selected_ids = array_values(array_map('intval', (array) ($normalized_map[$category_id] ?? [])));
+        $blocked_ids = function_exists('ll_tools_wordset_get_blocked_prereq_ids_for_category') && empty($level_info['has_cycle'])
+            ? ll_tools_wordset_get_blocked_prereq_ids_for_category($category_id, $allowed_category_ids, $normalized_map)
+            : [];
+
+        return [
+            'selected' => $build_selected_rows($selected_ids, $label_map, $level_info),
+            'selected_ids' => $selected_ids,
+            'blocked_ids' => array_values(array_map('intval', (array) $blocked_ids)),
+            'level' => (isset($level_info['levels'][$category_id]) && empty($level_info['has_cycle']))
+                ? (int) $level_info['levels'][$category_id]
+                : null,
+            'has_cycle' => !empty($level_info['has_cycle']),
+        ];
+    };
+
+    $stored_prereq_map = ll_tools_wordset_get_category_prereq_map($wordset_id, $allowed_category_ids);
+    $saved_editor_state = $build_editor_state($stored_prereq_map);
+    $prereq_map = $stored_prereq_map;
     if (empty($selected_prereq_ids)) {
         unset($prereq_map[$category_id]);
     } else {
@@ -4383,11 +4427,21 @@ function ll_tools_word_grid_update_category_prereqs_handler() {
                     __('Prerequisites were not saved because they create a loop: %s', 'll-tools-text-domain'),
                     implode(' -> ', $cycle_labels)
                 ),
+                'selected' => $saved_editor_state['selected'],
+                'selected_ids' => $saved_editor_state['selected_ids'],
+                'blocked_ids' => $saved_editor_state['blocked_ids'],
+                'level' => $saved_editor_state['level'],
+                'has_cycle' => $saved_editor_state['has_cycle'],
             ], 409);
         }
 
         wp_send_json_error([
             'message' => __('Prerequisites were not saved because they create a loop.', 'll-tools-text-domain'),
+            'selected' => $saved_editor_state['selected'],
+            'selected_ids' => $saved_editor_state['selected_ids'],
+            'blocked_ids' => $saved_editor_state['blocked_ids'],
+            'level' => $saved_editor_state['level'],
+            'has_cycle' => $saved_editor_state['has_cycle'],
         ], 409);
     }
 
@@ -4397,31 +4451,15 @@ function ll_tools_word_grid_update_category_prereqs_handler() {
         update_term_meta($wordset_id, 'll_wordset_category_prerequisites', $prereq_map);
     }
 
-    $level_info = ll_tools_wordset_calculate_prereq_levels($allowed_category_ids, $prereq_map);
-    $selected_rows = [];
-    foreach ($selected_prereq_ids as $selected_prereq_id) {
-        $selected_prereq_id = (int) $selected_prereq_id;
-        if ($selected_prereq_id <= 0) {
-            continue;
-        }
-        $row = [
-            'id' => $selected_prereq_id,
-            'label' => (string) ($label_map[$selected_prereq_id] ?? (string) $selected_prereq_id),
-        ];
-        if (isset($level_info['levels'][$selected_prereq_id]) && empty($level_info['has_cycle'])) {
-            $row['level'] = (int) $level_info['levels'][$selected_prereq_id];
-        }
-        $selected_rows[] = $row;
-    }
+    $saved_editor_state = $build_editor_state($prereq_map);
 
     wp_send_json_success([
         'message' => __('Prerequisites saved.', 'll-tools-text-domain'),
-        'selected' => $selected_rows,
-        'selected_ids' => array_values(array_map('intval', $selected_prereq_ids)),
-        'level' => (isset($level_info['levels'][$category_id]) && empty($level_info['has_cycle']))
-            ? (int) $level_info['levels'][$category_id]
-            : null,
-        'has_cycle' => !empty($level_info['has_cycle']),
+        'selected' => $saved_editor_state['selected'],
+        'selected_ids' => $saved_editor_state['selected_ids'],
+        'blocked_ids' => $saved_editor_state['blocked_ids'],
+        'level' => $saved_editor_state['level'],
+        'has_cycle' => $saved_editor_state['has_cycle'],
     ]);
 }
 

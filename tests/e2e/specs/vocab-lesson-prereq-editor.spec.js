@@ -16,7 +16,19 @@ const vocabLessonCssSource = fs.readFileSync(
   'utf8'
 );
 
-function buildPrereqEditorMarkup() {
+const defaultRows = [
+  { id: 12, label: 'Basics', level: 1 },
+  { id: 13, label: 'Food', level: 2 },
+  { id: 14, label: 'Travel', level: 3 }
+];
+
+function buildPrereqEditorMarkup({
+  options = defaultRows,
+  selected = [defaultRows[1]],
+  blocked = [],
+  currentLevel = 3,
+  hasCycle = false
+} = {}) {
   return `
     <div class="ll-vocab-lesson-page" data-ll-vocab-lesson style="padding: 10px; box-sizing: border-box;">
       <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="7" data-ll-category-id="11">
@@ -38,16 +50,17 @@ function buildPrereqEditorMarkup() {
             <div
               class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-section--prereq"
               data-ll-prereq-editor
-              data-ll-prereq-options='[{"id":12,"label":"Basics","level":1},{"id":13,"label":"Food","level":2},{"id":14,"label":"Travel","level":3}]'
-              data-ll-prereq-selected='[{"id":13,"label":"Food","level":2}]'
-              data-ll-prereq-current-level="3"
-              data-ll-prereq-has-cycle="0"
+              data-ll-prereq-options='${JSON.stringify(options)}'
+              data-ll-prereq-selected='${JSON.stringify(selected)}'
+              data-ll-prereq-blocked='${JSON.stringify(blocked)}'
+              data-ll-prereq-current-level="${currentLevel}"
+              data-ll-prereq-has-cycle="${hasCycle ? '1' : '0'}"
             >
               <div class="ll-vocab-lesson-bulk-heading">Prerequisites</div>
               <div class="ll-vocab-lesson-prereq-toolbar">
                 <div class="ll-vocab-lesson-prereq-meta" aria-label="Prerequisite level">
                   <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">L</span>
-                  <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>3</span>
+                  <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>L${currentLevel}</span>
                 </div>
                 <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
                   <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
@@ -73,7 +86,7 @@ function buildPrereqEditorMarkup() {
               </div>
               <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
               <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
-              <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning hidden>
+              <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning ${hasCycle ? '' : 'hidden'}>
                 Loop warning
               </p>
             </div>
@@ -106,6 +119,8 @@ function buildWordGridConfig() {
       remove: 'Remove %s',
       optionAdd: 'Add %s',
       optionRemove: 'Remove %s',
+      optionBlocked: 'Cannot add %s because it would create a loop.',
+      blockedHint: 'Would create a prerequisite loop.',
       noMatches: 'No matching categories.',
       levelCycle: 'Cycle',
       levelUnknown: '-'
@@ -113,22 +128,36 @@ function buildWordGridConfig() {
   };
 }
 
-async function mountPrereqEditor(page, viewport) {
+async function mountPrereqEditor(page, viewport, {
+  options = defaultRows,
+  selected = [defaultRows[1]],
+  blocked = [],
+  currentLevel = 3,
+  hasCycle = false,
+  failOnIdsContaining = [],
+  failResponse = null,
+  successBlockedIds = blocked
+} = {}) {
   await page.setViewportSize(viewport);
   await page.goto('about:blank');
-  await page.setContent(buildPrereqEditorMarkup());
+  await page.setContent(buildPrereqEditorMarkup({
+    options,
+    selected,
+    blocked,
+    currentLevel,
+    hasCycle
+  }));
   await page.addStyleTag({ content: flashcardBaseCssSource });
   await page.addStyleTag({ content: vocabLessonCssSource });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
   }, buildWordGridConfig());
-  await page.evaluate(() => {
-    const optionRows = {
-      12: { id: 12, label: 'Basics', level: 1 },
-      13: { id: 13, label: 'Food', level: 2 },
-      14: { id: 14, label: 'Travel', level: 3 }
-    };
+  await page.evaluate((mockConfig) => {
+    const optionRows = {};
+    (mockConfig.options || []).forEach((row) => {
+      optionRows[row.id] = row;
+    });
 
     window.llPrereqPostCalls = [];
     jQuery.post = function (_url, data) {
@@ -139,21 +168,41 @@ async function mountPrereqEditor(page, viewport) {
       const ids = Array.isArray(payload.prereq_ids)
         ? payload.prereq_ids.map((id) => parseInt(id, 10)).filter(Boolean)
         : [];
-      const selected = ids.map((id) => optionRows[id]).filter(Boolean);
+      const shouldFail = Array.isArray(mockConfig.failOnIdsContaining)
+        && mockConfig.failOnIdsContaining.length > 0
+        && mockConfig.failOnIdsContaining.every((id) => ids.includes(id));
 
+      if (shouldFail) {
+        deferred.reject({
+          responseJSON: {
+            success: false,
+            data: mockConfig.failResponse
+          }
+        });
+        return deferred.promise();
+      }
+
+      const selectedRows = ids.map((id) => optionRows[id]).filter(Boolean);
       deferred.resolve({
         success: true,
         data: {
           message: 'Prerequisites saved.',
-          selected,
+          selected: selectedRows,
           selected_ids: ids,
-          level: 3,
+          blocked_ids: Array.isArray(mockConfig.successBlockedIds) ? mockConfig.successBlockedIds : [],
+          level: mockConfig.currentLevel,
           has_cycle: false
         }
       });
 
       return deferred.promise();
     };
+  }, {
+    options,
+    failOnIdsContaining,
+    failResponse,
+    successBlockedIds,
+    currentLevel
   });
   await page.addScriptTag({ content: wordGridScriptSource });
 }
@@ -161,7 +210,6 @@ async function mountPrereqEditor(page, viewport) {
 async function exercisePrereqEditor(page) {
   await page.locator('.ll-vocab-lesson-bulk-button').click();
   await expect(page.locator('.ll-vocab-lesson-bulk-panel')).toHaveAttribute('aria-hidden', 'false');
-  await expect(page.locator('[data-ll-prereq-apply]')).toHaveCount(0);
 
   const basicsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Basics' }).first();
   const foodOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Food' }).first();
@@ -216,4 +264,47 @@ async function exercisePrereqEditor(page) {
     await mountPrereqEditor(page, viewport);
     await exercisePrereqEditor(page);
   });
+});
+
+test('prerequisites editor reverts looped saves and only shows blocked options when searched', async ({ page }) => {
+  const blockedRow = { id: 15, label: 'Loops', level: 2 };
+  const savedSelection = [{ id: 13, label: 'Food', level: 2 }];
+
+  await mountPrereqEditor(page, { width: 1280, height: 900 }, {
+    options: defaultRows.concat([blockedRow]),
+    selected: savedSelection,
+    blocked: [],
+    failOnIdsContaining: [15],
+    failResponse: {
+      message: 'Prerequisites were not saved because they create a loop: Food -> Loops -> Food',
+      selected: savedSelection,
+      selected_ids: [13],
+      blocked_ids: [15],
+      level: 3,
+      has_cycle: false
+    }
+  });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+
+  const loopsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Loops' }).first();
+  await expect(loopsOption).toHaveCount(1);
+  await loopsOption.click();
+
+  await expect(page.locator('[data-ll-prereq-status]')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('[data-ll-prereq-chip-id]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-prereq-chip-id="15"]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-prereq-option]').filter({ hasText: 'Loops' })).toHaveCount(0);
+
+  const searchInput = page.locator('[data-ll-prereq-input]');
+  await searchInput.fill('loop');
+
+  const blockedOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Loops' }).first();
+  await expect(blockedOption).toHaveClass(/is-blocked/);
+  await expect(blockedOption).toBeDisabled();
+  await expect(blockedOption).toHaveAttribute('aria-pressed', 'false');
+
+  const calls = await page.evaluate(() => window.llPrereqPostCalls);
+  expect(calls).toHaveLength(1);
+  expect((calls[0].prereq_ids || []).map(String)).toEqual(['13', '15']);
 });

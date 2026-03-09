@@ -353,6 +353,9 @@ if (have_posts()) {
                                             $selected_prereq_lookup[$selected_prereq_id] = true;
                                         }
                                     }
+                                    $blocked_prereq_ids = function_exists('ll_tools_wordset_get_blocked_prereq_ids_for_category') && empty($prereq_levels['has_cycle'])
+                                        ? ll_tools_wordset_get_blocked_prereq_ids_for_category($category_id, $ordering_ids, $prereq_map)
+                                        : [];
 
                                     $prereq_option_rows = [];
                                     $prereq_selected_rows = [];
@@ -381,11 +384,15 @@ if (have_posts()) {
                                         : null;
                                     $lesson_prereq_editor['options_json'] = wp_json_encode($prereq_option_rows);
                                     $lesson_prereq_editor['selected_json'] = wp_json_encode($prereq_selected_rows);
+                                    $lesson_prereq_editor['blocked_json'] = wp_json_encode(array_values(array_map('intval', $blocked_prereq_ids)));
                                     if (!is_string($lesson_prereq_editor['options_json']) || $lesson_prereq_editor['options_json'] === '') {
                                         $lesson_prereq_editor['options_json'] = '[]';
                                     }
                                     if (!is_string($lesson_prereq_editor['selected_json']) || $lesson_prereq_editor['selected_json'] === '') {
                                         $lesson_prereq_editor['selected_json'] = '[]';
+                                    }
+                                    if (!is_string($lesson_prereq_editor['blocked_json']) || $lesson_prereq_editor['blocked_json'] === '') {
+                                        $lesson_prereq_editor['blocked_json'] = '[]';
                                     }
                                 }
                             }
@@ -415,6 +422,7 @@ if (have_posts()) {
                                             data-ll-prereq-editor
                                             data-ll-prereq-options="<?php echo esc_attr($lesson_prereq_editor['options_json']); ?>"
                                             data-ll-prereq-selected="<?php echo esc_attr($lesson_prereq_editor['selected_json']); ?>"
+                                            data-ll-prereq-blocked="<?php echo esc_attr($lesson_prereq_editor['blocked_json']); ?>"
                                             data-ll-prereq-current-level="<?php echo esc_attr($lesson_prereq_editor['current_level'] === null ? '' : (string) ((int) $lesson_prereq_editor['current_level'])); ?>"
                                             data-ll-prereq-has-cycle="<?php echo !empty($lesson_prereq_editor['has_cycle']) ? '1' : '0'; ?>"
                                         >
@@ -468,7 +476,13 @@ if (have_posts()) {
                                         </div>
                                     <?php endif; ?>
                                     <div class="ll-vocab-lesson-bulk-section">
-                                        <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></div>
+                                        <div class="ll-vocab-lesson-bulk-heading-row">
+                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></div>
+                                            <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="pos" data-state="idle" role="status" aria-live="polite" hidden>
+                                                <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                            </span>
+                                        </div>
                                         <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Part of speech', 'll-tools-text-domain'); ?>">
                                             <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-pos aria-label="<?php echo esc_attr__('Select part of speech', 'll-tools-text-domain'); ?>">
                                                 <option value=""><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></option>
@@ -478,14 +492,17 @@ if (have_posts()) {
                                                     <?php endif; ?>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-pos-apply aria-label="<?php echo esc_attr__('Apply part of speech to all words', 'll-tools-text-domain'); ?>">
-                                                <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
-                                            </button>
                                         </div>
                                     </div>
                                     <?php if ($gender_enabled) : ?>
                                         <div class="ll-vocab-lesson-bulk-section">
-                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-heading-row">
+                                                <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></div>
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="gender" data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                            </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Noun gender', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-gender aria-label="<?php echo esc_attr__('Select gender', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></option>
@@ -500,15 +517,18 @@ if (have_posts()) {
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-gender-apply aria-label="<?php echo esc_attr__('Apply gender to all nouns', 'll-tools-text-domain'); ?>">
-                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
-                                                </button>
                                             </div>
                                         </div>
                                     <?php endif; ?>
                                     <?php if ($plurality_enabled) : ?>
                                         <div class="ll-vocab-lesson-bulk-section">
-                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Plurality', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-heading-row">
+                                                <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Plurality', 'll-tools-text-domain'); ?></div>
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="plurality" data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                            </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Noun plurality', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-plurality aria-label="<?php echo esc_attr__('Select plurality', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Plurality', 'll-tools-text-domain'); ?></option>
@@ -518,15 +538,18 @@ if (have_posts()) {
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-plurality-apply aria-label="<?php echo esc_attr__('Apply plurality to all nouns', 'll-tools-text-domain'); ?>">
-                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
-                                                </button>
                                             </div>
                                         </div>
                                     <?php endif; ?>
                                     <?php if ($verb_tense_enabled) : ?>
                                         <div class="ll-vocab-lesson-bulk-section">
-                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-heading-row">
+                                                <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></div>
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-tense" data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                            </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb tense', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-tense aria-label="<?php echo esc_attr__('Select verb tense', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Verb tense', 'll-tools-text-domain'); ?></option>
@@ -536,15 +559,18 @@ if (have_posts()) {
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-verb-tense-apply aria-label="<?php echo esc_attr__('Apply tense to all verbs', 'll-tools-text-domain'); ?>">
-                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
-                                                </button>
                                             </div>
                                         </div>
                                     <?php endif; ?>
                                     <?php if ($verb_mood_enabled) : ?>
                                         <div class="ll-vocab-lesson-bulk-section">
-                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-bulk-heading-row">
+                                                <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></div>
+                                                <span class="ll-vocab-lesson-bulk-control-status" data-ll-bulk-control-status="verb-mood" data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-bulk-control-status-message" data-ll-bulk-control-status-message hidden></span>
+                                                </span>
+                                            </div>
                                             <div class="ll-vocab-lesson-bulk-controls" role="group" aria-label="<?php echo esc_attr__('Verb mood', 'll-tools-text-domain'); ?>">
                                                 <select class="ll-vocab-lesson-bulk-select" data-ll-bulk-verb-mood aria-label="<?php echo esc_attr__('Select verb mood', 'll-tools-text-domain'); ?>">
                                                     <option value=""><?php echo esc_html__('Verb mood', 'll-tools-text-domain'); ?></option>
@@ -554,9 +580,6 @@ if (have_posts()) {
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-bulk-verb-mood-apply aria-label="<?php echo esc_attr__('Apply mood to all verbs', 'll-tools-text-domain'); ?>">
-                                                    <?php echo esc_html__('Apply', 'll-tools-text-domain'); ?>
-                                                </button>
                                             </div>
                                         </div>
                                     <?php endif; ?>

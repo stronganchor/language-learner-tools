@@ -1157,6 +1157,7 @@
     };
     const bulkMessages = {
         saving: bulkI18n.saving || 'Updating...',
+        saved: bulkI18n.saved || 'Saved.',
         posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
         genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',
         pluralitySuccess: bulkI18n.pluralitySuccess || 'Updated %d nouns.',
@@ -1177,11 +1178,14 @@
         remove: prereqI18n.remove || 'Remove %s',
         optionAdd: prereqI18n.optionAdd || 'Add %s',
         optionRemove: prereqI18n.optionRemove || prereqI18n.remove || 'Remove %s',
+        optionBlocked: prereqI18n.optionBlocked || 'Cannot add %s because it would create a loop.',
+        blockedHint: prereqI18n.blockedHint || 'Would create a prerequisite loop.',
         noMatches: prereqI18n.noMatches || 'No matching categories.',
         levelCycle: prereqI18n.levelCycle || 'Cycle',
         levelUnknown: prereqI18n.levelUnknown || '-'
     };
-    const prereqSaveDelayMs = 260;
+    const prereqSaveDelayMs = 0;
+    const bulkStatusHideDelayMs = 1400;
     const prereqStatusHideDelayMs = 1400;
     const dictionaryEntryCache = {};
 
@@ -1458,6 +1462,23 @@
         } catch (_) {
             return [];
         }
+    }
+
+    function normalizeIntegerIdList(ids) {
+        const list = Array.isArray(ids) ? ids : [];
+        const seen = {};
+        const out = [];
+
+        list.forEach(function (id) {
+            const numericId = parseInt(id, 10) || 0;
+            if (!numericId || seen[numericId]) {
+                return;
+            }
+            seen[numericId] = true;
+            out.push(numericId);
+        });
+
+        return out;
     }
 
     function normalizePrereqOptionRows(rows) {
@@ -3074,9 +3095,94 @@
         }
 
         function setBulkBusy($wrap, isBusy) {
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply], [data-ll-prereq-input], [data-ll-prereq-remove]')
-                .prop('disabled', isBusy);
-            $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
+            const busy = !!isBusy;
+            $wrap.toggleClass('ll-vocab-lesson-bulk--busy', busy);
+            $wrap.attr('aria-busy', busy ? 'true' : 'false');
+        }
+
+        function getBulkControlStatusElement($wrap, controlKey) {
+            if (!$wrap || !$wrap.length || !controlKey) { return $(); }
+            return $wrap.find('[data-ll-bulk-control-status="' + controlKey + '"]').first();
+        }
+
+        function clearBulkControlStatusTimer($wrap, controlKey) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+            const timerId = parseInt($status.data('llBulkStatusTimerId'), 10) || 0;
+            if (timerId > 0) {
+                window.clearTimeout(timerId);
+            }
+            $status.removeData('llBulkStatusTimerId');
+        }
+
+        function setBulkControlStatus($wrap, controlKey, statusState, message) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+
+            clearBulkControlStatusTimer($wrap, controlKey);
+
+            const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+                ? statusState.toString()
+                : 'idle';
+            const text = (message || '').toString();
+            const $message = $status.find('[data-ll-bulk-control-status-message]').first();
+
+            $status.attr('data-state', nextState);
+            if (nextState === 'idle') {
+                $status.attr('hidden', 'hidden');
+            } else {
+                $status.removeAttr('hidden');
+            }
+
+            if (text) {
+                $status.attr('aria-label', text);
+                $status.attr('title', text);
+            } else {
+                $status.removeAttr('aria-label');
+                $status.removeAttr('title');
+            }
+
+            if ($message.length) {
+                $message.text('');
+                $message.attr('hidden', 'hidden');
+            }
+        }
+
+        function scheduleBulkControlStatusReset($wrap, controlKey, delayMs) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+
+            clearBulkControlStatusTimer($wrap, controlKey);
+
+            const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+            if (delay <= 0) {
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+                return;
+            }
+
+            const timerId = window.setTimeout(function () {
+                $status.removeData('llBulkStatusTimerId');
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+            }, delay);
+            $status.data('llBulkStatusTimerId', timerId);
+        }
+
+        function getBulkAutoState($wrap) {
+            if (!$wrap || !$wrap.length) { return null; }
+
+            let state = $wrap.data('llBulkAutoState');
+            if (state && typeof state === 'object') {
+                return state;
+            }
+
+            state = {
+                activeKey: '',
+                activeValue: '',
+                queueOrder: [],
+                queueValues: {}
+            };
+            $wrap.data('llBulkAutoState', state);
+            return state;
         }
 
         function getPrereqEditorState($editor) {
@@ -3109,6 +3215,7 @@
                     selectedIds.push(row.id);
                 }
             });
+            const blockedIds = normalizeIntegerIdList(parseJsonArrayAttr($editor, 'data-ll-prereq-blocked'));
 
             const currentLevelRaw = ($editor.attr('data-ll-prereq-current-level') || '').toString();
             const currentLevel = currentLevelRaw === '' ? null : (parseInt(currentLevelRaw, 10) || 0);
@@ -3118,6 +3225,7 @@
                 options: options,
                 optionsById: optionsById,
                 selectedIds: selectedIds,
+                blockedIds: blockedIds,
                 currentLevel: currentLevel,
                 hasCycle: hasCycle,
                 isSaving: false,
@@ -3125,7 +3233,11 @@
                 saveTimerId: 0,
                 statusTimerId: 0,
                 lastSavedSelectionKey: '',
-                lastRequestSelectionKey: ''
+                lastRequestSelectionKey: '',
+                lastSavedSelectedIds: selectedIds.slice(),
+                lastSavedBlockedIds: blockedIds.slice(),
+                lastSavedLevel: currentLevel,
+                lastSavedHasCycle: hasCycle
             };
             state.lastSavedSelectionKey = serializePrereqSelectedIds(state.selectedIds);
 
@@ -3134,10 +3246,67 @@
         }
 
         function serializePrereqSelectedIds(ids) {
-            const normalized = Array.isArray(ids)
-                ? ids.map(function (id) { return parseInt(id, 10) || 0; }).filter(Boolean)
-                : [];
-            return JSON.stringify(normalized);
+            return JSON.stringify(normalizeIntegerIdList(ids));
+        }
+
+        function setPrereqEditorBlockedIds($editor, blockedIds) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            state.blockedIds = normalizeIntegerIdList(blockedIds);
+            $editor.attr('data-ll-prereq-blocked', JSON.stringify(state.blockedIds));
+        }
+
+        function applyPrereqEditorSavedState($editor, payload) {
+            const state = getPrereqEditorState($editor);
+            if (!state || !payload || typeof payload !== 'object') { return; }
+
+            const selectedRows = normalizePrereqOptionRows(Array.isArray(payload.selected) ? payload.selected : []);
+            const nextSelectedIds = normalizeIntegerIdList(
+                Array.isArray(payload.selected_ids) && payload.selected_ids.length
+                    ? payload.selected_ids
+                    : selectedRows.map(function (row) { return row.id; })
+            );
+
+            selectedRows.forEach(function (row) {
+                upsertPrereqOption(state, row);
+            });
+
+            state.selectedIds = sortPrereqSelectedIds(state, nextSelectedIds);
+            setPrereqEditorBlockedIds($editor, payload.blocked_ids);
+            setPrereqEditorLevel(
+                $editor,
+                Object.prototype.hasOwnProperty.call(payload, 'level') ? payload.level : null,
+                payload.has_cycle === true
+            );
+
+            state.lastSavedSelectedIds = state.selectedIds.slice();
+            state.lastSavedBlockedIds = state.blockedIds.slice();
+            state.lastSavedLevel = state.currentLevel;
+            state.lastSavedHasCycle = state.hasCycle;
+            state.lastSavedSelectionKey = serializePrereqSelectedIds(state.selectedIds);
+
+            renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
+        }
+
+        function restoreLastSavedPrereqEditorState($editor) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            applyPrereqEditorSavedState($editor, {
+                selected_ids: state.lastSavedSelectedIds,
+                blocked_ids: state.lastSavedBlockedIds,
+                level: state.lastSavedLevel,
+                has_cycle: state.lastSavedHasCycle
+            });
+        }
+
+        function isPrereqOptionBlocked(state, prereqId) {
+            if (!state) { return false; }
+            const numericId = parseInt(prereqId, 10) || 0;
+            if (!numericId) { return false; }
+            return normalizeIntegerIdList(state.blockedIds).indexOf(numericId) !== -1;
         }
 
         function clearPrereqEditorTimer(state, timerKey) {
@@ -3179,7 +3348,10 @@
         }
 
         function setPrereqEditorBusy($editor, isBusy) {
-            $editor.attr('aria-busy', isBusy ? 'true' : 'false');
+            const busy = !!isBusy;
+            $editor.attr('aria-busy', busy ? 'true' : 'false');
+            $editor.find('[data-ll-prereq-input], [data-ll-prereq-search-clear], [data-ll-prereq-remove], [data-ll-prereq-option]')
+                .prop('disabled', busy);
         }
 
         function schedulePrereqEditorStatusReset($editor, delayMs) {
@@ -3335,9 +3507,14 @@
                     selectedLookup[numericId] = true;
                 }
             });
+            const blockedLookup = {};
+            normalizeIntegerIdList(state.blockedIds).forEach(function (id) {
+                blockedLookup[id] = true;
+            });
 
             const selectedRows = [];
             const availableRows = [];
+            const blockedRows = [];
 
             (Array.isArray(state.options) ? state.options : []).forEach(function (option) {
                 const numericId = parseInt(option && option.id, 10) || 0;
@@ -3350,14 +3527,23 @@
                     return;
                 }
 
-                if (selectedLookup[numericId]) {
+                const isSelected = !!selectedLookup[numericId];
+                const isBlocked = !!blockedLookup[numericId] && !isSelected;
+
+                if (!term && isBlocked) {
+                    return;
+                }
+
+                if (isSelected) {
                     selectedRows.push(option);
+                } else if (isBlocked) {
+                    blockedRows.push(option);
                 } else {
                     availableRows.push(option);
                 }
             });
 
-            const rows = selectedRows.concat(availableRows);
+            const rows = selectedRows.concat(availableRows, blockedRows);
             if (!rows.length) {
                 $list.append($('<div>', {
                     class: 'll-vocab-lesson-prereq-options-empty',
@@ -3372,16 +3558,26 @@
 
                 const label = (option && option.label) ? option.label.toString() : String(numericId);
                 const isSelected = !!selectedLookup[numericId];
+                const isBlocked = !!blockedLookup[numericId] && !isSelected;
                 const $button = $('<button>', {
                     type: 'button',
-                    class: 'll-vocab-lesson-prereq-option' + (isSelected ? ' is-selected' : ''),
+                    class: 'll-vocab-lesson-prereq-option'
+                        + (isSelected ? ' is-selected' : '')
+                        + (isBlocked ? ' is-blocked' : ''),
                     'data-ll-prereq-option': String(numericId),
                     'aria-pressed': isSelected ? 'true' : 'false',
                     'aria-label': formatStringMessage(
-                        isSelected ? prereqMessages.optionRemove : prereqMessages.optionAdd,
+                        isBlocked
+                            ? prereqMessages.optionBlocked
+                            : (isSelected ? prereqMessages.optionRemove : prereqMessages.optionAdd),
                         label
-                    )
+                    ),
+                    disabled: state.isSaving || isBlocked
                 });
+                if (isBlocked) {
+                    $button.attr('aria-disabled', 'true');
+                    $button.attr('title', prereqMessages.blockedHint);
+                }
                 const $main = $('<span>', { class: 'll-vocab-lesson-prereq-option-main' });
                 $main.append($('<span>', {
                     class: 'll-vocab-lesson-prereq-option-toggle',
@@ -3467,6 +3663,9 @@
             const state = getPrereqEditorState($editor);
             const numericId = parseInt(prereqId, 10) || 0;
             if (!state || !numericId) { return false; }
+            if (isPrereqOptionBlocked(state, numericId)) {
+                return false;
+            }
 
             if (state.selectedIds.indexOf(numericId) !== -1) {
                 return removePrereqSelection($editor, numericId);
@@ -3520,34 +3719,35 @@
                     const responseMessage = response && response.data && typeof response.data.message === 'string'
                         ? response.data.message
                         : prereqMessages.error;
+                    if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                        restoreLastSavedPrereqEditorState($editor);
+                    }
                     setPrereqEditorStatus($editor, 'error', responseMessage);
                     return;
                 }
 
                 const data = response.data || {};
                 saveSucceeded = true;
-                const selectedRows = normalizePrereqOptionRows(Array.isArray(data.selected) ? data.selected : []);
-                const savedIds = [];
-                selectedRows.forEach(function (row) {
-                    const option = upsertPrereqOption(state, row);
-                    if (!option) { return; }
-                    if (savedIds.indexOf(option.id) === -1) {
-                        savedIds.push(option.id);
-                    }
-                });
-
-                const savedSelectionKey = serializePrereqSelectedIds(savedIds);
-                state.lastSavedSelectionKey = savedSelectionKey;
+                applyPrereqEditorSavedState($editor, data);
 
                 if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
-                    state.selectedIds = sortPrereqSelectedIds(state, savedIds);
-                    renderPrereqEditorChips($editor);
-                    renderPrereqEditorOptions($editor);
-                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
                     setPrereqEditorStatus($editor, 'saved', (typeof data.message === 'string' && data.message) ? data.message : prereqMessages.saved);
                     schedulePrereqEditorStatusReset($editor, prereqStatusHideDelayMs);
                 }
             }).fail(function (jqXHR) {
+                const response = jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.data && typeof jqXHR.responseJSON.data === 'object'
+                    ? jqXHR.responseJSON.data
+                    : null;
+                if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                    if (response) {
+                        applyPrereqEditorSavedState($editor, response);
+                    } else {
+                        restoreLastSavedPrereqEditorState($editor);
+                    }
+                } else if (response && Object.prototype.hasOwnProperty.call(response, 'blocked_ids')) {
+                    setPrereqEditorBlockedIds($editor, response.blocked_ids);
+                    renderPrereqEditorOptions($editor);
+                }
                 setPrereqEditorStatus($editor, 'error', readAjaxErrorMessage(jqXHR, prereqMessages.error));
             }).always(function () {
                 state.isSaving = false;
@@ -3572,6 +3772,10 @@
             }
 
             const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+            if (delay <= 0) {
+                persistPrereqEditorSelection($editor);
+                return;
+            }
             state.saveTimerId = window.setTimeout(function () {
                 state.saveTimerId = 0;
                 persistPrereqEditorSelection($editor);
@@ -3588,6 +3792,253 @@
             if (state) {
                 setPrereqEditorLevel($editor, state.currentLevel, state.hasCycle);
             }
+        }
+
+        function forEachBulkWordItem(context, ids, applyUpdate) {
+            const wordIds = Array.isArray(ids) ? ids : [];
+            wordIds.forEach(function (id) {
+                const wordId = parseInt(id, 10) || 0;
+                if (!wordId) { return; }
+                const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                if (!$item.length) { return; }
+                applyUpdate($item, wordId);
+                updateOriginalInputs($item);
+            });
+        }
+
+        const bulkControlConfigs = {
+            pos: {
+                statusKey: 'pos',
+                selector: '[data-ll-bulk-pos]',
+                mode: 'pos',
+                requestField: 'part_of_speech',
+                successTemplate: bulkMessages.posSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const posData = data.part_of_speech || {};
+                    const clearGender = data.gender_cleared === true;
+                    const clearPlurality = data.plurality_cleared === true;
+                    const clearVerbTense = data.verb_tense_cleared === true;
+                    const clearVerbMood = data.verb_mood_cleared === true;
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        const genderData = clearGender ? { value: '', label: '' } : null;
+                        const pluralityData = clearPlurality ? { value: '', label: '' } : null;
+                        const verbTenseData = clearVerbTense ? { value: '', label: '' } : null;
+                        const verbMoodData = clearVerbMood ? { value: '', label: '' } : null;
+                        applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData);
+                    });
+
+                    return ids.length;
+                }
+            },
+            gender: {
+                statusKey: 'gender',
+                selector: '[data-ll-bulk-gender]',
+                mode: 'gender',
+                requestField: 'grammatical_gender',
+                successTemplate: bulkMessages.genderSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const genderData = data.grammatical_gender || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, genderData, null, null, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            plurality: {
+                statusKey: 'plurality',
+                selector: '[data-ll-bulk-plurality]',
+                mode: 'plurality',
+                requestField: 'grammatical_plurality',
+                successTemplate: bulkMessages.pluralitySuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const pluralityData = data.grammatical_plurality || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, pluralityData, null, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            'verb-tense': {
+                statusKey: 'verb-tense',
+                selector: '[data-ll-bulk-verb-tense]',
+                mode: 'verb_tense',
+                requestField: 'verb_tense',
+                successTemplate: bulkMessages.verbTenseSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbTenseData = data.verb_tense || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, null, verbTenseData, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            'verb-mood': {
+                statusKey: 'verb-mood',
+                selector: '[data-ll-bulk-verb-mood]',
+                mode: 'verb_mood',
+                requestField: 'verb_mood',
+                successTemplate: bulkMessages.verbMoodSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbMoodData = data.verb_mood || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, null, null, verbMoodData);
+                    });
+
+                    return ids.length;
+                }
+            }
+        };
+
+        function getBulkControlConfigForSelect($select) {
+            if (!$select || !$select.length) { return null; }
+
+            const keys = Object.keys(bulkControlConfigs);
+            for (let index = 0; index < keys.length; index += 1) {
+                const key = keys[index];
+                const config = bulkControlConfigs[key];
+                if (config && config.selector && $select.is(config.selector)) {
+                    return config;
+                }
+            }
+
+            return null;
+        }
+
+        function getBulkControlSelect($wrap, controlKey) {
+            const config = bulkControlConfigs[controlKey] || null;
+            if (!$wrap || !$wrap.length || !config || !config.selector) { return $(); }
+            return $wrap.find(config.selector).first();
+        }
+
+        function queueBulkControlValue(state, controlKey, value) {
+            if (!state || !controlKey) { return; }
+            const normalizedValue = (value || '').toString();
+            if (!normalizedValue) {
+                delete state.queueValues[controlKey];
+                state.queueOrder = state.queueOrder.filter(function (queuedKey) {
+                    return queuedKey !== controlKey;
+                });
+                return;
+            }
+            state.queueValues[controlKey] = normalizedValue;
+            if (state.queueOrder.indexOf(controlKey) === -1) {
+                state.queueOrder.push(controlKey);
+            }
+        }
+
+        function flushBulkControlQueue($wrap) {
+            const state = getBulkAutoState($wrap);
+            if (!state) { return; }
+            if (state.activeKey) {
+                setBulkBusy($wrap, true);
+                return;
+            }
+
+            while (state.queueOrder.length) {
+                const controlKey = state.queueOrder.shift();
+                const nextValue = (state.queueValues[controlKey] || '').toString();
+                delete state.queueValues[controlKey];
+                if (!nextValue || !bulkControlConfigs[controlKey]) {
+                    continue;
+                }
+                persistBulkControlUpdate($wrap, controlKey, nextValue);
+                return;
+            }
+
+            setBulkBusy($wrap, false);
+        }
+
+        function persistBulkControlUpdate($wrap, controlKey, value) {
+            const state = getBulkAutoState($wrap);
+            const config = bulkControlConfigs[controlKey] || null;
+            const context = getBulkContext($wrap);
+            const requestValue = (value || '').toString();
+
+            if (!state || !config || !requestValue) { return; }
+            if (!context) {
+                setBulkControlStatus($wrap, controlKey, 'error', bulkMessages.error);
+                setBulkStatus($wrap, bulkMessages.error, true);
+                flushBulkControlQueue($wrap);
+                return;
+            }
+
+            state.activeKey = controlKey;
+            state.activeValue = requestValue;
+            setBulkBusy($wrap, true);
+            setBulkStatus($wrap, '', false);
+            setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
+
+            const payload = {
+                action: 'll_tools_word_grid_bulk_update',
+                nonce: editNonce,
+                mode: config.mode,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId
+            };
+            payload[config.requestField] = requestValue;
+
+            $.post(ajaxUrl, payload).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && typeof response.data === 'string'
+                        ? response.data
+                        : (response && response.data && typeof response.data.message === 'string'
+                            ? response.data.message
+                            : bulkMessages.error);
+                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
+                    setBulkStatus($wrap, responseMessage, true);
+                    return;
+                }
+
+                const data = response.data || {};
+                const updatedCount = typeof config.applyResponse === 'function'
+                    ? (parseInt(config.applyResponse(context, data), 10) || 0)
+                    : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
+
+                updateGridLayouts();
+                setBulkStatus($wrap, '', false);
+                setBulkControlStatus(
+                    $wrap,
+                    controlKey,
+                    'saved',
+                    config.successTemplate ? formatBulkMessage(config.successTemplate, updatedCount) : bulkMessages.saved
+                );
+                scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+            }).fail(function (jqXHR) {
+                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.error);
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
+                setBulkStatus($wrap, errorMessage, true);
+            }).always(function () {
+                const currentState = getBulkAutoState($wrap);
+                const $select = getBulkControlSelect($wrap, controlKey);
+                const currentValue = $select.length ? ($select.val() || '').toString() : '';
+
+                if (currentState) {
+                    currentState.activeKey = '';
+                    currentState.activeValue = '';
+                    if (currentValue) {
+                        if (currentValue !== requestValue) {
+                            queueBulkControlValue(currentState, controlKey, currentValue);
+                        }
+                    } else {
+                        setBulkControlStatus($wrap, controlKey, 'idle', '');
+                    }
+                }
+
+                flushBulkControlQueue($wrap);
+            });
         }
 
         if ($bulkEditors.length) {
@@ -3608,7 +4059,9 @@
                 if (!$editor.length) { return; }
 
                 if (e.key === 'Enter') {
-                    const $firstOption = $editor.find('[data-ll-prereq-option]').first();
+                    const $firstOption = $editor.find('[data-ll-prereq-option]').filter(function () {
+                        return !$(this).prop('disabled');
+                    }).first();
                     if ($firstOption.length) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -3671,252 +4124,29 @@
                 }
             });
 
-            $bulkEditors.on('click', '[data-ll-bulk-pos-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const posSlug = ($wrap.find('[data-ll-bulk-pos]').val() || '').toString();
-                if (!posSlug) {
-                    setBulkStatus($wrap, bulkMessages.posMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'pos',
-                    part_of_speech: posSlug,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const posData = data.part_of_speech || {};
-                    const clearGender = data.gender_cleared === true;
-                    const clearPlurality = data.plurality_cleared === true;
-                    const clearVerbTense = data.verb_tense_cleared === true;
-                    const clearVerbMood = data.verb_mood_cleared === true;
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        const genderData = clearGender ? { value: '', label: '' } : null;
-                        const pluralityData = clearPlurality ? { value: '', label: '' } : null;
-                        const verbTenseData = clearVerbTense ? { value: '', label: '' } : null;
-                        const verbMoodData = clearVerbMood ? { value: '', label: '' } : null;
-                        applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.posSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+            $bulkEditors.on('change', '[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood]', function () {
+                const $select = $(this);
+                const $wrap = $select.closest('[data-ll-word-grid-bulk]');
+                const config = getBulkControlConfigForSelect($select);
+                const state = getBulkAutoState($wrap);
+                const selectedValue = ($select.val() || '').toString();
 
-            $bulkEditors.on('click', '[data-ll-bulk-gender-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const genderValue = ($wrap.find('[data-ll-bulk-gender]').val() || '').toString();
-                if (!genderValue) {
-                    setBulkStatus($wrap, bulkMessages.genderMissing, true);
+                if (!$wrap.length || !config || !state) {
                     return;
                 }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'gender',
-                    grammatical_gender: genderValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const genderData = data.grammatical_gender || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, genderData, null);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.genderSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
 
-            $bulkEditors.on('click', '[data-ll-bulk-plurality-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const pluralityValue = ($wrap.find('[data-ll-bulk-plurality]').val() || '').toString();
-                if (!pluralityValue) {
-                    setBulkStatus($wrap, bulkMessages.pluralityMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'plurality',
-                    grammatical_plurality: pluralityValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const pluralityData = data.grammatical_plurality || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, pluralityData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.pluralitySuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+                setBulkStatus($wrap, '', false);
 
-            $bulkEditors.on('click', '[data-ll-bulk-verb-tense-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const verbTenseValue = ($wrap.find('[data-ll-bulk-verb-tense]').val() || '').toString();
-                if (!verbTenseValue) {
-                    setBulkStatus($wrap, bulkMessages.verbTenseMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'verb_tense',
-                    verb_tense: verbTenseValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
+                if (!selectedValue) {
+                    queueBulkControlValue(state, config.statusKey, '');
+                    if (state.activeKey !== config.statusKey) {
+                        setBulkControlStatus($wrap, config.statusKey, 'idle', '');
                     }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const verbTenseData = data.verb_tense || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, null, verbTenseData, null);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbTenseSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+                    return;
+                }
 
-            $bulkEditors.on('click', '[data-ll-bulk-verb-mood-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const verbMoodValue = ($wrap.find('[data-ll-bulk-verb-mood]').val() || '').toString();
-                if (!verbMoodValue) {
-                    setBulkStatus($wrap, bulkMessages.verbMoodMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'verb_mood',
-                    verb_mood: verbMoodValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const verbMoodData = data.verb_mood || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, null, null, verbMoodData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbMoodSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
+                queueBulkControlValue(state, config.statusKey, selectedValue);
+                flushBulkControlQueue($wrap);
             });
         }
 

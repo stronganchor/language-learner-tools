@@ -317,6 +317,13 @@
     margin-top: 12px;
 }
 
+.ll-vocab-lesson-bulk-heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 .ll-vocab-lesson-bulk-heading {
     font-size: 11px;
     font-weight: 700;
@@ -327,7 +334,7 @@
 
 .ll-vocab-lesson-bulk-controls {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
     gap: 8px;
     align-items: center;
 }
@@ -351,15 +358,80 @@
 }
 
 .ll-vocab-lesson-bulk-status {
-    display: block;
+    display: none;
     margin-top: 10px;
     font-size: 12px;
     color: var(--ll-vlp-muted);
-    min-height: 1em;
+    min-height: 0;
+}
+
+.ll-vocab-lesson-bulk-status:not(:empty) {
+    display: block;
 }
 
 .ll-vocab-lesson-bulk-status.is-error {
     color: #b91c1c;
+}
+
+.ll-vocab-lesson-bulk-control-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+}
+
+.ll-vocab-lesson-bulk-control-status[hidden] {
+    display: none;
+}
+
+.ll-vocab-lesson-bulk-control-status-icon {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="saving"] .ll-vocab-lesson-bulk-control-status-icon {
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--ll-vlp-accent);
+    animation: ll-tools-spin 0.8s linear infinite;
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="saved"] .ll-vocab-lesson-bulk-control-status-icon {
+    background: #1f6b5c;
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="saved"] .ll-vocab-lesson-bulk-control-status-icon::before {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 9px;
+    border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    top: 44%;
+    left: 50%;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="error"] .ll-vocab-lesson-bulk-control-status-icon {
+    background: #b91c1c;
+}
+
+.ll-vocab-lesson-bulk-control-status[data-state="error"] .ll-vocab-lesson-bulk-control-status-icon::before {
+    content: "!";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ll-vocab-lesson-bulk-control-status-message {
+    display: none;
 }
 
 .ll-vocab-lesson-bulk-section--prereq {
@@ -555,6 +627,26 @@
     color: #16352d;
 }
 
+.ll-vocab-lesson-prereq-option.is-blocked,
+.ll-vocab-lesson-prereq-option.is-blocked:hover {
+    border-color: #d9e1ea;
+    background: #f8fafc;
+    color: #7c8aa0 !important;
+    cursor: not-allowed;
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-label {
+    color: inherit;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-level,
+.ll-vocab-lesson-prereq-option.is-blocked:hover .ll-vocab-lesson-prereq-option-level {
+    background: #eef2f7;
+    color: #7c8aa0;
+}
+
 .ll-vocab-lesson-prereq-option:focus-visible {
     outline: 3px solid rgba(31, 107, 92, 0.2);
     outline-offset: 1px;
@@ -629,6 +721,28 @@
 
 .ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle::after {
     display: none;
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-toggle {
+    border-color: #cbd5e1;
+    background: #ffffff;
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-toggle::before,
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-toggle::after {
+    width: 9px;
+    height: 1.5px;
+    border-radius: 999px;
+    background: #94a3b8;
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-toggle::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-option.is-blocked .ll-vocab-lesson-prereq-option-toggle::after {
+    display: block;
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .ll-vocab-lesson-prereq-option-label {
@@ -813,11 +927,6 @@
 @media (max-width: 520px) {
     .ll-vocab-lesson-prereq-controls {
         grid-template-columns: 1fr;
-    }
-
-    .ll-vocab-lesson-prereq-controls .ll-vocab-lesson-bulk-apply {
-        width: 100%;
-        justify-content: center;
     }
 }
 
