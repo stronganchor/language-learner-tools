@@ -7,10 +7,43 @@ function ll_tools_get_word_option_rules_store(): array {
     return is_array($raw) ? $raw : [];
 }
 
+function ll_tools_normalize_word_option_pair_list($pairs_raw): array {
+    $pairs = [];
+    if (!is_array($pairs_raw)) {
+        return [];
+    }
+
+    foreach ($pairs_raw as $pair) {
+        if (!is_array($pair) || count($pair) < 2) {
+            continue;
+        }
+        $ids = array_values(array_filter(array_map('intval', $pair), function ($id) {
+            return $id > 0;
+        }));
+        if (count($ids) < 2) {
+            continue;
+        }
+        $a = (int) $ids[0];
+        $b = (int) $ids[1];
+        if ($a === $b) {
+            continue;
+        }
+        if ($a > $b) {
+            $tmp = $a;
+            $a = $b;
+            $b = $tmp;
+        }
+        $pairs[$a . '|' . $b] = [$a, $b];
+    }
+
+    return array_values($pairs);
+}
+
 function ll_tools_normalize_word_option_rules(array $rules): array {
     $out = [
         'groups' => [],
         'pairs' => [],
+        'similar_image_overrides' => [],
     ];
 
     $groups_raw = $rules['groups'] ?? [];
@@ -45,33 +78,8 @@ function ll_tools_normalize_word_option_rules(array $rules): array {
         }
     }
 
-    $pairs_raw = $rules['pairs'] ?? [];
-    $pairs = [];
-    if (is_array($pairs_raw)) {
-        foreach ($pairs_raw as $pair) {
-            if (!is_array($pair) || count($pair) < 2) {
-                continue;
-            }
-            $ids = array_values(array_filter(array_map('intval', $pair), function ($id) {
-                return $id > 0;
-            }));
-            if (count($ids) < 2) {
-                continue;
-            }
-            $a = (int) $ids[0];
-            $b = (int) $ids[1];
-            if ($a === $b) {
-                continue;
-            }
-            if ($a > $b) {
-                $tmp = $a;
-                $a = $b;
-                $b = $tmp;
-            }
-            $pairs[$a . '|' . $b] = [$a, $b];
-        }
-    }
-    $out['pairs'] = array_values($pairs);
+    $out['pairs'] = ll_tools_normalize_word_option_pair_list($rules['pairs'] ?? []);
+    $out['similar_image_overrides'] = ll_tools_normalize_word_option_pair_list($rules['similar_image_overrides'] ?? []);
 
     return $out;
 }
@@ -80,7 +88,7 @@ function ll_tools_get_word_option_rules(int $wordset_id, int $category_id): arra
     $wordset_id = (int) $wordset_id;
     $category_id = (int) $category_id;
     if ($wordset_id <= 0 || $category_id <= 0) {
-        return ['groups' => [], 'pairs' => []];
+        return ['groups' => [], 'pairs' => [], 'similar_image_overrides' => []];
     }
 
     $store = ll_tools_get_word_option_rules_store();
@@ -134,15 +142,32 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
         $blocked_list[$word_id] = array_values(array_map('intval', array_keys($blocked)));
     }
 
+    $similar_image_override_map = [];
+    foreach ($rules['similar_image_overrides'] as $pair) {
+        $a = (int) ($pair[0] ?? 0);
+        $b = (int) ($pair[1] ?? 0);
+        if ($a <= 0 || $b <= 0 || $a === $b) {
+            continue;
+        }
+        if ($a > $b) {
+            $tmp = $a;
+            $a = $b;
+            $b = $tmp;
+        }
+        $similar_image_override_map[$a . '|' . $b] = true;
+    }
+
     return [
         'groups' => $rules['groups'],
         'pairs' => $rules['pairs'],
+        'similar_image_overrides' => $rules['similar_image_overrides'],
         'group_map' => $group_map,
         'blocked_map' => $blocked_list,
+        'similar_image_override_map' => $similar_image_override_map,
     ];
 }
 
-function ll_tools_update_word_option_rules(int $wordset_id, int $category_id, array $groups, array $pairs): bool {
+function ll_tools_update_word_option_rules(int $wordset_id, int $category_id, array $groups, array $pairs, array $similar_image_overrides = []): bool {
     $wordset_id = (int) $wordset_id;
     $category_id = (int) $category_id;
     if ($wordset_id <= 0 || $category_id <= 0) {
@@ -153,9 +178,10 @@ function ll_tools_update_word_option_rules(int $wordset_id, int $category_id, ar
     $normalized = ll_tools_normalize_word_option_rules([
         'groups' => $groups,
         'pairs' => $pairs,
+        'similar_image_overrides' => $similar_image_overrides,
     ]);
 
-    if (empty($normalized['groups']) && empty($normalized['pairs'])) {
+    if (empty($normalized['groups']) && empty($normalized['pairs']) && empty($normalized['similar_image_overrides'])) {
         if (isset($store[$wordset_id][$category_id])) {
             unset($store[$wordset_id][$category_id]);
             if (empty($store[$wordset_id])) {

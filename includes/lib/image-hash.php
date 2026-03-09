@@ -173,23 +173,31 @@ function ll_tools_find_similar_image_pairs(array $hashes, ?int $threshold = null
     for ($i = 0; $i < $count - 1; $i++) {
         $word_a = (int) $word_ids[$i];
         $hash_a = $hashes[$word_a]['hash'] ?? '';
+        $attachment_a = (int) ($hashes[$word_a]['attachment_id'] ?? 0);
         if ($hash_a === '') {
             continue;
         }
         for ($j = $i + 1; $j < $count; $j++) {
             $word_b = (int) $word_ids[$j];
             $hash_b = $hashes[$word_b]['hash'] ?? '';
+            $attachment_b = (int) ($hashes[$word_b]['attachment_id'] ?? 0);
             if ($hash_b === '') {
                 continue;
             }
-            if (!ll_tools_image_hash_is_similar($hash_a, $hash_b, $threshold)) {
+            $distance = ll_tools_image_hash_hamming($hash_a, $hash_b);
+            if ($distance > $threshold) {
                 continue;
             }
+            $match_type = ($attachment_a > 0 && $attachment_a === $attachment_b)
+                ? 'same_image'
+                : 'similar_image';
             $key = $word_a . '|' . $word_b;
             $pairs[$key] = [
                 'a' => $word_a,
                 'b' => $word_b,
-                'distance' => ll_tools_image_hash_hamming($hash_a, $hash_b),
+                'distance' => $distance,
+                'match_type' => $match_type,
+                'same_attachment' => ($match_type === 'same_image'),
             ];
         }
     }

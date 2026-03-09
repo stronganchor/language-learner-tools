@@ -198,10 +198,15 @@ function ll_tools_word_option_rules_get_image_pair_map(array $word_ids): array {
         if ($a <= 0 || $b <= 0) {
             continue;
         }
+        $match_type = (string) ($pair['match_type'] ?? '');
+        if ($match_type !== 'same_image' && $match_type !== 'similar_image') {
+            $match_type = !empty($pair['same_attachment']) ? 'same_image' : 'similar_image';
+        }
         $out[$a . '|' . $b] = [
             'a' => $a,
             'b' => $b,
             'distance' => (int) ($pair['distance'] ?? 0),
+            'match_type' => $match_type,
         ];
     }
 
@@ -639,9 +644,10 @@ function ll_render_word_option_rules_admin_page() {
 
     $maps = function_exists('ll_tools_get_word_option_maps')
         ? ll_tools_get_word_option_maps($wordset_id, $category_id)
-        : ['groups' => [], 'pairs' => [], 'group_map' => [], 'blocked_map' => []];
+        : ['groups' => [], 'pairs' => [], 'group_map' => [], 'blocked_map' => [], 'similar_image_override_map' => []];
     $group_map = $maps['group_map'] ?? [];
     $pair_list = $maps['pairs'] ?? [];
+    $similar_image_override_map = $maps['similar_image_override_map'] ?? [];
 
     $group_labels = [];
     foreach ($maps['groups'] ?? [] as $group) {
@@ -718,6 +724,13 @@ function ll_render_word_option_rules_admin_page() {
         if ($a <= 0 || $b <= 0) {
             continue;
         }
+        $match_type = (string) ($pair['match_type'] ?? 'similar_image');
+        if ($match_type !== 'same_image' && $match_type !== 'similar_image') {
+            $match_type = 'similar_image';
+        }
+        if ($match_type === 'similar_image' && isset($similar_image_override_map[$key])) {
+            continue;
+        }
         if (!isset($blocked_pairs[$key])) {
             $blocked_pairs[$key] = [
                 'a' => $a,
@@ -725,7 +738,7 @@ function ll_render_word_option_rules_admin_page() {
                 'reasons' => [],
             ];
         }
-        $blocked_pairs[$key]['reasons']['same_image'] = true;
+        $blocked_pairs[$key]['reasons'][$match_type] = true;
     }
 
     $blocked_pairs_list = array_values($blocked_pairs);
@@ -869,6 +882,7 @@ function ll_render_word_option_rules_admin_page() {
     echo '<h2>' . esc_html__('Blocked Pairs', 'll-tools-text-domain') . '</h2>';
     echo '<p class="description">' . esc_html__('Blocked pairs will never appear as wrong answers for each other.', 'll-tools-text-domain') . '</p>';
     echo '<p class="description">' . esc_html__('Pairs with the same image are locked and cannot be removed.', 'll-tools-text-domain') . '</p>';
+    echo '<p class="description">' . esc_html__('Similar image pairs can be removed to allow them together manually.', 'll-tools-text-domain') . '</p>';
 
     echo '<div class="ll-tools-word-options-pair-add">';
     echo '<div class="ll-tools-word-options-field">';
@@ -908,9 +922,10 @@ function ll_render_word_option_rules_admin_page() {
         $reason_labels = [
             'manual' => __('Manual pair', 'll-tools-text-domain'),
             'similar' => __('Similar word', 'll-tools-text-domain'),
+            'similar_image' => __('Similar image', 'll-tools-text-domain'),
             'same_image' => __('Same image', 'll-tools-text-domain'),
         ];
-        $reason_order = ['manual', 'similar', 'same_image'];
+        $reason_order = ['manual', 'similar', 'similar_image', 'same_image'];
 
         echo '<table class="widefat striped ll-tools-word-options-table ll-tools-word-options-pair-table">';
         echo '<thead><tr>';
@@ -1167,7 +1182,7 @@ function ll_tools_handle_word_option_rules_save() {
 
     $current = function_exists('ll_tools_get_word_option_rules')
         ? ll_tools_get_word_option_rules($wordset_id, $category_id)
-        : ['pairs' => []];
+        : ['pairs' => [], 'similar_image_overrides' => []];
     $pairs_map = [];
     foreach ($current['pairs'] as $pair) {
         $a = (int) ($pair[0] ?? 0);
@@ -1186,10 +1201,37 @@ function ll_tools_handle_word_option_rules_save() {
         $pairs_map[$a . '|' . $b] = [$a, $b];
     }
 
+    $similar_image_override_map = [];
+    foreach (($current['similar_image_overrides'] ?? []) as $pair) {
+        $a = (int) ($pair[0] ?? 0);
+        $b = (int) ($pair[1] ?? 0);
+        if ($a <= 0 || $b <= 0 || $a === $b) {
+            continue;
+        }
+        if (!isset($word_lookup[$a]) || !isset($word_lookup[$b])) {
+            continue;
+        }
+        if ($a > $b) {
+            $tmp = $a;
+            $a = $b;
+            $b = $tmp;
+        }
+        $similar_image_override_map[$a . '|' . $b] = [$a, $b];
+    }
+
     $image_pairs = ll_tools_word_option_rules_get_image_pair_map($word_ids);
     $locked_pairs = [];
+    $auto_similar_image_pairs = [];
     if (!empty($image_pairs)) {
-        $locked_pairs = array_fill_keys(array_keys($image_pairs), true);
+        foreach ($image_pairs as $key => $pair) {
+            $match_type = (string) ($pair['match_type'] ?? 'similar_image');
+            if ($match_type === 'same_image') {
+                $locked_pairs[$key] = true;
+                unset($similar_image_override_map[$key]);
+                continue;
+            }
+            $auto_similar_image_pairs[$key] = true;
+        }
     }
 
     $remove_pairs = isset($_POST['remove_pairs']) && is_array($_POST['remove_pairs']) ? $_POST['remove_pairs'] : [];
@@ -1223,6 +1265,10 @@ function ll_tools_handle_word_option_rules_save() {
         unset($pairs_map[$key]);
         ll_tools_word_option_rules_clear_similar_meta_pair($a, $b);
         ll_tools_word_option_rules_clear_similar_meta_pair($b, $a);
+        unset($similar_image_override_map[$key]);
+        if (isset($auto_similar_image_pairs[$key])) {
+            $similar_image_override_map[$key] = [$a, $b];
+        }
     }
 
     if (!empty($_POST['add_pair'])) {
@@ -1237,6 +1283,7 @@ function ll_tools_handle_word_option_rules_save() {
                 $b = $tmp;
             }
             $pairs_map[$a . '|' . $b] = [$a, $b];
+            unset($similar_image_override_map[$a . '|' . $b]);
         }
     }
 
@@ -1248,7 +1295,7 @@ function ll_tools_handle_word_option_rules_save() {
         exit;
     }
 
-    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs);
+    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, array_values($similar_image_override_map));
 
     $redirect['ll_word_options_updated'] = 1;
     wp_safe_redirect(add_query_arg($redirect, admin_url('tools.php')));

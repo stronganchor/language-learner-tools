@@ -1885,6 +1885,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $group_maps = [
         'group_map' => [],
         'blocked_map' => [],
+        'similar_image_override_map' => [],
     ];
     $rules_wordset_id = (count($wordset_terms) === 1) ? (int) $wordset_terms[0] : 0;
     if ($rules_wordset_id > 0 && $term_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
@@ -1892,6 +1893,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
     $group_map = $group_maps['group_map'] ?? [];
     $blocked_map = $group_maps['blocked_map'] ?? [];
+    $similar_image_override_map = $group_maps['similar_image_override_map'] ?? [];
     $specific_wrong_owner_map = function_exists('ll_tools_get_specific_wrong_answer_owner_map')
         ? ll_tools_get_specific_wrong_answer_owner_map()
         : [];
@@ -2109,6 +2111,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                     $a = (int) ($pair['a'] ?? 0);
                     $b = (int) ($pair['b'] ?? 0);
                     if ($a <= 0 || $b <= 0) {
+                        continue;
+                    }
+                    $key = $a . '|' . $b;
+                    $match_type = (string) ($pair['match_type'] ?? 'similar_image');
+                    if ($match_type !== 'same_image' && isset($similar_image_override_map[$key])) {
                         continue;
                     }
                     if (!isset($image_blocked[$a])) {
