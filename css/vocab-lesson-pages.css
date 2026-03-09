@@ -401,10 +401,7 @@
 }
 
 .ll-vocab-lesson-prereq-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
+    display: block;
 }
 
 .ll-vocab-lesson-prereq-search {
@@ -415,10 +412,10 @@
 .ll-vocab-lesson-prereq-search-icon {
     position: absolute;
     top: 50%;
-    left: 13px;
+    left: 12px;
     transform: translateY(-50%);
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -426,10 +423,16 @@
     pointer-events: none;
 }
 
+.ll-vocab-lesson-prereq-search-icon svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+}
+
 .ll-vocab-lesson-prereq-input {
     width: 100%;
-    padding: 7px 34px 7px 50px !important;
-    padding-inline-start: 50px !important;
+    padding: 7px 34px 7px 56px !important;
+    padding-inline-start: 56px !important;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
     background: #ffffff;
@@ -437,6 +440,7 @@
     font-size: 13px;
     line-height: 1.35;
     box-sizing: border-box;
+    text-indent: 0 !important;
 }
 
 .ll-vocab-lesson-prereq-input::placeholder {
@@ -463,14 +467,36 @@
     border: 1px solid #dbe3ee;
     background: #ffffff;
     color: #475569;
-    font-size: 11px;
-    line-height: 1;
+    font-size: 0;
+    line-height: 0;
     padding: 0;
+    text-decoration: none;
     cursor: pointer;
+}
+
+.ll-vocab-lesson-prereq-search-clear::before,
+.ll-vocab-lesson-prereq-search-clear::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 1.5px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.ll-vocab-lesson-prereq-search-clear::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-search-clear::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .ll-vocab-lesson-prereq-search-clear:hover {
     background: #f8fafc;
+    color: #475569 !important;
 }
 
 .ll-vocab-lesson-prereq-search-clear:focus-visible {
@@ -590,13 +616,15 @@
     content: "";
     width: 5px;
     height: 9px;
+    background: transparent;
+    border-radius: 0;
     border-right: 2px solid #ffffff;
     border-bottom: 2px solid #ffffff;
-    top: 44%;
+    top: 50%;
     left: 50%;
     right: auto;
     bottom: auto;
-    transform: translate(-50%, -60%) rotate(45deg);
+    transform: translate(-50%, -58%) rotate(45deg);
 }
 
 .ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle::after {
@@ -672,14 +700,38 @@
     border: 1px solid rgba(22, 53, 45, 0.2);
     background: #ffffff;
     color: #16352d;
-    font-size: 12px;
-    line-height: 1;
+    font-size: 0;
+    line-height: 0;
     cursor: pointer;
     padding: 0;
+    text-decoration: none;
+    position: relative;
+}
+
+.ll-vocab-lesson-prereq-chip-remove::before,
+.ll-vocab-lesson-prereq-chip-remove::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 1.5px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.ll-vocab-lesson-prereq-chip-remove::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-chip-remove::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .ll-vocab-lesson-prereq-chip-remove:hover {
     background: #f8fafc;
+    color: #16352d !important;
+    border-color: rgba(22, 53, 45, 0.24);
 }
 
 .ll-vocab-lesson-prereq-chip-remove:focus-visible {

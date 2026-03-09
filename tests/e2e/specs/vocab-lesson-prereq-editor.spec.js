@@ -70,9 +70,6 @@ function buildPrereqEditorMarkup() {
                     <span aria-hidden="true">x</span>
                   </button>
                 </div>
-                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-prereq-apply aria-label="Save category prerequisites">
-                  Save
-                </button>
               </div>
               <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
               <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
@@ -164,6 +161,7 @@ async function mountPrereqEditor(page, viewport) {
 async function exercisePrereqEditor(page) {
   await page.locator('.ll-vocab-lesson-bulk-button').click();
   await expect(page.locator('.ll-vocab-lesson-bulk-panel')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('[data-ll-prereq-apply]')).toHaveCount(0);
 
   const basicsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Basics' }).first();
   const foodOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Food' }).first();
@@ -193,13 +191,21 @@ async function exercisePrereqEditor(page) {
   await expect(travelOption).toHaveAttribute('aria-pressed', 'true');
 
   await expect(page.locator('[data-ll-prereq-chip-id]')).toHaveCount(2);
-
-  await page.locator('[data-ll-prereq-apply]').click();
+  await page.waitForFunction(() => {
+    const calls = Array.isArray(window.llPrereqPostCalls) ? window.llPrereqPostCalls : [];
+    if (!calls.length) {
+      return false;
+    }
+    const last = calls[calls.length - 1] || {};
+    const ids = Array.isArray(last.prereq_ids) ? last.prereq_ids.map(String) : [];
+    return ids.join(',') === '12,14';
+  });
   await expect(page.locator('[data-ll-prereq-status]')).toHaveAttribute('data-state', 'saved');
 
   const calls = await page.evaluate(() => window.llPrereqPostCalls);
-  expect(calls).toHaveLength(1);
-  expect((calls[0].prereq_ids || []).map(String)).toEqual(['12', '14']);
+  expect(calls.length).toBeGreaterThanOrEqual(1);
+  const lastCall = calls[calls.length - 1] || {};
+  expect((lastCall.prereq_ids || []).map(String)).toEqual(['12', '14']);
 }
 
 [

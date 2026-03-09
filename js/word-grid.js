@@ -1181,6 +1181,8 @@
         levelCycle: prereqI18n.levelCycle || 'Cycle',
         levelUnknown: prereqI18n.levelUnknown || '-'
     };
+    const prereqSaveDelayMs = 260;
+    const prereqStatusHideDelayMs = 1400;
     const dictionaryEntryCache = {};
 
     function syncDictionaryEntrySelectionState($item) {
@@ -3072,7 +3074,7 @@
         }
 
         function setBulkBusy($wrap, isBusy) {
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply], [data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]')
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply], [data-ll-prereq-input], [data-ll-prereq-remove]')
                 .prop('disabled', isBusy);
             $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
         }
@@ -3117,11 +3119,33 @@
                 optionsById: optionsById,
                 selectedIds: selectedIds,
                 currentLevel: currentLevel,
-                hasCycle: hasCycle
+                hasCycle: hasCycle,
+                isSaving: false,
+                needsResave: false,
+                saveTimerId: 0,
+                statusTimerId: 0,
+                lastSavedSelectionKey: '',
+                lastRequestSelectionKey: ''
             };
+            state.lastSavedSelectionKey = serializePrereqSelectedIds(state.selectedIds);
 
             $editor.data('llPrereqState', state);
             return state;
+        }
+
+        function serializePrereqSelectedIds(ids) {
+            const normalized = Array.isArray(ids)
+                ? ids.map(function (id) { return parseInt(id, 10) || 0; }).filter(Boolean)
+                : [];
+            return JSON.stringify(normalized);
+        }
+
+        function clearPrereqEditorTimer(state, timerKey) {
+            if (!state || !timerKey) { return; }
+            const timerId = parseInt(state[timerKey], 10) || 0;
+            if (!timerId) { return; }
+            window.clearTimeout(timerId);
+            state[timerKey] = 0;
         }
 
         function setPrereqEditorStatus($editor, statusState, message) {
@@ -3155,9 +3179,24 @@
         }
 
         function setPrereqEditorBusy($editor, isBusy) {
-            $editor.find('[data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove], [data-ll-prereq-option], [data-ll-prereq-search-clear]')
-                .prop('disabled', !!isBusy);
             $editor.attr('aria-busy', isBusy ? 'true' : 'false');
+        }
+
+        function schedulePrereqEditorStatusReset($editor, delayMs) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+            clearPrereqEditorTimer(state, 'statusTimerId');
+
+            const delay = parseInt(delayMs, 10) || 0;
+            if (delay <= 0) {
+                setPrereqEditorStatus($editor, 'idle', '');
+                return;
+            }
+
+            state.statusTimerId = window.setTimeout(function () {
+                state.statusTimerId = 0;
+                setPrereqEditorStatus($editor, 'idle', '');
+            }, delay);
         }
 
         function setPrereqEditorLevel($editor, level, hasCycle) {
@@ -3437,6 +3476,108 @@
             return addPrereqSelection($editor, option);
         }
 
+        function persistPrereqEditorSelection($editor) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            clearPrereqEditorTimer(state, 'saveTimerId');
+
+            const selectedKey = serializePrereqSelectedIds(state.selectedIds);
+            if (state.isSaving) {
+                state.needsResave = true;
+                return;
+            }
+
+            if (selectedKey === state.lastSavedSelectionKey) {
+                schedulePrereqEditorStatusReset($editor, 0);
+                return;
+            }
+
+            const $wrap = $editor.closest('[data-ll-word-grid-bulk]');
+            const context = getBulkContext($wrap);
+            if (!context) {
+                setPrereqEditorStatus($editor, 'error', prereqMessages.error);
+                return;
+            }
+
+            state.isSaving = true;
+            state.needsResave = false;
+            state.lastRequestSelectionKey = selectedKey;
+            let saveSucceeded = false;
+
+            clearPrereqEditorTimer(state, 'statusTimerId');
+            setPrereqEditorBusy($editor, true);
+            setPrereqEditorStatus($editor, 'saving', prereqMessages.saving);
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_update_category_prereqs',
+                nonce: editNonce,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId,
+                prereq_ids: state.selectedIds.slice()
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && response.data && typeof response.data.message === 'string'
+                        ? response.data.message
+                        : prereqMessages.error;
+                    setPrereqEditorStatus($editor, 'error', responseMessage);
+                    return;
+                }
+
+                const data = response.data || {};
+                saveSucceeded = true;
+                const selectedRows = normalizePrereqOptionRows(Array.isArray(data.selected) ? data.selected : []);
+                const savedIds = [];
+                selectedRows.forEach(function (row) {
+                    const option = upsertPrereqOption(state, row);
+                    if (!option) { return; }
+                    if (savedIds.indexOf(option.id) === -1) {
+                        savedIds.push(option.id);
+                    }
+                });
+
+                const savedSelectionKey = serializePrereqSelectedIds(savedIds);
+                state.lastSavedSelectionKey = savedSelectionKey;
+
+                if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                    state.selectedIds = sortPrereqSelectedIds(state, savedIds);
+                    renderPrereqEditorChips($editor);
+                    renderPrereqEditorOptions($editor);
+                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
+                    setPrereqEditorStatus($editor, 'saved', (typeof data.message === 'string' && data.message) ? data.message : prereqMessages.saved);
+                    schedulePrereqEditorStatusReset($editor, prereqStatusHideDelayMs);
+                }
+            }).fail(function (jqXHR) {
+                setPrereqEditorStatus($editor, 'error', readAjaxErrorMessage(jqXHR, prereqMessages.error));
+            }).always(function () {
+                state.isSaving = false;
+                setPrereqEditorBusy($editor, false);
+
+                if (state.needsResave || (saveSucceeded && serializePrereqSelectedIds(state.selectedIds) !== state.lastSavedSelectionKey)) {
+                    schedulePrereqEditorSave($editor, 0);
+                }
+            });
+        }
+
+        function schedulePrereqEditorSave($editor, delayMs) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            clearPrereqEditorTimer(state, 'saveTimerId');
+            clearPrereqEditorTimer(state, 'statusTimerId');
+
+            if (!state.isSaving && serializePrereqSelectedIds(state.selectedIds) === state.lastSavedSelectionKey) {
+                setPrereqEditorStatus($editor, 'idle', '');
+                return;
+            }
+
+            const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+            state.saveTimerId = window.setTimeout(function () {
+                state.saveTimerId = 0;
+                persistPrereqEditorSelection($editor);
+            }, delay);
+        }
+
         function initPrereqEditor($editor) {
             if (!$editor || !$editor.length) { return; }
             getPrereqEditorState($editor);
@@ -3471,8 +3612,10 @@
                     if ($firstOption.length) {
                         e.preventDefault();
                         e.stopPropagation();
-                        togglePrereqSelection($editor, $firstOption.attr('data-ll-prereq-option'));
-                        setPrereqEditorStatus($editor, 'idle', '');
+                        if (togglePrereqSelection($editor, $firstOption.attr('data-ll-prereq-option'))) {
+                            setPrereqEditorStatus($editor, 'idle', '');
+                            schedulePrereqEditorSave($editor, prereqSaveDelayMs);
+                        }
                     }
                     return;
                 }
@@ -3509,6 +3652,7 @@
                 if (!$editor.length) { return; }
                 if (togglePrereqSelection($editor, $btn.attr('data-ll-prereq-option'))) {
                     setPrereqEditorStatus($editor, 'idle', '');
+                    schedulePrereqEditorSave($editor, prereqSaveDelayMs);
                 }
             });
 
@@ -3523,75 +3667,8 @@
                 if (!prereqId) { return; }
                 if (removePrereqSelection($editor, prereqId)) {
                     setPrereqEditorStatus($editor, 'idle', '');
+                    schedulePrereqEditorSave($editor, prereqSaveDelayMs);
                 }
-            });
-
-            $bulkEditors.on('click', '[data-ll-prereq-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $btn = $(this);
-                const $wrap = $btn.closest('[data-ll-word-grid-bulk]');
-                const $editor = $btn.closest('[data-ll-prereq-editor]');
-                if (!$wrap.length || !$editor.length) {
-                    return;
-                }
-
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setPrereqEditorStatus($editor, 'error', prereqMessages.error);
-                    return;
-                }
-
-                const state = getPrereqEditorState($editor);
-                if (!state) {
-                    setPrereqEditorStatus($editor, 'error', prereqMessages.error);
-                    return;
-                }
-
-                setPrereqEditorBusy($editor, true);
-                setPrereqEditorStatus($editor, 'saving', prereqMessages.saving);
-
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_update_category_prereqs',
-                    nonce: editNonce,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId,
-                    prereq_ids: state.selectedIds
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        const responseMessage = response && response.data && typeof response.data.message === 'string'
-                            ? response.data.message
-                            : prereqMessages.error;
-                        setPrereqEditorStatus($editor, 'error', responseMessage);
-                        return;
-                    }
-
-                    const data = response.data || {};
-                    const selectedRows = normalizePrereqOptionRows(Array.isArray(data.selected) ? data.selected : []);
-                    const nextSelectedIds = [];
-                    selectedRows.forEach(function (row) {
-                        const option = upsertPrereqOption(state, row);
-                        if (!option) { return; }
-                        if (nextSelectedIds.indexOf(option.id) === -1) {
-                            nextSelectedIds.push(option.id);
-                        }
-                    });
-                    state.selectedIds = sortPrereqSelectedIds(state, nextSelectedIds);
-
-                    renderPrereqEditorChips($editor);
-                    $editor.find('[data-ll-prereq-input]').val('');
-                    renderPrereqEditorOptions($editor);
-                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
-
-                    const successMessage = (typeof data.message === 'string' && data.message)
-                        ? data.message
-                        : prereqMessages.saved;
-                    setPrereqEditorStatus($editor, 'saved', successMessage);
-                }).fail(function (jqXHR) {
-                    setPrereqEditorStatus($editor, 'error', readAjaxErrorMessage(jqXHR, prereqMessages.error));
-                }).always(function () {
-                    setPrereqEditorBusy($editor, false);
-                });
             });
 
             $bulkEditors.on('click', '[data-ll-bulk-pos-apply]', function (e) {

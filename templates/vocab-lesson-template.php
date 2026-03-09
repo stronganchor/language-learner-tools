@@ -459,9 +459,6 @@ if (have_posts()) {
                                                         <span aria-hidden="true">x</span>
                                                     </button>
                                                 </div>
-                                                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-prereq-apply aria-label="<?php echo esc_attr__('Save category prerequisites', 'll-tools-text-domain'); ?>">
-                                                    <?php echo esc_html__('Save', 'll-tools-text-domain'); ?>
-                                                </button>
                                             </div>
                                             <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
                                             <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
