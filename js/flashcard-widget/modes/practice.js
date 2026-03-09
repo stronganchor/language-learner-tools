@@ -186,6 +186,21 @@
         });
 
         if (queuedCategories.length) {
+            const lastShownKey = String(State.lastWordShownId || '');
+            const queuedOnlyLastShown = !!lastShownKey && queuedIds.size === 1 && queuedIds.has(lastShownKey);
+            const hasBridgeWord = !!(
+                queuedOnlyLastShown &&
+                Selection &&
+                typeof Selection.hasPracticeBridgeWordAvailable === 'function' &&
+                Selection.hasPracticeBridgeWordAvailable(State.lastWordShownId, State.currentCategoryName)
+            );
+
+            if (queuedOnlyLastShown && !hasBridgeWord) {
+                State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Practice replay deadlock avoided');
+                Results.showResults && Results.showResults();
+                return true;
+            }
+
             State.completedCategories = State.completedCategories || {};
             queuedCategories.forEach(function (cat) {
                 State.completedCategories[cat] = false;

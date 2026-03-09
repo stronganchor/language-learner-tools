@@ -11,6 +11,10 @@ const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
 );
+const practiceSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/modes/practice.js'),
+  'utf8'
+);
 
 async function mountSelectionHarness(page, options = {}) {
   const maxCards = Number.isFinite(Number(options.maxCards))
@@ -35,9 +39,11 @@ async function mountSelectionHarness(page, options = {}) {
       currentCategoryName: String(options.targetCategoryName || ''),
       currentCategory: [],
       categoryNames: [],
+      initialCategoryNames: [],
       categoryRepetitionQueues: {},
       categoryRoundCount: {},
       completedCategories: {},
+      quizResults: { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} },
       wrongIndexes: [],
       currentCategoryRoundCount: 0,
       usedWordIDs: [],
@@ -118,6 +124,59 @@ async function mountSelectionHarness(page, options = {}) {
   await page.addScriptTag({ content: selectionSource });
 }
 
+async function mountPracticeModeHarness(page, options = {}) {
+  const state = Object.assign({
+    currentCategoryName: '',
+    categoryNames: [],
+    wordsByCategory: {},
+    categoryRepetitionQueues: {},
+    practiceForcedReplays: {},
+    completedCategories: {},
+    lastWordShownId: null,
+    isFirstRound: false
+  }, options.state || {});
+
+  await page.goto('about:blank');
+  await page.evaluate((bootstrap) => {
+    window.__practiceStartQuizRoundCalls = 0;
+    window.__practiceShowResultsCalls = 0;
+    window.__practiceLastTransition = null;
+
+    window.LLFlashcards = {
+      State: Object.assign({
+        STATES: {
+          SHOWING_RESULTS: 'showing_results'
+        },
+        transitionTo: function (state, reason) {
+          window.__practiceLastTransition = { state, reason };
+          return true;
+        }
+      }, bootstrap.state),
+      Selection: {
+        hasPracticeBridgeWordAvailable: function () {
+          return !!bootstrap.hasPracticeBridgeWordAvailable;
+        }
+      },
+      Results: {
+        showResults: function () {
+          window.__practiceShowResultsCalls += 1;
+        }
+      },
+      Util: {
+        randomInt: function (min) {
+          return Number(min) || 0;
+        }
+      },
+      Modes: {}
+    };
+  }, {
+    state,
+    hasPracticeBridgeWordAvailable: !!options.hasPracticeBridgeWordAvailable
+  });
+
+  await page.addScriptTag({ content: practiceSource });
+}
+
 test('practice options stay within the target category pool', async ({ page }) => {
   const targetCategory = 'Baby animals';
   const otherCategory = 'People';
@@ -184,14 +243,85 @@ test('option count never drops below two after wrong answers', async ({ page }) 
   expect(nextCount).toBe(2);
 });
 
-test('practice selector replays the same queued word when no other prompt word exists', async ({ page }) => {
-  const category = 'Replay category';
+test('practice selector bridges to an already covered word before replaying the wrong word', async ({ page }) => {
+  const replayCategory = 'Replay category';
+  const bridgeCategory = 'Bridge category';
   const replayWord = {
     id: 2101,
-    title: 'Only word',
-    label: 'Only word',
-    image: 'https://img.test/only-word.jpg',
-    audio: 'https://audio.test/only-word.mp3'
+    title: 'Replay word',
+    label: 'Replay word',
+    image: 'https://img.test/replay-word.jpg',
+    audio: 'https://audio.test/replay-word.mp3'
+  };
+  const bridgeWord = {
+    id: 2102,
+    title: 'Bridge word',
+    label: 'Bridge word',
+    image: 'https://img.test/bridge-word.jpg',
+    audio: 'https://audio.test/bridge-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: replayCategory, prompt_type: 'audio', option_type: 'image' },
+      { name: bridgeCategory, prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: replayCategory,
+    wordsByCategory: {
+      [replayCategory]: [replayWord],
+      [bridgeCategory]: [bridgeWord]
+    },
+    optionWordsByCategory: {
+      [replayCategory]: [replayWord],
+      [bridgeCategory]: [bridgeWord]
+    },
+    state: {
+      categoryNames: [replayCategory],
+      initialCategoryNames: [replayCategory, bridgeCategory],
+      currentCategoryName: replayCategory,
+      currentCategoryRoundCount: 3,
+      categoryRoundCount: {
+        [replayCategory]: 3,
+        [bridgeCategory]: 1
+      },
+      categoryRepetitionQueues: {
+        [replayCategory]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
+      },
+      quizResults: {
+        correctOnFirstTry: 1,
+        incorrect: [2101],
+        wordAttempts: {
+          2101: { seen: 1, clean: 0, hadWrong: true },
+          2102: { seen: 1, clean: 1, hadWrong: false }
+        }
+      },
+      usedWordIDs: [2101, 2102],
+      lastWordShownId: 2101
+    }
+  });
+
+  const targetMeta = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return target ? {
+      id: Number(target.id) || 0,
+      categoryName: String(target.__categoryName || '')
+    } : null;
+  });
+
+  expect(targetMeta).toEqual({
+    id: 2102,
+    categoryName: bridgeCategory
+  });
+});
+
+test('practice selector refuses immediate repeat when no legal bridge word exists', async ({ page }) => {
+  const category = 'Replay category';
+  const replayWord = {
+    id: 2151,
+    title: 'Replay word',
+    label: 'Replay word',
+    image: 'https://img.test/replay-only-word.jpg',
+    audio: 'https://audio.test/replay-only-word.mp3'
   };
 
   await mountSelectionHarness(page, {
@@ -205,6 +335,7 @@ test('practice selector replays the same queued word when no other prompt word e
     },
     state: {
       categoryNames: [category],
+      initialCategoryNames: [category],
       currentCategoryName: category,
       currentCategoryRoundCount: 3,
       categoryRoundCount: {
@@ -213,8 +344,15 @@ test('practice selector replays the same queued word when no other prompt word e
       categoryRepetitionQueues: {
         [category]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
       },
-      usedWordIDs: [2101],
-      lastWordShownId: 2101
+      quizResults: {
+        correctOnFirstTry: 0,
+        incorrect: [2151],
+        wordAttempts: {
+          2151: { seen: 1, clean: 0, hadWrong: true }
+        }
+      },
+      usedWordIDs: [2151],
+      lastWordShownId: 2151
     }
   });
 
@@ -223,7 +361,7 @@ test('practice selector replays the same queued word when no other prompt word e
     return target ? Number(target.id) : 0;
   });
 
-  expect(targetId).toBe(2101);
+  expect(targetId).toBe(0);
 });
 
 test('practice selector still avoids immediate repeat when another prompt word exists', async ({ page }) => {
@@ -273,6 +411,56 @@ test('practice selector still avoids immediate repeat when another prompt word e
   });
 
   expect(targetId).toBe(2202);
+});
+
+test('practice mode ends cleanly instead of restarting forever when only the last shown replay remains', async ({ page }) => {
+  const category = 'Replay category';
+  const replayWord = {
+    id: 2251,
+    title: 'Replay word',
+    label: 'Replay word',
+    image: 'https://img.test/replay-practice-word.jpg',
+    audio: 'https://audio.test/replay-practice-word.mp3'
+  };
+
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentCategoryName: category,
+      categoryNames: [category],
+      wordsByCategory: {
+        [category]: [replayWord]
+      },
+      categoryRepetitionQueues: {
+        [category]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
+      },
+      practiceForcedReplays: {
+        2251: 1
+      },
+      lastWordShownId: 2251
+    },
+    hasPracticeBridgeWordAvailable: false
+  });
+
+  const outcome = await page.evaluate(() => {
+    window.LLFlashcards.Modes.Practice.handleNoTarget({
+      startQuizRound: function () {
+        window.__practiceStartQuizRoundCalls += 1;
+      }
+    });
+
+    return {
+      startCalls: window.__practiceStartQuizRoundCalls,
+      showResultsCalls: window.__practiceShowResultsCalls,
+      transition: window.__practiceLastTransition
+    };
+  });
+
+  expect(outcome.startCalls).toBe(0);
+  expect(outcome.showResultsCalls).toBe(1);
+  expect(outcome.transition).toEqual({
+    state: 'showing_results',
+    reason: 'Practice replay deadlock avoided'
+  });
 });
 
 test('practice options never include duplicate images', async ({ page }) => {

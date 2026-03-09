@@ -838,36 +838,118 @@
         return id > 0 ? id : 0;
     }
 
-    function hasAlternativePromptWordAvailable(excludedWordId) {
+    function getPracticeReplayCategoryOrder(preferredCategoryName) {
+        const out = [];
+        const seen = {};
+        const activeWords = getActiveWordsByCategory() || {};
+        const sourceLists = [
+            preferredCategoryName ? [preferredCategoryName] : [],
+            Array.isArray(State.categoryNames) ? State.categoryNames : [],
+            Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : [],
+            Object.keys(activeWords)
+        ];
+
+        sourceLists.forEach(function (list) {
+            (Array.isArray(list) ? list : []).forEach(function (name) {
+                const key = String(name || '').trim();
+                if (!key || seen[key]) return;
+                seen[key] = true;
+                out.push(key);
+            });
+        });
+
+        return out;
+    }
+
+    function getSeenPracticeWordIdSet() {
+        const seenIds = new Set();
+        const results = (State.quizResults && State.quizResults.wordAttempts && typeof State.quizResults.wordAttempts === 'object')
+            ? State.quizResults.wordAttempts
+            : {};
+
+        Object.keys(results).forEach(function (key) {
+            const info = results[key] || {};
+            const seen = Math.max(0, parseInt(info.seen, 10) || 0);
+            const id = normalizeWordId(key);
+            if (id && seen > 0) {
+                seenIds.add(id);
+            }
+        });
+
+        (Array.isArray(State.usedWordIDs) ? State.usedWordIDs : []).forEach(function (value) {
+            const id = normalizeWordId(value);
+            if (id) {
+                seenIds.add(id);
+            }
+        });
+
+        return seenIds;
+    }
+
+    function findPracticeBridgeWord(excludedWordId, preferredCategoryName) {
         const excludedId = normalizeWordId(excludedWordId);
-        const names = Array.isArray(State.categoryNames) && State.categoryNames.length
-            ? State.categoryNames
-            : Object.keys(getActiveWordsByCategory() || {});
-        const activeWords = getActiveWordsByCategory();
-        const queues = State.categoryRepetitionQueues || {};
-
-        for (let i = 0; i < names.length; i += 1) {
-            const name = names[i];
-            const list = Array.isArray(activeWords[name]) ? activeWords[name] : [];
-            for (let j = 0; j < list.length; j += 1) {
-                const word = list[j];
-                const wordId = normalizeWordId(word && word.id);
-                if (!wordId || wordId === excludedId) continue;
-                if (isWordBlockedFromPromptRounds(word)) continue;
-                return true;
-            }
-
-            const queue = Array.isArray(queues[name]) ? queues[name] : [];
-            for (let j = 0; j < queue.length; j += 1) {
-                const queuedWord = queue[j] && queue[j].wordData;
-                const queuedWordId = normalizeWordId(queuedWord && queuedWord.id);
-                if (!queuedWordId || queuedWordId === excludedId) continue;
-                if (isWordBlockedFromPromptRounds(queuedWord)) continue;
-                return true;
-            }
+        const seenWordIds = getSeenPracticeWordIdSet();
+        if (!seenWordIds.size) {
+            return null;
         }
 
-        return false;
+        const activeWords = getActiveWordsByCategory();
+        const categoryOrder = getPracticeReplayCategoryOrder(preferredCategoryName);
+
+        for (let i = 0; i < categoryOrder.length; i += 1) {
+            const categoryName = categoryOrder[i];
+            const list = Array.isArray(activeWords[categoryName]) ? activeWords[categoryName] : [];
+            const candidates = list.filter(function (word) {
+                const wordId = normalizeWordId(word && word.id);
+                if (!wordId || wordId === excludedId) return false;
+                if (!seenWordIds.has(wordId)) return false;
+                if (isWordBlockedFromPromptRounds(word)) return false;
+                return true;
+            });
+
+            if (!candidates.length) {
+                continue;
+            }
+
+            return {
+                word: candidates[Math.floor(Math.random() * candidates.length)],
+                categoryName: categoryName
+            };
+        }
+
+        return null;
+    }
+
+    function hasPracticeBridgeWordAvailable(excludedWordId, preferredCategoryName) {
+        return !!findPracticeBridgeWord(excludedWordId, preferredCategoryName);
+    }
+
+    function commitSelectedTarget(target, categoryName, options) {
+        if (!target || !categoryName) {
+            return target || null;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const starredLookup = opts.starredLookup || getStarredLookup();
+        const starMode = opts.starMode || getStarMode();
+
+        if (!opts.didRecordPlay) {
+            recordPlay(target.id, starredLookup, starMode);
+        }
+
+        try { target.__categoryName = categoryName; } catch (_) { /* no-op */ }
+        State.lastWordShownId = target.id;
+
+        if (State.currentCategoryName !== categoryName) {
+            State.currentCategoryName = categoryName;
+            State.currentCategoryRoundCount = 0;
+            root.FlashcardLoader.preloadNextCategories && root.FlashcardLoader.preloadNextCategories();
+            root.LLFlashcards.Dom.updateCategoryNameDisplay(State.currentCategoryName);
+        }
+        State.currentCategory = getActiveWordsByCategory()[categoryName];
+        State.categoryRoundCount[categoryName] = (State.categoryRoundCount[categoryName] || 0) + 1;
+        State.currentCategoryRoundCount++;
+        return target;
     }
 
     function normalizeWordIdSet(raw) {
@@ -1094,8 +1176,6 @@
                 const queuedItem = queue[i];
                 const queuedWord = queuedItem.wordData;
                 const allowOverflow = !!queuedItem.forceReplay; // forceReplay allows wrong answers to bypass max-play caps
-                const allowForcedRepeat = normalizeWordId(queuedWord && queuedWord.id) === normalizeWordId(State.lastWordShownId)
-                    && !hasAlternativePromptWordAvailable(State.lastWordShownId);
                 const playable = queuedWord && isPromptEligibleWord(queuedWord) && (allowOverflow || canPlayWord(queuedWord.id, starredLookup, starMode));
 
                 if (!playable) {
@@ -1105,7 +1185,7 @@
                 }
                 if (queue[i].reappearRound <= (State.categoryRoundCount[candidateCategoryName] || 0)) {
                     // Skip if this is the same word we just showed
-                    if (queue[i].wordData.id !== State.lastWordShownId || allowForcedRepeat) {
+                    if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
                         if (queuedItem.forceReplay && State.practiceForcedReplays) {
                             const key = String(queuedWord.id);
@@ -1176,8 +1256,7 @@
             let queueCandidate = queue.find(item => {
                 if (!item || !item.wordData) return false;
                 if (!isPromptEligibleWord(item.wordData)) return false;
-                const sameAsLastShown = normalizeWordId(item.wordData.id) === normalizeWordId(State.lastWordShownId);
-                if (sameAsLastShown && hasAlternativePromptWordAvailable(State.lastWordShownId)) return false;
+                if (normalizeWordId(item.wordData.id) === normalizeWordId(State.lastWordShownId)) return false;
                 return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
             });
 
@@ -1224,23 +1303,11 @@
         }
 
         if (target) {
-            if (!didRecordPlay) {
-                recordPlay(target.id, starredLookup, starMode);
-                didRecordPlay = true;
-            }
-            try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
-            // Update last shown word ID to prevent consecutive duplicates
-            State.lastWordShownId = target.id;
-
-            if (State.currentCategoryName !== candidateCategoryName) {
-                State.currentCategoryName = candidateCategoryName;
-                State.currentCategoryRoundCount = 0;
-                root.FlashcardLoader.preloadNextCategories && root.FlashcardLoader.preloadNextCategories();
-                root.LLFlashcards.Dom.updateCategoryNameDisplay(State.currentCategoryName);
-            }
-            State.currentCategory = getActiveWordsByCategory()[candidateCategoryName];
-            State.categoryRoundCount[candidateCategoryName] = (State.categoryRoundCount[candidateCategoryName] || 0) + 1;
-            State.currentCategoryRoundCount++;
+            return commitSelectedTarget(target, candidateCategoryName, {
+                didRecordPlay: didRecordPlay,
+                starredLookup: starredLookup,
+                starMode: starMode
+            });
         }
         return target;
     }
@@ -1338,6 +1405,13 @@
         pruneCompletedCategories();
         if (!target) {
             // No target anywhere; mark all remaining categories as done so results can show.
+            const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
+            if (isPracticeMode) {
+                const bridge = findPracticeBridgeWord(State.lastWordShownId, State.currentCategoryName);
+                if (bridge && bridge.word && bridge.categoryName) {
+                    return commitSelectedTarget(bridge.word, bridge.categoryName);
+                }
+            }
             if (Array.isArray(State.categoryNames)) {
                 State.completedCategories = State.completedCategories || {};
                 State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
@@ -1840,7 +1914,8 @@
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt,
-        isWordBlockedFromPromptRounds, isWordAllowedAsWrongAnswerForTarget
+        isWordBlockedFromPromptRounds, isWordAllowedAsWrongAnswerForTarget,
+        findPracticeBridgeWord, hasPracticeBridgeWordAvailable
     };
 
     // legacy exports
