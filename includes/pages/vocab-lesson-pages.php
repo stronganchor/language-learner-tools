@@ -980,6 +980,74 @@ function ll_tools_vocab_lesson_should_preload_flashcards(): bool {
     return (bool) apply_filters('ll_tools_vocab_lesson_preload_flashcards', true);
 }
 
+function ll_tools_user_can_edit_vocab_lesson_title(int $category_id = 0): bool {
+    if (!is_user_logged_in()) {
+        return false;
+    }
+
+    if ($category_id <= 0 && is_singular('ll_vocab_lesson')) {
+        $lesson_id = (int) get_queried_object_id();
+        if ($lesson_id > 0) {
+            $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        }
+    }
+
+    if ($category_id <= 0) {
+        return false;
+    }
+
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+
+    if (current_user_can('edit_term', $category_id)) {
+        return true;
+    }
+
+    return current_user_can('manage_categories');
+}
+
+function ll_tools_get_vocab_lesson_category_title_edit_target($category): array {
+    if (!($category instanceof WP_Term)) {
+        $category = get_term($category, 'word-category');
+    }
+
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        return [
+            'field' => 'name',
+            'value' => '',
+            'display_name' => '',
+        ];
+    }
+
+    $translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
+        ? ll_tools_is_category_translation_enabled()
+        : (bool) get_option('ll_enable_category_translation', 0);
+    $target_language = strtolower((string) get_option('ll_translation_language', 'en'));
+    $site_language = strtolower((string) get_locale());
+    $use_translation = $translation_enabled
+        && $target_language !== ''
+        && strpos($site_language, $target_language) === 0;
+
+    $display_name = function_exists('ll_tools_get_category_display_name')
+        ? (string) ll_tools_get_category_display_name($category)
+        : (string) $category->name;
+    $field = $use_translation ? 'term_translation' : 'name';
+    $value = $use_translation
+        ? trim((string) get_term_meta((int) $category->term_id, 'term_translation', true))
+        : trim((string) $category->name);
+
+    if ($value === '') {
+        $value = $display_name !== '' ? $display_name : (string) $category->name;
+    }
+
+    return [
+        'field' => $field,
+        'value' => $value,
+        'display_name' => $display_name,
+    ];
+}
+
 function ll_tools_vocab_lesson_enqueue_assets() {
     if (!is_singular('ll_vocab_lesson')) {
         return;
@@ -994,6 +1062,114 @@ function ll_tools_vocab_lesson_enqueue_assets() {
     ll_enqueue_asset_by_timestamp('/css/vocab-lesson-pages.css', 'll-vocab-lesson-pages-css', ['ll-tools-flashcard-style']);
 }
 add_action('wp_enqueue_scripts', 'll_tools_vocab_lesson_enqueue_assets');
+
+add_action('wp_ajax_ll_tools_update_vocab_lesson_category_title', 'll_tools_update_vocab_lesson_category_title_handler');
+function ll_tools_update_vocab_lesson_category_title_handler() {
+    $lesson_id = isset($_POST['lesson_id'])
+        ? (int) wp_unslash((string) $_POST['lesson_id'])
+        : 0;
+    $nonce = isset($_POST['nonce'])
+        ? wp_unslash((string) $_POST['nonce'])
+        : '';
+    $submitted_title = isset($_POST['title'])
+        ? wp_unslash((string) $_POST['title'])
+        : '';
+
+    if ($lesson_id <= 0) {
+        wp_send_json_error([
+            'message' => __('Missing lesson.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if ($nonce === '' || !wp_verify_nonce($nonce, 'll_vocab_lesson_title_' . $lesson_id)) {
+        wp_send_json_error([
+            'message' => __('Invalid request.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $lesson = get_post($lesson_id);
+    if (!$lesson instanceof WP_Post || $lesson->post_type !== 'll_vocab_lesson') {
+        wp_send_json_error([
+            'message' => __('Lesson not found.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    if ($category_id <= 0) {
+        wp_send_json_error([
+            'message' => __('Lesson category is missing.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if (!ll_tools_user_can_edit_vocab_lesson_title($category_id)) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit this category title.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $category = get_term($category_id, 'word-category');
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        wp_send_json_error([
+            'message' => __('Category not found.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $title = sanitize_text_field($submitted_title);
+    $title = trim(preg_replace('/\s+/u', ' ', $title));
+    if ($title === '') {
+        wp_send_json_error([
+            'message' => __('Enter a category title.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $edit_target = ll_tools_get_vocab_lesson_category_title_edit_target($category);
+    $field = (string) ($edit_target['field'] ?? 'name');
+
+    if ($field === 'term_translation') {
+        update_term_meta($category_id, 'term_translation', $title);
+        clean_term_cache($category_id, 'word-category');
+        if (function_exists('ll_tools_bump_single_category_cache_version')) {
+            ll_tools_bump_single_category_cache_version($category_id);
+        }
+        if (function_exists('ll_tools_handle_category_sync')) {
+            ll_tools_handle_category_sync($category_id);
+        }
+        if (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+            ll_tools_sync_vocab_lessons_for_category($category_id);
+        }
+    } else {
+        $updated = wp_update_term($category_id, 'word-category', [
+            'name' => $title,
+            'slug' => (string) $category->slug,
+        ]);
+        if (is_wp_error($updated)) {
+            wp_send_json_error([
+                'message' => __('Unable to save this category title right now.', 'll-tools-text-domain'),
+            ], 500);
+        }
+    }
+
+    $updated_category = get_term($category_id, 'word-category');
+    if (!($updated_category instanceof WP_Term) || is_wp_error($updated_category)) {
+        wp_send_json_error([
+            'message' => __('Category not found.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $updated_target = ll_tools_get_vocab_lesson_category_title_edit_target($updated_category);
+    $display_name = function_exists('ll_tools_get_category_display_name')
+        ? (string) ll_tools_get_category_display_name($updated_category)
+        : (string) $updated_category->name;
+
+    wp_send_json_success([
+        'message' => __('Category title saved.', 'll-tools-text-domain'),
+        'field' => (string) ($updated_target['field'] ?? $field),
+        'edit_value' => (string) ($updated_target['value'] ?? $display_name),
+        'display_name' => $display_name,
+        'category_name' => (string) $updated_category->name,
+        'category_id' => (int) $updated_category->term_id,
+    ]);
+}
 
 function ll_tools_user_can_print_vocab_lesson_images(): bool {
     if (!is_user_logged_in()) {

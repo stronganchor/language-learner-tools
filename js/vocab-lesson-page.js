@@ -3,11 +3,21 @@
 
     const cfg = window.llToolsVocabLessonData || {};
     const ajaxUrl = (cfg.ajaxUrl || '').toString();
-    const action = (cfg.action || 'll_tools_get_vocab_lesson_grid').toString();
-    const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
+    const gridCfg = (cfg.grid && typeof cfg.grid === 'object') ? cfg.grid : cfg;
+    const gridAction = (gridCfg.action || cfg.action || 'll_tools_get_vocab_lesson_grid').toString();
+    const gridI18n = (gridCfg.i18n && typeof gridCfg.i18n === 'object')
+        ? gridCfg.i18n
+        : ((cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {});
+    const titleCfg = (cfg.titleEditor && typeof cfg.titleEditor === 'object') ? cfg.titleEditor : {};
+    const titleI18n = (titleCfg.i18n && typeof titleCfg.i18n === 'object') ? titleCfg.i18n : {};
 
-    function getMessage(key, fallback) {
-        const value = i18n[key];
+    function getGridMessage(key, fallback) {
+        const value = gridI18n[key];
+        return (typeof value === 'string' && value) ? value : fallback;
+    }
+
+    function getTitleMessage(key, fallback) {
+        const value = titleI18n[key];
         return (typeof value === 'string' && value) ? value : fallback;
     }
 
@@ -106,25 +116,25 @@
 
         const lessonId = parseInt($shell.attr('data-lesson-id'), 10) || 0;
         const nonce = ($shell.attr('data-nonce') || '').toString();
-        if (!ajaxUrl || !action || !lessonId || !nonce) {
-            showFeedback($shell, getMessage('error', 'Unable to load this lesson right now.'), true);
+        if (!ajaxUrl || !gridAction || !lessonId || !nonce) {
+            showFeedback($shell, getGridMessage('error', 'Unable to load this lesson right now.'), true);
             setLoading($shell, false);
             return;
         }
 
         hideFeedback($shell);
         setLoading($shell, true);
-        setStatus($shell, getMessage('loading', 'Loading lesson words...'));
+        setStatus($shell, getGridMessage('loading', 'Loading lesson words...'));
 
         $.post(ajaxUrl, {
-            action: action,
+            action: gridAction,
             lesson_id: lessonId,
             nonce: nonce
         }).done(function (response) {
             if (!response || response.success !== true || !response.data || typeof response.data.html !== 'string') {
                 showFeedback(
                     $shell,
-                    readAjaxMessage(response, getMessage('error', 'Unable to load this lesson right now.')),
+                    readAjaxMessage(response, getGridMessage('error', 'Unable to load this lesson right now.')),
                     true
                 );
                 return;
@@ -132,12 +142,12 @@
 
             renderGridMarkup($shell, response.data.html);
             hideFeedback($shell);
-            setStatus($shell, getMessage('loaded', 'Lesson words loaded.'));
+            setStatus($shell, getGridMessage('loaded', 'Lesson words loaded.'));
         }).fail(function (jqXHR) {
             const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
             showFeedback(
                 $shell,
-                readAjaxMessage(response, getMessage('error', 'Unable to load this lesson right now.')),
+                readAjaxMessage(response, getGridMessage('error', 'Unable to load this lesson right now.')),
                 true
             );
         }).always(function () {
@@ -145,19 +155,214 @@
         });
     }
 
+    function setTitleStatus($editor, message, state) {
+        const $status = $editor.find('[data-ll-vocab-lesson-title-status]').first();
+        if (!$status.length) { return; }
+
+        $status
+            .text((message || '').toString())
+            .removeClass('is-error is-success');
+
+        if (state === 'error') {
+            $status.addClass('is-error');
+        } else if (state === 'success') {
+            $status.addClass('is-success');
+        }
+    }
+
+    function clearTitleTimer($editor) {
+        const timer = $editor.data('llTitleTimer');
+        if (timer) {
+            window.clearTimeout(timer);
+            $editor.removeData('llTitleTimer');
+        }
+    }
+
+    function setTitleSaving($editor, isSaving) {
+        const saving = !!isSaving;
+        $editor.toggleClass('is-saving', saving);
+        $editor.data('llTitleSaving', saving);
+        $editor
+            .find('[data-ll-vocab-lesson-title-input], [data-ll-vocab-lesson-title-save], [data-ll-vocab-lesson-title-cancel]')
+            .prop('disabled', saving);
+    }
+
+    function openTitleEditor($editor) {
+        if (!$editor.length) { return; }
+
+        clearTitleTimer($editor);
+        $editor.addClass('is-editing');
+        $editor.find('[data-ll-vocab-lesson-title-form]').first().prop('hidden', false);
+        $editor.find('[data-ll-vocab-lesson-title-trigger]').first().attr('aria-expanded', 'true');
+
+        const $input = $editor.find('[data-ll-vocab-lesson-title-input]').first();
+        if ($input.length) {
+            window.requestAnimationFrame(function () {
+                $input.trigger('focus').trigger('select');
+            });
+        }
+    }
+
+    function closeTitleEditor($editor, restoreValue) {
+        if (!$editor.length) { return; }
+
+        clearTitleTimer($editor);
+        if (restoreValue) {
+            const $input = $editor.find('[data-ll-vocab-lesson-title-input]').first();
+            if ($input.length) {
+                const currentValue = ($input.attr('value') || '').toString();
+                $input.val(currentValue);
+            }
+        }
+
+        $editor.removeClass('is-editing');
+        $editor.find('[data-ll-vocab-lesson-title-form]').first().prop('hidden', true);
+        $editor.find('[data-ll-vocab-lesson-title-trigger]').first().attr('aria-expanded', 'false');
+    }
+
+    function syncTitleEditor($editor, data) {
+        const payload = (data && typeof data === 'object') ? data : {};
+        const displayName = (payload.display_name || '').toString();
+        const editValue = (payload.edit_value || displayName).toString();
+        const categoryName = (payload.category_name || displayName).toString();
+        const field = (payload.field || '').toString();
+
+        if (displayName) {
+            $editor.find('[data-ll-vocab-lesson-title-text]').text(displayName);
+        }
+
+        const $input = $editor.find('[data-ll-vocab-lesson-title-input]').first();
+        if ($input.length) {
+            $input.val(editValue);
+            $input.attr('value', editValue);
+            if ($input.get(0)) {
+                $input.get(0).defaultValue = editValue;
+            }
+        }
+
+        if (field) {
+            $editor.attr('data-current-field', field);
+        }
+
+        if (categoryName) {
+            const $scope = $editor.closest('[data-ll-vocab-lesson], .ll-vocab-lesson-page');
+            $scope.find('.ll-vocab-lesson-mode-button').each(function () {
+                $(this)
+                    .attr('data-ll-open-cat', categoryName)
+                    .attr('data-category', categoryName);
+            });
+        }
+    }
+
+    function submitTitleEditor($editor) {
+        if (!$editor.length || $editor.data('llTitleSaving')) {
+            return;
+        }
+
+        const lessonId = parseInt($editor.attr('data-lesson-id'), 10) || 0;
+        const categoryId = parseInt($editor.attr('data-category-id'), 10) || 0;
+        const action = ($editor.attr('data-action') || '').toString();
+        const nonce = ($editor.attr('data-nonce') || '').toString();
+        const $input = $editor.find('[data-ll-vocab-lesson-title-input]').first();
+        const title = ($input.val() || '').toString().trim();
+
+        clearTitleTimer($editor);
+
+        if (!title) {
+            setTitleStatus($editor, getTitleMessage('empty', 'Enter a category title.'), 'error');
+            if ($input.length) {
+                $input.trigger('focus');
+            }
+            return;
+        }
+
+        if (!ajaxUrl || !action || !lessonId || !nonce) {
+            setTitleStatus($editor, getTitleMessage('error', 'Unable to save this category title right now.'), 'error');
+            return;
+        }
+
+        setTitleSaving($editor, true);
+        setTitleStatus($editor, getTitleMessage('saving', 'Saving...'));
+
+        $.post(ajaxUrl, {
+            action: action,
+            lesson_id: lessonId,
+            category_id: categoryId,
+            title: title,
+            nonce: nonce
+        }).done(function (response) {
+            if (!response || response.success !== true || !response.data || typeof response.data !== 'object') {
+                setTitleStatus(
+                    $editor,
+                    readAjaxMessage(response, getTitleMessage('error', 'Unable to save this category title right now.')),
+                    'error'
+                );
+                return;
+            }
+
+            syncTitleEditor($editor, response.data);
+            setTitleStatus(
+                $editor,
+                readAjaxMessage(response, getTitleMessage('saved', 'Category title saved.')),
+                'success'
+            );
+
+            $editor.data('llTitleTimer', window.setTimeout(function () {
+                closeTitleEditor($editor, false);
+            }, 700));
+        }).fail(function (jqXHR) {
+            const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
+            setTitleStatus(
+                $editor,
+                readAjaxMessage(response, getTitleMessage('error', 'Unable to save this category title right now.')),
+                'error'
+            );
+        }).always(function () {
+            setTitleSaving($editor, false);
+        });
+    }
+
     $(function () {
         const $shells = $('[data-ll-vocab-lesson-grid-shell]');
-        if (!$shells.length) { return; }
+        if ($shells.length) {
+            $shells.each(function () {
+                loadLessonGrid($(this));
+            });
 
-        $shells.each(function () {
-            loadLessonGrid($(this));
+            $(document).on('click', '[data-ll-vocab-lesson-grid-retry]', function (event) {
+                event.preventDefault();
+                const $shell = $(this).closest('[data-ll-vocab-lesson-grid-shell]');
+                if (!$shell.length) { return; }
+                loadLessonGrid($shell);
+            });
+        }
+
+        $(document).on('click', '[data-ll-vocab-lesson-title-trigger]', function (event) {
+            event.preventDefault();
+            openTitleEditor($(this).closest('[data-ll-vocab-lesson-title-editor]'));
         });
 
-        $(document).on('click', '[data-ll-vocab-lesson-grid-retry]', function (event) {
+        $(document).on('click', '[data-ll-vocab-lesson-title-cancel]', function (event) {
             event.preventDefault();
-            const $shell = $(this).closest('[data-ll-vocab-lesson-grid-shell]');
-            if (!$shell.length) { return; }
-            loadLessonGrid($shell);
+            const $editor = $(this).closest('[data-ll-vocab-lesson-title-editor]');
+            setTitleStatus($editor, '');
+            closeTitleEditor($editor, true);
+        });
+
+        $(document).on('submit', '[data-ll-vocab-lesson-title-form]', function (event) {
+            event.preventDefault();
+            submitTitleEditor($(this).closest('[data-ll-vocab-lesson-title-editor]'));
+        });
+
+        $(document).on('keydown', '[data-ll-vocab-lesson-title-input]', function (event) {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            event.preventDefault();
+            const $editor = $(this).closest('[data-ll-vocab-lesson-title-editor]');
+            setTitleStatus($editor, '');
+            closeTitleEditor($editor, true);
         });
     });
 })(jQuery);

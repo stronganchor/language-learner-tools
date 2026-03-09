@@ -98,6 +98,25 @@ if (have_posts()) {
         $display_name = get_the_title();
     }
 
+    $can_edit_category_title = $category_id > 0
+        && function_exists('ll_tools_user_can_edit_vocab_lesson_title')
+        && ll_tools_user_can_edit_vocab_lesson_title($category_id);
+    $title_edit_context = ($can_edit_category_title && function_exists('ll_tools_get_vocab_lesson_category_title_edit_target'))
+        ? ll_tools_get_vocab_lesson_category_title_edit_target($category)
+        : [
+            'field' => 'name',
+            'value' => $display_name,
+            'display_name' => $display_name,
+        ];
+    $title_edit_field = isset($title_edit_context['field']) ? (string) $title_edit_context['field'] : 'name';
+    $title_edit_value = isset($title_edit_context['value']) ? (string) $title_edit_context['value'] : $display_name;
+    if ($title_edit_value === '') {
+        $title_edit_value = $display_name;
+    }
+    $title_edit_nonce = $can_edit_category_title ? wp_create_nonce('ll_vocab_lesson_title_' . $post_id) : '';
+    $title_input_id = 'll-vocab-lesson-title-input-' . $post_id . '-' . $category_id;
+    $title_form_id = 'll-vocab-lesson-title-form-' . $post_id . '-' . $category_id;
+
     $wordset_name = ($wordset && !is_wp_error($wordset)) ? $wordset->name : '';
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
     $wordset_url = ($wordset_slug !== '')
@@ -225,26 +244,46 @@ if (have_posts()) {
         }
         return implode(' ', $parts);
     };
-    if ($defer_grid) {
-        $grid_context = ll_tools_word_grid_resolve_context([
-            'category' => $category_slug,
-            'wordset' => $wordset_slug,
-            'deepest_only' => true,
-        ]);
-        ll_tools_word_grid_enqueue_frontend_assets_for_context($grid_context);
-        ll_enqueue_asset_by_timestamp('/js/vocab-lesson-page.js', 'll-tools-vocab-lesson-page', ['jquery', 'll-tools-word-grid'], true);
+    if ($defer_grid || $can_edit_category_title) {
+        if ($defer_grid) {
+            $grid_context = ll_tools_word_grid_resolve_context([
+                'category' => $category_slug,
+                'wordset' => $wordset_slug,
+                'deepest_only' => true,
+            ]);
+            ll_tools_word_grid_enqueue_frontend_assets_for_context($grid_context);
+        }
+        $lesson_page_script_deps = ['jquery'];
+        if ($defer_grid) {
+            $lesson_page_script_deps[] = 'll-tools-word-grid';
+        }
+        ll_enqueue_asset_by_timestamp('/js/vocab-lesson-page.js', 'll-tools-vocab-lesson-page', $lesson_page_script_deps, true);
         wp_localize_script('ll-tools-vocab-lesson-page', 'llToolsVocabLessonData', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
-            'action' => 'll_tools_get_vocab_lesson_grid',
-            'i18n' => [
-                'loading' => __('Loading lesson words...', 'll-tools-text-domain'),
-                'loaded' => __('Lesson words loaded.', 'll-tools-text-domain'),
-                'error' => __('Unable to load this lesson right now.', 'll-tools-text-domain'),
-                'retry' => __('Retry', 'll-tools-text-domain'),
+            'grid' => [
+                'action' => 'll_tools_get_vocab_lesson_grid',
+                'enabled' => $defer_grid,
+                'i18n' => [
+                    'loading' => __('Loading lesson words...', 'll-tools-text-domain'),
+                    'loaded' => __('Lesson words loaded.', 'll-tools-text-domain'),
+                    'error' => __('Unable to load this lesson right now.', 'll-tools-text-domain'),
+                    'retry' => __('Retry', 'll-tools-text-domain'),
+                ],
+            ],
+            'titleEditor' => [
+                'enabled' => $can_edit_category_title,
+                'i18n' => [
+                    'empty' => __('Enter a category title.', 'll-tools-text-domain'),
+                    'saving' => __('Saving...', 'll-tools-text-domain'),
+                    'saved' => __('Category title saved.', 'll-tools-text-domain'),
+                    'error' => __('Unable to save this category title right now.', 'll-tools-text-domain'),
+                ],
             ],
         ]);
-        $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
-        $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
+        if ($defer_grid) {
+            $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
+            $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
+        }
     }
     ?>
     <main class="ll-vocab-lesson-page" data-ll-vocab-lesson>
@@ -783,7 +822,77 @@ if (have_posts()) {
                 <?php endif; ?>
             </div>
             <div class="ll-vocab-lesson-title-row">
-                <h1 class="ll-vocab-lesson-title"><?php echo esc_html($display_name); ?></h1>
+                <div class="ll-vocab-lesson-title-wrap">
+                    <?php if ($can_edit_category_title) : ?>
+                        <div
+                            class="ll-vocab-lesson-title-edit"
+                            data-ll-vocab-lesson-title-editor
+                            data-lesson-id="<?php echo esc_attr($post_id); ?>"
+                            data-category-id="<?php echo esc_attr($category_id); ?>"
+                            data-action="ll_tools_update_vocab_lesson_category_title"
+                            data-nonce="<?php echo esc_attr($title_edit_nonce); ?>"
+                            data-current-field="<?php echo esc_attr($title_edit_field); ?>">
+                            <h1 class="ll-vocab-lesson-title">
+                                <button
+                                    type="button"
+                                    class="ll-vocab-lesson-title-trigger"
+                                    data-ll-vocab-lesson-title-trigger
+                                    aria-expanded="false"
+                                    aria-controls="<?php echo esc_attr($title_form_id); ?>"
+                                    aria-label="<?php echo esc_attr__('Edit category title', 'll-tools-text-domain'); ?>"
+                                    title="<?php echo esc_attr__('Edit category title', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-vocab-lesson-title-text" data-ll-vocab-lesson-title-text><?php echo esc_html($display_name); ?></span>
+                                    <span class="ll-vocab-lesson-title-edit-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                            <path d="M4 14.5V16h1.5l8.7-8.7-1.5-1.5L4 14.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                            <path d="m11.9 4.1 1.5 1.5 1-1a1.1 1.1 0 1 0-1.5-1.5l-1 1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </h1>
+                            <form
+                                class="ll-vocab-lesson-title-form"
+                                id="<?php echo esc_attr($title_form_id); ?>"
+                                data-ll-vocab-lesson-title-form
+                                hidden
+                                novalidate>
+                                <input
+                                    type="text"
+                                    id="<?php echo esc_attr($title_input_id); ?>"
+                                    class="ll-vocab-lesson-title-input"
+                                    data-ll-vocab-lesson-title-input
+                                    value="<?php echo esc_attr($title_edit_value); ?>"
+                                    aria-label="<?php echo esc_attr__('Category title', 'll-tools-text-domain'); ?>"
+                                    autocomplete="off" />
+                                <div class="ll-vocab-lesson-title-form-actions">
+                                    <button
+                                        type="submit"
+                                        class="ll-vocab-lesson-title-icon-button ll-study-btn tiny"
+                                        data-ll-vocab-lesson-title-save
+                                        aria-label="<?php echo esc_attr__('Save title', 'll-tools-text-domain'); ?>"
+                                        title="<?php echo esc_attr__('Save title', 'll-tools-text-domain'); ?>">
+                                        <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                                            <path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="ll-vocab-lesson-title-icon-button ll-study-btn tiny ghost"
+                                        data-ll-vocab-lesson-title-cancel
+                                        aria-label="<?php echo esc_attr__('Cancel editing', 'll-tools-text-domain'); ?>"
+                                        title="<?php echo esc_attr__('Cancel editing', 'll-tools-text-domain'); ?>">
+                                        <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                                            <path d="M4 4l8 8M12 4 4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <span class="ll-vocab-lesson-title-status" data-ll-vocab-lesson-title-status aria-live="polite"></span>
+                            </form>
+                        </div>
+                    <?php else : ?>
+                        <h1 class="ll-vocab-lesson-title"><?php echo esc_html($display_name); ?></h1>
+                    <?php endif; ?>
+                </div>
                 <div class="ll-vocab-lesson-actions">
                     <div class="ll-vocab-lesson-modes" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                         <?php
