@@ -52,6 +52,11 @@ function ll_register_settings() {
         'sanitize_callback' => 'absint',
         'default' => 0,
     ]);
+    register_setting('language-learning-tools-options', 'users_can_register', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'absint',
+        'default' => 0,
+    ]);
     register_setting('language-learning-tools-options', 'll_allow_learner_self_registration', [
         'type' => 'boolean',
         'sanitize_callback' => 'absint',
@@ -220,7 +225,10 @@ function ll_render_settings_page() {
     $update_branch = get_option('ll_update_branch', 'main');
     $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
+    $wordpress_registration_enabled = (int) get_option('users_can_register', 0);
     $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
+    $can_manage_wordpress_registration = current_user_can('manage_options');
+    $wordpress_general_settings_url = self_admin_url('options-general.php');
 
     // Default to showing placeholders if languages are not set
     $target_language_name = $target_language ? ucfirst($target_language) : __('Target Language', 'll-tools-text-domain');
@@ -311,7 +319,29 @@ function ll_render_settings_page() {
                             id="ll_allow_learner_self_registration"
                             value="1"
                             <?php checked(1, $allow_learner_self_registration, true); ?> />
-                        <p class="description"><?php esc_html_e('Allow new users to create learner accounts from learner-facing progress sign-in screens.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php esc_html_e('Allow new users to create learner accounts from learner-facing progress sign-in screens. WordPress user registration must also be enabled below.', 'll-tools-text-domain'); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('WordPress User Registration:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="checkbox"
+                            name="users_can_register"
+                            id="users_can_register"
+                            value="1"
+                            <?php checked(1, $wordpress_registration_enabled, true); ?>
+                            <?php disabled(!$can_manage_wordpress_registration); ?> />
+                        <p class="description"><?php esc_html_e('Matches the WordPress "Anyone can register" setting. LL Tools signup is available only when both registration settings are enabled.', 'll-tools-text-domain'); ?></p>
+                        <?php if ($can_manage_wordpress_registration) : ?>
+                            <p class="description">
+                                <a href="<?php echo esc_url($wordpress_general_settings_url); ?>">
+                                    <?php esc_html_e('Open WordPress General Settings', 'll-tools-text-domain'); ?>
+                                </a>
+                            </p>
+                        <?php else : ?>
+                            <p class="description"><?php esc_html_e('Only administrators can change this sitewide WordPress setting.', 'll-tools-text-domain'); ?></p>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr valign="top">

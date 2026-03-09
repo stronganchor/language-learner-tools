@@ -44,6 +44,27 @@ if (!function_exists('ll_tools_is_learner_self_registration_enabled')) {
     }
 }
 
+if (!function_exists('ll_tools_is_wordpress_user_registration_enabled')) {
+    function ll_tools_is_wordpress_user_registration_enabled(): bool {
+        if (is_multisite()) {
+            $registration = (string) get_site_option('registration', 'none');
+            return in_array($registration, ['all', 'user'], true);
+        }
+
+        return ((int) get_option('users_can_register', 0) === 1);
+    }
+}
+
+if (!function_exists('ll_tools_is_learner_self_registration_available')) {
+    function ll_tools_is_learner_self_registration_available(): bool {
+        if (!ll_tools_is_learner_self_registration_enabled()) {
+            return false;
+        }
+
+        return ll_tools_is_wordpress_user_registration_enabled();
+    }
+}
+
 if (!function_exists('ll_tools_login_window_class_string')) {
     function ll_tools_login_window_class_string($classes = ''): string {
         $class_list = ['ll-tools-login-window-wrap'];
@@ -147,7 +168,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
             exit;
         }
 
-        if (!ll_tools_is_learner_self_registration_enabled()) {
+        if (!ll_tools_is_learner_self_registration_available()) {
             $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
                 'type' => 'error',
                 'messages' => [__('New account registration is currently disabled.', 'll-tools-text-domain')],
@@ -323,7 +344,7 @@ if (!function_exists('ll_tools_render_login_window')) {
             'value_remember' => true,
         ]);
 
-        $registration_enabled = $show_registration && ll_tools_is_learner_self_registration_enabled();
+        $registration_enabled = $show_registration && ll_tools_is_learner_self_registration_available();
         $registration_disabled = $show_registration && !$registration_enabled;
 
         $registration_title = trim((string) $args['registration_title']);

@@ -2487,7 +2487,10 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     }
 
     $login_url = wp_login_url($current_url);
-    $signup_url = wp_registration_url();
+    $signup_available = function_exists('ll_tools_is_learner_self_registration_available')
+        ? ll_tools_is_learner_self_registration_available()
+        : false;
+    $signup_url = $signup_available ? wp_registration_url() : '';
     $logout_url = wp_logout_url($current_url);
 
     $context_class = '';
@@ -2561,9 +2564,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                 <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($login_url); ?>">
                     <?php echo esc_html__('Log in', 'll-tools-text-domain'); ?>
                 </a>
-                <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($signup_url); ?>">
-                    <?php echo esc_html__('Sign up', 'll-tools-text-domain'); ?>
-                </a>
+                <?php if ($signup_url !== '') : ?>
+                    <a class="ll-wordset-utility-bar__link" href="<?php echo esc_url($signup_url); ?>">
+                        <?php echo esc_html__('Sign up', 'll-tools-text-domain'); ?>
+                    </a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </nav>
