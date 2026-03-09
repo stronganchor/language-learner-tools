@@ -31,6 +31,7 @@
     let processingAudioContext = null;
     let hiddenWordsPanelOpen = false;
     let uploadLockState = null;
+    let displayLoadToken = 0;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -2480,12 +2481,125 @@
         }
     }
 
+    function getCurrentCategoryDisplayElement() {
+        return document.getElementById('ll-image-category');
+    }
+
+    function getImageCardElement() {
+        const el = window.llRecorder;
+        if (!el || !el.imageContainer || typeof el.imageContainer.querySelector !== 'function') {
+            return null;
+        }
+        return el.imageContainer.querySelector('.flashcard-container');
+    }
+
+    function clearCurrentWordDisplay() {
+        const el = window.llRecorder;
+        if (!el) return;
+
+        if (el.image) {
+            try { el.image.removeAttribute('src'); } catch (_) { /* no-op */ }
+            el.image.alt = '';
+            el.image.style.display = 'none';
+        }
+
+        if (el.textDisplay) {
+            el.textDisplay.textContent = '';
+            el.textDisplay.style.display = 'none';
+        }
+
+        if (el.title) {
+            el.title.textContent = '';
+        }
+
+        const categoryEl = getCurrentCategoryDisplayElement();
+        if (categoryEl) {
+            categoryEl.textContent = '';
+        }
+    }
+
+    function setDisplayLoadingState(isLoading, token) {
+        const el = window.llRecorder;
+        if (!el || !el.imageContainer) return;
+        if (typeof token === 'number' && token !== displayLoadToken) return;
+
+        const card = getImageCardElement();
+        const categoryEl = getCurrentCategoryDisplayElement();
+
+        if (isLoading) {
+            el.imageContainer.classList.add('is-loading');
+            el.imageContainer.setAttribute('aria-busy', 'true');
+            if (card) card.setAttribute('aria-hidden', 'true');
+            if (el.title) el.title.setAttribute('aria-hidden', 'true');
+            if (categoryEl) categoryEl.setAttribute('aria-hidden', 'true');
+            clearCurrentWordDisplay();
+            return;
+        }
+
+        el.imageContainer.classList.remove('is-loading');
+        el.imageContainer.removeAttribute('aria-busy');
+        if (card) card.removeAttribute('aria-hidden');
+        if (el.title) el.title.removeAttribute('aria-hidden');
+        if (categoryEl) categoryEl.removeAttribute('aria-hidden');
+    }
+
+    function beginDisplayLoading() {
+        const token = ++displayLoadToken;
+        setDisplayLoadingState(true, token);
+        return token;
+    }
+
+    function endDisplayLoading(token) {
+        if (typeof token === 'number' && token !== displayLoadToken) {
+            return;
+        }
+        requestAnimationFrame(function () {
+            setDisplayLoadingState(false, token);
+        });
+    }
+
+    function waitForImageDisplayReady(imageEl, token) {
+        if (!imageEl || !imageEl.getAttribute('src')) {
+            endDisplayLoading(token);
+            return;
+        }
+
+        const finish = function () {
+            endDisplayLoading(token);
+        };
+
+        if (typeof imageEl.decode === 'function') {
+            imageEl.decode().catch(function () {
+                return;
+            }).finally(finish);
+            return;
+        }
+
+        if (imageEl.complete) {
+            finish();
+            return;
+        }
+
+        const cleanup = function () {
+            try { imageEl.removeEventListener('load', handleDone); } catch (_) { /* no-op */ }
+            try { imageEl.removeEventListener('error', handleDone); } catch (_) { /* no-op */ }
+        };
+        const handleDone = function () {
+            cleanup();
+            finish();
+        };
+
+        try { imageEl.addEventListener('load', handleDone, { once: true }); } catch (_) { /* no-op */ }
+        try { imageEl.addEventListener('error', handleDone, { once: true }); } catch (_) { /* no-op */ }
+    }
+
     function loadImage(index) {
         if (index >= images.length) {
             showComplete();
             return;
         }
 
+        const loadToken = beginDisplayLoading();
         currentImageIndex = index;
         if (suppressNextScroll) {
             suppressNextScroll = false;
@@ -2562,7 +2676,15 @@
         setTypeForCurrentImage();
         resetRecordingState();
         if (img.is_text_only && el.textDisplay) {
-            requestAnimationFrame(() => fitTextToContainer(el.textDisplay));
+            requestAnimationFrame(() => {
+                try {
+                    fitTextToContainer(el.textDisplay);
+                } finally {
+                    endDisplayLoading(loadToken);
+                }
+            });
+        } else {
+            waitForImageDisplayReady(el.image, loadToken);
         }
     }
 
@@ -3927,8 +4049,11 @@
 
         const newCategory = el.categorySelect.value;
         if (!newCategory) return;
+        const previousIndex = currentImageIndex;
+        const previousCategory = String((images[previousIndex] && images[previousIndex].category_slug) || '');
 
         showStatus(i18n.switching_category || 'Switching category...', 'info');
+        beginDisplayLoading();
         el.categorySelect.disabled = true;
         if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = true;
         renderRecordingTypeChoices();
@@ -3980,6 +4105,14 @@
                     } else {
                         // No more categories to try
                         showStatus(i18n.no_images_in_category || 'No images need audio in any remaining category.', 'error');
+                        if (previousCategory) {
+                            el.categorySelect.value = previousCategory;
+                        }
+                        if (images[previousIndex]) {
+                            loadImage(previousIndex);
+                        } else {
+                            endDisplayLoading();
+                        }
                         el.categorySelect.disabled = false;
                         if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
                         renderRecordingTypeChoices();
@@ -4006,10 +4139,26 @@
                 showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
             } else {
                 const errorMsg = data.data || data.message || (i18n.switch_failed_message || 'Switch failed');
+                if (previousCategory) {
+                    el.categorySelect.value = previousCategory;
+                }
+                if (images[previousIndex]) {
+                    loadImage(previousIndex);
+                } else {
+                    endDisplayLoading();
+                }
                 showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + errorMsg, 'error');
             }
         } catch (err) {
             console.error('Category switch error:', err);
+            if (previousCategory) {
+                el.categorySelect.value = previousCategory;
+            }
+            if (images[previousIndex]) {
+                loadImage(previousIndex);
+            } else {
+                endDisplayLoading();
+            }
             showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
         } finally {
             el.categorySelect.disabled = false;
