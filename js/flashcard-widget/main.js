@@ -1593,12 +1593,47 @@
         });
     }
 
+    function normalizePracticeRecordingTypeForProgress(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function getPracticeRecordingTypesForProgress(targetWord) {
+        const types = Array.isArray(targetWord && targetWord.practice_recording_types)
+            ? targetWord.practice_recording_types
+            : [];
+        const seen = {};
+        return types.map(function (type) {
+            return normalizePracticeRecordingTypeForProgress(type);
+        }).filter(function (type) {
+            if (!type || seen[type]) {
+                return false;
+            }
+            seen[type] = true;
+            return true;
+        });
+    }
+
     function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
         const tracker = getProgressTracker();
         if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        const nextPayload = (payload && typeof payload === 'object') ? Object.assign({}, payload) : {};
+        if (getCurrentModeKey() === 'practice') {
+            const recordingType = normalizePracticeRecordingTypeForProgress(targetWord.__practiceRecordingType);
+            const availableRecordingTypes = getPracticeRecordingTypesForProgress(targetWord);
+            if (recordingType) {
+                nextPayload.recording_type = recordingType;
+            }
+            if (availableRecordingTypes.length) {
+                nextPayload.available_recording_types = availableRecordingTypes.slice();
+            }
+        }
         tracker.trackWordOutcome({
             mode: getCurrentModeKey(),
             wordId: targetWord.id,
@@ -1607,7 +1642,7 @@
             wordsetId: resolveWordsetIdForProgress(),
             isCorrect: !!isCorrect,
             hadWrongBefore: !!hadWrongBefore,
-            payload: (payload && typeof payload === 'object') ? payload : {}
+            payload: nextPayload
         });
     }
 
@@ -2982,6 +3017,11 @@
         const isStaleRound = function () {
             return roundSessionToken !== __LLSession || !State.widgetActive;
         };
+
+        if (target && typeof target === 'object') {
+            delete target.__practiceRecordingType;
+            delete target.__practiceRecordingText;
+        }
 
         if (modeModule && typeof modeModule.configureTargetAudio === 'function') {
             modeModule.configureTargetAudio(target);

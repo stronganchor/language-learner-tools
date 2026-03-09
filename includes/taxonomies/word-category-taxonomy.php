@@ -1913,6 +1913,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $audio_files = [];
+        $recording_texts_by_type = [];
+        $recording_text_preferred = [];
+        $practice_recording_types = [];
         $audio_posts = isset($audio_posts_by_word[$word_id]) && is_array($audio_posts_by_word[$word_id])
             ? $audio_posts_by_word[$word_id]
             : [];
@@ -1923,14 +1926,51 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             if ($audio_path) {
                 $audio_url       = ll_tools_resolve_audio_file_url($audio_path);
                 $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+                $recording_text  = trim((string) get_post_meta($audio_post->ID, 'recording_text', true));
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
-                $audio_files[]   = [
-                    'url'            => $audio_url,
-                    'recording_type' => !empty($recording_types) ? $recording_types[0] : 'unknown',
-                    'speaker_user_id'=> $speaker_uid,
-                ];
+                $recording_types = is_wp_error($recording_types) ? [] : (array) $recording_types;
+                if (empty($recording_types)) {
+                    $recording_types = ['unknown'];
+                }
+
+                foreach ($recording_types as $recording_type) {
+                    $recording_type = sanitize_key((string) $recording_type);
+                    if ($recording_type === '') {
+                        continue;
+                    }
+
+                    $entry_text = $recording_text;
+                    if ($entry_text !== '' && $recording_type === 'isolation' && function_exists('ll_tools_trim_isolation_transcript')) {
+                        $entry_text = ll_tools_trim_isolation_transcript($entry_text);
+                    }
+
+                    $audio_files[] = [
+                        'url'            => $audio_url,
+                        'recording_type' => $recording_type,
+                        'speaker_user_id'=> $speaker_uid,
+                        'recording_text' => $entry_text,
+                    ];
+                    $practice_recording_types[$recording_type] = $recording_type;
+
+                    $is_preferred_speaker = ($preferred_speaker > 0 && $speaker_uid === $preferred_speaker);
+                    $existing_text = isset($recording_texts_by_type[$recording_type]) ? (string) $recording_texts_by_type[$recording_type] : '';
+                    $existing_is_preferred = !empty($recording_text_preferred[$recording_type]);
+                    $should_replace = !array_key_exists($recording_type, $recording_texts_by_type)
+                        || ($existing_text === '' && $entry_text !== '')
+                        || (!$existing_is_preferred && $is_preferred_speaker && $entry_text !== '');
+                    if ($should_replace) {
+                        $recording_texts_by_type[$recording_type] = $entry_text;
+                        $recording_text_preferred[$recording_type] = $is_preferred_speaker ? 1 : 0;
+                    }
+                }
             }
+        }
+
+        if (!empty($practice_recording_types)) {
+            $practice_recording_types = function_exists('ll_tools_sort_practice_recording_types')
+                ? ll_tools_sort_practice_recording_types(array_values($practice_recording_types))
+                : array_values($practice_recording_types);
         }
 
         $prioritized_audio = ll_get_prioritized_audio($audio_posts, $preferred_speaker);
@@ -2044,6 +2084,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'is_specific_wrong_answer_only' => $is_specific_wrong_answer_only,
             'audio'           => $primary_audio,
             'audio_files'     => $audio_files,
+            'recording_texts_by_type' => $recording_texts_by_type,
+            'practice_recording_types' => $practice_recording_types,
             'preferred_speaker_user_id' => $preferred_speaker,
             'image'           => $image ?: '',
             'all_categories'  => $all_categories,

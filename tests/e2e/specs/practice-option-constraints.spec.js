@@ -215,6 +215,107 @@ test('practice options stay within the target category pool', async ({ page }) =
   expect(pickedIds).toEqual([101, 102]);
 });
 
+test('practice options exclude wrong answers with the same active recording-type transcript', async ({ page }) => {
+  const targetCategory = 'Actions';
+  const targetWord = {
+    id: 301,
+    title: 'The dog is walking',
+    label: 'The dog is walking',
+    recording_texts_by_type: {
+      isolation: 'walking',
+      introduction: 'the dog is walking'
+    }
+  };
+  const duplicateIsolationWord = {
+    id: 302,
+    title: 'The cat is walking',
+    label: 'The cat is walking',
+    recording_texts_by_type: {
+      isolation: 'walking',
+      introduction: 'the cat is walking'
+    }
+  };
+  const distinctIsolationWord = {
+    id: 303,
+    title: 'The bird is running',
+    label: 'The bird is running',
+    recording_texts_by_type: {
+      isolation: 'running',
+      introduction: 'the bird is running'
+    }
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: targetCategory, prompt_type: 'audio', option_type: 'text_title' }
+    ],
+    targetCategoryName: targetCategory,
+    desiredCount: 4,
+    wordsByCategory: {
+      [targetCategory]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [targetCategory]: [targetWord, duplicateIsolationWord, distinctIsolationWord]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Actions', __practiceRecordingType: 'isolation' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([301, 303]);
+});
+
+test('practice options still allow words whose other recording types differ', async ({ page }) => {
+  const targetCategory = 'Actions';
+  const targetWord = {
+    id: 401,
+    title: 'The dog is walking',
+    label: 'The dog is walking',
+    recording_texts_by_type: {
+      isolation: 'walking',
+      introduction: 'the dog is walking'
+    }
+  };
+  const sameIsolationDifferentIntro = {
+    id: 402,
+    title: 'The cat is walking',
+    label: 'The cat is walking',
+    recording_texts_by_type: {
+      isolation: 'walking',
+      introduction: 'the cat is walking'
+    }
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: targetCategory, prompt_type: 'audio', option_type: 'text_title' }
+    ],
+    targetCategoryName: targetCategory,
+    desiredCount: 3,
+    wordsByCategory: {
+      [targetCategory]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [targetCategory]: [targetWord, sameIsolationDifferentIntro]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Actions', __practiceRecordingType: 'introduction' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([401, 402]);
+});
+
 test('option count never drops below two after wrong answers', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');

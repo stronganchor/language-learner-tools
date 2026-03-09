@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.0.0');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.1.0');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
@@ -76,6 +76,270 @@ function ll_tools_progress_mode_column(string $mode): string {
     return $map[$mode] ?? 'coverage_practice';
 }
 
+function ll_tools_practice_recording_type_order(): array {
+    $order = apply_filters('ll_tools_practice_recording_type_order', [
+        'question',
+        'isolation',
+        'introduction',
+        'sentence',
+        'in-sentence',
+    ]);
+
+    if (!is_array($order) || empty($order)) {
+        $order = ['question', 'isolation', 'introduction', 'sentence', 'in-sentence'];
+    }
+
+    $normalized = [];
+    foreach ($order as $type) {
+        $slug = ll_tools_normalize_practice_recording_type_slug($type);
+        if ($slug === '') {
+            continue;
+        }
+        $normalized[$slug] = $slug;
+    }
+
+    return array_values($normalized);
+}
+
+function ll_tools_sort_practice_recording_types(array $types): array {
+    $normalized = [];
+    foreach ($types as $type) {
+        $slug = ll_tools_normalize_practice_recording_type_slug($type);
+        if ($slug === '') {
+            continue;
+        }
+        $normalized[$slug] = $slug;
+    }
+
+    if (empty($normalized)) {
+        return [];
+    }
+
+    $ordered = ll_tools_practice_recording_type_order();
+    $priority = array_flip($ordered);
+    $values = array_values($normalized);
+
+    usort($values, static function (string $left, string $right) use ($priority): int {
+        $left_priority = array_key_exists($left, $priority) ? (int) $priority[$left] : PHP_INT_MAX;
+        $right_priority = array_key_exists($right, $priority) ? (int) $priority[$right] : PHP_INT_MAX;
+        if ($left_priority === $right_priority) {
+            return strnatcasecmp($left, $right);
+        }
+        return $left_priority <=> $right_priority;
+    });
+
+    return $values;
+}
+
+function ll_tools_normalize_practice_recording_type_slug($type): string {
+    $raw = strtolower(trim((string) $type));
+    if ($raw === '') {
+        return '';
+    }
+
+    $raw = preg_replace('/[\s_]+/', '-', $raw);
+    return sanitize_key((string) $raw);
+}
+
+function ll_tools_decode_practice_recording_types($raw): array {
+    if (is_array($raw)) {
+        return ll_tools_sort_practice_recording_types($raw);
+    }
+
+    if (!is_string($raw)) {
+        return [];
+    }
+
+    $trimmed = trim($raw);
+    if ($trimmed === '') {
+        return [];
+    }
+
+    $decoded = json_decode($trimmed, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+        return ll_tools_sort_practice_recording_types($decoded);
+    }
+
+    return ll_tools_sort_practice_recording_types(array_map('trim', explode(',', $trimmed)));
+}
+
+function ll_tools_encode_practice_recording_types(array $types): string {
+    $normalized = ll_tools_sort_practice_recording_types($types);
+    if (empty($normalized)) {
+        return '';
+    }
+
+    $encoded = wp_json_encode(array_values($normalized));
+    return is_string($encoded) ? $encoded : '';
+}
+
+function ll_tools_get_word_practice_recording_types_map(array $word_ids): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    static $cache = [];
+    $missing = [];
+    foreach ($word_ids as $word_id) {
+        if (!array_key_exists($word_id, $cache)) {
+            $missing[] = $word_id;
+        }
+    }
+
+    if (!empty($missing)) {
+        $word_audio_posts = get_posts([
+            'post_type'        => 'word_audio',
+            'post_parent__in'  => $missing,
+            'post_status'      => 'publish',
+            'posts_per_page'   => -1,
+            'suppress_filters' => true,
+            'orderby'          => 'date',
+            'order'            => 'DESC',
+            'no_found_rows'    => true,
+        ]);
+
+        $audio_ids = array_values(array_filter(array_map(static function ($post): int {
+            return ($post instanceof WP_Post) ? (int) $post->ID : 0;
+        }, (array) $word_audio_posts), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+
+        if (!empty($audio_ids)) {
+            update_postmeta_cache($audio_ids);
+            update_object_term_cache($audio_ids, 'word_audio');
+        }
+
+        $types_by_word = [];
+        foreach ($word_audio_posts as $audio_post) {
+            if (!($audio_post instanceof WP_Post)) {
+                continue;
+            }
+
+            $word_id = (int) $audio_post->post_parent;
+            if ($word_id <= 0) {
+                continue;
+            }
+
+            $audio_path = trim((string) get_post_meta($audio_post->ID, 'audio_file_path', true));
+            if ($audio_path === '') {
+                continue;
+            }
+
+            $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+            if (is_wp_error($recording_types) || empty($recording_types)) {
+                continue;
+            }
+
+            if (!isset($types_by_word[$word_id])) {
+                $types_by_word[$word_id] = [];
+            }
+
+            foreach ((array) $recording_types as $recording_type) {
+                $slug = ll_tools_normalize_practice_recording_type_slug($recording_type);
+                if ($slug === '') {
+                    continue;
+                }
+                $types_by_word[$word_id][$slug] = $slug;
+            }
+        }
+
+        foreach ($missing as $word_id) {
+            $cache[$word_id] = ll_tools_sort_practice_recording_types(array_values($types_by_word[$word_id] ?? []));
+        }
+    }
+
+    $out = [];
+    foreach ($word_ids as $word_id) {
+        $out[$word_id] = isset($cache[$word_id]) && is_array($cache[$word_id])
+            ? $cache[$word_id]
+            : [];
+    }
+
+    return $out;
+}
+
+function ll_tools_get_word_practice_recording_types(int $word_id): array {
+    $map = ll_tools_get_word_practice_recording_types_map([$word_id]);
+    return $map[$word_id] ?? [];
+}
+
+function ll_tools_get_progress_row_practice_correct_recording_types(array $row): array {
+    if (isset($row['practice_correct_recording_types']) && is_array($row['practice_correct_recording_types'])) {
+        return ll_tools_sort_practice_recording_types((array) $row['practice_correct_recording_types']);
+    }
+    return ll_tools_decode_practice_recording_types($row['practice_correct_recording_types'] ?? '');
+}
+
+function ll_tools_progress_row_has_practice_recording_tracking(array $row): bool {
+    $stored_required = ll_tools_decode_practice_recording_types(
+        $row['practice_required_recording_types_json'] ?? ($row['practice_required_recording_types'] ?? '')
+    );
+    $stored_correct = ll_tools_decode_practice_recording_types(
+        $row['practice_correct_recording_types_json'] ?? ($row['practice_correct_recording_types'] ?? '')
+    );
+
+    return !empty($stored_required) || !empty($stored_correct);
+}
+
+function ll_tools_get_progress_row_practice_required_recording_types(array $row): array {
+    if (!empty($row['practice_required_recording_types_resolved']) && is_array($row['practice_required_recording_types_resolved'])) {
+        return ll_tools_sort_practice_recording_types((array) $row['practice_required_recording_types_resolved']);
+    }
+
+    if (isset($row['practice_required_recording_types']) && is_array($row['practice_required_recording_types'])) {
+        $stored = ll_tools_sort_practice_recording_types((array) $row['practice_required_recording_types']);
+    } else {
+        $stored = ll_tools_decode_practice_recording_types($row['practice_required_recording_types'] ?? '');
+    }
+
+    if (!empty($stored)) {
+        return $stored;
+    }
+
+    $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+    if ($word_id <= 0) {
+        return [];
+    }
+
+    return ll_tools_get_word_practice_recording_types($word_id);
+}
+
+function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id = 0): array {
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if (empty($words)) {
+        return $words;
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map(static function ($word): int {
+        return (is_array($word) && !empty($word['id'])) ? (int) $word['id'] : 0;
+    }, $words), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+
+    $progress_rows = ($uid > 0)
+        ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
+        : [];
+
+    foreach ($words as $idx => $word) {
+        if (!is_array($word)) {
+            continue;
+        }
+
+        $word_id = isset($word['id']) ? (int) $word['id'] : 0;
+        $row = ($word_id > 0 && isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id]))
+            ? $progress_rows[$word_id]
+            : [];
+
+        $words[$idx]['practice_correct_recording_types'] = ll_tools_get_progress_row_practice_correct_recording_types($row);
+    }
+
+    return $words;
+}
+
 function ll_tools_install_user_progress_schema(): void {
     global $wpdb;
     $tables = ll_tools_user_progress_table_names();
@@ -99,6 +363,8 @@ function ll_tools_install_user_progress_schema(): void {
         coverage_listening int(10) unsigned NOT NULL DEFAULT 0,
         coverage_gender int(10) unsigned NOT NULL DEFAULT 0,
         coverage_self_check int(10) unsigned NOT NULL DEFAULT 0,
+        practice_required_recording_types longtext NULL,
+        practice_correct_recording_types longtext NULL,
         correct_clean int(10) unsigned NOT NULL DEFAULT 0,
         correct_after_retry int(10) unsigned NOT NULL DEFAULT 0,
         incorrect int(10) unsigned NOT NULL DEFAULT 0,
@@ -521,6 +787,8 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         'coverage_listening'   => 0,
         'coverage_gender'      => 0,
         'coverage_self_check'  => 0,
+        'practice_required_recording_types' => '',
+        'practice_correct_recording_types' => '',
         'correct_clean'        => 0,
         'correct_after_retry'  => 0,
         'incorrect'            => 0,
@@ -564,6 +832,33 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
     }
 
     if ($event_type === 'word_outcome') {
+        $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        if ($mode === 'practice') {
+            $required_types = ll_tools_decode_practice_recording_types($payload['available_recording_types'] ?? []);
+            if (empty($required_types)) {
+                $required_types = ll_tools_get_progress_row_practice_required_recording_types($data);
+            }
+
+            $recording_type = ll_tools_normalize_practice_recording_type_slug($payload['recording_type'] ?? '');
+            if ($recording_type !== '') {
+                $required_types[] = $recording_type;
+            }
+
+            $required_types = ll_tools_sort_practice_recording_types($required_types);
+            $correct_types = ll_tools_get_progress_row_practice_correct_recording_types($data);
+            if (($event['is_correct'] ?? null) === true && $recording_type !== '') {
+                $correct_types[] = $recording_type;
+            }
+
+            $correct_types = ll_tools_sort_practice_recording_types($correct_types);
+            if (!empty($required_types)) {
+                $correct_types = array_values(array_intersect($correct_types, $required_types));
+            }
+
+            $data['practice_required_recording_types'] = ll_tools_encode_practice_recording_types($required_types);
+            $data['practice_correct_recording_types'] = ll_tools_encode_practice_recording_types($correct_types);
+        }
+
         $handled_self_check = ll_tools_apply_self_check_outcome_signal($data, $event, $base_ts);
         if (!$handled_self_check) {
             $is_correct = $event['is_correct'];
@@ -600,6 +895,8 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         '%d', // coverage_listening
         '%d', // coverage_gender
         '%d', // coverage_self_check
+        '%s', // practice_required_recording_types
+        '%s', // practice_correct_recording_types
         '%d', // correct_clean
         '%d', // correct_after_retry
         '%d', // incorrect
@@ -739,6 +1036,17 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
         }
     }
 
+    if (!empty($out)) {
+        $required_types_map = ll_tools_get_word_practice_recording_types_map(array_keys($out));
+        foreach ($out as $wid => $row) {
+            $out[$wid]['practice_required_recording_types_json'] = (string) ($row['practice_required_recording_types'] ?? '');
+            $out[$wid]['practice_correct_recording_types_json'] = (string) ($row['practice_correct_recording_types'] ?? '');
+            $out[$wid]['practice_required_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_required_recording_types'] ?? '');
+            $out[$wid]['practice_correct_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_correct_recording_types'] ?? '');
+            $out[$wid]['practice_required_recording_types_resolved'] = $required_types_map[(int) $wid] ?? [];
+        }
+    }
+
     return $out;
 }
 
@@ -763,10 +1071,22 @@ function ll_tools_user_progress_word_is_mastered(array $row): bool {
         return false;
     }
     $stage_threshold = ll_tools_user_progress_mastered_stage_threshold();
-    $clean_threshold = ll_tools_user_progress_mastered_clean_threshold();
     $stage = max(0, (int) ($row['stage'] ?? 0));
+    if ($stage < $stage_threshold) {
+        return false;
+    }
+
+    if (ll_tools_progress_row_has_practice_recording_tracking($row)) {
+        $required_types = ll_tools_get_progress_row_practice_required_recording_types($row);
+        $correct_types = ll_tools_get_progress_row_practice_correct_recording_types($row);
+        if (!empty($required_types)) {
+            return empty(array_diff($required_types, $correct_types));
+        }
+    }
+
+    $clean_threshold = ll_tools_user_progress_mastered_clean_threshold();
     $clean = max(0, (int) ($row['correct_clean'] ?? 0));
-    return ($stage >= $stage_threshold) && ($clean >= $clean_threshold);
+    return $clean >= $clean_threshold;
 }
 
 function ll_tools_user_progress_word_status(array $row): string {

@@ -699,10 +699,52 @@
         return lowered.replace(/\u0307/g, '');
     }
 
+    function normalizeRecordingTypeKey(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
     function getNormalizedOptionText(word) {
         if (!word || typeof word !== 'object') return '';
         const val = (typeof word.label === 'string' && word.label !== '') ? word.label : word.title;
         return normalizeTextForComparison(val);
+    }
+
+    function getNormalizedRecordingTextForType(word, recordingType) {
+        const typeKey = normalizeRecordingTypeKey(recordingType);
+        if (!word || typeof word !== 'object' || !typeKey) {
+            return '';
+        }
+
+        const textMap = (word.recording_texts_by_type && typeof word.recording_texts_by_type === 'object')
+            ? word.recording_texts_by_type
+            : null;
+        if (textMap) {
+            const mapKeys = Object.keys(textMap);
+            for (let i = 0; i < mapKeys.length; i += 1) {
+                if (normalizeRecordingTypeKey(mapKeys[i]) !== typeKey) {
+                    continue;
+                }
+                return normalizeTextForComparison(textMap[mapKeys[i]]);
+            }
+        }
+
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        for (let i = 0; i < audioFiles.length; i += 1) {
+            const entry = audioFiles[i] || {};
+            if (normalizeRecordingTypeKey(entry.recording_type) !== typeKey) {
+                continue;
+            }
+            const key = normalizeTextForComparison(entry.recording_text || '');
+            if (key !== '') {
+                return key;
+            }
+        }
+
+        return '';
     }
 
     function normalizeIdList(raw) {
@@ -1563,6 +1605,10 @@
         State.currentPromptType = promptType;
         const isTextOptionMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation' || mode === 'text_audio');
         const seenOptionTexts = isTextOptionMode ? new Set() : null;
+        const activePromptRecordingType = normalizeRecordingTypeKey(targetWord && targetWord.__practiceRecordingType);
+        const activePromptRecordingText = activePromptRecordingType
+            ? getNormalizedRecordingTextForType(targetWord, activePromptRecordingType)
+            : '';
         renderPrompt(targetWord, config);
 
         const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
@@ -1692,6 +1738,13 @@
                 return String(word && word.id) === candidateId;
             });
             if (isDup) return false;
+
+            if (activePromptRecordingType && activePromptRecordingText) {
+                const candidatePromptText = getNormalizedRecordingTextForType(candidate, activePromptRecordingType);
+                if (candidatePromptText && candidatePromptText === activePromptRecordingText) {
+                    return false;
+                }
+            }
 
             if (enforceSimilarity) {
                 const isSim = chosen.some(function (word) {

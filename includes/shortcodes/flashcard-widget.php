@@ -595,6 +595,10 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         $user_study_state = ll_tools_get_user_study_state();
     }
 
+    if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
+        $initial_words = ll_tools_attach_user_practice_progress_to_words((array) $initial_words, get_current_user_id());
+    }
+
     $launch_context = '';
     if (isset($atts['launch_context'])) {
         $launch_context = sanitize_key((string) $atts['launch_context']);
@@ -1003,6 +1007,10 @@ function ll_get_words_by_category_ajax() {
     }
 
     $words = ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config);
+
+    if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
+        $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id());
+    }
 
     // Public endpoint should not expose internal user IDs.
     if (!is_user_logged_in()) {

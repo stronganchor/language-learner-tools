@@ -10,6 +10,7 @@
     const Results = (root.LLFlashcards.Results = root.LLFlashcards.Results || {});
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
+    const PRACTICE_PROMPT_ORDER = ['question', 'isolation', 'introduction', 'sentence', 'in-sentence'];
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -66,6 +67,233 @@
         return null;
     }
 
+    function normalizeRecordingType(type) {
+        return String(type || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function isUserLoggedIn() {
+        const data = root.llToolsFlashcardsData || {};
+        return !!data.isUserLoggedIn;
+    }
+
+    function sortRecordingTypes(types) {
+        const seen = {};
+        const extras = [];
+        PRACTICE_PROMPT_ORDER.forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (key) {
+                seen[key] = false;
+            }
+        });
+
+        (Array.isArray(types) ? types : []).forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (!key || Object.prototype.hasOwnProperty.call(seen, key) && seen[key] === true) {
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(seen, key)) {
+                seen[key] = true;
+                return;
+            }
+            if (extras.indexOf(key) === -1) {
+                extras.push(key);
+            }
+        });
+
+        const ordered = [];
+        PRACTICE_PROMPT_ORDER.forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (key && seen[key] === true) {
+                ordered.push(key);
+            }
+        });
+        extras.sort();
+        return ordered.concat(extras);
+    }
+
+    function getAvailableRecordingTypes(word) {
+        if (!word || typeof word !== 'object') {
+            return [];
+        }
+
+        const explicit = Array.isArray(word.practice_recording_types)
+            ? word.practice_recording_types
+            : [];
+        if (explicit.length) {
+            return sortRecordingTypes(explicit);
+        }
+
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const collected = files.map(function (entry) {
+            return entry && entry.recording_type;
+        });
+        return sortRecordingTypes(collected);
+    }
+
+    function getCorrectRecordingTypes(word) {
+        if (!word || typeof word !== 'object' || !Array.isArray(word.practice_correct_recording_types)) {
+            return [];
+        }
+        return sortRecordingTypes(word.practice_correct_recording_types);
+    }
+
+    function setCorrectRecordingTypes(word, types) {
+        if (!word || typeof word !== 'object') {
+            return;
+        }
+        word.practice_correct_recording_types = sortRecordingTypes(types);
+    }
+
+    function getRecordingTextForType(word, recordingType) {
+        const key = normalizeRecordingType(recordingType);
+        if (!word || typeof word !== 'object' || !key) {
+            return '';
+        }
+
+        const textMap = (word.recording_texts_by_type && typeof word.recording_texts_by_type === 'object')
+            ? word.recording_texts_by_type
+            : null;
+        if (textMap) {
+            const entries = Object.keys(textMap);
+            for (let i = 0; i < entries.length; i += 1) {
+                const entryKey = normalizeRecordingType(entries[i]);
+                if (entryKey === key) {
+                    return String(textMap[entries[i]] || '').trim();
+                }
+            }
+        }
+
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        for (let i = 0; i < files.length; i += 1) {
+            const entry = files[i] || {};
+            if (normalizeRecordingType(entry.recording_type) !== key) {
+                continue;
+            }
+            return String(entry.recording_text || '').trim();
+        }
+
+        return '';
+    }
+
+    function selectAudioEntryForTypes(word, preferredTypes) {
+        if (!word || typeof word !== 'object') {
+            return null;
+        }
+
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const orderedTypes = sortRecordingTypes(preferredTypes);
+        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        const hasUrl = function (entry) {
+            return !!(entry && typeof entry.url === 'string' && entry.url.trim() !== '');
+        };
+
+        for (let i = 0; i < orderedTypes.length; i += 1) {
+            const key = orderedTypes[i];
+
+            if (preferredSpeaker > 0) {
+                const sameSpeaker = files.find(function (entry) {
+                    return hasUrl(entry)
+                        && normalizeRecordingType(entry.recording_type) === key
+                        && (parseInt(entry.speaker_user_id, 10) || 0) === preferredSpeaker;
+                });
+                if (sameSpeaker) {
+                    return {
+                        type: key,
+                        url: String(sameSpeaker.url).trim(),
+                        recordingText: String(sameSpeaker.recording_text || '').trim()
+                    };
+                }
+            }
+
+            const anySpeaker = files.find(function (entry) {
+                return hasUrl(entry) && normalizeRecordingType(entry.recording_type) === key;
+            });
+            if (anySpeaker) {
+                return {
+                    type: key,
+                    url: String(anySpeaker.url).trim(),
+                    recordingText: String(anySpeaker.recording_text || '').trim()
+                };
+            }
+        }
+
+        const fallback = files.find(hasUrl);
+        if (fallback) {
+            return {
+                type: normalizeRecordingType(fallback.recording_type) || (orderedTypes[0] || ''),
+                url: String(fallback.url).trim(),
+                recordingText: String(fallback.recording_text || '').trim()
+            };
+        }
+
+        const directAudio = typeof word.audio === 'string' ? word.audio.trim() : '';
+        if (!directAudio) {
+            return null;
+        }
+
+        const fallbackType = orderedTypes[0] || '';
+        return {
+            type: fallbackType,
+            url: directAudio,
+            recordingText: getRecordingTextForType(word, fallbackType)
+        };
+    }
+
+    function resolvePracticePromptAudio(word) {
+        const availableTypes = getAvailableRecordingTypes(word);
+        const correctTypes = isUserLoggedIn() ? getCorrectRecordingTypes(word) : [];
+        let selectedType = '';
+
+        if (isUserLoggedIn()) {
+            selectedType = availableTypes.find(function (type) {
+                return correctTypes.indexOf(type) === -1;
+            }) || '';
+        }
+
+        if (!selectedType) {
+            selectedType = PRACTICE_PROMPT_ORDER.find(function (type) {
+                return availableTypes.indexOf(type) !== -1;
+            }) || availableTypes[0] || '';
+        }
+
+        const preferredOrder = [];
+        if (selectedType) {
+            preferredOrder.push(selectedType);
+        }
+        availableTypes.forEach(function (type) {
+            if (preferredOrder.indexOf(type) === -1) {
+                preferredOrder.push(type);
+            }
+        });
+
+        const entry = selectAudioEntryForTypes(word, preferredOrder);
+        if (entry && entry.type) {
+            selectedType = entry.type;
+        }
+
+        return {
+            selectedType: selectedType,
+            entry: entry
+        };
+    }
+
+    function markRecordingTypeCorrect(word) {
+        const type = normalizeRecordingType(word && word.__practiceRecordingType);
+        if (!word || !type) {
+            return;
+        }
+
+        const correctTypes = getCorrectRecordingTypes(word);
+        if (correctTypes.indexOf(type) === -1) {
+            correctTypes.push(type);
+            setCorrectRecordingTypes(word, correctTypes);
+        }
+    }
+
     function initialize() {
         State.isLearningMode = false;
         State.isListeningMode = false;
@@ -116,6 +344,7 @@
 
     function onCorrectAnswer(ctx) {
         if (!ctx || !ctx.targetWord) return;
+        markRecordingTypeCorrect(ctx.targetWord);
         if (State.wrongIndexes.length === 0) return;
         queueForRepetition(ctx.targetWord, { force: true });
     }
@@ -225,17 +454,29 @@
     }
 
     function configureTargetAudio(target) {
-        // For audio prompts, prefer the question clip, then isolation, then introduction
         if (!target) return true;
         const promptType = State.currentPromptType || 'audio';
-        if (promptType !== 'audio') return true;
-        if (!root.FlashcardAudio || typeof root.FlashcardAudio.selectBestAudio !== 'function') return true;
-
-        const preferredOrder = ['question', 'isolation', 'introduction'];
-        const best = root.FlashcardAudio.selectBestAudio(target, preferredOrder);
-        if (best) {
-            target.audio = best;
+        if (promptType !== 'audio') {
+            delete target.__practiceRecordingType;
+            delete target.__practiceRecordingText;
+            return true;
         }
+
+        const resolved = resolvePracticePromptAudio(target);
+        if (resolved.entry && resolved.entry.url) {
+            target.audio = resolved.entry.url;
+        }
+
+        if (resolved.selectedType) {
+            target.__practiceRecordingType = resolved.selectedType;
+            target.__practiceRecordingText = resolved.entry && resolved.entry.recordingText
+                ? resolved.entry.recordingText
+                : getRecordingTextForType(target, resolved.selectedType);
+        } else {
+            delete target.__practiceRecordingType;
+            delete target.__practiceRecordingText;
+        }
+
         return true;
     }
 
