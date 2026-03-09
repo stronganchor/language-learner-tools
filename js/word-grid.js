@@ -1070,7 +1070,7 @@
         });
 
         $(document).on('pointerdown.llLessonBulk', function (e) {
-            if ($(e.target).closest('[data-ll-word-grid-bulk], .ll-vocab-lesson-prereq-autocomplete').length) { return; }
+            if ($(e.target).closest('[data-ll-word-grid-bulk]').length) { return; }
             closeBulkEditors();
         });
 
@@ -1175,6 +1175,9 @@
         error: prereqI18n.error || 'Unable to save prerequisites.',
         empty: prereqI18n.empty || 'No prerequisites selected.',
         remove: prereqI18n.remove || 'Remove %s',
+        optionAdd: prereqI18n.optionAdd || 'Add %s',
+        optionRemove: prereqI18n.optionRemove || prereqI18n.remove || 'Remove %s',
+        noMatches: prereqI18n.noMatches || 'No matching categories.',
         levelCycle: prereqI18n.levelCycle || 'Cycle',
         levelUnknown: prereqI18n.levelUnknown || '-'
     };
@@ -3121,15 +3124,39 @@
             return state;
         }
 
-        function setPrereqEditorStatus($editor, message, isError) {
+        function setPrereqEditorStatus($editor, statusState, message) {
             const $status = $editor.find('[data-ll-prereq-status]').first();
             if (!$status.length) { return; }
-            $status.text(message || '');
-            $status.toggleClass('is-error', !!isError);
+
+            const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+                ? statusState.toString()
+                : 'idle';
+            const text = (message || '').toString();
+            const $message = $status.find('[data-ll-prereq-status-message]').first();
+
+            $status.attr('data-state', nextState);
+            $status.attr('aria-label', text);
+
+            if (nextState === 'idle') {
+                $status.attr('hidden', 'hidden');
+            } else {
+                $status.removeAttr('hidden');
+            }
+
+            if ($message.length) {
+                if (nextState === 'error' && text) {
+                    $message.text(text);
+                    $message.removeAttr('hidden');
+                } else {
+                    $message.text('');
+                    $message.attr('hidden', 'hidden');
+                }
+            }
         }
 
         function setPrereqEditorBusy($editor, isBusy) {
-            $editor.find('[data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]').prop('disabled', !!isBusy);
+            $editor.find('[data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove], [data-ll-prereq-option], [data-ll-prereq-search-clear]')
+                .prop('disabled', !!isBusy);
             $editor.attr('aria-busy', isBusy ? 'true' : 'false');
         }
 
@@ -3158,6 +3185,37 @@
             }
         }
 
+        function sortPrereqSelectedIds(state, ids) {
+            if (!state || !Array.isArray(ids)) { return []; }
+
+            const selectedLookup = {};
+            ids.forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    selectedLookup[numericId] = true;
+                }
+            });
+
+            const orderedIds = [];
+            (Array.isArray(state.options) ? state.options : []).forEach(function (option) {
+                const optionId = parseInt(option && option.id, 10) || 0;
+                if (!optionId || !selectedLookup[optionId]) {
+                    return;
+                }
+                orderedIds.push(optionId);
+                delete selectedLookup[optionId];
+            });
+
+            Object.keys(selectedLookup).forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    orderedIds.push(numericId);
+                }
+            });
+
+            return orderedIds;
+        }
+
         function renderPrereqEditorChips($editor) {
             const state = getPrereqEditorState($editor);
             const $chips = $editor.find('[data-ll-prereq-chips]').first();
@@ -3166,12 +3224,11 @@
             $chips.empty();
 
             if (!state.selectedIds.length) {
-                $chips.append($('<span>', {
-                    class: 'll-vocab-lesson-prereq-empty',
-                    text: prereqMessages.empty
-                }));
+                $chips.attr('hidden', 'hidden');
                 return;
             }
+
+            $chips.removeAttr('hidden');
 
             state.selectedIds.forEach(function (id) {
                 const numericId = parseInt(id, 10) || 0;
@@ -3205,6 +3262,108 @@
                 }));
 
                 $chips.append($chip);
+            });
+        }
+
+        function renderPrereqEditorSearchControls($editor) {
+            const $input = $editor.find('[data-ll-prereq-input]').first();
+            const $clear = $editor.find('[data-ll-prereq-search-clear]').first();
+            if (!$input.length || !$clear.length) { return; }
+
+            if (($input.val() || '').toString().trim()) {
+                $clear.removeAttr('hidden');
+            } else {
+                $clear.attr('hidden', 'hidden');
+            }
+        }
+
+        function renderPrereqEditorOptions($editor) {
+            const state = getPrereqEditorState($editor);
+            const $list = $editor.find('[data-ll-prereq-options-list]').first();
+            const $input = $editor.find('[data-ll-prereq-input]').first();
+            if (!state || !$list.length) { return; }
+
+            renderPrereqEditorSearchControls($editor);
+            $list.empty();
+
+            const term = $input.length
+                ? ($input.val() || '').toString().trim().toLowerCase()
+                : '';
+            const selectedLookup = {};
+            state.selectedIds.forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    selectedLookup[numericId] = true;
+                }
+            });
+
+            const selectedRows = [];
+            const availableRows = [];
+
+            (Array.isArray(state.options) ? state.options : []).forEach(function (option) {
+                const numericId = parseInt(option && option.id, 10) || 0;
+                if (!numericId) { return; }
+
+                const label = (option && option.label) ? option.label.toString() : String(numericId);
+                const haystack = label.toLowerCase();
+                const idText = String(numericId);
+                if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
+                    return;
+                }
+
+                if (selectedLookup[numericId]) {
+                    selectedRows.push(option);
+                } else {
+                    availableRows.push(option);
+                }
+            });
+
+            const rows = selectedRows.concat(availableRows);
+            if (!rows.length) {
+                $list.append($('<div>', {
+                    class: 'll-vocab-lesson-prereq-options-empty',
+                    text: prereqMessages.noMatches
+                }));
+                return;
+            }
+
+            rows.forEach(function (option) {
+                const numericId = parseInt(option && option.id, 10) || 0;
+                if (!numericId) { return; }
+
+                const label = (option && option.label) ? option.label.toString() : String(numericId);
+                const isSelected = !!selectedLookup[numericId];
+                const $button = $('<button>', {
+                    type: 'button',
+                    class: 'll-vocab-lesson-prereq-option' + (isSelected ? ' is-selected' : ''),
+                    'data-ll-prereq-option': String(numericId),
+                    'aria-pressed': isSelected ? 'true' : 'false',
+                    'aria-label': formatStringMessage(
+                        isSelected ? prereqMessages.optionRemove : prereqMessages.optionAdd,
+                        label
+                    )
+                });
+                const $main = $('<span>', { class: 'll-vocab-lesson-prereq-option-main' });
+                $main.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-option-toggle',
+                    'aria-hidden': 'true'
+                }));
+                $main.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-option-label',
+                    text: label
+                }));
+                $button.append($main);
+
+                const levelRaw = parseInt(option && option.level, 10);
+                if (Number.isFinite(levelRaw) && !state.hasCycle) {
+                    $button.append($('<span>', {
+                        class: 'll-vocab-lesson-prereq-option-level',
+                        text: 'L' + String(levelRaw),
+                        'aria-hidden': 'true'
+                    }));
+                }
+
+                $list.append($button);
             });
         }
 
@@ -3243,8 +3402,9 @@
             if (state.selectedIds.indexOf(option.id) !== -1) {
                 return false;
             }
-            state.selectedIds.push(option.id);
+            state.selectedIds = sortPrereqSelectedIds(state, state.selectedIds.concat([option.id]));
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
             return true;
         }
 
@@ -3258,113 +3418,30 @@
             if (nextIds.length === state.selectedIds.length) {
                 return false;
             }
-            state.selectedIds = nextIds;
+            state.selectedIds = sortPrereqSelectedIds(state, nextIds);
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
             return true;
         }
 
-        function ensurePrereqEditorAutocomplete($editor) {
-            const $input = $editor.find('[data-ll-prereq-input]').first();
-            if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
-            if ($input.data('llPrereqAutocompleteReady')) { return; }
-            $input.data('llPrereqAutocompleteReady', true);
+        function togglePrereqSelection($editor, prereqId) {
+            const state = getPrereqEditorState($editor);
+            const numericId = parseInt(prereqId, 10) || 0;
+            if (!state || !numericId) { return false; }
 
-            const $panel = $editor.closest('.ll-vocab-lesson-bulk-panel');
-            const applyPrereqSelection = function (item) {
-                const selectedItem = (item && typeof item === 'object') ? item : {};
-                if (addPrereqSelection($editor, selectedItem)) {
-                    setPrereqEditorStatus($editor, '', false);
-                }
-                $input.val('');
-            };
-            $input.autocomplete({
-                minLength: 0,
-                delay: 100,
-                appendTo: $panel.length ? $panel : $editor,
-                classes: {
-                    'ui-autocomplete': 'll-vocab-lesson-prereq-autocomplete'
-                },
-                source: function (request, response) {
-                    const state = getPrereqEditorState($editor);
-                    const selectedLookup = {};
-                    (state && Array.isArray(state.selectedIds) ? state.selectedIds : []).forEach(function (id) {
-                        const numericId = parseInt(id, 10) || 0;
-                        if (numericId) {
-                            selectedLookup[numericId] = true;
-                        }
-                    });
-
-                    const term = ((request && request.term) ? request.term : '').toString().trim().toLowerCase();
-                    const results = [];
-                    (state && Array.isArray(state.options) ? state.options : []).forEach(function (option) {
-                        const id = parseInt(option && option.id, 10) || 0;
-                        if (!id || selectedLookup[id]) { return; }
-                        const label = (option && option.label) ? option.label.toString() : String(id);
-                        const haystack = label.toLowerCase();
-                        const idText = String(id);
-                        if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
-                            return;
-                        }
-                        results.push({
-                            id: id,
-                            label: label,
-                            value: label,
-                            level: Object.prototype.hasOwnProperty.call(option || {}, 'level') ? option.level : undefined
-                        });
-                    });
-
-                    results.sort(function (left, right) {
-                        const leftLabel = (left && left.label) ? left.label.toString() : '';
-                        const rightLabel = (right && right.label) ? right.label.toString() : '';
-                        return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
-                    });
-
-                    response(results.slice(0, 20));
-                },
-                focus: function (event, ui) {
-                    event.preventDefault();
-                    $input.val((ui.item && ui.item.label) ? ui.item.label : '');
-                },
-                select: function (event, ui) {
-                    event.preventDefault();
-                    applyPrereqSelection(ui && ui.item ? ui.item : {});
-                    return false;
-                }
-            });
-
-            const instance = $input.autocomplete('instance');
-            if (instance) {
-                const $menu = instance.menu && instance.menu.element ? instance.menu.element : $();
-                if ($menu.length) {
-                    $menu.on('pointerdown.llPrereqMenu click.llPrereqMenu', function (event) {
-                        event.stopPropagation();
-                    });
-                }
-                instance._renderItem = function (ul, item) {
-                    const $line = $('<div>', { class: 'll-vocab-lesson-prereq-menu-item' });
-                    $line.append($('<span>', {
-                        class: 'll-vocab-lesson-prereq-menu-label',
-                        text: (item && item.label) ? item.label : ''
-                    }));
-
-                    const levelRaw = parseInt(item && item.level, 10);
-                    if (Number.isFinite(levelRaw)) {
-                        $line.append($('<span>', {
-                            class: 'll-vocab-lesson-prereq-menu-level',
-                            text: 'L' + String(levelRaw),
-                            'aria-hidden': 'true'
-                        }));
-                    }
-
-                    return $('<li>').append($line).appendTo(ul);
-                };
+            if (state.selectedIds.indexOf(numericId) !== -1) {
+                return removePrereqSelection($editor, numericId);
             }
+
+            const option = state.optionsById[numericId] || { id: numericId, label: String(numericId) };
+            return addPrereqSelection($editor, option);
         }
 
         function initPrereqEditor($editor) {
             if (!$editor || !$editor.length) { return; }
             getPrereqEditorState($editor);
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
 
             const state = getPrereqEditorState($editor);
             if (state) {
@@ -3377,28 +3454,62 @@
                 initPrereqEditor($(this));
             });
 
-            $bulkEditors.on('focus', '[data-ll-prereq-input]', function () {
-                const $input = $(this);
-                const $editor = $input.closest('[data-ll-prereq-editor]');
-                if (!$editor.length) { return; }
-                ensurePrereqEditorAutocomplete($editor);
-            });
-
-            $bulkEditors.on('click', '[data-ll-prereq-input]', function (e) {
-                e.stopPropagation();
-                const $input = $(this);
-                const $editor = $input.closest('[data-ll-prereq-editor]');
-                if (!$editor.length) { return; }
-                ensurePrereqEditorAutocomplete($editor);
-                if (typeof $input.autocomplete === 'function') {
-                    $input.autocomplete('search', ($input.val() || '').toString());
-                }
-            });
-
             $bulkEditors.on('input', '[data-ll-prereq-input]', function () {
                 const $editor = $(this).closest('[data-ll-prereq-editor]');
                 if (!$editor.length) { return; }
-                setPrereqEditorStatus($editor, '', false);
+                renderPrereqEditorOptions($editor);
+                setPrereqEditorStatus($editor, 'idle', '');
+            });
+
+            $bulkEditors.on('keydown', '[data-ll-prereq-input]', function (e) {
+                const $input = $(this);
+                const $editor = $input.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+
+                if (e.key === 'Enter') {
+                    const $firstOption = $editor.find('[data-ll-prereq-option]').first();
+                    if ($firstOption.length) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        togglePrereqSelection($editor, $firstOption.attr('data-ll-prereq-option'));
+                        setPrereqEditorStatus($editor, 'idle', '');
+                    }
+                    return;
+                }
+
+                if (e.key === 'Escape' && ($input.val() || '').toString()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $input.val('');
+                    renderPrereqEditorOptions($editor);
+                    setPrereqEditorStatus($editor, 'idle', '');
+                }
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-search-clear]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                const $input = $editor.find('[data-ll-prereq-input]').first();
+                if (!$editor.length || !$input.length) { return; }
+                $input.val('');
+                renderPrereqEditorOptions($editor);
+                setPrereqEditorStatus($editor, 'idle', '');
+                $input.trigger('focus');
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-option]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                if (togglePrereqSelection($editor, $btn.attr('data-ll-prereq-option'))) {
+                    setPrereqEditorStatus($editor, 'idle', '');
+                }
             });
 
             $bulkEditors.on('click', '[data-ll-prereq-remove]', function (e) {
@@ -3411,7 +3522,7 @@
                 const prereqId = parseInt($btn.attr('data-ll-prereq-remove'), 10) || 0;
                 if (!prereqId) { return; }
                 if (removePrereqSelection($editor, prereqId)) {
-                    setPrereqEditorStatus($editor, '', false);
+                    setPrereqEditorStatus($editor, 'idle', '');
                 }
             });
 
@@ -3427,18 +3538,18 @@
 
                 const context = getBulkContext($wrap);
                 if (!context) {
-                    setPrereqEditorStatus($editor, prereqMessages.error, true);
+                    setPrereqEditorStatus($editor, 'error', prereqMessages.error);
                     return;
                 }
 
                 const state = getPrereqEditorState($editor);
                 if (!state) {
-                    setPrereqEditorStatus($editor, prereqMessages.error, true);
+                    setPrereqEditorStatus($editor, 'error', prereqMessages.error);
                     return;
                 }
 
                 setPrereqEditorBusy($editor, true);
-                setPrereqEditorStatus($editor, prereqMessages.saving, false);
+                setPrereqEditorStatus($editor, 'saving', prereqMessages.saving);
 
                 $.post(ajaxUrl, {
                     action: 'll_tools_word_grid_update_category_prereqs',
@@ -3451,7 +3562,7 @@
                         const responseMessage = response && response.data && typeof response.data.message === 'string'
                             ? response.data.message
                             : prereqMessages.error;
-                        setPrereqEditorStatus($editor, responseMessage, true);
+                        setPrereqEditorStatus($editor, 'error', responseMessage);
                         return;
                     }
 
@@ -3465,18 +3576,19 @@
                             nextSelectedIds.push(option.id);
                         }
                     });
-                    state.selectedIds = nextSelectedIds;
+                    state.selectedIds = sortPrereqSelectedIds(state, nextSelectedIds);
 
                     renderPrereqEditorChips($editor);
-                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
                     $editor.find('[data-ll-prereq-input]').val('');
+                    renderPrereqEditorOptions($editor);
+                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
 
                     const successMessage = (typeof data.message === 'string' && data.message)
                         ? data.message
                         : prereqMessages.saved;
-                    setPrereqEditorStatus($editor, successMessage, false);
+                    setPrereqEditorStatus($editor, 'saved', successMessage);
                 }).fail(function (jqXHR) {
-                    setPrereqEditorStatus($editor, readAjaxErrorMessage(jqXHR, prereqMessages.error), true);
+                    setPrereqEditorStatus($editor, 'error', readAjaxErrorMessage(jqXHR, prereqMessages.error));
                 }).always(function () {
                     setPrereqEditorBusy($editor, false);
                 });

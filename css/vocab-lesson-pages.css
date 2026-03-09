@@ -366,6 +366,14 @@
     padding-bottom: 2px;
 }
 
+.ll-vocab-lesson-prereq-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .ll-vocab-lesson-prereq-meta {
     display: inline-flex;
     align-items: center;
@@ -380,9 +388,11 @@
     line-height: 1.2;
 }
 
-.ll-vocab-lesson-prereq-level-label {
+.ll-vocab-lesson-prereq-meta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: #64748b;
-    font-weight: 600;
 }
 
 .ll-vocab-lesson-prereq-level-value {
@@ -390,9 +400,33 @@
     color: #0f172a;
 }
 
+.ll-vocab-lesson-prereq-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-vocab-lesson-prereq-search {
+    position: relative;
+    min-width: 0;
+}
+
+.ll-vocab-lesson-prereq-search-icon {
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    pointer-events: none;
+}
+
 .ll-vocab-lesson-prereq-input {
     width: 100%;
-    padding: 7px 10px;
+    padding: 7px 34px 7px 34px;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
     background: #ffffff;
@@ -407,16 +441,158 @@
     border-color: rgba(31, 107, 92, 0.6);
 }
 
+.ll-vocab-lesson-prereq-search-clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid #dbe3ee;
+    background: #ffffff;
+    color: #475569;
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+}
+
+.ll-vocab-lesson-prereq-search-clear:hover {
+    background: #f8fafc;
+}
+
+.ll-vocab-lesson-prereq-search-clear:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    outline-offset: 1px;
+}
+
 .ll-vocab-lesson-prereq-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    min-height: 26px;
 }
 
-.ll-vocab-lesson-prereq-empty {
+.ll-vocab-lesson-prereq-chips[hidden] {
+    display: none;
+}
+
+.ll-vocab-lesson-prereq-options {
+    display: grid;
+    gap: 6px;
+    max-height: 210px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.ll-vocab-lesson-prereq-options-empty {
+    padding: 4px 2px;
     font-size: 12px;
     color: #64748b;
+}
+
+.ll-vocab-lesson-prereq-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #dbe3ee;
+    background: #ffffff;
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ll-vocab-lesson-prereq-option:hover {
+    border-color: #aac8be;
+    background: #f8fcfa;
+}
+
+.ll-vocab-lesson-prereq-option:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.2);
+    outline-offset: 1px;
+}
+
+.ll-vocab-lesson-prereq-option.is-selected {
+    border-color: #87b09f;
+    background: #edf7f3;
+    color: #16352d;
+}
+
+.ll-vocab-lesson-prereq-option-main {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ll-vocab-lesson-prereq-option-toggle {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    border: 1px solid #94a3b8;
+    background: #ffffff;
+}
+
+.ll-vocab-lesson-prereq-option-toggle::before {
+    content: "+";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle {
+    border-color: #1f6b5c;
+    background: #1f6b5c;
+}
+
+.ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-toggle::before {
+    content: "";
+    width: 5px;
+    height: 9px;
+    border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    top: 44%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-vocab-lesson-prereq-option-level {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.ll-vocab-lesson-prereq-option.is-selected .ll-vocab-lesson-prereq-option-level {
+    background: rgba(22, 53, 45, 0.08);
+    color: #16352d;
 }
 
 .ll-vocab-lesson-prereq-chip {
@@ -477,12 +653,6 @@
     outline-offset: 1px;
 }
 
-.ll-vocab-lesson-prereq-hint {
-    font-size: 12px;
-    color: #64748b;
-    line-height: 1.2;
-}
-
 .ll-vocab-lesson-prereq-warning {
     margin: 0;
     font-size: 12px;
@@ -491,45 +661,78 @@
 }
 
 .ll-vocab-lesson-prereq-status {
-    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
 }
 
-.ll-vocab-lesson-prereq-autocomplete.ui-autocomplete {
-    z-index: 100000 !important;
-    border: 1px solid #d0d7de;
-    border-radius: 10px;
-    background: #ffffff;
-    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
-    padding: 4px;
-    max-height: 240px;
-    overflow-y: auto;
-    overflow-x: hidden;
+.ll-vocab-lesson-prereq-status[hidden] {
+    display: none;
 }
 
-.ll-vocab-lesson-prereq-menu-item {
+.ll-vocab-lesson-prereq-status-icon {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-prereq-status[data-state="saving"] .ll-vocab-lesson-prereq-status-icon {
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--ll-vlp-accent);
+    animation: ll-tools-spin 0.8s linear infinite;
+}
+
+.ll-vocab-lesson-prereq-status[data-state="saved"] .ll-vocab-lesson-prereq-status-icon {
+    background: #1f6b5c;
+}
+
+.ll-vocab-lesson-prereq-status[data-state="saved"] .ll-vocab-lesson-prereq-status-icon::before {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 9px;
+    border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    top: 44%;
+    left: 50%;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.ll-vocab-lesson-prereq-status[data-state="error"] .ll-vocab-lesson-prereq-status-icon {
+    background: #b91c1c;
+}
+
+.ll-vocab-lesson-prereq-status[data-state="error"] .ll-vocab-lesson-prereq-status-icon::before {
+    content: "!";
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-width: 0;
-}
-
-.ll-vocab-lesson-prereq-menu-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ll-vocab-lesson-prereq-menu-level {
-    flex: 0 0 auto;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: #f1f5f9;
-    color: #334155;
-    font-size: 10px;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.03em;
+    line-height: 1;
+}
+
+.ll-vocab-lesson-prereq-status-message {
+    font-size: 12px;
+    line-height: 1.35;
+    color: #b91c1c;
+}
+
+@media (max-width: 520px) {
+    .ll-vocab-lesson-prereq-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-vocab-lesson-prereq-controls .ll-vocab-lesson-bulk-apply {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 .ll-vocab-lesson-settings-button.ll-tools-settings-button {

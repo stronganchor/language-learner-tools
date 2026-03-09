@@ -181,6 +181,8 @@ Current primary-flow E2E specs:
   - Verifies Practice mode answer option counts/constraints across category setups.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
   - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
+- `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
+  - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`

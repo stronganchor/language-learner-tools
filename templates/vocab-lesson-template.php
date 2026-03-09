@@ -415,32 +415,55 @@ if (have_posts()) {
                                             data-ll-prereq-has-cycle="<?php echo !empty($lesson_prereq_editor['has_cycle']) ? '1' : '0'; ?>"
                                         >
                                             <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Prerequisites', 'll-tools-text-domain'); ?></div>
-                                            <div class="ll-vocab-lesson-prereq-meta">
-                                                <span class="ll-vocab-lesson-prereq-level-label"><?php echo esc_html__('Level', 'll-tools-text-domain'); ?></span>
-                                                <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level><?php echo esc_html($lesson_prereq_level_display); ?></span>
+                                            <div class="ll-vocab-lesson-prereq-toolbar">
+                                                <div class="ll-vocab-lesson-prereq-meta" aria-label="<?php echo esc_attr__('Prerequisite level', 'll-tools-text-domain'); ?>">
+                                                    <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">
+                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                                            <path d="M2 11.5h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                            <path d="M3.5 8.5h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                            <path d="M5 5.5h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="screen-reader-text"><?php echo esc_html__('Level', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level><?php echo esc_html($lesson_prereq_level_display); ?></span>
+                                                </div>
+                                                <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
+                                                </span>
                                             </div>
                                             <label class="screen-reader-text" for="<?php echo esc_attr($lesson_prereq_input_id); ?>">
-                                                <?php echo esc_html__('Add prerequisite category', 'll-tools-text-domain'); ?>
+                                                <?php echo esc_html__('Search prerequisite categories', 'll-tools-text-domain'); ?>
                                             </label>
-                                            <input
-                                                type="text"
-                                                id="<?php echo esc_attr($lesson_prereq_input_id); ?>"
-                                                class="ll-vocab-lesson-prereq-input"
-                                                data-ll-prereq-input
-                                                autocomplete="off"
-                                                placeholder="<?php echo esc_attr__('Type category name', 'll-tools-text-domain'); ?>"
-                                            />
-                                            <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite"></div>
-                                            <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning <?php if (empty($lesson_prereq_editor['has_cycle'])) : ?>hidden<?php endif; ?>>
-                                                <?php echo esc_html__('A prerequisite loop exists in this word set. Remove the loop to restore prerequisite ordering.', 'll-tools-text-domain'); ?>
-                                            </p>
-                                            <div class="ll-vocab-lesson-bulk-controls ll-vocab-lesson-bulk-controls--actions">
-                                                <div class="ll-vocab-lesson-prereq-hint"><?php echo esc_html__('Type, pick, repeat.', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-prereq-controls">
+                                                <div class="ll-vocab-lesson-prereq-search">
+                                                    <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">
+                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                                            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/>
+                                                            <path d="M9.5 9.5l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        id="<?php echo esc_attr($lesson_prereq_input_id); ?>"
+                                                        class="ll-vocab-lesson-prereq-input"
+                                                        data-ll-prereq-input
+                                                        autocomplete="off"
+                                                        placeholder="<?php echo esc_attr__('Find categories', 'll-tools-text-domain'); ?>"
+                                                    />
+                                                    <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="<?php echo esc_attr__('Clear search', 'll-tools-text-domain'); ?>" hidden>
+                                                        <span aria-hidden="true">x</span>
+                                                    </button>
+                                                </div>
                                                 <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-prereq-apply aria-label="<?php echo esc_attr__('Save category prerequisites', 'll-tools-text-domain'); ?>">
                                                     <?php echo esc_html__('Save', 'll-tools-text-domain'); ?>
                                                 </button>
                                             </div>
-                                            <span class="ll-vocab-lesson-bulk-status ll-vocab-lesson-prereq-status" data-ll-prereq-status aria-live="polite"></span>
+                                            <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
+                                            <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
+                                            <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning <?php if (empty($lesson_prereq_editor['has_cycle'])) : ?>hidden<?php endif; ?>>
+                                                <?php echo esc_html__('A prerequisite loop exists in this word set. Remove the loop to restore prerequisite ordering.', 'll-tools-text-domain'); ?>
+                                            </p>
                                         </div>
                                     <?php endif; ?>
                                     <div class="ll-vocab-lesson-bulk-section">

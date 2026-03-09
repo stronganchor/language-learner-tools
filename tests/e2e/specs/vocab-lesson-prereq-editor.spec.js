@@ -1,0 +1,213 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const wordGridScriptSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/word-grid.js'),
+  'utf8'
+);
+const flashcardBaseCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/flashcard/base.css'),
+  'utf8'
+);
+const vocabLessonCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
+  'utf8'
+);
+
+function buildPrereqEditorMarkup() {
+  return `
+    <div class="ll-vocab-lesson-page" data-ll-vocab-lesson style="padding: 10px; box-sizing: border-box;">
+      <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="7" data-ll-category-id="11">
+        <div class="ll-vocab-lesson-bulk ll-tools-settings-control" data-ll-word-grid-bulk>
+          <button
+            type="button"
+            class="ll-vocab-lesson-bulk-button ll-tools-settings-button"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <span class="mode-icon" aria-hidden="true">E</span>
+            <span class="ll-vocab-lesson-bulk-label">Bulk edit</span>
+          </button>
+          <div
+            class="ll-vocab-lesson-bulk-panel ll-tools-settings-panel"
+            role="dialog"
+            aria-hidden="true"
+          >
+            <div
+              class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-section--prereq"
+              data-ll-prereq-editor
+              data-ll-prereq-options='[{"id":12,"label":"Basics","level":1},{"id":13,"label":"Food","level":2},{"id":14,"label":"Travel","level":3}]'
+              data-ll-prereq-selected='[{"id":13,"label":"Food","level":2}]'
+              data-ll-prereq-current-level="3"
+              data-ll-prereq-has-cycle="0"
+            >
+              <div class="ll-vocab-lesson-bulk-heading">Prerequisites</div>
+              <div class="ll-vocab-lesson-prereq-toolbar">
+                <div class="ll-vocab-lesson-prereq-meta" aria-label="Prerequisite level">
+                  <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">L</span>
+                  <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>3</span>
+                </div>
+                <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
+                  <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
+                  <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
+                </span>
+              </div>
+              <label class="screen-reader-text" for="ll-test-prereq-input">Search prerequisite categories</label>
+              <div class="ll-vocab-lesson-prereq-controls">
+                <div class="ll-vocab-lesson-prereq-search">
+                  <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">S</span>
+                  <input
+                    type="text"
+                    id="ll-test-prereq-input"
+                    class="ll-vocab-lesson-prereq-input"
+                    data-ll-prereq-input
+                    autocomplete="off"
+                    placeholder="Find categories"
+                  />
+                  <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="Clear search" hidden>
+                    <span aria-hidden="true">x</span>
+                  </button>
+                </div>
+                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-bulk-apply" data-ll-prereq-apply aria-label="Save category prerequisites">
+                  Save
+                </button>
+              </div>
+              <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
+              <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
+              <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning hidden>
+                Loop warning
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildWordGridConfig() {
+  return {
+    ajaxUrl: '/wp-admin/admin-ajax.php',
+    nonce: 'test-nonce',
+    editNonce: 'test-edit-nonce',
+    canEdit: true,
+    isLoggedIn: true,
+    state: {
+      wordset_id: 7,
+      category_ids: [11],
+      starred_word_ids: [],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    i18n: {},
+    prereqI18n: {
+      saving: 'Saving prerequisites...',
+      saved: 'Prerequisites saved.',
+      error: 'Unable to save prerequisites.',
+      remove: 'Remove %s',
+      optionAdd: 'Add %s',
+      optionRemove: 'Remove %s',
+      noMatches: 'No matching categories.',
+      levelCycle: 'Cycle',
+      levelUnknown: '-'
+    }
+  };
+}
+
+async function mountPrereqEditor(page, viewport) {
+  await page.setViewportSize(viewport);
+  await page.goto('about:blank');
+  await page.setContent(buildPrereqEditorMarkup());
+  await page.addStyleTag({ content: flashcardBaseCssSource });
+  await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate((cfg) => {
+    window.llToolsWordGridData = cfg;
+  }, buildWordGridConfig());
+  await page.evaluate(() => {
+    const optionRows = {
+      12: { id: 12, label: 'Basics', level: 1 },
+      13: { id: 13, label: 'Food', level: 2 },
+      14: { id: 14, label: 'Travel', level: 3 }
+    };
+
+    window.llPrereqPostCalls = [];
+    jQuery.post = function (_url, data) {
+      const payload = JSON.parse(JSON.stringify(data || {}));
+      window.llPrereqPostCalls.push(payload);
+
+      const deferred = jQuery.Deferred();
+      const ids = Array.isArray(payload.prereq_ids)
+        ? payload.prereq_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+        : [];
+      const selected = ids.map((id) => optionRows[id]).filter(Boolean);
+
+      deferred.resolve({
+        success: true,
+        data: {
+          message: 'Prerequisites saved.',
+          selected,
+          selected_ids: ids,
+          level: 3,
+          has_cycle: false
+        }
+      });
+
+      return deferred.promise();
+    };
+  });
+  await page.addScriptTag({ content: wordGridScriptSource });
+}
+
+async function exercisePrereqEditor(page) {
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await expect(page.locator('.ll-vocab-lesson-bulk-panel')).toHaveAttribute('aria-hidden', 'false');
+
+  const basicsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Basics' }).first();
+  const foodOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Food' }).first();
+  const travelOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Travel' }).first();
+
+  await expect(foodOption).toHaveAttribute('aria-pressed', 'true');
+
+  await basicsOption.click();
+  await expect(basicsOption).toHaveAttribute('aria-pressed', 'true');
+
+  const searchInput = page.locator('[data-ll-prereq-input]');
+  await searchInput.fill('tra');
+  await expect(page.locator('[data-ll-prereq-option]')).toHaveCount(1);
+  await travelOption.click();
+
+  const clearSearchButton = page.locator('[data-ll-prereq-search-clear]');
+  await expect(clearSearchButton).toBeVisible();
+  await clearSearchButton.click();
+  await expect(travelOption).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('[data-ll-prereq-chip-id="13"] [data-ll-prereq-remove]').click();
+  await expect(foodOption).toHaveAttribute('aria-pressed', 'false');
+
+  await travelOption.click();
+  await expect(travelOption).toHaveAttribute('aria-pressed', 'false');
+  await travelOption.click();
+  await expect(travelOption).toHaveAttribute('aria-pressed', 'true');
+
+  await expect(page.locator('[data-ll-prereq-chip-id]')).toHaveCount(2);
+
+  await page.locator('[data-ll-prereq-apply]').click();
+  await expect(page.locator('[data-ll-prereq-status]')).toHaveAttribute('data-state', 'saved');
+
+  const calls = await page.evaluate(() => window.llPrereqPostCalls);
+  expect(calls).toHaveLength(1);
+  expect((calls[0].prereq_ids || []).map(String)).toEqual(['12', '14']);
+}
+
+[
+  { name: 'desktop', viewport: { width: 1280, height: 900 } },
+  { name: 'mobile', viewport: { width: 390, height: 844 } }
+].forEach(({ name, viewport }) => {
+  test(`${name} prerequisites editor supports multi-select and stable deselection`, async ({ page }) => {
+    await mountPrereqEditor(page, viewport);
+    await exercisePrereqEditor(page);
+  });
+});
