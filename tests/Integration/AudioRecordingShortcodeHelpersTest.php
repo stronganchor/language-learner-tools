@@ -87,6 +87,28 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_recording_category_dropdown_label_falls_back_when_translation_template_is_malformed(): void
+    {
+        $broken_template_filter = static function ($translation, $text, $domain) {
+            if ($domain === 'll-tools-text-domain' && $text === '%1$s (%2$d)') {
+                return '1$s (%2$d)';
+            }
+
+            return $translation;
+        };
+
+        add_filter('gettext', $broken_template_filter, 10, 3);
+
+        try {
+            $this->assertSame(
+                'Animals (2)',
+                ll_tools_format_recording_category_dropdown_label('Animals', 2)
+            );
+        } finally {
+            remove_filter('gettext', $broken_template_filter, 10);
+        }
+    }
+
     public function test_recording_items_filter_normalizes_uncategorized_slug(): void
     {
         $items = [

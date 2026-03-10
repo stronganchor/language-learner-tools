@@ -1632,12 +1632,32 @@ function ll_tools_get_recording_category_counts_from_items(array $items): array 
 }
 
 /**
+ * Check whether a translated recorder label template kept enough sprintf placeholders.
+ */
+function ll_tools_recorder_template_has_minimum_sprintf_placeholders(string $template, int $minimum): bool {
+    if ($template === '' || $minimum < 1) {
+        return $minimum < 1;
+    }
+
+    if (!preg_match_all('/(?<!%)%(?:\d+\$)?[-+0-9\'.]*[bcdeEfFgGosuxX]/', $template, $matches)) {
+        return false;
+    }
+
+    return count($matches[0]) >= $minimum;
+}
+
+/**
  * Format a category dropdown label with the ready-to-record item count.
  */
 function ll_tools_format_recording_category_dropdown_label(string $name, int $count): string {
+    $template = (string) __('%1$s (%2$d)', 'll-tools-text-domain');
+    if (!ll_tools_recorder_template_has_minimum_sprintf_placeholders($template, 2)) {
+        $template = '%1$s (%2$d)';
+    }
+
     return sprintf(
         /* translators: 1: word category name, 2: number of ready-to-record words */
-        __('%1$s (%2$d)', 'll-tools-text-domain'),
+        $template,
         $name,
         max(0, $count)
     );
