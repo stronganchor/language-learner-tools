@@ -29,6 +29,7 @@
     let lastNewWordCategory = null;
     let processingState = null;
     let processingAudioContext = null;
+    let micLevelVisualizerState = null;
     let hiddenWordsPanelOpen = false;
     let uploadLockState = null;
     let displayLoadToken = 0;
@@ -238,6 +239,7 @@
             recordBtn: document.getElementById('ll-record-btn'),
             hideBtn: document.getElementById('ll-hide-btn'),
             indicator: document.getElementById('ll-recording-indicator'),
+            recordingLevelMeter: document.getElementById('ll-recording-meter'),
             timer: document.getElementById('ll-recording-timer'),
             playbackControls: document.getElementById('ll-playback-controls'),
             playbackAudio: document.getElementById('ll-playback-audio'),
@@ -283,6 +285,7 @@
             newWordBackBtn: document.getElementById('ll-new-word-back'),
             newWordRecordBtn: document.getElementById('ll-new-word-record-btn'),
             newWordRecordingIndicator: document.getElementById('ll-new-word-recording-indicator'),
+            newWordRecordingLevelMeter: document.getElementById('ll-new-word-recording-meter'),
             newWordRecordingTimer: document.getElementById('ll-new-word-recording-timer'),
             newWordRecordingType: document.getElementById('ll-new-word-recording-type'),
             newWordRecordingTypeLabel: document.getElementById('ll-new-word-recording-type-label'),
@@ -327,6 +330,10 @@
         return newWordMode && newWordUsingPanel;
     }
 
+    function getVisualizerBars(container) {
+        return container ? Array.from(container.querySelectorAll('.ll-recording-meter-bar')) : [];
+    }
+
     function getActiveControls() {
         const el = window.llRecorder;
         const isNewWord = isNewWordPanelActive();
@@ -335,6 +342,8 @@
                 isNewWordPanel: true,
                 recordBtn: el.newWordRecordBtn,
                 indicator: el.newWordRecordingIndicator,
+                visualizer: el.newWordRecordingLevelMeter,
+                visualizerBars: getVisualizerBars(el.newWordRecordingLevelMeter),
                 timer: el.newWordRecordingTimer,
                 playbackControls: el.newWordPlaybackControls,
                 playbackAudio: el.newWordPlaybackAudio,
@@ -347,6 +356,8 @@
             isNewWordPanel: false,
             recordBtn: el.recordBtn,
             indicator: el.indicator,
+            visualizer: el.recordingLevelMeter,
+            visualizerBars: getVisualizerBars(el.recordingLevelMeter),
             timer: el.timer,
             playbackControls: el.playbackControls,
             playbackAudio: el.playbackAudio,
@@ -354,6 +365,157 @@
             skipBtn: el.skipBtn,
             hideBtn: el.hideBtn,
         };
+    }
+
+    function resetMicLevelIndicator(controls) {
+        if (!controls) {
+            return;
+        }
+
+        const bars = Array.isArray(controls.visualizerBars) ? controls.visualizerBars : [];
+        bars.forEach((bar) => {
+            bar.style.setProperty('--level', '0');
+        });
+
+        if (controls.indicator) {
+            controls.indicator.classList.remove('is-live');
+            controls.indicator.style.removeProperty('--ll-recorder-activity');
+        }
+    }
+
+    function stopMicLevelVisualizer(controls) {
+        const state = micLevelVisualizerState;
+        micLevelVisualizerState = null;
+
+        if (state && state.rafId) {
+            cancelAnimationFrame(state.rafId);
+        }
+
+        if (state && state.source && state.analyser) {
+            try {
+                state.source.disconnect(state.analyser);
+            } catch (_) {
+                // Ignore disconnect failures from already-detached nodes.
+            }
+        }
+
+        if (state && state.audioContext && typeof state.audioContext.close === 'function') {
+            state.audioContext.close().catch(() => {});
+        }
+
+        if (state && state.controls) {
+            resetMicLevelIndicator(state.controls);
+        }
+        if (controls && (!state || controls !== state.controls)) {
+            resetMicLevelIndicator(controls);
+        }
+    }
+
+    function updateMicLevelVisualizer() {
+        const state = micLevelVisualizerState;
+        if (!state) {
+            return;
+        }
+
+        if (!state.audioContext || state.audioContext.state === 'closed') {
+            stopMicLevelVisualizer();
+            return;
+        }
+
+        if (state.audioContext.state !== 'running') {
+            state.rafId = requestAnimationFrame(updateMicLevelVisualizer);
+            return;
+        }
+
+        state.analyser.getByteFrequencyData(state.frequencyData);
+        state.analyser.getByteTimeDomainData(state.timeData);
+
+        const slice = Math.max(1, Math.floor(state.frequencyData.length / state.bars.length));
+        let sumSquares = 0;
+
+        for (let i = 0; i < state.timeData.length; i++) {
+            const deviation = state.timeData[i] - 128;
+            sumSquares += deviation * deviation;
+        }
+
+        const rms = Math.min(1, Math.sqrt(sumSquares / state.timeData.length) / 36);
+        let maxLevel = 0;
+
+        for (let i = 0; i < state.bars.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < slice; j++) {
+                sum += state.frequencyData[(i * slice) + j] || 0;
+            }
+
+            const avg = sum / slice;
+            const normalized = Math.max(0, (avg - 16) / 132);
+            const combined = Math.min(1, (normalized * 0.7) + (rms * 1.08));
+            const boosted = Math.min(1, combined * 1.78);
+            const target = Math.pow(boosted, 1.08);
+            const previous = state.levels[i] || 0;
+            const smoothing = target > previous ? 0.52 : 0.22;
+            const level = previous + ((target - previous) * smoothing);
+
+            state.levels[i] = level;
+            state.bars[i].style.setProperty('--level', level.toFixed(3));
+            if (level > maxLevel) {
+                maxLevel = level;
+            }
+        }
+
+        if (state.controls && state.controls.indicator) {
+            state.controls.indicator.style.setProperty('--ll-recorder-activity', maxLevel.toFixed(3));
+        }
+
+        state.rafId = requestAnimationFrame(updateMicLevelVisualizer);
+    }
+
+    function startMicLevelVisualizer(stream, controls) {
+        stopMicLevelVisualizer(controls);
+
+        if (!stream || !controls || !Array.isArray(controls.visualizerBars) || controls.visualizerBars.length === 0) {
+            return;
+        }
+
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+            return;
+        }
+
+        try {
+            const audioContext = new AudioContextCtor();
+            const analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.72;
+            source.connect(analyser);
+
+            if (audioContext.state === 'suspended' && typeof audioContext.resume === 'function') {
+                audioContext.resume().catch(() => {});
+            }
+
+            micLevelVisualizerState = {
+                audioContext,
+                analyser,
+                source,
+                controls,
+                bars: controls.visualizerBars,
+                levels: controls.visualizerBars.map(() => 0),
+                frequencyData: new Uint8Array(analyser.frequencyBinCount),
+                timeData: new Uint8Array(analyser.fftSize),
+                rafId: 0,
+            };
+
+            if (controls.indicator) {
+                controls.indicator.classList.add('is-live');
+            }
+
+            updateMicLevelVisualizer();
+        } catch (error) {
+            console.warn('Recorder mic visualizer unavailable:', error);
+            stopMicLevelVisualizer(controls);
+        }
     }
 
     function beginRecordingStartup(controls) {
@@ -370,6 +532,7 @@
         controls.recordBtn.innerHTML = icons.loading;
         controls.recordBtn.classList.remove('recording');
         controls.recordBtn.classList.add('starting');
+        resetMicLevelIndicator(controls);
 
         if (controls.indicator) {
             controls.indicator.classList.add('is-starting');
@@ -413,10 +576,14 @@
             controls.indicator.classList.remove('is-starting');
             if (!options.keepIndicator) {
                 controls.indicator.style.display = 'none';
+                controls.indicator.classList.remove('is-live');
             }
         }
         if (controls.timer && !options.keepIndicator) {
             controls.timer.textContent = '0:00';
+        }
+        if (!options.keepIndicator) {
+            resetMicLevelIndicator(controls);
         }
 
         pendingRecordingStart = null;
@@ -3147,6 +3314,7 @@
 
     function resetRecordingState() {
         const el = window.llRecorder;
+        stopMicLevelVisualizer();
         clearRecordingStartup();
         clearNewWordStatus();
         if (el.recordBtn) {
@@ -3305,7 +3473,7 @@
             controls.recordBtn.classList.add('recording');
             if (controls.indicator) {
                 controls.indicator.classList.remove('is-starting');
-                controls.indicator.style.display = 'block';
+                controls.indicator.style.display = 'flex';
             }
             if (controls.timer) {
                 controls.timer.textContent = '0:00';
@@ -3318,8 +3486,10 @@
             }
 
             timerInterval = setInterval(updateTimer, 100);
+            startMicLevelVisualizer(stream, controls);
 
         } catch (err) {
+            stopMicLevelVisualizer(controls);
             if (stream && typeof stream.getTracks === 'function') {
                 stream.getTracks().forEach(track => track.stop());
             }
@@ -3415,6 +3585,9 @@
     }
 
     function stopRecording() {
+        const controls = activeRecordingControls || getActiveControls();
+        stopMicLevelVisualizer(controls);
+
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -3435,6 +3608,7 @@
     async function handleRecordingStopped() {
         const el = window.llRecorder;
         const controls = activeRecordingControls || getActiveControls();
+        stopMicLevelVisualizer(controls);
 
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         currentBlob = new Blob(audioChunks, { type: mimeType });

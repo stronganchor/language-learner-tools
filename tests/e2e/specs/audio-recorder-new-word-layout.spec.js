@@ -118,6 +118,16 @@ function buildNewWordOverlayMarkup(options = {}) {
                       <button id="ll-new-word-record-btn" class="ll-btn ll-btn-record" title="Record"></button>
                       <div id="ll-new-word-recording-indicator" class="ll-recording-indicator" style="display:flex;">
                         <span class="ll-recording-dot"></span>
+                        <span id="ll-new-word-recording-meter" class="ll-recording-meter" aria-hidden="true">
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                          <span class="ll-recording-meter-bar"></span>
+                        </span>
                         <span id="ll-new-word-recording-timer">0:12</span>
                       </div>
                     </div>

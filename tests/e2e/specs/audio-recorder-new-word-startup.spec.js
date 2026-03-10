@@ -142,6 +142,62 @@ test('new-word recorder shows startup state immediately and defers preparation u
       enumerateDevices: async () => [{ kind: 'audioinput', deviceId: 'fake-mic', label: 'Fake Mic' }]
     };
 
+    class FakeAnalyser {
+      constructor() {
+        this.fftSize = 256;
+        this.frequencyBinCount = 128;
+        this.smoothingTimeConstant = 0.65;
+        this.__tick = 0;
+      }
+
+      connect() {}
+
+      getByteFrequencyData(array) {
+        this.__tick += 1;
+        const peak = this.__tick % 2 === 0 ? 128 : 96;
+        for (let i = 0; i < array.length; i++) {
+          array[i] = i % 3 === 0 ? peak : Math.max(32, peak - 36);
+        }
+      }
+
+      getByteTimeDomainData(array) {
+        const amplitude = this.__tick % 2 === 0 ? 44 : 28;
+        for (let i = 0; i < array.length; i++) {
+          array[i] = 128 + (i % 2 === 0 ? amplitude : -amplitude);
+        }
+      }
+    }
+
+    class FakeMediaStreamSource {
+      connect() {}
+      disconnect() {}
+    }
+
+    class FakeAudioContext {
+      constructor() {
+        this.state = 'running';
+        this.destination = {};
+      }
+
+      createAnalyser() {
+        return new FakeAnalyser();
+      }
+
+      createMediaStreamSource() {
+        return new FakeMediaStreamSource();
+      }
+
+      resume() {
+        this.state = 'running';
+        return Promise.resolve();
+      }
+
+      close() {
+        this.state = 'closed';
+        return Promise.resolve();
+      }
+    }
+
     try {
       Object.defineProperty(window, 'MediaRecorder', {
         value: FakeMediaRecorder,
@@ -158,6 +214,24 @@ test('new-word recorder shows startup state immediately and defers preparation u
       });
     } catch (_) {
       navigator.mediaDevices = mediaDevices;
+    }
+
+    try {
+      Object.defineProperty(window, 'AudioContext', {
+        value: FakeAudioContext,
+        configurable: true
+      });
+    } catch (_) {
+      window.AudioContext = FakeAudioContext;
+    }
+
+    try {
+      Object.defineProperty(window, 'webkitAudioContext', {
+        value: FakeAudioContext,
+        configurable: true
+      });
+    } catch (_) {
+      window.webkitAudioContext = FakeAudioContext;
     }
 
     window.__llResolveRecorderMic = () => {
@@ -177,6 +251,7 @@ test('new-word recorder shows startup state immediately and defers preparation u
 
     const recordButton = page.locator('#ll-new-word-record-btn');
     const recordIndicator = page.locator('#ll-new-word-recording-indicator');
+    const levelMeter = page.locator('#ll-new-word-recording-meter');
 
     await expect(recordButton).toBeVisible({ timeout: 30000 });
     await recordButton.click();
@@ -194,6 +269,14 @@ test('new-word recorder shows startup state immediately and defers preparation u
     await expect(recordButton).toHaveClass(/recording/);
     await expect(recordButton).not.toHaveClass(/starting/);
     await expect(recordIndicator).not.toHaveClass(/is-starting/);
+    await expect(recordIndicator).toHaveClass(/is-live/);
+    await expect(levelMeter).toBeVisible();
+    await expect.poll(async () => {
+      return await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('#ll-new-word-recording-meter .ll-recording-meter-bar'))
+          .some((bar) => parseFloat(bar.style.getPropertyValue('--level') || '0') > 0.08);
+      });
+    }).toBe(true);
     await expect.poll(() => ajaxActions.length).toBe(0);
   } finally {
     await deletePage(page, createdPage.id);

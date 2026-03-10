@@ -1385,6 +1385,16 @@ function ll_audio_recording_interface_shortcode($atts) {
                                                 title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
                                         <div id="ll-new-word-recording-indicator" class="ll-recording-indicator" style="display:none;">
                                             <span class="ll-recording-dot"></span>
+                                            <span id="ll-new-word-recording-meter" class="ll-recording-meter" aria-hidden="true">
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                                <span class="ll-recording-meter-bar"></span>
+                                            </span>
                                             <span id="ll-new-word-recording-timer">0:00</span>
                                         </div>
                                     </div>
@@ -1478,6 +1488,16 @@ function ll_audio_recording_interface_shortcode($atts) {
 
                 <div id="ll-recording-indicator" class="ll-recording-indicator" style="display:none;">
                     <span class="ll-recording-dot"></span>
+                    <span id="ll-recording-meter" class="ll-recording-meter" aria-hidden="true">
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                        <span class="ll-recording-meter-bar"></span>
+                    </span>
                     <span id="ll-recording-timer">0:00</span>
                 </div>
 
