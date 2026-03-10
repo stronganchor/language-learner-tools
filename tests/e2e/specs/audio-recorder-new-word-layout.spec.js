@@ -199,6 +199,55 @@ test('new word overlay fits a 1024x768 laptop viewport without internal scrollin
   expect(metrics.width).toBeLessThanOrEqual(1024);
 });
 
+test('new word overlay switches to compact full-screen mode on short laptop viewports', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 1024, height: 500 }, { showCreateCategory: false, showReview: false });
+
+  const panel = page.locator('#ll-new-word-panel');
+  await expect(panel).toBeVisible();
+
+  const metrics = await panel.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const title = node.querySelector('#ll-new-word-title');
+    return {
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+      top: rect.top,
+      bottom: rect.bottom,
+      borderRadius: window.getComputedStyle(node).borderTopLeftRadius,
+      titleDisplay: title ? window.getComputedStyle(title).display : ''
+    };
+  });
+
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+  expect(metrics.top).toBe(0);
+  expect(metrics.bottom).toBeLessThanOrEqual(500);
+  expect(metrics.borderRadius).toBe('0px');
+  expect(metrics.titleDisplay).toBe('none');
+});
+
+test('new word overlay keeps a compact two-column layout on short landscape mobile screens', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 844, height: 430 }, { showCreateCategory: false, showReview: false });
+
+  const panel = page.locator('#ll-new-word-panel');
+  await expect(panel).toBeVisible();
+
+  const metrics = await panel.evaluate((node) => {
+    const layout = node.querySelector('.ll-new-word-layout');
+    const computed = layout ? window.getComputedStyle(layout).gridTemplateColumns : '';
+    return {
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+      layoutColumns: computed.split(' ').filter(Boolean).length
+    };
+  });
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+  expect(metrics.layoutColumns).toBe(2);
+});
+
 test('new word overlay keeps the mobile stack within the viewport width', async ({ page }) => {
   await mountNewWordOverlay(page, { width: 390, height: 844 }, { showCreateCategory: true, showReview: false });
 
