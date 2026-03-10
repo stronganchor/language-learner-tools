@@ -1538,6 +1538,18 @@
         el.reviewSubmitBtn.style.display = hide ? 'none' : '';
     }
 
+    function syncNewWordProcessingReviewState() {
+        const el = window.llRecorder;
+        if (!el?.newWordPanel || !el?.processingReview) return;
+
+        const slots = getReviewSlots();
+        const inNewWordSlot = !!slots.newWord && slots.newWord.contains(el.processingReview);
+        const isVisible = inNewWordSlot && el.processingReview.style.display !== 'none';
+
+        el.processingReview.classList.toggle('ll-recording-review--new-word-panel', inNewWordSlot);
+        el.newWordPanel.classList.toggle('ll-new-word-panel--processing-review', isVisible);
+    }
+
     function moveProcessingReviewToNewWordSlot() {
         const el = window.llRecorder;
         if (!el?.processingReview) return;
@@ -1547,6 +1559,7 @@
             slots.newWord.appendChild(el.processingReview);
         }
         toggleReviewSubmitVisibility(true);
+        syncNewWordProcessingReviewState();
     }
 
     function moveProcessingReviewToMainSlot() {
@@ -1558,6 +1571,7 @@
             slots.main.appendChild(el.processingReview);
         }
         toggleReviewSubmitVisibility(false);
+        syncNewWordProcessingReviewState();
     }
 
     function syncProcessingReviewSlot() {
@@ -1569,6 +1583,7 @@
         } else {
             moveProcessingReviewToMainSlot();
         }
+        syncNewWordProcessingReviewState();
         syncOverlayScrollLock();
     }
 
@@ -3145,6 +3160,7 @@
         audioChunks = [];
         processingState = null;
         activeRecordingControls = null;
+        syncNewWordProcessingReviewState();
         syncOverlayScrollLock();
     }
 
@@ -3431,6 +3447,7 @@
             el.mainScreen.style.display = 'flex';
         }
         if (!controls.playbackControls || !controls.playbackAudio) {
+            syncNewWordProcessingReviewState();
             syncOverlayScrollLock();
             return;
         }
@@ -3448,6 +3465,7 @@
         }
 
         controls.playbackAudio.play().catch(() => {});
+        syncNewWordProcessingReviewState();
         syncOverlayScrollLock();
     }
 
@@ -3474,6 +3492,7 @@
             el.playbackControls.style.display = 'none';
         }
         syncOverlayScrollLock();
+        syncNewWordProcessingReviewState();
 
         requestAnimationFrame(() => {
             renderWaveform(reviewFile, processingState.originalBuffer, processingState.trimStart, processingState.trimEnd);

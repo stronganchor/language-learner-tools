@@ -679,6 +679,62 @@
     margin-top: 0;
 }
 
+.ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-recording {
+    display: none;
+}
+
+.ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-sidebar {
+    gap: 0.55rem;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel > h2 {
+    margin: 0 0 0.65rem;
+    font-size: clamp(1.1rem, 1.9vw, 1.55rem);
+    line-height: 1.08;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-file {
+    padding: 0.9rem;
+    margin-bottom: 0.85rem;
+    border-radius: 10px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-header {
+    margin-bottom: 0.65rem;
+    gap: 0.55rem;
+    align-items: flex-start;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-title {
+    font-size: 1.02rem;
+    line-height: 1.15;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-metadata {
+    font-size: 0.86rem;
+    line-height: 1.3;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-waveform-container {
+    height: 100px;
+    margin: 0.65rem 0;
+    border-radius: 8px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-playback-controls {
+    gap: 0.65rem;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play {
+    width: 48px;
+    height: 48px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play svg {
+    width: 18px;
+    height: 18px;
+}
+
 .ll-new-word-panel #ll-review-submit {
     display: none !important;
 }
@@ -763,6 +819,7 @@
     }
 
     .ll-new-word-row--category,
+    .ll-new-word-row--toggle,
     .ll-new-word-create-fields {
         grid-column: 1 / -1;
     }
@@ -2029,6 +2086,47 @@
     .ll-new-word-actions .ll-btn {
         min-height: 2.1rem;
     }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel > h2 {
+        margin-bottom: 0.45rem;
+        font-size: 0.98rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-file {
+        padding: 0.7rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-header {
+        margin-bottom: 0.45rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-title {
+        font-size: 0.92rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-metadata {
+        font-size: 0.78rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-waveform-container {
+        height: 82px;
+        margin: 0.45rem 0;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-playback-controls {
+        gap: 0.45rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play {
+        width: 42px;
+        height: 42px;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play svg {
+        width: 16px;
+        height: 16px;
+    }
 }
 
 @media (max-height: 560px) and (min-width: 640px) {
@@ -2047,6 +2145,12 @@
         align-self: stretch;
     }
 
+    .ll-new-word-row--category,
+    .ll-new-word-row--toggle,
+    .ll-new-word-create-fields {
+        grid-column: 1 / -1;
+    }
+
     .ll-new-word-row--toggle label {
         min-height: 100%;
         padding: 0.45rem 0.6rem;
@@ -2056,8 +2160,8 @@
         box-sizing: border-box;
     }
 
-    .ll-new-word-create-fields {
-        grid-column: 1 / -1;
+    .ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 1.02fr);
     }
 
     .ll-new-word-types {

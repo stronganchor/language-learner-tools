@@ -6,17 +6,22 @@ const recordingInterfaceCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/recording-interface.css'),
   'utf8'
 );
+const audioProcessorCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/audio-processor.css'),
+  'utf8'
+);
 
 function buildNewWordOverlayMarkup(options = {}) {
   const showCreateCategory = options.showCreateCategory !== false;
   const showReview = options.showReview !== false;
+  const processingReviewMode = !!options.processingReviewMode;
 
   return `
     <div class="ll-recording-interface">
       <div class="ll-new-word-overlay" id="ll-new-word-overlay">
         <div class="ll-new-word-overlay-backdrop"></div>
         <div
-          class="ll-new-word-panel"
+          class="ll-new-word-panel${processingReviewMode ? ' ll-new-word-panel--processing-review' : ''}"
           id="ll-new-word-panel"
           role="dialog"
           aria-modal="true"
@@ -126,12 +131,25 @@ function buildNewWordOverlayMarkup(options = {}) {
 
                   <div id="ll-new-word-review-slot" class="ll-new-word-review-slot">
                     ${showReview ? `
-                      <div class="ll-review-interface ll-recording-review" style="display:block;">
-                        <div class="ll-playback-controls" style="display:flex;">
-                          <audio controls></audio>
-                          <div class="ll-playback-actions">
-                            <button class="ll-btn ll-btn-secondary" type="button">Redo</button>
-                            <button class="ll-btn ll-btn-primary" type="button">Save</button>
+                      <div class="ll-review-interface ll-recording-review${processingReviewMode ? ' ll-recording-review--new-word-panel' : ''}" style="display:block;">
+                        <h2 id="ll-recording-review-title">Review Processed Audio</h2>
+                        <div class="ll-review-file">
+                          <div class="ll-review-header">
+                            <div class="ll-review-title-section">
+                              <div class="ll-review-title-info">
+                                <h3 class="ll-review-title">New word</h3>
+                                <div class="ll-review-metadata">
+                                  <span class="ll-review-category"><strong>Category:</strong> Uncategorized</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="ll-waveform-container">
+                            <canvas class="ll-waveform-canvas"></canvas>
+                          </div>
+                          <div class="ll-playback-controls" style="display:flex;">
+                            <button type="button" class="ll-btn ll-btn-secondary ll-review-play" aria-label="Play">Play</button>
+                            <audio controls></audio>
                           </div>
                         </div>
                       </div>
@@ -174,10 +192,11 @@ async function mountNewWordOverlay(page, viewport, options = {}) {
     `
   });
   await page.addStyleTag({ content: recordingInterfaceCssSource });
+  await page.addStyleTag({ content: audioProcessorCssSource });
 }
 
-test('new word overlay fits a 1024x768 laptop viewport without internal scrolling', async ({ page }) => {
-  await mountNewWordOverlay(page, { width: 1024, height: 768 }, { showCreateCategory: true, showReview: true });
+test('new word overlay fits a 1024x768 laptop viewport without internal scrolling in the default state', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 1024, height: 768 }, { showCreateCategory: true, showReview: false });
 
   const panel = page.locator('#ll-new-word-panel');
   await expect(panel).toBeVisible();
@@ -197,6 +216,31 @@ test('new word overlay fits a 1024x768 laptop viewport without internal scrollin
   expect(metrics.top).toBeGreaterThanOrEqual(0);
   expect(metrics.bottom).toBeLessThanOrEqual(768);
   expect(metrics.width).toBeLessThanOrEqual(1024);
+});
+
+test('new word overlay keeps target and translation together on wide layouts', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 1120, height: 620 }, { showCreateCategory: false, showReview: false });
+
+  const positions = await page.evaluate(() => {
+    const toggle = document.querySelector('.ll-new-word-row--toggle');
+    const target = document.querySelector('#ll-new-word-text-target');
+    const translation = document.querySelector('#ll-new-word-text-translation');
+    if (!toggle || !target || !translation) return null;
+
+    const toggleRect = toggle.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const translationRect = translation.getBoundingClientRect();
+
+    return {
+      toggleTop: toggleRect.top,
+      targetTop: targetRect.top,
+      translationTop: translationRect.top
+    };
+  });
+
+  expect(positions).not.toBeNull();
+  expect(Math.abs(positions.targetTop - positions.translationTop)).toBeLessThanOrEqual(4);
+  expect(Math.abs(positions.targetTop - positions.toggleTop)).toBeGreaterThan(12);
 });
 
 test('new word overlay switches to compact full-screen mode on short laptop viewports', async ({ page }) => {
@@ -225,8 +269,8 @@ test('new word overlay switches to compact full-screen mode on short laptop view
   expect(metrics.titleDisplay).toBe('none');
 });
 
-test('new word overlay keeps a compact two-column layout on short landscape mobile screens', async ({ page }) => {
-  await mountNewWordOverlay(page, { width: 844, height: 430 }, { showCreateCategory: false, showReview: false });
+test('new word overlay compacts the processing review on short landscape mobile screens', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 844, height: 430 }, { showCreateCategory: false, showReview: true, processingReviewMode: true });
 
   const panel = page.locator('#ll-new-word-panel');
   await expect(panel).toBeVisible();
@@ -234,18 +278,24 @@ test('new word overlay keeps a compact two-column layout on short landscape mobi
   const metrics = await panel.evaluate((node) => {
     const layout = node.querySelector('.ll-new-word-layout');
     const computed = layout ? window.getComputedStyle(layout).gridTemplateColumns : '';
+    const recording = node.querySelector('.ll-new-word-recording');
+    const reviewTitle = node.querySelector('#ll-recording-review-title');
     return {
       clientWidth: node.clientWidth,
       scrollWidth: node.scrollWidth,
       clientHeight: node.clientHeight,
       scrollHeight: node.scrollHeight,
-      layoutColumns: computed.split(' ').filter(Boolean).length
+      layoutColumns: computed.split(' ').filter(Boolean).length,
+      recordDisplay: recording ? window.getComputedStyle(recording).display : '',
+      titleSize: reviewTitle ? parseFloat(window.getComputedStyle(reviewTitle).fontSize || '0') : 0
     };
   });
 
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
   expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
   expect(metrics.layoutColumns).toBe(2);
+  expect(metrics.recordDisplay).toBe('none');
+  expect(metrics.titleSize).toBeLessThanOrEqual(18);
 });
 
 test('new word overlay keeps the mobile stack within the viewport width', async ({ page }) => {
