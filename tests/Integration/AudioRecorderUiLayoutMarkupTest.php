@@ -39,6 +39,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('class="ll-new-word-form-grid"', $output);
         $this->assertStringContainsString('class="ll-new-word-sidebar"', $output);
         $this->assertStringContainsString('ll-new-word-close', $output);
+        $this->assertStringContainsString('id="ll-new-word-status"', $output);
 
         // Compatibility guard: preserve critical IDs used by recorder JS.
         $this->assertStringContainsString('id="ll-record-btn"', $output);

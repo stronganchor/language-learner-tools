@@ -23,6 +23,7 @@ final class AudioRecorderStartupLocalizationTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('id="ll-new-word-record-btn"', $output);
         $this->assertStringContainsString('id="ll-new-word-recording-indicator"', $output);
+        $this->assertStringContainsString('id="ll-new-word-status"', $output);
 
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
         $this->assertIsString($localized);

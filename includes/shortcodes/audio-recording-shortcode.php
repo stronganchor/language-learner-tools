@@ -1294,6 +1294,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                                 </button>
                             </div>
                         </div>
+                        <div id="ll-new-word-status" class="ll-new-word-status" hidden role="status" aria-live="polite" aria-atomic="true"></div>
 
                         <div class="ll-new-word-layout">
                             <div class="ll-new-word-form">

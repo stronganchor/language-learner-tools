@@ -266,6 +266,7 @@
             newWordOverlay: document.getElementById('ll-new-word-overlay'),
             newWordBackdrop: document.querySelector('.ll-new-word-overlay-backdrop'),
             newWordPanel: document.querySelector('.ll-new-word-panel'),
+            newWordStatus: document.getElementById('ll-new-word-status'),
             newWordAutoStatus: document.getElementById('ll-new-word-auto-status'),
             newWordAutoIcon: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-icon'),
             newWordAutoSpinner: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-spinner'),
@@ -360,6 +361,10 @@
 
         const token = ++recordingStartToken;
         pendingRecordingStart = { token, controls };
+
+        if (controls.isNewWordPanel) {
+            clearNewWordStatus();
+        }
 
         controls.recordBtn.disabled = true;
         controls.recordBtn.innerHTML = icons.loading;
@@ -1228,6 +1233,7 @@
         newWordLastSaved = { target: '', translation: '' };
         activeRecordingControls = null;
         resetNewWordAutoState();
+        clearNewWordStatus();
         syncProcessingReviewSlot();
         if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
         if (el.newWordPanel) el.newWordPanel.style.display = 'none';
@@ -1308,6 +1314,7 @@
         lastTranslationSource = '';
         newWordLastSaved = { target: '', translation: '' };
         resetNewWordAutoState();
+        clearNewWordStatus();
         if (el.newWordTextTarget) {
             el.newWordTextTarget.value = '';
             delete el.newWordTextTarget.dataset.llManual;
@@ -1497,6 +1504,9 @@
         if (label) {
             el.newWordAutoStatus.setAttribute('aria-label', label);
             el.newWordAutoStatus.title = label;
+            if (state === 'error') {
+                showNewWordStatus(label, 'error');
+            }
         }
         if (el.newWordAutoSpinner) el.newWordAutoSpinner.style.display = 'none';
         if (el.newWordAutoCancel) el.newWordAutoCancel.style.display = 'none';
@@ -2487,6 +2497,9 @@
         const el = window.llRecorder;
         if (!el) return;
         if (isNewWordPanelActive()) {
+            if (showNewWordStatus(message, type)) {
+                return;
+            }
             if (type === 'error') {
                 flashNewWordAutoStatus('error', message);
             }
@@ -2496,6 +2509,32 @@
         el.status.textContent = message;
         el.status.className = 'll-upload-status';
         if (type) el.status.classList.add(type);
+    }
+
+    function showNewWordStatus(message, type) {
+        const el = window.llRecorder;
+        if (!el?.newWordStatus) return false;
+
+        const text = String(message || '').trim();
+        if (!text) {
+            clearNewWordStatus();
+            return true;
+        }
+
+        el.newWordStatus.hidden = false;
+        el.newWordStatus.textContent = text;
+        el.newWordStatus.className = 'll-new-word-status';
+        if (type) el.newWordStatus.classList.add(type);
+        return true;
+    }
+
+    function clearNewWordStatus() {
+        const el = window.llRecorder;
+        if (!el?.newWordStatus) return;
+
+        el.newWordStatus.hidden = true;
+        el.newWordStatus.textContent = '';
+        el.newWordStatus.className = 'll-new-word-status';
     }
 
     function clearUploadFeedback() {
@@ -3109,6 +3148,7 @@
     function resetRecordingState() {
         const el = window.llRecorder;
         clearRecordingStartup();
+        clearNewWordStatus();
         if (el.recordBtn) {
             el.recordBtn.style.display = 'inline-flex';
             el.recordBtn.innerHTML = icons.record;

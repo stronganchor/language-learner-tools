@@ -200,6 +200,57 @@ test('new-word recorder shows startup state immediately and defers preparation u
   }
 });
 
+test('new-word recorder shows a visible error when no microphone is available', async ({ page }) => {
+  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+
+  await ensureLoggedIntoAdmin(page);
+
+  const title = `Recorder No Mic ${Date.now()}`;
+  const createdPage = await createRecorderPage(page, title);
+
+  await page.addInitScript(() => {
+    const mediaDevices = {
+      getUserMedia() {
+        const error = new Error('Requested device not found');
+        error.name = 'NotFoundError';
+        return Promise.reject(error);
+      },
+      enumerateDevices: async () => []
+    };
+
+    try {
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: mediaDevices,
+        configurable: true
+      });
+    } catch (_) {
+      navigator.mediaDevices = mediaDevices;
+    }
+  });
+
+  try {
+    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+
+    const newWordToggle = page.locator('#ll-new-word-toggle');
+    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
+      await newWordToggle.click();
+    }
+
+    const recordButton = page.locator('#ll-new-word-record-btn');
+    const status = page.locator('#ll-new-word-status');
+
+    await expect(recordButton).toBeVisible({ timeout: 30000 });
+    await recordButton.click();
+
+    await expect(status).toBeVisible({ timeout: 30000 });
+    await expect(status).toContainText(/No microphone found|No input devices detected|Could not access microphone/i);
+    await expect(recordButton).not.toHaveClass(/recording/);
+    await expect(recordButton).not.toHaveClass(/starting/);
+  } finally {
+    await deletePage(page, createdPage.id);
+  }
+});
+
 test('new-word recorder closes from the header button and backdrop on non-fullscreen layouts', async ({ page }) => {
   test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
 

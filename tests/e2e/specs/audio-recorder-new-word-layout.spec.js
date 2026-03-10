@@ -48,6 +48,7 @@ function buildNewWordOverlayMarkup(options = {}) {
                   <button type="button" class="ll-btn ll-new-word-close" id="ll-new-word-back" aria-label="Close">&times;</button>
                 </div>
               </div>
+              <div id="ll-new-word-status" class="ll-new-word-status" hidden role="status" aria-live="polite" aria-atomic="true"></div>
 
               <div class="ll-new-word-layout">
                 <div class="ll-new-word-form">
