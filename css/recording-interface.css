@@ -434,18 +434,48 @@
     padding: clamp(0.85rem, 2vw, 1.25rem);
     margin: 0;
     border: 1px solid #e2e4e7;
-    width: min(820px, calc(100vw - 1rem));
-    max-height: min(92dvh, 760px);
+    width: min(900px, calc(100vw - 1rem));
+    max-height: min(94dvh, 760px);
     overflow: auto;
     box-sizing: border-box;
     box-shadow: 0 24px 56px rgba(15, 23, 42, 0.26);
 }
 
+.ll-new-word-card,
+.ll-new-word-shell {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.65rem, 1.7vw, 1rem);
+}
+
+.ll-new-word-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .ll-new-word-card h3 {
-    margin-top: 0;
-    margin-bottom: 0.75rem;
+    margin: 0;
     font-size: 1.1rem;
     color: #1a1a1a;
+}
+
+.ll-new-word-layout {
+    display: grid;
+    gap: clamp(0.75rem, 1.8vw, 1.2rem);
+    align-items: start;
+}
+
+.ll-new-word-form,
+.ll-new-word-sidebar {
+    min-width: 0;
+}
+
+.ll-new-word-form-grid {
+    display: grid;
+    gap: 0.75rem;
 }
 
 .ll-new-word-auto-status {
@@ -453,12 +483,13 @@
     align-items: center;
     gap: 0.45rem;
     padding: 0.3rem 0.6rem;
-    margin: 0 0 0.75rem;
+    margin: 0;
     border: 1px solid #ccd0d4;
     border-radius: 999px;
     background: #f6f7f7;
     color: #1d2327;
     box-sizing: border-box;
+    max-width: 100%;
 }
 
 .ll-new-word-auto-status.is-loading {
@@ -540,7 +571,7 @@
 }
 
 .ll-new-word-row {
-    margin-bottom: 0.9rem;
+    margin: 0;
 }
 
 .ll-new-word-row label {
@@ -558,6 +589,8 @@
     border: 2px solid #ddd;
     border-radius: 6px;
     font-size: 0.95rem;
+    box-sizing: border-box;
+    min-height: 2.45rem;
 }
 
 .ll-new-word-row input[type="text"][disabled],
@@ -578,13 +611,22 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+.ll-new-word-row--toggle {
+    align-self: end;
+}
+
+.ll-new-word-create-fields > .ll-new-word-row:not(:first-child) {
+    margin-top: 0.75rem;
 }
 
 .ll-new-word-types {
     border: 1px solid #ccd0d4;
     border-radius: 6px;
     padding: 0.6rem;
-    max-height: 160px;
+    max-height: 140px;
     overflow: auto;
     background: #f8f9fa;
 }
@@ -626,10 +668,11 @@
     gap: 0.75rem;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
 }
 
 .ll-new-word-review-slot {
-    margin: 0.75rem 0 0.5rem;
+    margin: 0;
 }
 
 .ll-new-word-panel .ll-recording-review {
@@ -641,11 +684,17 @@
 }
 
 .ll-new-word-recording {
-    margin: 1rem 0 0.75rem;
-    padding: 0.9rem;
+    margin: 0;
+    padding: clamp(0.75rem, 1.8vw, 0.95rem);
     border: 1px solid #e2e4e7;
     border-radius: 10px;
     background: #f8f9fa;
+}
+
+.ll-new-word-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
 .ll-new-word-recording-controls {
@@ -700,6 +749,105 @@
     gap: 0.75rem;
     justify-content: center;
     width: 100%;
+    flex-wrap: wrap;
+}
+
+@media (min-width: 860px) {
+    .ll-new-word-layout {
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.92fr);
+    }
+
+    .ll-new-word-form-grid {
+        grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+        align-items: start;
+    }
+
+    .ll-new-word-row--category,
+    .ll-new-word-create-fields {
+        grid-column: 1 / -1;
+    }
+
+    .ll-new-word-row--toggle label {
+        min-height: 100%;
+        padding: 0.68rem 0.8rem;
+        border: 1px solid #ccd0d4;
+        border-radius: 8px;
+        background: #f6f7f7;
+        box-sizing: border-box;
+    }
+
+    .ll-new-word-types {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 0.8rem;
+        row-gap: 0.35rem;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .ll-new-word-types label,
+    .ll-new-word-types .ll-recording-type-option {
+        margin: 0;
+    }
+}
+
+@media (max-height: 820px) and (min-width: 860px) {
+    .ll-new-word-panel {
+        padding: 0.8rem;
+    }
+
+    .ll-new-word-card,
+    .ll-new-word-shell {
+        gap: 0.65rem;
+    }
+
+    .ll-new-word-card h3 {
+        font-size: 1.02rem;
+    }
+
+    .ll-new-word-row label {
+        margin-bottom: 0.3rem;
+        font-size: 0.85rem;
+    }
+
+    .ll-new-word-row input[type="text"],
+    .ll-new-word-row select {
+        min-height: 2.3rem;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.9rem;
+    }
+
+    .ll-new-word-auto-status {
+        padding: 0.25rem 0.55rem;
+    }
+
+    .ll-new-word-row--toggle label {
+        padding: 0.55rem 0.7rem;
+    }
+
+    .ll-new-word-types {
+        padding: 0.5rem;
+        column-gap: 0.6rem;
+        row-gap: 0.25rem;
+    }
+
+    .ll-new-word-recording {
+        padding: 0.75rem;
+    }
+
+    .ll-new-word-recording-controls,
+    .ll-new-word-playback-actions {
+        gap: 0.6rem;
+    }
+
+    .ll-new-word-playback-controls {
+        gap: 0.6rem;
+        margin-top: 0.6rem;
+    }
+
+    .ll-new-word-actions {
+        gap: 0.5rem;
+    }
 }
 
 @keyframes ll-spin {
@@ -1633,6 +1781,17 @@
 
     .ll-playback-actions {
         width: 100%;
+    }
+
+    .ll-new-word-actions {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    .ll-new-word-actions .ll-btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .ll-hidden-word-item {

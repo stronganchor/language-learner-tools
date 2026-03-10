@@ -1278,119 +1278,131 @@ function ll_audio_recording_interface_shortcode($atts) {
             <div class="ll-new-word-overlay-backdrop"></div>
             <div class="ll-new-word-panel" id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" style="display: none;">
                 <div class="ll-new-word-card">
-                <h3 id="ll-new-word-title"><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
-                <div class="ll-new-word-row">
-                    <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
-                    <select id="ll-new-word-category">
-                        <?php
-                        $uncat_label = __('Uncategorized', 'll-tools-text-domain');
-                        $category_terms = get_terms([
-                            'taxonomy'   => 'word-category',
-                            'hide_empty' => false,
-                        ]);
-                        if (is_wp_error($category_terms)) { $category_terms = []; }
-                        $category_options = [];
-                        foreach ($category_terms as $term) {
-                            if ($term->slug === 'uncategorized') {
-                                $uncat_label = $term->name ?: $uncat_label;
-                                continue;
-                            }
-                            $category_options[$term->slug] = $term->name;
-                        }
-                        if (!empty($category_options)) {
-                            asort($category_options, SORT_FLAG_CASE | SORT_NATURAL);
-                        }
-                        ?>
-                        <option value="uncategorized"><?php echo esc_html($uncat_label); ?></option>
-                        <?php foreach ($category_options as $slug => $name): ?>
-                            <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($name); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+                    <div class="ll-new-word-shell">
+                        <div class="ll-new-word-header">
+                            <h3 id="ll-new-word-title"><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
+                            <div class="ll-new-word-auto-status" id="ll-new-word-auto-status" style="display:none;" role="status" aria-live="polite" aria-busy="false">
+                                <span class="ll-new-word-auto-icon" aria-hidden="true">🤖</span>
+                                <span class="ll-new-word-auto-spinner" aria-hidden="true"></span>
+                                <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="<?php esc_attr_e('Cancel automatic transcription', 'll-tools-text-domain'); ?>">x</button>
+                            </div>
+                        </div>
 
-                <div class="ll-new-word-row ll-new-word-checkbox">
-                    <label>
-                        <input type="checkbox" id="ll-new-word-create-category" />
-                        <?php _e('Create a new category for these words', 'll-tools-text-domain'); ?>
-                    </label>
-                </div>
+                        <div class="ll-new-word-layout">
+                            <div class="ll-new-word-form">
+                                <div class="ll-new-word-form-grid">
+                                    <div class="ll-new-word-row ll-new-word-row--category">
+                                        <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
+                                        <select id="ll-new-word-category">
+                                            <?php
+                                            $uncat_label = __('Uncategorized', 'll-tools-text-domain');
+                                            $category_terms = get_terms([
+                                                'taxonomy'   => 'word-category',
+                                                'hide_empty' => false,
+                                            ]);
+                                            if (is_wp_error($category_terms)) { $category_terms = []; }
+                                            $category_options = [];
+                                            foreach ($category_terms as $term) {
+                                                if ($term->slug === 'uncategorized') {
+                                                    $uncat_label = $term->name ?: $uncat_label;
+                                                    continue;
+                                                }
+                                                $category_options[$term->slug] = $term->name;
+                                            }
+                                            if (!empty($category_options)) {
+                                                asort($category_options, SORT_FLAG_CASE | SORT_NATURAL);
+                                            }
+                                            ?>
+                                            <option value="uncategorized"><?php echo esc_html($uncat_label); ?></option>
+                                            <?php foreach ($category_options as $slug => $name): ?>
+                                                <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($name); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
 
-                <div class="ll-new-word-create-fields" style="display: none;">
-                    <div class="ll-new-word-row">
-                        <label for="ll-new-word-category-name"><?php _e('New Category Name', 'll-tools-text-domain'); ?></label>
-                        <input type="text" id="ll-new-word-category-name" placeholder="<?php esc_attr_e('e.g., Food', 'll-tools-text-domain'); ?>" />
-                    </div>
-                    <div class="ll-new-word-row">
-                        <label><?php _e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
-                        <div class="ll-new-word-types">
-                            <?php if (!empty($all_recording_types)): ?>
-                                <?php foreach ($all_recording_types as $type): ?>
-                                    <?php
-                                    $type_name = ll_get_recording_type_name($type->slug, $type->name);
-                                    $type_icon = ll_get_recording_type_icon($type->slug);
-                                    ?>
-                                    <label class="ll-recording-type-option" data-recording-type="<?php echo esc_attr($type->slug); ?>">
-                                        <input
-                                            type="checkbox"
-                                            value="<?php echo esc_attr($type->slug); ?>"
-                                            data-type-name="<?php echo esc_attr($type_name); ?>"
-                                            <?php checked($type->slug, 'isolation'); ?>
-                                        />
-                                        <span class="ll-recording-type-option-icon" aria-hidden="true"><?php echo esc_html($type_icon); ?></span>
-                                        <span class="ll-recording-type-option-label"><?php echo esc_html($type_name); ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <em><?php _e('No recording types available.', 'll-tools-text-domain'); ?></em>
-                            <?php endif; ?>
+                                    <div class="ll-new-word-row ll-new-word-row--toggle ll-new-word-checkbox">
+                                        <label>
+                                            <input type="checkbox" id="ll-new-word-create-category" />
+                                            <?php _e('Create a new category for these words', 'll-tools-text-domain'); ?>
+                                        </label>
+                                    </div>
+
+                                    <div class="ll-new-word-create-fields" style="display: none;">
+                                        <div class="ll-new-word-row">
+                                            <label for="ll-new-word-category-name"><?php _e('New Category Name', 'll-tools-text-domain'); ?></label>
+                                            <input type="text" id="ll-new-word-category-name" placeholder="<?php esc_attr_e('e.g., Food', 'll-tools-text-domain'); ?>" />
+                                        </div>
+                                        <div class="ll-new-word-row">
+                                            <label><?php _e('Desired Recording Types', 'll-tools-text-domain'); ?></label>
+                                            <div class="ll-new-word-types">
+                                                <?php if (!empty($all_recording_types)): ?>
+                                                    <?php foreach ($all_recording_types as $type): ?>
+                                                        <?php
+                                                        $type_name = ll_get_recording_type_name($type->slug, $type->name);
+                                                        $type_icon = ll_get_recording_type_icon($type->slug);
+                                                        ?>
+                                                        <label class="ll-recording-type-option" data-recording-type="<?php echo esc_attr($type->slug); ?>">
+                                                            <input
+                                                                type="checkbox"
+                                                                value="<?php echo esc_attr($type->slug); ?>"
+                                                                data-type-name="<?php echo esc_attr($type_name); ?>"
+                                                                <?php checked($type->slug, 'isolation'); ?>
+                                                            />
+                                                            <span class="ll-recording-type-option-icon" aria-hidden="true"><?php echo esc_html($type_icon); ?></span>
+                                                            <span class="ll-recording-type-option-label"><?php echo esc_html($type_name); ?></span>
+                                                        </label>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <em><?php _e('No recording types available.', 'll-tools-text-domain'); ?></em>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="ll-new-word-row ll-new-word-row--target">
+                                        <label for="ll-new-word-text-target"><?php _e('Target Word (optional)', 'll-tools-text-domain'); ?></label>
+                                        <input type="text" id="ll-new-word-text-target" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
+                                    </div>
+                                    <div class="ll-new-word-row ll-new-word-row--translation">
+                                        <label for="ll-new-word-text-translation"><?php _e('Translation (optional)', 'll-tools-text-domain'); ?></label>
+                                        <input type="text" id="ll-new-word-text-translation" placeholder="<?php esc_attr_e('Enter the translation', 'll-tools-text-domain'); ?>" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="ll-new-word-sidebar">
+                                <div class="ll-new-word-recording">
+                                    <div class="ll-new-word-recording-controls">
+                                        <button id="ll-new-word-record-btn" class="ll-btn ll-btn-record"
+                                                title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
+                                        <div id="ll-new-word-recording-indicator" class="ll-recording-indicator" style="display:none;">
+                                            <span class="ll-recording-dot"></span>
+                                            <span id="ll-new-word-recording-timer">0:00</span>
+                                        </div>
+                                    </div>
+                                    <div id="ll-new-word-recording-type" class="ll-new-word-recording-type" style="display:none;" role="status" aria-live="polite">
+                                        <span class="ll-new-word-recording-type-dot" aria-hidden="true"></span>
+                                        <span id="ll-new-word-recording-type-label" class="ll-new-word-recording-type-label"></span>
+                                    </div>
+                                    <div id="ll-new-word-playback-controls" class="ll-new-word-playback-controls" style="display:none;">
+                                        <audio id="ll-new-word-playback-audio" controls></audio>
+                                        <div class="ll-new-word-playback-actions">
+                                            <button id="ll-new-word-redo-btn" class="ll-btn ll-btn-secondary"
+                                                    title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="ll-new-word-review-slot" class="ll-new-word-review-slot"></div>
+                            </div>
+                        </div>
+
+                        <div class="ll-new-word-actions">
+                            <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Save and Continue', 'll-tools-text-domain'); ?></button>
+                            <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
                         </div>
                     </div>
                 </div>
-
-                <div class="ll-new-word-recording">
-                    <div class="ll-new-word-recording-controls">
-                        <button id="ll-new-word-record-btn" class="ll-btn ll-btn-record"
-                                title="<?php esc_attr_e('Record', 'll-tools-text-domain'); ?>"></button>
-                        <div id="ll-new-word-recording-indicator" class="ll-recording-indicator" style="display:none;">
-                            <span class="ll-recording-dot"></span>
-                            <span id="ll-new-word-recording-timer">0:00</span>
-                        </div>
-                    </div>
-                    <div id="ll-new-word-recording-type" class="ll-new-word-recording-type" style="display:none;" role="status" aria-live="polite">
-                        <span class="ll-new-word-recording-type-dot" aria-hidden="true"></span>
-                        <span id="ll-new-word-recording-type-label" class="ll-new-word-recording-type-label"></span>
-                    </div>
-                    <div id="ll-new-word-playback-controls" class="ll-new-word-playback-controls" style="display:none;">
-                        <audio id="ll-new-word-playback-audio" controls></audio>
-                        <div class="ll-new-word-playback-actions">
-                            <button id="ll-new-word-redo-btn" class="ll-btn ll-btn-secondary"
-                                    title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="ll-new-word-review-slot" class="ll-new-word-review-slot"></div>
-
-                <div class="ll-new-word-auto-status" id="ll-new-word-auto-status" style="display:none;" role="status" aria-live="polite" aria-busy="false">
-                    <span class="ll-new-word-auto-icon" aria-hidden="true">🤖</span>
-                    <span class="ll-new-word-auto-spinner" aria-hidden="true"></span>
-                    <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="<?php esc_attr_e('Cancel automatic transcription', 'll-tools-text-domain'); ?>">x</button>
-                </div>
-
-                <div class="ll-new-word-row">
-                    <label for="ll-new-word-text-target"><?php _e('Target Word (optional)', 'll-tools-text-domain'); ?></label>
-                    <input type="text" id="ll-new-word-text-target" placeholder="<?php esc_attr_e('Enter the word in the target language', 'll-tools-text-domain'); ?>" />
-                </div>
-                <div class="ll-new-word-row">
-                    <label for="ll-new-word-text-translation"><?php _e('Translation (optional)', 'll-tools-text-domain'); ?></label>
-                    <input type="text" id="ll-new-word-text-translation" placeholder="<?php esc_attr_e('Enter the translation', 'll-tools-text-domain'); ?>" />
-                </div>
-
-                <div class="ll-new-word-actions">
-                    <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Save and Continue', 'll-tools-text-domain'); ?></button>
-                    <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
-                </div>
-            </div>
             </div>
         </div>
         <?php endif; ?>
