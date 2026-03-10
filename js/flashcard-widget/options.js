@@ -93,7 +93,23 @@
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
-        let categoryOptionsCount = {}; // Tracks the number of options for each category
+        let sessionDesiredNumberOfOptions = 2; // Tracks adaptive difficulty across the current practice session
+        const categoryOptionsCount = {}; // Tracks the current effective option count for each category
+
+        function clampSessionDesiredCount(count) {
+            const parsed = parseInt(count, 10);
+            const fallback = parseInt(defaultNumberOfOptions, 10);
+            const normalized = Number.isFinite(parsed)
+                ? parsed
+                : (Number.isFinite(fallback) ? fallback : MINIMUM_NUMBER_OF_OPTIONS);
+            return Math.min(Math.max(MINIMUM_NUMBER_OF_OPTIONS, normalized), MAXIMUM_NUMBER_OF_OPTIONS);
+        }
+
+        function resetCategoryOptionsCount() {
+            Object.keys(categoryOptionsCount).forEach(function (categoryName) {
+                delete categoryOptionsCount[categoryName];
+            });
+        }
 
         /**
          * Helper function to get the maximum card size based on the plugin's imageSize setting.
@@ -176,10 +192,15 @@
          * @param {number} [numberOfOptions] - Optional initial number of options to set.
          */
         function initializeOptionsCount(numberOfOptions) {
-            if (numberOfOptions) {
-                defaultNumberOfOptions = numberOfOptions;
+            const parsedCount = parseInt(numberOfOptions, 10);
+            if (Number.isFinite(parsedCount) && parsedCount > 0) {
+                defaultNumberOfOptions = clampSessionDesiredCount(parsedCount);
             }
-            window.categoryNames.forEach(categoryName => {
+            sessionDesiredNumberOfOptions = clampSessionDesiredCount(defaultNumberOfOptions);
+            resetCategoryOptionsCount();
+
+            const categoryNames = Array.isArray(window.categoryNames) ? window.categoryNames : [];
+            categoryNames.forEach(categoryName => {
                 setInitialOptionsCount(categoryName);
             });
         }
@@ -190,20 +211,7 @@
          * @param {string} categoryName - The name of the category.
          */
         function setInitialOptionsCount(categoryName) {
-            let existingCount = categoryOptionsCount[categoryName];
-            if (existingCount && existingCount === checkMinMax(existingCount, categoryName)) {
-                return;
-            }
-
-            const optionPool = getCategoryOptionPool(categoryName);
-            if (optionPool.length) {
-                categoryOptionsCount[categoryName] = checkMinMax(
-                    Math.min(optionPool.length, defaultNumberOfOptions),
-                    categoryName
-                );
-            } else {
-                categoryOptionsCount[categoryName] = checkMinMax(defaultNumberOfOptions, categoryName);
-            }
+            categoryOptionsCount[categoryName] = checkMinMax(sessionDesiredNumberOfOptions, categoryName);
         }
 
         /**
@@ -221,19 +229,19 @@
                 return Math.max(MINIMUM_NUMBER_OF_OPTIONS, window.LLFlashcards.State.learningModeOptionsCount || 2);
             }
 
-            let numberOfOptions = categoryOptionsCount[currentCategoryName];
-            numberOfOptions = checkMinMax(numberOfOptions, currentCategoryName);
+            sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions);
+            const effectiveCountBeforeAdjustment = checkMinMax(sessionDesiredNumberOfOptions, currentCategoryName);
 
             if (wrongIndexes.length > 0) {
-                // Reduce the number of options if the user got answers wrong
-                numberOfOptions--;
-            } else if (!isFirstRound) {
-                // Increase the number of options if the user consistently answers correctly
-                numberOfOptions++;
+                // Lower the session difficulty after a miss so the next round eases back slightly.
+                sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions - 1);
+            } else if (!isFirstRound && effectiveCountBeforeAdjustment >= sessionDesiredNumberOfOptions) {
+                // Carry a clean streak across category switches, but do not over-reward capped categories.
+                sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions + 1);
             }
 
             wrongIndexes.length = 0; // Reset wrongIndexes for the next round
-            const clampedCount = checkMinMax(numberOfOptions, currentCategoryName);
+            const clampedCount = checkMinMax(sessionDesiredNumberOfOptions, currentCategoryName);
             categoryOptionsCount[currentCategoryName] = clampedCount;
             return clampedCount;
         }

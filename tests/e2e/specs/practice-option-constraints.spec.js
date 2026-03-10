@@ -562,6 +562,87 @@ test('option count never drops below two after wrong answers', async ({ page }) 
   expect(nextCount).toBe(2);
 });
 
+test('practice option count carries across category switches after clean rounds', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    const animals = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }];
+    const objects = [{ id: 101 }, { id: 102 }, { id: 103 }, { id: 104 }, { id: 105 }, { id: 106 }];
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      maxOptionsOverride: 9
+    };
+    window.categoryNames = ['Animals', 'Objects'];
+    window.wordsByCategory = {
+      Animals: animals,
+      Objects: objects
+    };
+    window.optionWordsByCategory = {
+      Animals: animals,
+      Objects: objects
+    };
+  });
+  await page.addScriptTag({ content: optionsSource });
+
+  const counts = await page.evaluate(() => {
+    window.FlashcardOptions.initializeOptionsCount(2);
+    return {
+      firstAnimals: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals'),
+      secondAnimals: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals'),
+      thirdAnimals: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals'),
+      firstObjectsAfterSwitch: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Objects')
+    };
+  });
+
+  expect(counts).toEqual({
+    firstAnimals: 2,
+    secondAnimals: 3,
+    thirdAnimals: 4,
+    firstObjectsAfterSwitch: 5
+  });
+});
+
+test('practice option count resets on a fresh session', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    const animals = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }];
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      maxOptionsOverride: 9
+    };
+    window.categoryNames = ['Animals'];
+    window.wordsByCategory = {
+      Animals: animals
+    };
+    window.optionWordsByCategory = {
+      Animals: animals
+    };
+  });
+  await page.addScriptTag({ content: optionsSource });
+
+  const counts = await page.evaluate(() => {
+    window.FlashcardOptions.initializeOptionsCount(2);
+    window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals');
+    window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals');
+    window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals');
+
+    window.FlashcardOptions.initializeOptionsCount(2);
+
+    return {
+      seededCount: window.FlashcardOptions.categoryOptionsCount.Animals,
+      firstRoundAfterReset: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals')
+    };
+  });
+
+  expect(counts).toEqual({
+    seededCount: 2,
+    firstRoundAfterReset: 2
+  });
+});
+
 test('practice selector bridges to an already covered word before replaying the wrong word', async ({ page }) => {
   const replayCategory = 'Replay category';
   const bridgeCategory = 'Bridge category';
