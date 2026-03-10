@@ -35,6 +35,8 @@
     let categorySelectResizeBound = false;
     let categorySelectObserver = null;
     let categorySelectDocumentBound = false;
+    let recordingStartToken = 0;
+    let pendingRecordingStart = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -108,6 +110,7 @@
     const icons = {
         record: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><circle cx="12" cy="12" r="8"/></svg>',
         stop: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+        loading: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none"><circle cx="12" cy="12" r="8" stroke="white" stroke-opacity="0.35" stroke-width="3"/><path d="M20 12a8 8 0 0 0-8-8" stroke="white" stroke-linecap="round" stroke-width="3"/></svg>',
         check: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
         redo: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>',
         skip: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>',
@@ -345,6 +348,72 @@
             skipBtn: el.skipBtn,
             hideBtn: el.hideBtn,
         };
+    }
+
+    function beginRecordingStartup(controls) {
+        if (!controls || !controls.recordBtn || pendingRecordingStart) return 0;
+
+        const token = ++recordingStartToken;
+        pendingRecordingStart = { token, controls };
+
+        controls.recordBtn.disabled = true;
+        controls.recordBtn.innerHTML = icons.loading;
+        controls.recordBtn.classList.remove('recording');
+        controls.recordBtn.classList.add('starting');
+
+        if (controls.indicator) {
+            controls.indicator.classList.add('is-starting');
+            controls.indicator.style.display = 'flex';
+        }
+        if (controls.timer) {
+            controls.timer.textContent = i18n.recording_starting || 'Starting...';
+        }
+        if (controls.skipBtn) {
+            controls.skipBtn.disabled = true;
+        }
+        if (controls.hideBtn) {
+            controls.hideBtn.disabled = true;
+        }
+        if (controls.redoBtn) {
+            controls.redoBtn.disabled = true;
+        }
+
+        return token;
+    }
+
+    function clearRecordingStartup(options = {}) {
+        if (!pendingRecordingStart) return;
+
+        const token = typeof options.token === 'number' ? options.token : null;
+        if (token !== null && pendingRecordingStart.token !== token) {
+            return;
+        }
+
+        const controls = pendingRecordingStart.controls;
+        if (controls.recordBtn) {
+            controls.recordBtn.classList.remove('starting');
+            if (!options.keepIcon) {
+                controls.recordBtn.innerHTML = icons.record;
+            }
+            if (!options.keepDisabled) {
+                controls.recordBtn.disabled = false;
+            }
+        }
+        if (controls.indicator) {
+            controls.indicator.classList.remove('is-starting');
+            if (!options.keepIndicator) {
+                controls.indicator.style.display = 'none';
+            }
+        }
+        if (controls.timer && !options.keepIndicator) {
+            controls.timer.textContent = '0:00';
+        }
+
+        pendingRecordingStart = null;
+    }
+
+    function isRecordingStartupPending() {
+        return !!pendingRecordingStart;
     }
 
     function setNewWordActionState(disabled) {
@@ -1508,17 +1577,19 @@
             stopRecording();
             return;
         }
-        const shouldSuppressScroll = !newWordPrepared;
-        if (shouldSuppressScroll) {
-            suppressNextScroll = true;
-        }
-        const ready = await prepareNewWordRecording({ keepPanel: true });
-        if (!ready) {
-            if (shouldSuppressScroll) {
-                suppressNextScroll = false;
-            }
+
+        const el = window.llRecorder;
+        if (el.newWordCreateCategory?.checked && !(el.newWordCategoryName?.value || '').trim()) {
+            markNewWordFieldError(el.newWordCategoryName);
+            flashNewWordAutoStatus('error', i18n.new_word_missing_category || 'Enter a category name or disable "Create new category".');
             return;
         }
+
+        if (isRecordingStartupPending()) {
+            return;
+        }
+
+        newWordStage = 'recording';
         await startRecording();
     }
 
@@ -2151,7 +2222,7 @@
     }
 
     async function prepareNewWordRecording(options = {}) {
-        const { keepPanel = false } = options;
+        const { keepPanel = false, preserveCurrentRecording = false } = options;
         const el = window.llRecorder;
         if (!el.newWordPanel || !allowNewWords) return false;
         if (newWordPrepared) return true;
@@ -2263,7 +2334,11 @@
             }
             syncProcessingReviewSlot();
 
-            loadImage(0);
+            if (preserveCurrentRecording) {
+                renderCurrentImageDisplay(word);
+            } else {
+                loadImage(0);
+            }
             return true;
         } catch (err) {
             flashNewWordAutoStatus('error', (i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''));
@@ -2595,6 +2670,9 @@
             setTypeForCurrentImage();
             resetRecordingState();
             refreshCurrentImageDisplay();
+            if (images[currentImageIndex]?.is_text_only && window.llRecorder?.textDisplay) {
+                requestAnimationFrame(() => fitTextToContainer(window.llRecorder.textDisplay));
+            }
             scrollToTop();
             showStatus(i18n.saved_next_type || 'Saved. Next type selected.', 'success');
             return true; // Signal that we're staying on this image
@@ -2700,6 +2778,58 @@
             displayTitle = decodeEntities(img.word_translation);
         }
         return protectMaqafNoBreak(displayTitle);
+    }
+
+    function getSelectedNewWordCategoryData() {
+        const el = window.llRecorder;
+        const fallbackName = i18n.uncategorized || 'Uncategorized';
+        const createCategory = !!el?.newWordCreateCategory?.checked;
+        const createdName = (el?.newWordCategoryName?.value || '').trim();
+
+        if (createCategory && createdName) {
+            return {
+                slug: 'uncategorized',
+                name: createdName,
+            };
+        }
+
+        const categorySlug = el?.newWordCategory?.value || lastNewWordCategory || 'uncategorized';
+        const selectedOption = el?.newWordCategory
+            ? Array.from(el.newWordCategory.options).find(option => option.value === categorySlug)
+            : null;
+
+        return {
+            slug: categorySlug || 'uncategorized',
+            name: (selectedOption?.textContent || '').trim() || fallbackName,
+        };
+    }
+
+    function getPendingNewWordDisplayItem() {
+        const el = window.llRecorder;
+        const targetText = (el?.newWordTextTarget?.value || '').trim();
+        const translationText = (el?.newWordTextTranslation?.value || '').trim();
+        const category = getSelectedNewWordCategoryData();
+        const displayTitle = targetText || translationText || i18n.new_word_label || 'New word';
+
+        return {
+            id: 0,
+            title: displayTitle,
+            word_title: displayTitle,
+            word_translation: translationText,
+            use_word_display: true,
+            image_url: '',
+            category_name: category.name,
+            category_slug: category.slug,
+            is_text_only: true,
+        };
+    }
+
+    function getCurrentReviewItem() {
+        if (newWordMode && !newWordPrepared) {
+            return getPendingNewWordDisplayItem();
+        }
+
+        return images[currentImageIndex] || {};
     }
 
     function refreshCurrentImageDisplay() {
@@ -2827,6 +2957,85 @@
         try { imageEl.addEventListener('error', handleDone, { once: true }); } catch (_) { /* no-op */ }
     }
 
+    function renderCurrentImageDisplay(img) {
+        const el = window.llRecorder;
+        if (!el || !img) return;
+
+        normalizeImageRecordingTypeState(img);
+
+        if (el.currentNum) {
+            el.currentNum.textContent = images.length ? String(currentImageIndex + 1) : '0';
+        }
+        if (el.totalNum) {
+            el.totalNum.textContent = String(images.length);
+        }
+
+        const card = el.imageContainer ? el.imageContainer.querySelector('.flashcard-container') : null;
+        if (img.is_text_only) {
+            if (el.image) {
+                el.image.style.display = 'none';
+                el.image.removeAttribute('src');
+                el.image.alt = '';
+            }
+            if (!el.textDisplay && card) {
+                el.textDisplay = document.createElement('div');
+                el.textDisplay.className = 'quiz-text ll-text-display';
+                card.appendChild(el.textDisplay);
+            }
+            if (el.textDisplay) {
+                el.textDisplay.style.display = 'block';
+            }
+            if (card) {
+                card.classList.add('text-based');
+            }
+        } else {
+            if (el.textDisplay) {
+                el.textDisplay.style.display = 'none';
+                el.textDisplay.textContent = '';
+            }
+            if (el.image) {
+                el.image.style.display = 'block';
+                el.image.src = img.image_url || '';
+            }
+            if (card) {
+                card.classList.remove('text-based');
+            }
+        }
+
+        const displayTitle = getDisplayTitleForImage(img);
+        if (el.title) {
+            el.title.textContent = displayTitle;
+            el.title.style.display = window.ll_recorder_data?.hide_name ? 'none' : '';
+        }
+        if (el.image) {
+            el.image.alt = displayTitle;
+        }
+        if (img.is_text_only && el.textDisplay) {
+            el.textDisplay.textContent = displayTitle;
+        }
+
+        let categoryEl = getCurrentCategoryDisplayElement();
+        if (!categoryEl && el.title?.parentNode) {
+            categoryEl = document.createElement('p');
+            categoryEl.id = 'll-image-category';
+            categoryEl.className = 'll-image-category';
+            el.title.parentNode.insertBefore(categoryEl, el.title.nextSibling);
+        }
+        if (categoryEl) {
+            categoryEl.textContent = (i18n.category || 'Category:') + ' ' +
+                protectMaqafNoBreak(img.category_name || i18n.uncategorized || 'Uncategorized');
+        }
+
+        if (el.hideBtn) {
+            const hasHideKey = !!getPrimaryHideKeyForItem(img);
+            el.hideBtn.style.display = hasHideKey ? 'inline-flex' : 'none';
+            el.hideBtn.disabled = !hasHideKey;
+            el.hideBtn.innerHTML = icons.hide;
+        }
+
+        setTypeForCurrentImage();
+    }
+
     function loadImage(index) {
         if (index >= images.length) {
             showComplete();
@@ -2845,69 +3054,7 @@
         const el = window.llRecorder;
         syncProcessingReviewSlot();
 
-        el.currentNum.textContent = index + 1;
-        el.totalNum.textContent = images.length;
-
-        if (img.is_text_only) {
-            el.image.style.display = 'none';
-            if (!el.textDisplay) {
-                el.textDisplay = document.createElement('div');
-                el.textDisplay.className = 'quiz-text ll-text-display';
-                const card = el.imageContainer.querySelector('.flashcard-container');
-                card.classList.add('text-based');
-                card.appendChild(el.textDisplay);
-            }
-            el.textDisplay.style.display = 'block';
-            el.imageContainer.querySelector('.flashcard-container').classList.add('text-based');
-        } else {
-            if (el.textDisplay) {
-                el.textDisplay.style.display = 'none';
-            }
-            el.image.style.display = 'block';
-            el.image.src = img.image_url;
-            const card = el.imageContainer.querySelector('.flashcard-container');
-            card.classList.remove('text-based');
-        }
-
-        const displayTitle = getDisplayTitleForImage(img);
-
-        el.title.textContent = displayTitle;
-        if (img.is_text_only && el.textDisplay) {
-            el.textDisplay.textContent = displayTitle;
-        }
-        if (!img.is_text_only) {
-            // Remove text styling so image cards match quiz styling
-            const card = el.imageContainer.querySelector('.flashcard-container');
-            card.classList.remove('text-based');
-            if (el.textDisplay) {
-                el.textDisplay.textContent = '';
-            }
-        }
-        const hideName = window.ll_recorder_data?.hide_name || false;
-        if (hideName) {
-            el.title.style.display = 'none';
-        } else {
-            el.title.style.display = '';
-        }
-
-        let categoryEl = document.getElementById('ll-image-category');
-        if (!categoryEl) {
-            categoryEl = document.createElement('p');
-            categoryEl.id = 'll-image-category';
-            categoryEl.className = 'll-image-category';
-            el.title.parentNode.insertBefore(categoryEl, el.title.nextSibling);
-        }
-        categoryEl.textContent = (i18n.category || 'Category:') + ' ' +
-            protectMaqafNoBreak(img.category_name || i18n.uncategorized || 'Uncategorized');
-
-        if (el.hideBtn) {
-            const hasHideKey = !!getPrimaryHideKeyForItem(img);
-            el.hideBtn.style.display = hasHideKey ? 'inline-flex' : 'none';
-            el.hideBtn.disabled = !hasHideKey;
-            el.hideBtn.innerHTML = icons.hide;
-        }
-
-        setTypeForCurrentImage();
+        renderCurrentImageDisplay(img);
         resetRecordingState();
         if (img.is_text_only && el.textDisplay) {
             requestAnimationFrame(() => {
@@ -2924,10 +3071,11 @@
 
     function resetRecordingState() {
         const el = window.llRecorder;
+        clearRecordingStartup();
         if (el.recordBtn) {
             el.recordBtn.style.display = 'inline-flex';
             el.recordBtn.innerHTML = icons.record;
-            el.recordBtn.classList.remove('recording');
+            el.recordBtn.classList.remove('recording', 'starting');
             el.recordBtn.disabled = false;
         }
         if (el.skipBtn) el.skipBtn.disabled = false;
@@ -2950,10 +3098,16 @@
         if (el.newWordRecordBtn) {
             el.newWordRecordBtn.style.display = 'inline-flex';
             el.newWordRecordBtn.innerHTML = icons.record;
-            el.newWordRecordBtn.classList.remove('recording');
+            el.newWordRecordBtn.classList.remove('recording', 'starting');
             el.newWordRecordBtn.disabled = false;
         }
-        if (el.newWordRecordingIndicator) el.newWordRecordingIndicator.style.display = 'none';
+        if (el.newWordRecordingIndicator) {
+            el.newWordRecordingIndicator.classList.remove('is-starting');
+            el.newWordRecordingIndicator.style.display = 'none';
+        }
+        if (el.indicator) {
+            el.indicator.classList.remove('is-starting');
+        }
         if (el.newWordPlaybackControls) el.newWordPlaybackControls.style.display = 'none';
         if (el.newWordPlaybackAudio) el.newWordPlaybackAudio.removeAttribute('src');
         if (el.newWordStartBtn && isNewWordPanelActive()) el.newWordStartBtn.disabled = true;
@@ -2995,6 +3149,9 @@
     }
 
     async function toggleRecording() {
+        if (isRecordingStartupPending()) {
+            return;
+        }
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             stopRecording();
         } else {
@@ -3006,8 +3163,13 @@
         const controls = getActiveControls();
         if (!controls || !controls.recordBtn) return;
 
+        const startupToken = beginRecordingStartup(controls);
+        if (!startupToken) return;
+
+        let stream = null;
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
             // Prioritize formats by audio processing quality
             // Avoid Opus (generic webm) - causes issues with noise reduction/processing
@@ -3053,10 +3215,22 @@
             recordingStartTime = Date.now();
 
             activeRecordingControls = controls;
+            clearRecordingStartup({
+                token: startupToken,
+                keepIcon: true,
+                keepIndicator: true,
+                keepDisabled: true,
+            });
             controls.recordBtn.innerHTML = icons.stop;
+            controls.recordBtn.disabled = false;
+            controls.recordBtn.classList.remove('starting');
             controls.recordBtn.classList.add('recording');
             if (controls.indicator) {
+                controls.indicator.classList.remove('is-starting');
                 controls.indicator.style.display = 'block';
+            }
+            if (controls.timer) {
+                controls.timer.textContent = '0:00';
             }
             if (controls.skipBtn) {
                 controls.skipBtn.disabled = true;
@@ -3068,10 +3242,14 @@
             timerInterval = setInterval(updateTimer, 100);
 
         } catch (err) {
+            if (stream && typeof stream.getTracks === 'function') {
+                stream.getTracks().forEach(track => track.stop());
+            }
             console.error('Error accessing microphone:', err);
             console.error('Error name:', err?.name);
             console.error('Error message:', err?.message);
 
+            clearRecordingStartup({ token: startupToken });
             const message = await buildMicErrorMessage(err);
             showStatus(message, 'error');
             activeRecordingControls = null;
@@ -3522,15 +3700,15 @@
         }
 
         const el = window.llRecorder;
-        const img = images[currentImageIndex];
-        if (!img) {
-            showStatus(i18n.upload_failed || 'Upload failed:', 'error');
-            return;
-        }
         if (newWordMode) {
             if (!newWordPrepared) {
-                flashNewWordAutoStatus('error', i18n.new_word_failed || 'New word setup failed:');
-                return;
+                const prepared = await prepareNewWordRecording({
+                    keepPanel: true,
+                    preserveCurrentRecording: true
+                });
+                if (!prepared) {
+                    return;
+                }
             }
             if (newWordTranscriptionInFlight || newWordTranslationInFlight) {
                 updateNewWordAutoUI();
@@ -3540,6 +3718,12 @@
             if (!updated) {
                 return;
             }
+        }
+
+        const img = images[currentImageIndex];
+        if (!img) {
+            showStatus(i18n.upload_failed || 'Upload failed:', 'error');
+            return;
         }
         const recordingType = el.recordingTypeSelect?.value || 'isolation';
         if (autoProcessEnabled && processingState && !processingState.reviewReady) {
@@ -3683,7 +3867,7 @@
         const div = document.createElement('div');
         div.className = 'll-review-file';
 
-        const img = images[currentImageIndex] || {};
+        const img = getCurrentReviewItem();
         const displayTitle = getDisplayTitleForImage(img) || window.llRecorder?.title?.textContent || img.title || '';
         const imageUrl = img.image_url || '';
         const categoryLabel = img.category_name || i18n.uncategorized || 'Uncategorized';

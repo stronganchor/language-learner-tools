@@ -1,0 +1,201 @@
+const { test, expect } = require('@playwright/test');
+
+const ADMIN_USER = process.env.LL_E2E_ADMIN_USER || '';
+const ADMIN_PASS = process.env.LL_E2E_ADMIN_PASS || '';
+
+async function ensureLoggedIntoAdmin(page) {
+  await page.goto('/wp-admin/', { waitUntil: 'domcontentloaded' });
+
+  const loginForm = page.locator('#loginform');
+  if ((await loginForm.count()) > 0) {
+    await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
+    await page.fill('#user_login', ADMIN_USER);
+    await page.fill('#user_pass', ADMIN_PASS);
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
+      page.click('#wp-submit')
+    ]);
+  }
+
+  await expect(page).toHaveURL(/\/wp-admin\/?/);
+}
+
+async function createRecorderPage(page, title) {
+  await page.goto('/wp-admin/post-new.php?post_type=page', { waitUntil: 'domcontentloaded' });
+
+  const result = await page.evaluate(async (pageTitle) => {
+    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
+    if (!nonce) {
+      return { error: 'missing-rest-nonce' };
+    }
+
+    const response = await fetch('/wp-json/wp/v2/pages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': nonce
+      },
+      body: JSON.stringify({
+        title: pageTitle,
+        status: 'publish',
+        content: '[audio_recording_interface allow_new_words="1"]'
+      })
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json()
+    };
+  }, title);
+
+  if (!result || result.error) {
+    throw new Error(`Failed to create recorder page: ${result && result.error ? result.error : 'unknown error'}`);
+  }
+  if (!result.ok || !result.data || !result.data.id || !result.data.link) {
+    throw new Error(`Failed to create recorder page: HTTP ${result ? result.status : 'unknown'}`);
+  }
+
+  return {
+    id: result.data.id,
+    link: result.data.link
+  };
+}
+
+async function deletePage(page, pageId) {
+  await page.goto('/wp-admin/post-new.php?post_type=page', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(async (id) => {
+    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
+    if (!nonce || !id) return;
+
+    await fetch(`/wp-json/wp/v2/pages/${id}?force=true`, {
+      method: 'DELETE',
+      headers: {
+        'X-WP-Nonce': nonce
+      }
+    });
+  }, pageId);
+}
+
+test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
+  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+
+  await ensureLoggedIntoAdmin(page);
+
+  const title = `Recorder Startup ${Date.now()}`;
+  const createdPage = await createRecorderPage(page, title);
+  const ajaxActions = [];
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    const postData = route.request().postData() || '';
+    if (postData.includes('ll_prepare_new_word_recording')) {
+      ajaxActions.push('prepare');
+    }
+    await route.continue();
+  });
+
+  await page.addInitScript(() => {
+    let resolveMicStart = null;
+    const fakeTrack = { stop() {} };
+    const fakeStream = {
+      getTracks() {
+        return [fakeTrack];
+      }
+    };
+
+    class FakeMediaRecorder {
+      static isTypeSupported() {
+        return true;
+      }
+
+      constructor(stream, options = {}) {
+        this.stream = stream;
+        this.mimeType = options.mimeType || 'audio/webm';
+        this.state = 'inactive';
+        this.ondataavailable = null;
+        this.onstop = null;
+      }
+
+      start() {
+        this.state = 'recording';
+      }
+
+      stop() {
+        this.state = 'inactive';
+        if (typeof this.ondataavailable === 'function') {
+          this.ondataavailable({
+            data: new Blob(['RIFF'], { type: this.mimeType })
+          });
+        }
+        if (typeof this.onstop === 'function') {
+          this.onstop();
+        }
+      }
+    }
+
+    const mediaDevices = {
+      getUserMedia() {
+        return new Promise((resolve) => {
+          resolveMicStart = resolve;
+        });
+      },
+      enumerateDevices: async () => [{ kind: 'audioinput', deviceId: 'fake-mic', label: 'Fake Mic' }]
+    };
+
+    try {
+      Object.defineProperty(window, 'MediaRecorder', {
+        value: FakeMediaRecorder,
+        configurable: true
+      });
+    } catch (_) {
+      window.MediaRecorder = FakeMediaRecorder;
+    }
+
+    try {
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: mediaDevices,
+        configurable: true
+      });
+    } catch (_) {
+      navigator.mediaDevices = mediaDevices;
+    }
+
+    window.__llResolveRecorderMic = () => {
+      if (typeof resolveMicStart === 'function') {
+        resolveMicStart(fakeStream);
+      }
+    };
+  });
+
+  try {
+    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+
+    const newWordToggle = page.locator('#ll-new-word-toggle');
+    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
+      await newWordToggle.click();
+    }
+
+    const recordButton = page.locator('#ll-new-word-record-btn');
+    const recordIndicator = page.locator('#ll-new-word-recording-indicator');
+
+    await expect(recordButton).toBeVisible({ timeout: 30000 });
+    await recordButton.click();
+
+    await expect(recordButton).toHaveClass(/starting/);
+    await expect(recordIndicator).toHaveClass(/is-starting/);
+    await expect.poll(() => ajaxActions.length).toBe(0);
+
+    await page.evaluate(() => {
+      if (typeof window.__llResolveRecorderMic === 'function') {
+        window.__llResolveRecorderMic();
+      }
+    });
+
+    await expect(recordButton).toHaveClass(/recording/);
+    await expect(recordButton).not.toHaveClass(/starting/);
+    await expect(recordIndicator).not.toHaveClass(/is-starting/);
+    await expect.poll(() => ajaxActions.length).toBe(0);
+  } finally {
+    await deletePage(page, createdPage.id);
+  }
+});
