@@ -4427,10 +4427,20 @@
         $root.find('.ll-wordset-card__progress-track').toggleClass('is-loading', loading);
     }
 
+    function isWordsetCardProgressPendingResolution($card) {
+        const segments = getWordsetCardProgressSegments($card);
+        return !!(segments.track && segments.track.length && segments.track.hasClass('is-loading'));
+    }
+
+    function setWordsetCardProgressResolvedState($card, isResolved) {
+        const segments = getWordsetCardProgressSegments($card);
+        if (!segments.track.length) { return; }
+        segments.track.toggleClass('is-loading', !isResolved);
+    }
+
     function clearInitialWordsetCardProgressLoading() {
         if (!cardProgressInitialLoading) { return; }
         cardProgressInitialLoading = false;
-        setWordsetCardProgressLoadingState(false);
     }
 
     function syncWordsetCardProgressSegmentVisualState($card) {
@@ -4628,6 +4638,7 @@
         }
 
         setWordsetCardProgressPercents($card, pending.values, { animate: true });
+        setWordsetCardProgressResolvedState($card, true);
         delete pendingCategoryProgressUpdates[categoryId];
         return true;
     }
@@ -4833,7 +4844,18 @@
 
             const nextValues = buildWordsetCardProgressPercentsFromAnalyticsRow(source);
             const currentValues = readWordsetCardProgressPercents($card);
-            if (!hasWordsetCardProgressDelta(currentValues, nextValues)) {
+            const hasDelta = hasWordsetCardProgressDelta(currentValues, nextValues);
+            if (isWordsetCardProgressPendingResolution($card)) {
+                setWordsetCardProgressPercents($card, nextValues, { animate: false });
+                setWordsetCardProgressResolvedState($card, true);
+                delete pendingCategoryProgressUpdates[categoryId];
+                if (hasDelta) {
+                    hasCategoryProgressChanges = true;
+                }
+                return;
+            }
+
+            if (!hasDelta) {
                 delete pendingCategoryProgressUpdates[categoryId];
                 return;
             }
@@ -4841,6 +4863,7 @@
 
             if (syncAllImmediately) {
                 setWordsetCardProgressPercents($card, nextValues, { animate: animateCards });
+                setWordsetCardProgressResolvedState($card, true);
                 delete pendingCategoryProgressUpdates[categoryId];
                 return;
             }
@@ -4853,6 +4876,7 @@
             const isInFocusZone = isRectInCategoryProgressFocusZone(cardRect);
             if (isInFocusZone && !deferVisible) {
                 setWordsetCardProgressPercents($card, nextValues, { animate: true });
+                setWordsetCardProgressResolvedState($card, true);
                 delete pendingCategoryProgressUpdates[categoryId];
             } else {
                 setPendingCategoryProgressEntry(categoryId, nextValues, {
