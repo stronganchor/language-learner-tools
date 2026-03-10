@@ -1283,10 +1283,15 @@ function ll_audio_recording_interface_shortcode($atts) {
                     <div class="ll-new-word-shell">
                         <div class="ll-new-word-header">
                             <h3 id="ll-new-word-title"><?php _e('Record a New Word', 'll-tools-text-domain'); ?></h3>
-                            <div class="ll-new-word-auto-status" id="ll-new-word-auto-status" style="display:none;" role="status" aria-live="polite" aria-busy="false">
-                                <span class="ll-new-word-auto-icon" aria-hidden="true">🤖</span>
-                                <span class="ll-new-word-auto-spinner" aria-hidden="true"></span>
-                                <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="<?php esc_attr_e('Cancel automatic transcription', 'll-tools-text-domain'); ?>">x</button>
+                            <div class="ll-new-word-header-actions">
+                                <div class="ll-new-word-auto-status" id="ll-new-word-auto-status" style="display:none;" role="status" aria-live="polite" aria-busy="false">
+                                    <span class="ll-new-word-auto-icon" aria-hidden="true">🤖</span>
+                                    <span class="ll-new-word-auto-spinner" aria-hidden="true"></span>
+                                    <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="<?php esc_attr_e('Cancel automatic transcription', 'll-tools-text-domain'); ?>">x</button>
+                                </div>
+                                <button type="button" class="ll-btn ll-new-word-close" id="ll-new-word-back" title="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
                             </div>
                         </div>
 
@@ -1391,17 +1396,13 @@ function ll_audio_recording_interface_shortcode($atts) {
                                         <div class="ll-new-word-playback-actions">
                                             <button id="ll-new-word-redo-btn" class="ll-btn ll-btn-secondary"
                                                     title="<?php esc_attr_e('Record again', 'll-tools-text-domain'); ?>"></button>
+                                            <button type="button" class="ll-btn ll-btn-primary ll-new-word-submit-btn" id="ll-new-word-start" title="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Save and continue', 'll-tools-text-domain'); ?>"></button>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div id="ll-new-word-review-slot" class="ll-new-word-review-slot"></div>
                             </div>
-                        </div>
-
-                        <div class="ll-new-word-actions">
-                            <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start"><?php _e('Save and Continue', 'll-tools-text-domain'); ?></button>
-                            <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back"><?php _e('Back to Existing Words', 'll-tools-text-domain'); ?></button>
                         </div>
                     </div>
                 </div>

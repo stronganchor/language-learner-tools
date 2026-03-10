@@ -220,6 +220,9 @@
         if (window.llRecorder && window.llRecorder.newWordRedoBtn) {
             window.llRecorder.newWordRedoBtn.innerHTML = icons.redo;
         }
+        if (window.llRecorder && window.llRecorder.newWordStartBtn) {
+            window.llRecorder.newWordStartBtn.innerHTML = icons.check;
+        }
         if (window.llRecorder && window.llRecorder.hideBtn) {
             window.llRecorder.hideBtn.innerHTML = icons.hide;
         }
@@ -261,6 +264,7 @@
             recordingTypeChoices: null,
             newWordToggle: document.getElementById('ll-new-word-toggle'),
             newWordOverlay: document.getElementById('ll-new-word-overlay'),
+            newWordBackdrop: document.querySelector('.ll-new-word-overlay-backdrop'),
             newWordPanel: document.querySelector('.ll-new-word-panel'),
             newWordAutoStatus: document.getElementById('ll-new-word-auto-status'),
             newWordAutoIcon: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-icon'),
@@ -674,6 +678,9 @@
         if (el.newWordBackBtn) {
             el.newWordBackBtn.addEventListener('click', exitNewWordMode);
         }
+        if (el.newWordBackdrop) {
+            el.newWordBackdrop.addEventListener('click', maybeDismissNewWordOverlay);
+        }
         if (el.newWordStartBtn) {
             el.newWordStartBtn.addEventListener('click', handleNewWordSave);
         }
@@ -724,6 +731,14 @@
                 clearNewWordFieldError(el.newWordCategoryName);
             });
         }
+    }
+
+    function maybeDismissNewWordOverlay() {
+        const el = window.llRecorder;
+        if (!isNewWordPanelActive()) return;
+        if (uploadLockState) return;
+        if (el?.newWordBackBtn?.disabled) return;
+        exitNewWordMode();
     }
 
     function decodeEntities(text) {
@@ -1565,7 +1580,7 @@
         if (!slots.newWord.contains(el.processingReview)) {
             slots.newWord.appendChild(el.processingReview);
         }
-        toggleReviewSubmitVisibility(true);
+        toggleReviewSubmitVisibility(false);
         syncNewWordProcessingReviewState();
     }
 

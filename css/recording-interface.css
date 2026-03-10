@@ -456,6 +456,14 @@
     flex-wrap: wrap;
 }
 
+.ll-new-word-header-actions {
+    display: inline-flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    margin-left: auto;
+}
+
 .ll-new-word-card h3 {
     margin: 0;
     font-size: 1.1rem;
@@ -490,6 +498,27 @@
     color: #1d2327;
     box-sizing: border-box;
     max-width: 100%;
+}
+
+.ll-recording-interface .ll-new-word-close {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    border: 1px solid #ccd0d4 !important;
+    background: #ffffff !important;
+    color: #3c434a !important;
+    font-size: 1.45rem !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+}
+
+.ll-recording-interface .ll-new-word-close:hover:not(:disabled) {
+    background: #f6f7f7 !important;
+    border-color: #8c8f94 !important;
+    color: #1d2327 !important;
 }
 
 .ll-new-word-auto-status.is-loading {
@@ -663,14 +692,6 @@
     line-height: 1.2;
 }
 
-.ll-new-word-actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-}
-
 .ll-new-word-review-slot {
     margin: 0;
 }
@@ -733,10 +754,6 @@
 .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play svg {
     width: 18px;
     height: 18px;
-}
-
-.ll-new-word-panel #ll-review-submit {
-    display: none !important;
 }
 
 .ll-new-word-recording {
@@ -806,6 +823,15 @@
     justify-content: center;
     width: 100%;
     flex-wrap: wrap;
+}
+
+.ll-recording-interface .ll-new-word-submit-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
 }
 
 @media (min-width: 860px) {
@@ -878,6 +904,13 @@
         padding: 0.25rem 0.55rem;
     }
 
+    .ll-recording-interface .ll-new-word-close {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
+    }
+
     .ll-new-word-row--toggle label {
         padding: 0.55rem 0.7rem;
     }
@@ -902,9 +935,6 @@
         margin-top: 0.6rem;
     }
 
-    .ll-new-word-actions {
-        gap: 0.5rem;
-    }
 }
 
 @keyframes ll-spin {
@@ -1872,17 +1902,6 @@
         width: 100%;
     }
 
-    .ll-new-word-actions {
-        flex-direction: column;
-        align-items: stretch;
-        justify-content: flex-start;
-    }
-
-    .ll-new-word-actions .ll-btn {
-        width: 100%;
-        justify-content: center;
-    }
-
     .ll-hidden-word-item {
         padding: 0.45rem 0.5rem;
     }
@@ -1974,14 +1993,25 @@
         align-items: center;
     }
 
+    .ll-new-word-header-actions {
+        gap: 0.4rem;
+    }
+
     .ll-new-word-card h3 {
         display: none;
     }
 
     .ll-new-word-auto-status {
-        margin-left: auto;
         padding: 0.22rem 0.45rem;
         font-size: 0.78rem;
+    }
+
+    .ll-recording-interface .ll-new-word-close {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
+        font-size: 1.2rem !important;
     }
 
     .ll-new-word-auto-icon {
@@ -2078,15 +2108,6 @@
         gap: 0.5rem;
     }
 
-    .ll-new-word-actions {
-        gap: 0.45rem;
-        padding-top: 0.1rem;
-    }
-
-    .ll-new-word-actions .ll-btn {
-        min-height: 2.1rem;
-    }
-
     .ll-new-word-panel .ll-recording-review--new-word-panel > h2 {
         margin-bottom: 0.45rem;
         font-size: 0.98rem;
@@ -2180,17 +2201,6 @@
 }
 
 @media (max-height: 560px) and (max-width: 639px) {
-    .ll-new-word-actions {
-        flex-direction: row;
-        align-items: stretch;
-    }
-
-    .ll-new-word-actions .ll-btn {
-        flex: 1 1 0;
-        width: auto;
-        min-width: 0;
-    }
-
     .ll-new-word-recording-controls {
         justify-content: space-evenly;
     }

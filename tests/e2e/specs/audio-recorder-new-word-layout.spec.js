@@ -32,17 +32,20 @@ function buildNewWordOverlayMarkup(options = {}) {
             <div class="ll-new-word-shell">
               <div class="ll-new-word-header">
                 <h3 id="ll-new-word-title">Record a New Word</h3>
-                <div
-                  class="ll-new-word-auto-status is-loading"
-                  id="ll-new-word-auto-status"
-                  style="display:inline-flex;"
-                  role="status"
-                  aria-live="polite"
-                  aria-busy="true"
-                >
-                  <span class="ll-new-word-auto-icon" aria-hidden="true">A</span>
-                  <span class="ll-new-word-auto-spinner" aria-hidden="true" style="display:block;"></span>
-                  <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="Cancel automatic transcription">x</button>
+                <div class="ll-new-word-header-actions">
+                  <div
+                    class="ll-new-word-auto-status is-loading"
+                    id="ll-new-word-auto-status"
+                    style="display:inline-flex;"
+                    role="status"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <span class="ll-new-word-auto-icon" aria-hidden="true">A</span>
+                    <span class="ll-new-word-auto-spinner" aria-hidden="true" style="display:block;"></span>
+                    <button type="button" class="ll-btn ll-new-word-auto-cancel" id="ll-new-word-auto-cancel" aria-label="Cancel automatic transcription">x</button>
+                  </div>
+                  <button type="button" class="ll-btn ll-new-word-close" id="ll-new-word-back" aria-label="Close">&times;</button>
                 </div>
               </div>
 
@@ -125,6 +128,7 @@ function buildNewWordOverlayMarkup(options = {}) {
                       <audio id="ll-new-word-playback-audio" controls></audio>
                       <div class="ll-new-word-playback-actions">
                         <button id="ll-new-word-redo-btn" class="ll-btn ll-btn-secondary" title="Record again">Redo</button>
+                        <button type="button" class="ll-btn ll-btn-primary ll-new-word-submit-btn" id="ll-new-word-start" aria-label="Save and continue">Save</button>
                       </div>
                     </div>
                   </div>
@@ -152,16 +156,16 @@ function buildNewWordOverlayMarkup(options = {}) {
                             <audio controls></audio>
                           </div>
                         </div>
+                        <div class="ll-review-actions">
+                          <button type="button" id="ll-review-redo" class="ll-btn ll-btn-secondary" aria-label="Record again">Redo</button>
+                          <button type="button" id="ll-review-submit" class="ll-btn ll-btn-primary" aria-label="Save and continue">Save</button>
+                        </div>
                       </div>
                     ` : ''}
                   </div>
                 </div>
               </div>
 
-              <div class="ll-new-word-actions">
-                <button type="button" class="ll-btn ll-btn-primary" id="ll-new-word-start">Save and Continue</button>
-                <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-back">Back to Existing Words</button>
-              </div>
             </div>
           </div>
         </div>
@@ -243,6 +247,36 @@ test('new word overlay keeps target and translation together on wide layouts', a
   expect(Math.abs(positions.targetTop - positions.toggleTop)).toBeGreaterThan(12);
 });
 
+test('new word overlay keeps the close button in the header and the submit button beside redo', async ({ page }) => {
+  await mountNewWordOverlay(page, { width: 1120, height: 620 }, { showCreateCategory: false, showReview: false });
+
+  const placement = await page.evaluate(() => {
+    const closeBtn = document.querySelector('#ll-new-word-back');
+    const redoBtn = document.querySelector('#ll-new-word-redo-btn');
+    const submitBtn = document.querySelector('#ll-new-word-start');
+    const header = document.querySelector('.ll-new-word-header');
+    if (!closeBtn || !redoBtn || !submitBtn || !header) return null;
+
+    const closeRect = closeBtn.getBoundingClientRect();
+    const redoRect = redoBtn.getBoundingClientRect();
+    const submitRect = submitBtn.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+
+    return {
+      closeTopOffset: Math.abs(closeRect.top - headerRect.top),
+      redoTop: redoRect.top,
+      submitTop: submitRect.top,
+      submitLeft: submitRect.left,
+      redoLeft: redoRect.left
+    };
+  });
+
+  expect(placement).not.toBeNull();
+  expect(placement.closeTopOffset).toBeLessThanOrEqual(10);
+  expect(Math.abs(placement.redoTop - placement.submitTop)).toBeLessThanOrEqual(4);
+  expect(placement.submitLeft).toBeGreaterThan(placement.redoLeft);
+});
+
 test('new word overlay switches to compact full-screen mode on short laptop viewports', async ({ page }) => {
   await mountNewWordOverlay(page, { width: 1024, height: 500 }, { showCreateCategory: false, showReview: false });
 
@@ -280,6 +314,10 @@ test('new word overlay compacts the processing review on short landscape mobile 
     const computed = layout ? window.getComputedStyle(layout).gridTemplateColumns : '';
     const recording = node.querySelector('.ll-new-word-recording');
     const reviewTitle = node.querySelector('#ll-recording-review-title');
+    const reviewRedo = node.querySelector('#ll-review-redo');
+    const reviewSubmit = node.querySelector('#ll-review-submit');
+    const reviewRedoRect = reviewRedo ? reviewRedo.getBoundingClientRect() : null;
+    const reviewSubmitRect = reviewSubmit ? reviewSubmit.getBoundingClientRect() : null;
     return {
       clientWidth: node.clientWidth,
       scrollWidth: node.scrollWidth,
@@ -287,7 +325,9 @@ test('new word overlay compacts the processing review on short landscape mobile 
       scrollHeight: node.scrollHeight,
       layoutColumns: computed.split(' ').filter(Boolean).length,
       recordDisplay: recording ? window.getComputedStyle(recording).display : '',
-      titleSize: reviewTitle ? parseFloat(window.getComputedStyle(reviewTitle).fontSize || '0') : 0
+      titleSize: reviewTitle ? parseFloat(window.getComputedStyle(reviewTitle).fontSize || '0') : 0,
+      reviewSubmitDisplay: reviewSubmit ? window.getComputedStyle(reviewSubmit).display : '',
+      reviewActionsInline: !!(reviewRedoRect && reviewSubmitRect && Math.abs(reviewRedoRect.top - reviewSubmitRect.top) <= 4)
     };
   });
 
@@ -296,6 +336,8 @@ test('new word overlay compacts the processing review on short landscape mobile 
   expect(metrics.layoutColumns).toBe(2);
   expect(metrics.recordDisplay).toBe('none');
   expect(metrics.titleSize).toBeLessThanOrEqual(18);
+  expect(metrics.reviewSubmitDisplay).not.toBe('none');
+  expect(metrics.reviewActionsInline).toBe(true);
 });
 
 test('new word overlay keeps the mobile stack within the viewport width', async ({ page }) => {

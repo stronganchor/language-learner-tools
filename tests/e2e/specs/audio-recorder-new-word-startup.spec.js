@@ -199,3 +199,45 @@ test('new-word recorder shows startup state immediately and defers preparation u
     await deletePage(page, createdPage.id);
   }
 });
+
+test('new-word recorder closes from the header button and backdrop on non-fullscreen layouts', async ({ page }) => {
+  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+
+  await ensureLoggedIntoAdmin(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const title = `Recorder Dismiss ${Date.now()}`;
+  const createdPage = await createRecorderPage(page, title);
+
+  try {
+    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+
+    const newWordToggle = page.locator('#ll-new-word-toggle');
+    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
+      await newWordToggle.click();
+    }
+
+    const overlay = page.locator('#ll-new-word-overlay');
+    const panel = page.locator('#ll-new-word-panel');
+    const backdrop = page.locator('.ll-new-word-overlay-backdrop');
+    const closeButton = page.locator('#ll-new-word-back');
+
+    await expect(overlay).toBeVisible({ timeout: 30000 });
+    await expect(panel).toBeVisible();
+    await expect(closeButton).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to existing words/i })).toHaveCount(0);
+
+    await backdrop.click({ position: { x: 20, y: 20 } });
+    await expect(overlay).toBeHidden();
+
+    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
+      await newWordToggle.click();
+    }
+
+    await expect(overlay).toBeVisible();
+    await closeButton.click();
+    await expect(overlay).toBeHidden();
+  } finally {
+    await deletePage(page, createdPage.id);
+  }
+});
