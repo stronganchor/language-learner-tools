@@ -266,6 +266,7 @@
             newWordAutoIcon: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-icon'),
             newWordAutoSpinner: document.querySelector('#ll-new-word-auto-status .ll-new-word-auto-spinner'),
             newWordAutoCancel: document.getElementById('ll-new-word-auto-cancel'),
+            newWordCategoryRow: document.getElementById('ll-new-word-category-row'),
             newWordCategory: document.getElementById('ll-new-word-category'),
             newWordCreateCategory: document.getElementById('ll-new-word-create-category'),
             newWordCategoryName: document.getElementById('ll-new-word-category-name'),
@@ -1312,6 +1313,9 @@
         if (el.newWordCreateFields) {
             el.newWordCreateFields.style.display = 'none';
         }
+        if (el.newWordCategoryRow) {
+            el.newWordCategoryRow.hidden = false;
+        }
         if (el.newWordCategory) {
             el.newWordCategory.disabled = false;
             const options = Array.from(el.newWordCategory.options).map(opt => opt.value);
@@ -1379,6 +1383,9 @@
         const enabled = !!el.newWordCreateCategory?.checked;
         if (el.newWordCreateFields) {
             el.newWordCreateFields.style.display = enabled ? 'block' : 'none';
+        }
+        if (el.newWordCategoryRow) {
+            el.newWordCategoryRow.hidden = enabled;
         }
         if (el.newWordCategory) {
             el.newWordCategory.disabled = enabled;

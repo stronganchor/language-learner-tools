@@ -1293,7 +1293,14 @@ function ll_audio_recording_interface_shortcode($atts) {
                         <div class="ll-new-word-layout">
                             <div class="ll-new-word-form">
                                 <div class="ll-new-word-form-grid">
-                                    <div class="ll-new-word-row ll-new-word-row--category">
+                                    <div class="ll-new-word-row ll-new-word-row--toggle ll-new-word-checkbox">
+                                        <label>
+                                            <input type="checkbox" id="ll-new-word-create-category" />
+                                            <?php _e('Create a new category for these words', 'll-tools-text-domain'); ?>
+                                        </label>
+                                    </div>
+
+                                    <div class="ll-new-word-row ll-new-word-row--category" id="ll-new-word-category-row">
                                         <label for="ll-new-word-category"><?php _e('Category', 'll-tools-text-domain'); ?></label>
                                         <select id="ll-new-word-category">
                                             <?php
@@ -1320,13 +1327,6 @@ function ll_audio_recording_interface_shortcode($atts) {
                                                 <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($name); ?></option>
                                             <?php endforeach; ?>
                                         </select>
-                                    </div>
-
-                                    <div class="ll-new-word-row ll-new-word-row--toggle ll-new-word-checkbox">
-                                        <label>
-                                            <input type="checkbox" id="ll-new-word-create-category" />
-                                            <?php _e('Create a new category for these words', 'll-tools-text-domain'); ?>
-                                        </label>
                                     </div>
 
                                     <div class="ll-new-word-create-fields" style="display: none;">
