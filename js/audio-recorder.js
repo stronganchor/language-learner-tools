@@ -3441,6 +3441,7 @@
 
         if (controls.redoBtn) {
             controls.redoBtn.innerHTML = icons.redo;
+            controls.redoBtn.disabled = false;
         }
         if (!controls.isNewWordPanel && el.submitBtn) {
             el.submitBtn.innerHTML = icons.check;
