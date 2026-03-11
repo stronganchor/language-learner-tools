@@ -1987,11 +1987,11 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 @media (max-width: 600px) {
     #quiz-results {
-        top: calc(env(safe-area-inset-top, 0px) + 72px);
+        top: calc(env(safe-area-inset-top, 0px) + 64px);
         transform: translateX(-50%);
         width: min(92vw, 440px);
         max-width: calc(100vw - 24px);
-        max-height: calc(100vh - env(safe-area-inset-top, 0px) - 92px);
+        max-height: calc(100vh - env(safe-area-inset-top, 0px) - 84px);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         padding: 16px 14px 18px;
