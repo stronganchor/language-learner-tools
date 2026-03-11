@@ -79,6 +79,42 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame('Updated Translation', (string) get_post_meta($word_id, 'word_translation', true));
     }
 
+    public function test_update_new_word_text_allows_recorder_to_edit_own_published_word(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Word',
+            'post_author' => $recorder_id,
+        ]);
+
+        wp_set_current_user($recorder_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'),
+            'word_id' => $word_id,
+            'word_text_target' => 'Recorder Updated',
+            'word_text_translation' => 'Recorder Translation',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_update_new_word_text_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('Recorder Updated', (string) get_post_field('post_title', $word_id));
+        $this->assertSame('Recorder Translation', (string) get_post_meta($word_id, 'word_translation', true));
+    }
+
     public function test_public_word_fetch_redacts_speaker_ids_for_logged_out_requests(): void
     {
         $fixture = $this->create_flashcard_word_with_audio(777);

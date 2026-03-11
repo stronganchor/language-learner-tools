@@ -2463,9 +2463,8 @@ function ll_update_new_word_text_handler() {
 
     $current_user_id = get_current_user_id();
     $can_edit_word = current_user_can('edit_post', $word_id);
-    $owns_editable_draft = ((int) $word_post->post_author === $current_user_id)
-        && in_array($word_post->post_status, ['draft', 'pending', 'auto-draft'], true);
-    if (!$can_edit_word && !$owns_editable_draft) {
+    $owns_word = ((int) $word_post->post_author === $current_user_id);
+    if (!$can_edit_word && !$owns_word) {
         wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
