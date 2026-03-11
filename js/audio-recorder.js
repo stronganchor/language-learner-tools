@@ -1690,6 +1690,17 @@
         updateNewWordAutoUI();
     }
 
+    function cancelPendingNewWordAutoForSubmit() {
+        if (!newWordTranscriptionInFlight && !newWordTranslationInFlight) {
+            return;
+        }
+
+        cancelNewWordAuto();
+        clearNewWordAutoTimer();
+        hideNewWordAutoStatus();
+        setNewWordTextFieldsDisabled(false);
+    }
+
     function resetNewWordAutoState() {
         clearNewWordAutoTimer();
         if (newWordTranscribeAbort) {
@@ -3951,10 +3962,7 @@
                     return;
                 }
             }
-            if (newWordTranscriptionInFlight || newWordTranslationInFlight) {
-                updateNewWordAutoUI();
-                return;
-            }
+            cancelPendingNewWordAutoForSubmit();
             const updated = await maybeUpdateNewWordText(true);
             if (!updated) {
                 return;
