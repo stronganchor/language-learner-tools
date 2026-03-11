@@ -545,10 +545,12 @@ jQuery(document).ready(function ($) {
                 return false;
             }
             var availableWidth = Math.max(0, Math.floor(textEl.clientWidth || 0));
-            var measuredHeight = Math.max(
-                Math.ceil(textEl.scrollHeight || 0),
-                Math.ceil(textEl.getBoundingClientRect ? textEl.getBoundingClientRect().height : 0)
-            );
+            var computed = window.getComputedStyle ? window.getComputedStyle(textEl) : null;
+            var paddingY = computed
+                ? (parseFloat(computed.paddingTop || '0') + parseFloat(computed.paddingBottom || '0'))
+                : 0;
+            var lineHeight = computed ? parseFloat(computed.lineHeight || '0') : 0;
+            var measuredHeight = Math.max(0, Math.ceil(lineHeight + paddingY));
             var widthFits = availableWidth > 0
                 ? Math.ceil(textEl.scrollWidth || 0) <= availableWidth + 1
                 : true;

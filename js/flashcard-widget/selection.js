@@ -1905,6 +1905,14 @@
             }
         };
 
+        const prepareTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                return root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal();
+            }
+            refitTextOptionCards();
+            return Promise.resolve();
+        };
+
         const alignAudioLineWidths = function () {
             const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
             if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
@@ -1951,11 +1959,14 @@
             const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
-                $all.hide().fadeIn(600);
-                $all.promise().done(function () {
-                    refitTextOptionCards();
+                const $wrap = jQuery('#ll-tools-flashcard');
+                $wrap.css('visibility', 'hidden');
+                $all.css({ display: '', visibility: 'visible' });
+                prepareTextOptionCards().then(function () {
+                    $all.hide();
                     syncPromptTextFontSize(promptType, mode);
-                    publishOptionsReady();
+                    $wrap.css('visibility', 'visible');
+                    $all.fadeIn(600, publishOptionsReady);
                 });
                 return;
             }

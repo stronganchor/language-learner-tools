@@ -49,7 +49,7 @@ async function mountTextCardHarness(page, imageSize = 'small') {
 test('text answer cards shrink long single words instead of splitting them', async ({ page }) => {
   await mountTextCardHarness(page, 'small');
   const metrics = await page.evaluate(() => {
-    window.LLFlashcards.Cards.appendWordToContainer(
+    const card = window.LLFlashcards.Cards.appendWordToContainer(
       {
         id: 101,
         title: 'anneanneanneanne',
@@ -59,6 +59,12 @@ test('text answer cards shrink long single words instead of splitting them', asy
       'image',
       true
     );
+    if (card && typeof card.css === 'function') {
+      card.css('display', '');
+    }
+    if (window.LLFlashcards.Cards && typeof window.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+      window.LLFlashcards.Cards.refitTextAnswerOptionCards();
+    }
 
     const label = document.querySelector('#ll-tools-flashcard .ll-answer-option-text-card .quiz-text');
     if (!label) {
@@ -81,13 +87,14 @@ test('text answer cards shrink long single words instead of splitting them', asy
   expect(metrics.justifyContent).toBe('center');
   expect(metrics.alignItems).toBe('center');
   expect(metrics.fontSize).toBeLessThan(48);
+  expect(metrics.fontSize).toBeGreaterThan(12);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });
 
 test('text answer cards keep phrase-based labels centered and shrink to fit', async ({ page }) => {
   await mountTextCardHarness(page, 'medium');
   const metrics = await page.evaluate(() => {
-    window.LLFlashcards.Cards.appendWordToContainer(
+    const card = window.LLFlashcards.Cards.appendWordToContainer(
       {
         id: 102,
         title: 'Teyze oğlu teyze',
@@ -97,6 +104,12 @@ test('text answer cards keep phrase-based labels centered and shrink to fit', as
       'image',
       true
     );
+    if (card && typeof card.css === 'function') {
+      card.css('display', '');
+    }
+    if (window.LLFlashcards.Cards && typeof window.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+      window.LLFlashcards.Cards.refitTextAnswerOptionCards();
+    }
 
     const label = document.querySelector('#ll-tools-flashcard .ll-answer-option-text-card .quiz-text');
     if (!label) {
@@ -119,5 +132,6 @@ test('text answer cards keep phrase-based labels centered and shrink to fit', as
   expect(metrics.justifyContent).toBe('center');
   expect(metrics.alignItems).toBe('center');
   expect(metrics.fontSize).toBeLessThan(48);
+  expect(metrics.fontSize).toBeGreaterThan(20);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });

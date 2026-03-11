@@ -958,9 +958,18 @@
 
             if ($jq) {
                 const $introCards = $jq('.flashcard-container');
-                $introCards.addClass('introducing');
-                $introCards.fadeIn(600);
-                bindIntroductionTapConfetti($jq);
+                const showIntroCards = function () {
+                    $introCards.hide().css('visibility', 'visible');
+                    $introCards.addClass('introducing');
+                    $introCards.fadeIn(600);
+                    bindIntroductionTapConfetti($jq);
+                };
+                $introCards.css({ display: '', visibility: 'hidden' });
+                if (Cards && typeof Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                    Cards.prepareTextAnswerOptionCardsForReveal().then(showIntroCards);
+                } else {
+                    showIntroCards();
+                }
             }
 
             const timeoutId = scheduleTimeout(context, function () {

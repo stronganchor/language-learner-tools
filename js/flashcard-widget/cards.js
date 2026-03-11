@@ -5,6 +5,8 @@
     let optionMiniViz = null;
     let textCardResizeBound = false;
     let textCardResizeTimer = null;
+    let measureCanvas = null;
+    let measureCtx = null;
 
     function clampInt(value, min, max, fallback) {
         const parsed = parseInt(value, 10);
@@ -68,6 +70,24 @@
         return cfg.lineHeightRatio;
     }
 
+    function measureTextWidth(text, font) {
+        if (!measureCanvas) {
+            measureCanvas = document.createElement('canvas');
+        }
+        if (!measureCtx) {
+            measureCtx = measureCanvas.getContext('2d');
+        }
+        if (!measureCtx) {
+            return 0;
+        }
+        try {
+            measureCtx.font = String(font || '');
+            return measureCtx.measureText(String(text || '')).width || 0;
+        } catch (_) {
+            return 0;
+        }
+    }
+
     function applyAnswerOptionContainerCssVars() {
         const cfg = getAnswerOptionTextStyleConfig();
         const container = document.getElementById('ll-tools-flashcard-container') || document.getElementById('ll-tools-flashcard-popup');
@@ -128,10 +148,12 @@
             return false;
         }
         const availableWidth = Math.max(0, Math.floor(labelEl.clientWidth || 0));
-        const measuredHeight = Math.max(
-            Math.ceil(labelEl.scrollHeight || 0),
-            Math.ceil(labelEl.getBoundingClientRect ? labelEl.getBoundingClientRect().height : 0)
-        );
+        const computed = root.getComputedStyle ? root.getComputedStyle(labelEl) : null;
+        const paddingY = computed
+            ? (parseFloat(computed.paddingTop || '0') + parseFloat(computed.paddingBottom || '0'))
+            : 0;
+        const lineHeight = computed ? parseFloat(computed.lineHeight || '0') : 0;
+        const measuredHeight = Math.max(0, Math.ceil(lineHeight + paddingY));
         const widthFits = availableWidth > 0
             ? Math.ceil(labelEl.scrollWidth || 0) <= availableWidth + 1
             : true;
@@ -141,39 +163,71 @@
 
     function fitTextCardLabel($label, labelText, cfg, maxHeight) {
         if (!$label || !$label.length) {
-            return;
+            return false;
         }
 
         const labelEl = $label[0];
+        const computed = root.getComputedStyle ? root.getComputedStyle(labelEl) : null;
+        const paddingX = computed
+            ? (parseFloat(computed.paddingLeft || '0') + parseFloat(computed.paddingRight || '0'))
+            : 0;
+        const paddingY = computed
+            ? (parseFloat(computed.paddingTop || '0') + parseFloat(computed.paddingBottom || '0'))
+            : 0;
+        const availableWidth = Math.max(0, Math.floor((labelEl.clientWidth || 0) - paddingX));
+        const availableHeight = Math.max(0, Math.floor(Math.min(labelEl.clientHeight || 0, maxHeight || 0) - paddingY));
+        if (availableWidth < 40 || availableHeight < 16) {
+            return false;
+        }
+
         const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
         const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
         const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
-        for (let fs = startFontSize; fs >= minFontSize; fs -= 0.5) {
-            const normalizedSize = Math.round(fs * 100) / 100;
-            applyTextCardLabelSize($label, normalizedSize, lineHeightRatio, true);
-            if (textCardLabelFits(labelEl, maxHeight)) {
-                return;
-            }
+        const fontFamily = computed && computed.fontFamily ? computed.fontFamily : (cfg.fontFamily || 'sans-serif');
+        const fontWeight = computed && computed.fontWeight ? String(computed.fontWeight) : String(cfg.fontWeight || '700');
+        const measuredWidthAtStart = measureTextWidth(labelText || '', fontWeight + ' ' + startFontSize + 'px ' + fontFamily);
+        const widthScale = measuredWidthAtStart > 0 ? (availableWidth / measuredWidthAtStart) : 1;
+        const heightScale = availableHeight > 0 ? (availableHeight / Math.max(1, startFontSize * lineHeightRatio)) : 1;
+        let targetFontSize = startFontSize;
+
+        if (widthScale > 0 && widthScale < 1) {
+            targetFontSize = Math.min(targetFontSize, startFontSize * widthScale);
+        }
+        if (heightScale > 0 && heightScale < 1) {
+            targetFontSize = Math.min(targetFontSize, startFontSize * heightScale);
         }
 
-        applyTextCardLabelSize($label, minFontSize, lineHeightRatio, true);
+        targetFontSize = Math.max(minFontSize, Math.min(startFontSize, Math.round(targetFontSize * 100) / 100));
+        applyTextCardLabelSize($label, targetFontSize, lineHeightRatio, true);
+
+        for (let i = 0; i < 8 && targetFontSize > minFontSize && !textCardLabelFits(labelEl, maxHeight); i++) {
+            targetFontSize = Math.max(minFontSize, Math.round((targetFontSize - 0.5) * 100) / 100);
+            applyTextCardLabelSize($label, targetFontSize, lineHeightRatio, true);
+        }
+
+        if (!textCardLabelFits(labelEl, maxHeight)) {
+            applyTextCardLabelSize($label, minFontSize, lineHeightRatio, true);
+        }
+
+        return true;
     }
 
     function refitTextCard($card) {
         if (!$card || !$card.length || !$card.hasClass('ll-answer-option-text-card')) {
-            return;
+            return false;
         }
         const $label = $card.find('.quiz-text').first();
         if (!$label.length) {
-            return;
+            return false;
         }
+        const cardWidth = Math.max(0, Math.floor($card.innerWidth() || 0));
         const labelText = String($label.text() || '');
         const cardHeight = Math.max(0, $card.innerHeight() - 15);
-        if (!cardHeight) {
-            return;
+        if (cardWidth < 60 || cardHeight < 40) {
+            return false;
         }
         applyAnswerOptionTextStyle($label, labelText);
-        fitTextCardLabel($label, labelText, getAnswerOptionTextStyleConfig(), cardHeight);
+        return fitTextCardLabel($label, labelText, getAnswerOptionTextStyleConfig(), cardHeight);
     }
 
     function refitTextAnswerOptionCards() {
@@ -198,15 +252,43 @@
         textCardResizeBound = true;
     }
 
-    function queueFontAwareTextCardRefit() {
-        if (!document || !document.fonts || !document.fonts.ready || typeof document.fonts.ready.then !== 'function') {
-            return;
-        }
-        document.fonts.ready.then(function () {
-            refitTextAnswerOptionCards();
-        }).catch(function () {
-            // Ignore font-loading API failures and keep the initial fit.
-        });
+    function prepareTextAnswerOptionCardsForReveal() {
+        const waitForFonts = function () {
+            return new Promise(function (resolve) {
+                if (!document || !document.fonts || !document.fonts.ready || typeof document.fonts.ready.then !== 'function') {
+                    resolve();
+                    return;
+                }
+                let settled = false;
+                const finish = function () {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(timerId);
+                    resolve();
+                };
+                const timerId = setTimeout(finish, 120);
+                document.fonts.ready.then(finish).catch(finish);
+            });
+        };
+        const waitForLayout = function () {
+            return new Promise(function (resolve) {
+                if (typeof root.requestAnimationFrame === 'function') {
+                    root.requestAnimationFrame(function () {
+                        root.requestAnimationFrame(resolve);
+                    });
+                    return;
+                }
+                setTimeout(resolve, 0);
+            });
+        };
+
+        return waitForFonts()
+            .then(waitForLayout)
+            .then(function () {
+                refitTextAnswerOptionCards();
+            });
     }
 
     function createImageCard(word) {
@@ -233,7 +315,7 @@
         const $label = $('<div>', { text: labelText, class: 'quiz-text', dir: 'auto' }).appendTo($c);
         applyAnswerOptionTextStyle($label, labelText);
 
-        $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' }).appendTo('body');
+        $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'flex' }).appendTo('body');
         const boxH = Math.max(0, $c.innerHeight() - 15);
         const cfg = getAnswerOptionTextStyleConfig();
         fitTextCardLabel($label, labelText, cfg, boxH);
@@ -369,9 +451,6 @@
         const idx = Math.floor(Math.random() * ($cards.length + 1));
         if (!$cards.length || idx >= $cards.length) $('#ll-tools-flashcard').append($c);
         else $c.insertBefore($cards.eq(idx));
-        $c.fadeIn(200, function () {
-            refitTextCard($c);
-        });
     }
 
     function appendWordToContainer(word, optionType, promptType, ordered) {
@@ -386,9 +465,6 @@
                     : (isTextMode ? createTextCard(word) : createTextCard(word))));
         if (ordered) {
             $('#ll-tools-flashcard').append($card);
-            $card.fadeIn(200, function () {
-                refitTextCard($card);
-            });
         } else {
             insertContainerAtRandom($card);
         }
@@ -396,7 +472,6 @@
     }
 
     ensureTextCardResizeBinding();
-    queueFontAwareTextCardRefit();
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
         const gateOnAudio = (promptType === 'audio');
@@ -482,5 +557,5 @@
     installOptionGuards();
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio, refitTextAnswerOptionCards };
+    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio, refitTextAnswerOptionCards, prepareTextAnswerOptionCardsForReveal };
 })(window, jQuery);
