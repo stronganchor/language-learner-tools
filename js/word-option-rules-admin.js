@@ -234,6 +234,56 @@
         });
     }
 
+    function initPairSelectExclusions() {
+        var selectA = document.querySelector('#ll-word-option-pair-a');
+        var selectB = document.querySelector('#ll-word-option-pair-b');
+
+        if (!selectA || !selectB) {
+            return;
+        }
+
+        function updateOptions(select, blockedValue) {
+            Array.prototype.forEach.call(select.options, function (option) {
+                if (!option || option.value === '') {
+                    return;
+                }
+
+                var shouldHide = blockedValue !== '' && option.value === blockedValue;
+                option.disabled = shouldHide;
+                option.hidden = shouldHide;
+            });
+        }
+
+        function normalizeSelections(changedSelect) {
+            if (!selectA.value || !selectB.value || selectA.value !== selectB.value) {
+                return;
+            }
+
+            if (changedSelect === selectA) {
+                selectB.value = '';
+                return;
+            }
+
+            selectA.value = '';
+        }
+
+        function syncPairSelects(changedSelect) {
+            normalizeSelections(changedSelect);
+            updateOptions(selectA, selectB.value);
+            updateOptions(selectB, selectA.value);
+        }
+
+        selectA.addEventListener('change', function () {
+            syncPairSelects(selectA);
+        });
+
+        selectB.addEventListener('change', function () {
+            syncPairSelects(selectB);
+        });
+
+        syncPairSelects(null);
+    }
+
     function getScrollTop() {
         return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     }
@@ -313,6 +363,7 @@
 
     initWordsetMemory();
     initGroupManager();
+    initPairSelectExclusions();
     initScrollPersistence();
 
     document.addEventListener('click', function (event) {
