@@ -1522,12 +1522,17 @@
     .ll-vocab-lesson-title-row {
         flex-direction: column;
         align-items: flex-start;
+        justify-content: flex-start;
     }
 
     .ll-vocab-lesson-title-wrap,
     .ll-vocab-lesson-title-edit,
     .ll-vocab-lesson-title-form {
         width: 100%;
+    }
+
+    .ll-vocab-lesson-title-wrap {
+        flex: 0 0 auto;
     }
 
     .ll-vocab-lesson-title-trigger {
