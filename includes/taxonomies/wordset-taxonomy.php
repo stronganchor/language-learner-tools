@@ -1817,18 +1817,25 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
             }
             .ll-wordset-answer-option-preview__text {
                 padding: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 width: 100%;
                 max-width: 100%;
                 min-width: 0;
+                height: 100%;
+                margin: 0 auto;
                 box-sizing: border-box;
-                display: block;
                 text-align: center;
                 font-family: var(--ll-ws-answer-preview-font-family, ui-sans-serif, system-ui, sans-serif);
                 font-weight: var(--ll-ws-answer-preview-font-weight, 700);
                 font-size: var(--ll-ws-answer-preview-font-size, 48px);
                 line-height: var(--ll-ws-answer-preview-line-height, 1.22);
                 color: #111827;
+                overflow: hidden;
                 overflow-wrap: normal;
+                text-overflow: clip;
+                white-space: nowrap;
                 word-break: normal;
                 hyphens: none;
                 unicode-bidi: plaintext;

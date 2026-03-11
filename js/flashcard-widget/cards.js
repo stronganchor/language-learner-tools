@@ -3,6 +3,8 @@
     const { State } = root.LLFlashcards;
     const { Dom } = root.LLFlashcards;
     let optionMiniViz = null;
+    let textCardResizeBound = false;
+    let textCardResizeTimer = null;
 
     function clampInt(value, min, max, fallback) {
         const parsed = parseInt(value, 10);
@@ -137,8 +139,6 @@
         return widthFits && measuredHeight <= Math.ceil(maxHeight) + 1;
     }
 
-    // Prefer shrinking to a single line first. If the label has spaces and still
-    // cannot fit, allow wrapping only at those spaces.
     function fitTextCardLabel($label, labelText, cfg, maxHeight) {
         if (!$label || !$label.length) {
             return;
@@ -146,27 +146,67 @@
 
         const labelEl = $label[0];
         const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
-        const allowWrappedFallback = /\s/u.test(String(labelText || ''));
         const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
         const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
-
-        const tryFit = function (allowWrap) {
-            for (let fs = startFontSize; fs >= minFontSize; fs--) {
-                applyTextCardLabelSize($label, fs, lineHeightRatio, !allowWrap);
-                if (textCardLabelFits(labelEl, maxHeight)) {
-                    return { fitted: true, fontSize: fs, allowWrap: allowWrap };
-                }
+        for (let fs = startFontSize; fs >= minFontSize; fs -= 0.5) {
+            const normalizedSize = Math.round(fs * 100) / 100;
+            applyTextCardLabelSize($label, normalizedSize, lineHeightRatio, true);
+            if (textCardLabelFits(labelEl, maxHeight)) {
+                return;
             }
-
-            return { fitted: false, fontSize: minFontSize, allowWrap: allowWrap };
-        };
-
-        let fitResult = tryFit(false);
-        if (!fitResult.fitted && allowWrappedFallback) {
-            fitResult = tryFit(true);
         }
 
-        applyTextCardLabelSize($label, fitResult.fontSize, lineHeightRatio, !fitResult.allowWrap);
+        applyTextCardLabelSize($label, minFontSize, lineHeightRatio, true);
+    }
+
+    function refitTextCard($card) {
+        if (!$card || !$card.length || !$card.hasClass('ll-answer-option-text-card')) {
+            return;
+        }
+        const $label = $card.find('.quiz-text').first();
+        if (!$label.length) {
+            return;
+        }
+        const labelText = String($label.text() || '');
+        const cardHeight = Math.max(0, $card.innerHeight() - 15);
+        if (!cardHeight) {
+            return;
+        }
+        applyAnswerOptionTextStyle($label, labelText);
+        fitTextCardLabel($label, labelText, getAnswerOptionTextStyleConfig(), cardHeight);
+    }
+
+    function refitTextAnswerOptionCards() {
+        $('.flashcard-container.ll-answer-option-text-card').each(function () {
+            refitTextCard($(this));
+        });
+    }
+
+    function ensureTextCardResizeBinding() {
+        if (textCardResizeBound || !root || typeof root.addEventListener !== 'function') {
+            return;
+        }
+        root.addEventListener('resize', function () {
+            if (textCardResizeTimer) {
+                clearTimeout(textCardResizeTimer);
+            }
+            textCardResizeTimer = setTimeout(function () {
+                textCardResizeTimer = null;
+                refitTextAnswerOptionCards();
+            }, 140);
+        });
+        textCardResizeBound = true;
+    }
+
+    function queueFontAwareTextCardRefit() {
+        if (!document || !document.fonts || !document.fonts.ready || typeof document.fonts.ready.then !== 'function') {
+            return;
+        }
+        document.fonts.ready.then(function () {
+            refitTextAnswerOptionCards();
+        }).catch(function () {
+            // Ignore font-loading API failures and keep the initial fit.
+        });
     }
 
     function createImageCard(word) {
@@ -329,7 +369,9 @@
         const idx = Math.floor(Math.random() * ($cards.length + 1));
         if (!$cards.length || idx >= $cards.length) $('#ll-tools-flashcard').append($c);
         else $c.insertBefore($cards.eq(idx));
-        $c.fadeIn(200);
+        $c.fadeIn(200, function () {
+            refitTextCard($c);
+        });
     }
 
     function appendWordToContainer(word, optionType, promptType, ordered) {
@@ -344,12 +386,17 @@
                     : (isTextMode ? createTextCard(word) : createTextCard(word))));
         if (ordered) {
             $('#ll-tools-flashcard').append($card);
-            $card.fadeIn(200);
+            $card.fadeIn(200, function () {
+                refitTextCard($card);
+            });
         } else {
             insertContainerAtRandom($card);
         }
         return $card;
     }
+
+    ensureTextCardResizeBinding();
+    queueFontAwareTextCardRefit();
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
         const gateOnAudio = (promptType === 'audio');
@@ -435,5 +482,5 @@
     installOptionGuards();
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio };
+    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio, refitTextAnswerOptionCards };
 })(window, jQuery);

@@ -1899,6 +1899,12 @@
             jQuery(document).trigger('ll-tools-options-ready');
         };
 
+        const refitTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+                root.LLFlashcards.Cards.refitTextAnswerOptionCards();
+            }
+        };
+
         const alignAudioLineWidths = function () {
             const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
             if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
@@ -1945,8 +1951,12 @@
             const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
-                syncPromptTextFontSize(promptType, mode);
-                $all.hide().fadeIn(600, publishOptionsReady);
+                $all.hide().fadeIn(600);
+                $all.promise().done(function () {
+                    refitTextOptionCards();
+                    syncPromptTextFontSize(promptType, mode);
+                    publishOptionsReady();
+                });
                 return;
             }
             const $wrap = jQuery('#ll-tools-flashcard');

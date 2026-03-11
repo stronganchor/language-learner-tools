@@ -12,7 +12,7 @@ const flashcardCss = fs.readFileSync(
   'utf8'
 );
 
-test('text answer cards shrink long single words instead of splitting them', async ({ page }) => {
+async function mountTextCardHarness(page, imageSize = 'small') {
   await page.goto('about:blank');
   await page.setContent(`
     <style>${flashcardCss}</style>
@@ -40,8 +40,14 @@ test('text answer cards shrink long single words instead of splitting them', asy
       Dom: {}
     };
   });
+  await page.evaluate((size) => {
+    window.llToolsFlashcardsData.imageSize = String(size || 'small');
+  }, imageSize);
   await page.addScriptTag({ content: cardsSource });
+}
 
+test('text answer cards shrink long single words instead of splitting them', async ({ page }) => {
+  await mountTextCardHarness(page, 'small');
   const metrics = await page.evaluate(() => {
     window.LLFlashcards.Cards.appendWordToContainer(
       {
@@ -62,6 +68,8 @@ test('text answer cards shrink long single words instead of splitting them', asy
     const style = window.getComputedStyle(label);
     return {
       whiteSpace: style.whiteSpace,
+      justifyContent: style.justifyContent,
+      alignItems: style.alignItems,
       fontSize: parseFloat(style.fontSize || '0'),
       clientWidth: Math.ceil(label.clientWidth || 0),
       scrollWidth: Math.ceil(label.scrollWidth || 0)
@@ -70,6 +78,46 @@ test('text answer cards shrink long single words instead of splitting them', asy
 
   expect(metrics).not.toBeNull();
   expect(metrics.whiteSpace).toBe('nowrap');
+  expect(metrics.justifyContent).toBe('center');
+  expect(metrics.alignItems).toBe('center');
+  expect(metrics.fontSize).toBeLessThan(48);
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+});
+
+test('text answer cards keep phrase-based labels centered and shrink to fit', async ({ page }) => {
+  await mountTextCardHarness(page, 'medium');
+  const metrics = await page.evaluate(() => {
+    window.LLFlashcards.Cards.appendWordToContainer(
+      {
+        id: 102,
+        title: 'Teyze oğlu teyze',
+        label: 'Teyze oğlu teyze'
+      },
+      'text_translation',
+      'image',
+      true
+    );
+
+    const label = document.querySelector('#ll-tools-flashcard .ll-answer-option-text-card .quiz-text');
+    if (!label) {
+      return null;
+    }
+
+    const style = window.getComputedStyle(label);
+    return {
+      whiteSpace: style.whiteSpace,
+      justifyContent: style.justifyContent,
+      alignItems: style.alignItems,
+      fontSize: parseFloat(style.fontSize || '0'),
+      clientWidth: Math.ceil(label.clientWidth || 0),
+      scrollWidth: Math.ceil(label.scrollWidth || 0)
+    };
+  });
+
+  expect(metrics).not.toBeNull();
+  expect(metrics.whiteSpace).toBe('nowrap');
+  expect(metrics.justifyContent).toBe('center');
+  expect(metrics.alignItems).toBe('center');
   expect(metrics.fontSize).toBeLessThan(48);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });

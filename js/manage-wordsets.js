@@ -576,33 +576,17 @@ jQuery(document).ready(function ($) {
 
             var minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
             var startFontSize = clampInt(cfg.fontSizePx, minFontSize, 72, 48);
-            var allowWrappedFallback = /\s/u.test(textValue);
 
-            var tryFit = function (allowWrap) {
-                for (var fs = startFontSize; fs >= minFontSize; fs--) {
-                    applyPreviewTextSize(textEl, fs, ratio, !allowWrap);
-                    if (previewTextFits(textEl, boxH)) {
-                        return {
-                            fitted: true,
-                            fontSize: fs,
-                            allowWrap: allowWrap
-                        };
-                    }
+            for (var fs = startFontSize; fs >= minFontSize; fs -= 0.5) {
+                var normalizedSize = Math.round(fs * 100) / 100;
+                applyPreviewTextSize(textEl, normalizedSize, ratio, true);
+                if (previewTextFits(textEl, boxH)) {
+                    textEl.style.visibility = 'visible';
+                    return;
                 }
-
-                return {
-                    fitted: false,
-                    fontSize: minFontSize,
-                    allowWrap: allowWrap
-                };
-            };
-
-            var fitResult = tryFit(false);
-            if (!fitResult.fitted && allowWrappedFallback) {
-                fitResult = tryFit(true);
             }
 
-            applyPreviewTextSize(textEl, fitResult.fontSize, ratio, !fitResult.allowWrap);
+            applyPreviewTextSize(textEl, minFontSize, ratio, true);
             textEl.style.visibility = 'visible';
         }
 
