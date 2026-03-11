@@ -1639,8 +1639,26 @@
         const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
         const $container = jQuery('#ll-tools-flashcard');
         const $content = jQuery('#ll-tools-flashcard-content');
+        const optionRevealToken = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+        const markOptionGridPreparing = function () {
+            $container
+                .addClass('ll-options-preparing')
+                .attr('data-ll-option-reveal-token', optionRevealToken)
+                .css({ visibility: '', opacity: '' });
+        };
+        const finishOptionGridReveal = function () {
+            if ($container.attr('data-ll-option-reveal-token') !== optionRevealToken) {
+                return false;
+            }
+            $container
+                .removeClass('ll-options-preparing')
+                .removeAttr('data-ll-option-reveal-token')
+                .css({ visibility: '', opacity: '' });
+            return true;
+        };
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
+        markOptionGridPreparing();
         const optionPreloadPromises = [];
         const queueWordPreload = function (word) {
             if (!word || !root.FlashcardLoader || typeof root.FlashcardLoader.loadResourcesForWord !== 'function') {
@@ -1959,25 +1977,26 @@
             const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
-                const $wrap = jQuery('#ll-tools-flashcard');
-                $wrap.css('visibility', 'hidden');
                 $all.css({ display: '', visibility: 'visible' });
                 prepareTextOptionCards().then(function () {
-                    $all.hide();
                     syncPromptTextFontSize(promptType, mode);
-                    $wrap.css('visibility', 'visible');
-                    $all.fadeIn(600, publishOptionsReady);
+                    if (finishOptionGridReveal()) {
+                        publishOptionsReady();
+                    }
+                }).catch(function () {
+                    if (finishOptionGridReveal()) {
+                        publishOptionsReady();
+                    }
                 });
                 return;
             }
-            const $wrap = jQuery('#ll-tools-flashcard');
-            $wrap.css({ visibility: 'hidden', opacity: 0 });
             $all.css({ display: '', opacity: 1, visibility: 'visible' });
             alignAudioLineWidths();
             shrinkAudioLineText();
-            // Allow layout to settle before reveal
             const show = function () {
-                $wrap.css('visibility', 'visible').fadeTo(200, 1, publishOptionsReady);
+                if (finishOptionGridReveal()) {
+                    publishOptionsReady();
+                }
             };
             if (typeof requestAnimationFrame === 'function') requestAnimationFrame(show);
             else setTimeout(show, 0);

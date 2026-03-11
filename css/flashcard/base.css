@@ -758,6 +758,13 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     width: 100%;
 }
 
+#ll-tools-flashcard.ll-options-preparing {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: none !important;
+}
+
 #ll-tools-flashcard.audio-line-layout {
     flex-direction: column;
     flex-wrap: nowrap;

@@ -17,7 +17,9 @@ async function mountTextCardHarness(page, imageSize = 'small') {
   await page.setContent(`
     <style>${flashcardCss}</style>
     <div id="ll-tools-flashcard-container">
-      <div id="ll-tools-flashcard"></div>
+      <div id="ll-tools-flashcard-content">
+        <div id="ll-tools-flashcard"></div>
+      </div>
     </div>
   `);
 
@@ -134,4 +136,28 @@ test('text answer cards keep phrase-based labels centered and shrink to fit', as
   expect(metrics.fontSize).toBeLessThan(48);
   expect(metrics.fontSize).toBeGreaterThan(20);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+});
+
+test('option grid preparation state stays hidden without opacity animation', async ({ page }) => {
+  await mountTextCardHarness(page, 'small');
+  const metrics = await page.evaluate(() => {
+    const grid = document.getElementById('ll-tools-flashcard');
+    if (!grid) {
+      return null;
+    }
+    grid.classList.add('ll-options-preparing');
+    const style = window.getComputedStyle(grid);
+    return {
+      visibility: style.visibility,
+      opacity: style.opacity,
+      transitionProperty: style.transitionProperty,
+      transitionDuration: style.transitionDuration
+    };
+  });
+
+  expect(metrics).not.toBeNull();
+  expect(metrics.visibility).toBe('hidden');
+  expect(metrics.opacity).toBe('0');
+  expect(metrics.transitionProperty).toBe('none');
+  expect(metrics.transitionDuration).toBe('0s');
 });
