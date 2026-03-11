@@ -77,23 +77,7 @@ async function deletePage(page, pageId) {
   }, pageId);
 }
 
-test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
-
-  await ensureLoggedIntoAdmin(page);
-
-  const title = `Recorder Startup ${Date.now()}`;
-  const createdPage = await createRecorderPage(page, title);
-  const ajaxActions = [];
-
-  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
-    const postData = route.request().postData() || '';
-    if (postData.includes('ll_prepare_new_word_recording')) {
-      ajaxActions.push('prepare');
-    }
-    await route.continue();
-  });
-
+async function installFakeRecorderRuntime(page) {
   await page.addInitScript(() => {
     let resolveMicStart = null;
     const fakeTrack = { stop() {} };
@@ -240,6 +224,26 @@ test('new-word recorder shows startup state immediately and defers preparation u
       }
     };
   });
+}
+
+test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
+  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+
+  await ensureLoggedIntoAdmin(page);
+
+  const title = `Recorder Startup ${Date.now()}`;
+  const createdPage = await createRecorderPage(page, title);
+  const ajaxActions = [];
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    const postData = route.request().postData() || '';
+    if (postData.includes('ll_prepare_new_word_recording')) {
+      ajaxActions.push('prepare');
+    }
+    await route.continue();
+  });
+
+  await installFakeRecorderRuntime(page);
 
   try {
     await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
@@ -278,6 +282,92 @@ test('new-word recorder shows startup state immediately and defers preparation u
       });
     }).toBe(true);
     await expect.poll(() => ajaxActions.length).toBe(0);
+  } finally {
+    await deletePage(page, createdPage.id);
+  }
+});
+
+test('new-word redo keeps entered text and translation intact', async ({ page }) => {
+  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+
+  await ensureLoggedIntoAdmin(page);
+
+  const title = `Recorder Redo Preserve ${Date.now()}`;
+  const createdPage = await createRecorderPage(page, title);
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    const postData = route.request().postData() || '';
+    if (postData.includes('ll_transcribe_recording')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            transcript: 'auto transcript',
+            translation: 'auto translation'
+          }
+        })
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await installFakeRecorderRuntime(page);
+
+  try {
+    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+
+    const newWordToggle = page.locator('#ll-new-word-toggle');
+    if ((await newWordToggle.count()) > 0 && await newWordToggle.isVisible()) {
+      await newWordToggle.click();
+    }
+
+    const targetInput = page.locator('#ll-new-word-text-target');
+    const translationInput = page.locator('#ll-new-word-text-translation');
+    const recordButton = page.locator('#ll-new-word-record-btn');
+
+    await expect(targetInput).toBeVisible({ timeout: 30000 });
+    await targetInput.fill('entered word');
+    await translationInput.fill('entered translation');
+
+    await recordButton.click();
+    await page.evaluate(() => {
+      if (typeof window.__llResolveRecorderMic === 'function') {
+        window.__llResolveRecorderMic();
+      }
+    });
+    await expect(recordButton).toHaveClass(/recording/);
+
+    await recordButton.click();
+
+    const redoSelectorHandle = await page.waitForFunction(() => {
+      const isVisible = (node) => {
+        return !!node
+          && node instanceof HTMLElement
+          && node.offsetParent !== null
+          && window.getComputedStyle(node).visibility !== 'hidden';
+      };
+
+      const reviewRedo = document.querySelector('#ll-review-redo');
+      if (isVisible(reviewRedo)) {
+        return '#ll-review-redo';
+      }
+
+      const inlineRedo = document.querySelector('#ll-new-word-redo-btn');
+      if (isVisible(inlineRedo)) {
+        return '#ll-new-word-redo-btn';
+      }
+
+      return false;
+    });
+    const redoSelector = await redoSelectorHandle.jsonValue();
+    await page.locator(redoSelector).click();
+
+    await expect(targetInput).toHaveValue('entered word');
+    await expect(translationInput).toHaveValue('entered translation');
+    await expect(recordButton).toBeVisible();
   } finally {
     await deletePage(page, createdPage.id);
   }

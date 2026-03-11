@@ -1552,21 +1552,6 @@
         updateNewWordRecordingTypeLabel();
     }
 
-    function clearNewWordTextFields() {
-        const el = window.llRecorder;
-        if (el.newWordTextTarget) {
-            el.newWordTextTarget.value = '';
-            delete el.newWordTextTarget.dataset.llManual;
-            clearNewWordFieldError(el.newWordTextTarget);
-        }
-        if (el.newWordTextTranslation) {
-            el.newWordTextTranslation.value = '';
-            delete el.newWordTextTranslation.dataset.llManual;
-            clearNewWordFieldError(el.newWordTextTranslation);
-        }
-        lastTranslationSource = '';
-    }
-
     function toggleNewCategoryFields() {
         const el = window.llRecorder;
         const enabled = !!el.newWordCreateCategory?.checked;
@@ -3785,7 +3770,7 @@
             newWordTranscriptionInFlight = false;
             newWordTranslationInFlight = false;
             newWordAutoCancelled = false;
-            clearNewWordTextFields();
+            lastTranslationSource = '';
             resetNewWordAutoState();
         }
         resetRecordingState();
