@@ -1,6 +1,5 @@
 (function (root, $) {
     'use strict';
-    const { Util } = root.LLFlashcards;
     const { State } = root.LLFlashcards;
     const { Dom } = root.LLFlashcards;
     let optionMiniViz = null;
@@ -49,7 +48,7 @@
             fontFamily: fontFamily,
             fontWeight: fontWeight,
             fontSizePx: clampInt(raw.fontSizePx, 12, 72, 48),
-            minFontSizePx: clampInt(raw.minFontSizePx, 10, 24, 12),
+            minFontSizePx: clampInt(raw.minFontSizePx, 10, 24, 10),
             lineHeightRatio: lineHeightRatio,
             lineHeightRatioWithDiacritics: lineHeightRatioWithDiacritics
         };
@@ -108,6 +107,68 @@
         }
     }
 
+    function applyTextCardLabelSize($label, fontSizePx, lineHeightRatio, noWrap) {
+        if (!$label || !$label.length) {
+            return;
+        }
+        const lineHeightPx = Math.round(fontSizePx * lineHeightRatio * 100) / 100;
+        $label.css({
+            fontSize: fontSizePx + 'px',
+            lineHeight: lineHeightPx + 'px',
+            visibility: 'visible',
+            position: 'relative',
+            whiteSpace: noWrap ? 'nowrap' : 'normal'
+        });
+    }
+
+    function textCardLabelFits(labelEl, maxHeight) {
+        if (!labelEl) {
+            return false;
+        }
+        const availableWidth = Math.max(0, Math.floor(labelEl.clientWidth || 0));
+        const measuredHeight = Math.max(
+            Math.ceil(labelEl.scrollHeight || 0),
+            Math.ceil(labelEl.getBoundingClientRect ? labelEl.getBoundingClientRect().height : 0)
+        );
+        const widthFits = availableWidth > 0
+            ? Math.ceil(labelEl.scrollWidth || 0) <= availableWidth + 1
+            : true;
+
+        return widthFits && measuredHeight <= Math.ceil(maxHeight) + 1;
+    }
+
+    // Prefer shrinking to a single line first. If the label has spaces and still
+    // cannot fit, allow wrapping only at those spaces.
+    function fitTextCardLabel($label, labelText, cfg, maxHeight) {
+        if (!$label || !$label.length) {
+            return;
+        }
+
+        const labelEl = $label[0];
+        const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
+        const allowWrappedFallback = /\s/u.test(String(labelText || ''));
+        const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
+        const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
+
+        const tryFit = function (allowWrap) {
+            for (let fs = startFontSize; fs >= minFontSize; fs--) {
+                applyTextCardLabelSize($label, fs, lineHeightRatio, !allowWrap);
+                if (textCardLabelFits(labelEl, maxHeight)) {
+                    return { fitted: true, fontSize: fs, allowWrap: allowWrap };
+                }
+            }
+
+            return { fitted: false, fontSize: minFontSize, allowWrap: allowWrap };
+        };
+
+        let fitResult = tryFit(false);
+        if (!fitResult.fitted && allowWrappedFallback) {
+            fitResult = tryFit(true);
+        }
+
+        applyTextCardLabelSize($label, fitResult.fontSize, lineHeightRatio, !fitResult.allowWrap);
+    }
+
     function createImageCard(word) {
         const $c = $('<div>', {
             class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize,
@@ -127,41 +188,15 @@
 
     function createTextCard(word) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
-        const $c = $('<div>', { class: `flashcard-container text-based ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
+        const $c = $('<div>', { class: `flashcard-container text-based ll-answer-option-text-card ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
         const labelText = word.label || word.title || '';
         const $label = $('<div>', { text: labelText, class: 'quiz-text', dir: 'auto' }).appendTo($c);
         applyAnswerOptionTextStyle($label, labelText);
 
         $c.css({ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', display: 'block' }).appendTo('body');
-        const boxH = $c.innerHeight() - 15, boxW = $c.innerWidth() - 15;
-        const computed = getComputedStyle($label[0]);
-        const fontFamily = computed.fontFamily || 'sans-serif';
-        const fontWeight = String(computed.fontWeight || getAnswerOptionTextStyleConfig().fontWeight || '700');
+        const boxH = Math.max(0, $c.innerHeight() - 15);
         const cfg = getAnswerOptionTextStyleConfig();
-        const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 12);
-        const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
-        const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
-        let fitted = false;
-
-        for (let fs = startFontSize; fs >= minFontSize; fs--) {
-            const w = Util.measureTextWidth(labelText || '', fontWeight + ' ' + fs + 'px ' + fontFamily);
-            if (w > boxW) continue;
-            const lineHeightPx = Math.round(fs * lineHeightRatio * 100) / 100;
-            $label.css({ fontSize: fs + 'px', lineHeight: lineHeightPx + 'px', visibility: 'visible', position: 'relative' });
-            if ($label.outerHeight() <= boxH) {
-                fitted = true;
-                break;
-            }
-        }
-        if (!fitted) {
-            const fallbackLineHeightPx = Math.round(minFontSize * lineHeightRatio * 100) / 100;
-            $label.css({
-                fontSize: minFontSize + 'px',
-                lineHeight: fallbackLineHeightPx + 'px',
-                visibility: 'visible',
-                position: 'relative'
-            });
-        }
+        fitTextCardLabel($label, labelText, cfg, boxH);
         $c.detach().css({ position: '', top: '', left: '', visibility: '', display: 'none' });
         return $c;
     }

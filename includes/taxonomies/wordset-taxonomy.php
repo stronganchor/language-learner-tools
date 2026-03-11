@@ -72,7 +72,7 @@ function ll_tools_wordset_get_answer_option_text_style_defaults(): array {
         'fontFamily' => '',
         'fontWeight' => '700',
         'fontSizePx' => 48,
-        'minFontSizePx' => 12,
+        'minFontSizePx' => 10,
         'lineHeightRatio' => 1.22,
         'lineHeightRatioWithDiacritics' => 1.4,
     ];
@@ -1817,7 +1817,10 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
             }
             .ll-wordset-answer-option-preview__text {
                 padding: 20px;
-                box-sizing: content-box;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
                 display: block;
                 text-align: center;
                 font-family: var(--ll-ws-answer-preview-font-family, ui-sans-serif, system-ui, sans-serif);
@@ -1825,8 +1828,9 @@ function ll_tools_wordset_render_answer_option_style_preview_html(int $wordset_i
                 font-size: var(--ll-ws-answer-preview-font-size, 48px);
                 line-height: var(--ll-ws-answer-preview-line-height, 1.22);
                 color: #111827;
-                overflow-wrap: anywhere;
+                overflow-wrap: normal;
                 word-break: normal;
+                hyphens: none;
                 unicode-bidi: plaintext;
                 visibility: visible;
             }

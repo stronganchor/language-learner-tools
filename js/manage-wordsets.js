@@ -508,7 +508,7 @@ jQuery(document).ready(function ($) {
                 fontFamily: fontFamily,
                 fontWeight: weight,
                 fontSizePx: clampInt($fontSize.val(), 12, 72, 48),
-                minFontSizePx: 12,
+                minFontSizePx: 10,
                 lineHeightRatio: 1.22,
                 lineHeightRatioWithDiacritics: 1.4
             };
@@ -530,24 +530,30 @@ jQuery(document).ready(function ($) {
             rootEl.style.setProperty('--ll-ws-answer-preview-line-height-marked', String(cfg.lineHeightRatioWithDiacritics));
         }
 
-        var measureCanvas = null;
-        var measureCtx = null;
-        function measureTextWidth(text, font) {
-            if (!measureCanvas) {
-                measureCanvas = document.createElement('canvas');
+        function applyPreviewTextSize(textEl, fontSizePx, lineHeightRatio, noWrap) {
+            if (!textEl) {
+                return;
             }
-            if (!measureCtx) {
-                measureCtx = measureCanvas.getContext('2d');
+            var lineHeightPx = Math.round(fontSizePx * lineHeightRatio * 100) / 100;
+            textEl.style.fontSize = String(fontSizePx) + 'px';
+            textEl.style.lineHeight = String(lineHeightPx) + 'px';
+            textEl.style.whiteSpace = noWrap ? 'nowrap' : 'normal';
+        }
+
+        function previewTextFits(textEl, maxHeight) {
+            if (!textEl) {
+                return false;
             }
-            if (!measureCtx) {
-                return 0;
-            }
-            try {
-                measureCtx.font = String(font || '');
-                return measureCtx.measureText(String(text || '')).width || 0;
-            } catch (_) {
-                return 0;
-            }
+            var availableWidth = Math.max(0, Math.floor(textEl.clientWidth || 0));
+            var measuredHeight = Math.max(
+                Math.ceil(textEl.scrollHeight || 0),
+                Math.ceil(textEl.getBoundingClientRect ? textEl.getBoundingClientRect().height : 0)
+            );
+            var widthFits = availableWidth > 0
+                ? Math.ceil(textEl.scrollWidth || 0) <= availableWidth + 1
+                : true;
+
+            return widthFits && measuredHeight <= Math.ceil(maxHeight) + 1;
         }
 
         function fitPreviewText(cardEl, textEl, cfg) {
@@ -558,7 +564,6 @@ jQuery(document).ready(function ($) {
             var textValue = String(textEl.textContent || '').trim();
             var ratio = hasCombiningMarks(textValue) ? cfg.lineHeightRatioWithDiacritics : cfg.lineHeightRatio;
             var boxH = Math.max(0, (cardEl.clientHeight || 0) - 15);
-            var boxW = Math.max(0, (cardEl.clientWidth || 0) - 15);
 
             if (cfg.fontFamily) {
                 textEl.style.fontFamily = cfg.fontFamily;
@@ -569,31 +574,35 @@ jQuery(document).ready(function ($) {
             textEl.style.position = 'relative';
             textEl.style.visibility = 'hidden';
 
-            var minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 12);
+            var minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
             var startFontSize = clampInt(cfg.fontSizePx, minFontSize, 72, 48);
-            var fitted = false;
+            var allowWrappedFallback = /\s/u.test(textValue);
 
-            for (var fs = startFontSize; fs >= minFontSize; fs--) {
-                var lineHeightPx = Math.round(fs * ratio * 100) / 100;
-                var measureFont = String(cfg.fontWeight) + ' ' + String(fs) + 'px ' + (cfg.fontFamily || 'sans-serif');
-                var singleLineWidth = measureTextWidth(textValue, measureFont);
-                if (singleLineWidth > boxW && boxW > 0) {
-                    continue;
+            var tryFit = function (allowWrap) {
+                for (var fs = startFontSize; fs >= minFontSize; fs--) {
+                    applyPreviewTextSize(textEl, fs, ratio, !allowWrap);
+                    if (previewTextFits(textEl, boxH)) {
+                        return {
+                            fitted: true,
+                            fontSize: fs,
+                            allowWrap: allowWrap
+                        };
+                    }
                 }
-                textEl.style.fontSize = String(fs) + 'px';
-                textEl.style.lineHeight = String(lineHeightPx) + 'px';
-                if (textEl.offsetHeight <= boxH + 1) {
-                    fitted = true;
-                    break;
-                }
+
+                return {
+                    fitted: false,
+                    fontSize: minFontSize,
+                    allowWrap: allowWrap
+                };
+            };
+
+            var fitResult = tryFit(false);
+            if (!fitResult.fitted && allowWrappedFallback) {
+                fitResult = tryFit(true);
             }
 
-            if (!fitted) {
-                var fallbackLineHeightPx = Math.round(minFontSize * ratio * 100) / 100;
-                textEl.style.fontSize = String(minFontSize) + 'px';
-                textEl.style.lineHeight = String(fallbackLineHeightPx) + 'px';
-            }
-
+            applyPreviewTextSize(textEl, fitResult.fontSize, ratio, !fitResult.allowWrap);
             textEl.style.visibility = 'visible';
         }
 
