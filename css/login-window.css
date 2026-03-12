@@ -82,6 +82,7 @@
 
 .ll-tools-login-window__form input[type="text"],
 .ll-tools-login-window__form input[type="email"],
+.ll-tools-login-window__form input[type="number"],
 .ll-tools-login-window__form input[type="password"] {
   width: 100%;
   min-height: 2.6rem;
@@ -98,6 +99,7 @@
 
 .ll-tools-login-window__form input[type="text"]:focus,
 .ll-tools-login-window__form input[type="email"]:focus,
+.ll-tools-login-window__form input[type="number"]:focus,
 .ll-tools-login-window__form input[type="password"]:focus {
   outline: 2px solid rgba(15, 107, 77, 0.35);
   outline-offset: 1px;
@@ -233,6 +235,7 @@
 
 .ll-tools-login-window__register input[type="text"],
 .ll-tools-login-window__register input[type="email"],
+.ll-tools-login-window__register input[type="number"],
 .ll-tools-login-window__register input[type="password"] {
   width: 100%;
   min-height: 2.6rem;
@@ -249,10 +252,19 @@
 
 .ll-tools-login-window__register input[type="text"]:focus,
 .ll-tools-login-window__register input[type="email"]:focus,
+.ll-tools-login-window__register input[type="number"]:focus,
 .ll-tools-login-window__register input[type="password"]:focus {
   outline: 2px solid rgba(15, 107, 77, 0.35);
   outline-offset: 1px;
   border-color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--ll-login-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .ll-tools-login-window__register-submit {
@@ -311,6 +323,17 @@
 .ll-tools-login-window__notice ul {
   margin: 0;
   padding-left: 1.1rem;
+}
+
+.ll-tools-login-window__honeypot {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {

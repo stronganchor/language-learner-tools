@@ -60,12 +60,21 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
 
         $this->assertTrue(wp_style_is('ll-tools-login-window', 'registered'));
         $this->assertTrue(wp_style_is('ll-tools-login-window', 'enqueued'));
+        $this->assertTrue(wp_script_is('ll-tools-login-window-js', 'registered'));
+        $this->assertTrue(wp_script_is('ll-tools-login-window-js', 'enqueued'));
 
         $registered = wp_styles()->registered['ll-tools-login-window'] ?? null;
         $this->assertNotNull($registered);
         $this->assertSame(
             (string) filemtime(LL_TOOLS_BASE_PATH . 'css/login-window.css'),
             (string) $registered->ver
+        );
+
+        $registered_script = wp_scripts()->registered['ll-tools-login-window-js'] ?? null;
+        $this->assertNotNull($registered_script);
+        $this->assertSame(
+            (string) filemtime(LL_TOOLS_BASE_PATH . 'js/login-window.js'),
+            (string) $registered_script->ver
         );
     }
 

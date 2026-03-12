@@ -2486,11 +2486,15 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
         }
     }
 
-    $login_url = wp_login_url($current_url);
+    $login_url = function_exists('ll_tools_get_frontend_auth_url')
+        ? ll_tools_get_frontend_auth_url($current_url, 'login')
+        : wp_login_url($current_url);
     $signup_available = function_exists('ll_tools_is_learner_self_registration_available')
         ? ll_tools_is_learner_self_registration_available()
         : false;
-    $signup_url = $signup_available ? wp_registration_url() : '';
+    $signup_url = ($signup_available && function_exists('ll_tools_get_frontend_auth_url'))
+        ? ll_tools_get_frontend_auth_url($current_url, 'register')
+        : '';
     $logout_url = wp_logout_url($current_url);
 
     $context_class = '';
@@ -2683,9 +2687,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'is_active' => ($view === ''),
         ];
     }
-    $utility_login_url = wp_login_url($utility_current_url);
-    $utility_signup_url = wp_registration_url();
-    $utility_logout_url = wp_logout_url($utility_current_url);
     $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
         ? ll_tools_get_wordset_visibility($wordset_id)
         : 'public';
@@ -3291,6 +3292,21 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'current_url' => $utility_current_url,
                 'plugin_update_check_flash' => $plugin_update_check_flash,
             ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            ?>
+        <?php endif; ?>
+        <?php if (!($utility_user instanceof WP_User) && $view !== 'progress' && function_exists('ll_tools_login_window_requested_mode') && ll_tools_login_window_requested_mode() !== '') : ?>
+            <?php
+            echo ll_tools_render_login_window([
+                'container_class' => 'll-wordset-empty ll-wordset-login-window',
+                'title' => __('Sign in or create an account', 'll-tools-text-domain'),
+                'message' => __('Use an account to save your progress and keep learning from this page.', 'll-tools-text-domain'),
+                'submit_label' => __('Continue', 'll-tools-text-domain'),
+                'redirect_to' => $utility_current_url,
+                'show_registration' => true,
+                'registration_title' => __('Create learner account', 'll-tools-text-domain'),
+                'registration_message' => __('New learners can create an account here and start immediately.', 'll-tools-text-domain'),
+                'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
+            ]);
             ?>
         <?php endif; ?>
         <?php if ($view === 'progress') : ?>

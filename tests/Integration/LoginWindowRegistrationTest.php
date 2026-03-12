@@ -35,7 +35,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) get_option('users_can_register', 1));
     }
 
-    public function test_login_window_renders_registration_form_when_enabled(): void
+    public function test_login_window_renders_custom_auth_forms_when_enabled(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
         update_option('users_can_register', 1);
@@ -45,11 +45,20 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'show_lost_password' => false,
         ]);
 
-        $this->assertStringContainsString('ll_tools_register_learner', $markup);
-        $this->assertStringContainsString('name="ll_tools_register_username"', $markup);
-        $this->assertStringContainsString('name="ll_tools_register_email"', $markup);
+        $this->assertStringContainsString('name="log"', $markup);
+        $this->assertStringContainsString('name="pwd"', $markup);
+        $this->assertStringContainsString('name="rememberme"', $markup);
+        $this->assertStringContainsString('checked', $markup);
+        $this->assertStringContainsString('name="user_email"', $markup);
+        $this->assertStringContainsString('name="user_login"', $markup);
+        $this->assertStringContainsString('name="user_pass"', $markup);
+        $this->assertStringContainsString('data-ll-register-email="1"', $markup);
+        $this->assertStringContainsString('data-ll-register-password="1"', $markup);
+        $this->assertStringContainsString('ll_tools_register_math_answer', $markup);
+        $this->assertStringContainsString('action="http://example.org/wp-admin/admin-post.php"', $markup);
         $this->assertStringContainsString('width="20"', $markup);
         $this->assertStringContainsString('height="20"', $markup);
+        $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 
     public function test_login_window_hides_registration_form_when_disabled(): void
@@ -62,7 +71,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'show_lost_password' => false,
         ]);
 
-        $this->assertStringNotContainsString('name="ll_tools_register_username"', $markup);
+        $this->assertStringNotContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('New account registration is currently disabled.', $markup);
     }
 
@@ -90,8 +99,26 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'show_lost_password' => false,
         ]);
 
-        $this->assertStringNotContainsString('name="ll_tools_register_username"', $markup);
+        $this->assertStringNotContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('New account registration is currently disabled.', $markup);
+    }
+
+    public function test_frontend_auth_url_keeps_auth_inside_plugin_ui(): void
+    {
+        $url = ll_tools_get_frontend_auth_url('http://example.org/learn/?foo=bar', 'register');
+
+        $this->assertSame('http://example.org/learn/?foo=bar&ll_tools_auth=register#ll-tools-auth-window', $url);
+    }
+
+    public function test_username_suggestion_uses_email_base_and_numeric_suffix(): void
+    {
+        self::factory()->user->create([
+            'user_login' => 'johndoe',
+            'user_email' => 'existing@example.org',
+        ]);
+
+        $this->assertSame('janedoe', ll_tools_login_window_available_username_from_email('jane.doe@example.org'));
+        $this->assertSame('johndoe1', ll_tools_login_window_available_username_from_email('john.doe@example.org'));
     }
 
     public function test_guest_utility_menu_hides_sign_up_link_when_registration_is_unavailable(): void
@@ -103,11 +130,12 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'current_area' => 'wordset',
         ]);
 
-        $this->assertStringContainsString('Log in', $markup);
-        $this->assertStringNotContainsString('Sign up', $markup);
+        $this->assertStringContainsString('ll_tools_auth=login', $markup);
+        $this->assertStringNotContainsString('ll_tools_auth=register', $markup);
+        $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 
-    public function test_guest_utility_menu_shows_sign_up_link_when_registration_is_available(): void
+    public function test_guest_utility_menu_shows_plugin_auth_links_when_registration_is_available(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
         update_option('users_can_register', 1);
@@ -116,7 +144,8 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'current_area' => 'wordset',
         ]);
 
-        $this->assertStringContainsString('Log in', $markup);
-        $this->assertStringContainsString('Sign up', $markup);
+        $this->assertStringContainsString('ll_tools_auth=login', $markup);
+        $this->assertStringContainsString('ll_tools_auth=register', $markup);
+        $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 }
