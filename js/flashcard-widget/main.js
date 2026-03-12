@@ -755,16 +755,140 @@
         return true;
     }
 
-    function getPracticeProgressTotalCount() {
+    function getPracticeProgressCategoryNames() {
         const sourceNames = (Array.isArray(State.initialCategoryNames) && State.initialCategoryNames.length)
             ? State.initialCategoryNames
             : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
-        const names = sourceNames.filter(Boolean);
+        const seen = {};
+        return sourceNames.filter(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) {
+                return false;
+            }
+            seen[key] = true;
+            return true;
+        });
+    }
+
+    function findPracticeProgressCategoryConfig(categoryName) {
+        const target = String(categoryName || '').trim().toLowerCase();
+        if (!target) {
+            return null;
+        }
+
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const matched = categories.find(function (category) {
+            if (!category || typeof category !== 'object') {
+                return false;
+            }
+            const name = String(category.name || '').trim().toLowerCase();
+            const slug = String(category.slug || '').trim().toLowerCase();
+            return (name && name === target) || (slug && slug === target);
+        });
+
+        return matched && typeof matched === 'object' ? matched : null;
+    }
+
+    function getPracticeProgressSessionWordIds() {
+        const data = root.llToolsFlashcardsData || {};
+        const direct = getSessionWordIdsFromData(data);
+        if (direct.length) {
+            return direct;
+        }
+
+        const lastPlan = (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object')
+            ? data.lastLaunchPlan
+            : ((data.last_launch_plan && typeof data.last_launch_plan === 'object') ? data.last_launch_plan : {});
+        return getSessionWordIdsFromData(lastPlan);
+    }
+
+    function getPracticeProgressSessionTotalCount(answeredUniqueCount) {
+        const sessionWordIds = getPracticeProgressSessionWordIds();
+        if (!sessionWordIds.length) {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        const starMode = getPracticeProgressStarMode();
+        if (starMode !== 'only') {
+            return Math.max(answeredUnique, sessionWordIds.length);
+        }
+
+        const starredLookup = getPracticeProgressStarredLookup();
+        const starredCount = sessionWordIds.filter(function (wordId) {
+            return !!starredLookup[wordId];
+        }).length;
+        return Math.max(answeredUnique, starredCount);
+    }
+
+    function getPracticeProgressConfiguredCategoryTotalCount(categoryNames, answeredUniqueCount) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
+        if (!names.length || getPracticeProgressStarMode() === 'only') {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        let matchedCount = 0;
+        let total = 0;
+
+        names.forEach(function (name) {
+            const category = findPracticeProgressCategoryConfig(name);
+            const count = parseInt(category && category.word_count, 10);
+            if (!Number.isFinite(count) || count < 0) {
+                return;
+            }
+            matchedCount += 1;
+            total += count;
+        });
+
+        if (matchedCount !== names.length || total <= 0) {
+            return 0;
+        }
+
+        return Math.max(answeredUnique, total);
+    }
+
+    function areAllPracticeProgressCategoriesLoaded(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
+        if (!names.length) {
+            return false;
+        }
+
+        const loader = root.FlashcardLoader || {};
+        const loadedCategories = Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
+        if (!loadedCategories.length) {
+            return false;
+        }
+
+        const cachePrefix = getCurrentWordsetKey() + '::';
+        const loadedLookup = {};
+        loadedCategories.forEach(function (entry) {
+            const key = String(entry || '').trim();
+            if (!key) {
+                return;
+            }
+            if (key.indexOf(cachePrefix) === 0) {
+                loadedLookup[key.slice(cachePrefix.length)] = true;
+                return;
+            }
+            loadedLookup[key] = true;
+        });
+
+        return names.every(function (name) {
+            return !!loadedLookup[String(name || '').trim()];
+        });
+    }
+
+    function getPracticeProgressLoadedTotalCount(categoryNames, answeredUniqueCount) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
         if (!names.length) return 0;
 
         const starMode = getPracticeProgressStarMode();
         const starredLookup = getPracticeProgressStarredLookup();
         const seenWordIds = {};
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
         let total = 0;
 
         names.forEach(function (name) {
@@ -781,7 +905,32 @@
             });
         });
 
-        return total;
+        return Math.max(answeredUnique, total);
+    }
+
+    function getPracticeProgressTotalCount(answeredUniqueCount) {
+        const categoryNames = getPracticeProgressCategoryNames();
+        if (!categoryNames.length) {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        const sessionTotal = getPracticeProgressSessionTotalCount(answeredUnique);
+        if (sessionTotal > 0) {
+            return sessionTotal;
+        }
+
+        const loadedTotal = getPracticeProgressLoadedTotalCount(categoryNames, answeredUnique);
+        if (loadedTotal > 0 && areAllPracticeProgressCategoriesLoaded(categoryNames)) {
+            return loadedTotal;
+        }
+
+        const configuredTotal = getPracticeProgressConfiguredCategoryTotalCount(categoryNames, answeredUnique);
+        if (configuredTotal > 0) {
+            return configuredTotal;
+        }
+
+        return loadedTotal;
     }
 
     function getPracticeProgressAnsweredUniqueCount() {
@@ -803,10 +952,10 @@
         if (!isPracticeMode) return;
         if (!Dom || typeof Dom.updateSimpleProgress !== 'function') return;
 
-        const total = getPracticeProgressTotalCount();
+        const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        const total = getPracticeProgressTotalCount(answeredUnique);
         if (total <= 0) return;
 
-        const answeredUnique = getPracticeProgressAnsweredUniqueCount();
         const safeTotal = Math.max(1, total);
         const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
         // Categories load asynchronously in practice mode; keep display monotonic

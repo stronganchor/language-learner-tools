@@ -145,6 +145,26 @@ async function mountPracticeProgressHarness(page, options = {}) {
         { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
         { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
       ];
+  const categories = Array.isArray(options.categories) && options.categories.length
+    ? options.categories
+    : [
+        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: targets.length }
+      ];
+  const sessionWordIds = Array.isArray(options.sessionWordIds)
+    ? options.sessionWordIds
+    : [];
+  const initialCategoryNames = Array.isArray(options.initialCategoryNames) && options.initialCategoryNames.length
+    ? options.initialCategoryNames
+    : categories.map((category) => String(category && category.name || '').trim()).filter(Boolean);
+  const categoryNames = Array.isArray(options.categoryNames) && options.categoryNames.length
+    ? options.categoryNames
+    : initialCategoryNames.slice();
+  const wordsByCategory = options.wordsByCategory && typeof options.wordsByCategory === 'object'
+    ? options.wordsByCategory
+    : {
+        Kitchen: targets.slice()
+      };
+  const currentCategoryName = String(options.currentCategoryName || categoryNames[0] || initialCategoryNames[0] || 'Kitchen');
   await page.goto('about:blank');
   await page.setContent(`
     <div id="ll-tools-flashcard-popup">
@@ -173,11 +193,11 @@ async function mountPracticeProgressHarness(page, options = {}) {
 
     window.llToolsFlashcardsData = {
       debug: false,
-      firstCategoryName: 'Kitchen',
+      firstCategoryName: bootstrap.currentCategoryName,
       imageSize: 'small',
-      categories: [
-        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text' }
-      ],
+      categories: bootstrap.categories.slice(),
+      sessionWordIds: bootstrap.sessionWordIds.slice(),
+      session_word_ids: bootstrap.sessionWordIds.slice(),
       modeUi: {},
       isUserLoggedIn: false
     };
@@ -271,20 +291,23 @@ async function mountPracticeProgressHarness(page, options = {}) {
     state.widgetActive = true;
     state.currentFlowState = state.STATES.QUIZ_READY;
     state.isFirstRound = false;
-    state.categoryNames = ['Kitchen'];
-    state.initialCategoryNames = ['Kitchen'];
-    state.wordsByCategory = {
-      Kitchen: [
-        { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
-        { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
-      ]
-    };
-    state.currentCategoryName = 'Kitchen';
-    state.currentCategory = state.wordsByCategory.Kitchen;
+    state.categoryNames = bootstrap.categoryNames.slice();
+    state.initialCategoryNames = bootstrap.initialCategoryNames.slice();
+    state.wordsByCategory = bootstrap.wordsByCategory;
+    state.currentCategoryName = bootstrap.currentCategoryName;
+    state.currentCategory = state.wordsByCategory[bootstrap.currentCategoryName] || [];
     window.wordsByCategory = state.wordsByCategory;
     window.categoryNames = state.categoryNames;
     window.categoryRoundCount = state.categoryRoundCount;
-  }, { targets });
+  }, {
+    targets,
+    categories,
+    sessionWordIds,
+    categoryNames,
+    initialCategoryNames,
+    wordsByCategory,
+    currentCategoryName
+  });
 
   await page.addScriptTag({ content: mainSource });
 }
@@ -392,4 +415,80 @@ test('practice progress advances after a correct answer even if the turn had a w
 
   expect(outcome.flowState).toBe('processing_answer');
   expect(outcome.progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+});
+
+test('practice progress prefers exact session word totals while later categories are still unloaded', async ({ page }) => {
+  await mountPracticeProgressHarness(page, {
+    targets: [
+      { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+      { id: 502, title: 'Plate', __categoryName: 'Kitchen' },
+      { id: 601, title: 'Rose', __categoryName: 'Garden' },
+      { id: 602, title: 'Leaf', __categoryName: 'Garden' }
+    ],
+    categories: [
+      { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: 20 },
+      { id: 12, name: 'Garden', slug: 'garden', prompt_type: 'image', option_type: 'text', word_count: 20 }
+    ],
+    sessionWordIds: [501, 502, 601, 602],
+    categoryNames: ['Kitchen', 'Garden'],
+    initialCategoryNames: ['Kitchen', 'Garden'],
+    currentCategoryName: 'Kitchen',
+    wordsByCategory: {
+      Kitchen: [
+        { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+        { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
+      ]
+    }
+  });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  let progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 0, total: 4 });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.onCorrectAnswer(
+      window.__currentTarget,
+      window.jQuery('.correct-card')
+    );
+  });
+  await page.waitForFunction(() => window.__progressCalls.length >= 2);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 4 });
+});
+
+test('practice progress falls back to configured category counts before other categories finish loading', async ({ page }) => {
+  await mountPracticeProgressHarness(page, {
+    targets: [
+      { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+      { id: 502, title: 'Plate', __categoryName: 'Kitchen' },
+      { id: 601, title: 'Rose', __categoryName: 'Garden' },
+      { id: 602, title: 'Leaf', __categoryName: 'Garden' }
+    ],
+    categories: [
+      { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: 2 },
+      { id: 12, name: 'Garden', slug: 'garden', prompt_type: 'image', option_type: 'text', word_count: 2 }
+    ],
+    categoryNames: ['Kitchen', 'Garden'],
+    initialCategoryNames: ['Kitchen', 'Garden'],
+    currentCategoryName: 'Kitchen',
+    wordsByCategory: {
+      Kitchen: [
+        { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
+        { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
+      ]
+    }
+  });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  const progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 0, total: 4 });
 });
