@@ -1244,9 +1244,10 @@ function ll_tools_user_can_view_admin_notices(): bool {
  * Count published words assigned to a category.
  *
  * @param int|WP_Term $term Category term or term ID.
+ * @param array|int   $wordset_ids Optional wordset term IDs to scope the count.
  * @return int
  */
-function ll_tools_get_category_published_word_count($term): int {
+function ll_tools_get_category_published_word_count($term, $wordset_ids = []): int {
     static $request_cache = [];
 
     if (!($term instanceof WP_Term)) {
@@ -1264,10 +1265,16 @@ function ll_tools_get_category_published_word_count($term): int {
         $category_version = 1;
     }
 
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    sort($wordset_ids, SORT_NUMERIC);
+
     $request_cache_key = md5(wp_json_encode([
         'term_id' => $term_id,
         'term_slug' => (string) $term->slug,
         'version' => $category_version,
+        'wordset_ids' => $wordset_ids,
         'schema' => 1,
     ]));
     if (array_key_exists($request_cache_key, $request_cache)) {
@@ -1291,12 +1298,22 @@ function ll_tools_get_category_published_word_count($term): int {
         'fields' => 'ids',
         'no_found_rows' => false,
         'suppress_filters' => true,
-        'tax_query' => [[
-            'taxonomy' => 'word-category',
-            'field' => 'term_id',
-            'terms' => [$term_id],
-        ]],
+        'tax_query' => [],
     ]);
+    $tax_query = [[
+        'taxonomy' => 'word-category',
+        'field' => 'term_id',
+        'terms' => [$term_id],
+    ]];
+    if (!empty($wordset_ids)) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => $wordset_ids,
+        ];
+        $tax_query['relation'] = 'AND';
+    }
+    $query->set('tax_query', $tax_query);
 
     $count = max(0, (int) $query->found_posts);
     $request_cache[$request_cache_key] = $count;
@@ -1310,9 +1327,10 @@ function ll_tools_get_category_published_word_count($term): int {
  * automatic presentation heuristic.
  *
  * @param int|WP_Term $term Category term or term ID.
+ * @param array|int   $wordset_ids Optional wordset term IDs to scope the counts.
  * @return array<string,int>
  */
-function ll_tools_get_audio_prompt_category_option_counts($term): array {
+function ll_tools_get_audio_prompt_category_option_counts($term, $wordset_ids = []): array {
     static $request_cache = [];
 
     if (!($term instanceof WP_Term)) {
@@ -1334,10 +1352,16 @@ function ll_tools_get_audio_prompt_category_option_counts($term): array {
         $category_version = 1;
     }
 
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    sort($wordset_ids, SORT_NUMERIC);
+
     $request_cache_key = md5(wp_json_encode([
         'term_id' => $term_id,
         'term_slug' => (string) $term->slug,
         'version' => $category_version,
+        'wordset_ids' => $wordset_ids,
         'schema' => 1,
     ]));
     if (isset($request_cache[$request_cache_key]) && is_array($request_cache[$request_cache_key])) {
@@ -1350,9 +1374,9 @@ function ll_tools_get_audio_prompt_category_option_counts($term): array {
     ];
 
     $request_cache[$request_cache_key] = [
-        'image' => ll_get_words_by_category_count($term->name, 'image', null, array_merge($base_config, ['option_type' => 'image'])),
-        'text_translation' => ll_get_words_by_category_count($term->name, 'text', null, array_merge($base_config, ['option_type' => 'text_translation'])),
-        'text_title' => ll_get_words_by_category_count($term->name, 'text', null, array_merge($base_config, ['option_type' => 'text_title'])),
+        'image' => ll_get_words_by_category_count($term->name, 'image', $wordset_ids, array_merge($base_config, ['option_type' => 'image'])),
+        'text_translation' => ll_get_words_by_category_count($term->name, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_translation'])),
+        'text_title' => ll_get_words_by_category_count($term->name, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_title'])),
     ];
 
     return $request_cache[$request_cache_key];
@@ -1366,9 +1390,10 @@ function ll_tools_get_audio_prompt_category_option_counts($term): array {
  * as a suggested alternative in the notice payload.
  *
  * @param int|WP_Term $term Category term or term ID.
+ * @param array       $args Optional context such as `wordset`.
  * @return array|null
  */
-function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
+function ll_tools_get_category_quiz_presentation_mismatch_data($term, array $args = []): ?array {
     static $request_cache = [];
 
     if (!($term instanceof WP_Term)) {
@@ -1386,10 +1411,20 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
         $category_version = 1;
     }
 
+    $wordset_term = null;
+    if (array_key_exists('wordset', $args)) {
+        $wordset_term = ll_tools_resolve_wordset_term($args['wordset']);
+    }
+    $wordset_id = ($wordset_term instanceof WP_Term) ? (int) $wordset_term->term_id : 0;
+    $wordset_slug = ($wordset_term instanceof WP_Term) ? (string) $wordset_term->slug : '';
+    $wordset_ids = ($wordset_id > 0) ? [$wordset_id] : [];
+
     $request_cache_key = md5(wp_json_encode([
         'term_id' => $term_id,
         'term_slug' => (string) $term->slug,
         'version' => $category_version,
+        'wordset_id' => $wordset_id,
+        'wordset_slug' => $wordset_slug,
     ]));
     if (array_key_exists($request_cache_key, $request_cache)) {
         return is_array($request_cache[$request_cache_key]) ? $request_cache[$request_cache_key] : null;
@@ -1408,19 +1443,19 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
         return null;
     }
 
-    $published_count = ll_tools_get_category_published_word_count($term);
+    $published_count = ll_tools_get_category_published_word_count($term, $wordset_ids);
     if ($published_count <= 0) {
         $request_cache[$request_cache_key] = null;
         return null;
     }
 
-    $option_counts = ll_tools_get_audio_prompt_category_option_counts($term);
+    $option_counts = ll_tools_get_audio_prompt_category_option_counts($term, $wordset_ids);
     $current_count = isset($option_counts[$current_option_type])
         ? max(0, (int) $option_counts[$current_option_type])
         : ll_get_words_by_category_count(
             $term->name,
             $current_option_type,
-            null,
+            $wordset_ids,
             array_merge($current_config, ['__skip_quiz_config_merge' => true])
         );
 
@@ -1440,6 +1475,15 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
         }
     }
 
+    $default_option_type = ll_tools_default_option_type_for_category($term, LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids);
+    if (
+        in_array($default_option_type, ['image', 'text_translation', 'text_title'], true)
+        && array_key_exists($default_option_type, $option_counts)
+        && max(0, (int) $option_counts[$default_option_type]) === $recommended_count
+    ) {
+        $recommended_option_type = $default_option_type;
+    }
+
     $recommended_config = $current_config;
     $recommended_config['option_type'] = $recommended_option_type;
     $recommended_config['use_titles'] = ($recommended_option_type === 'text_title');
@@ -1453,14 +1497,21 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
         ], admin_url('term.php'));
     }
 
-    $words_url = add_query_arg([
+    $words_url_args = [
         'post_type' => 'words',
-        'word-category' => $term->slug,
-    ], admin_url('edit.php'));
+        'word_category' => $term_id,
+    ];
+    if ($wordset_slug !== '') {
+        $words_url_args['wordset'] = $wordset_slug;
+    }
+    $words_url = add_query_arg($words_url_args, admin_url('edit.php'));
 
     $request_cache[$request_cache_key] = [
         'term_id' => $term_id,
         'category_name' => ll_tools_get_category_display_name($term),
+        'wordset_id' => $wordset_id,
+        'wordset_slug' => $wordset_slug,
+        'wordset_name' => ($wordset_term instanceof WP_Term) ? $wordset_term->name : '',
         'published_count' => (int) $published_count,
         'mismatch_count' => (int) $mismatch_count,
         'current_config' => $current_config,
@@ -1475,6 +1526,48 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
     ];
 
     return $request_cache[$request_cache_key];
+}
+
+/**
+ * Resolve the active wordset context for the current admin screen when the
+ * mismatch notice is rendered.
+ */
+function ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen(): ?WP_Term {
+    if (!is_admin() || !ll_tools_user_can_view_admin_notices()) {
+        return null;
+    }
+
+    if (isset($_GET['wordset'])) {
+        $term = ll_tools_resolve_wordset_term(wp_unslash((string) $_GET['wordset']));
+        if ($term instanceof WP_Term) {
+            return $term;
+        }
+    }
+
+    global $pagenow;
+    if (!is_string($pagenow) || $pagenow !== 'post.php') {
+        return null;
+    }
+
+    $post_id = isset($_GET['post'])
+        ? absint(wp_unslash((string) $_GET['post']))
+        : (isset($_POST['post_ID']) ? absint(wp_unslash((string) $_POST['post_ID'])) : 0);
+    if ($post_id <= 0) {
+        return null;
+    }
+
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'words') {
+        return null;
+    }
+
+    $wordset_terms = wp_get_post_terms($post_id, 'wordset', ['fields' => 'all']);
+    if (is_wp_error($wordset_terms) || count((array) $wordset_terms) !== 1) {
+        return null;
+    }
+
+    $term = reset($wordset_terms);
+    return ($term instanceof WP_Term) ? $term : null;
 }
 
 /**
@@ -1564,8 +1657,11 @@ function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
         return;
     }
 
+    $wordset_term = ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen();
     foreach ($term_ids as $term_id) {
-        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($term_id);
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($term_id, [
+            'wordset' => $wordset_term,
+        ]);
         if (!is_array($notice)) {
             continue;
         }

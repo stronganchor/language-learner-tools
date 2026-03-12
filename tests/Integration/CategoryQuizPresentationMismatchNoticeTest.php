@@ -22,7 +22,30 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
             html_entity_decode((string) ($notice['settings_url'] ?? ''))
         );
         $this->assertStringContainsString(
-            'word-category=' . (string) $fixture['term']->slug,
+            'word_category=' . (string) $fixture['term']->term_id,
+            html_entity_decode((string) ($notice['words_url'] ?? ''))
+        );
+    }
+
+    public function test_mismatch_data_scopes_edit_words_link_to_explicit_wordset_context(): void
+    {
+        $this->setCurrentUserToAdministrator();
+
+        $fixture = $this->createAudioPromptCategoryFixture('image');
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($fixture['term']->term_id, [
+            'wordset' => $fixture['wordset']->slug,
+        ]);
+
+        $this->assertIsArray($notice);
+        $this->assertSame((int) $fixture['wordset']->term_id, (int) ($notice['wordset_id'] ?? 0));
+        $this->assertSame((string) $fixture['wordset']->slug, (string) ($notice['wordset_slug'] ?? ''));
+        $this->assertSame((string) $fixture['wordset']->name, (string) ($notice['wordset_name'] ?? ''));
+        $this->assertStringContainsString(
+            'word_category=' . (string) $fixture['term']->term_id,
+            html_entity_decode((string) ($notice['words_url'] ?? ''))
+        );
+        $this->assertStringContainsString(
+            'wordset=' . (string) $fixture['wordset']->slug,
             html_entity_decode((string) ($notice['words_url'] ?? ''))
         );
     }
@@ -62,7 +85,8 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('will not appear on lesson or quiz pages', $decoded_output);
         $this->assertStringContainsString('change this category\'s quiz presentation', $decoded_output);
         $this->assertStringContainsString('edit the words in this category', $decoded_output);
-        $this->assertStringContainsString('word-category=' . (string) $fixture['term']->slug, $decoded_output);
+        $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
+        $this->assertStringContainsString('wordset=' . (string) $fixture['wordset']->slug, $decoded_output);
     }
 
     public function test_notice_term_ids_include_word_list_category_filter_using_term_id_query_var(): void
@@ -80,7 +104,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
             $_GET = [
                 'post_type' => 'words',
                 'word_category' => (string) $fixture['term']->term_id,
-                'wordset' => 'genc-palu',
+                'wordset' => (string) $fixture['wordset']->slug,
             ];
             $_POST = [];
             $pagenow = 'edit.php';
@@ -97,7 +121,11 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         }
 
         $this->assertSame([(int) $fixture['term']->term_id], $term_ids);
-        $this->assertStringContainsString('notice notice-warning', html_entity_decode($output, ENT_QUOTES, 'UTF-8'));
+        $decoded_output = html_entity_decode($output, ENT_QUOTES, 'UTF-8');
+
+        $this->assertStringContainsString('notice notice-warning', $decoded_output);
+        $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
+        $this->assertStringContainsString('wordset=' . (string) $fixture['wordset']->slug, $decoded_output);
     }
 
     public function test_mismatch_data_returns_null_when_current_option_is_already_best(): void
@@ -127,7 +155,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{term:WP_Term,word_id:int}
+     * @return array{term:WP_Term,word_id:int,wordset:WP_Term}
      */
     private function createAudioPromptCategoryFixture(
         string $option_type,
@@ -146,10 +174,25 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         update_term_meta($term_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($term_id, 'll_quiz_option_type', $option_type);
 
+        $wordset_insert = wp_insert_term(
+            'Quiz Presentation Wordset ' . (string) wp_rand(1000, 9999),
+            'wordset',
+            [
+                'slug' => 'quiz-presentation-wordset-' . (string) wp_rand(1000, 9999),
+            ]
+        );
+
+        $this->assertFalse(is_wp_error($wordset_insert));
+        $this->assertIsArray($wordset_insert);
+
+        $wordset = get_term((int) $wordset_insert['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
         $last_word_id = 0;
         for ($index = 1; $index <= $word_count; $index++) {
             $last_word_id = $this->createWordWithAudioAndMaybeImage(
                 $term_id,
+                (int) $wordset->term_id,
                 'Prompt Notice Word ' . $index,
                 $with_translations ? ('Prompt Notice Translation ' . $index) : '',
                 $index <= $image_count
@@ -162,10 +205,11 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         return [
             'term' => $term,
             'word_id' => $last_word_id,
+            'wordset' => $wordset,
         ];
     }
 
-    private function createWordWithAudioAndMaybeImage(int $category_id, string $title, string $translation, bool $with_image): int
+    private function createWordWithAudioAndMaybeImage(int $category_id, int $wordset_id, string $title, string $translation, bool $with_image): int
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -175,6 +219,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 
         update_post_meta($word_id, 'word_translation', $translation);
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         $audio_id = self::factory()->post->create([
             'post_type' => 'word_audio',
