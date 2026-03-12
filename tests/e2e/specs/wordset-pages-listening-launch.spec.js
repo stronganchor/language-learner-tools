@@ -834,7 +834,7 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
 });
 
-test('starred-only practice continue walks balanced chunks and stops cleanly at exhaustion', async ({ page }) => {
+test('starred-only practice selection launches one full filtered activity', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 13, 'A'),
     22: buildCategoryWordRows(22, 12, 'B'),
@@ -921,7 +921,6 @@ test('starred-only practice continue walks balanced chunks and stops cleanly at 
   });
 
   const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
-  const continueButton = page.locator('#ll-study-results-next-chunk');
   await page.locator('[data-ll-wordset-select-all]').click();
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
   await page.locator('[data-ll-wordset-selection-starred-only]').check();
@@ -932,61 +931,22 @@ test('starred-only practice continue walks balanced chunks and stops cleanly at 
     return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
   }).toBe(1);
 
-  const emitResultsShown = async () => {
-    await page.evaluate(() => {
-      window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-    });
-  };
-
-  await emitResultsShown();
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(2);
-
-  await emitResultsShown();
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(3);
-
-  await emitResultsShown();
-  await expect(continueButton).toBeHidden();
-
-  const launchState = await page.evaluate(() => {
+  const launch = await page.evaluate(() => {
     const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
-    const practiceLaunches = launches.filter((entry) => String(entry && entry.mode || '') === 'practice');
-    const sources = practiceLaunches.map((entry) => String((entry && entry.source) || ''));
-    const chunks = practiceLaunches.map((entry) => Array.isArray(entry && entry.sessionWordIds) ? entry.sessionWordIds.slice() : []);
-    const chunkSizes = chunks.map((ids) => ids.length);
-    const flattened = chunks.reduce((all, ids) => all.concat(ids), []);
-    const uniqueFlattened = Array.from(new Set(flattened));
-    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
-    return {
-      sources,
-      chunkSizes,
-      flattenedCount: flattened.length,
-      uniqueFlattenedCount: uniqueFlattened.length,
-      alerts
-    };
+    return launches.length ? launches[launches.length - 1] : null;
   });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
 
-  expect(launchState.sources).toEqual([
-    'wordset_chunk_start',
-    'wordset_chunk_continue',
-    'wordset_chunk_continue'
-  ]);
-  expect(launchState.chunkSizes.slice().sort((a, b) => a - b)).toEqual([12, 12, 13]);
-  expect(launchState.flattenedCount).toBe(37);
-  expect(launchState.uniqueFlattenedCount).toBe(37);
-  expect(launchState.alerts).toEqual([]);
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds.length).toBe(37);
+  expect(new Set(launch.sessionWordIds).size).toBe(37);
+  expect(alerts).toEqual([]);
 });
 
-test('practice selection keeps categories separate when each selected category has enough words', async ({ page }) => {
+test('practice selection launches the full selected category scope', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 7, 'ImgA'),
     22: buildCategoryWordRows(22, 6, 'ImgB'),
@@ -1060,8 +1020,6 @@ test('practice selection keeps categories separate when each selected category h
   });
 
   const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-
   await page.locator('[data-ll-wordset-select-all]').click();
   await expect(selectionPracticeButton).toBeEnabled();
   await selectionPracticeButton.click();
@@ -1070,71 +1028,21 @@ test('practice selection keeps categories separate when each selected category h
     return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
   }).toBe(1);
 
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(2);
-
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(3);
-
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  await expect(continueButton).toBeHidden();
-
-  const launchState = await page.evaluate(() => {
+  const launch = await page.evaluate(() => {
     const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
-    const practiceLaunches = launches.filter((entry) => String(entry && entry.mode || '') === 'practice');
-    const sources = practiceLaunches.map((entry) => String((entry && entry.source) || ''));
-    const chunkSizes = practiceLaunches.map((entry) => (
-      Array.isArray(entry && entry.sessionWordIds) ? entry.sessionWordIds.length : 0
-    ));
-    const categoryScopes = practiceLaunches.map((entry) => {
-      const ids = Array.isArray(entry && entry.categoryIds) ? entry.categoryIds.slice() : [];
-      return ids.sort((a, b) => a - b).join(',');
-    });
-    const flattened = practiceLaunches.reduce((all, entry) => {
-      const ids = Array.isArray(entry && entry.sessionWordIds) ? entry.sessionWordIds : [];
-      return all.concat(ids);
-    }, []);
-    const uniqueFlattened = Array.from(new Set(flattened));
-    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
-    return {
-      sources,
-      chunkSizes,
-      categoryScopes,
-      flattenedCount: flattened.length,
-      uniqueFlattenedCount: uniqueFlattened.length,
-      alerts
-    };
+    return launches.length ? launches[launches.length - 1] : null;
   });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
 
-  expect(launchState.sources).toEqual([
-    'wordset_chunk_start',
-    'wordset_chunk_continue',
-    'wordset_chunk_continue'
-  ]);
-  expect(launchState.chunkSizes.slice().sort((a, b) => a - b)).toEqual([6, 7, 8]);
-  expect(launchState.categoryScopes.slice().sort()).toEqual(['11', '22', '33']);
-  expect(launchState.flattenedCount).toBe(21);
-  expect(launchState.uniqueFlattenedCount).toBe(21);
-  expect(launchState.alerts).toEqual([]);
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(alerts).toEqual([]);
 });
 
-test('starred-only selection skips under-minimum groups and keeps eligible categories separate', async ({ page }) => {
+test('starred-only practice selection keeps small categories in the same full activity', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 7, 'ImgA'),
     22: buildCategoryWordRows(22, 6, 'ImgB'),
@@ -1219,8 +1127,6 @@ test('starred-only selection skips under-minimum groups and keeps eligible categ
   });
 
   const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-
   await page.locator('[data-ll-wordset-select-all]').click();
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
   await page.locator('[data-ll-wordset-selection-starred-only]').check();
@@ -1231,43 +1137,21 @@ test('starred-only selection skips under-minimum groups and keeps eligible categ
     return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
   }).toBe(1);
 
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(2);
-
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  await expect(continueButton).toBeHidden();
-
-  const launchState = await page.evaluate(() => {
+  const launch = await page.evaluate(() => {
     const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
-    const practiceLaunches = launches.filter((entry) => String(entry && entry.mode || '') === 'practice');
-    const sources = practiceLaunches.map((entry) => String((entry && entry.source) || ''));
-    const categoryScopes = practiceLaunches.map((entry) => {
-      const ids = Array.isArray(entry && entry.categoryIds) ? entry.categoryIds.slice() : [];
-      return ids.sort((a, b) => a - b).join(',');
-    });
-    const chunkSizes = practiceLaunches.map((entry) => (
-      Array.isArray(entry && entry.sessionWordIds) ? entry.sessionWordIds.length : 0
-    ));
-    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
-    return { sources, categoryScopes, chunkSizes, alerts };
+    return launches.length ? launches[launches.length - 1] : null;
   });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
 
-  expect(launchState.sources).toEqual(['wordset_chunk_start', 'wordset_chunk_continue']);
-  expect(launchState.categoryScopes.slice().sort()).toEqual(['11', '22']);
-  expect(launchState.chunkSizes.slice().sort((a, b) => a - b)).toEqual([6, 7]);
-  expect(launchState.alerts).toEqual([]);
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds.length).toBe(17);
+  expect(alerts).toEqual([]);
 });
 
-test('practice selection hides the category title when it must mix categories to reach minimum size', async ({ page }) => {
+test('practice selection keeps category titles visible for small multi-category runs', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 4, 'MixA'),
     22: buildCategoryWordRows(22, 4, 'MixB')
@@ -1346,9 +1230,9 @@ test('practice selection hides the category title when it must mix categories to
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
-  expect(launch.sessionWordIds).toHaveLength(8);
-  expect(launch.hideCategoryDisplay).toBeTruthy();
-  expect(flashState.hideCategoryDisplay).toBeTruthy();
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.hideCategoryDisplay).toBeFalsy();
+  expect(flashState.hideCategoryDisplay).toBeFalsy();
   expect(flashState.categoryDisplayOverride).toBe('');
 });
 

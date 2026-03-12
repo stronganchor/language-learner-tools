@@ -684,6 +684,66 @@
         }
         return State.currentCategoryName;
     }
+
+    function getWordsetCacheKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
+        const fallback = (typeof data.wordsetFallback === 'undefined') ? true : !!data.wordsetFallback;
+        const sessionRaw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        const sessionKey = sessionRaw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; })
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+        return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
+    }
+
+    function getCategoryCacheKey(categoryName) {
+        return getWordsetCacheKey() + '::' + String(categoryName || '');
+    }
+
+    function isCategoryLoaded(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) {
+            return false;
+        }
+        const loader = root.FlashcardLoader;
+        if (loader && typeof loader.isCategoryLoaded === 'function') {
+            return !!loader.isCategoryLoaded(name);
+        }
+        const rows = State.wordsByCategory && State.wordsByCategory[name];
+        if (Array.isArray(rows) && rows.length > 0) {
+            return true;
+        }
+        const loaded = loader && Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
+        const cacheKey = getCategoryCacheKey(name);
+        return loaded.indexOf(cacheKey) !== -1 || loaded.indexOf(name) !== -1;
+    }
+
+    function queuePendingCategoryLoad(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) {
+            return false;
+        }
+
+        const practiceMode = root.LLFlashcards &&
+            root.LLFlashcards.Modes &&
+            root.LLFlashcards.Modes.Practice;
+        if (practiceMode && typeof practiceMode.queueCategoryLoad === 'function') {
+            practiceMode.queueCategoryLoad(name);
+            return true;
+        }
+
+        const loader = root.FlashcardLoader;
+        if (loader && typeof loader.loadResourcesForCategory === 'function') {
+            loader.loadResourcesForCategory(name, null, { earlyCallback: true });
+            return true;
+        }
+
+        return false;
+    }
     function categoryRequiresAudio(nameOrConfig) {
         const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
         const opt = cfg.option_type || cfg.mode;
@@ -1222,6 +1282,12 @@
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {
         if (!candidateCategory || !candidateCategory.length) {
+            if (candidateCategoryName && !isCategoryLoaded(candidateCategoryName)) {
+                State.completedCategories = State.completedCategories || {};
+                State.completedCategories[candidateCategoryName] = false;
+                queuePendingCategoryLoad(candidateCategoryName);
+                return null;
+            }
             State.completedCategories = State.completedCategories || {};
             State.completedCategories[candidateCategoryName] = true;
             return null;
@@ -1389,9 +1455,14 @@
             if (w) { found = w; break; }
         }
         if (!found && Array.isArray(State.categoryNames) && State.categoryNames.length) {
-            // Nothing left to serve; mark remaining as completed to allow results.
             State.completedCategories = State.completedCategories || {};
-            State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+            State.categoryNames.forEach(function (name) {
+                if (isCategoryLoaded(name)) {
+                    State.completedCategories[name] = true;
+                    return;
+                }
+                State.completedCategories[name] = false;
+            });
             pruneCompletedCategories();
         } else {
             pruneCompletedCategories();
@@ -1481,7 +1552,9 @@
             }
             if (Array.isArray(State.categoryNames)) {
                 State.completedCategories = State.completedCategories || {};
-                State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+                State.categoryNames.forEach(function (name) {
+                    State.completedCategories[name] = isCategoryLoaded(name);
+                });
             }
             pruneCompletedCategories();
             return null;

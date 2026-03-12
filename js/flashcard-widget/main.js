@@ -3113,7 +3113,10 @@
                     State,
                     runQuizRound,
                     startQuizRound,
-                    updatePracticeModeProgress
+                    updatePracticeModeProgress,
+                    FlashcardLoader: root.FlashcardLoader,
+                    Dom,
+                    setGuardedTimeout
                 }))
                 : false;
 

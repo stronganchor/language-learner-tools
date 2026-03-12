@@ -951,6 +951,28 @@
             });
         }
 
+        function isCategoryLoaded(categoryName) {
+            const name = String(categoryName || '').trim();
+            if (!name) {
+                return false;
+            }
+            const rows = window.wordsByCategory && window.wordsByCategory[name];
+            if (Array.isArray(rows) && rows.length > 0) {
+                return true;
+            }
+            const cacheKey = ensureWordsetCacheKey() + '::' + name;
+            return loadedCategories.includes(cacheKey) || loadedCategories.includes(name);
+        }
+
+        function isCategoryLoading(categoryName) {
+            const name = String(categoryName || '').trim();
+            if (!name) {
+                return false;
+            }
+            const cacheKey = ensureWordsetCacheKey() + '::' + name;
+            return !!inFlightRequests[cacheKey];
+        }
+
         /**
          * Loads resources for a specific word based on display mode.
          *
@@ -1097,6 +1119,8 @@
             loadResourcesForCategory,
             preloadCategoryResources,
             preloadNextCategories,
+            isCategoryLoaded,
+            isCategoryLoading,
             loadResourcesForWord,
             processFetchedWordData,
             randomlySort,

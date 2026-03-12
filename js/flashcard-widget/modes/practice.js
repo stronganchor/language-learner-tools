@@ -11,10 +11,227 @@
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
     const PRACTICE_PROMPT_ORDER = ['question', 'isolation', 'introduction', 'sentence', 'in-sentence'];
+    const PRACTICE_CATEGORY_PREFETCH_BATCH_SIZE = 2;
+    const PRACTICE_CATEGORY_PREFETCH_WAIT_MS = 2600;
+    const PRACTICE_CATEGORY_PREFETCH_TRIGGER_ROUND = 2;
+    const pendingCategoryLoads = {};
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
+    }
+
+    function getWordsetCacheKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
+        const fallback = (typeof data.wordsetFallback === 'undefined') ? true : !!data.wordsetFallback;
+        const sessionRaw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        const sessionKey = sessionRaw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; })
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+        return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
+    }
+
+    function getCategoryCacheKey(categoryName) {
+        return getWordsetCacheKey() + '::' + String(categoryName || '');
+    }
+
+    function isCategoryLoaded(categoryName, loader) {
+        const name = String(categoryName || '');
+        if (!name) {
+            return false;
+        }
+        const api = loader || root.FlashcardLoader;
+        if (api && typeof api.isCategoryLoaded === 'function') {
+            return !!api.isCategoryLoaded(name);
+        }
+        const rows = State.wordsByCategory && State.wordsByCategory[name];
+        if (Array.isArray(rows) && rows.length > 0) {
+            return true;
+        }
+        const loaded = api && Array.isArray(api.loadedCategories) ? api.loadedCategories : [];
+        const key = getCategoryCacheKey(name);
+        return loaded.indexOf(key) !== -1 || loaded.indexOf(name) !== -1;
+    }
+
+    function isCategoryLoading(categoryName, loader) {
+        const name = String(categoryName || '').trim();
+        const api = loader || root.FlashcardLoader;
+        if (!name || !api) {
+            return false;
+        }
+        if (typeof api.isCategoryLoading === 'function') {
+            return !!api.isCategoryLoading(name);
+        }
+        return false;
+    }
+
+    function getRemainingCategoryOrder() {
+        const completed = (State.completedCategories && typeof State.completedCategories === 'object')
+            ? State.completedCategories
+            : {};
+        const seen = {};
+        const ordered = [];
+        const sources = [
+            Array.isArray(State.categoryNames) ? State.categoryNames : [],
+            Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : []
+        ];
+
+        sources.forEach(function (list) {
+            (Array.isArray(list) ? list : []).forEach(function (rawName) {
+                const name = String(rawName || '').trim();
+                if (!name || seen[name] || completed[name]) {
+                    return;
+                }
+                seen[name] = true;
+                ordered.push(name);
+            });
+        });
+
+        return ordered;
+    }
+
+    function clearPendingCategoryLoads() {
+        Object.keys(pendingCategoryLoads).forEach(function (key) {
+            delete pendingCategoryLoads[key];
+        });
+    }
+
+    function queueCategoryLoad(categoryName, loader) {
+        const name = String(categoryName || '').trim();
+        const api = loader || root.FlashcardLoader;
+        if (!name || !api || typeof api.loadResourcesForCategory !== 'function') {
+            return Promise.resolve('');
+        }
+
+        const cacheKey = getCategoryCacheKey(name);
+        if (pendingCategoryLoads[cacheKey]) {
+            return pendingCategoryLoads[cacheKey];
+        }
+        if (isCategoryLoaded(name, api)) {
+            return Promise.resolve(cacheKey);
+        }
+        if (isCategoryLoading(name, api)) {
+            const waitForInFlight = new Promise(function (resolve) {
+                const poll = function () {
+                    if (isCategoryLoaded(name, api) || !isCategoryLoading(name, api)) {
+                        resolve(cacheKey);
+                        return;
+                    }
+                    setTimeout(poll, 80);
+                };
+                poll();
+            }).finally(function () {
+                delete pendingCategoryLoads[cacheKey];
+            });
+            pendingCategoryLoads[cacheKey] = waitForInFlight;
+            return waitForInFlight;
+        }
+
+        const promise = new Promise(function (resolve) {
+            try {
+                api.loadResourcesForCategory(name, function () {
+                    resolve(cacheKey);
+                }, { earlyCallback: true });
+            } catch (_) {
+                resolve(cacheKey);
+            }
+        }).finally(function () {
+            delete pendingCategoryLoads[cacheKey];
+        });
+
+        pendingCategoryLoads[cacheKey] = promise;
+        return promise;
+    }
+
+    function getPendingCategoryNames(loader) {
+        const api = loader || root.FlashcardLoader;
+        return getRemainingCategoryOrder().filter(function (categoryName) {
+            return !isCategoryLoaded(categoryName, api);
+        });
+    }
+
+    function hasPendingOrUnloadedCategories(loader) {
+        if (Object.keys(pendingCategoryLoads).length > 0) {
+            return true;
+        }
+        const pendingNames = getPendingCategoryNames(loader);
+        if (pendingNames.length > 0) {
+            return true;
+        }
+        return getRemainingCategoryOrder().some(function (categoryName) {
+            return isCategoryLoading(categoryName, loader);
+        });
+    }
+
+    function maybeQueueCategoryPrefetch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const loader = opts.loader || root.FlashcardLoader;
+        if (!loader || typeof loader.loadResourcesForCategory !== 'function') {
+            return Promise.resolve([]);
+        }
+
+        const pendingNames = getPendingCategoryNames(loader);
+        if (!pendingNames.length) {
+            return Promise.resolve([]);
+        }
+
+        const loadedRemainingCount = getRemainingCategoryOrder().filter(function (categoryName) {
+            return isCategoryLoaded(categoryName, loader);
+        }).length;
+        const roundsInCurrentCategory = Math.max(0, parseInt(State.currentCategoryRoundCount, 10) || 0);
+        const shouldQueue = !!opts.force ||
+            loadedRemainingCount <= 1 ||
+            roundsInCurrentCategory >= PRACTICE_CATEGORY_PREFETCH_TRIGGER_ROUND;
+
+        if (!shouldQueue) {
+            return Promise.resolve([]);
+        }
+
+        const count = Math.max(1, parseInt(opts.count, 10) || PRACTICE_CATEGORY_PREFETCH_BATCH_SIZE);
+        const promises = pendingNames.slice(0, count).map(function (categoryName) {
+            return queueCategoryLoad(categoryName, loader);
+        });
+        return Promise.all(promises).catch(function () {
+            return [];
+        });
+    }
+
+    function waitForPendingCategories(loader, timeoutMs) {
+        maybeQueueCategoryPrefetch({
+            loader: loader,
+            force: true
+        });
+
+        const pending = Object.values(pendingCategoryLoads || {});
+        if (!pending.length) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise(function (resolve) {
+            let settled = false;
+            const finish = function () {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                const hasLoadedWords = getRemainingCategoryOrder().some(function (categoryName) {
+                    const rows = State.wordsByCategory && State.wordsByCategory[categoryName];
+                    return Array.isArray(rows) && rows.length > 0;
+                });
+                resolve(!!hasLoadedWords);
+            };
+
+            pending.forEach(function (promise) {
+                Promise.resolve(promise).then(finish).catch(finish);
+            });
+
+            setTimeout(finish, Math.max(700, parseInt(timeoutMs, 10) || PRACTICE_CATEGORY_PREFETCH_WAIT_MS));
+        });
     }
 
     function getStarredLookup() {
@@ -330,6 +547,7 @@
         State.completedCategories = {};
         State.categoryRepetitionQueues = {};
         State.practiceForcedReplays = {};
+        clearPendingCategoryLoads();
         return true;
     }
 
@@ -386,6 +604,9 @@
     }
 
     function onFirstRoundStart() {
+        maybeQueueCategoryPrefetch({
+            loader: root.FlashcardLoader
+        });
         return true;
     }
 
@@ -396,18 +617,41 @@
         if (picked && starMode === 'weighted' && isStarred(picked.id)) {
             queueForRepetition(picked);
         }
+        maybeQueueCategoryPrefetch({
+            loader: root.FlashcardLoader
+        });
         return picked;
     }
 
     function handleNoTarget(ctx) {
+        const context = (ctx && typeof ctx === 'object') ? ctx : {};
+        const loader = context.FlashcardLoader || root.FlashcardLoader;
+        const restartAfterPendingLoad = function () {
+            if (context.Dom && typeof context.Dom.showLoading === 'function') {
+                try { context.Dom.showLoading(); } catch (_) { /* no-op */ }
+            }
+            waitForPendingCategories(loader, PRACTICE_CATEGORY_PREFETCH_WAIT_MS).then(function () {
+                if (!State.widgetActive) {
+                    return;
+                }
+                if (typeof context.startQuizRound === 'function') {
+                    context.startQuizRound();
+                }
+            });
+            return true;
+        };
+
         if (State.isFirstRound) {
             const hasWords = (State.categoryNames || []).some(name => {
                 const words = State.wordsByCategory && State.wordsByCategory[name];
                 return Array.isArray(words) && words.length > 0;
             });
             if (!hasWords) {
-                if (ctx && typeof ctx.showLoadingError === 'function') {
-                    ctx.showLoadingError();
+                if (hasPendingOrUnloadedCategories(loader)) {
+                    return restartAfterPendingLoad();
+                }
+                if (context && typeof context.showLoadingError === 'function') {
+                    context.showLoadingError();
                 }
                 return true;
             }
@@ -471,14 +715,22 @@
                 }
             });
             State.isFirstRound = false;
-            if (ctx && typeof ctx.startQuizRound === 'function') {
-                setTimeout(function () { ctx.startQuizRound(); }, 0);
+            maybeQueueCategoryPrefetch({
+                loader: loader,
+                force: true
+            });
+            if (context && typeof context.startQuizRound === 'function') {
+                setTimeout(function () { context.startQuizRound(); }, 0);
             }
             return true;
         }
 
-        if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
-            ctx.updatePracticeModeProgress();
+        if (hasPendingOrUnloadedCategories(loader)) {
+            return restartAfterPendingLoad();
+        }
+
+        if (context && typeof context.updatePracticeModeProgress === 'function') {
+            context.updatePracticeModeProgress();
         }
         State.transitionTo && State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
         Results.showResults && Results.showResults();
@@ -526,6 +778,7 @@
         selectTargetWord,
         handleNoTarget,
         beforeOptionsFill,
-        configureTargetAudio
+        configureTargetAudio,
+        queueCategoryLoad
     };
 })(window);

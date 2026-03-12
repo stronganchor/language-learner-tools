@@ -132,12 +132,14 @@ async function mountPracticeModeHarness(page, options = {}) {
   const state = Object.assign({
     currentCategoryName: '',
     categoryNames: [],
+    initialCategoryNames: [],
     wordsByCategory: {},
     categoryRepetitionQueues: {},
     practiceForcedReplays: {},
     completedCategories: {},
     lastWordShownId: null,
-    isFirstRound: false
+    isFirstRound: false,
+    widgetActive: true
   }, options.state || {});
 
   await page.goto('about:blank');
@@ -158,7 +160,7 @@ async function mountPracticeModeHarness(page, options = {}) {
           window.__practiceLastTransition = { state, reason };
           return true;
         }
-      }, bootstrap.state),
+    }, bootstrap.state),
       Selection: {
         hasPracticeBridgeWordAvailable: function () {
           return !!bootstrap.hasPracticeBridgeWordAvailable;
@@ -176,10 +178,12 @@ async function mountPracticeModeHarness(page, options = {}) {
       },
       Modes: {}
     };
+    window.FlashcardLoader = bootstrap.flashcardLoader || null;
   }, {
     state,
     hasPracticeBridgeWordAvailable: !!options.hasPracticeBridgeWordAvailable,
     flashcardsData: options.flashcardsData || {},
+    flashcardLoader: options.flashcardLoader || null,
     isUserLoggedIn: !!options.isUserLoggedIn
   });
 
@@ -828,6 +832,74 @@ test('practice selector ends cleanly when no replay is pending instead of adding
   expect(targetId).toBe(0);
 });
 
+test('practice selector keeps unloaded categories pending instead of completing them', async ({ page }) => {
+  const loadedCategory = 'Loaded category';
+  const pendingCategory = 'Pending category';
+  const loadedWord = {
+    id: 2181,
+    title: 'Loaded word',
+    label: 'Loaded word',
+    image: 'https://img.test/loaded-word.jpg',
+    audio: 'https://audio.test/loaded-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: loadedCategory, prompt_type: 'audio', option_type: 'image' },
+      { name: pendingCategory, prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: loadedCategory,
+    wordsByCategory: {
+      [loadedCategory]: [loadedWord],
+      [pendingCategory]: []
+    },
+    optionWordsByCategory: {
+      [loadedCategory]: [loadedWord],
+      [pendingCategory]: []
+    },
+    state: {
+      categoryNames: [loadedCategory, pendingCategory],
+      initialCategoryNames: [loadedCategory, pendingCategory],
+      currentCategoryName: loadedCategory,
+      currentCategory: [loadedWord],
+      categoryRoundCount: {
+        [loadedCategory]: 1,
+        [pendingCategory]: 0
+      },
+      currentCategoryRoundCount: 1,
+      usedWordIDs: [2181],
+      completedCategories: {}
+    }
+  });
+
+  const selectionState = await page.evaluate(() => {
+    window.__practiceQueueLoads = [];
+    window.FlashcardLoader = {
+      isCategoryLoaded(name) {
+        return String(name || '') === 'Loaded category';
+      }
+    };
+    window.LLFlashcards.Modes = window.LLFlashcards.Modes || {};
+    window.LLFlashcards.Modes.Practice = {
+      queueCategoryLoad(name) {
+        window.__practiceQueueLoads.push(String(name || ''));
+      }
+    };
+
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    const completed = window.LLFlashcards.State.completedCategories || {};
+    return {
+      targetId: target ? Number(target.id) : 0,
+      pendingCompleted: !!completed['Pending category'],
+      queueLoads: Array.isArray(window.__practiceQueueLoads) ? window.__practiceQueueLoads.slice() : []
+    };
+  });
+
+  expect(selectionState.targetId).toBe(0);
+  expect(selectionState.pendingCompleted).toBeFalsy();
+  expect(selectionState.queueLoads).toEqual([pendingCategory]);
+});
+
 test('practice selector still avoids immediate repeat when another prompt word exists', async ({ page }) => {
   const category = 'Alternate category';
   const replayWord = {
@@ -925,6 +997,72 @@ test('practice mode ends cleanly instead of restarting forever when only the las
     state: 'showing_results',
     reason: 'Practice replay deadlock avoided'
   });
+});
+
+test('practice mode waits for pending category loads before showing results', async ({ page }) => {
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentCategoryName: 'Loaded category',
+      categoryNames: ['Loaded category', 'Pending category'],
+      initialCategoryNames: ['Loaded category', 'Pending category'],
+      wordsByCategory: {
+        'Loaded category': [],
+        'Pending category': []
+      },
+      categoryRoundCount: {
+        'Loaded category': 1,
+        'Pending category': 0
+      },
+      currentCategoryRoundCount: 2,
+      completedCategories: {}
+    }
+  });
+
+  await page.evaluate(() => {
+    window.FlashcardLoader = {
+      loadedCategories: [],
+      loadResourcesForCategory(name, callback) {
+        if (String(name || '') !== 'Pending category') {
+          return;
+        }
+        setTimeout(() => {
+          window.LLFlashcards.State.wordsByCategory['Pending category'] = [{
+            id: 3001,
+            title: 'Pending word',
+            label: 'Pending word'
+          }];
+          if (typeof callback === 'function') {
+            callback();
+          }
+        }, 40);
+      },
+      isCategoryLoaded(name) {
+        const rows = window.LLFlashcards.State.wordsByCategory[String(name || '')] || [];
+        return Array.isArray(rows) && rows.length > 0;
+      },
+      isCategoryLoading() {
+        return false;
+      }
+    };
+  });
+
+  const outcome = await page.evaluate(async () => {
+    window.LLFlashcards.Modes.Practice.handleNoTarget({
+      startQuizRound: function () {
+        window.__practiceStartQuizRoundCalls += 1;
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 180));
+
+    return {
+      startCalls: window.__practiceStartQuizRoundCalls,
+      showResultsCalls: window.__practiceShowResultsCalls
+    };
+  });
+
+  expect(outcome.startCalls).toBe(1);
+  expect(outcome.showResultsCalls).toBe(0);
 });
 
 test('practice options never include duplicate images', async ({ page }) => {

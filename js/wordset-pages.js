@@ -2986,6 +2986,9 @@
         if (!baseIds.length) {
             return [];
         }
+        if (opts.skipCompatibilityFilter) {
+            return baseIds.slice();
+        }
         const launchMode = normalizeMode(opts.mode || '');
         return filterCategoryIdsByAspectBucket(baseIds, {
             preferCategoryId: parseInt(opts.preferCategoryId, 10) || baseIds[0] || 0,
@@ -6563,6 +6566,52 @@
         };
     }
 
+    function buildSelectionPracticeLaunchPlan(categoryIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
+            return !isCategoryHidden(id);
+        });
+        if (!ids.length) {
+            return {
+                categoryIds: [],
+                sessionWordIds: [],
+                filteredWordCount: 0
+            };
+        }
+
+        const minimumWords = Math.max(1, parseInt(opts.minimumWords, 10) || getSelectionMinimumWordCount());
+        const criteriaKey = resolveSelectionCriteriaKey(opts);
+        const lists = buildWordIdListsByCategory(ids, {
+            starOnly: !!opts.starOnly,
+            hardOnly: !!opts.hardOnly
+        });
+        const filteredWordIds = uniqueIntList(lists.filteredWordIds || []);
+        if (filteredWordIds.length < minimumWords) {
+            return {
+                categoryIds: [],
+                sessionWordIds: [],
+                filteredWordCount: filteredWordIds.length
+            };
+        }
+
+        const filteredCategoryIds = ids.filter(function (categoryId) {
+            return Math.max(0, parseInt(lists.filteredCountByCategory[categoryId], 10) || 0) > 0;
+        });
+        if (!filteredCategoryIds.length) {
+            return {
+                categoryIds: [],
+                sessionWordIds: [],
+                filteredWordCount: filteredWordIds.length
+            };
+        }
+
+        return {
+            categoryIds: filteredCategoryIds,
+            sessionWordIds: criteriaKey ? filteredWordIds : [],
+            filteredWordCount: filteredWordIds.length
+        };
+    }
+
     function buildChunkList(wordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || CHUNK_SIZE);
@@ -6656,8 +6705,9 @@
         return true;
     }
 
-    function filterCategoryIdsForMode(mode, categoryIds) {
+    function filterCategoryIdsForMode(mode, categoryIds, options) {
         const key = normalizeMode(mode);
+        const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
@@ -6665,6 +6715,9 @@
         const byMode = ids.filter(function (id) {
             return categorySupportsMode(key, id);
         });
+        if (opts.skipCompatibilityFilter) {
+            return byMode;
+        }
         return filterCategoryIdsByAspectBucket(byMode, {
             preferCategoryId: byMode[0] || ids[0] || 0,
             requireMatchingPresentation: key === 'learning'
@@ -6900,12 +6953,18 @@
         const baseCategoryIds = uniqueIntList(launch.category_ids && launch.category_ids.length
             ? launch.category_ids
             : ((data.userStudyState && data.userStudyState.category_ids) || state.category_ids || []));
-        const categoryIds = filterCategoryIdsForMode(mode, baseCategoryIds.length ? baseCategoryIds : getVisibleCategoryIds());
+        const sessionWordIds = uniqueIntList(launch.session_word_ids || data.session_word_ids || data.sessionWordIds || []);
+        const launchDetails = (launch.details && typeof launch.details === 'object') ? launch.details : {};
+        const categoryIds = filterCategoryIdsForMode(
+            mode,
+            baseCategoryIds.length ? baseCategoryIds : getVisibleCategoryIds(),
+            {
+                skipCompatibilityFilter: !!launchDetails.preserve_mixed_presentation
+            }
+        );
         if (!categoryIds.length) {
             return null;
         }
-        const sessionWordIds = uniqueIntList(launch.session_word_ids || data.session_word_ids || data.sessionWordIds || []);
-        const launchDetails = (launch.details && typeof launch.details === 'object') ? launch.details : {};
         return {
             mode: mode,
             category_ids: categoryIds,
@@ -7088,7 +7147,9 @@
             chunked: false,
             sessionStarMode: normalizeStarMode(opts.sessionStarMode || item.session_star_mode || 'normal'),
             details: details,
-            categoryLabelOverride: categoryLabelOverride
+            categoryLabelOverride: categoryLabelOverride,
+            allowSessionCategoryDisplay: !!details.allow_session_category_display,
+            skipCompatibilityFilter: !!details.preserve_mixed_presentation
         });
     }
 
@@ -7441,12 +7502,14 @@
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');
         const randomizeSessionCategoryOrder = !!opts.randomizeSessionCategoryOrder;
         const launchDetails = (opts.details && typeof opts.details === 'object') ? Object.assign({}, opts.details) : {};
+        const allowSessionCategoryDisplay = !!(opts.allowSessionCategoryDisplay || launchDetails.allow_session_category_display);
         const requestedCategoryLabelOverride = String(opts.categoryLabelOverride || '').trim();
         const requestedIds = uniqueIntList(categoryIds || []);
         const ids = resolveLaunchCategoryIds(requestedIds, {
             preferCategoryId: requestedIds[0] || 0,
             fallbackCategoryIds: opts.fallbackCategoryIds || [],
-            mode: normalizedMode
+            mode: normalizedMode,
+            skipCompatibilityFilter: !!(opts.skipCompatibilityFilter || launchDetails.preserve_mixed_presentation)
         });
 
         if (!ids.length) {
@@ -7488,7 +7551,8 @@
             }));
             const resolvedCategoryLabelOverride = effectiveRequestedCategoryLabelOverride ||
                 resolveLearningCategoryLabelOverride(finalMode, effectiveCategoryIds, launchDetails, '');
-            const hideCategoryDisplay = !resolvedCategoryLabelOverride &&
+            const hideCategoryDisplay = !allowSessionCategoryDisplay &&
+                !resolvedCategoryLabelOverride &&
                 effectiveSessionIds.length > 0 &&
                 effectiveCategoryIds.length > 1;
             let estimatedResultsTotal = estimateFlashcardResultsWordCount(
@@ -7875,86 +7939,37 @@
                 return;
             }
 
-            const launchPlan = buildSelectionChunkLaunchPlan(selectedIds, {
+            const launchPlan = buildSelectionPracticeLaunchPlan(selectedIds, {
                 starOnly: starredOnlyActive,
                 hardOnly: hardOnlyActive,
-                minimumWords: minimumWordCount,
-                minChunkSize: minimumWordCount,
-                requireMatchingPresentation: true
+                minimumWords: minimumWordCount
             });
-            const chunkEntries = Array.isArray(launchPlan.entries) ? launchPlan.entries : [];
+            const practiceCategoryIds = uniqueIntList(launchPlan.categoryIds || []);
+            const practiceSessionWordIds = uniqueIntList(launchPlan.sessionWordIds || []);
 
-            if (!chunkEntries.length) {
+            if (!practiceCategoryIds.length) {
                 const filteredWordCount = Math.max(0, parseInt(launchPlan.filteredWordCount, 10) || 0);
                 alert(filteredWordCount > 0
                     ? (i18n.noWordsInSelection || 'No quiz words are available for this selection.')
                     : resolveEmptyMessage());
                 return;
             }
-
-            if (normalizedMode === 'listening') {
-                const listeningCategoryIds = uniqueIntList(chunkEntries.reduce(function (out, entry) {
-                    const categoryIds = uniqueIntList(entry && entry.category_ids ? entry.category_ids : []);
-                    categoryIds.forEach(function (id) {
-                        out.push(id);
-                    });
-                    return out;
-                }, []));
-                chunkSession = null;
-                launchFlashcards(normalizedMode, listeningCategoryIds, [], {
-                    source: 'wordset_selection_start',
-                    chunked: false,
-                    sessionStarMode: starredOnlyActive ? 'only' : 'normal'
-                });
-                return;
-            }
-
-            const firstEntry = getChunkSessionEntry({
-                category_ids: [],
-                category_label_override: '',
-                details: {},
-                chunks: chunkEntries
-            }, 0);
-            if (!firstEntry) {
-                alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
-                return;
-            }
-
-            if (chunkEntries.length > 1) {
-                chunkSession = {
-                    mode: normalizedMode,
-                    category_ids: firstEntry.category_ids.slice(),
-                    chunks: chunkEntries.map(function (entry) {
-                        return {
-                            category_ids: uniqueIntList(entry.category_ids || []),
-                            session_word_ids: uniqueIntList(entry.session_word_ids || []),
-                            category_label_override: String(entry.category_label_override || '').trim(),
-                            details: (entry.details && typeof entry.details === 'object') ? Object.assign({}, entry.details) : {}
-                        };
-                    }),
-                    index: 0,
-                    star_mode: starredOnlyActive ? 'only' : 'normal',
-                    category_label_override: ''
-                };
-                launchFlashcards(chunkSession.mode, firstEntry.category_ids, firstEntry.session_word_ids, {
-                    source: 'wordset_chunk_start',
-                    chunked: true,
-                    sessionStarMode: chunkSession.star_mode,
-                    randomizeSessionCategoryOrder: true,
-                    categoryLabelOverride: firstEntry.category_label_override,
-                    details: firstEntry.details
-                });
-                return;
-            }
-
             chunkSession = null;
-            launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
+            const launchDetails = {
+                preserve_mixed_presentation: true,
+                allow_session_category_display: true
+            };
+            if (criteriaKey) {
+                launchDetails.priority_focus = criteriaKey;
+            }
+            launchFlashcards(normalizedMode, practiceCategoryIds, practiceSessionWordIds, {
                 source: 'wordset_selection_start',
                 chunked: false,
                 sessionStarMode: starredOnlyActive ? 'only' : 'normal',
                 randomizeSessionCategoryOrder: true,
-                categoryLabelOverride: firstEntry.category_label_override,
-                details: firstEntry.details
+                allowSessionCategoryDisplay: true,
+                skipCompatibilityFilter: true,
+                details: launchDetails
             });
         });
     }
