@@ -1361,6 +1361,11 @@
     animation: ll-recorder-spin 0.8s linear infinite;
 }
 
+.ll-recording-interface .ll-btn-record.stopping:disabled {
+    opacity: 1 !important;
+    cursor: wait !important;
+}
+
 .ll-recording-interface .ll-btn-record svg {
     width: var(--ll-recorder-record-icon) !important;
     height: var(--ll-recorder-record-icon) !important;

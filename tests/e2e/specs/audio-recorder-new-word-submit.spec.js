@@ -527,6 +527,7 @@ async function mountRecorder(page) {
       include_types: '',
       exclude_types: '',
       auto_process_recordings: false,
+      stop_delay_ms: 500,
       current_user_id: 10,
       hidden_words: [],
       hidden_count: 0,
@@ -565,6 +566,10 @@ test('pending new-word transcription does not block save and advances to the int
   await expect(recordButton).toHaveClass(/recording/);
 
   await recordButton.click();
+  await expect(recordButton).toHaveClass(/stopping/);
+  await expect(recordButton).toBeDisabled();
+  await page.waitForTimeout(150);
+  await expect(page.locator('#ll-new-word-start')).toBeHidden();
   await expect(page.locator('#ll-new-word-start')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.__llTestState.transcribeRequests)).toBe(1);
 

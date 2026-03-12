@@ -1095,6 +1095,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         'include_types'    => $atts['include_recording_types'],
         'exclude_types'    => $atts['exclude_recording_types'],
         'auto_process_recordings' => $auto_process_recordings,
+        'stop_delay_ms'    => max(0, (int) apply_filters('ll_tools_recorder_stop_delay_ms', 500)),
         'transcribe_poll_attempts' => (int) apply_filters('ll_tools_recorder_transcribe_poll_attempts', 20),
         'transcribe_poll_interval_ms' => (int) apply_filters('ll_tools_recorder_transcribe_poll_interval_ms', 1200),
         'current_user_id'  => get_current_user_id(),

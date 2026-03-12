@@ -38,6 +38,7 @@
     let categorySelectDocumentBound = false;
     let recordingStartToken = 0;
     let pendingRecordingStart = null;
+    let pendingRecordingStop = null;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -65,6 +66,10 @@
     const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
         ? transcribePollIntervalRaw
         : 1200;
+    const recordingStopDelayMsRaw = parseInt(window.ll_recorder_data?.stop_delay_ms, 10);
+    const recordingStopDelayMs = Number.isFinite(recordingStopDelayMsRaw) && recordingStopDelayMsRaw >= 0
+        ? recordingStopDelayMsRaw
+        : 500;
     const processingDefaults = {
         enableTrim: true,
         enableNoise: true,
@@ -530,7 +535,7 @@
 
         controls.recordBtn.disabled = true;
         controls.recordBtn.innerHTML = icons.loading;
-        controls.recordBtn.classList.remove('recording');
+        controls.recordBtn.classList.remove('recording', 'stopping');
         controls.recordBtn.classList.add('starting');
         resetMicLevelIndicator(controls);
 
@@ -591,6 +596,53 @@
 
     function isRecordingStartupPending() {
         return !!pendingRecordingStart;
+    }
+
+    function clearPendingRecordingStop(options = {}) {
+        if (!pendingRecordingStop) return;
+
+        clearTimeout(pendingRecordingStop.timerId);
+
+        const controls = pendingRecordingStop.controls;
+        if (controls?.recordBtn) {
+            controls.recordBtn.classList.remove('stopping');
+            if (!options.keepDisabled) {
+                controls.recordBtn.disabled = false;
+            }
+        }
+        if (controls?.isNewWordPanel && window.llRecorder?.newWordBackBtn && !options.keepDisabled) {
+            window.llRecorder.newWordBackBtn.disabled = false;
+        }
+
+        pendingRecordingStop = null;
+    }
+
+    function isRecordingStopPending() {
+        return !!pendingRecordingStop;
+    }
+
+    function queueRecordingStop(controls) {
+        if (!controls || pendingRecordingStop) return;
+
+        if (controls.recordBtn) {
+            controls.recordBtn.disabled = true;
+            controls.recordBtn.classList.add('stopping');
+        }
+        if (controls.isNewWordPanel && window.llRecorder?.newWordBackBtn) {
+            window.llRecorder.newWordBackBtn.disabled = true;
+        }
+
+        // Give speakers a brief grace window so an early tap does not clip the ending.
+        pendingRecordingStop = {
+            controls,
+            timerId: window.setTimeout(() => {
+                const pending = pendingRecordingStop;
+                if (!pending) return;
+
+                clearPendingRecordingStop({ keepDisabled: true });
+                stopRecordingNow(pending.controls);
+            }, recordingStopDelayMs)
+        };
     }
 
     function setNewWordActionState(disabled) {
@@ -1783,6 +1835,9 @@
     }
 
     async function handleNewWordRecordToggle() {
+        if (isRecordingStopPending()) {
+            return;
+        }
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             stopRecording();
             return;
@@ -3312,11 +3367,16 @@
         const el = window.llRecorder;
         stopMicLevelVisualizer();
         clearRecordingStartup();
+        clearPendingRecordingStop();
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
         clearNewWordStatus();
         if (el.recordBtn) {
             el.recordBtn.style.display = 'inline-flex';
             el.recordBtn.innerHTML = icons.record;
-            el.recordBtn.classList.remove('recording', 'starting');
+            el.recordBtn.classList.remove('recording', 'starting', 'stopping');
             el.recordBtn.disabled = false;
         }
         if (el.skipBtn) el.skipBtn.disabled = false;
@@ -3339,7 +3399,7 @@
         if (el.newWordRecordBtn) {
             el.newWordRecordBtn.style.display = 'inline-flex';
             el.newWordRecordBtn.innerHTML = icons.record;
-            el.newWordRecordBtn.classList.remove('recording', 'starting');
+            el.newWordRecordBtn.classList.remove('recording', 'starting', 'stopping');
             el.newWordRecordBtn.disabled = false;
         }
         if (el.newWordRecordingIndicator) {
@@ -3391,7 +3451,7 @@
     }
 
     async function toggleRecording() {
-        if (isRecordingStartupPending()) {
+        if (isRecordingStartupPending() || isRecordingStopPending()) {
             return;
         }
         if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -3465,7 +3525,7 @@
             });
             controls.recordBtn.innerHTML = icons.stop;
             controls.recordBtn.disabled = false;
-            controls.recordBtn.classList.remove('starting');
+            controls.recordBtn.classList.remove('starting', 'stopping');
             controls.recordBtn.classList.add('recording');
             if (controls.indicator) {
                 controls.indicator.classList.remove('is-starting');
@@ -3580,15 +3640,36 @@
         return msg;
     }
 
-    function stopRecording() {
-        const controls = activeRecordingControls || getActiveControls();
+    function stopRecordingNow(controlsOverride) {
+        const controls = controlsOverride || activeRecordingControls || getActiveControls();
         stopMicLevelVisualizer(controls);
+
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
 
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            clearInterval(timerInterval);
+            if (mediaRecorder.stream && typeof mediaRecorder.stream.getTracks === 'function') {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
         }
+    }
+
+    function stopRecording() {
+        const controls = activeRecordingControls || getActiveControls();
+        if (!mediaRecorder || mediaRecorder.state !== 'recording') {
+            return;
+        }
+        if (isRecordingStopPending()) {
+            return;
+        }
+        if (recordingStopDelayMs > 0) {
+            queueRecordingStop(controls);
+            return;
+        }
+        stopRecordingNow(controls);
     }
 
     function updateTimer() {
@@ -3610,6 +3691,7 @@
         currentBlob = new Blob(audioChunks, { type: mimeType });
 
         if (controls.recordBtn) {
+            controls.recordBtn.classList.remove('recording', 'stopping');
             controls.recordBtn.style.display = 'none';
             controls.recordBtn.disabled = true;
         }
@@ -3624,6 +3706,9 @@
         }
         if (isNewWordPanelActive() && el.newWordStartBtn) {
             el.newWordStartBtn.disabled = false;
+        }
+        if (isNewWordPanelActive() && el.newWordBackBtn) {
+            el.newWordBackBtn.disabled = false;
         }
 
         if (isNewWordPanelActive()) {
