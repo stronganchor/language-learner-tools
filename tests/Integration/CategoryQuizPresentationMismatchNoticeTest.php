@@ -5,7 +5,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 {
     public function test_mismatch_data_recommends_text_when_more_audio_words_have_text_than_images(): void
     {
-        $this->setCurrentUserToLlToolsAdmin();
+        $this->setCurrentUserToAdministrator();
 
         $fixture = $this->createAudioPromptCategoryFixture('image');
         $notice = ll_tools_get_category_quiz_presentation_mismatch_data($fixture['term']->term_id);
@@ -15,6 +15,8 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertSame('text_translation', (string) ($notice['recommended_config']['option_type'] ?? ''));
         $this->assertSame(10, (int) ($notice['current_count'] ?? -1));
         $this->assertSame(12, (int) ($notice['recommended_count'] ?? -1));
+        $this->assertSame(12, (int) ($notice['published_count'] ?? -1));
+        $this->assertSame(2, (int) ($notice['mismatch_count'] ?? -1));
         $this->assertStringContainsString(
             'tag_ID=' . (string) $fixture['term']->term_id,
             html_entity_decode((string) ($notice['settings_url'] ?? ''))
@@ -27,7 +29,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 
     public function test_admin_notice_renders_on_word_edit_screen_for_mismatched_category(): void
     {
-        $this->setCurrentUserToLlToolsAdmin();
+        $this->setCurrentUserToAdministrator();
 
         $fixture = $this->createAudioPromptCategoryFixture('image');
 
@@ -56,6 +58,8 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString((string) $fixture['term']->name, $decoded_output);
         $this->assertStringContainsString('Play audio -> Images', $decoded_output);
         $this->assertStringContainsString('Play audio -> Text (translation)', $decoded_output);
+        $this->assertStringContainsString('published words currently appear', $decoded_output);
+        $this->assertStringContainsString('will not appear on lesson or quiz pages', $decoded_output);
         $this->assertStringContainsString('change this category\'s quiz presentation', $decoded_output);
         $this->assertStringContainsString('edit the words in this category', $decoded_output);
         $this->assertStringContainsString('word-category=' . (string) $fixture['term']->slug, $decoded_output);
@@ -63,7 +67,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 
     public function test_mismatch_data_returns_null_when_current_option_is_already_best(): void
     {
-        $this->setCurrentUserToLlToolsAdmin();
+        $this->setCurrentUserToAdministrator();
 
         $fixture = $this->createAudioPromptCategoryFixture('text_translation');
         $notice = ll_tools_get_category_quiz_presentation_mismatch_data($fixture['term']->term_id);
@@ -71,10 +75,31 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertNull($notice);
     }
 
+    public function test_mismatch_data_can_recommend_text_title_when_translation_text_is_missing(): void
+    {
+        $this->setCurrentUserToAdministrator();
+
+        $fixture = $this->createAudioPromptCategoryFixture('image', 12, 10, false);
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($fixture['term']->term_id);
+
+        $this->assertIsArray($notice);
+        $this->assertSame('image', (string) ($notice['current_config']['option_type'] ?? ''));
+        $this->assertSame('text_title', (string) ($notice['recommended_config']['option_type'] ?? ''));
+        $this->assertSame(10, (int) ($notice['current_count'] ?? -1));
+        $this->assertSame(12, (int) ($notice['recommended_count'] ?? -1));
+        $this->assertSame(2, (int) ($notice['mismatch_count'] ?? -1));
+        $this->assertTrue((bool) ($notice['recommended_changes_presentation'] ?? false));
+    }
+
     /**
      * @return array{term:WP_Term,word_id:int}
      */
-    private function createAudioPromptCategoryFixture(string $option_type): array
+    private function createAudioPromptCategoryFixture(
+        string $option_type,
+        int $word_count = 12,
+        int $image_count = 10,
+        bool $with_translations = true
+    ): array
     {
         $category_name = 'Quiz Presentation Notice ' . (string) wp_rand(1000, 9999) . ' ' . $option_type;
         $term_insert = wp_insert_term($category_name, 'word-category');
@@ -87,12 +112,12 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         update_term_meta($term_id, 'll_quiz_option_type', $option_type);
 
         $last_word_id = 0;
-        for ($index = 1; $index <= 12; $index++) {
+        for ($index = 1; $index <= $word_count; $index++) {
             $last_word_id = $this->createWordWithAudioAndMaybeImage(
                 $term_id,
                 'Prompt Notice Word ' . $index,
-                'Prompt Notice Translation ' . $index,
-                $index <= 10
+                $with_translations ? ('Prompt Notice Translation ' . $index) : '',
+                $index <= $image_count
             );
         }
 
@@ -138,14 +163,9 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         return (int) $word_id;
     }
 
-    private function setCurrentUserToLlToolsAdmin(): void
+    private function setCurrentUserToAdministrator(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
-        $admin = get_user_by('id', $admin_id);
-
-        $this->assertInstanceOf(WP_User::class, $admin);
-
-        $admin->add_cap('view_ll_tools');
         wp_set_current_user($admin_id);
     }
 }

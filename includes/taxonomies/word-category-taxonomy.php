@@ -1231,12 +1231,139 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
 }
 
 /**
- * Return notice data when an audio-prompt category's stored option type no
- * longer matches the best supported option type for the available words.
+ * Determine whether the current user should see LL Tools admin notices.
  *
- * The automatic category-default flow only chooses between audio->image and
- * audio->text variants, so this notice intentionally stays scoped to that
- * family of quiz presentations.
+ * Some installations rely on the custom `view_ll_tools` capability, while
+ * others use full administrators with `manage_options`.
+ */
+function ll_tools_user_can_view_admin_notices(): bool {
+    return is_user_logged_in() && (current_user_can('view_ll_tools') || current_user_can('manage_options'));
+}
+
+/**
+ * Count published words assigned to a category.
+ *
+ * @param int|WP_Term $term Category term or term ID.
+ * @return int
+ */
+function ll_tools_get_category_published_word_count($term): int {
+    static $request_cache = [];
+
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return 0;
+    }
+
+    $term_id = (int) $term->term_id;
+    $category_version = function_exists('ll_tools_get_category_cache_version')
+        ? (int) ll_tools_get_category_cache_version($term_id)
+        : 1;
+    if ($category_version < 1) {
+        $category_version = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'term_id' => $term_id,
+        'term_slug' => (string) $term->slug,
+        'version' => $category_version,
+        'schema' => 1,
+    ]));
+    if (array_key_exists($request_cache_key, $request_cache)) {
+        return (int) $request_cache[$request_cache_key];
+    }
+
+    $cache_key = 'll_wc_pub_words_' . $request_cache_key;
+    $cache_group = 'll_tools_quiz_category';
+    $cache_ttl = 6 * HOUR_IN_SECONDS;
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached !== false) {
+        $request_cache[$request_cache_key] = (int) $cached;
+        return (int) $cached;
+    }
+
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => false,
+        'suppress_filters' => true,
+        'tax_query' => [[
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => [$term_id],
+        ]],
+    ]);
+
+    $count = max(0, (int) $query->found_posts);
+    $request_cache[$request_cache_key] = $count;
+    wp_cache_set($cache_key, $count, $cache_group, $cache_ttl);
+
+    return $count;
+}
+
+/**
+ * Count audio-prompt category coverage for the option types relevant to the
+ * automatic presentation heuristic.
+ *
+ * @param int|WP_Term $term Category term or term ID.
+ * @return array<string,int>
+ */
+function ll_tools_get_audio_prompt_category_option_counts($term): array {
+    static $request_cache = [];
+
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return [
+            'image' => 0,
+            'text_translation' => 0,
+            'text_title' => 0,
+        ];
+    }
+
+    $term_id = (int) $term->term_id;
+    $category_version = function_exists('ll_tools_get_category_cache_version')
+        ? (int) ll_tools_get_category_cache_version($term_id)
+        : 1;
+    if ($category_version < 1) {
+        $category_version = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'term_id' => $term_id,
+        'term_slug' => (string) $term->slug,
+        'version' => $category_version,
+        'schema' => 1,
+    ]));
+    if (isset($request_cache[$request_cache_key]) && is_array($request_cache[$request_cache_key])) {
+        return $request_cache[$request_cache_key];
+    }
+
+    $base_config = [
+        'prompt_type' => 'audio',
+        '__skip_quiz_config_merge' => true,
+    ];
+
+    $request_cache[$request_cache_key] = [
+        'image' => ll_get_words_by_category_count($term->name, 'image', null, array_merge($base_config, ['option_type' => 'image'])),
+        'text_translation' => ll_get_words_by_category_count($term->name, 'text', null, array_merge($base_config, ['option_type' => 'text_translation'])),
+        'text_title' => ll_get_words_by_category_count($term->name, 'text', null, array_merge($base_config, ['option_type' => 'text_title'])),
+    ];
+
+    return $request_cache[$request_cache_key];
+}
+
+/**
+ * Return notice data when an audio-prompt category has published words that
+ * no longer match its current presentation.
+ *
+ * If another audio-prompt presentation would include more words, include that
+ * as a suggested alternative in the notice payload.
  *
  * @param int|WP_Term $term Category term or term ID.
  * @return array|null
@@ -1281,40 +1408,41 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
         return null;
     }
 
-    $recommended_option_type = ll_tools_default_option_type_for_category($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    if (
-        !in_array($recommended_option_type, ['image', 'text_translation', 'text_title'], true)
-        || $recommended_option_type === $current_option_type
-    ) {
+    $published_count = ll_tools_get_category_published_word_count($term);
+    if ($published_count <= 0) {
         $request_cache[$request_cache_key] = null;
         return null;
     }
 
-    $current_count = ll_get_words_by_category_count(
-        $term->name,
-        $current_option_type,
-        null,
-        array_merge($current_config, ['__skip_quiz_config_merge' => true])
-    );
+    $option_counts = ll_tools_get_audio_prompt_category_option_counts($term);
+    $current_count = isset($option_counts[$current_option_type])
+        ? max(0, (int) $option_counts[$current_option_type])
+        : ll_get_words_by_category_count(
+            $term->name,
+            $current_option_type,
+            null,
+            array_merge($current_config, ['__skip_quiz_config_merge' => true])
+        );
+
+    $mismatch_count = max(0, $published_count - $current_count);
+    if ($mismatch_count <= 0) {
+        $request_cache[$request_cache_key] = null;
+        return null;
+    }
+
+    $recommended_option_type = $current_option_type;
+    $recommended_count = $current_count;
+    foreach ($option_counts as $option_type => $count) {
+        $count = max(0, (int) $count);
+        if ($count > $recommended_count) {
+            $recommended_option_type = (string) $option_type;
+            $recommended_count = $count;
+        }
+    }
 
     $recommended_config = $current_config;
     $recommended_config['option_type'] = $recommended_option_type;
     $recommended_config['use_titles'] = ($recommended_option_type === 'text_title');
-
-    $recommended_count = ll_get_words_by_category_count(
-        $term->name,
-        $recommended_option_type,
-        null,
-        array_merge($recommended_config, ['__skip_quiz_config_merge' => true])
-    );
-
-    if (
-        $recommended_count <= $current_count
-        || max($current_count, $recommended_count) < max(1, (int) LL_TOOLS_MIN_WORDS_PER_QUIZ)
-    ) {
-        $request_cache[$request_cache_key] = null;
-        return null;
-    }
 
     $settings_url = get_edit_term_link($term_id, 'word-category', 'words');
     if (!is_string($settings_url) || $settings_url === '') {
@@ -1333,12 +1461,15 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
     $request_cache[$request_cache_key] = [
         'term_id' => $term_id,
         'category_name' => ll_tools_get_category_display_name($term),
+        'published_count' => (int) $published_count,
+        'mismatch_count' => (int) $mismatch_count,
         'current_config' => $current_config,
         'current_count' => (int) $current_count,
         'current_label' => ll_tools_get_category_quiz_presentation_label($current_config),
         'recommended_config' => $recommended_config,
         'recommended_count' => (int) $recommended_count,
         'recommended_label' => ll_tools_get_category_quiz_presentation_label($recommended_config),
+        'recommended_changes_presentation' => ($recommended_option_type !== $current_option_type) && ($recommended_count > $current_count),
         'settings_url' => $settings_url,
         'words_url' => $words_url,
     ];
@@ -1353,7 +1484,7 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
  * @return int[]
  */
 function ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_screen(): array {
-    if (!is_admin() || !current_user_can('view_ll_tools')) {
+    if (!is_admin() || !ll_tools_user_can_view_admin_notices()) {
         return [];
     }
 
@@ -1416,21 +1547,43 @@ function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
             continue;
         }
 
+        $mismatch_count = max(0, (int) ($notice['mismatch_count'] ?? 0));
+        $current_count = max(0, (int) ($notice['current_count'] ?? 0));
+        $published_count = max($current_count, (int) ($notice['published_count'] ?? 0));
+
         $message = sprintf(
-            __('Category "%1$s" is set to %2$s, which currently fits %3$d published words. %4$s would fit %5$d words instead.', 'll-tools-text-domain'),
-            esc_html((string) ($notice['category_name'] ?? '')),
-            esc_html((string) ($notice['current_label'] ?? '')),
-            (int) ($notice['current_count'] ?? 0),
-            esc_html((string) ($notice['recommended_label'] ?? '')),
-            (int) ($notice['recommended_count'] ?? 0)
+            __('Category "%1$s" is set to %2$s, so %3$d of %4$d published words currently appear.', 'll-tools-text-domain'),
+            (string) ($notice['category_name'] ?? ''),
+            (string) ($notice['current_label'] ?? ''),
+            $current_count,
+            $published_count
         );
+        $message .= ' ';
+        $message .= sprintf(
+            _n(
+                '%d published word does not match this presentation and will not appear on lesson or quiz pages.',
+                '%d published words do not match this presentation and will not appear on lesson or quiz pages.',
+                $mismatch_count,
+                'll-tools-text-domain'
+            ),
+            $mismatch_count
+        );
+        if (!empty($notice['recommended_changes_presentation'])) {
+            $message .= ' ';
+            $message .= sprintf(
+                __('Changing this category to %1$s would include %2$d of %3$d published words instead.', 'll-tools-text-domain'),
+                (string) ($notice['recommended_label'] ?? ''),
+                max(0, (int) ($notice['recommended_count'] ?? 0)),
+                $published_count
+            );
+        }
         $actions = sprintf(
             __('Either <a href="%1$s">change this category\'s quiz presentation</a> or <a href="%2$s">edit the words in this category</a> so they match the current presentation.', 'll-tools-text-domain'),
             esc_url((string) ($notice['settings_url'] ?? '')),
             esc_url((string) ($notice['words_url'] ?? ''))
         );
 
-        echo '<div class="notice notice-warning"><p>' . wp_kses_post($message . ' ' . $actions) . '</p></div>';
+        echo '<div class="notice notice-warning"><p>' . esc_html($message) . ' ' . wp_kses_post($actions) . '</p></div>';
     }
 }
 add_action('admin_notices', 'll_tools_render_category_quiz_presentation_mismatch_notice');
