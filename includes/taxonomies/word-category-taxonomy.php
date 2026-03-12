@@ -1502,14 +1502,37 @@ function ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_scree
         }
     } elseif ($page === 'edit.php') {
         $post_type = isset($_GET['post_type']) ? sanitize_key(wp_unslash((string) $_GET['post_type'])) : 'post';
-        if ($post_type === 'words' && isset($_GET['word-category'])) {
-            $category_ref = sanitize_title(wp_unslash((string) $_GET['word-category']));
-            $term = ($category_ref !== '') ? get_term_by('slug', $category_ref, 'word-category') : false;
-            if (!($term instanceof WP_Term) && ctype_digit($category_ref)) {
-                $term = get_term((int) $category_ref, 'word-category');
+        if ($post_type === 'words') {
+            $category_refs = [];
+            foreach (['word-category', 'word_category'] as $query_key) {
+                if (!isset($_GET[$query_key])) {
+                    continue;
+                }
+
+                $query_value = trim((string) wp_unslash($_GET[$query_key]));
+                if ($query_value === '') {
+                    continue;
+                }
+
+                $category_refs[] = $query_value;
             }
-            if ($term instanceof WP_Term) {
-                $term_ids[] = (int) $term->term_id;
+
+            foreach ($category_refs as $category_ref_raw) {
+                $term = false;
+                if (ctype_digit($category_ref_raw)) {
+                    $term = get_term((int) $category_ref_raw, 'word-category');
+                }
+
+                if (!($term instanceof WP_Term)) {
+                    $category_slug = sanitize_title($category_ref_raw);
+                    if ($category_slug !== '') {
+                        $term = get_term_by('slug', $category_slug, 'word-category');
+                    }
+                }
+
+                if ($term instanceof WP_Term) {
+                    $term_ids[] = (int) $term->term_id;
+                }
             }
         }
     } elseif ($page === 'post.php') {

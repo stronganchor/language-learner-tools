@@ -65,6 +65,41 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('word-category=' . (string) $fixture['term']->slug, $decoded_output);
     }
 
+    public function test_notice_term_ids_include_word_list_category_filter_using_term_id_query_var(): void
+    {
+        $this->setCurrentUserToAdministrator();
+
+        $fixture = $this->createAudioPromptCategoryFixture('image');
+
+        global $pagenow;
+        $original_get = $_GET;
+        $original_post = $_POST;
+        $original_pagenow = $pagenow ?? null;
+
+        try {
+            $_GET = [
+                'post_type' => 'words',
+                'word_category' => (string) $fixture['term']->term_id,
+                'wordset' => 'genc-palu',
+            ];
+            $_POST = [];
+            $pagenow = 'edit.php';
+
+            $term_ids = ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_screen();
+
+            ob_start();
+            ll_tools_render_category_quiz_presentation_mismatch_notice();
+            $output = (string) ob_get_clean();
+        } finally {
+            $_GET = $original_get;
+            $_POST = $original_post;
+            $pagenow = $original_pagenow;
+        }
+
+        $this->assertSame([(int) $fixture['term']->term_id], $term_ids);
+        $this->assertStringContainsString('notice notice-warning', html_entity_decode($output, ENT_QUOTES, 'UTF-8'));
+    }
+
     public function test_mismatch_data_returns_null_when_current_option_is_already_best(): void
     {
         $this->setCurrentUserToAdministrator();
