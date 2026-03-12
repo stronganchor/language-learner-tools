@@ -327,6 +327,47 @@ function ll_tools_get_quiz_option_types(): array {
     return ['image', 'text_translation', 'text_title', 'audio', 'text_audio'];
 }
 
+function ll_tools_get_quiz_prompt_type_label(string $prompt_type): string {
+    switch (sanitize_key($prompt_type)) {
+        case 'image':
+            return __('Show image', 'll-tools-text-domain');
+        case 'text_translation':
+            return __('Show text (translation)', 'll-tools-text-domain');
+        case 'text_title':
+            return __('Show text (title)', 'll-tools-text-domain');
+        case 'audio':
+        default:
+            return __('Play audio', 'll-tools-text-domain');
+    }
+}
+
+function ll_tools_get_quiz_option_type_label(string $option_type): string {
+    switch (sanitize_key($option_type)) {
+        case 'text_translation':
+            return __('Text (translation)', 'll-tools-text-domain');
+        case 'text_title':
+            return __('Text (title)', 'll-tools-text-domain');
+        case 'audio':
+            return __('Audio', 'll-tools-text-domain');
+        case 'text_audio':
+            return __('Text + audio pairs', 'll-tools-text-domain');
+        case 'image':
+        default:
+            return __('Images', 'll-tools-text-domain');
+    }
+}
+
+function ll_tools_get_category_quiz_presentation_label(array $config): string {
+    $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+    $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
+
+    return sprintf(
+        __('%1$s -> %2$s', 'll-tools-text-domain'),
+        ll_tools_get_quiz_prompt_type_label($prompt_type),
+        ll_tools_get_quiz_option_type_label($option_type)
+    );
+}
+
 function ll_tools_is_text_quiz_type($value): bool {
     $val = is_string($value) ? strtolower(trim($value)) : '';
     return in_array($val, ['text_translation', 'text_title'], true);
@@ -1188,6 +1229,211 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
         }
     }
 }
+
+/**
+ * Return notice data when an audio-prompt category's stored option type no
+ * longer matches the best supported option type for the available words.
+ *
+ * The automatic category-default flow only chooses between audio->image and
+ * audio->text variants, so this notice intentionally stays scoped to that
+ * family of quiz presentations.
+ *
+ * @param int|WP_Term $term Category term or term ID.
+ * @return array|null
+ */
+function ll_tools_get_category_quiz_presentation_mismatch_data($term): ?array {
+    static $request_cache = [];
+
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return null;
+    }
+
+    $term_id = (int) $term->term_id;
+    $category_version = function_exists('ll_tools_get_category_cache_version')
+        ? (int) ll_tools_get_category_cache_version($term_id)
+        : 1;
+    if ($category_version < 1) {
+        $category_version = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'term_id' => $term_id,
+        'term_slug' => (string) $term->slug,
+        'version' => $category_version,
+    ]));
+    if (array_key_exists($request_cache_key, $request_cache)) {
+        return is_array($request_cache[$request_cache_key]) ? $request_cache[$request_cache_key] : null;
+    }
+
+    $current_config = ll_tools_get_category_quiz_config($term);
+    $prompt_type = isset($current_config['prompt_type']) ? (string) $current_config['prompt_type'] : 'audio';
+    $current_option_type = isset($current_config['option_type']) ? (string) $current_config['option_type'] : 'image';
+
+    if (
+        $term->slug === 'uncategorized'
+        || $prompt_type !== 'audio'
+        || !in_array($current_option_type, ['image', 'text_translation', 'text_title'], true)
+    ) {
+        $request_cache[$request_cache_key] = null;
+        return null;
+    }
+
+    $recommended_option_type = ll_tools_default_option_type_for_category($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    if (
+        !in_array($recommended_option_type, ['image', 'text_translation', 'text_title'], true)
+        || $recommended_option_type === $current_option_type
+    ) {
+        $request_cache[$request_cache_key] = null;
+        return null;
+    }
+
+    $current_count = ll_get_words_by_category_count(
+        $term->name,
+        $current_option_type,
+        null,
+        array_merge($current_config, ['__skip_quiz_config_merge' => true])
+    );
+
+    $recommended_config = $current_config;
+    $recommended_config['option_type'] = $recommended_option_type;
+    $recommended_config['use_titles'] = ($recommended_option_type === 'text_title');
+
+    $recommended_count = ll_get_words_by_category_count(
+        $term->name,
+        $recommended_option_type,
+        null,
+        array_merge($recommended_config, ['__skip_quiz_config_merge' => true])
+    );
+
+    if (
+        $recommended_count <= $current_count
+        || max($current_count, $recommended_count) < max(1, (int) LL_TOOLS_MIN_WORDS_PER_QUIZ)
+    ) {
+        $request_cache[$request_cache_key] = null;
+        return null;
+    }
+
+    $settings_url = get_edit_term_link($term_id, 'word-category', 'words');
+    if (!is_string($settings_url) || $settings_url === '') {
+        $settings_url = add_query_arg([
+            'taxonomy' => 'word-category',
+            'tag_ID' => $term_id,
+            'post_type' => 'words',
+        ], admin_url('term.php'));
+    }
+
+    $words_url = add_query_arg([
+        'post_type' => 'words',
+        'word-category' => $term->slug,
+    ], admin_url('edit.php'));
+
+    $request_cache[$request_cache_key] = [
+        'term_id' => $term_id,
+        'category_name' => ll_tools_get_category_display_name($term),
+        'current_config' => $current_config,
+        'current_count' => (int) $current_count,
+        'current_label' => ll_tools_get_category_quiz_presentation_label($current_config),
+        'recommended_config' => $recommended_config,
+        'recommended_count' => (int) $recommended_count,
+        'recommended_label' => ll_tools_get_category_quiz_presentation_label($recommended_config),
+        'settings_url' => $settings_url,
+        'words_url' => $words_url,
+    ];
+
+    return $request_cache[$request_cache_key];
+}
+
+/**
+ * Resolve category IDs that should display the quiz-presentation mismatch
+ * notice for the current admin page.
+ *
+ * @return int[]
+ */
+function ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_screen(): array {
+    if (!is_admin() || !current_user_can('view_ll_tools')) {
+        return [];
+    }
+
+    global $pagenow;
+    $page = is_string($pagenow) ? $pagenow : '';
+    $term_ids = [];
+
+    if ($page === 'term.php') {
+        $taxonomy = isset($_GET['taxonomy']) ? sanitize_key(wp_unslash((string) $_GET['taxonomy'])) : '';
+        if ($taxonomy === 'word-category') {
+            $term_id = isset($_GET['tag_ID']) ? absint(wp_unslash((string) $_GET['tag_ID'])) : 0;
+            if ($term_id > 0) {
+                $term_ids[] = $term_id;
+            }
+        }
+    } elseif ($page === 'edit.php') {
+        $post_type = isset($_GET['post_type']) ? sanitize_key(wp_unslash((string) $_GET['post_type'])) : 'post';
+        if ($post_type === 'words' && isset($_GET['word-category'])) {
+            $category_ref = sanitize_title(wp_unslash((string) $_GET['word-category']));
+            $term = ($category_ref !== '') ? get_term_by('slug', $category_ref, 'word-category') : false;
+            if (!($term instanceof WP_Term) && ctype_digit($category_ref)) {
+                $term = get_term((int) $category_ref, 'word-category');
+            }
+            if ($term instanceof WP_Term) {
+                $term_ids[] = (int) $term->term_id;
+            }
+        }
+    } elseif ($page === 'post.php') {
+        $post_id = isset($_GET['post'])
+            ? absint(wp_unslash((string) $_GET['post']))
+            : (isset($_POST['post_ID']) ? absint(wp_unslash((string) $_POST['post_ID'])) : 0);
+
+        if ($post_id > 0) {
+            $post = get_post($post_id);
+            if ($post instanceof WP_Post && $post->post_type === 'words') {
+                $post_term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
+                if (!is_wp_error($post_term_ids)) {
+                    $term_ids = array_merge($term_ids, array_map('intval', (array) $post_term_ids));
+                }
+            }
+        }
+    }
+
+    $term_ids = array_values(array_unique(array_filter(array_map('intval', $term_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+
+    return $term_ids;
+}
+
+function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
+    $term_ids = ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_screen();
+    if (empty($term_ids)) {
+        return;
+    }
+
+    foreach ($term_ids as $term_id) {
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($term_id);
+        if (!is_array($notice)) {
+            continue;
+        }
+
+        $message = sprintf(
+            __('Category "%1$s" is set to %2$s, which currently fits %3$d published words. %4$s would fit %5$d words instead.', 'll-tools-text-domain'),
+            esc_html((string) ($notice['category_name'] ?? '')),
+            esc_html((string) ($notice['current_label'] ?? '')),
+            (int) ($notice['current_count'] ?? 0),
+            esc_html((string) ($notice['recommended_label'] ?? '')),
+            (int) ($notice['recommended_count'] ?? 0)
+        );
+        $actions = sprintf(
+            __('Either <a href="%1$s">change this category\'s quiz presentation</a> or <a href="%2$s">edit the words in this category</a> so they match the current presentation.', 'll-tools-text-domain'),
+            esc_url((string) ($notice['settings_url'] ?? '')),
+            esc_url((string) ($notice['words_url'] ?? ''))
+        );
+
+        echo '<div class="notice notice-warning"><p>' . wp_kses_post($message . ' ' . $actions) . '</p></div>';
+    }
+}
+add_action('admin_notices', 'll_tools_render_category_quiz_presentation_mismatch_notice');
 
 /**
  * Resolve a stored audio path/URL to a browser-safe URL for the current site origin.
