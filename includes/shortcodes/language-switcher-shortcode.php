@@ -403,6 +403,13 @@ function ll_tools_filter_locale($locale) {
         return $cookie_locale;
     }
 
+    if (function_exists('ll_tools_get_browser_locale_preference')) {
+        $browser_locale = ll_tools_get_browser_locale_preference();
+        if ($browser_locale !== '') {
+            return $browser_locale;
+        }
+    }
+
     return $locale;
 }
 add_filter('locale', 'll_tools_filter_locale');

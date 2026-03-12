@@ -6,6 +6,8 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
     protected function tearDown(): void
     {
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_REQUEST['ll_locale'], $_GET['ll_locale'], $_REQUEST['ll_locale_nonce'], $_GET['ll_locale_nonce']);
+        unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+        delete_option('ll_enable_browser_language_autoswitch');
         parent::tearDown();
     }
 
@@ -77,5 +79,31 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $_GET['ll_locale_nonce'] = $_REQUEST['ll_locale_nonce'];
 
         $this->assertSame('tr_TR', ll_tools_filter_locale('en_US'));
+    }
+
+    public function test_filter_locale_defaults_to_browser_language_when_enabled(): void
+    {
+        $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+
+        $this->assertSame('tr_TR', ll_tools_filter_locale('en_US'));
+    }
+
+    public function test_browser_locale_preference_skips_saved_logged_in_user_locale(): void
+    {
+        $user_id = self::factory()->user->create();
+        update_user_meta($user_id, 'locale', 'en_US');
+        wp_set_current_user($user_id);
+        $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+
+        $this->assertSame('', ll_tools_get_browser_locale_preference());
+        $this->assertSame('en_US', ll_tools_filter_locale('tr_TR'));
+    }
+
+    public function test_filter_locale_skips_browser_language_when_admin_setting_disables_it(): void
+    {
+        update_option('ll_enable_browser_language_autoswitch', 0);
+        $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+
+        $this->assertSame('en_US', ll_tools_filter_locale('en_US'));
     }
 }

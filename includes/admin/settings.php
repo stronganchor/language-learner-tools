@@ -36,6 +36,11 @@ function ll_register_settings() {
         'sanitize_callback' => 'absint',
         'default' => 0
     ));
+    register_setting('language-learning-tools-options', 'll_enable_browser_language_autoswitch', array(
+        'type' => 'boolean',
+        'sanitize_callback' => 'll_sanitize_browser_language_autoswitch_setting',
+        'default' => 1,
+    ));
     register_setting('language-learning-tools-options', 'll_category_translation_source', $args);
     register_setting('language-learning-tools-options', 'll_max_options_override', [
         'type' => 'integer',
@@ -91,6 +96,14 @@ function ll_sanitize_max_options_override($value) {
 
 function ll_sanitize_learner_registration_setting($value) {
     return ll_tools_normalize_learner_registration_setting_value($value);
+}
+
+function ll_sanitize_browser_language_autoswitch_setting($value) {
+    if (function_exists('ll_tools_normalize_browser_language_autoswitch_setting_value')) {
+        return ll_tools_normalize_browser_language_autoswitch_setting_value($value);
+    }
+
+    return absint($value) === 1 ? 1 : 0;
 }
 
 function ll_tools_normalize_learner_registration_setting_value($value) {
@@ -271,6 +284,7 @@ function ll_render_settings_page() {
     $update_branch = get_option('ll_update_branch', 'main');
     $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
+    $enable_browser_language_autoswitch = (int) get_option('ll_enable_browser_language_autoswitch', 1);
     $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
     $learner_registration_enabled = function_exists('ll_tools_is_learner_self_registration_available')
         ? ll_tools_is_learner_self_registration_available()
@@ -329,6 +343,18 @@ function ll_render_settings_page() {
                     <td>
                         <input type="checkbox" name="ll_enable_category_translation" id="ll_enable_category_translation" value="1" <?php checked(1, $enable_translation, true); ?> />
                         <p class="description"><?php esc_html_e('Check this box to enable automatic or manual translations of category names.', 'll-tools-text-domain'); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('Auto-detect Browser Language:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="checkbox"
+                            name="ll_enable_browser_language_autoswitch"
+                            id="ll_enable_browser_language_autoswitch"
+                            value="1"
+                            <?php checked(1, $enable_browser_language_autoswitch, true); ?> />
+                        <p class="description"><?php esc_html_e('Use a visitor\'s browser language on the front end until they explicitly choose a different language. Logged-in user locale preferences and the language switcher still take priority.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">
