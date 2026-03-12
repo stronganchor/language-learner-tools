@@ -125,6 +125,47 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertSame('johndoe1', ll_tools_login_window_available_username_from_email('john.doe@example.org'));
     }
 
+    public function test_disposable_email_detection_blocks_known_domains_and_subdomains(): void
+    {
+        $this->assertTrue(ll_tools_login_window_is_blocked_email('new@mailinator.com'));
+        $this->assertTrue(ll_tools_login_window_is_blocked_email('new@sub.yopmail.com'));
+        $this->assertFalse(ll_tools_login_window_is_blocked_email('new@gmail.com'));
+    }
+
+    public function test_registration_rate_limit_blocks_after_configured_attempts(): void
+    {
+        $ip = '203.0.113.24';
+        $limit_filter = static function (): int {
+            return 2;
+        };
+        $window_filter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+
+        add_filter('ll_tools_registration_ip_attempt_limit', $limit_filter);
+        add_filter('ll_tools_registration_ip_attempt_window', $window_filter);
+
+        try {
+            ll_tools_login_window_reset_registration_attempts($ip);
+
+            $this->assertFalse(ll_tools_login_window_get_registration_rate_limit_status($ip)['limited']);
+
+            ll_tools_login_window_record_registration_attempt($ip);
+            $this->assertFalse(ll_tools_login_window_get_registration_rate_limit_status($ip)['limited']);
+
+            ll_tools_login_window_record_registration_attempt($ip);
+            $status = ll_tools_login_window_get_registration_rate_limit_status($ip);
+
+            $this->assertTrue($status['limited']);
+            $this->assertSame(2, (int) $status['attempts']);
+            $this->assertSame(2, (int) $status['limit']);
+        } finally {
+            ll_tools_login_window_reset_registration_attempts($ip);
+            remove_filter('ll_tools_registration_ip_attempt_limit', $limit_filter);
+            remove_filter('ll_tools_registration_ip_attempt_window', $window_filter);
+        }
+    }
+
     public function test_guest_utility_menu_hides_sign_up_link_when_registration_is_unavailable(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
