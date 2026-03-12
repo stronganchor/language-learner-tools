@@ -55,10 +55,14 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-register-email="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password="1"', $markup);
         $this->assertStringContainsString('ll_tools_register_math_answer', $markup);
+        $this->assertMatchesRegularExpression('/type="text"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?autocomplete="new-password"/', $markup);
+        $this->assertMatchesRegularExpression('/>\s*[1-5] \+ [1-5] =\s*<\/label>/', $markup);
         $this->assertStringContainsString('action="http://example.org/wp-admin/admin-post.php"', $markup);
         $this->assertStringContainsString('width="20"', $markup);
         $this->assertStringContainsString('height="20"', $markup);
         $this->assertStringNotContainsString('wp-login.php', $markup);
+        $this->assertStringNotContainsString('We suggest a username', $markup);
+        $this->assertStringNotContainsString('A strong password', $markup);
     }
 
     public function test_login_window_hides_registration_form_when_disabled(): void

@@ -259,14 +259,6 @@
   border-color: var(--ll-login-accent);
 }
 
-.ll-tools-login-window__field-hint {
-  display: block;
-  margin-top: 0.35rem;
-  color: var(--ll-login-muted);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
 .ll-tools-login-window__register-submit {
   margin: 0.75rem 0 0;
 }

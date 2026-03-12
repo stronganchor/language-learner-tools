@@ -758,8 +758,8 @@ if (!function_exists('ll_tools_render_login_window')) {
         $prefill_email = isset($prefill['email']) ? sanitize_email((string) $prefill['email']) : '';
         $prefill_username_is_custom = isset($prefill['username_is_custom']) && ((string) $prefill['username_is_custom'] === '1');
 
-        $challenge_left = random_int(2, 9);
-        $challenge_right = random_int(1, 9);
+        $challenge_left = random_int(1, 5);
+        $challenge_right = random_int(1, 5);
         $challenge_timestamp = time();
         $challenge_signature = ll_tools_login_window_sign_registration_challenge(
             $challenge_timestamp,
@@ -886,18 +886,18 @@ if (!function_exists('ll_tools_render_login_window')) {
                                     autocomplete="username"
                                     data-ll-register-username="1"
                                     required />
-                                <span class="ll-tools-login-window__field-hint"><?php esc_html_e('We suggest a username from your email. You can change it.', 'll-tools-text-domain'); ?></span>
                             </p>
                             <p>
                                 <label for="<?php echo esc_attr($registration_password_id); ?>"><?php esc_html_e('Password', 'll-tools-text-domain'); ?></label>
                                 <input
-                                    type="password"
+                                    type="text"
                                     id="<?php echo esc_attr($registration_password_id); ?>"
                                     name="user_pass"
                                     autocomplete="new-password"
+                                    autocapitalize="none"
+                                    spellcheck="false"
                                     data-ll-register-password="1"
                                     required />
-                                <span class="ll-tools-login-window__field-hint"><?php esc_html_e('A strong password is filled in automatically. Change it if you want.', 'll-tools-text-domain'); ?></span>
                             </p>
                             <p class="ll-tools-login-window__honeypot" aria-hidden="true">
                                 <label for="<?php echo esc_attr($registration_honeypot_id); ?>"><?php esc_html_e('Leave this field empty', 'll-tools-text-domain'); ?></label>
@@ -911,14 +911,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                             </p>
                             <p>
                                 <label for="<?php echo esc_attr($registration_math_id); ?>">
-                                    <?php
-                                    echo esc_html(sprintf(
-                                        /* translators: 1: first number, 2: second number */
-                                        __('What is %1$d + %2$d?', 'll-tools-text-domain'),
-                                        $challenge_left,
-                                        $challenge_right
-                                    ));
-                                    ?>
+                                    <?php echo esc_html($challenge_left . ' + ' . $challenge_right . ' ='); ?>
                                 </label>
                                 <input
                                     type="number"
