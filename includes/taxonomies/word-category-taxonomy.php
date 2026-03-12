@@ -1291,15 +1291,6 @@ function ll_tools_get_category_published_word_count($term, $wordset_ids = []): i
         return (int) $cached;
     }
 
-    $query = new WP_Query([
-        'post_type' => 'words',
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-        'no_found_rows' => false,
-        'suppress_filters' => true,
-        'tax_query' => [],
-    ]);
     $tax_query = [[
         'taxonomy' => 'word-category',
         'field' => 'term_id',
@@ -1313,13 +1304,160 @@ function ll_tools_get_category_published_word_count($term, $wordset_ids = []): i
         ];
         $tax_query['relation'] = 'AND';
     }
-    $query->set('tax_query', $tax_query);
+
+    $query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => false,
+        'suppress_filters' => true,
+        'tax_query' => $tax_query,
+    ]);
 
     $count = max(0, (int) $query->found_posts);
     $request_cache[$request_cache_key] = $count;
     wp_cache_set($cache_key, $count, $cache_group, $cache_ttl);
 
     return $count;
+}
+
+/**
+ * Return the published wordset terms currently used by a category.
+ *
+ * @param int|WP_Term $term Category term or term ID.
+ * @return WP_Term[]
+ */
+function ll_tools_get_category_published_wordset_terms($term): array {
+    static $request_cache = [];
+
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return [];
+    }
+
+    $term_id = (int) $term->term_id;
+    $category_version = function_exists('ll_tools_get_category_cache_version')
+        ? (int) ll_tools_get_category_cache_version($term_id)
+        : 1;
+    if ($category_version < 1) {
+        $category_version = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'term_id' => $term_id,
+        'term_slug' => (string) $term->slug,
+        'version' => $category_version,
+        'schema' => 1,
+    ]));
+    if (isset($request_cache[$request_cache_key]) && is_array($request_cache[$request_cache_key])) {
+        return $request_cache[$request_cache_key];
+    }
+
+    $word_query = new WP_Query([
+        'post_type' => 'words',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'tax_query' => [[
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => [$term_id],
+        ]],
+    ]);
+
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_query->posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    if (empty($word_ids)) {
+        $request_cache[$request_cache_key] = [];
+        return [];
+    }
+
+    $wordset_terms = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'object_ids' => $word_ids,
+    ]);
+    if (is_wp_error($wordset_terms) || !is_array($wordset_terms)) {
+        $request_cache[$request_cache_key] = [];
+        return [];
+    }
+
+    $wordset_terms = array_values(array_filter($wordset_terms, static function ($term): bool {
+        return $term instanceof WP_Term;
+    }));
+    usort($wordset_terms, static function (WP_Term $left, WP_Term $right): int {
+        return ($left->term_id <=> $right->term_id);
+    });
+
+    $request_cache[$request_cache_key] = $wordset_terms;
+
+    return $request_cache[$request_cache_key];
+}
+
+/**
+ * Infer a single mismatching wordset for a category when the current admin
+ * screen does not already supply one.
+ *
+ * @param int|WP_Term $term Category term or term ID.
+ * @return WP_Term|null
+ */
+function ll_tools_get_category_quiz_presentation_single_mismatch_wordset_term($term): ?WP_Term {
+    static $request_cache = [];
+
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return null;
+    }
+
+    $term_id = (int) $term->term_id;
+    $category_version = function_exists('ll_tools_get_category_cache_version')
+        ? (int) ll_tools_get_category_cache_version($term_id)
+        : 1;
+    if ($category_version < 1) {
+        $category_version = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'term_id' => $term_id,
+        'term_slug' => (string) $term->slug,
+        'version' => $category_version,
+        'schema' => 1,
+    ]));
+    if (array_key_exists($request_cache_key, $request_cache)) {
+        return ($request_cache[$request_cache_key] instanceof WP_Term) ? $request_cache[$request_cache_key] : null;
+    }
+
+    $mismatch_wordset_terms = [];
+    foreach (ll_tools_get_category_published_wordset_terms($term) as $wordset_term) {
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($term, [
+            'wordset' => $wordset_term,
+        ]);
+        if (!is_array($notice)) {
+            continue;
+        }
+
+        $mismatch_count = max(0, (int) ($notice['mismatch_count'] ?? 0));
+        if ($mismatch_count > 0) {
+            $mismatch_wordset_terms[] = $wordset_term;
+        }
+    }
+
+    if (count($mismatch_wordset_terms) === 1) {
+        $request_cache[$request_cache_key] = $mismatch_wordset_terms[0];
+        return $mismatch_wordset_terms[0];
+    }
+
+    $request_cache[$request_cache_key] = null;
+
+    return null;
 }
 
 /**
@@ -1531,43 +1669,56 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term, array $arg
 /**
  * Resolve the active wordset context for the current admin screen when the
  * mismatch notice is rendered.
+ *
+ * Falls back to a single mismatching wordset for the category when the
+ * current screen itself does not already provide one.
+ *
+ * @param int|WP_Term|null $term Category term or term ID.
  */
-function ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen(): ?WP_Term {
+function ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen($term = null): ?WP_Term {
     if (!is_admin() || !ll_tools_user_can_view_admin_notices()) {
         return null;
     }
 
+    $category_term = null;
+    if ($term !== null) {
+        $category_term = ($term instanceof WP_Term) ? $term : get_term($term, 'word-category');
+        if (!($category_term instanceof WP_Term) || is_wp_error($category_term) || $category_term->taxonomy !== 'word-category') {
+            $category_term = null;
+        }
+    }
+
     if (isset($_GET['wordset'])) {
-        $term = ll_tools_resolve_wordset_term(wp_unslash((string) $_GET['wordset']));
-        if ($term instanceof WP_Term) {
-            return $term;
+        $wordset_term = ll_tools_resolve_wordset_term(wp_unslash((string) $_GET['wordset']));
+        if ($wordset_term instanceof WP_Term) {
+            return $wordset_term;
         }
     }
 
     global $pagenow;
-    if (!is_string($pagenow) || $pagenow !== 'post.php') {
-        return null;
+    if (is_string($pagenow) && $pagenow === 'post.php') {
+        $post_id = isset($_GET['post'])
+            ? absint(wp_unslash((string) $_GET['post']))
+            : (isset($_POST['post_ID']) ? absint(wp_unslash((string) $_POST['post_ID'])) : 0);
+        if ($post_id > 0) {
+            $post = get_post($post_id);
+            if ($post instanceof WP_Post && $post->post_type === 'words') {
+                $wordset_terms = wp_get_post_terms($post_id, 'wordset', ['fields' => 'all']);
+                if (!is_wp_error($wordset_terms) && count((array) $wordset_terms) === 1) {
+                    $post_wordset_term = reset($wordset_terms);
+                    if ($post_wordset_term instanceof WP_Term) {
+                        return $post_wordset_term;
+                    }
+                }
+            }
+        }
     }
 
-    $post_id = isset($_GET['post'])
-        ? absint(wp_unslash((string) $_GET['post']))
-        : (isset($_POST['post_ID']) ? absint(wp_unslash((string) $_POST['post_ID'])) : 0);
-    if ($post_id <= 0) {
-        return null;
+    if ($category_term instanceof WP_Term) {
+        return ll_tools_get_category_quiz_presentation_single_mismatch_wordset_term($category_term);
     }
 
-    $post = get_post($post_id);
-    if (!($post instanceof WP_Post) || $post->post_type !== 'words') {
-        return null;
-    }
-
-    $wordset_terms = wp_get_post_terms($post_id, 'wordset', ['fields' => 'all']);
-    if (is_wp_error($wordset_terms) || count((array) $wordset_terms) !== 1) {
-        return null;
-    }
-
-    $term = reset($wordset_terms);
-    return ($term instanceof WP_Term) ? $term : null;
+    return null;
 }
 
 /**
@@ -1657,8 +1808,8 @@ function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
         return;
     }
 
-    $wordset_term = ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen();
     foreach ($term_ids as $term_id) {
+        $wordset_term = ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen($term_id);
         $notice = ll_tools_get_category_quiz_presentation_mismatch_data($term_id, [
             'wordset' => $wordset_term,
         ]);

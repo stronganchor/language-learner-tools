@@ -50,6 +50,49 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_mismatch_data_ignores_unrelated_published_words_outside_category_and_wordset(): void
+    {
+        $this->setCurrentUserToAdministrator();
+
+        $fixture = $this->createAudioPromptCategoryFixture('image');
+
+        $other_category = wp_insert_term(
+            'Quiz Presentation Other Category ' . (string) wp_rand(1000, 9999),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($other_category));
+        $this->assertIsArray($other_category);
+
+        $other_wordset = wp_insert_term(
+            'Quiz Presentation Other Wordset ' . (string) wp_rand(1000, 9999),
+            'wordset',
+            [
+                'slug' => 'quiz-presentation-other-wordset-' . (string) wp_rand(1000, 9999),
+            ]
+        );
+        $this->assertFalse(is_wp_error($other_wordset));
+        $this->assertIsArray($other_wordset);
+
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createWordWithAudioAndMaybeImage(
+                (int) $other_category['term_id'],
+                (int) $other_wordset['term_id'],
+                'Unrelated Prompt Notice Word ' . $index,
+                'Unrelated Prompt Notice Translation ' . $index,
+                true
+            );
+        }
+
+        $notice = ll_tools_get_category_quiz_presentation_mismatch_data($fixture['term']->term_id, [
+            'wordset' => $fixture['wordset']->slug,
+        ]);
+
+        $this->assertIsArray($notice);
+        $this->assertSame(12, (int) ($notice['published_count'] ?? -1));
+        $this->assertSame(10, (int) ($notice['current_count'] ?? -1));
+        $this->assertSame(2, (int) ($notice['mismatch_count'] ?? -1));
+    }
+
     public function test_admin_notice_renders_on_word_edit_screen_for_mismatched_category(): void
     {
         $this->setCurrentUserToAdministrator();
@@ -126,6 +169,43 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('notice notice-warning', $decoded_output);
         $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
         $this->assertStringContainsString('wordset=' . (string) $fixture['wordset']->slug, $decoded_output);
+    }
+
+    public function test_category_term_notice_infers_single_mismatching_wordset_for_edit_link(): void
+    {
+        $this->setCurrentUserToAdministrator();
+
+        $fixture = $this->createAudioPromptCategoryFixture('image');
+
+        global $pagenow;
+        $original_get = $_GET;
+        $original_post = $_POST;
+        $original_pagenow = $pagenow ?? null;
+
+        try {
+            $_GET = [
+                'taxonomy' => 'word-category',
+                'tag_ID' => (string) $fixture['term']->term_id,
+                'post_type' => 'words',
+            ];
+            $_POST = [];
+            $pagenow = 'term.php';
+
+            ob_start();
+            ll_tools_render_category_quiz_presentation_mismatch_notice();
+            $output = (string) ob_get_clean();
+        } finally {
+            $_GET = $original_get;
+            $_POST = $original_post;
+            $pagenow = $original_pagenow;
+        }
+
+        $decoded_output = html_entity_decode($output, ENT_QUOTES, 'UTF-8');
+
+        $this->assertStringContainsString('notice notice-warning', $decoded_output);
+        $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
+        $this->assertStringContainsString('wordset=' . (string) $fixture['wordset']->slug, $decoded_output);
+        $this->assertStringContainsString('10 of 12 published words currently appear', $decoded_output);
     }
 
     public function test_mismatch_data_returns_null_when_current_option_is_already_best(): void
