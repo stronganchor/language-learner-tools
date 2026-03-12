@@ -188,6 +188,13 @@ function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, 
         return [];
     }
 
+    if (function_exists('ll_tools_filter_category_ids_for_user')) {
+        $category_ids = ll_tools_filter_category_ids_for_user($category_ids);
+        if (empty($category_ids)) {
+            return [];
+        }
+    }
+
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,

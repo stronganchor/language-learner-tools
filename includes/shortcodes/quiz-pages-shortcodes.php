@@ -266,6 +266,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
         $term = get_term($term_id, 'word-category');
         if (!$term || is_wp_error($term)) continue;
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($term)) {
+            continue;
+        }
 
         if (!empty($allowed_category_ids) && !isset($allowed_category_ids[$term_id])) {
             continue;

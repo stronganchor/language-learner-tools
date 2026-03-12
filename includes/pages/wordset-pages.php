@@ -681,6 +681,9 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         if (!$category || is_wp_error($category)) {
             continue;
         }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category)) {
+            continue;
+        }
 
         $lesson_post_id = (int) ($lesson_map[(int) $category->term_id] ?? 0);
         if ($lesson_post_id <= 0) {

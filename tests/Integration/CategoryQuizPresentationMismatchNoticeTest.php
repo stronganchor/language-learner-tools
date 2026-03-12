@@ -218,7 +218,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertNull($notice);
     }
 
-    public function test_mismatch_data_can_recommend_text_title_when_translation_text_is_missing(): void
+    public function test_mismatch_data_can_recommend_text_translation_when_translation_text_is_missing(): void
     {
         $this->setCurrentUserToAdministrator();
 
@@ -227,7 +227,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 
         $this->assertIsArray($notice);
         $this->assertSame('image', (string) ($notice['current_config']['option_type'] ?? ''));
-        $this->assertSame('text_title', (string) ($notice['recommended_config']['option_type'] ?? ''));
+        $this->assertSame('text_translation', (string) ($notice['recommended_config']['option_type'] ?? ''));
         $this->assertSame(10, (int) ($notice['current_count'] ?? -1));
         $this->assertSame(12, (int) ($notice['recommended_count'] ?? -1));
         $this->assertSame(2, (int) ($notice['mismatch_count'] ?? -1));
@@ -293,7 +293,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
-            'post_status' => 'publish',
+            'post_status' => 'draft',
             'post_title' => $title,
         ]);
 
@@ -319,6 +319,11 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
             update_post_meta($attachment_id, '_wp_attached_file', '2026/03/' . sanitize_title($title) . '.jpg');
             set_post_thumbnail($word_id, $attachment_id);
         }
+
+        wp_update_post([
+            'ID' => $word_id,
+            'post_status' => 'publish',
+        ]);
 
         return (int) $word_id;
     }

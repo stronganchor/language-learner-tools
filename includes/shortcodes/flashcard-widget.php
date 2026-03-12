@@ -144,6 +144,10 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
         }
     }
 
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
+    }
+
     // No specific categories provided → offer all; not preselected.
     if (empty($raw)) {
         $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
@@ -1019,6 +1023,11 @@ function ll_get_words_by_category_ajax() {
     }
 
     $term = get_term_by('name', $category, 'word-category');
+    if ($term instanceof WP_Term && !is_wp_error($term) && function_exists('ll_tools_user_can_view_category')) {
+        if (!ll_tools_user_can_view_category($term)) {
+            wp_send_json_success([]);
+        }
+    }
     $meta_config = ($term && !is_wp_error($term)) ? ll_tools_get_category_quiz_config($term) : [];
     $normalized_prompt_type = ll_tools_normalize_quiz_prompt_type(
         $prompt_type ?: ($meta_config['prompt_type'] ?? 'audio'),

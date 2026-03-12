@@ -1,5 +1,258 @@
 <?php
 
+if (!defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY', 'll_category_visibility');
+}
+if (!defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY', 'll_category_access_user_ids');
+}
+
+function ll_tools_normalize_category_visibility($value): string {
+    $visibility = sanitize_key((string) $value);
+    return ($visibility === 'private') ? 'private' : 'public';
+}
+
+function ll_tools_resolve_word_category_term($category): ?WP_Term {
+    if ($category instanceof WP_Term) {
+        return ($category->taxonomy === 'word-category') ? $category : null;
+    }
+
+    if (is_numeric($category)) {
+        $term = get_term((int) $category, 'word-category');
+        return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
+    }
+
+    if (!is_string($category)) {
+        return null;
+    }
+
+    $category = trim($category);
+    if ($category === '') {
+        return null;
+    }
+
+    $term = get_term_by('slug', sanitize_title($category), 'word-category');
+    if ($term instanceof WP_Term && !is_wp_error($term)) {
+        return $term;
+    }
+
+    $term = get_term_by('name', $category, 'word-category');
+    return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
+}
+
+function ll_tools_resolve_word_category_term_id($category): int {
+    $term = ll_tools_resolve_word_category_term($category);
+    return ($term instanceof WP_Term) ? (int) $term->term_id : 0;
+}
+
+function ll_tools_get_category_visibility($category): string {
+    $term_id = ll_tools_resolve_word_category_term_id($category);
+    if ($term_id <= 0) {
+        return 'public';
+    }
+
+    $visibility = ll_tools_normalize_category_visibility(
+        get_term_meta($term_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true)
+    );
+    return (string) apply_filters('ll_tools_category_visibility', $visibility, $term_id);
+}
+
+function ll_tools_is_category_private($category): bool {
+    return ll_tools_get_category_visibility($category) === 'private';
+}
+
+function ll_tools_normalize_category_access_user_ids($value): array {
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if ($trimmed[0] === '[' || $trimmed[0] === '{') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $value = preg_split('/\s*,\s*/', $trimmed);
+            }
+        } else {
+            $value = preg_split('/\s*,\s*/', $trimmed);
+        }
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $resolved = [];
+    foreach ($value as $candidate) {
+        $user_id = (int) $candidate;
+        if ($user_id <= 0) {
+            continue;
+        }
+
+        $user = get_userdata($user_id);
+        if ($user instanceof WP_User && $user->exists()) {
+            $resolved[$user_id] = true;
+        }
+    }
+
+    $user_ids = array_map('intval', array_keys($resolved));
+    sort($user_ids, SORT_NUMERIC);
+
+    return $user_ids;
+}
+
+function ll_tools_get_category_access_user_ids($category): array {
+    $term_id = ll_tools_resolve_word_category_term_id($category);
+    if ($term_id <= 0) {
+        return [];
+    }
+
+    $user_ids = ll_tools_normalize_category_access_user_ids(
+        get_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true)
+    );
+    return array_values(array_unique(array_map('intval', (array) apply_filters('ll_tools_category_access_user_ids', $user_ids, $term_id))));
+}
+
+function ll_tools_current_user_can_manage_category_privacy(): bool {
+    return current_user_can('manage_options');
+}
+
+function ll_tools_user_can_view_category($category, int $user_id = 0): bool {
+    $term_id = ll_tools_resolve_word_category_term_id($category);
+    if ($term_id <= 0) {
+        return false;
+    }
+
+    if (!ll_tools_is_category_private($term_id)) {
+        return true;
+    }
+
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return false;
+    }
+
+    if (user_can($user, 'manage_options')) {
+        return true;
+    }
+
+    $allowed = in_array($user_id, ll_tools_get_category_access_user_ids($term_id), true);
+    return (bool) apply_filters('ll_tools_user_can_view_category', $allowed, $term_id, $user_id);
+}
+
+function ll_tools_filter_category_terms_for_user(array $terms, int $user_id = 0): array {
+    $filtered = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            continue;
+        }
+
+        if (ll_tools_user_can_view_category($term, $user_id)) {
+            $filtered[] = $term;
+        }
+    }
+
+    return $filtered;
+}
+
+function ll_tools_filter_category_ids_for_user(array $category_ids, int $user_id = 0): array {
+    $filtered = [];
+    $seen = [];
+
+    foreach ($category_ids as $category_id) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || isset($seen[$category_id])) {
+            continue;
+        }
+        $seen[$category_id] = true;
+
+        if (ll_tools_user_can_view_category($category_id, $user_id)) {
+            $filtered[] = $category_id;
+        }
+    }
+
+    return $filtered;
+}
+
+function ll_tools_get_category_privacy_assignable_users(): array {
+    $users = get_users([
+        'orderby' => 'display_name',
+        'order' => 'ASC',
+    ]);
+
+    if (!is_array($users)) {
+        return [];
+    }
+
+    return array_values(array_filter($users, static function ($user): bool {
+        return ($user instanceof WP_User) && $user->exists();
+    }));
+}
+
+function ll_tools_get_category_privacy_user_label(WP_User $user): string {
+    $label = trim((string) $user->display_name);
+    if ($label === '') {
+        $label = (string) $user->user_login;
+    }
+
+    if ($user->user_login !== '' && $user->user_login !== $label) {
+        $label .= ' (@' . $user->user_login . ')';
+    }
+    if ($user->user_email !== '') {
+        $label .= ' - ' . $user->user_email;
+    }
+
+    global $wp_roles;
+    $role_labels = [];
+    foreach ((array) $user->roles as $role_slug) {
+        $role_name = '';
+        if ($wp_roles instanceof WP_Roles && !empty($wp_roles->roles[$role_slug]['name'])) {
+            $role_name = translate_user_role((string) $wp_roles->roles[$role_slug]['name']);
+        } else {
+            $role_name = ucwords(str_replace('_', ' ', (string) $role_slug));
+        }
+
+        if ($role_name !== '') {
+            $role_labels[] = $role_name;
+        }
+    }
+
+    if (!empty($role_labels)) {
+        $label .= ' [' . implode(', ', $role_labels) . ']';
+    }
+
+    return $label;
+}
+
+function ll_tools_render_category_access_user_select(array $selected_user_ids = [], string $field_id = 'll-category-access-user-ids'): void {
+    $selected_lookup = array_fill_keys(array_map('intval', $selected_user_ids), true);
+    $users = ll_tools_get_category_privacy_assignable_users();
+
+    echo '<select name="ll_category_access_user_ids[]" id="' . esc_attr($field_id) . '" multiple="multiple" size="8" style="min-width:320px;max-width:100%;">';
+    foreach ($users as $user) {
+        $user_id = (int) $user->ID;
+        if ($user_id <= 0) {
+            continue;
+        }
+
+        echo '<option value="' . esc_attr((string) $user_id) . '" ' . selected(!empty($selected_lookup[$user_id]), true, false) . '>';
+        echo esc_html(ll_tools_get_category_privacy_user_label($user));
+        echo '</option>';
+    }
+    echo '</select>';
+
+    if (empty($users)) {
+        echo '<p class="description">' . esc_html__('No user accounts are available yet.', 'll-tools-text-domain') . '</p>';
+    }
+}
+
 /**
  * Registers the "word-category" taxonomy for "words" and "word_images" post types.
  *
@@ -121,6 +374,12 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('word-category_edit_form_fields', 'll_edit_desired_recording_types_field');
     add_action('created_word-category', 'll_save_desired_recording_types_field', 10, 2);
     add_action('edited_word-category', 'll_save_desired_recording_types_field', 10, 2);
+
+    // Privacy + explicit user access (admin-only)
+    add_action('word-category_add_form_fields', 'll_tools_add_category_privacy_fields');
+    add_action('word-category_edit_form_fields', 'll_tools_edit_category_privacy_fields');
+    add_action('created_word-category', 'll_tools_save_category_privacy_fields', 10, 2);
+    add_action('edited_word-category', 'll_tools_save_category_privacy_fields', 10, 2);
 }
 
 /**
@@ -199,6 +458,96 @@ function ll_edit_translation_field($term) {
         </td>
     </tr>
     <?php
+}
+
+function ll_tools_add_category_privacy_fields(): void {
+    if (!ll_tools_current_user_can_manage_category_privacy()) {
+        return;
+    }
+    ?>
+    <div class="form-field term-category-visibility-wrap">
+        <label for="ll-category-visibility"><?php esc_html_e('Visibility', 'll-tools-text-domain'); ?></label>
+        <select name="ll_category_visibility" id="ll-category-visibility">
+            <option value="public"><?php esc_html_e('Public', 'll-tools-text-domain'); ?></option>
+            <option value="private"><?php esc_html_e('Private', 'll-tools-text-domain'); ?></option>
+        </select>
+        <p class="description"><?php esc_html_e('Private categories are visible only to administrators and the users assigned below.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <div class="form-field term-category-access-users-wrap">
+        <label for="ll-category-access-user-ids"><?php esc_html_e('Allowed Users', 'll-tools-text-domain'); ?></label>
+        <?php ll_tools_render_category_access_user_select([], 'll-category-access-user-ids'); ?>
+        <p class="description"><?php esc_html_e('Assign learners, recorders, or other specific users who should be able to view or work inside this private category.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <?php
+}
+
+function ll_tools_edit_category_privacy_fields($term): void {
+    if (!ll_tools_current_user_can_manage_category_privacy()) {
+        return;
+    }
+
+    $visibility = ll_tools_get_category_visibility($term);
+    $selected_user_ids = ll_tools_get_category_access_user_ids($term);
+    ?>
+    <tr class="form-field term-category-visibility-wrap">
+        <th scope="row">
+            <label for="ll-category-visibility"><?php esc_html_e('Visibility', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <select name="ll_category_visibility" id="ll-category-visibility">
+                <option value="public" <?php selected($visibility, 'public'); ?>><?php esc_html_e('Public', 'll-tools-text-domain'); ?></option>
+                <option value="private" <?php selected($visibility, 'private'); ?>><?php esc_html_e('Private', 'll-tools-text-domain'); ?></option>
+            </select>
+            <p class="description"><?php esc_html_e('Private categories are visible only to administrators and the users assigned below.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <tr class="form-field term-category-access-users-wrap">
+        <th scope="row">
+            <label for="ll-category-access-user-ids"><?php esc_html_e('Allowed Users', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <?php ll_tools_render_category_access_user_select($selected_user_ids, 'll-category-access-user-ids'); ?>
+            <p class="description"><?php esc_html_e('Assign learners, recorders, or other specific users who should be able to view or work inside this private category.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+
+function ll_tools_save_category_privacy_fields($term_id): void {
+    if (!ll_tools_current_user_can_manage_category_privacy()) {
+        return;
+    }
+
+    $term_id = (int) $term_id;
+    if ($term_id <= 0) {
+        return;
+    }
+
+    $add_nonce = isset($_POST['_wpnonce_add-tag'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce_add-tag']))
+        : '';
+    $edit_nonce = isset($_POST['_wpnonce'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce']))
+        : '';
+    $nonce_valid = ($add_nonce !== '' && wp_verify_nonce($add_nonce, 'add-tag'))
+        || ($edit_nonce !== '' && wp_verify_nonce($edit_nonce, 'update-tag_' . $term_id));
+    if (!$nonce_valid) {
+        return;
+    }
+
+    $visibility = isset($_POST['ll_category_visibility'])
+        ? ll_tools_normalize_category_visibility(wp_unslash((string) $_POST['ll_category_visibility']))
+        : 'public';
+    update_term_meta($term_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, $visibility);
+
+    $user_ids = isset($_POST['ll_category_access_user_ids'])
+        ? ll_tools_normalize_category_access_user_ids(wp_unslash($_POST['ll_category_access_user_ids']))
+        : [];
+    if (empty($user_ids)) {
+        delete_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY);
+    } else {
+        update_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, $user_ids);
+    }
 }
 
 /**
@@ -1596,7 +1945,6 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term, array $arg
             $wordset_ids,
             array_merge($current_config, ['__skip_quiz_config_merge' => true])
         );
-
     $mismatch_count = max(0, $published_count - $current_count);
     if ($mismatch_count <= 0) {
         $request_cache[$request_cache_key] = null;
@@ -1676,7 +2024,7 @@ function ll_tools_get_category_quiz_presentation_mismatch_data($term, array $arg
  * @param int|WP_Term|null $term Category term or term ID.
  */
 function ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen($term = null): ?WP_Term {
-    if (!is_admin() || !ll_tools_user_can_view_admin_notices()) {
+    if (!ll_tools_user_can_view_admin_notices()) {
         return null;
     }
 
@@ -1728,7 +2076,7 @@ function ll_tools_get_category_quiz_presentation_notice_wordset_for_admin_screen
  * @return int[]
  */
 function ll_tools_get_category_quiz_presentation_notice_term_ids_for_admin_screen(): array {
-    if (!is_admin() || !ll_tools_user_can_view_admin_notices()) {
+    if (!ll_tools_user_can_view_admin_notices()) {
         return [];
     }
 
@@ -2399,6 +2747,12 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
 
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $term = get_term_by('name', $categoryName, 'word-category');
+    if ($term instanceof WP_Term && !is_wp_error($term) && function_exists('ll_tools_user_can_view_category')) {
+        if (!ll_tools_user_can_view_category($term)) {
+            return [];
+        }
+    }
+
     $config = $quiz_config;
     $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
     if ($term && !is_wp_error($term) && !$skip_merge) {

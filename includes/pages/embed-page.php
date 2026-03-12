@@ -9,7 +9,14 @@ $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
 $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'practice';
 
 $term = $embed_category ? get_term_by('slug', $embed_category, 'word-category') : null;
+$term_is_accessible = $term && !is_wp_error($term) && (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term));
+$term = $term_is_accessible ? $term : null;
 $site_name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
+
+if (!$term_is_accessible) {
+    status_header(404);
+    nocache_headers();
+}
 
 $quiz_page_title = '';
 if ($term && !is_wp_error($term)) {

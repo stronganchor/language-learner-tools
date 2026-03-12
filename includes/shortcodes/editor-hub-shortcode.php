@@ -85,6 +85,13 @@ function ll_tools_editor_hub_get_word_ids_for_wordset(int $wordset_id, string $c
     }
 
     $category_slug = sanitize_title($category_slug);
+    if ($category_slug !== '' && $category_slug !== 'uncategorized' && function_exists('ll_tools_user_can_view_category')) {
+        $category_term = get_term_by('slug', $category_slug, 'word-category');
+        if ($category_term instanceof WP_Term && !is_wp_error($category_term) && !ll_tools_user_can_view_category($category_term)) {
+            return [];
+        }
+    }
+
     $tax_query = [
         [
             'taxonomy' => 'wordset',
@@ -109,8 +116,37 @@ function ll_tools_editor_hub_get_word_ids_for_wordset(int $wordset_id, string $c
         'tax_query'      => $tax_query,
     ]);
 
-    return array_values(array_filter(array_map('intval', (array) $query->posts), static function ($id) {
+    $word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), static function ($id) {
         return $id > 0;
+    }));
+    if (empty($word_ids) || !function_exists('ll_tools_user_can_view_category')) {
+        return $word_ids;
+    }
+
+    $terms = wp_get_object_terms($word_ids, 'word-category', ['fields' => 'all_with_object_id']);
+    if (is_wp_error($terms) || empty($terms)) {
+        return $word_ids;
+    }
+
+    $accessible_by_word = [];
+    $has_terms_by_word = [];
+    foreach ((array) $terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+        $object_id = isset($term->object_id) ? (int) $term->object_id : 0;
+        if ($object_id <= 0) {
+            continue;
+        }
+        $has_terms_by_word[$object_id] = true;
+        if (!ll_tools_user_can_view_category($term)) {
+            continue;
+        }
+        $accessible_by_word[$object_id] = true;
+    }
+
+    return array_values(array_filter($word_ids, static function (int $word_id) use ($accessible_by_word, $has_terms_by_word): bool {
+        return !empty($accessible_by_word[$word_id]) || empty($has_terms_by_word[$word_id]);
     }));
 }
 
@@ -143,6 +179,13 @@ function ll_tools_editor_hub_get_primary_category_for_word(int $word_id): array 
         }
     }
 
+    if (empty($terms)) {
+        return $fallback;
+    }
+
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms);
+    }
     if (empty($terms)) {
         return $fallback;
     }

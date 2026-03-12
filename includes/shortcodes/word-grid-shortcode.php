@@ -1974,13 +1974,19 @@ function ll_tools_word_grid_resolve_context($atts): array {
     }
 
     $category_term = null;
+    $access_denied = false;
     $is_text_based = false;
     $has_text_only_answer_options = false;
     $hide_lesson_grid_text = false;
     if ($sanitized_category !== '') {
         $category_term = get_term_by('slug', $sanitized_category, 'word-category');
+        if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_user_can_view_category')) {
+            if (!ll_tools_user_can_view_category($category_term)) {
+                $access_denied = true;
+            }
+        }
     }
-    if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
+    if (!$access_denied && $category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
         $quiz_config = ll_tools_get_category_quiz_config($category_term);
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? '');
@@ -2045,6 +2051,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'sanitized_category'           => $sanitized_category,
         'sanitized_wordset'            => $sanitized_wordset,
         'deepest_only'                 => $deepest_only,
+        'access_denied'                => $access_denied,
         'category_term'                => $category_term,
         'wordset_term'                 => $wordset_term,
         'wordset_id'                   => $wordset_id,
@@ -2618,6 +2625,9 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
  */
 function ll_tools_word_grid_shortcode($atts) {
     $context = ll_tools_word_grid_resolve_context($atts);
+    if (!empty($context['access_denied'])) {
+        return '';
+    }
     $atts = $context['atts'];
     $sanitized_category = $context['sanitized_category'];
     $sanitized_wordset = $context['sanitized_wordset'];

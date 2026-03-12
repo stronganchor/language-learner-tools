@@ -18,6 +18,30 @@ function ll_qp_is_quiz_page_context() : bool {
     return $post ? (bool) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : false;
 }
 
+function ll_tools_quiz_page_enforce_category_access(): void {
+    if (!ll_qp_is_quiz_page_context()) {
+        return;
+    }
+
+    $post = get_post();
+    $term_id = $post ? (int) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : 0;
+    if ($term_id <= 0) {
+        return;
+    }
+
+    if (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term_id)) {
+        return;
+    }
+
+    global $wp_query;
+    if ($wp_query instanceof WP_Query) {
+        $wp_query->set_404();
+    }
+    status_header(404);
+    nocache_headers();
+}
+add_action('template_redirect', 'll_tools_quiz_page_enforce_category_access', 1);
+
 /**
  * Format a human-friendly quiz title for a category.
  *
