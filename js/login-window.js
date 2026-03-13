@@ -3,10 +3,6 @@
     var localPart = String(email || "").trim().toLowerCase().split("@")[0] || "";
     var suggestion = localPart.replace(/[^a-z0-9]+/g, "");
 
-    if (!suggestion) {
-      suggestion = "learner";
-    }
-
     return suggestion.slice(0, 50);
   }
 
@@ -71,12 +67,8 @@
     }
 
     function setSuggestedUsername(value) {
-      if (!value) {
-        return;
-      }
-
-      lastSuggested = value;
-      usernameInput.value = value;
+      lastSuggested = String(value || "").trim();
+      usernameInput.value = lastSuggested;
       setCustomUsername(false);
     }
 

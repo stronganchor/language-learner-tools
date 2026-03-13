@@ -245,14 +245,11 @@ if (!function_exists('ll_tools_login_window_username_base_from_email')) {
             $local_part = (string) ($parts[0] ?? '');
         }
 
-        $base = strtolower($local_part);
+        $base = strtolower(remove_accents($local_part));
+        $base = sanitize_user($base, true);
         $base = preg_replace('/[^a-z0-9]+/', '', $base);
         $base = is_string($base) ? $base : '';
         $base = trim($base);
-
-        if ($base === '') {
-            $base = 'learner';
-        }
 
         return substr($base, 0, 50);
     }
@@ -275,7 +272,7 @@ if (!function_exists('ll_tools_login_window_available_username')) {
     function ll_tools_login_window_available_username(string $seed): string {
         $base = sanitize_user($seed, true);
         if ($base === '') {
-            $base = 'learner';
+            $base = 'u';
         }
 
         $suffix = 0;
@@ -293,9 +290,12 @@ if (!function_exists('ll_tools_login_window_available_username')) {
 
 if (!function_exists('ll_tools_login_window_available_username_from_email')) {
     function ll_tools_login_window_available_username_from_email(string $email): string {
-        return ll_tools_login_window_available_username(
-            ll_tools_login_window_username_base_from_email($email)
-        );
+        $base = ll_tools_login_window_username_base_from_email($email);
+        if ($base === '') {
+            return '';
+        }
+
+        return ll_tools_login_window_available_username($base);
     }
 }
 
@@ -623,6 +623,7 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                 'messages' => $errors,
                 'prefill' => [
                     'login_identifier' => $identifier,
+                    'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
             wp_safe_redirect($redirect_to);
@@ -647,6 +648,7 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                 'messages' => $messages,
                 'prefill' => [
                     'login_identifier' => $identifier,
+                    'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
             wp_safe_redirect($redirect_to);
@@ -722,6 +724,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         $password = isset($_POST['user_pass'])
             ? (string) wp_unslash($_POST['user_pass'])
             : '';
+        $remember = !empty($_POST['rememberme']);
         $username_is_custom = isset($_POST['ll_tools_register_username_is_custom'])
             && ((string) wp_unslash($_POST['ll_tools_register_username_is_custom']) === '1');
 
@@ -766,6 +769,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
                 'prefill' => [
                     'username' => $username,
                     'email' => $email,
+                    'register_remember' => $remember ? '1' : '0',
                     'username_is_custom' => $username_is_custom ? '1' : '0',
                 ],
             ], 'register');
@@ -804,6 +808,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
                 'prefill' => [
                     'username' => $insert_args['user_login'],
                     'email' => $email,
+                    'register_remember' => $remember ? '1' : '0',
                     'username_is_custom' => $username_is_custom ? '1' : '0',
                 ],
             ], 'register');
@@ -820,7 +825,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         $signed_in_user = wp_signon([
             'user_login' => $insert_args['user_login'],
             'user_password' => $password,
-            'remember' => true,
+            'remember' => $remember,
         ], is_ssl());
 
         if (!is_wp_error($signed_in_user) && $signed_in_user instanceof WP_User) {
@@ -917,7 +922,7 @@ if (!function_exists('ll_tools_render_login_window')) {
             'show_lost_password' => true,
             'show_registration' => false,
             'registration_title' => __('Create account', 'll-tools-text-domain'),
-            'registration_message' => __('New here? Create a learner account to save your progress.', 'll-tools-text-domain'),
+            'registration_message' => '',
             'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
             'registration_disabled_message' => __('New account registration is currently disabled.', 'll-tools-text-domain'),
         ];
@@ -1007,14 +1012,17 @@ if (!function_exists('ll_tools_render_login_window')) {
         $registration_email_id = 'll-tools-register-email-' . $suffix;
         $registration_username_id = 'll-tools-register-username-' . $suffix;
         $registration_password_id = 'll-tools-register-password-' . $suffix;
+        $registration_remember_id = 'll-tools-register-remember-' . $suffix;
         $registration_math_id = 'll-tools-register-math-' . $suffix;
         $registration_honeypot_id = 'll-tools-register-website-' . $suffix;
 
         $prefill_login_identifier = isset($prefill['login_identifier'])
             ? ll_tools_login_window_trimmed_identifier($prefill['login_identifier'])
             : '';
+        $prefill_login_remember = !isset($prefill['login_remember']) || ((string) $prefill['login_remember'] !== '0');
         $prefill_username = isset($prefill['username']) ? sanitize_user((string) $prefill['username'], true) : '';
         $prefill_email = isset($prefill['email']) ? sanitize_email((string) $prefill['email']) : '';
+        $prefill_register_remember = !isset($prefill['register_remember']) || ((string) $prefill['register_remember'] !== '0');
         $prefill_username_is_custom = isset($prefill['username_is_custom']) && ((string) $prefill['username_is_custom'] === '1');
 
         $challenge_left = random_int(1, 5);
@@ -1040,9 +1048,7 @@ if (!function_exists('ll_tools_render_login_window')) {
             if ($registration_title !== '') {
                 $title = $registration_title;
             }
-            if ($registration_message !== '') {
-                $message = $registration_message;
-            }
+            $message = $registration_message;
         }
         $show_lost_password = !empty($args['show_lost_password']);
         $lost_password_url = wp_lostpassword_url($redirect_to);
@@ -1103,7 +1109,7 @@ if (!function_exists('ll_tools_render_login_window')) {
                                     id="<?php echo esc_attr($login_remember_id); ?>"
                                     name="rememberme"
                                     value="forever"
-                                    checked />
+                                    <?php checked($prefill_login_remember); ?> />
                                 <label for="<?php echo esc_attr($login_remember_id); ?>"><?php esc_html_e('Keep me signed in', 'll-tools-text-domain'); ?></label>
                             </p>
                             <p class="login-submit">
@@ -1173,6 +1179,15 @@ if (!function_exists('ll_tools_render_login_window')) {
                                     spellcheck="false"
                                     data-ll-register-password="1"
                                     required />
+                            </p>
+                            <p class="login-remember">
+                                <input
+                                    type="checkbox"
+                                    id="<?php echo esc_attr($registration_remember_id); ?>"
+                                    name="rememberme"
+                                    value="forever"
+                                    <?php checked($prefill_register_remember); ?> />
+                                <label for="<?php echo esc_attr($registration_remember_id); ?>"><?php esc_html_e('Keep me signed in', 'll-tools-text-domain'); ?></label>
                             </p>
                             <p class="ll-tools-login-window__honeypot" aria-hidden="true">
                                 <label for="<?php echo esc_attr($registration_honeypot_id); ?>"><?php esc_html_e('Leave this field empty', 'll-tools-text-domain'); ?></label>

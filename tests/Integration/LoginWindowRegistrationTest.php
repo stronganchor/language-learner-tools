@@ -47,14 +47,16 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('name="log"', $markup);
         $this->assertStringContainsString('name="pwd"', $markup);
-        $this->assertStringContainsString('name="rememberme"', $markup);
-        $this->assertStringContainsString('checked', $markup);
+        $this->assertSame(2, substr_count($markup, 'name="rememberme"'));
+        $this->assertSame(2, substr_count($markup, 'Keep me signed in'));
         $this->assertStringContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('name="user_login"', $markup);
         $this->assertStringContainsString('name="user_pass"', $markup);
+        $this->assertStringContainsString('id="ll-tools-register-remember-', $markup);
         $this->assertStringContainsString('data-ll-register-email="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password="1"', $markup);
         $this->assertStringContainsString('ll_tools_register_math_answer', $markup);
+        $this->assertStringNotContainsString('ll-tools-login-window__register-message', $markup);
         $this->assertMatchesRegularExpression('/type="text"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?autocomplete="new-password"/', $markup);
         $this->assertMatchesRegularExpression('/>\s*[1-5] \+ [1-5] =\s*<\/label>/', $markup);
         $this->assertStringContainsString('action="http://example.org/wp-admin/admin-post.php"', $markup);
@@ -120,7 +122,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
                 'show_lost_password' => false,
                 'title' => __('Sign in or create an account', 'll-tools-text-domain'),
                 'registration_title' => __('Create learner account', 'll-tools-text-domain'),
-                'registration_message' => __('New learners can create an account here and start immediately.', 'll-tools-text-domain'),
+                'message' => __('Use an account to save your progress and keep learning from this page.', 'll-tools-text-domain'),
             ]);
         } finally {
             unset($_GET['ll_tools_auth']);
@@ -130,9 +132,11 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('name="pwd"', $markup);
         $this->assertStringContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('name="user_login"', $markup);
+        $this->assertStringContainsString('id="ll-tools-register-remember-', $markup);
         $this->assertStringContainsString('Create learner account', $markup);
         $this->assertStringContainsString('Already have an account?', $markup);
         $this->assertStringContainsString('ll_tools_auth=login', $markup);
+        $this->assertStringNotContainsString('Use an account to save your progress and keep learning from this page.', $markup);
         $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
     }
 

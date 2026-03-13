@@ -106,21 +106,25 @@
   border-color: var(--ll-login-accent);
 }
 
-.ll-tools-login-window__form .login-remember {
+.ll-tools-login-window__form .login-remember,
+.ll-tools-login-window__register .login-remember {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   margin-top: 0.15rem;
 }
 
-.ll-tools-login-window__form .login-remember label {
+.ll-tools-login-window__form .login-remember label,
+.ll-tools-login-window__register .login-remember label {
   margin: 0;
   font-size: 0.85rem;
   color: var(--ll-login-muted);
   font-weight: 500;
+  display: inline;
 }
 
-.ll-tools-login-window__form input[type="checkbox"] {
+.ll-tools-login-window__form input[type="checkbox"],
+.ll-tools-login-window__register input[type="checkbox"] {
   margin: 0;
   width: 1rem;
   height: 1rem;

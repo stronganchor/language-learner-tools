@@ -3307,7 +3307,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'redirect_to' => $utility_current_url,
                 'show_registration' => true,
                 'registration_title' => __('Create learner account', 'll-tools-text-domain'),
-                'registration_message' => __('New learners can create an account here and start immediately.', 'll-tools-text-domain'),
                 'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
             ]);
             ?>
@@ -3334,7 +3333,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'redirect_to' => ll_tools_get_current_request_url(),
                     'show_registration' => true,
                     'registration_title' => __('Create learner account', 'll-tools-text-domain'),
-                    'registration_message' => __('New learners can create an account to start tracking progress.', 'll-tools-text-domain'),
                     'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
                 ]);
                 ?>
