@@ -8,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-03-11 12:23+0000\n"
+"PO-Revision-Date: 2026-03-13 09:00+0000\n"
 "Language: tr_TR\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 "X-Generator: Loco https://localise.biz/\n"
@@ -24,7 +24,7 @@ msgstr "%1$d / %2$d tamamlandı"
 #: includes/pages/wordset-pages.php:3259
 #, php-format
 msgid "%1$d events, %2$d words"
-msgstr "1$d olay, %2$d kelime"
+msgstr "%1$d etkinlik, %2$d kelime"
 
 #: includes/admin/image-aspect-normalizer-admin.php:84
 #, php-format
@@ -39,69 +39,69 @@ msgstr "%2$d görüntüden %1$d'sinin düzeltilmesi gerekiyor"
 #: includes/pages/wordset-pages.php:3186
 #, php-format
 msgid "%1$d selected · %2$d words"
-msgstr "1$d seçilmiş - %2$d kelime"
+msgstr "%1$d seçili · %2$d kelime"
 
 #: includes/pages/wordset-pages.php:4434
 #, php-format
 msgid "%1$d starred word in %2$s"
 msgid_plural "%1$d starred words in %2$s"
-msgstr[0] "2$s içinde %1$d yıldızlı sözcük"
-msgstr[1] "2$s içinde %1$d yıldızlı sözcük"
+msgstr[0] "%2$s içinde %1$d yıldızlı kelime"
+msgstr[1] "%2$s içinde %1$d yıldızlı kelime"
 
 #: includes/admin/bulk-word-import-admin.php:202
 #, php-format
 msgid "%1$d word was skipped because it already exists: %2$s"
 msgid_plural "%1$d words were skipped because they already exist: %2$s"
-msgstr[0] "1$d sözcüğü zaten mevcut olduğu için atlandı: %2$s"
-msgstr[1] "1$d sözcük zaten mevcut olduğu için atlandı: %2$s"
+msgstr[0] "Zaten mevcut olduğu için %1$d kelime atlandı: %2$s"
+msgstr[1] "Zaten mevcut oldukları için %1$d kelime atlandı: %2$s"
 
 #. translators: 1 status label, 2 number of errors
 #: includes/admin/export-import.php:845
 #, php-format
 msgid "%1$s (%2$d errors)"
-msgstr "1$s (%2$d hata)"
+msgstr "%1$s (%2$d hata)"
 
 #. translators: 1: word category name, 2: number of ready-to-record words
 #: includes/shortcodes/audio-recording-shortcode.php:1604
 #, php-format
 msgid "%1$s (%2$d)"
-msgstr "1$s (%2$d)"
+msgstr "%1$s (%2$d)"
 
 #. translators: 1: Uploaded file name, 2: Upload error message.
 #: includes/admin/uploads/audio-upload-form.php:257
 #: includes/shortcodes/audio-recording-shortcode.php:1179
 #, php-format
 msgid "%1$s (%2$s)"
-msgstr "1$s (%2$s)"
+msgstr "%1$s (%2$s)"
 
 #. translators: 1: Uploaded file name, 2: MIME type.
 #: includes/admin/uploads/audio-upload-form.php:390
 #, php-format
 msgid "%1$s (Invalid file type: %2$s)"
-msgstr "1$s (Geçersiz dosya türü: %2$s)"
+msgstr "%1$s (Geçersiz dosya türü: %2$s)"
 
 #: includes/taxonomies/wordset-taxonomy.php:1432
 #, php-format
 msgid "%1$s (manual #%2$d)"
-msgstr "1$s (kılavuz #%2$d)"
+msgstr "%1$s (manuel #%2$d)"
 
 #. translators: 1: old size, 2: new size, 3: bytes saved
 #: includes/admin/image-webp-optimizer-admin.php:1717
 #, php-format
 msgid "%1$s -> %2$s (%3$s saved)"
-msgstr "1$s -> %2$s (%3$s kaydedildi)"
+msgstr "%1$s -> %2$s (%3$s tasarruf edildi)"
 
 #. translators: 1: Uploaded file name, 2: New post ID.
 #: includes/admin/uploads/audio-upload-form.php:301
 #, php-format
 msgid "%1$s -> New Post ID: %2$d"
-msgstr "1$s -> Yeni Gönderi Kimliği: %2$d"
+msgstr "%1$s -> Yeni gönderi kimliği: %2$d"
 
 #. translators: 1: Uploaded file name, 2: Existing post ID.
 #: includes/admin/uploads/audio-upload-form.php:285
 #, php-format
 msgid "%1$s -> Post ID: %2$d"
-msgstr "1$s -> Gönderi Kimliği: %2$d"
+msgstr "%1$s -> Gönderi kimliği: %2$d"
 
 #. translators: 1: recording type label, 2: field label
 #: includes/shortcodes/editor-hub-shortcode.php:586
@@ -109,24 +109,24 @@ msgstr "1$s -> Gönderi Kimliği: %2$d"
 #: includes/shortcodes/editor-hub-shortcode.php:602
 #, php-format
 msgid "%1$s recording: %2$s"
-msgstr "1$s kayıt: %2$s"
+msgstr "%1$s kaydı: %2$s"
 
 #. translators: 1: source language label, 2: destination language label
 #: includes/admin/settings.php:286 includes/admin/settings.php:288
 #, php-format
 msgid "%1$s to %2$s"
-msgstr "1$s ila %2$s"
+msgstr "%1$s -> %2$s"
 
 #: includes/pages/quiz-pages.php:42
 #, php-format
 msgid "%1$s | %2$s"
-msgstr "1$s | %2$s"
+msgstr "%1$s | %2$s"
 
 #. translators: 1: Admin page title, 2: Site name
 #: includes/admin/admin-dashboard-menu.php:804
 #, php-format
 msgid "%1$s ‹ %2$s — WordPress"
-msgstr "1$s ' %2$s - WordPress"
+msgstr "%1$s ‹ %2$s — WordPress"
 
 #. translators: 1: optimization summary, 2: remaining reason labels
 #: includes/admin/image-webp-optimizer-admin.php:1728
@@ -138,20 +138,20 @@ msgstr "%1$s. Hâlâ işaretli: %2$s (kuyrukta kalacak)."
 #, php-format
 msgid "%1$s: %2$d file succeeded."
 msgid_plural "%1$s: %2$d files succeeded."
-msgstr[0] "1$s: %2$d dosyası başarılı oldu."
-msgstr[1] "1$s: %2$d dosyaları başarılı oldu."
+msgstr[0] "%1$s: %2$d dosya başarıyla işlendi."
+msgstr[1] "%1$s: %2$d dosya başarıyla işlendi."
 
 #: includes/pages/wordset-pages.php:4503
 #, php-format
 msgid "%1$s: %2$s"
-msgstr "1$s: %2$s"
+msgstr "%1$s: %2$s"
 
 #: includes/admin/export-import.php:3412
 #, php-format
 msgid "%d additional CSV issue was not shown."
 msgid_plural "%d additional CSV issues were not shown."
-msgstr[0] "d ek CSV sorunu gösterilmedi."
-msgstr[1] "d ek CSV sorunları gösterilmedi."
+msgstr[0] "%d ek CSV sorunu gösterilmedi."
+msgstr[1] "%d ek CSV sorunu gösterilmedi."
 
 #: includes/admin/image-aspect-normalizer-admin.php:81
 #, php-format
@@ -163,8 +163,8 @@ msgstr "%d en boy oranları algılandı"
 #, php-format
 msgid "%d audio recording needs processing"
 msgid_plural "%d audio recordings need processing"
-msgstr[0] "%d ses kaydının işlenmesi gerekiyor"
-msgstr[1] "d ses kayıtlarının işlenmesi gerekiyor"
+msgstr[0] "%d ses kaydı işlenmeyi bekliyor"
+msgstr[1] "%d ses kaydı işlenmeyi bekliyor"
 
 #: includes/admin/duplicate-category-words-admin.php:650
 #, php-format
@@ -211,15 +211,15 @@ msgstr[1] "d çiftler atlandı."
 #, php-format
 msgid "%d empty line was ignored."
 msgid_plural "%d empty lines were ignored."
-msgstr[0] "d boş satır göz ardı edildi."
-msgstr[1] "d boş satırlar göz ardı edildi."
+msgstr[0] "%d boş satır yok sayıldı."
+msgstr[1] "%d boş satır yok sayıldı."
 
 #: includes/taxonomies/word-category-taxonomy.php:2371
 #, php-format
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
-msgstr[0] "d girişi başarısız oldu."
-msgstr[1] "d girişleri başarısız oldu."
+msgstr[0] "%d giriş başarısız oldu."
+msgstr[1] "%d giriş başarısız oldu."
 
 #: includes/pages/wordset-pages.php:1756 includes/pages/wordset-pages.php:1794
 #, php-format
@@ -821,7 +821,7 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:89
 #: includes/admin/image-aspect-normalizer-admin.php:155
 msgid "Apply Crops"
-msgstr "Mahsulleri Uygula"
+msgstr "Kırpmaları Uygula"
 
 #: includes/admin/image-webp-optimizer-admin.php:1493
 #: includes/admin/image-webp-optimizer-admin.php:1549
@@ -830,16 +830,17 @@ msgstr "Filtreleri Uygula"
 
 #: includes/admin/word-option-rules-admin.php:1387
 msgid "Apply Import"
-msgstr "İthalat Uygula"
+msgstr "İçe Aktarmayı Uygula"
 
 #: includes/admin/image-aspect-normalizer-admin.php:90
 msgid "Apply these crops and update affected posts in this category?"
 msgstr ""
-"Bu mahsulleri uygulayın ve bu kategorideki etkilenen gönderileri güncelleyin?"
+"Bu kırpmaları uygulayıp bu kategoride etkilenen yazıları güncellemek "
+"istiyor musunuz?"
 
 #: includes/admin/word-option-rules-admin.php:1372
 msgid "Apply to category"
-msgstr "Kategoriye başvur"
+msgstr "Kategoriye uygula"
 
 #: includes/admin/word-option-rules-admin.php:1337
 msgid "Apply to word set"
@@ -863,7 +864,7 @@ msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:91
 msgid "Applying crops..."
-msgstr "Ürünlerin uygulanması..."
+msgstr "Kırpmalar uygulanıyor..."
 
 #: includes/admin/image-aspect-normalizer-admin.php:96
 msgid "Applying white padding to image..."
@@ -1235,7 +1236,7 @@ msgstr "Word Görselleri için Toplu Görsel Yükleme"
 
 #: includes/pages/wordset-pages.php:3790
 msgid "Bulk Import"
-msgstr "Toplu İthalat"
+msgstr "Toplu İçe Aktarma"
 
 #: includes/pages/wordset-pages.php:3851
 msgid ""
@@ -1342,8 +1343,8 @@ msgstr "Kategoriler (toplam %1$d): %2$s"
 #, php-format
 msgid "Categories (%1$d total): %2$s (+%3$d more category)"
 msgid_plural "Categories (%1$d total): %2$s (+%3$d more categories)"
-msgstr[0] "Kategoriler (toplam %1$d): 2$s (+%3$d daha fazla kategori)"
-msgstr[1] "Kategoriler (toplam %1$d): 2$s (+%3$d daha fazla kategori)"
+msgstr[0] "Kategoriler (toplam %1$d): %2$s (+%3$d kategori daha)"
+msgstr[1] "Kategoriler (toplam %1$d): %2$s (+%3$d kategori daha)"
 
 #: includes/pages/wordset-pages.php:3180
 #, php-format
@@ -1588,8 +1589,7 @@ msgid ""
 "Choose whether the quiz starts with audio, an image, or text for this "
 "category."
 msgstr ""
-"Bu kategori için testin sesle mi, görüntüyle mi yoksa metinle mi "
-"başlayacağını seçin."
+"Bu kategori için sorunun sesle, görselle ya da metinle başlayacağını seçin."
 
 #: includes/admin/recording-types-admin.php:177
 msgid ""
@@ -1814,9 +1814,10 @@ msgid ""
 "buttons only. \"Use word set default\" follows the word set setting for non-"
 "text quiz categories."
 msgstr ""
-"Ders sayfalarını ve [word_grid] ekranlarını kontrol eder. \"Gizle\" yalnızca "
-"resim/ses düğmelerini gösterir. \"Varsayılan sözcük kümesini kullan\" metin "
-"olmayan sınav kategorileri için sözcük kümesi ayarını izler."
+"Ders sayfaları ve [word_grid] görünümlerinde metnin gösterimini belirler. "
+"\"Gizle\" yalnızca görsel/ses düğmelerini gösterir. \"Kelime seti "
+"varsayılanını kullan\" seçeneği, metin olmayan sınav kategorilerinde kelime "
+"seti ayarını uygular."
 
 #: includes/admin/bulk-translation-admin.php:119
 msgid "Copies legacy values where the new meta is empty."
@@ -2697,7 +2698,7 @@ msgstr "Eklemek için harfleri ve IPA sembollerini girin."
 
 #: includes/taxonomies/word-category-taxonomy.php:2383
 msgid "Enter names separated by commas, tabs or new lines…"
-msgstr "Virgül, sekme veya yeni satır ile ayrılmış isimleri girin.."
+msgstr "Adları virgül, sekme veya satır sonuyla ayırarak girin…"
 
 #: includes/admin/ipa-keyboard-admin.php:40
 msgid "Enter one or more symbols to add."
@@ -6083,13 +6084,13 @@ msgstr "%s kaydını oynat"
 
 #: includes/shortcodes/flashcard-widget.php:340
 msgid "Play audio"
-msgstr "Ses çalma"
+msgstr "Sesi çal"
 
 #: includes/admin/uploads/image-upload-form.php:319
 #: includes/taxonomies/word-category-taxonomy.php:544
 #: includes/taxonomies/word-category-taxonomy.php:616
 msgid "Play audio (default)"
-msgstr "Ses çal (varsayılan)"
+msgstr "Sesi çal (varsayılan)"
 
 #: includes/user-roles/wordset-manager.php:290
 msgid ""
@@ -6328,11 +6329,11 @@ msgstr "Görüntü sayfasını yazdır"
 #: templates/vocab-lesson-print-template.php:58
 #: templates/vocab-lesson-print-template.php:65
 msgid "Print Images"
-msgstr "Baskı Görüntüleri"
+msgstr "Görselleri Yazdır"
 
 #: templates/vocab-lesson-template.php:335
 msgid "Print images"
-msgstr "Görüntüleri yazdırın"
+msgstr "Görselleri yazdır"
 
 #: templates/vocab-lesson-print-template.php:47
 msgid "Print view unavailable."
@@ -6406,7 +6407,7 @@ msgstr "Soru ve cevap çiftleri"
 #: includes/pages/wordset-pages.php:3767
 #: includes/taxonomies/wordset-taxonomy.php:2019
 msgid "Public"
-msgstr "Kamu"
+msgstr "Herkese Açık"
 
 #: includes/admin/audio-processor-admin.php:466
 msgid "Published audio exists"
@@ -6490,7 +6491,7 @@ msgstr "Sınav Sayfası Yönetimi"
 #: includes/taxonomies/word-category-taxonomy.php:542
 #: includes/taxonomies/word-category-taxonomy.php:612
 msgid "Quiz Prompt Type"
-msgstr "Sınav İstemi Türü"
+msgstr "Soru Başlangıcı"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:707
 #: templates/flashcard-widget-template.php:116
@@ -7959,8 +7960,8 @@ msgstr "Başarılı! %2$d dosyadan %1$d'si kaydedildi."
 #, php-format
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
-msgstr[0] "Başarıyla %d kategorisi eklendi."
-msgstr[1] "Başarıyla %d kategori eklendi."
+msgstr[0] "%d kategori başarıyla eklendi."
+msgstr[1] "%d kategori başarıyla eklendi."
 
 #. translators: %d: number of deleted recordings
 #: includes/admin/audio-processor-admin.php:152
@@ -7994,11 +7995,11 @@ msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1131
 msgid "Switch failed"
-msgstr "Anahtar başarısız"
+msgstr "Geçiş başarısız oldu"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1130
 msgid "Switch failed:"
-msgstr "Anahtar başarısız oldu:"
+msgstr "Geçiş başarısız oldu:"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:701
 #: templates/flashcard-widget-template.php:110
@@ -8043,7 +8044,7 @@ msgstr "Tekrar Moduna Geçin"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1125
 msgid "Switching category..."
-msgstr "Kategori değiştirme..."
+msgstr "Kategori değiştiriliyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:38
 msgid "Symbols added."
@@ -8106,7 +8107,7 @@ msgstr "Metin"
 #: includes/taxonomies/word-category-taxonomy.php:555
 #: includes/taxonomies/word-category-taxonomy.php:631
 msgid "Text (opposite prompt)"
-msgstr "Metin (karşıt istem)"
+msgstr "Metin (diğer metin alanı)"
 
 #: includes/admin/uploads/image-upload-form.php:332
 #: includes/taxonomies/word-category-taxonomy.php:557
@@ -8124,7 +8125,7 @@ msgstr "Metin (çeviri)"
 #: includes/taxonomies/word-category-taxonomy.php:559
 #: includes/taxonomies/word-category-taxonomy.php:635
 msgid "Text + audio pairs"
-msgstr "Metin + ses çiftleri"
+msgstr "Metin + ses eşleşmeleri"
 
 #: includes/post-types/words-post-type.php:643
 msgid ""
@@ -8160,7 +8161,7 @@ msgstr "Bu kelime seti resim yükleme için kullanılamaz."
 
 #: includes/shortcodes/flashcard-widget.php:379
 msgid "The category exists and has words"
-msgstr "Kategori mevcuttur ve kelimeleri vardır"
+msgstr "Kategori zaten var ve içinde kelimeler bulunuyor"
 
 #: includes/admin/recording-types-admin.php:115
 msgid "The display name for this recording type."
@@ -8477,13 +8478,13 @@ msgstr "Geçiş hızı"
 
 #: includes/admin/settings.php:414
 msgid "Translate Category Names From:"
-msgstr "Kategori Adlarını Çevir From:"
+msgstr "Kategori Adlarını Şuradan Çevir:"
 
 #: includes/admin/uploads/image-upload-form.php:311
 #: includes/taxonomies/word-category-taxonomy.php:173
 #: includes/taxonomies/word-category-taxonomy.php:194
 msgid "Translated Name"
-msgstr "Çeviri"
+msgstr "Çevrilmiş Ad"
 
 #: includes/admin/settings.php:612
 msgid "Translated:"
@@ -8493,7 +8494,7 @@ msgstr "Tercüme edildi:"
 #: includes/admin/settings.php:598
 #, php-format
 msgid "Translating from %1$s to %2$s."
-msgstr "1$s'den %2$s'ye çevriliyor."
+msgstr "%1$s dilinden %2$s diline çevriliyor."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1140
 msgid "Translating..."
@@ -8728,27 +8729,27 @@ msgstr "Kullanılamıyor"
 #: includes/shortcodes/editor-hub-shortcode.php:670
 #: includes/shortcodes/editor-hub-shortcode.php:704
 msgid "Uncategorized"
-msgstr "Uncategorized"
+msgstr "Kategorisiz"
 
 #: includes/admin/recording-types-admin.php:175
 msgid "Uncategorized Defaults"
-msgstr "Genel Varsayılanlar"
+msgstr "Kategorisiz Varsayılanlar"
 
 #: includes/admin/recording-types-admin.php:90
 msgid "Uncategorized defaults reset to main recording types."
-msgstr "Genel varsayılanlar ana kayıt türlerine sıfırlanır."
+msgstr "Kategorisiz varsayılanlar ana kayıt türlerine döndürüldü."
 
 #: includes/admin/recording-types-admin.php:93
 msgid "Uncategorized defaults updated."
-msgstr "Kategorize edilmemiş varsayılanlar güncellendi."
+msgstr "Kategorisiz varsayılanlar güncellendi."
 
 #. translators: %d: recording count
 #: includes/shortcodes/audio-recording-shortcode.php:4197
 #, php-format
 msgid "Uncategorized recording: %d"
 msgid_plural "Uncategorized recordings: %d"
-msgstr[0] "Kategorize edilmemiş kayıt: %d"
-msgstr[1] "Kategorize edilmemiş kayıtlar: %d"
+msgstr[0] "Kategorisiz kayıt: %d"
+msgstr[1] "Kategorisiz kayıtlar: %d"
 
 #: templates/flashcard-widget-template.php:47
 msgid "Uncheck All"
@@ -9058,7 +9059,7 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:566
 #: includes/taxonomies/word-category-taxonomy.php:646
 msgid "Use word set default"
-msgstr "Varsayılan kelime setini kullan"
+msgstr "Kelime seti varsayılanını kullan"
 
 #: includes/pages/wordset-pages.php:3313
 msgid ""
@@ -9261,7 +9262,7 @@ msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:621
 msgid "Whether to start rounds with audio, with the word image, or with text."
-msgstr "Turlara sesle mi, kelime görüntüsüyle mi yoksa metinle mi başlanacağı."
+msgstr "Turların sesle, kelime görseliyle ya da metinle başlayacağını belirler."
 
 #: includes/user-roles/audio-recorder-role.php:140
 #: includes/user-roles/audio-recorder-role.php:273
