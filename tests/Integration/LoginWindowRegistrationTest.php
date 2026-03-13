@@ -107,6 +107,59 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('New account registration is currently disabled.', $markup);
     }
 
+    public function test_register_auth_request_renders_signup_only_screen(): void
+    {
+        update_option('ll_allow_learner_self_registration', 1);
+        update_option('users_can_register', 1);
+
+        $_GET['ll_tools_auth'] = 'register';
+
+        try {
+            $markup = ll_tools_render_login_window([
+                'show_registration' => true,
+                'show_lost_password' => false,
+                'title' => __('Sign in or create an account', 'll-tools-text-domain'),
+                'registration_title' => __('Create learner account', 'll-tools-text-domain'),
+                'registration_message' => __('New learners can create an account here and start immediately.', 'll-tools-text-domain'),
+            ]);
+        } finally {
+            unset($_GET['ll_tools_auth']);
+        }
+
+        $this->assertStringNotContainsString('name="log"', $markup);
+        $this->assertStringNotContainsString('name="pwd"', $markup);
+        $this->assertStringContainsString('name="user_email"', $markup);
+        $this->assertStringContainsString('name="user_login"', $markup);
+        $this->assertStringContainsString('Create learner account', $markup);
+        $this->assertStringContainsString('Already have an account?', $markup);
+        $this->assertStringContainsString('ll_tools_auth=login', $markup);
+        $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
+    }
+
+    public function test_login_auth_request_renders_login_only_screen_with_signup_link(): void
+    {
+        update_option('ll_allow_learner_self_registration', 1);
+        update_option('users_can_register', 1);
+
+        $_GET['ll_tools_auth'] = 'login';
+
+        try {
+            $markup = ll_tools_render_login_window([
+                'show_registration' => true,
+                'show_lost_password' => false,
+            ]);
+        } finally {
+            unset($_GET['ll_tools_auth']);
+        }
+
+        $this->assertStringContainsString('name="log"', $markup);
+        $this->assertStringContainsString('name="pwd"', $markup);
+        $this->assertStringNotContainsString('name="user_email"', $markup);
+        $this->assertStringContainsString('Need an account?', $markup);
+        $this->assertStringContainsString('ll_tools_auth=register', $markup);
+        $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
+    }
+
     public function test_frontend_auth_url_keeps_auth_inside_plugin_ui(): void
     {
         $url = ll_tools_get_frontend_auth_url('http://example.org/learn/?foo=bar', 'register');

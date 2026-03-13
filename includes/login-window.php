@@ -100,6 +100,17 @@ if (!function_exists('ll_tools_login_window_requested_mode')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_sanitize_screen_mode')) {
+    function ll_tools_login_window_sanitize_screen_mode($mode): string {
+        $mode = sanitize_key((string) $mode);
+        if (!in_array($mode, ['auto', 'combined', 'login', 'register'], true)) {
+            return 'auto';
+        }
+
+        return $mode;
+    }
+}
+
 if (!function_exists('ll_tools_login_window_strip_internal_query_args')) {
     function ll_tools_login_window_strip_internal_query_args(string $url): string {
         $url = trim($url);
@@ -901,6 +912,7 @@ if (!function_exists('ll_tools_render_login_window')) {
             'title' => __('Sign in', 'll-tools-text-domain'),
             'message' => __('Sign in to continue.', 'll-tools-text-domain'),
             'submit_label' => __('Log in', 'll-tools-text-domain'),
+            'screen_mode' => 'auto',
             'redirect_to' => '',
             'show_lost_password' => true,
             'show_registration' => false,
@@ -941,13 +953,39 @@ if (!function_exists('ll_tools_render_login_window')) {
         $feedback_form = ll_tools_login_window_sanitize_auth_mode($feedback['form'] ?? '');
         $prefill = (isset($feedback['prefill']) && is_array($feedback['prefill'])) ? $feedback['prefill'] : [];
         $requested_mode = ll_tools_login_window_requested_mode();
-        $active_mode = $feedback_form !== '' ? $feedback_form : ($requested_mode !== '' ? $requested_mode : 'login');
+        $registration_enabled = $show_registration && ll_tools_is_learner_self_registration_available();
+        $registration_disabled = $show_registration && !$registration_enabled;
+        $supports_registration_screen = $registration_enabled || $registration_disabled;
+        $requested_screen_mode = ll_tools_login_window_sanitize_screen_mode($args['screen_mode'] ?? 'auto');
+        $explicit_mode = $feedback_form !== '' ? $feedback_form : $requested_mode;
+
+        if ($requested_screen_mode === 'auto') {
+            if ($explicit_mode === 'register' && $supports_registration_screen) {
+                $screen_mode = 'register';
+            } elseif ($explicit_mode === 'login') {
+                $screen_mode = 'login';
+            } else {
+                $screen_mode = 'combined';
+            }
+        } else {
+            $screen_mode = $requested_screen_mode;
+        }
+
+        if ($screen_mode === 'register' && !$supports_registration_screen) {
+            $screen_mode = 'login';
+        }
+        if ($screen_mode === 'combined' && !$show_registration) {
+            $screen_mode = 'login';
+        }
+
+        $show_login_screen = ($screen_mode !== 'register');
+        $show_registration_screen = ($screen_mode !== 'login');
+        $show_auth_divider = ($screen_mode === 'combined') && ($registration_enabled || $registration_disabled);
+        $show_registration_intro = $registration_enabled && ($screen_mode === 'combined');
+        $active_mode = ($screen_mode === 'register' && $supports_registration_screen) ? 'register' : 'login';
 
         $login_feedback = ($feedback_form === 'login') ? $feedback_messages : [];
         $registration_feedback = ($feedback_form === 'register') ? $feedback_messages : [];
-
-        $registration_enabled = $show_registration && ll_tools_is_learner_self_registration_available();
-        $registration_disabled = $show_registration && !$registration_enabled;
 
         $registration_title = trim((string) $args['registration_title']);
         $registration_message = trim((string) $args['registration_message']);
@@ -998,8 +1036,22 @@ if (!function_exists('ll_tools_render_login_window')) {
         $container_class = ll_tools_login_window_class_string((string) $args['container_class']);
         $title = trim((string) $args['title']);
         $message = trim((string) $args['message']);
+        if ($screen_mode === 'register') {
+            if ($registration_title !== '') {
+                $title = $registration_title;
+            }
+            if ($registration_message !== '') {
+                $message = $registration_message;
+            }
+        }
         $show_lost_password = !empty($args['show_lost_password']);
         $lost_password_url = wp_lostpassword_url($redirect_to);
+        $login_screen_url = function_exists('ll_tools_get_frontend_auth_url')
+            ? ll_tools_get_frontend_auth_url($redirect_to, 'login')
+            : wp_login_url($redirect_to);
+        $register_screen_url = ($registration_enabled && function_exists('ll_tools_get_frontend_auth_url'))
+            ? ll_tools_get_frontend_auth_url($redirect_to, 'register')
+            : '';
 
         ob_start();
         ?>
@@ -1017,60 +1069,62 @@ if (!function_exists('ll_tools_render_login_window')) {
                     <p class="ll-tools-login-window__message"><?php echo esc_html($message); ?></p>
                 <?php endif; ?>
 
-                <div class="ll-tools-login-window__form" data-ll-auth-section="login">
-                    <?php echo ll_tools_render_login_window_notice($login_feedback, $feedback_type); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php if ($show_login_screen): ?>
+                    <div class="ll-tools-login-window__form" data-ll-auth-section="login">
+                        <?php echo ll_tools_render_login_window_notice($login_feedback, $feedback_type); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
-                    <form id="<?php echo esc_attr($login_form_id); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                        <input type="hidden" name="action" value="ll_tools_login" />
-                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
-                        <?php wp_nonce_field('ll_tools_login', 'll_tools_login_nonce'); ?>
+                        <form id="<?php echo esc_attr($login_form_id); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="ll_tools_login" />
+                            <input type="hidden" name="redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
+                            <?php wp_nonce_field('ll_tools_login', 'll_tools_login_nonce'); ?>
 
-                        <p>
-                            <label for="<?php echo esc_attr($login_identifier_id); ?>"><?php esc_html_e('Username or Email', 'll-tools-text-domain'); ?></label>
-                            <input
-                                type="text"
-                                id="<?php echo esc_attr($login_identifier_id); ?>"
-                                name="log"
-                                value="<?php echo esc_attr($prefill_login_identifier); ?>"
-                                autocomplete="username"
-                                required />
-                        </p>
-                        <p>
-                            <label for="<?php echo esc_attr($login_password_id); ?>"><?php esc_html_e('Password', 'll-tools-text-domain'); ?></label>
-                            <input
-                                type="password"
-                                id="<?php echo esc_attr($login_password_id); ?>"
-                                name="pwd"
-                                autocomplete="current-password"
-                                required />
-                        </p>
-                        <p class="login-remember">
-                            <input
-                                type="checkbox"
-                                id="<?php echo esc_attr($login_remember_id); ?>"
-                                name="rememberme"
-                                value="forever"
-                                checked />
-                            <label for="<?php echo esc_attr($login_remember_id); ?>"><?php esc_html_e('Keep me signed in', 'll-tools-text-domain'); ?></label>
-                        </p>
-                        <p class="login-submit">
-                            <button type="submit"><?php echo esc_html((string) $args['submit_label']); ?></button>
-                        </p>
-                    </form>
-                </div>
+                            <p>
+                                <label for="<?php echo esc_attr($login_identifier_id); ?>"><?php esc_html_e('Username or Email', 'll-tools-text-domain'); ?></label>
+                                <input
+                                    type="text"
+                                    id="<?php echo esc_attr($login_identifier_id); ?>"
+                                    name="log"
+                                    value="<?php echo esc_attr($prefill_login_identifier); ?>"
+                                    autocomplete="username"
+                                    required />
+                            </p>
+                            <p>
+                                <label for="<?php echo esc_attr($login_password_id); ?>"><?php esc_html_e('Password', 'll-tools-text-domain'); ?></label>
+                                <input
+                                    type="password"
+                                    id="<?php echo esc_attr($login_password_id); ?>"
+                                    name="pwd"
+                                    autocomplete="current-password"
+                                    required />
+                            </p>
+                            <p class="login-remember">
+                                <input
+                                    type="checkbox"
+                                    id="<?php echo esc_attr($login_remember_id); ?>"
+                                    name="rememberme"
+                                    value="forever"
+                                    checked />
+                                <label for="<?php echo esc_attr($login_remember_id); ?>"><?php esc_html_e('Keep me signed in', 'll-tools-text-domain'); ?></label>
+                            </p>
+                            <p class="login-submit">
+                                <button type="submit"><?php echo esc_html((string) $args['submit_label']); ?></button>
+                            </p>
+                        </form>
+                    </div>
+                <?php endif; ?>
 
-                <?php if ($registration_enabled || $registration_disabled): ?>
+                <?php if ($show_auth_divider): ?>
                     <div class="ll-tools-login-window__divider" role="presentation">
                         <span><?php esc_html_e('or', 'll-tools-text-domain'); ?></span>
                     </div>
                 <?php endif; ?>
 
-                <?php if ($registration_enabled): ?>
+                <?php if ($registration_enabled && $show_registration_screen): ?>
                     <div class="ll-tools-login-window__register" data-ll-auth-section="register">
-                        <?php if ($registration_title !== ''): ?>
+                        <?php if ($show_registration_intro && $registration_title !== ''): ?>
                             <h3 class="ll-tools-login-window__register-title"><?php echo esc_html($registration_title); ?></h3>
                         <?php endif; ?>
-                        <?php if ($registration_message !== ''): ?>
+                        <?php if ($show_registration_intro && $registration_message !== ''): ?>
                             <p class="ll-tools-login-window__register-message"><?php echo esc_html($registration_message); ?></p>
                         <?php endif; ?>
 
@@ -1150,9 +1204,25 @@ if (!function_exists('ll_tools_render_login_window')) {
                             </p>
                         </form>
                     </div>
-                <?php elseif ($registration_disabled): ?>
+                <?php elseif ($registration_disabled && $show_registration_screen): ?>
                     <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
                         <?php echo esc_html($registration_disabled_message); ?>
+                    </p>
+                <?php endif; ?>
+
+                <?php if ($screen_mode === 'login' && $register_screen_url !== ''): ?>
+                    <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
+                        <?php esc_html_e('Need an account?', 'll-tools-text-domain'); ?>
+                        <a href="<?php echo esc_url($register_screen_url); ?>">
+                            <?php esc_html_e('Sign up', 'll-tools-text-domain'); ?>
+                        </a>
+                    </p>
+                <?php elseif ($screen_mode === 'register' && $login_screen_url !== ''): ?>
+                    <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
+                        <?php esc_html_e('Already have an account?', 'll-tools-text-domain'); ?>
+                        <a href="<?php echo esc_url($login_screen_url); ?>">
+                            <?php esc_html_e('Log in', 'll-tools-text-domain'); ?>
+                        </a>
                     </p>
                 <?php endif; ?>
 
