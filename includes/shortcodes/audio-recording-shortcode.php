@@ -4054,22 +4054,21 @@ add_action('admin_init', 'll_tools_register_recording_notification_settings');
  * Sanitize recording notification email value.
  */
 function ll_tools_sanitize_recording_notification_email($value) {
+    if (function_exists('ll_tools_sanitize_notification_email')) {
+        return ll_tools_sanitize_notification_email(
+            $value,
+            'll_tools_recording_notification_email',
+            'll_tools_recording_notification_email_invalid'
+        );
+    }
+
     $value = trim((string) $value);
     if ($value === '') {
         return '';
     }
 
     $email = sanitize_email($value);
-    if (!is_email($email)) {
-        add_settings_error(
-            'll_tools_recording_notification_email',
-            'll_tools_recording_notification_email_invalid',
-            __('Please enter a valid notification email address.', 'll-tools-text-domain')
-        );
-        return '';
-    }
-
-    return $email;
+    return is_email($email) ? $email : '';
 }
 
 /**
@@ -4148,29 +4147,28 @@ function ll_tools_get_recording_notification_delay_seconds() {
  * Resolve recipient email (custom LL Tools setting, then fallback to site admin email).
  */
 function ll_tools_get_recording_notification_recipient() {
+    if (function_exists('ll_tools_get_admin_notification_recipient')) {
+        return ll_tools_get_admin_notification_recipient();
+    }
+
     $configured = trim((string) get_option('ll_tools_recording_notification_email', ''));
     if ($configured !== '' && is_email($configured)) {
         return $configured;
     }
 
     $admin_email = trim((string) get_option('admin_email'));
-    if (is_email($admin_email)) {
-        return $admin_email;
-    }
-
-    return '';
+    return is_email($admin_email) ? $admin_email : '';
 }
 
 /**
- * Render LL Tools settings rows for recording notifications.
+ * Render the shared admin notification recipient row.
  */
-function ll_tools_render_recording_notification_settings_rows() {
+function ll_tools_render_admin_notification_email_settings_row() {
     $configured_email = (string) get_option('ll_tools_recording_notification_email', '');
     $admin_email = (string) get_option('admin_email', '');
-    $delay_minutes = ll_tools_get_recording_notification_delay_minutes();
     ?>
     <tr valign="top">
-        <th scope="row"><?php esc_html_e('Recording Notification Email', 'll-tools-text-domain'); ?></th>
+        <th scope="row"><?php esc_html_e('Admin Notification Email', 'll-tools-text-domain'); ?></th>
         <td>
             <input
                 type="email"
@@ -4179,6 +4177,9 @@ function ll_tools_render_recording_notification_settings_rows() {
                 value="<?php echo esc_attr($configured_email); ?>"
                 class="regular-text"
             />
+            <p class="description">
+                <?php esc_html_e('Used for recording summaries and user registration alerts.', 'll-tools-text-domain'); ?>
+            </p>
             <p class="description">
                 <?php
                 if ($admin_email !== '' && is_email($admin_email)) {
@@ -4194,6 +4195,16 @@ function ll_tools_render_recording_notification_settings_rows() {
             </p>
         </td>
     </tr>
+    <?php
+}
+add_action('ll_tools_settings_after_translations', 'll_tools_render_admin_notification_email_settings_row', 9);
+
+/**
+ * Render the recording-summary delay row.
+ */
+function ll_tools_render_recording_notification_delay_settings_row() {
+    $delay_minutes = ll_tools_get_recording_notification_delay_minutes();
+    ?>
     <tr valign="top">
         <th scope="row"><?php esc_html_e('Recording Notification First Email Delay (minutes)', 'll-tools-text-domain'); ?></th>
         <td>
@@ -4216,7 +4227,7 @@ function ll_tools_render_recording_notification_settings_rows() {
     </tr>
     <?php
 }
-add_action('ll_tools_settings_after_translations', 'll_tools_render_recording_notification_settings_rows', 30);
+add_action('ll_tools_settings_after_translations', 'll_tools_render_recording_notification_delay_settings_row', 30);
 
 /**
  * Add word-category summary data for this audio upload into the pending notification state.

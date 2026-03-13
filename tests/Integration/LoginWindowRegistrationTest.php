@@ -10,6 +10,13 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_is_learner_self_registration_enabled());
     }
 
+    public function test_registration_admin_notification_setting_defaults_to_enabled(): void
+    {
+        delete_option('ll_tools_send_registration_admin_email');
+
+        $this->assertTrue(ll_tools_is_registration_admin_notification_enabled());
+    }
+
     public function test_registration_setting_can_disable_frontend_signup(): void
     {
         update_option('ll_allow_learner_self_registration', 0);
@@ -33,6 +40,115 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         update_option('ll_allow_learner_self_registration', 0);
 
         $this->assertSame(0, (int) get_option('users_can_register', 1));
+    }
+
+    public function test_admin_notification_recipient_falls_back_to_site_admin_email(): void
+    {
+        delete_option('ll_tools_recording_notification_email');
+        update_option('admin_email', 'site-admin@example.net');
+
+        $this->assertSame('site-admin@example.net', ll_tools_get_admin_notification_recipient());
+    }
+
+    public function test_registration_admin_notification_filter_can_disable_core_admin_email(): void
+    {
+        update_option('ll_tools_send_registration_admin_email', 0);
+        $user_id = self::factory()->user->create([
+            'user_login' => 'notifyoff',
+            'user_email' => 'notifyoff@example.org',
+        ]);
+        $user = get_userdata($user_id);
+
+        $this->assertInstanceOf(WP_User::class, $user);
+        $this->assertFalse(apply_filters('wp_send_new_user_notification_to_admin', true, $user));
+    }
+
+    public function test_registration_admin_notification_email_filter_uses_shared_recipient_and_site_domain_sender(): void
+    {
+        update_option('ll_tools_send_registration_admin_email', 1);
+        update_option('ll_tools_recording_notification_email', 'alerts@example.net');
+        update_option('blogname', 'Starter English');
+
+        $user_id = self::factory()->user->create([
+            'user_login' => 'notifyheaders',
+            'user_email' => 'notifyheaders@example.org',
+        ]);
+        $user = get_userdata($user_id);
+
+        $email = apply_filters('wp_new_user_notification_email_admin', [
+            'to' => 'placeholder@example.com',
+            'subject' => '[%s] New User Registration',
+            'message' => 'Placeholder',
+            'headers' => '',
+        ], $user, 'Starter English');
+
+        $this->assertSame('alerts@example.net', $email['to']);
+        $this->assertStringContainsString(
+            'From: Starter English <wordpress@example.org>',
+            $this->normalizeMailHeaders($email['headers'])
+        );
+    }
+
+    public function test_custom_registration_helper_sends_admin_notification_when_enabled(): void
+    {
+        update_option('ll_tools_send_registration_admin_email', 1);
+        update_option('ll_tools_recording_notification_email', 'alerts@example.net');
+        update_option('blogname', 'Starter English');
+
+        $user_id = self::factory()->user->create([
+            'user_login' => 'newlearner',
+            'user_email' => 'newlearner@example.org',
+        ]);
+
+        $captured = [];
+        $mail_filter = static function ($pre, $atts) use (&$captured) {
+            $captured[] = $atts;
+            return true;
+        };
+        add_filter('pre_wp_mail', $mail_filter, 10, 2);
+
+        try {
+            $this->assertTrue(ll_tools_maybe_send_registration_admin_notification($user_id));
+        } finally {
+            remove_filter('pre_wp_mail', $mail_filter, 10);
+        }
+
+        $this->assertCount(1, $captured);
+        $mail = $captured[0];
+
+        $this->assertSame('alerts@example.net', $mail['to']);
+        $this->assertStringContainsString('New User Registration', (string) $mail['subject']);
+        $this->assertStringContainsString('newlearner', (string) $mail['message']);
+        $this->assertStringContainsString('newlearner@example.org', (string) $mail['message']);
+        $this->assertStringContainsString(
+            'From: Starter English <wordpress@example.org>',
+            $this->normalizeMailHeaders($mail['headers'])
+        );
+    }
+
+    public function test_custom_registration_helper_skips_admin_notification_when_disabled(): void
+    {
+        update_option('ll_tools_send_registration_admin_email', 0);
+
+        $user_id = self::factory()->user->create([
+            'user_login' => 'skipnotify',
+            'user_email' => 'skipnotify@example.org',
+        ]);
+
+        $captured = [];
+        $mail_filter = static function ($pre, $atts) use (&$captured) {
+            $captured[] = $atts;
+            return true;
+        };
+        add_filter('pre_wp_mail', $mail_filter, 10, 2);
+
+        try {
+            $this->assertFalse(ll_tools_maybe_send_registration_admin_notification($user_id));
+        } finally {
+            remove_filter('pre_wp_mail', $mail_filter, 10);
+        }
+
+        $this->assertSame([], $captured);
     }
 
     public function test_login_window_renders_custom_auth_forms_when_enabled(): void
@@ -249,5 +365,14 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_tools_auth=login', $markup);
         $this->assertStringContainsString('ll_tools_auth=register', $markup);
         $this->assertStringNotContainsString('wp-login.php', $markup);
+    }
+
+    private function normalizeMailHeaders($headers): string
+    {
+        if (is_array($headers)) {
+            return implode("\n", array_map('strval', $headers));
+        }
+
+        return (string) $headers;
     }
 }

@@ -65,6 +65,237 @@ if (!function_exists('ll_tools_is_learner_self_registration_available')) {
     }
 }
 
+if (!function_exists('ll_tools_sanitize_notification_email')) {
+    function ll_tools_sanitize_notification_email($value, $settings_key = 'll_tools_recording_notification_email', $error_code = 'll_tools_notification_email_invalid'): string {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        $email = sanitize_email($value);
+        if (!is_email($email)) {
+            add_settings_error(
+                (string) $settings_key,
+                (string) $error_code,
+                __('Please enter a valid notification email address.', 'll-tools-text-domain')
+            );
+            return '';
+        }
+
+        return $email;
+    }
+}
+
+if (!function_exists('ll_tools_get_admin_notification_recipient')) {
+    function ll_tools_get_admin_notification_recipient(): string {
+        // Keep using the existing recorder notification setting as the shared admin notification recipient.
+        $configured = trim((string) get_option('ll_tools_recording_notification_email', ''));
+        if ($configured !== '' && is_email($configured)) {
+            return $configured;
+        }
+
+        $admin_email = trim((string) get_option('admin_email', ''));
+        if (is_email($admin_email)) {
+            return $admin_email;
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('ll_tools_get_notification_sender_email')) {
+    function ll_tools_get_notification_sender_email(): string {
+        $hosts = [];
+
+        $home_host = (string) wp_parse_url(home_url('/'), PHP_URL_HOST);
+        if ($home_host !== '') {
+            $hosts[] = $home_host;
+        }
+
+        $network_host = (string) wp_parse_url(network_home_url('/'), PHP_URL_HOST);
+        if ($network_host !== '') {
+            $hosts[] = $network_host;
+        }
+
+        $hosts = array_values(array_unique($hosts));
+        foreach ($hosts as $host) {
+            $host = strtolower(trim((string) $host));
+            if ($host === '') {
+                continue;
+            }
+
+            if (strpos($host, 'www.') === 0) {
+                $host = substr($host, 4);
+            }
+
+            $email = sanitize_email('wordpress@' . $host);
+            if (is_email($email)) {
+                return $email;
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('ll_tools_get_notification_sender_name')) {
+    function ll_tools_get_notification_sender_name(): string {
+        $site_name = sanitize_text_field((string) wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES));
+        if ($site_name !== '') {
+            return $site_name;
+        }
+
+        return 'WordPress';
+    }
+}
+
+if (!function_exists('ll_tools_override_mail_from_header')) {
+    function ll_tools_override_mail_from_header($headers, string $from_name, string $from_email): array {
+        $normalized_headers = [];
+
+        if (is_array($headers)) {
+            foreach ($headers as $header_line) {
+                $header_line = trim((string) $header_line);
+                if ($header_line !== '') {
+                    $normalized_headers[] = $header_line;
+                }
+            }
+        } else {
+            $header_lines = preg_split('/\r\n|\r|\n/', (string) $headers);
+            if (is_array($header_lines)) {
+                foreach ($header_lines as $header_line) {
+                    $header_line = trim((string) $header_line);
+                    if ($header_line !== '') {
+                        $normalized_headers[] = $header_line;
+                    }
+                }
+            }
+        }
+
+        $normalized_headers = array_values(array_filter(
+            $normalized_headers,
+            static function ($header_line): bool {
+                return stripos((string) $header_line, 'From:') !== 0;
+            }
+        ));
+
+        $normalized_headers[] = sprintf('From: %s <%s>', $from_name, $from_email);
+
+        return $normalized_headers;
+    }
+}
+
+if (!function_exists('ll_tools_normalize_registration_admin_email_setting')) {
+    function ll_tools_normalize_registration_admin_email_setting($value): int {
+        return absint($value) === 1 ? 1 : 0;
+    }
+}
+
+if (!function_exists('ll_tools_sanitize_registration_admin_email_setting')) {
+    function ll_tools_sanitize_registration_admin_email_setting($value): int {
+        return ll_tools_normalize_registration_admin_email_setting($value);
+    }
+}
+
+if (!function_exists('ll_tools_is_registration_admin_notification_enabled')) {
+    function ll_tools_is_registration_admin_notification_enabled(): bool {
+        $enabled = (int) get_option('ll_tools_send_registration_admin_email', 1);
+        return (bool) apply_filters('ll_tools_send_registration_admin_email', ($enabled === 1));
+    }
+}
+
+if (!function_exists('ll_tools_filter_send_new_user_notification_to_admin')) {
+    function ll_tools_filter_send_new_user_notification_to_admin($send, $user): bool {
+        if (!$send) {
+            return false;
+        }
+
+        return ll_tools_is_registration_admin_notification_enabled();
+    }
+}
+add_filter('wp_send_new_user_notification_to_admin', 'll_tools_filter_send_new_user_notification_to_admin', 10, 2);
+
+if (!function_exists('ll_tools_filter_new_user_notification_email_admin')) {
+    function ll_tools_filter_new_user_notification_email_admin($email_args, $user, $blogname) {
+        if (!is_array($email_args)) {
+            return $email_args;
+        }
+
+        $recipient = ll_tools_get_admin_notification_recipient();
+        if ($recipient !== '') {
+            $email_args['to'] = $recipient;
+        }
+
+        $from_email = ll_tools_get_notification_sender_email();
+        if ($from_email !== '') {
+            $email_args['headers'] = ll_tools_override_mail_from_header(
+                $email_args['headers'] ?? '',
+                ll_tools_get_notification_sender_name(),
+                $from_email
+            );
+        }
+
+        return $email_args;
+    }
+}
+add_filter('wp_new_user_notification_email_admin', 'll_tools_filter_new_user_notification_email_admin', 10, 3);
+
+if (!function_exists('ll_tools_maybe_send_registration_admin_notification')) {
+    function ll_tools_maybe_send_registration_admin_notification($user_id): bool {
+        $user_id = (int) $user_id;
+        if ($user_id <= 0 || !ll_tools_is_registration_admin_notification_enabled()) {
+            return false;
+        }
+
+        if (function_exists('wp_send_new_user_notifications')) {
+            wp_send_new_user_notifications($user_id, 'admin');
+            return true;
+        }
+
+        if (function_exists('wp_new_user_notification')) {
+            wp_new_user_notification($user_id, null, 'admin');
+            return true;
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('ll_tools_register_registration_admin_notification_setting')) {
+    function ll_tools_register_registration_admin_notification_setting(): void {
+        register_setting('language-learning-tools-options', 'll_tools_send_registration_admin_email', [
+            'type' => 'boolean',
+            'sanitize_callback' => 'll_tools_sanitize_registration_admin_email_setting',
+            'default' => 1,
+        ]);
+    }
+}
+add_action('admin_init', 'll_tools_register_registration_admin_notification_setting');
+
+if (!function_exists('ll_tools_render_registration_admin_notification_settings_row')) {
+    function ll_tools_render_registration_admin_notification_settings_row(): void {
+        $enabled = (int) get_option('ll_tools_send_registration_admin_email', 1);
+        ?>
+        <tr valign="top">
+            <th scope="row"><?php esc_html_e('Admin Email On User Registration', 'll-tools-text-domain'); ?></th>
+            <td>
+                <input
+                    type="checkbox"
+                    name="ll_tools_send_registration_admin_email"
+                    id="ll_tools_send_registration_admin_email"
+                    value="1"
+                    <?php checked(1, $enabled, true); ?>
+                />
+                <p class="description">
+                    <?php esc_html_e('Send an admin notification when a new user account is created through LL Tools or standard WordPress registration flows. Uses the Admin Notification Email setting below.', 'll-tools-text-domain'); ?>
+                </p>
+            </td>
+        </tr>
+        <?php
+    }
+}
+add_action('ll_tools_settings_after_translations', 'll_tools_render_registration_admin_notification_settings_row', 8);
+
 if (!function_exists('ll_tools_login_window_class_string')) {
     function ll_tools_login_window_class_string($classes = ''): string {
         $class_list = ['ll-tools-login-window-wrap'];
@@ -821,6 +1052,8 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         if ($user instanceof WP_User) {
             $user->set_role('ll_tools_learner');
         }
+
+        ll_tools_maybe_send_registration_admin_notification($user_id);
 
         $signed_in_user = wp_signon([
             'user_login' => $insert_args['user_login'],
