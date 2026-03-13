@@ -4815,6 +4815,15 @@ msgstr ""
 msgid "Log in"
 msgstr ""
 
+#: includes/login-window.php:1237
+msgid "Already have an account?"
+msgstr ""
+
+#: includes/login-window.php:1113
+#: includes/login-window.php:1190
+msgid "Keep me signed in"
+msgstr ""
+
 #: includes/login-window.php:306
 #: includes/login-window.php:308
 #: includes/login-window.php:362

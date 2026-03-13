@@ -4626,6 +4626,14 @@ msgstr "Bu kelime setine kilitlendi"
 msgid "Log in"
 msgstr "Giriş yap"
 
+#: includes/login-window.php:1237
+msgid "Already have an account?"
+msgstr "Zaten bir hesabınız var mı?"
+
+#: includes/login-window.php:1113 includes/login-window.php:1190
+msgid "Keep me signed in"
+msgstr "Oturumum açık kalsın"
+
 #: includes/pages/wordset-pages.php:2517 includes/pages/wordset-pages.php:2523
 msgid "Log out"
 msgstr "Oturumu kapat"
