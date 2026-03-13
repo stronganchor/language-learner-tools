@@ -1357,7 +1357,7 @@ msgstr "Kategoriler değiştirildi:"
 
 #: includes/taxonomies/wordset-taxonomy.php:2032
 msgid "Categories can override this in their quiz settings."
-msgstr "Kategoriler kendi sınav ayarlarında bunu geçersiz kılabilir."
+msgstr "Kategoriler kendi quiz ayarlarında bunu geçersiz kılabilir."
 
 #: includes/admin/export-import.php:1328
 msgid "Categories to import:"
@@ -1619,14 +1619,14 @@ msgstr ""
 
 #: includes/pages/quiz-pages.php:527 includes/pages/quiz-pages.php:662
 msgid "Clean Up & Sync Quiz Pages"
-msgstr "Sınav Sayfalarını Temizleme ve Senkronize Etme"
+msgstr "Quiz Sayfalarını Temizleme ve Senkronize Etme"
 
 #: includes/pages/quiz-pages.php:524 includes/pages/quiz-pages.php:659
 msgid ""
 "Clean up quiz pages for categories that can no longer generate valid quizzes "
 "and sync pages for valid categories."
 msgstr ""
-"Artık geçerli testler oluşturamayan kategoriler için test sayfalarını "
+"Artık geçerli quizler oluşturamayan kategoriler için quiz sayfalarını "
 "temizle ve geçerli kategoriler için sayfaları senkronize et."
 
 #: includes/admin/bulk-translation-admin.php:229
@@ -1669,7 +1669,7 @@ msgid ""
 "Clears cached quiz word payload transients and increments cache versions for "
 "all word-category terms."
 msgstr ""
-"Önbelleğe alınmış sınav sözcüğü yükü geçişlerini temizler ve tüm sözcük "
+"Önbelleğe alınmış quiz sözcüğü yükü geçişlerini temizler ve tüm sözcük "
 "kategorisi terimleri için önbellek sürümlerini artırır."
 
 #: includes/admin/word-option-rules-admin.php:1302
@@ -1796,7 +1796,7 @@ msgstr "Öğrenmeye Devam Et"
 #: includes/admin/admin-dashboard-menu.php:551
 msgid "Control grouped options and blocked pairs for quiz wrong answers."
 msgstr ""
-"Sınav yanlış cevapları için gruplanmış seçenekleri ve engellenmiş çiftleri "
+"Quiz yanlış cevapları için gruplanmış seçenekleri ve engellenmiş çiftleri "
 "kontrol et."
 
 #: includes/taxonomies/wordset-taxonomy.php:1330
@@ -1816,7 +1816,7 @@ msgid ""
 msgstr ""
 "Ders sayfaları ve [word_grid] görünümlerinde metnin gösterimini belirler. "
 "\"Gizle\" yalnızca görsel/ses düğmelerini gösterir. \"Kelime seti "
-"varsayılanını kullan\" seçeneği, metin olmayan sınav kategorilerinde kelime "
+"varsayılanını kullan\" seçeneği, metin olmayan quiz kategorilerinde kelime "
 "seti ayarını uygular."
 
 #: includes/admin/bulk-translation-admin.php:119
@@ -1825,7 +1825,7 @@ msgstr "Yeni metanın boş olduğu eski değerleri kopyalar."
 
 #: includes/admin/duplicate-category-words-admin.php:809
 msgid "Copy source category quiz/recording settings to the new category"
-msgstr "Kaynak kategori sınav/kayıt ayarlarını yeni kategoriye kopyala"
+msgstr "Kaynak kategori quiz/kayıt ayarlarını yeni kategoriye kopyala"
 
 #: includes/admin/duplicate-category-words-admin.php:623
 msgid ""
@@ -2210,7 +2210,7 @@ msgstr "döngü algılandı"
 msgid ""
 "Daily operational tools for processing content, media, and quiz behavior."
 msgstr ""
-"İçerik, medya ve sınav davranışını işlemek için günlük operasyonel araçlar."
+"İçerik, medya ve quiz davranışını işlemek için günlük operasyonel araçlar."
 
 #: includes/post-types/dictionary-entry-post-type.php:1318
 #: includes/post-types/word-audio-post-type.php:57
@@ -3179,7 +3179,7 @@ msgid ""
 "oversized for quiz use. Optimize individually or run a batched bulk pass "
 "with progress tracking."
 msgstr ""
-"WebP olmayan veya test kullanımı için büyük boyutlu oldukları için WebP "
+"WebP olmayan veya quiz kullanımı için büyük boyutlu oldukları için WebP "
 "optimizasyonuna ihtiyaç duyan kelime görsellerini bul. Tek tek optimize "
 "et veya ilerleme takibi ile toplu bir toplu geçiş çalıştır."
 
@@ -3219,16 +3219,16 @@ msgstr "Bilgi Kartı Görsel Boyutu:"
 
 #: includes/admin/settings.php:463
 msgid "Flush Quiz Caches"
-msgstr "Sınav Önbelleklerini Temizle"
+msgstr "Quiz Önbelleklerini Temizle"
 
 #: includes/admin/settings.php:454
 msgid "Flush quiz caches"
-msgstr "Sınav önbelleklerini temizle"
+msgstr "Quiz önbelleklerini temizle"
 
 #: includes/admin/settings.php:262
 msgid "Flushed quiz caches and bumped category cache versions."
 msgstr ""
-"Sınav önbellekleri temizlendi ve kategori önbellek sürümleri yükseltildi."
+"Quiz önbellekleri temizlendi ve kategori önbellek sürümleri yükseltildi."
 
 #: includes/admin/settings.php:394
 msgid "Font stylesheet URL (Google Fonts or local CSS)"
@@ -3331,7 +3331,7 @@ msgid ""
 "quizzes without audio):"
 msgstr ""
 "Bu kelime setleri için kelime gönderileri oluştur (yalnızca kategori "
-"sınavları ses olmadan yapıldığında geçerlidir):"
+"quizleri ses olmadan yapıldığında geçerlidir):"
 
 #: includes/admin/uploads/image-upload-form.php:364
 msgid ""
@@ -3398,7 +3398,7 @@ msgid ""
 "Group words that should appear together as quiz options, and block pairs "
 "that should never be wrong answers for each other."
 msgstr ""
-"Test seçenekleri olarak birlikte görünmesi gereken kelimeleri grupla ve "
+"Quiz seçenekleri olarak birlikte görünmesi gereken kelimeleri grupla ve "
 "birbirleri için asla yanlış cevap olmaması gereken çiftleri engelle."
 
 #: includes/admin/word-option-rules-admin.php:1097
@@ -3721,7 +3721,7 @@ msgstr ""
 #: includes/admin/export-import.php:3423
 msgid "Import failed: no valid quiz rows were found in the CSV files."
 msgstr ""
-"İçe aktarma başarısız oldu: CSV dosyalarında geçerli bir sınav satırı "
+"İçe aktarma başarısız oldu: CSV dosyalarında geçerli bir quiz satırı "
 "bulunamadı."
 
 #: includes/admin/export-import.php:3532 includes/admin/export-import.php:5091
@@ -4696,7 +4696,7 @@ msgstr "Dil taksonomisi seçeneklerini ve eklenti dili meta verilerini yönet."
 
 #: includes/admin/admin-dashboard-menu.php:255
 msgid "Manage the main set grouping for words and quiz filters."
-msgstr "Kelimeler ve sınav filtreleri için ana set gruplamasını yönet."
+msgstr "Kelimeler ve quiz filtreleri için ana set gruplamasını yönet."
 
 #: includes/admin/recording-types-admin.php:104
 msgid ""
@@ -5385,23 +5385,23 @@ msgstr "Bu ders için henüz yazdırılabilir görsel bulunamadı."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1087
 msgid "No quiz pages are available yet."
-msgstr "Henüz sınav sayfası bulunmamaktadır."
+msgstr "Henüz quiz sayfası bulunmamaktadır."
 
 #: includes/pages/wordset-pages.php:3200
 msgid "No quiz words are available for this selection."
-msgstr "Bu seçim için hiçbir sınav kelimesi mevcut değildir."
+msgstr "Bu seçim için hiçbir quiz kelimesi mevcut değildir."
 
 #: includes/taxonomies/wordset-taxonomy.php:1341
 msgid ""
 "No quizzable categories were found for this word set yet. Add "
 "words/categories first, then refresh this page."
 msgstr ""
-"Bu kelime seti için henüz test edilebilir bir kategori bulunamadı. Önce "
+"Bu kelime seti için henüz quiz yapılabilir bir kategori bulunamadı. Önce "
 "kelimeleri/kategorileri ekle, sonra bu sayfayı yenile."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:987
 msgid "No quizzes found."
-msgstr "Sınav bulunamadı."
+msgstr "Quiz bulunamadı."
 
 #: includes/admin/export-import.php:797
 msgid "No recent imports found for today or yesterday."
@@ -5496,7 +5496,7 @@ msgid ""
 "words to a text-based quiz category to preview real examples here."
 msgstr ""
 "Bu kelime setinde henüz metin tabanlı cevap seçeneği etiketi bulunamadı. "
-"Gerçek örnekleri burada önizlemek için metin tabanlı bir test kategorisine "
+"Gerçek örnekleri burada önizlemek için metin tabanlı bir quiz kategorisine "
 "kelime ekle."
 
 #: includes/admin/admin-dashboard-menu.php:470
@@ -5606,7 +5606,7 @@ msgstr "Bu sözlük girdisine henüz hiçbir kelime bağlanmamıştır."
 
 #: includes/shortcodes/flashcard-widget.php:373
 msgid "No words could be loaded for this quiz. Please check that:"
-msgstr "Bu test için hiçbir kelime yüklenemedi. Lütfen kontrol et:"
+msgstr "Bu quiz için hiçbir kelime yüklenemedi. Lütfen kontrol et:"
 
 #: includes/admin/export-import.php:1819
 msgid "No words found for the selected word set."
@@ -6185,7 +6185,7 @@ msgid ""
 "Preferred size for quiz text answer cards (in px). The quiz still scales "
 "text down when needed to fit smaller screens or longer words."
 msgstr ""
-"Test metni cevap kartları için tercih edilen boyut (px cinsinden). Test, "
+"Quiz metni cevap kartları için tercih edilen boyut (px cinsinden). Quiz, "
 "daha küçük ekranlara veya daha uzun kelimelere sığdırmak için gerektiğinde "
 "metni ölçeklendirmeye devam eder."
 
@@ -6253,8 +6253,8 @@ msgid ""
 "Preview cards use random real answer-option text from text-based quiz "
 "categories in this word set and auto-fit text like quiz text answer cards."
 msgstr ""
-"Önizleme kartları, bu kelime setindeki metin tabanlı sınav kategorilerinden "
-"rastgele gerçek cevap-seçenek metnini kullanır ve sınav metni cevap kartları "
+"Önizleme kartları, bu kelime setindeki metin tabanlı quiz kategorilerinden "
+"rastgele gerçek cevap-seçenek metnini kullanır ve quiz metni cevap kartları "
 "gibi metni otomatik olarak sığdırır."
 
 #: includes/admin/export-import.php:1280
@@ -6310,9 +6310,9 @@ msgid ""
 "in this word set. Use the button to cycle to 2 more examples. The quiz still "
 "auto-resizes text to fit each answer card."
 msgstr ""
-"Önizleme, bu kelime setindeki metin tabanlı sınav kategorilerinden 2 "
+"Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 "
 "rastgele cevap-seçenek etiketini gösterir. Diğer 2 örneğe geçmek için "
-"düğmeyi kullan. Test, metni her bir cevap kartına sığacak şekilde otomatik "
+"düğmeyi kullan. Quiz, metni her bir cevap kartına sığacak şekilde otomatik "
 "olarak yeniden boyutlandırmaya devam eder."
 
 #: includes/admin/image-webp-optimizer-admin.php:1488
@@ -6453,47 +6453,47 @@ msgstr "Sıra"
 
 #: includes/pages/quiz-pages.php:493
 msgid "Quiz"
-msgstr "Sınav"
+msgstr "Quiz"
 
 #: includes/shortcodes/flashcard-widget.php:374
 msgid "Quiz Configuration Error"
-msgstr "Sınav Yapılandırma Hatası"
+msgstr "Quiz Yapılandırma Hatası"
 
 #: includes/pages/quiz-pages.php:495
 msgid "Quiz Content"
-msgstr "Sınav İçeriği"
+msgstr "Quiz İçeriği"
 
 #: includes/admin/settings.php:374
 msgid "Quiz Font (for text mode):"
-msgstr "Sınav Yazı Tipi (metin modu için):"
+msgstr "Quiz Yazı Tipi (metin modu için):"
 
 #: includes/pages/wordset-pages.php:4319
 #: templates/vocab-lesson-template.php:788
 msgid "Quiz modes"
-msgstr "Sınav modları"
+msgstr "Quiz modları"
 
 #: includes/pages/wordset-pages.php:4494
 #, php-format
 msgid "Quiz modes for %s"
-msgstr "%s için sınav modları"
+msgstr "%s için quiz modları"
 
 #: includes/pages/quiz-pages.php:516 includes/pages/quiz-pages.php:652
 #, php-format
 msgid ""
 "Quiz page cleanup completed. %d invalid pages removed and valid pages synced."
 msgstr ""
-"Sınav sayfası temizleme işlemi tamamlandı. %d geçersiz sayfalar kaldırıldı "
+"Quiz sayfası temizleme işlemi tamamlandı. %d geçersiz sayfalar kaldırıldı "
 "ve geçerli sayfalar senkronize edildi."
 
 #: includes/pages/quiz-pages.php:544
 #, php-format
 msgid "Quiz page cleanup completed. %d invalid pages removed."
 msgstr ""
-"Sınav sayfası temizleme işlemi tamamlandı. %d geçersiz sayfalar kaldırıldı."
+"Quiz sayfası temizleme işlemi tamamlandı. %d geçersiz sayfalar kaldırıldı."
 
 #: includes/pages/quiz-pages.php:523 includes/pages/quiz-pages.php:658
 msgid "Quiz Page Management"
-msgstr "Sınav Sayfası Yönetimi"
+msgstr "Quiz Sayfası Yönetimi"
 
 #: includes/admin/uploads/image-upload-form.php:317
 #: includes/taxonomies/word-category-taxonomy.php:542
@@ -6508,16 +6508,16 @@ msgstr "Sonuçlar"
 
 #: includes/shortcodes/flashcard-widget.php:375
 msgid "Quiz round requires at least two options."
-msgstr "Sınav turu en az iki seçenek gerektirir."
+msgstr "Quiz turu en az iki seçenek gerektirir."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1096
 msgid "Quiz selection"
-msgstr "Sınav seçimi"
+msgstr "Quiz seçimi"
 
 #: includes/pages/embed-page.php:19 includes/pages/quiz-pages.php:38
 #, php-format
 msgid "Quiz: %s"
-msgstr "Sınav: %s"
+msgstr "Quiz: %s"
 
 #: includes/pages/wordset-pages.php:3802
 msgid ""
@@ -7192,7 +7192,7 @@ msgstr "İçe aktarmak için bir dosya seç."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1070
 msgid "Select a quiz…"
-msgstr "Bir sınav seç.."
+msgstr "Bir quiz seç.."
 
 #: includes/pages/wordset-pages.php:3932
 msgid "Select a recorder user"
@@ -7382,7 +7382,7 @@ msgid ""
 "Selected words are excluded from prompt rounds across quiz modes and only "
 "appear as wrong answers for this word."
 msgstr ""
-"Seçilen kelimeler, sınav modları arasında hızlı turların dışında tutulur ve "
+"Seçilen kelimeler, quiz modları arasında hızlı turların dışında tutulur ve "
 "yalnızca bu kelime için yanlış cevaplar olarak görünür."
 
 #: includes/admin/export-import.php:1066
@@ -7663,7 +7663,7 @@ msgid ""
 "Skipped row %1$d in CSV \"%2$s\": category \"%3$s\" mixes incompatible quiz "
 "formats."
 msgstr ""
-"CSV \"%2$s\" içinde %1$d satırı atlandı: \"%3$s\" kategorisi uyumsuz sınav "
+"CSV \"%2$s\" içinde %1$d satırı atlandı: \"%3$s\" kategorisi uyumsuz quiz "
 "biçimlerini karıştırıyor."
 
 #: includes/admin/export-import.php:3186
@@ -7694,7 +7694,7 @@ msgid ""
 "Skipped row %1$d in CSV \"%2$s\": prompt text is required for text-to-text "
 "quizzes."
 msgstr ""
-"CSV \"%2$s\" içinde %1$d satırı atlandı: metinden metne sınavlar için istem "
+"CSV \"%2$s\" içinde %1$d satırı atlandı: metinden metne quizler için istem "
 "metni gereklidir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1111
@@ -8140,7 +8140,7 @@ msgid ""
 "Text entries are used directly for text-based quiz options and do not need "
 "separate word posts."
 msgstr ""
-"Metin girişleri doğrudan metin tabanlı test seçenekleri için kullanılır ve "
+"Metin girişleri doğrudan metin tabanlı quiz seçenekleri için kullanılır ve "
 "ayrı kelime gönderilerine ihtiyaç duymaz."
 
 #: includes/admin/ipa-keyboard-admin.php:51
@@ -8290,7 +8290,7 @@ msgid ""
 "weight are also applied to this word set's lesson/word-grid word text where "
 "supported."
 msgstr ""
-"Bu ayarlar sınav cevap-seçenek metni için kullanılır. Yazı tipi ailesi ve "
+"Bu ayarlar quiz cevap-seçenek metni için kullanılır. Yazı tipi ailesi ve "
 "yazı tipi ağırlığı, desteklendiği durumlarda bu kelime setinin ders/kelime "
 "ızgarası kelime metnine de uygulanır."
 
@@ -8338,7 +8338,7 @@ msgid ""
 "This quiz round has fewer than two answer options, so the quiz cannot "
 "continue. Please check that:"
 msgstr ""
-"Bu test turunda ikiden az cevap seçeneği vardır, bu nedenle test devam "
+"Bu quiz turunda ikiden az cevap seçeneği vardır, bu nedenle quiz devam "
 "edemez. Lütfen kontrol et:"
 
 #: includes/admin/audio-processor-admin.php:161
@@ -8958,7 +8958,7 @@ msgid ""
 "Upload images and optionally auto-create draft words in this word set when "
 "the category supports image-to-text quizzes."
 msgstr ""
-"Kategori resimden metne sınavları desteklediğinde, resimleri yükle ve "
+"Kategori resimden metne quizleri desteklediğinde, resimleri yükle ve "
 "isteğe bağlı olarak bu kelime setinde taslak kelimeleri otomatik oluştur."
 
 #: includes/admin/uploads/audio-upload-form.php:682
@@ -9045,7 +9045,7 @@ msgid ""
 "Use text options for text-only quizzes (no audio/images), or choose audio "
 "options to play recordings."
 msgstr ""
-"Yalnızca metin sınavları için metin seçeneklerini kullan (ses/görüntü yok) "
+"Yalnızca metin quizleri için metin seçeneklerini kullan (ses/görüntü yok) "
 "veya kayıtları oynatmak için ses seçeneklerini seç."
 
 #: includes/admin/word-option-rules-admin.php:1096
@@ -9513,7 +9513,7 @@ msgid ""
 "embeddable practice pages."
 msgstr ""
 "Kelime yönetimi, ses/görüntü yüklemeleri, kullanıma hazır bilgi kartı "
-"sınavları ve gömülebilir alıştırma sayfaları ile dil öğrenmeye yönelik "
+"quizleri ve gömülebilir alıştırma sayfaları ile dil öğrenmeye yönelik "
 "kelime içeriği oluşturmaya yönelik WordPress araçları."
 
 #: includes/admin/admin-dashboard-menu.php:268

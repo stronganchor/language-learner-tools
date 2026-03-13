@@ -29,7 +29,7 @@
 | audio recording | `ses kaydı` | Use for actual recorded audio actions/items. |
 | recording type | `kayıt türü` | Keep consistent across taxonomy/admin labels. |
 | dictionary entry | `sözlük girişi` | |
-| quiz | `sınav` | Do not leave as `quiz` or switch to `test`. |
+| quiz | `quiz` | Prefer `quiz` over `sınav` or `test`; it better conveys a lightweight knowledge check rather than a serious graded exam. |
 | flashcard | `bilgi kartı` | Use only when the source really means `flashcard`, not `quiz`. |
 | learner | `öğrenci` | |
 | recorder / audio recorder | `ses kaydedici` | Prefer this over shorter variants in role labels. |
@@ -56,7 +56,7 @@ Run these searches before finishing a translation pass:
 
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
-rg -n 'sözcük kümes|kelime görünt|msgstr "Quiz"|msgstr "Word Audio"|Flashcard Görüntü|Müdür' languages/ll-tools-text-domain-tr_TR.po
+rg -n 'sözcük kümes|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür' languages/ll-tools-text-domain-tr_TR.po
 ```
 
 Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.
