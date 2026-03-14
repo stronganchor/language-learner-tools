@@ -257,6 +257,52 @@ test('gender mode treats "I do not know" as wrong and requires two consecutive c
   expect(result.levelAfterRun).toBe(3);
 });
 
+test('gender mode abort suppresses delayed intro replay after a wrong answer', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 79,
+    categoryWords: {
+      CatA: [
+        makeNounWord(791, 'CatA', 'masculine', {
+          introduction_audio_url: 'intro-791.mp3'
+        })
+      ]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [791],
+      launch_source: 'dashboard',
+      reason_code: 'test_abort_blocks_delayed_intro_replay'
+    },
+    trackIntroCalls: true
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+
+    const target = Gender.selectTargetWord();
+    Gender.handleAnswer({
+      targetWord: target,
+      isCorrect: false,
+      isDontKnow: false
+    });
+
+    await wait(40);
+    window.LLFlashcards.State.abortAllOperations = true;
+    await wait(420);
+
+    return {
+      introCalls: Number(window.__llIntroPlayCount || 0)
+    };
+  });
+
+  expect(result.introCalls).toBe(0);
+});
+
 test('level-one gender starts with a two-word intro batch instead of introducing the full chunk at once', async ({ page }) => {
   await openHarnessPage(page);
   await bootstrapGenderHarness(page, {

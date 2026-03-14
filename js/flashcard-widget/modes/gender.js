@@ -781,7 +781,7 @@
     function waitRound(delay, token) {
         return new Promise(function (resolve) {
             scheduleRoundTimeout(function () {
-                if (token !== round.sequenceToken) {
+                if (token !== round.sequenceToken || State.abortAllOperations) {
                     resolve(false);
                     return;
                 }
@@ -934,7 +934,7 @@
             notifyPlaybackStart();
             return Promise.resolve(false);
         }
-        if (token !== round.sequenceToken) {
+        if (token !== round.sequenceToken || State.abortAllOperations) {
             notifyPlaybackStart();
             return Promise.resolve(false);
         }
@@ -1039,7 +1039,9 @@
 
     function startCountdown(token) {
         const $ = root.jQuery;
-        if (!$ || token !== round.sequenceToken) return Promise.resolve(token === round.sequenceToken);
+        if (!$ || token !== round.sequenceToken || State.abortAllOperations) {
+            return Promise.resolve(token === round.sequenceToken && !State.abortAllOperations);
+        }
         let $host = $();
         const $promptAudio = $('#ll-tools-prompt .ll-prompt-audio-button:visible').first();
         if ($promptAudio.length) {
@@ -1082,7 +1084,7 @@
         return new Promise(function (resolve) {
             let current = 3;
             const tick = function () {
-                if (token !== round.sequenceToken) {
+                if (token !== round.sequenceToken || State.abortAllOperations) {
                     resolve(false);
                     return;
                 }
@@ -1094,6 +1096,10 @@
                 current -= 1;
                 if (current <= 0) {
                     scheduleRoundTimeout(function () {
+                        if (token !== round.sequenceToken || State.abortAllOperations) {
+                            resolve(false);
+                            return;
+                        }
                         if (round.countdownEl && round.countdownEl.length) {
                             round.countdownEl.remove();
                         }
@@ -2167,12 +2173,18 @@
         if (!intro) {
             return;
         }
-        await waitRound(INTRO_REPLAY_GAP_MS, token);
-        await playManagedAudio(intro, token, {
+        const canReplay = await waitRound(INTRO_REPLAY_GAP_MS, token);
+        if (!canReplay || token !== round.sequenceToken || State.abortAllOperations) {
+            return;
+        }
+        const replayed = await playManagedAudio(intro, token, {
             onStart: function () {
                 round.introStartedAt = round.introStartedAt || nowTs();
             }
         });
+        if (!replayed || token !== round.sequenceToken || State.abortAllOperations) {
+            return;
+        }
         round.introEndedAt = nowTs();
     }
 
