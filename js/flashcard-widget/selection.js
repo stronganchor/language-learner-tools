@@ -1673,9 +1673,35 @@
             .attr('data-ll-gender-role', 'unknown');
         root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 
+        const publishOptionsReady = function () {
+            $(document).trigger('ll-tools-options-ready');
+        };
+        const refitTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+                root.LLFlashcards.Cards.refitTextAnswerOptionCards();
+            }
+        };
+        const prepareTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                return root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal();
+            }
+            refitTextOptionCards();
+            return Promise.resolve();
+        };
+        const revealGenderOptions = function () {
+            $('#ll-tools-flashcard .flashcard-container').css({ display: '', visibility: 'visible' });
+            prepareTextOptionCards().then(function () {
+                syncPromptTextFontSize(promptType, 'text');
+                scheduleGenderOptionTextScaleFit();
+                publishOptionsReady();
+            }).catch(function () {
+                scheduleGenderOptionTextScaleFit();
+                publishOptionsReady();
+            });
+        };
+
         ensureGenderOptionFitResizeHandler();
-        scheduleGenderOptionTextScaleFit();
-        $(document).trigger('ll-tools-options-ready');
+        revealGenderOptions();
         return true;
     }
 
