@@ -433,7 +433,14 @@
         }
         const rect = wrap.getBoundingClientRect();
         if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
-        return Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+
+        // Keep the bottom safety inset bounded to the floating control's own footprint.
+        // On some mobile browsers `rect.top` can transiently report near 0 during URL-bar
+        // collapse/expand, which previously produced a viewport-sized inset and clipped
+        // gender choices out of view.
+        const overlapInset = Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+        const boundedInset = Math.max(0, Math.ceil((rect.height || 0) + 24));
+        return Math.min(overlapInset, boundedInset);
     }
 
     function fitGenderLayoutToViewport() {
