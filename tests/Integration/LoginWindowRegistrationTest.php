@@ -298,11 +298,48 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertSame('johndoe1', ll_tools_login_window_available_username_from_email('john.doe@example.org'));
     }
 
+    public function test_registration_email_validation_rejects_addresses_that_only_become_valid_after_sanitization(): void
+    {
+        $validation = ll_tools_login_window_validate_registration_email(
+            '%spinfile-namesdat%_%spinfile-lnamesdat%_%random-10-10000%@bientotmail.com'
+        );
+
+        $this->assertSame('', $validation['email']);
+        $this->assertSame(
+            ['Please enter a valid email address.'],
+            array_values(array_map('strval', $validation['errors']))
+        );
+    }
+
     public function test_disposable_email_detection_blocks_known_domains_and_subdomains(): void
     {
         $this->assertTrue(ll_tools_login_window_is_blocked_email('new@mailinator.com'));
         $this->assertTrue(ll_tools_login_window_is_blocked_email('new@sub.yopmail.com'));
         $this->assertFalse(ll_tools_login_window_is_blocked_email('new@gmail.com'));
+    }
+
+    public function test_frontend_registration_rejects_template_style_email_addresses(): void
+    {
+        $redirect = $this->runRegistrationRequest([
+            'user_login' => 'PeggyRoara',
+            'user_email' => '%spinfile-namesdat%_%spinfile-lnamesdat%_%random-10-10000%@bientotmail.com',
+        ]);
+
+        $payload = $this->getFeedbackPayloadFromRedirect($redirect);
+
+        $this->assertSame('register', (string) ($payload['form'] ?? ''));
+        $this->assertSame('error', (string) ($payload['type'] ?? ''));
+        $this->assertContains('Please enter a valid email address.', $payload['messages']);
+        $this->assertFalse(username_exists('PeggyRoara'));
+    }
+
+    public function test_core_registration_blocks_disposable_email_domains(): void
+    {
+        $result = register_new_user('tempblockeduser', 'tempblocked@mailinator.com');
+
+        $this->assertWPError($result);
+        $this->assertContains('Please use a non-temporary email address.', $result->get_error_messages());
+        $this->assertFalse(username_exists('tempblockeduser'));
     }
 
     public function test_registration_rate_limit_blocks_after_configured_attempts(): void
@@ -374,5 +411,69 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         }
 
         return (string) $headers;
+    }
+
+    private function runRegistrationRequest(array $overrides = []): string
+    {
+        update_option('ll_allow_learner_self_registration', 1);
+        update_option('users_can_register', 1);
+
+        $left = 2;
+        $right = 3;
+        $timestamp = time() - 5;
+        $previous_post = $_POST;
+        $previous_server = $_SERVER;
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = array_merge([
+            'action' => 'll_tools_register_learner',
+            'redirect_to' => 'http://example.org/learn/',
+            'll_tools_register_learner_nonce' => wp_create_nonce('ll_tools_register_learner'),
+            'user_email' => 'learner@example.org',
+            'user_login' => 'learneruser',
+            'user_pass' => 'password123',
+            'll_tools_register_username_is_custom' => '1',
+            'll_tools_register_rendered_at' => (string) $timestamp,
+            'll_tools_register_math_left' => (string) $left,
+            'll_tools_register_math_right' => (string) $right,
+            'll_tools_register_math_signature' => ll_tools_login_window_sign_registration_challenge($timestamp, $left, $right),
+            'll_tools_register_math_answer' => (string) ($left + $right),
+        ], $overrides);
+
+        $redirect_url = '';
+        $redirect_filter = static function ($location) use (&$redirect_url) {
+            $redirect_url = (string) $location;
+            throw new RuntimeException('redirect_intercepted');
+        };
+        add_filter('wp_redirect', $redirect_filter, 10, 1);
+
+        try {
+            ll_tools_handle_frontend_learner_registration();
+            $this->fail('Expected frontend registration handler to redirect.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('redirect_intercepted', $e->getMessage());
+        } finally {
+            remove_filter('wp_redirect', $redirect_filter, 10);
+            $_POST = $previous_post;
+            $_SERVER = $previous_server;
+        }
+
+        $this->assertNotSame('', $redirect_url);
+        return $redirect_url;
+    }
+
+    private function getFeedbackPayloadFromRedirect(string $url): array
+    {
+        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+        $args = [];
+        parse_str($query, $args);
+
+        $token = ll_tools_login_window_sanitize_feedback_token($args['ll_tools_auth_feedback'] ?? '');
+        $this->assertNotSame('', $token);
+
+        $payload = get_transient(ll_tools_login_window_feedback_storage_key($token));
+        $this->assertIsArray($payload);
+
+        return $payload;
     }
 }

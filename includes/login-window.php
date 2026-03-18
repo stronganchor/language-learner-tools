@@ -736,6 +736,80 @@ if (!function_exists('ll_tools_login_window_is_blocked_email')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_normalize_registration_email_input')) {
+    function ll_tools_login_window_normalize_registration_email_input($value): string {
+        return trim(wp_unslash((string) $value));
+    }
+}
+
+if (!function_exists('ll_tools_login_window_email_has_template_tokens')) {
+    function ll_tools_login_window_email_has_template_tokens(string $email): bool {
+        $parts = explode('@', $email, 2);
+        $local_part = (string) ($parts[0] ?? '');
+        if ($local_part === '' || strpos($local_part, '%') === false) {
+            return false;
+        }
+
+        $has_tokens = (bool) preg_match('/%[a-z0-9][a-z0-9._-]*%/i', $local_part);
+        return (bool) apply_filters('ll_tools_registration_email_has_template_tokens', $has_tokens, $email, $local_part);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_validate_registration_email')) {
+    function ll_tools_login_window_validate_registration_email($value, bool $check_existing = true): array {
+        $raw_email = ll_tools_login_window_normalize_registration_email_input($value);
+        $email = sanitize_email($raw_email);
+        $errors = [];
+
+        if (
+            $raw_email === ''
+            || $email === ''
+            || $raw_email !== $email
+            || !is_email($raw_email)
+            || ll_tools_login_window_email_has_template_tokens($raw_email)
+        ) {
+            $errors[] = __('Please enter a valid email address.', 'll-tools-text-domain');
+
+            return [
+                'raw_email' => $raw_email,
+                'email' => '',
+                'errors' => $errors,
+                'is_blocked' => false,
+            ];
+        }
+
+        $is_blocked = ll_tools_login_window_is_blocked_email($email);
+        if ($is_blocked) {
+            $errors[] = __('Please use a non-temporary email address.', 'll-tools-text-domain');
+        } elseif ($check_existing && email_exists($email)) {
+            $errors[] = __('That email is already registered.', 'll-tools-text-domain');
+        }
+
+        return [
+            'raw_email' => $raw_email,
+            'email' => $email,
+            'errors' => $errors,
+            'is_blocked' => $is_blocked,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_filter_core_registration_email_errors')) {
+    function ll_tools_filter_core_registration_email_errors($errors, $sanitized_user_login, $user_email) {
+        if (!$errors instanceof WP_Error) {
+            return $errors;
+        }
+
+        $validation = ll_tools_login_window_validate_registration_email($user_email, false);
+        if ($validation['email'] !== '' && !empty($validation['is_blocked'])) {
+            $errors->add('ll_tools_blocked_email', __('Please use a non-temporary email address.', 'll-tools-text-domain'));
+        }
+
+        return $errors;
+    }
+}
+add_filter('registration_errors', 'll_tools_filter_core_registration_email_errors', 20, 3);
+
 if (!function_exists('ll_tools_login_window_sign_registration_challenge')) {
     function ll_tools_login_window_sign_registration_challenge(int $timestamp, int $left, int $right): string {
         return wp_hash($timestamp . '|' . $left . '|' . $right, 'nonce');
@@ -946,9 +1020,8 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         }
         ll_tools_login_window_record_registration_attempt($request_ip);
 
-        $email = isset($_POST['user_email'])
-            ? sanitize_email(wp_unslash((string) $_POST['user_email']))
-            : '';
+        $email_validation = ll_tools_login_window_validate_registration_email($_POST['user_email'] ?? '');
+        $email = $email_validation['email'];
         $raw_username = isset($_POST['user_login'])
             ? sanitize_user(wp_unslash((string) $_POST['user_login']), true)
             : '';
@@ -960,14 +1033,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
             && ((string) wp_unslash($_POST['ll_tools_register_username_is_custom']) === '1');
 
         $errors = ll_tools_login_window_validate_registration_challenge($_POST);
-
-        if ($email === '' || !is_email($email)) {
-            $errors[] = __('Please enter a valid email address.', 'll-tools-text-domain');
-        } elseif (ll_tools_login_window_is_blocked_email($email)) {
-            $errors[] = __('Please use a non-temporary email address.', 'll-tools-text-domain');
-        } elseif (email_exists($email)) {
-            $errors[] = __('That email is already registered.', 'll-tools-text-domain');
-        }
+        $errors = array_merge($errors, $email_validation['errors']);
 
         $username = $raw_username;
         if ($email !== '') {
@@ -1087,16 +1153,13 @@ if (!function_exists('ll_tools_login_window_username_suggestion_ajax')) {
             wp_send_json_error(['message' => __('New account registration is currently disabled.', 'll-tools-text-domain')], 403);
         }
 
-        $email = isset($_POST['email'])
-            ? sanitize_email(wp_unslash((string) $_POST['email']))
-            : '';
-
-        if ($email === '' || !is_email($email)) {
-            wp_send_json_error(['message' => __('Please enter a valid email address.', 'll-tools-text-domain')], 400);
+        $email_validation = ll_tools_login_window_validate_registration_email($_POST['email'] ?? '', false);
+        if (!empty($email_validation['errors'])) {
+            wp_send_json_error(['message' => $email_validation['errors'][0]], 400);
         }
 
         wp_send_json_success([
-            'username' => ll_tools_login_window_available_username_from_email($email),
+            'username' => ll_tools_login_window_available_username_from_email($email_validation['email']),
         ]);
     }
 }
