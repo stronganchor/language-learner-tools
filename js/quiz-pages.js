@@ -10,12 +10,117 @@
     var labelCfg = (quizCfg.labels && typeof quizCfg.labels === 'object') ? quizCfg.labels : {};
     var defaultQuizTitle = labelCfg.defaultTitle || 'Quiz';
     var closeLabel = labelCfg.closeLabel || 'Close';
+    var closeConfirm = labelCfg.closeConfirm || 'Close this quiz? Your current progress in this popup will be lost.';
     var iframeTitle = labelCfg.iframeTitle || 'Quiz Content';
+    var modalHistoryActive = false;
+    var suppressNextPopstate = false;
+    var suppressResetTimer = null;
 
     // -------------------------
     // Minimal modal infrastructure
     // -------------------------
     var overlayEl, modalEl, iframeEl, lastFocus;
+
+    function clearModalPopstateSuppression() {
+        if (suppressResetTimer) {
+            clearTimeout(suppressResetTimer);
+            suppressResetTimer = null;
+        }
+        suppressNextPopstate = false;
+    }
+
+    function scheduleModalPopstateSuppressionReset() {
+        if (suppressResetTimer) {
+            clearTimeout(suppressResetTimer);
+        }
+        suppressResetTimer = setTimeout(function () {
+            suppressResetTimer = null;
+            suppressNextPopstate = false;
+        }, 600);
+    }
+
+    function isModalOpen() {
+        return !!(overlayEl && overlayEl.parentNode);
+    }
+
+    function isEditableTarget(target) {
+        if (!target || typeof target.closest !== 'function') return false;
+        if (target.isContentEditable) return true;
+        if (target.closest('[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], textarea')) {
+            return true;
+        }
+        var input = target.closest('input');
+        if (!input || input.disabled || input.readOnly) return false;
+        var type = String(input.type || 'text').toLowerCase();
+        return ['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image', 'hidden'].indexOf(type) === -1;
+    }
+
+    function pushModalHistoryState() {
+        if (!window.history || typeof window.history.pushState !== 'function') return false;
+        try {
+            var currentState = (window.history.state && typeof window.history.state === 'object')
+                ? Object.assign({}, window.history.state)
+                : {};
+            currentState.llQuizModalOpen = true;
+            window.history.pushState(currentState, document.title, window.location.href);
+            modalHistoryActive = true;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function consumeModalHistoryState() {
+        if (!modalHistoryActive || !window.history || typeof window.history.back !== 'function') {
+            modalHistoryActive = false;
+            clearModalPopstateSuppression();
+            return false;
+        }
+        modalHistoryActive = false;
+        suppressNextPopstate = true;
+        scheduleModalPopstateSuppressionReset();
+        try {
+            window.history.back();
+            return true;
+        } catch (_) {
+            clearModalPopstateSuppression();
+            return false;
+        }
+    }
+
+    function armModalHistoryGuard() {
+        if (!modalHistoryActive) {
+            pushModalHistoryState();
+        }
+    }
+
+    function disarmModalHistoryGuard(options) {
+        var opts = (options && typeof options === 'object') ? options : {};
+        if (opts.historyAlreadyHandled) {
+            modalHistoryActive = false;
+            clearModalPopstateSuppression();
+            return;
+        }
+        consumeModalHistoryState();
+    }
+
+    function confirmModalClose(options) {
+        var opts = (options && typeof options === 'object') ? options : {};
+        var shouldClose = true;
+        try {
+            shouldClose = window.confirm(closeConfirm);
+        } catch (_) {
+            shouldClose = true;
+        }
+        if (shouldClose) {
+            closeModal({ historyAlreadyHandled: !!opts.historyAlreadyHandled });
+            return true;
+        }
+        if (opts.rearmHistory) {
+            pushModalHistoryState();
+        }
+        return false;
+    }
 
     function ensureModal() {
         if (overlayEl) return;
@@ -57,7 +162,26 @@
             if (e.target === overlayEl) closeModal();
         });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && overlayEl && overlayEl.parentNode) closeModal();
+            if (!isModalOpen()) return;
+            if (e.key === 'Escape') {
+                closeModal();
+                return;
+            }
+            if (e.key === 'Backspace' && !e.defaultPrevented && !isEditableTarget(e.target)) {
+                e.preventDefault();
+                confirmModalClose();
+            }
+        });
+        window.addEventListener('popstate', function () {
+            if (suppressNextPopstate) {
+                clearModalPopstateSuppression();
+                return;
+            }
+            if (!isModalOpen()) {
+                modalHistoryActive = false;
+                return;
+            }
+            confirmModalClose({ historyAlreadyHandled: true, rearmHistory: true });
         });
     }
 
@@ -70,10 +194,12 @@
         document.body.appendChild(overlayEl);
         modalEl.setAttribute('tabindex', '-1');
         modalEl.focus({ preventScroll: true });
+        armModalHistoryGuard();
     }
 
-    function closeModal() {
+    function closeModal(options) {
         if (!overlayEl) return;
+        disarmModalHistoryGuard(options);
         if (overlayEl.parentNode) overlayEl.parentNode.removeChild(overlayEl);
         if (iframeEl) iframeEl.src = 'about:blank';
         if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();

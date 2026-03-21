@@ -54,6 +54,20 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertFalse(wp_script_is($handle, 'enqueued'));
     }
 
+    public function test_quiz_pages_script_localizes_close_confirmation_label(): void
+    {
+        $this->go_to('/');
+
+        ll_qp_enqueue_assets();
+
+        $this->assertTrue(wp_script_is('ll-quiz-pages-js', 'enqueued'));
+
+        $localized = wp_scripts()->get_data('ll-quiz-pages-js', 'data');
+        $this->assertIsString($localized);
+        $this->assertStringContainsString('llQuizPages', $localized);
+        $this->assertStringContainsString('closeConfirm', $localized);
+    }
+
     public function test_public_asset_bundle_enqueues_login_window_styles(): void
     {
         ll_tools_enqueue_public_assets();

@@ -22,6 +22,14 @@
     let firstRoundRecoveryAttempts = 0;
     let sessionWordFilterRecoveryAttempts = 0;
     let practiceProgressMinDisplayRatio = 0;
+    const flashcardInteractionGuard = {
+        active: false,
+        historyActive: false,
+        historyToken: 0,
+        listenersBound: false,
+        suppressNextPopstate: false,
+        suppressResetTimer: null
+    };
 
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
@@ -33,6 +41,299 @@
         try {
             doc.body.appendChild(popupRoot);
         } catch (_) { /* no-op */ }
+    }
+
+    function setQuizGuardPageClass(enabled) {
+        const doc = root.document;
+        if (!doc) { return; }
+
+        const method = enabled ? 'add' : 'remove';
+        try {
+            if (doc.body && doc.body.classList) {
+                doc.body.classList[method]('ll-tools-quiz-guard-active');
+            }
+            if (doc.documentElement && doc.documentElement.classList) {
+                doc.documentElement.classList[method]('ll-tools-quiz-guard-active');
+            }
+        } catch (_) { /* no-op */ }
+    }
+
+    function clearFlashcardPopstateSuppression() {
+        if (flashcardInteractionGuard.suppressResetTimer) {
+            clearTimeout(flashcardInteractionGuard.suppressResetTimer);
+            flashcardInteractionGuard.suppressResetTimer = null;
+        }
+        flashcardInteractionGuard.suppressNextPopstate = false;
+    }
+
+    function scheduleFlashcardPopstateSuppressionReset() {
+        if (flashcardInteractionGuard.suppressResetTimer) {
+            clearTimeout(flashcardInteractionGuard.suppressResetTimer);
+        }
+        flashcardInteractionGuard.suppressResetTimer = setTimeout(function () {
+            flashcardInteractionGuard.suppressResetTimer = null;
+            flashcardInteractionGuard.suppressNextPopstate = false;
+        }, 600);
+    }
+
+    function isEditableEventTarget(target) {
+        if (!target || typeof target.closest !== 'function') {
+            return false;
+        }
+
+        if (target.isContentEditable) {
+            return true;
+        }
+
+        const contentEditable = target.closest('[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], textarea');
+        if (contentEditable) {
+            return true;
+        }
+
+        const input = target.closest('input');
+        if (!input) {
+            return false;
+        }
+
+        if (input.disabled || input.readOnly) {
+            return false;
+        }
+
+        const type = String(input.type || 'text').toLowerCase();
+        return !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image', 'hidden'].includes(type);
+    }
+
+    function isFlashcardPopupVisible() {
+        const doc = root.document;
+        const popup = doc ? doc.getElementById('ll-tools-flashcard-quiz-popup') : null;
+        if (!popup) {
+            return false;
+        }
+
+        try {
+            const style = root.getComputedStyle ? root.getComputedStyle(popup) : null;
+            if (style) {
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            }
+        } catch (_) { /* no-op */ }
+
+        return true;
+    }
+
+    function isFlashcardGuardActive() {
+        return !!flashcardInteractionGuard.active && !!State.widgetActive && isFlashcardPopupVisible();
+    }
+
+    function getFlashcardCloseConfirmMessage() {
+        const messages = (root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
+            ? root.llToolsFlashcardsMessages
+            : {};
+        const raw = messages.closeQuizConfirm || messages.close_quiz_confirm;
+        return String(raw || 'Close this quiz? Your current progress in this popup will be lost.');
+    }
+
+    function pushFlashcardHistoryState() {
+        if (!root.history || typeof root.history.pushState !== 'function') {
+            return false;
+        }
+
+        flashcardInteractionGuard.historyToken += 1;
+
+        try {
+            const currentState = (root.history.state && typeof root.history.state === 'object')
+                ? Object.assign({}, root.history.state)
+                : {};
+            currentState.llFlashcardPopupGuard = flashcardInteractionGuard.historyToken;
+            root.history.pushState(currentState, root.document ? root.document.title : '', root.location.href);
+            flashcardInteractionGuard.historyActive = true;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function consumeFlashcardHistoryState() {
+        if (!flashcardInteractionGuard.historyActive || !root.history || typeof root.history.back !== 'function') {
+            flashcardInteractionGuard.historyActive = false;
+            clearFlashcardPopstateSuppression();
+            return false;
+        }
+
+        flashcardInteractionGuard.historyActive = false;
+        flashcardInteractionGuard.suppressNextPopstate = true;
+        scheduleFlashcardPopstateSuppressionReset();
+
+        try {
+            root.history.back();
+            return true;
+        } catch (_) {
+            clearFlashcardPopstateSuppression();
+            return false;
+        }
+    }
+
+    function confirmAndCloseFlashcardFromGuard(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        let shouldClose = true;
+
+        try {
+            shouldClose = root.confirm(getFlashcardCloseConfirmMessage());
+        } catch (_) {
+            shouldClose = true;
+        }
+
+        if (shouldClose) {
+            closeFlashcard({
+                historyAlreadyHandled: !!opts.historyAlreadyHandled
+            });
+            return true;
+        }
+
+        if (opts.rearmHistory) {
+            pushFlashcardHistoryState();
+        }
+
+        return false;
+    }
+
+    function onFlashcardGuardPopstate() {
+        if (flashcardInteractionGuard.suppressNextPopstate) {
+            clearFlashcardPopstateSuppression();
+            return;
+        }
+
+        if (!isFlashcardGuardActive()) {
+            flashcardInteractionGuard.historyActive = false;
+            return;
+        }
+
+        confirmAndCloseFlashcardFromGuard({
+            historyAlreadyHandled: true,
+            rearmHistory: true
+        });
+    }
+
+    function onFlashcardGuardKeydown(e) {
+        if (!isFlashcardGuardActive() || e.defaultPrevented || e.key !== 'Backspace') {
+            return;
+        }
+
+        if (isEditableEventTarget(e.target)) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        confirmAndCloseFlashcardFromGuard();
+    }
+
+    function onFlashcardGuardContextMenu(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup img')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardDragstart(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup img')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardWheel(e) {
+        if (!isFlashcardGuardActive() || !e.ctrlKey) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardTouchMove(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardGesture(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardDoubleClick(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function bindFlashcardInteractionGuard() {
+        if (flashcardInteractionGuard.listenersBound || !root.document) {
+            return;
+        }
+
+        flashcardInteractionGuard.listenersBound = true;
+        root.addEventListener('popstate', onFlashcardGuardPopstate);
+        root.document.addEventListener('keydown', onFlashcardGuardKeydown, true);
+        root.document.addEventListener('contextmenu', onFlashcardGuardContextMenu, true);
+        root.document.addEventListener('dragstart', onFlashcardGuardDragstart, true);
+        root.document.addEventListener('wheel', onFlashcardGuardWheel, { passive: false, capture: true });
+        root.document.addEventListener('touchmove', onFlashcardGuardTouchMove, { passive: false, capture: true });
+        root.document.addEventListener('gesturestart', onFlashcardGuardGesture, true);
+        root.document.addEventListener('gesturechange', onFlashcardGuardGesture, true);
+        root.document.addEventListener('gestureend', onFlashcardGuardGesture, true);
+        root.document.addEventListener('dblclick', onFlashcardGuardDoubleClick, true);
+    }
+
+    function activateFlashcardInteractionGuard() {
+        bindFlashcardInteractionGuard();
+        if (flashcardInteractionGuard.active) {
+            return;
+        }
+
+        flashcardInteractionGuard.active = true;
+        setQuizGuardPageClass(true);
+        if (!flashcardInteractionGuard.historyActive) {
+            pushFlashcardHistoryState();
+        }
+    }
+
+    function deactivateFlashcardInteractionGuard(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+
+        flashcardInteractionGuard.active = false;
+        setQuizGuardPageClass(false);
+
+        if (opts.historyAlreadyHandled) {
+            flashcardInteractionGuard.historyActive = false;
+            clearFlashcardPopstateSuppression();
+            return;
+        }
+
+        consumeFlashcardHistoryState();
     }
 
     function warmupVisualizerContext() {
@@ -3532,6 +3833,7 @@
                 Dom.updateCategoryNameDisplay(State.firstCategoryName);
 
                 $('body').addClass('ll-tools-flashcard-open');
+                activateFlashcardInteractionGuard();
                 try {
                     $(document).trigger('lltools:flashcard-opened', [{
                         mode: requestedMode,
@@ -3670,22 +3972,24 @@
             if (!el) return;
             try {
                 if (el.classList) {
-                    el.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active');
+                    el.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active', 'll-tools-quiz-guard-active');
                 }
                 el.style && (el.style.overflow = '');
             } catch (_) { /* ignore */ }
         };
         try { clear(document.body); clear(document.documentElement); } catch (_) { /* ignore */ }
         try {
-            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
-            $('html').css('overflow', '');
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active ll-tools-quiz-guard-active').css('overflow', '');
+            $('html').removeClass('ll-tools-quiz-guard-active').css('overflow', '');
         } catch (_) { /* ignore */ }
     }
 
-    function closeFlashcard() {
+    function closeFlashcard(options) {
         if (closingCleanupPromise) {
             return closingCleanupPromise;
         }
+
+        const closeOptions = (options && typeof options === 'object') ? options : {};
 
         try {
             const tracker = getProgressTracker();
@@ -3699,6 +4003,8 @@
                 root.FlashcardAudio.suspendPlayback();
             }
         } catch (_) { /* no-op */ }
+
+        deactivateFlashcardInteractionGuard(closeOptions);
 
         // Immediately restore scrolling (belt-and-suspenders)
         restorePageScroll();

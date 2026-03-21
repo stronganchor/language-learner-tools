@@ -48,6 +48,30 @@ body.ll-tools-flashcard-open {
     overflow: hidden;
 }
 
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-header,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-header *,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-quiz-popup,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-quiz-popup *,
+body.ll-tools-quiz-guard-active #quiz-results,
+body.ll-tools-quiz-guard-active #quiz-results * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-popup,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-quiz-popup,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-content,
+body.ll-tools-quiz-guard-active #ll-tools-flashcard,
+body.ll-tools-quiz-guard-active #ll-tools-prompt {
+    overscroll-behavior: contain;
+    touch-action: manipulation;
+}
+
+body.ll-tools-quiz-guard-active #ll-tools-flashcard-popup img {
+    -webkit-user-drag: none;
+}
+
 body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-popup,
 body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-category-selection-popup,
 body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-quiz-popup,

@@ -45,6 +45,35 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
     'https://example.com/embed/demo-category?mode=practice'
   );
 
+  const cancelDialogPromise = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    window.setTimeout(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true
+      }));
+    }, 0);
+  });
+  const cancelDialog = await cancelDialogPromise;
+  expect(cancelDialog.message()).toContain('Close this quiz?');
+  await cancelDialog.dismiss();
+
+  await expect(page.locator('.ll-quiz-overlay')).toHaveCount(1);
+
+  const acceptDialogPromise = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    window.setTimeout(() => window.history.back(), 0);
+  });
+  const acceptDialog = await acceptDialogPromise;
+  expect(acceptDialog.message()).toContain('Close this quiz?');
+  await acceptDialog.accept();
+
+  await expect(page.locator('.ll-quiz-overlay')).toHaveCount(0);
+
+  await page.click('.ll-quiz-page-trigger');
+  await expect(page.locator('.ll-quiz-overlay')).toHaveCount(1);
+
   await page.keyboard.press('Escape');
   await expect(page.locator('.ll-quiz-overlay')).toHaveCount(0);
 });

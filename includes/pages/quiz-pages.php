@@ -517,6 +517,7 @@ function ll_qp_enqueue_assets() {
             'defaultTitle' => __('Quiz', 'll-tools-text-domain'),
             'closeLabel'   => __('Close', 'll-tools-text-domain'),
             'iframeTitle'  => __('Quiz Content', 'll-tools-text-domain'),
+            'closeConfirm' => __('Close this quiz? Your current progress in this popup will be lost.', 'll-tools-text-domain'),
         ],
     ]);
 

@@ -46,9 +46,13 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertStringContainsString('Primary Flow Category', $localized_main);
             $this->assertStringContainsString('Flow Word', $localized_main);
             $this->assertStringContainsString('Flow Translation', $localized_main);
+
+            $localized_messages = wp_scripts()->get_data('ll-flc-main', 'data');
+            $this->assertIsString($localized_messages);
+            $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_messages);
+            $this->assertStringContainsString('closeQuizConfirm', $localized_messages);
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
     }
 }
-
