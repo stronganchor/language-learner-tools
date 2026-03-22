@@ -105,8 +105,6 @@
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
     let pendingSummaryRefreshAfterClose = false;
-    let pendingPerfectCelebration = false;
-    let pendingPerfectCelebrationAt = 0;
     let categoryProgressVisibilityObserver = null;
     let categoryProgressVisibilityRaf = 0;
     let categoryProgressPostMetricsTimer = 0;
@@ -128,11 +126,10 @@
     }
 
     const SUMMARY_COUNT_KEYS = ['mastered', 'studied', 'new', 'starred', 'hard'];
-    const PERFECT_CELEBRATION_MAX_AGE_MS = 15000;
     const CATEGORY_PROGRESS_ANIMATION_DURATION_MS = 1520;
     const CATEGORY_PROGRESS_CENTER_BAND_RATIO = 0.3;
     const CATEGORY_PROGRESS_CENTER_MIN_BAND_PX = 120;
-    const CATEGORY_PROGRESS_POST_METRICS_DELAY_MS = 650;
+    const CATEGORY_PROGRESS_POST_METRICS_DELAY_MS = 40;
     const PROGRESS_MINI_STICKY_HOLD_AFTER_ANIMATION_MS = 1500;
 
     const $nextCard = $root.find('[data-ll-wordset-next]');
@@ -4191,7 +4188,7 @@
         };
 
         const plans = {};
-        const orderedKeys = [];
+        const activeKeys = [];
         SUMMARY_COUNT_KEYS.forEach(function (key) {
             const $target = elements[key];
             const $pill = pills[key];
@@ -4214,38 +4211,41 @@
             }
 
             plans[key] = plan;
-            orderedKeys.push(key);
+            activeKeys.push(key);
         });
 
-        if (!orderedKeys.length) {
+        if (!activeKeys.length) {
             finalizeSequence();
             return;
         }
 
-        const runPlanAtIndex = function (index) {
-            if (token !== progressMiniCountToken) { return; }
-            if (index >= orderedKeys.length) {
-                finalizeSequence();
-                return;
-            }
-
-            const key = orderedKeys[index];
+        activeKeys.forEach(function (key) {
             const plan = plans[key];
-            const $target = elements[key];
             const $pill = pills[key];
-            if (!plan || !$target || !$target.length || !$pill || !$pill.length) {
-                runPlanAtIndex(index + 1);
+            if (!plan || !$pill || !$pill.length) {
                 return;
             }
-
             $pill.removeClass('is-updating is-rising is-falling is-steady');
             $pill.addClass('is-updating').addClass(plan.direction > 0 ? 'is-rising' : 'is-falling');
+            plan.completed = false;
+        });
 
-            const planStartTs = nowMs();
-            const tick = function (timestamp) {
-                if (token !== progressMiniCountToken) { return; }
-                const ts = Number.isFinite(timestamp) ? timestamp : nowMs();
-                const elapsed = Math.max(0, ts - planStartTs);
+        const animationStartTs = nowMs();
+        const tick = function (timestamp) {
+            if (token !== progressMiniCountToken) { return; }
+            const ts = Number.isFinite(timestamp) ? timestamp : nowMs();
+            let hasActivePlan = false;
+
+            activeKeys.forEach(function (key) {
+                const plan = plans[key];
+                const $target = elements[key];
+                const $pill = pills[key];
+                if (!plan || plan.completed || !$target || !$target.length) {
+                    return;
+                }
+
+                hasActivePlan = true;
+                const elapsed = Math.max(0, ts - animationStartTs);
                 const progress = Math.max(0, Math.min(1, elapsed / plan.duration));
                 let desiredStep = Math.floor(progress * plan.stepCount);
                 if (progress >= 1) {
@@ -4270,29 +4270,30 @@
                 }
 
                 if (progress < 1) {
-                    progressMiniCountRaf = raf(tick);
                     return;
                 }
 
-                progressMiniCountRaf = 0;
                 if (plan.lastValue !== plan.to) {
                     plan.lastValue = plan.to;
                     $target.text(String(plan.to));
                     triggerMiniCountTickPop($target);
                 }
-
-                const nextDelay = celebratePerfect ? 170 : 130;
-                window.setTimeout(function () {
-                    if (token !== progressMiniCountToken) { return; }
+                plan.completed = true;
+                if ($pill && $pill.length) {
                     $pill.removeClass('is-updating is-rising is-falling is-steady');
-                    runPlanAtIndex(index + 1);
-                }, nextDelay);
-            };
+                }
+            });
 
-            progressMiniCountRaf = raf(tick);
+            if (hasActivePlan) {
+                progressMiniCountRaf = raf(tick);
+                return;
+            }
+
+            progressMiniCountRaf = 0;
+            finalizeSequence();
         };
 
-        runPlanAtIndex(0);
+        progressMiniCountRaf = raf(tick);
     }
 
     function renderMiniCounts(options) {
@@ -4316,28 +4317,10 @@
         });
     }
 
-    function hasPendingPerfectCelebration() {
-        if (!pendingPerfectCelebration) {
-            return false;
-        }
-        if (!pendingPerfectCelebrationAt) {
-            return true;
-        }
-        if ((Date.now() - pendingPerfectCelebrationAt) > PERFECT_CELEBRATION_MAX_AGE_MS) {
-            clearPerfectCelebrationPending();
-            return false;
-        }
-        return true;
-    }
-
-    function markPerfectCelebrationPending() {
-        pendingPerfectCelebration = true;
-        pendingPerfectCelebrationAt = Date.now();
-    }
-
-    function clearPerfectCelebrationPending() {
-        pendingPerfectCelebration = false;
-        pendingPerfectCelebrationAt = 0;
+    function shouldCelebrateNewWordCompletion(previousCounts, nextCounts) {
+        const previous = normalizeSummaryCounts(previousCounts || {});
+        const next = normalizeSummaryCounts(nextCounts || {});
+        return previous.new > 0 && next.new === 0;
     }
 
     function normalizeFlashcardResultSummary(detail) {
@@ -4355,19 +4338,6 @@
             total: total,
             correct: correct
         };
-    }
-
-    function isPerfectFlashcardResult(summary) {
-        if (!summary || typeof summary !== 'object') {
-            return false;
-        }
-        const mode = normalizeMode(summary.mode || '');
-        if (mode !== 'practice' && mode !== 'self-check') {
-            return false;
-        }
-        const total = Math.max(0, parseInt(summary.total, 10) || 0);
-        const correct = Math.max(0, parseInt(summary.correct, 10) || 0);
-        return total > 0 && correct >= total;
     }
 
     function getHiddenCountValue() {
@@ -5168,7 +5138,6 @@
     function refreshSummaryCounts(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const animate = opts.animate !== false;
-        const celebratePerfect = !!opts.celebratePerfect;
         const stickyMiniWhenOffscreen = !!opts.stickyMiniWhenOffscreen;
         const syncAllCategoryProgressImmediately = !!opts.syncAllCategoryProgressImmediately;
         const deferVisibleCategoryProgress = !!opts.deferVisibleCategoryProgress
@@ -5212,6 +5181,7 @@
             category_ids: getVisibleCategoryIds(),
             days: 14
         }).done(function (res) {
+            if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }
             const analytics = (res && res.success && res.data && res.data.analytics && typeof res.data.analytics === 'object')
                 ? res.data.analytics
                 : null;
@@ -5244,6 +5214,7 @@
             const stableChanged = summaryCountsChanged(stableCountsBefore, nextCounts);
             const renderedChanged = summaryCountsChanged(renderedCountsBefore, nextCounts);
             const hasCountChanges = stableChanged || renderedChanged;
+            const shouldCelebrateCompletion = shouldCelebrateNewWordCompletion(stableCountsBefore, nextCounts);
             const shouldSurfaceMetricsUpdate = hasCountChanges || !!hasCategoryProgressChanges;
             summaryCounts = nextCounts;
             finishMetricsLoading();
@@ -5253,7 +5224,7 @@
             renderMiniCounts({
                 previousCounts: renderedCountsBefore,
                 animate: animate && (renderedChanged || (stickyMiniWhenOffscreen && !!hasCategoryProgressChanges)),
-                celebratePerfect: celebratePerfect && hasCountChanges,
+                celebratePerfect: shouldCelebrateCompletion,
                 onComplete: function () {
                     if (deferVisibleCategoryProgress) {
                         scheduleTopRowCategoryProgressAfterMetrics();
@@ -5264,14 +5235,12 @@
                     }
                 }
             });
-            if (celebratePerfect) {
-                clearPerfectCelebrationPending();
-            }
             complete({
                 hasCountChanges: hasCountChanges,
                 hasCategoryProgressChanges: !!hasCategoryProgressChanges
             });
         }).fail(function () {
+            if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }
             finishMetricsLoading();
             categoryProgressHoldForMetrics = false;
             clearInitialWordsetCardProgressLoading();
@@ -8479,13 +8448,6 @@
 
         $(document).on('lltools:flashcard-results-shown.llWordsetPage', function (_evt, detail) {
             const summary = normalizeFlashcardResultSummary(detail);
-            if (summary) {
-                if (isPerfectFlashcardResult(summary)) {
-                    markPerfectCelebrationPending();
-                } else {
-                    clearPerfectCelebrationPending();
-                }
-            }
             const mode = normalizeMode(summary && summary.mode ? summary.mode : (detail && detail.mode ? detail.mode : ''));
             if (renderChunkResultsActions()) {
                 return;
@@ -8500,7 +8462,6 @@
         $(document).on('lltools:flashcard-opened.llWordsetPage', function (_evt, detail) {
             isFlashcardOpen = true;
             pendingSummaryRefreshAfterClose = false;
-            clearPerfectCelebrationPending();
             if (resultsFollowupPrefetchState) {
                 const info = (detail && typeof detail === 'object') ? detail : {};
                 const openedMode = normalizeMode(info.mode || '');
@@ -8521,7 +8482,6 @@
                 pendingSummaryRefreshAfterClose = false;
                 refreshSummaryCounts({
                     animate: true,
-                    celebratePerfect: hasPendingPerfectCelebration(),
                     deferVisibleCategoryProgress: true,
                     stickyMiniWhenOffscreen: true
                 });
@@ -8541,7 +8501,6 @@
             }
             refreshSummaryCounts({
                 animate: true,
-                celebratePerfect: hasPendingPerfectCelebration(),
                 deferVisibleCategoryProgress: true
             });
         });
