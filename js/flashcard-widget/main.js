@@ -2925,7 +2925,15 @@
                 }
             }
 
-            let initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            const activeSessionWordIds = getSessionWordIdsFromData(root.llToolsFlashcardsData || {});
+            const isSessionFilteredPracticeBootstrap = activeSessionWordIds.length > 0 &&
+                !State.isLearningMode &&
+                !State.isListeningMode &&
+                !State.isGenderMode &&
+                !State.isSelfCheckMode;
+            const initialCategoryLimit = isSessionFilteredPracticeBootstrap ? 5 : 3;
+
+            let initialCategories = State.categoryNames.slice(0, initialCategoryLimit).filter(Boolean);
             if (!initialCategories.length) {
                 const flashData = root.llToolsFlashcardsData || {};
                 const fallbackFromData = Array.isArray(flashData.categories)
@@ -2939,7 +2947,7 @@
                         return '';
                     }).filter(Boolean)
                     : [];
-                const fallbackCategories = fallbackFromData.slice(0, 3);
+                const fallbackCategories = fallbackFromData.slice(0, initialCategoryLimit);
                 if (fallbackCategories.length) {
                     State.categoryNames = fallbackCategories.slice();
                     State.initialCategoryNames = fallbackCategories.slice();
@@ -2976,7 +2984,6 @@
                 ? { earlyCallback: true, skipCategoryPreload: true }
                 : { earlyCallback: true };
 
-            const activeSessionWordIds = getSessionWordIdsFromData(root.llToolsFlashcardsData || {});
             const shouldLoadAllCategoriesBeforeBootstrap = State.isGenderMode || (
                 State.isLearningMode &&
                 activeSessionWordIds.length > 0 &&
@@ -3817,7 +3824,15 @@
                 }
 
                 const cleanedCategories = requestedCategories.slice();
-                State.initialCategoryNames = Util.randomlySort(cleanedCategories);
+                const flashData = root.llToolsFlashcardsData || {};
+                const preserveCategoryOrder = parseBooleanFlag(
+                    (typeof flashData.preserveCategoryOrder !== 'undefined')
+                        ? flashData.preserveCategoryOrder
+                        : flashData.preserve_category_order
+                );
+                State.initialCategoryNames = preserveCategoryOrder
+                    ? cleanedCategories.slice()
+                    : Util.randomlySort(cleanedCategories);
                 State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;

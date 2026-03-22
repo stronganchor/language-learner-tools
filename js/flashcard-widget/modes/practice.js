@@ -21,6 +21,32 @@
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
     }
 
+    function getSessionWordIds() {
+        const data = root.llToolsFlashcardsData || {};
+        const raw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        return raw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; });
+    }
+
+    function hasSessionWordFilter() {
+        return getSessionWordIds().length > 0;
+    }
+
+    function getPracticeCategoryPrefetchBatchSize() {
+        return hasSessionWordFilter() ? 4 : PRACTICE_CATEGORY_PREFETCH_BATCH_SIZE;
+    }
+
+    function getPracticeCategoryPrefetchTriggerRound() {
+        return hasSessionWordFilter() ? 1 : PRACTICE_CATEGORY_PREFETCH_TRIGGER_ROUND;
+    }
+
+    function getPracticeCategoryLoadedFloor() {
+        return hasSessionWordFilter() ? 2 : 1;
+    }
+
     function getWordsetCacheKey() {
         const data = root.llToolsFlashcardsData || {};
         const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
@@ -185,14 +211,14 @@
         }).length;
         const roundsInCurrentCategory = Math.max(0, parseInt(State.currentCategoryRoundCount, 10) || 0);
         const shouldQueue = !!opts.force ||
-            loadedRemainingCount <= 1 ||
-            roundsInCurrentCategory >= PRACTICE_CATEGORY_PREFETCH_TRIGGER_ROUND;
+            loadedRemainingCount <= getPracticeCategoryLoadedFloor() ||
+            roundsInCurrentCategory >= getPracticeCategoryPrefetchTriggerRound();
 
         if (!shouldQueue) {
             return Promise.resolve([]);
         }
 
-        const count = Math.max(1, parseInt(opts.count, 10) || PRACTICE_CATEGORY_PREFETCH_BATCH_SIZE);
+        const count = Math.max(1, parseInt(opts.count, 10) || getPracticeCategoryPrefetchBatchSize());
         const promises = pendingNames.slice(0, count).map(function (categoryName) {
             return queueCategoryLoad(categoryName, loader);
         });
