@@ -5,6 +5,85 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQf4xX0AAAAASUVORK5CYII=';
 
+    public function test_offline_app_category_options_are_filtered_to_selected_wordset_content(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_a = wp_insert_term('Offline UI Wordset A ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_a));
+        $this->assertIsArray($wordset_a);
+        $wordset_a_id = (int) $wordset_a['term_id'];
+
+        $wordset_b = wp_insert_term('Offline UI Wordset B ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_b));
+        $this->assertIsArray($wordset_b);
+        $wordset_b_id = (int) $wordset_b['term_id'];
+
+        $category_a = wp_insert_term('Offline UI Category A ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category_a));
+        $this->assertIsArray($category_a);
+        $category_a_id = (int) $category_a['term_id'];
+        update_term_meta($category_a_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_a_id, 'll_quiz_option_type', 'text_title');
+
+        $category_b = wp_insert_term('Offline UI Category B ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category_b));
+        $this->assertIsArray($category_b);
+        $category_b_id = (int) $category_b['term_id'];
+        update_term_meta($category_b_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_b_id, 'll_quiz_option_type', 'text_title');
+
+        $category_draft_only = wp_insert_term('Offline UI Draft Only ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category_draft_only));
+        $this->assertIsArray($category_draft_only);
+        $category_draft_only_id = (int) $category_draft_only['term_id'];
+        update_term_meta($category_draft_only_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_draft_only_id, 'll_quiz_option_type', 'text_title');
+
+        $word_a = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'Offline UI Word A',
+        ]);
+        wp_set_post_terms($word_a, [$category_a_id], 'word-category', false);
+        wp_set_post_terms($word_a, [$wordset_a_id], 'wordset', false);
+        wp_update_post([
+            'ID'          => $word_a,
+            'post_status' => 'publish',
+        ]);
+
+        $word_b = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'Offline UI Word B',
+        ]);
+        wp_set_post_terms($word_b, [$category_b_id], 'word-category', false);
+        wp_set_post_terms($word_b, [$wordset_b_id], 'wordset', false);
+        wp_update_post([
+            'ID'          => $word_b,
+            'post_status' => 'publish',
+        ]);
+
+        $draft_word = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'draft',
+            'post_title'  => 'Offline UI Draft Word',
+        ]);
+        wp_set_post_terms($draft_word, [$category_draft_only_id], 'word-category', false);
+        wp_set_post_terms($draft_word, [$wordset_a_id], 'wordset', false);
+
+        $options = ll_tools_offline_app_get_wordset_category_options($wordset_a_id);
+        $option_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $options), static function (int $category_id): bool {
+            return $category_id > 0;
+        }));
+        sort($option_ids, SORT_NUMERIC);
+
+        $this->assertSame([$category_a_id], $option_ids);
+    }
+
     public function test_offline_app_bundle_includes_shell_runtime_data_and_local_media(): void
     {
         $min_words_filter = static function (): int {

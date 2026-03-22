@@ -54,14 +54,12 @@ function ll_tools_render_offline_app_export_page(): void {
         $wordsets = [];
     }
 
-    $categories = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'orderby'    => 'name',
-        'order'      => 'ASC',
-    ]);
-    if (is_wp_error($categories)) {
-        $categories = [];
+    $wordset_category_map = [];
+    foreach ($wordsets as $wordset) {
+        if (!($wordset instanceof WP_Term)) {
+            continue;
+        }
+        $wordset_category_map[(string) $wordset->term_id] = ll_tools_offline_app_get_wordset_category_options((int) $wordset->term_id);
     }
 
     $plugin_version = ll_tools_get_plugin_version_string();
@@ -75,9 +73,30 @@ function ll_tools_render_offline_app_export_page(): void {
             <div class="notice notice-warning"><p><?php esc_html_e('Create at least one word set before exporting an offline app.', 'll-tools-text-domain'); ?></p></div>
         <?php endif; ?>
 
+        <style>
+            .ll-offline-category-list {
+                margin-top: 10px;
+                padding: 12px;
+                max-width: 420px;
+                max-height: 260px;
+                overflow-y: auto;
+                border: 1px solid #ccd0d4;
+                border-radius: 4px;
+                background: #fff;
+            }
+            .ll-offline-category-choice {
+                display: block;
+                margin: 0 0 8px;
+            }
+            .ll-offline-category-choice:last-child {
+                margin-bottom: 0;
+            }
+        </style>
+
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('ll_tools_export_offline_app'); ?>
             <input type="hidden" name="action" value="ll_tools_export_offline_app">
+            <input type="hidden" name="ll_offline_category_scope" id="ll-offline-category-scope" value="all">
 
             <table class="form-table" role="presentation">
                 <tbody>
@@ -99,17 +118,27 @@ function ll_tools_render_offline_app_export_page(): void {
                     </tr>
                     <tr>
                         <th scope="row">
-                            <label for="ll-offline-category-ids"><?php esc_html_e('Categories', 'll-tools-text-domain'); ?></label>
+                            <label for="ll-offline-include-all-categories"><?php esc_html_e('Categories', 'll-tools-text-domain'); ?></label>
                         </th>
                         <td>
-                            <select name="ll_offline_category_ids[]" id="ll-offline-category-ids" multiple size="10" style="min-width:320px;">
-                                <?php foreach ($categories as $category) : ?>
-                                    <option value="<?php echo esc_attr((string) $category->term_id); ?>">
-                                        <?php echo esc_html($category->name); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p class="description"><?php esc_html_e('Optional. Leave empty to include every quizzable category in the selected word set.', 'll-tools-text-domain'); ?></p>
+                            <fieldset id="ll-offline-category-fieldset" disabled>
+                                <label for="ll-offline-include-all-categories">
+                                    <input type="checkbox" id="ll-offline-include-all-categories" value="1" checked>
+                                    <?php esc_html_e('Include all categories in this word set', 'll-tools-text-domain'); ?>
+                                </label>
+
+                                <p class="description" id="ll-offline-category-help">
+                                    <?php esc_html_e('Select a word set first. Then you can keep all categories selected or choose specific ones.', 'll-tools-text-domain'); ?>
+                                </p>
+
+                                <p class="description" id="ll-offline-category-empty" hidden>
+                                    <?php esc_html_e('No categories with published words were found for the selected word set.', 'll-tools-text-domain'); ?>
+                                </p>
+
+                                <div id="ll-offline-category-list-wrap" hidden>
+                                    <div id="ll-offline-category-list" class="ll-offline-category-list" aria-live="polite"></div>
+                                </div>
+                            </fieldset>
                         </td>
                     </tr>
                     <tr>
@@ -152,13 +181,247 @@ function ll_tools_render_offline_app_export_page(): void {
 
             <p class="description"><?php esc_html_e('The MVP offline bundle includes Learning and Practice only. Progress tracking, login, Listening, Gender, and Self Check are intentionally excluded.', 'll-tools-text-domain'); ?></p>
             <p>
-                <button type="submit" class="button button-primary" <?php disabled(empty($wordsets)); ?>>
+                <button type="submit" class="button button-primary" id="ll-offline-export-submit" <?php disabled(empty($wordsets)); ?>>
                     <?php esc_html_e('Download Offline App Bundle (.zip)', 'll-tools-text-domain'); ?>
                 </button>
             </p>
         </form>
     </div>
+    <script>
+        (function () {
+            const categoriesByWordset = <?php echo wp_json_encode($wordset_category_map); ?>;
+            const strings = <?php echo wp_json_encode([
+                'selectWordsetFirst' => __('Select a word set first. Then you can keep all categories selected or choose specific ones.', 'll-tools-text-domain'),
+                'allCategories'      => __('Every category with published words in the selected word set will be included.', 'll-tools-text-domain'),
+                'pickSpecific'       => __('Choose the specific categories to include from this word set.', 'll-tools-text-domain'),
+                'noCategories'       => __('No categories with published words were found for the selected word set.', 'll-tools-text-domain'),
+            ]); ?>;
+
+            const wordsetField = document.getElementById('ll-offline-wordset-id');
+            const categoryFieldset = document.getElementById('ll-offline-category-fieldset');
+            const categoryScopeField = document.getElementById('ll-offline-category-scope');
+            const includeAllField = document.getElementById('ll-offline-include-all-categories');
+            const categoryHelp = document.getElementById('ll-offline-category-help');
+            const categoryEmpty = document.getElementById('ll-offline-category-empty');
+            const categoryListWrap = document.getElementById('ll-offline-category-list-wrap');
+            const categoryList = document.getElementById('ll-offline-category-list');
+            const submitButton = document.getElementById('ll-offline-export-submit');
+            const selectedByWordset = {};
+
+            if (!wordsetField || !categoryFieldset || !categoryScopeField || !includeAllField || !categoryHelp || !categoryEmpty || !categoryListWrap || !categoryList || !submitButton) {
+                return;
+            }
+
+            function getCurrentWordsetId() {
+                return String(wordsetField.value || '').trim();
+            }
+
+            function getCurrentCategories() {
+                const wordsetId = getCurrentWordsetId();
+                if (!wordsetId || !Array.isArray(categoriesByWordset[wordsetId])) {
+                    return [];
+                }
+                return categoriesByWordset[wordsetId];
+            }
+
+            function rememberSelections(wordsetId) {
+                if (!wordsetId) {
+                    return;
+                }
+
+                selectedByWordset[wordsetId] = Array.from(
+                    categoryList.querySelectorAll('input[name="ll_offline_category_ids[]"]:checked')
+                ).map(function (input) {
+                    return String(input.value || '');
+                });
+            }
+
+            function buildCategoryChoices(categories, wordsetId, disabled) {
+                const selectedLookup = new Set(Array.isArray(selectedByWordset[wordsetId]) ? selectedByWordset[wordsetId] : []);
+                categoryList.textContent = '';
+
+                categories.forEach(function (category) {
+                    const label = document.createElement('label');
+                    label.className = 'll-offline-category-choice';
+
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.name = 'll_offline_category_ids[]';
+                    input.value = String(category.id || '');
+                    input.checked = selectedLookup.has(String(category.id || ''));
+                    input.disabled = disabled;
+                    input.addEventListener('change', function () {
+                        rememberSelections(wordsetId);
+                    });
+
+                    label.appendChild(input);
+                    label.appendChild(document.createTextNode(' ' + String(category.name || '')));
+                    categoryList.appendChild(label);
+                });
+            }
+
+            function updateCategoryUi() {
+                const wordsetId = getCurrentWordsetId();
+                const categories = getCurrentCategories();
+                const hasWordset = wordsetId !== '';
+                const hasCategories = categories.length > 0;
+                const includeAll = includeAllField.checked;
+
+                categoryFieldset.disabled = !hasWordset;
+                includeAllField.disabled = !hasWordset || !hasCategories;
+                categoryScopeField.value = includeAll ? 'all' : 'custom';
+
+                categoryHelp.textContent = strings.selectWordsetFirst;
+                if (hasWordset && hasCategories) {
+                    categoryHelp.textContent = includeAll ? strings.allCategories : strings.pickSpecific;
+                }
+
+                categoryEmpty.hidden = !hasWordset || hasCategories;
+                categoryEmpty.textContent = strings.noCategories;
+
+                buildCategoryChoices(categories, wordsetId, !hasWordset || includeAll);
+
+                categoryListWrap.hidden = !hasWordset || !hasCategories || includeAll;
+                submitButton.disabled = <?php echo empty($wordsets) ? 'true' : 'false'; ?> || !hasWordset || !hasCategories;
+            }
+
+            wordsetField.addEventListener('change', function () {
+                const previousWordsetId = categoryList.getAttribute('data-wordset-id') || '';
+                if (previousWordsetId !== '') {
+                    rememberSelections(previousWordsetId);
+                }
+
+                categoryList.setAttribute('data-wordset-id', getCurrentWordsetId());
+                updateCategoryUi();
+            });
+
+            includeAllField.addEventListener('change', function () {
+                const wordsetId = getCurrentWordsetId();
+                if (wordsetId !== '') {
+                    rememberSelections(wordsetId);
+                }
+                updateCategoryUi();
+            });
+
+            categoryList.setAttribute('data-wordset-id', getCurrentWordsetId());
+            updateCategoryUi();
+        })();
+    </script>
     <?php
+}
+
+function ll_tools_offline_app_get_wordset_category_options(int $wordset_id): array {
+    static $request_cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    if (isset($request_cache[$wordset_id])) {
+        return $request_cache[$wordset_id];
+    }
+
+    $category_ids = [];
+    if (function_exists('ll_tools_word_option_rules_get_wordset_category_ids')) {
+        $category_ids = ll_tools_word_option_rules_get_wordset_category_ids($wordset_id);
+    } else {
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            "
+            SELECT DISTINCT tt_cat.term_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status = %s
+              AND tt_ws.taxonomy = %s
+              AND tt_ws.term_id = %d
+              AND tt_cat.taxonomy = %s
+            ",
+            'words',
+            'publish',
+            'wordset',
+            $wordset_id,
+            'word-category'
+        );
+
+        $category_ids = array_map('intval', (array) $wpdb->get_col($sql));
+    }
+
+    $category_ids = ll_tools_offline_app_normalize_id_list($category_ids);
+    if (empty($category_ids)) {
+        $request_cache[$wordset_id] = [];
+        return [];
+    }
+
+    $terms = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'include'    => $category_ids,
+    ]);
+    if (is_wp_error($terms)) {
+        $terms = [];
+    }
+
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms);
+    }
+
+    $terms_by_id = [];
+    $category_name_map = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
+            continue;
+        }
+        if ((string) $term->slug === 'uncategorized') {
+            continue;
+        }
+
+        $term_id = (int) $term->term_id;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $terms_by_id[$term_id] = $term;
+        $category_name_map[$term_id] = (string) $term->name;
+    }
+
+    $ordered_ids = array_keys($terms_by_id);
+    if (!empty($ordered_ids) && function_exists('ll_tools_wordset_sort_category_ids')) {
+        $ordered_ids = ll_tools_wordset_sort_category_ids($ordered_ids, $wordset_id, [
+            'category_name_map' => $category_name_map,
+        ]);
+    } else {
+        usort($ordered_ids, static function (int $left, int $right) use ($category_name_map): int {
+            $left_name = (string) ($category_name_map[$left] ?? '');
+            $right_name = (string) ($category_name_map[$right] ?? '');
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                return ll_tools_locale_compare_strings($left_name, $right_name);
+            }
+            return strnatcasecmp($left_name, $right_name);
+        });
+    }
+
+    $options = [];
+    foreach ($ordered_ids as $category_id) {
+        if (!isset($terms_by_id[$category_id])) {
+            continue;
+        }
+
+        $term = $terms_by_id[$category_id];
+        $options[] = [
+            'id'   => (int) $term->term_id,
+            'slug' => (string) $term->slug,
+            'name' => html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8'),
+        ];
+    }
+
+    $request_cache[$wordset_id] = $options;
+    return $request_cache[$wordset_id];
 }
 
 function ll_tools_handle_export_offline_app(): void {
@@ -177,9 +440,35 @@ function ll_tools_handle_export_offline_app(): void {
         wp_die(__('Select a word set to export.', 'll-tools-text-domain'));
     }
 
-    $selected_category_ids = isset($_POST['ll_offline_category_ids'])
-        ? ll_tools_offline_app_normalize_id_list((array) wp_unslash($_POST['ll_offline_category_ids']))
-        : [];
+    $available_categories = ll_tools_offline_app_get_wordset_category_options($wordset_id);
+    $available_category_ids = ll_tools_offline_app_normalize_id_list(wp_list_pluck($available_categories, 'id'));
+    if (empty($available_category_ids)) {
+        wp_die(__('The selected word set has no categories with published words available for offline export.', 'll-tools-text-domain'));
+    }
+
+    $category_scope = isset($_POST['ll_offline_category_scope'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_offline_category_scope']))
+        : 'all';
+    $include_all_categories = ($category_scope !== 'custom');
+
+    $selected_category_ids = $include_all_categories
+        ? []
+        : (
+            isset($_POST['ll_offline_category_ids'])
+                ? ll_tools_offline_app_normalize_id_list((array) wp_unslash($_POST['ll_offline_category_ids']))
+                : []
+        );
+
+    if (!$include_all_categories) {
+        if (empty($selected_category_ids)) {
+            wp_die(__('Select at least one category or choose to include all categories.', 'll-tools-text-domain'));
+        }
+
+        $invalid_category_ids = array_values(array_diff($selected_category_ids, $available_category_ids));
+        if (!empty($invalid_category_ids)) {
+            wp_die(__('One or more selected categories are not available in the selected word set.', 'll-tools-text-domain'));
+        }
+    }
 
     $app_name = isset($_POST['ll_offline_app_name'])
         ? sanitize_text_field(wp_unslash((string) $_POST['ll_offline_app_name']))
