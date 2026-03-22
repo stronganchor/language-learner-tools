@@ -80,27 +80,188 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       max-width: 960px;
       margin: 0 auto;
     }
-    .ll-offline-app-shell #ll-tools-start-flashcard {
+    .ll-offline-launcher {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .ll-offline-launcher__selection-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--ll-offline-border);
+      background: var(--ll-offline-soft);
+      box-shadow: 0 10px 22px rgba(23,32,43,0.06);
+    }
+    .ll-offline-launcher__selection-copy {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .ll-offline-launcher__selection-text {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .ll-offline-launcher__selection-count {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
-      padding: 0 20px;
-      border: 0;
+      min-width: 32px;
+      min-height: 32px;
+      padding: 0 8px;
       border-radius: 999px;
-      background: var(--ll-offline-accent);
-      color: #fff;
-      font-size: 1rem;
+      background: rgba(31,95,74,0.12);
+      color: var(--ll-offline-accent);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .ll-offline-launcher__selection-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .ll-offline-launcher__action,
+    .ll-offline-category-card__action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(23,32,43,0.12);
+      background: #fff;
+      color: var(--ll-offline-ink);
+      font-family: inherit;
+      font-size: 0.95rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 14px 28px rgba(31,95,74,0.18);
+      text-decoration: none;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
-    .ll-offline-app-shell #ll-tools-start-flashcard:hover,
-    .ll-offline-app-shell #ll-tools-start-flashcard:focus-visible {
+    .ll-offline-launcher__action:hover,
+    .ll-offline-launcher__action:focus-visible,
+    .ll-offline-category-card__action:hover,
+    .ll-offline-category-card__action:focus-visible {
+      border-color: rgba(31,95,74,0.42);
+      box-shadow: 0 10px 20px rgba(23,32,43,0.08);
+      transform: translateY(-1px);
+    }
+    .ll-offline-launcher__action--learning,
+    .ll-offline-category-card__action--learning {
+      background: var(--ll-offline-accent);
+      border-color: var(--ll-offline-accent);
+      color: #fff;
+    }
+    .ll-offline-launcher__action--learning:hover,
+    .ll-offline-launcher__action--learning:focus-visible,
+    .ll-offline-category-card__action--learning:hover,
+    .ll-offline-category-card__action--learning:focus-visible {
       background: #184c3c;
+      border-color: #184c3c;
+    }
+    .ll-offline-launcher__action--clear {
+      background: transparent;
+    }
+    .ll-offline-launcher__action[disabled],
+    .ll-offline-category-card__action[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    .ll-offline-category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .ll-offline-category-card {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--ll-offline-border);
+      background: var(--ll-offline-soft);
+      box-shadow: 0 10px 22px rgba(23,32,43,0.06);
+    }
+    .ll-offline-category-card__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .ll-offline-category-card__toggle {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      margin: 2px 0 0;
+      accent-color: var(--ll-offline-accent);
+      cursor: pointer;
+    }
+    .ll-offline-category-card__header-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .ll-offline-category-card__title {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.3;
+    }
+    .ll-offline-category-card__translation {
+      margin: 4px 0 0;
+      font-size: 0.9rem;
+      opacity: 0.72;
+    }
+    .ll-offline-category-card__count {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 40px;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(23,32,43,0.08);
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .ll-offline-category-card__actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ll-offline-launcher__empty {
+      margin: 0;
+      padding: 18px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--ll-offline-border);
+      background: var(--ll-offline-soft);
+      font-size: 0.95rem;
+    }
+    body.ll-tools-flashcard-open .ll-offline-launcher {
+      opacity: 0.35;
+      pointer-events: none;
     }
     .ll-offline-app-shell .ll-tools-category-display {
       font-weight: 700;
+    }
+    @media (max-width: 640px) {
+      .ll-offline-launcher__selection-actions,
+      .ll-offline-category-card__actions {
+        width: 100%;
+      }
+      .ll-offline-launcher__action,
+      .ll-offline-category-card__action {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -127,7 +288,27 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
     <?php endif; ?>
 
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" data-wordset="" data-wordset-fallback="0">
-      <button id="ll-tools-start-flashcard" type="button"><?php esc_html_e('Start', 'll-tools-text-domain'); ?></button>
+      <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
+        <div class="ll-offline-launcher__selection-bar">
+          <div class="ll-offline-launcher__selection-copy">
+            <p id="ll-offline-selection-text" class="ll-offline-launcher__selection-text"><?php esc_html_e('Select categories to study together', 'll-tools-text-domain'); ?></p>
+            <span id="ll-offline-selection-count" class="ll-offline-launcher__selection-count" hidden>0</span>
+          </div>
+          <div class="ll-offline-launcher__selection-actions">
+            <button id="ll-offline-launch-learning-selected" class="ll-offline-launcher__action ll-offline-launcher__action--learning" data-ll-offline-launch-selected data-mode="learning" type="button" disabled>
+              <?php esc_html_e('Learn Selected', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-launch-practice-selected" class="ll-offline-launcher__action" data-ll-offline-launch-selected data-mode="practice" type="button" disabled>
+              <?php esc_html_e('Practice Selected', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-clear-selection" class="ll-offline-launcher__action ll-offline-launcher__action--clear" type="button" hidden>
+              <?php esc_html_e('Clear Selection', 'll-tools-text-domain'); ?>
+            </button>
+          </div>
+        </div>
+        <div id="ll-offline-category-grid" class="ll-offline-category-grid" aria-live="polite"></div>
+        <p id="ll-offline-category-empty" class="ll-offline-launcher__empty" hidden><?php esc_html_e('No categories are available in this offline app.', 'll-tools-text-domain'); ?></p>
+      </section>
 
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-category-selection-popup" style="display:none;">

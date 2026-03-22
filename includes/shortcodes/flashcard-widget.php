@@ -385,6 +385,15 @@ function ll_flashcards_get_messages(): array {
         'checkWordsAssigned'      => __('Words are properly assigned to the category', 'll-tools-text-domain'),
         'checkWordsetFilter'      => __('If using wordsets, the wordset contains words for this category', 'll-tools-text-domain'),
         'checkSpecificWrongAnswers' => __('Any specific wrong-answer words are available for this target', 'll-tools-text-domain'),
+        'offlineSelectCategories' => __('Select categories to study together', 'll-tools-text-domain'),
+        'offlineNoCategories'     => __('No categories are available in this offline app.', 'll-tools-text-domain'),
+        'offlineClearSelection'   => __('Clear Selection', 'll-tools-text-domain'),
+        'offlineModePractice'     => __('Practice', 'll-tools-text-domain'),
+        'offlineModeLearning'     => __('Learn', 'll-tools-text-domain'),
+        'offlinePracticeSelected' => __('Practice Selected', 'll-tools-text-domain'),
+        'offlineLearningSelected' => __('Learn Selected', 'll-tools-text-domain'),
+        'offlineSelectCategory'   => __('Select category: %s', 'll-tools-text-domain'),
+        'offlineLearningUnavailable' => __('Learning mode is not available for this selection.', 'll-tools-text-domain'),
     ];
 
     return $messages;
