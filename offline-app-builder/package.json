@@ -1,0 +1,20 @@
+{
+  "name": "ll-tools-offline-app-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "node scripts/prepare-bundle.mjs",
+    "build:debug": "node scripts/build-apk.mjs --debug",
+    "build:release": "node scripts/build-apk.mjs --release",
+    "open:android": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "adm-zip": "^0.5.16",
+    "fs-extra": "^11.3.2"
+  }
+}

@@ -49,6 +49,22 @@
             return count > 0 ? lookup : null;
         }
 
+        function getRuntimeMode() {
+            const data = window.llToolsFlashcardsData || {};
+            return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase();
+        }
+
+        function getOfflineCategoryData() {
+            const data = window.llToolsFlashcardsData || {};
+            if (data.offlineCategoryData && typeof data.offlineCategoryData === 'object') {
+                return data.offlineCategoryData;
+            }
+            if (window.llToolsOfflineData && window.llToolsOfflineData.categoryData && typeof window.llToolsOfflineData.categoryData === 'object') {
+                return window.llToolsOfflineData.categoryData;
+            }
+            return {};
+        }
+
         function getCategoryConfig(name) {
             const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
                 ? window.llToolsFlashcardsData.categories
@@ -654,6 +670,45 @@
             if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
                 return Promise.resolve({ cached: true, category: categoryName });
+            }
+
+            if (getRuntimeMode() === 'offline') {
+                const offlineCategoryData = getOfflineCategoryData();
+                const words = Array.isArray(offlineCategoryData[categoryName]) ? offlineCategoryData[categoryName] : null;
+                let callbackInvoked = false;
+                const invokeCallbackOnce = function () {
+                    if (callbackInvoked) {
+                        return;
+                    }
+                    callbackInvoked = true;
+                    if (typeof callback === 'function') {
+                        try { callback(); } catch (_) { /* no-op */ }
+                    }
+                };
+
+                if (!words) {
+                    console.error('Offline flashcard data missing category:', categoryName);
+                    invokeCallbackOnce();
+                    return Promise.resolve({ success: false, category: categoryName, offline: true, missing: true });
+                }
+
+                processFetchedWordData(words, categoryName);
+                if (!loadedCategories.includes(cacheKey)) {
+                    loadedCategories.push(cacheKey);
+                }
+
+                if (earlyCallback) {
+                    invokeCallbackOnce();
+                    if (!skipCategoryPreload) {
+                        preloadCategoryResources(categoryName);
+                    }
+                } else if (!skipCategoryPreload) {
+                    preloadCategoryResources(categoryName, invokeCallbackOnce);
+                } else {
+                    invokeCallbackOnce();
+                }
+
+                return Promise.resolve({ success: true, category: categoryName, offline: true });
             }
 
             const displayMode = window.getCategoryDisplayMode(categoryName);

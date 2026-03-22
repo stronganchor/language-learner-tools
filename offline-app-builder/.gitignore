@@ -1,0 +1,4 @@
+android/
+workspace/
+capacitor.config.json
+node_modules/

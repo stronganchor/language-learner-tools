@@ -64,6 +64,7 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-bulk-translations',
             'll-export',
             'll-import',
+            'll-offline-app-export',
             'll-ipa-keyboard',
             'll-word-option-rules',
             'll-image-aspect-normalizer',
@@ -119,6 +120,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'll-bulk-translations' => __('Bulk Translations', 'll-tools-text-domain'),
             'll-export' => __('Export', 'll-tools-text-domain'),
             'll-import' => __('Import', 'll-tools-text-domain'),
+            'll-offline-app-export' => __('Offline App Export', 'll-tools-text-domain'),
             'll-ipa-keyboard' => __('IPA Keyboard', 'll-tools-text-domain'),
             'll-word-option-rules' => __('Word Option Rules', 'll-tools-text-domain'),
             'll-image-aspect-normalizer' => __('Image Aspect Normalizer', 'll-tools-text-domain'),
@@ -482,6 +484,9 @@ function ll_tools_render_tools_hub_page() {
     $export_import_capability = function_exists('ll_tools_get_export_import_capability')
         ? ll_tools_get_export_import_capability()
         : 'manage_options';
+    $offline_app_export_capability = function_exists('ll_tools_get_offline_app_export_capability')
+        ? ll_tools_get_offline_app_export_capability()
+        : 'view_ll_tools';
     $export_page_slug = function_exists('ll_tools_get_export_page_slug')
         ? ll_tools_get_export_page_slug()
         : 'll-export';
@@ -538,6 +543,13 @@ function ll_tools_render_tools_hub_page() {
             'url' => ll_tools_get_tools_page_url($import_page_slug),
             'cap' => $export_import_capability,
             'icon' => 'dashicons-upload',
+        ],
+        [
+            'label' => __('Offline App Export', 'll-tools-text-domain'),
+            'description' => __('Build a one-wordset offline quiz bundle that can be turned into an Android APK.', 'll-tools-text-domain'),
+            'url' => ll_tools_get_tools_page_url('ll-offline-app-export'),
+            'cap' => $offline_app_export_capability,
+            'icon' => 'dashicons-smartphone',
         ],
         [
             'label' => __('IPA Keyboard', 'll-tools-text-domain'),

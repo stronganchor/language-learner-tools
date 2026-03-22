@@ -75,6 +75,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/bulk-translation-admin.php');
     require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
+    require_once(__DIR__ . '/admin/offline-app-export.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
