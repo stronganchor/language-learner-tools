@@ -1098,11 +1098,7 @@
         if (direct.length) {
             return direct;
         }
-
-        const lastPlan = (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object')
-            ? data.lastLaunchPlan
-            : ((data.last_launch_plan && typeof data.last_launch_plan === 'object') ? data.last_launch_plan : {});
-        return getSessionWordIdsFromData(lastPlan);
+        return getSessionWordIdsFromData(getLastLaunchPlan());
     }
 
     function getPracticeProgressSessionTotalCount(answeredUniqueCount) {
@@ -1900,6 +1896,35 @@
             out.push(normalized);
         });
         return out;
+    }
+
+    function getLastLaunchPlan() {
+        const data = root.llToolsFlashcardsData || {};
+        if (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object') {
+            return data.lastLaunchPlan;
+        }
+        if (data.last_launch_plan && typeof data.last_launch_plan === 'object') {
+            return data.last_launch_plan;
+        }
+        return {};
+    }
+
+    // Wordset multi-select practice launches can intentionally mix image/text categories
+    // because each round keeps its answer pool inside the active category.
+    function shouldPreserveMixedPresentationForLaunch() {
+        const lastPlan = getLastLaunchPlan();
+        const details = (lastPlan.details && typeof lastPlan.details === 'object')
+            ? lastPlan.details
+            : {};
+        const raw = details.preserve_mixed_presentation;
+        if (raw === true || raw === 1) {
+            return true;
+        }
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+        }
+        return false;
     }
 
     function findCategoryConfigByName(categoryName) {
@@ -3768,13 +3793,15 @@
 
             return root.FlashcardAudio.startNewSession().then(function () {
                 const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
-                const requestedCategories = filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
-                    preferCategoryName: requestedCategoriesRaw[0] || ''
-                });
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
                     requestedMode = 'self-check';
                 }
+                const requestedCategories = shouldPreserveMixedPresentationForLaunch()
+                    ? requestedCategoriesRaw.slice()
+                    : filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
+                        preferCategoryName: requestedCategoriesRaw[0] || ''
+                    });
                 if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
