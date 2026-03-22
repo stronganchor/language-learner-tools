@@ -19,13 +19,14 @@ function run(cmd, args, options = {}) {
   execFileSync(cmd, args, {
     cwd: ROOT_DIR,
     stdio: 'inherit',
+    shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd),
     ...options
   });
 }
 
 function loadPreparedState() {
   if (!fs.existsSync(STATE_PATH)) {
-    throw new Error('No prepared bundle found. Run `npm run prepare -- /path/to/bundle.zip` first or pass the bundle path to this command.');
+    throw new Error('No prepared bundle found. Run `npm run prepare:bundle -- /path/to/bundle.zip` first or pass the bundle path to this command.');
   }
   return fs.readJsonSync(STATE_PATH);
 }

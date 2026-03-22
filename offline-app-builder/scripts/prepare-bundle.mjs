@@ -11,6 +11,22 @@ const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const CAPACITOR_CONFIG_PATH = path.join(ROOT_DIR, 'capacitor.config.json');
 
+function normalizeInputPath(inputPath) {
+  const raw = String(inputPath || '');
+  if (process.platform !== 'win32') {
+    return raw;
+  }
+
+  const wslMatch = raw.match(/^\/mnt\/([a-z])\/(.*)$/i);
+  if (!wslMatch) {
+    return raw;
+  }
+
+  const driveLetter = wslMatch[1].toUpperCase();
+  const relativePath = wslMatch[2].replace(/\//g, '\\');
+  return `${driveLetter}:\\${relativePath}`;
+}
+
 function sanitizeSegment(value, fallback = 'app') {
   const clean = String(value || '')
     .toLowerCase()
@@ -79,7 +95,10 @@ export function prepareBundle(inputPath) {
     throw new Error('Provide a path to an LL Tools offline app bundle zip or extracted bundle directory.');
   }
 
-  const resolvedInput = path.resolve(process.cwd(), inputPath);
+  const normalizedInput = normalizeInputPath(inputPath);
+  const resolvedInput = path.isAbsolute(normalizedInput)
+    ? normalizedInput
+    : path.resolve(process.cwd(), normalizedInput);
   if (!fs.existsSync(resolvedInput)) {
     throw new Error(`Bundle input not found: ${resolvedInput}`);
   }

@@ -18,10 +18,11 @@ npm install
 ## Prepare a bundle
 
 ```bash
-npm run prepare -- /absolute/path/to/ll-tools-offline-app.zip
+npm run prepare:bundle -- /absolute/path/to/ll-tools-offline-app.zip
 ```
 
 This extracts the bundle into `workspace/bundle/` and writes `capacitor.config.json`.
+On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 
 ## Build a debug APK
 

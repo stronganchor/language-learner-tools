@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare": "node scripts/prepare-bundle.mjs",
+    "prepare:bundle": "node scripts/prepare-bundle.mjs",
     "build:debug": "node scripts/build-apk.mjs --debug",
     "build:release": "node scripts/build-apk.mjs --release",
     "open:android": "npx cap open android"
