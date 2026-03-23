@@ -533,12 +533,33 @@ test('space shooter launches with safe option mixes and records progress flows',
   await expect(page.locator('[data-ll-wordset-game-launch]')).toBeEnabled();
   await expect(page.locator('[data-ll-wordset-game-status]')).toHaveText('7 words ready');
 
+  const catalogDimensions = await page.evaluate(() => {
+    const root = document.querySelector('[data-ll-wordset-games-root]');
+    const card = document.querySelector('[data-ll-wordset-game-card]');
+    return {
+      rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
+      cardWidth: card ? Math.round(card.getBoundingClientRect().width) : 0
+    };
+  });
+  expect(catalogDimensions.cardWidth).toBeGreaterThan(0);
+  expect(catalogDimensions.rootWidth - catalogDimensions.cardWidth).toBeGreaterThan(80);
+
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.launch();
   });
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  const stageDimensions = await page.evaluate(() => {
+    const root = document.querySelector('[data-ll-wordset-games-root]');
+    const stage = document.querySelector('[data-ll-wordset-game-stage]');
+    return {
+      rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
+      stageWidth: stage ? Math.round(stage.getBoundingClientRect().width) : 0
+    };
+  });
+  expect(stageDimensions.stageWidth).toBeGreaterThan(0);
+  expect(stageDimensions.rootWidth - stageDimensions.stageWidth).toBeGreaterThan(80);
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.cardWordIds.length === 4);

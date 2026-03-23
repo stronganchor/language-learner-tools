@@ -6,6 +6,9 @@
     --ll-games-line: rgba(15, 23, 42, 0.12);
     --ll-games-shadow: 0 24px 54px rgba(15, 23, 42, 0.12);
     --ll-games-canvas-bg: radial-gradient(circle at top, rgba(103, 232, 249, 0.18), transparent 34%), linear-gradient(180deg, #0f172a 0%, #12233d 46%, #171c2e 100%);
+    width: 100%;
+    max-width: var(--ll-wp-main-shell-max-width, 1100px);
+    margin-inline: auto;
 }
 
 .ll-wordset-games-page [hidden] {
@@ -135,6 +138,9 @@
 
 .ll-wordset-game-stage {
     position: relative;
+    width: 100%;
+    max-width: min(100%, 760px, max(420px, calc(100vh - 180px)));
+    margin-right: auto;
     margin-top: 16px;
     padding: 16px;
     border-radius: 28px;
