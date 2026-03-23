@@ -6,6 +6,21 @@ function ll_tools_wordset_games_min_word_count(): int {
     return max(5, (int) apply_filters('ll_tools_wordset_games_min_word_count', 5));
 }
 
+function ll_tools_wordset_games_render_page_icon(string $class = 'll-wordset-games-icon'): string {
+    $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
+    return '<svg' . $class_attr . ' viewBox="0 0 256 256" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'
+        . '<path d="M72 88C52 88 38 102 34 122L26 162C22 184 38 202 58 202C70 202 80 197 88 188L102 172H154L168 188C176 197 186 202 198 202C218 202 234 184 230 162L222 122C218 102 204 88 184 88H72Z" fill="#2F3B52"/>'
+        . '<rect x="72" y="114" width="14" height="40" rx="4" fill="#FFFFFF"/>'
+        . '<rect x="59" y="127" width="40" height="14" rx="4" fill="#FFFFFF"/>'
+        . '<circle cx="178" cy="121" r="10" fill="#FFFFFF"/>'
+        . '<circle cx="196" cy="139" r="10" fill="#FFFFFF"/>'
+        . '<circle cx="160" cy="139" r="10" fill="#FFFFFF"/>'
+        . '<circle cx="178" cy="157" r="10" fill="#FFFFFF"/>'
+        . '<rect x="112" y="124" width="14" height="8" rx="4" fill="#D9E2F2"/>'
+        . '<rect x="130" y="124" width="14" height="8" rx="4" fill="#D9E2F2"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_games_render_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'

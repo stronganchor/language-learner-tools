@@ -51,9 +51,32 @@ function buildGamesMarkup() {
             <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
           </div>
           <div class="ll-wordset-game-stage__controls">
-            <button type="button" data-ll-wordset-game-control="left">Left</button>
-            <button type="button" data-ll-wordset-game-control="fire">Fire</button>
-            <button type="button" data-ll-wordset-game-control="right">Right</button>
+            <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
+              <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M14.5 5.5L8 12l6.5 6.5"></path>
+                  <path d="M8.5 12H19.5"></path>
+                </svg>
+              </span>
+            </button>
+            <button type="button" data-ll-wordset-game-control="fire" aria-label="Fire or press space bar">
+              <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
+                <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z"></path>
+                </svg>
+                <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
+                  <span class="ll-wordset-game-stage__control-keycap-bar"></span>
+                </span>
+              </span>
+            </button>
+            <button type="button" data-ll-wordset-game-control="right" aria-label="Move right">
+              <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+                  <path d="M15.5 12H4.5"></path>
+                </svg>
+              </span>
+            </button>
           </div>
           <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
             <div class="ll-wordset-game-stage__overlay-card">
@@ -550,6 +573,7 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-game-fire-keycap]')).toBeVisible();
   const stageDimensions = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
     const stage = document.querySelector('[data-ll-wordset-game-stage]');
@@ -560,6 +584,10 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
   expect(stageDimensions.stageWidth).toBeGreaterThan(0);
   expect(stageDimensions.rootWidth - stageDimensions.stageWidth).toBeGreaterThan(80);
+  await page.keyboard.down('Space');
+  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).toHaveClass(/is-active/);
+  await page.keyboard.up('Space');
+  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).not.toHaveClass(/is-active/);
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.cardWordIds.length === 4);

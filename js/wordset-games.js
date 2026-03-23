@@ -1220,6 +1220,12 @@
             return;
         }
 
+        function matchesKey(event, keys, codes) {
+            const key = String(event && event.key || '').toLowerCase();
+            const code = String(event && event.code || '').toLowerCase();
+            return keys.indexOf(key) !== -1 || codes.indexOf(code) !== -1;
+        }
+
         ctx.onVisibilityChange = function () {
             if (root.document && root.document.visibilityState === 'hidden') {
                 flushProgress(ctx);
@@ -1235,14 +1241,13 @@
             if (!ctx.run || ctx.$stage.prop('hidden')) {
                 return;
             }
-            const key = String(event.key || '').toLowerCase();
-            if (key === 'arrowleft' || key === 'a') {
+            if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
                 event.preventDefault();
                 setControlState(ctx, 'left', true);
-            } else if (key === 'arrowright' || key === 'd') {
+            } else if (matchesKey(event, ['arrowright', 'd'], ['arrowright', 'keyd'])) {
                 event.preventDefault();
                 setControlState(ctx, 'right', true);
-            } else if (key === ' ' || key === 'spacebar') {
+            } else if (matchesKey(event, [' ', 'space', 'spacebar'], ['space'])) {
                 event.preventDefault();
                 setControlState(ctx, 'fire', true);
             }
@@ -1251,12 +1256,11 @@
             if (!ctx.run) {
                 return;
             }
-            const key = String(event.key || '').toLowerCase();
-            if (key === 'arrowleft' || key === 'a') {
+            if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
                 setControlState(ctx, 'left', false);
-            } else if (key === 'arrowright' || key === 'd') {
+            } else if (matchesKey(event, ['arrowright', 'd'], ['arrowright', 'keyd'])) {
                 setControlState(ctx, 'right', false);
-            } else if (key === ' ' || key === 'spacebar') {
+            } else if (matchesKey(event, [' ', 'space', 'spacebar'], ['space'])) {
                 setControlState(ctx, 'fire', false);
             }
         };

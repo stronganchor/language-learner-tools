@@ -3903,13 +3903,30 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
                     <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
                         <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="left" aria-label="<?php echo esc_attr__('Move left', 'll-tools-text-domain'); ?>">
-                            <span aria-hidden="true">&#9664;</span>
+                            <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M14.5 5.5L8 12l6.5 6.5" />
+                                    <path d="M8.5 12H19.5" />
+                                </svg>
+                            </span>
                         </button>
-                        <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire', 'll-tools-text-domain'); ?>">
-                            <span aria-hidden="true">&#10022;</span>
+                        <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire or press space bar', 'll-tools-text-domain'); ?>">
+                            <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
+                                <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z" />
+                                </svg>
+                                <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
+                                    <span class="ll-wordset-game-stage__control-keycap-bar"></span>
+                                </span>
+                            </span>
                         </button>
                         <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="right" aria-label="<?php echo esc_attr__('Move right', 'll-tools-text-domain'); ?>">
-                            <span aria-hidden="true">&#9654;</span>
+                            <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M9.5 5.5L16 12l-6.5 6.5" />
+                                    <path d="M15.5 12H4.5" />
+                                </svg>
+                            </span>
                         </button>
                     </div>
 
@@ -4512,7 +4529,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             href="<?php echo esc_url($games_url); ?>"
                             aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
                             <span class="ll-wordset-link-chip__icon" aria-hidden="true">
-                                <?php echo function_exists('ll_tools_wordset_games_render_icon') ? ll_tools_wordset_games_render_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <?php echo function_exists('ll_tools_wordset_games_render_page_icon') ? ll_tools_wordset_games_render_page_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                             </span>
                             <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
                         </a>
