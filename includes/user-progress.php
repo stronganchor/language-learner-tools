@@ -1370,6 +1370,56 @@ function ll_tools_user_study_category_mode_session_counts(int $user_id, int $wor
 }
 
 /**
+ * Pick the preferred audio entry for a progress row.
+ *
+ * @return array{url?:string,recording_type?:string}
+ */
+function ll_tools_user_progress_get_word_audio_entry(array $audio_files, int $preferred_speaker = 0, int $word_id = 0): array {
+    $preferred_speaker = max(0, $preferred_speaker);
+    if ($preferred_speaker <= 0 && function_exists('ll_tools_word_grid_get_preferred_speaker')) {
+        $preferred_speaker = (int) ll_tools_word_grid_get_preferred_speaker($audio_files, ['isolation', 'question', 'introduction']);
+    }
+
+    $priority = ['isolation', 'question', 'introduction', 'sentence', 'in sentence'];
+    if (function_exists('ll_tools_word_grid_select_audio_entry')) {
+        foreach ($priority as $type) {
+            $entry = (array) ll_tools_word_grid_select_audio_entry($audio_files, $type, $preferred_speaker);
+            if (!empty($entry['url'])) {
+                if (empty($entry['recording_type'])) {
+                    $entry['recording_type'] = $type;
+                }
+                return $entry;
+            }
+        }
+    }
+
+    foreach ($audio_files as $file) {
+        $file = (array) $file;
+        if (!empty($file['url'])) {
+            $recording_type = sanitize_key((string) ($file['recording_type'] ?? ''));
+            if ($recording_type === '' || $recording_type === 'unknown') {
+                $file['recording_type'] = 'isolation';
+            } else {
+                $file['recording_type'] = $recording_type;
+            }
+            return $file;
+        }
+    }
+
+    if ($word_id > 0 && function_exists('ll_get_word_audio_url')) {
+        $audio_url = (string) ll_get_word_audio_url($word_id);
+        if ($audio_url !== '') {
+            return [
+                'url' => $audio_url,
+                'recording_type' => 'isolation',
+            ];
+        }
+    }
+
+    return [];
+}
+
+/**
  * Build analytics used by learner-facing study surfaces.
  *
  * @return array<string,mixed>
@@ -1458,7 +1508,9 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                     'translation' => $translation,
                     'label' => isset($word['label']) ? (string) $word['label'] : '',
                     'image' => isset($word['image']) ? (string) $word['image'] : '',
+                    'audio_files' => isset($word['audio_files']) && is_array($word['audio_files']) ? array_values($word['audio_files']) : [],
                     'audio_files_count' => isset($word['audio_files']) && is_array($word['audio_files']) ? count($word['audio_files']) : 0,
+                    'preferred_speaker_user_id' => isset($word['preferred_speaker_user_id']) ? (int) $word['preferred_speaker_user_id'] : 0,
                     'category_ids' => [],
                 ];
             }
@@ -1522,6 +1574,11 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             return $id > 0;
         }));
         sort($word_category_ids, SORT_NUMERIC);
+        $audio_entry = ll_tools_user_progress_get_word_audio_entry(
+            isset($word['audio_files']) && is_array($word['audio_files']) ? $word['audio_files'] : [],
+            (int) ($word['preferred_speaker_user_id'] ?? 0),
+            (int) $wid
+        );
 
         $word_category_labels = [];
         foreach ($word_category_ids as $cid) {
@@ -1576,6 +1633,8 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'translation' => (string) ($word['translation'] ?? ''),
             'label' => (string) ($word['label'] ?? ''),
             'image' => (string) ($word['image'] ?? ''),
+            'audio_url' => (string) ($audio_entry['url'] ?? ''),
+            'audio_recording_type' => (string) ($audio_entry['recording_type'] ?? ''),
             'audio_files_count' => max(0, (int) ($word['audio_files_count'] ?? 0)),
             'category_ids' => $word_category_ids,
             'category_labels' => $word_category_labels,

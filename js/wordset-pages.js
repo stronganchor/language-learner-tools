@@ -95,6 +95,8 @@
     let progressMiniStickyReleaseFinalize = null;
     let progressMiniStickySession = null;
     let wordsetTextPreviewFitTimer = null;
+    let progressWordAudio = null;
+    let progressWordAudioButton = null;
 
     function protectMaqafNoBreak(value) {
         const text = (value === null || value === undefined) ? '' : String(value);
@@ -102,6 +104,118 @@
         if (text.indexOf('\u05BE') === -1 && text.indexOf('\u2060') === -1) { return text; }
         return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
     }
+
+    function stopProgressWordAudio() {
+        const audio = progressWordAudio;
+        const button = progressWordAudioButton;
+        progressWordAudio = null;
+        progressWordAudioButton = null;
+        if (button) {
+            $(button).removeClass('is-playing');
+        }
+        if (audio) {
+            try {
+                audio.pause();
+            } catch (_) { /* no-op */ }
+            try {
+                audio.currentTime = 0;
+            } catch (_) { /* no-op */ }
+        }
+    }
+
+    function normalizeProgressWordAudioType(value) {
+        const type = String(value || '').trim().toLowerCase();
+        if (type === 'question' || type === 'introduction' || type === 'sentence') {
+            return type;
+        }
+        if (type === 'in sentence' || type === 'in-sentence') {
+            return 'sentence';
+        }
+        return 'isolation';
+    }
+
+    function buildProgressWordAudioLabel(row) {
+        const wordLabel = String(row && (row.title || row.translation) || '').trim();
+        if (wordLabel) {
+            return formatTemplate(i18n.analyticsPlayAudioFor || 'Play audio for %s', [wordLabel]);
+        }
+        return i18n.analyticsPlayAudio || 'Play audio';
+    }
+
+    function buildProgressWordAudioButton(row) {
+        const audioUrl = String(row && row.audio_url || '').trim();
+        if (!audioUrl) {
+            return $();
+        }
+        const recordingType = normalizeProgressWordAudioType(row && row.audio_recording_type);
+        const label = buildProgressWordAudioLabel(row);
+        const $button = $('<button>', {
+            type: 'button',
+            class: 'll-wordset-progress-word-audio ll-study-recording-btn ll-study-recording-btn--' + recordingType,
+            'data-ll-wordset-progress-word-audio': '1',
+            'data-audio-url': audioUrl,
+            'data-recording-type': recordingType,
+            'aria-label': label,
+            title: label
+        });
+        $('<span>', {
+            class: 'll-study-recording-icon',
+            'aria-hidden': 'true'
+        }).appendTo($button);
+        const $visualizer = $('<span>', {
+            class: 'll-study-recording-visualizer',
+            'aria-hidden': 'true'
+        }).appendTo($button);
+        for (let index = 0; index < 4; index += 1) {
+            $('<span>', { class: 'bar' }).appendTo($visualizer);
+        }
+        return $button;
+    }
+
+    function handleProgressWordAudioClick(button) {
+        if (!button) { return; }
+        const url = String(button.getAttribute('data-audio-url') || '').trim();
+        if (!url) { return; }
+
+        if (progressWordAudio && progressWordAudioButton === button) {
+            if (!progressWordAudio.paused) {
+                progressWordAudio.pause();
+                return;
+            }
+            progressWordAudio.play().catch(function () {
+                stopProgressWordAudio();
+            });
+            return;
+        }
+
+        stopProgressWordAudio();
+
+        const audio = new Audio(url);
+        progressWordAudio = audio;
+        progressWordAudioButton = button;
+
+        audio.addEventListener('play', function () {
+            if (progressWordAudio !== audio || progressWordAudioButton !== button) { return; }
+            $(button).addClass('is-playing');
+        });
+        audio.addEventListener('pause', function () {
+            if (progressWordAudio !== audio || progressWordAudioButton !== button) { return; }
+            $(button).removeClass('is-playing');
+        });
+        audio.addEventListener('ended', function () {
+            if (progressWordAudio !== audio || progressWordAudioButton !== button) { return; }
+            stopProgressWordAudio();
+        });
+        audio.addEventListener('error', function () {
+            if (progressWordAudio !== audio || progressWordAudioButton !== button) { return; }
+            stopProgressWordAudio();
+        });
+
+        audio.play().catch(function () {
+            stopProgressWordAudio();
+        });
+    }
+
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -565,6 +679,8 @@
                 title: String(row.title || ''),
                 translation: String(row.translation || ''),
                 image: String(row.image || ''),
+                audio_url: String(row.audio_url || ''),
+                audio_recording_type: String(row.audio_recording_type || ''),
                 category_id: parseInt(row.category_id, 10) || 0,
                 category_label: String(row.category_label || ''),
                 category_ids: uniqueIntList(row.category_ids || []),
@@ -2709,6 +2825,7 @@
 
     function renderProgressWordTable() {
         if (!$progressWordRows.length) { return; }
+        stopProgressWordAudio();
         $progressWordRows.empty();
         const rows = buildProgressWordRowsForDisplay();
         const selectedLookup = {};
@@ -2762,10 +2879,16 @@
                 }).appendTo($wordThumb);
                 $wordContent.append($wordThumb);
             }
+            const $wordBody = $('<div>', { class: 'll-wordset-progress-word-body' });
             const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
             $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
             $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
-            $wordContent.append($wordMain);
+            $wordBody.append($wordMain);
+            const $audioButton = buildProgressWordAudioButton(row);
+            if ($audioButton.length) {
+                $wordBody.append($audioButton);
+            }
+            $wordContent.append($wordBody);
             $wordCell.append($wordContent).appendTo($tr);
 
             const $categoryCell = $('<td>');
@@ -2832,6 +2955,9 @@
         if (!$progressRoot.length) { return; }
         const opts = (options && typeof options === 'object') ? options : {};
         analyticsTab = (nextTab === 'words') ? 'words' : 'categories';
+        if (analyticsTab !== 'words') {
+            stopProgressWordAudio();
+        }
         $progressTabButtons.each(function () {
             const tab = String($(this).attr('data-ll-wordset-progress-tab') || '');
             const active = tab === analyticsTab;
@@ -8991,6 +9117,12 @@
             renderProgressAnalytics();
         });
 
+        $root.on('click', '[data-ll-wordset-progress-word-audio]', function (evt) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            handleProgressWordAudioClick(this);
+        });
+
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
             scheduleProgressAnalyticsRefresh(220, { silent: true });
         });
@@ -9041,6 +9173,10 @@
     if (view === 'settings') {
         bindSettingsControls();
         bindSettingsPageInteractions();
+    }
+
+    if (view === 'games' && window.LLWordsetGames && typeof window.LLWordsetGames.init === 'function') {
+        window.LLWordsetGames.init($root[0], cfg);
     }
 
     if (view === 'main') {

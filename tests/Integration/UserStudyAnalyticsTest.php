@@ -93,6 +93,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('mastered', (string) ($words_by_id[$word_a]['status'] ?? ''));
         $this->assertSame('studied', (string) ($words_by_id[$word_b]['status'] ?? ''));
         $this->assertSame('new', (string) ($words_by_id[$word_c]['status'] ?? ''));
+        $this->assertNotSame('', (string) ($words_by_id[$word_a]['audio_url'] ?? ''));
+        $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
     }
 
     public function test_analytics_filters_out_non_quizzable_categories(): void

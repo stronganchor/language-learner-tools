@@ -149,6 +149,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Additional integration tests also cover import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
+- Additional integration tests also cover wordset games availability/pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -196,6 +197,8 @@ Current primary-flow E2E specs:
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
+- `tests/e2e/specs/wordset-games-space-shooter.spec.js`
+  - Verifies the wordset games page bootstraps availability correctly and that the Arcane Space Shooter runtime preserves option conflicts while queuing practice-style progress events.
 
 Optional env vars (set directly or in `tests/.env`):
 

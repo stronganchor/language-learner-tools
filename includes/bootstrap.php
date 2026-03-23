@@ -91,6 +91,7 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
     ll_tools_register_autopage_activation(LL_TOOLS_MAIN_FILE);
 }
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
+require_once(__DIR__ . '/pages/wordset-games.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');

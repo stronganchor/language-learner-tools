@@ -59,6 +59,8 @@ function buildProgressAnalytics() {
         title: 'Text Only',
         translation: 'Only text',
         image: '',
+        audio_url: 'https://example.com/audio/text-only-isolation.mp3',
+        audio_recording_type: 'isolation',
         category_id: 11,
         category_label: 'Cat A',
         category_ids: [11],
@@ -150,7 +152,9 @@ function buildProgressPageConfig() {
       analyticsStudied: 'In progress',
       analyticsNew: 'New',
       analyticsStarred: 'Starred',
-      analyticsHard: 'Hard'
+      analyticsHard: 'Hard',
+      analyticsPlayAudio: 'Play audio',
+      analyticsPlayAudioFor: 'Play audio for %s'
     },
     gender: {
       enabled: false,
@@ -320,6 +324,31 @@ async function mountMobileProgressPage(page) {
   await page.evaluate((cfg) => {
     window.llWordsetPageData = cfg;
     window.alert = function () {};
+    window.Audio = function (url) {
+      this.src = url;
+      this.currentSrc = url;
+      this.currentTime = 0;
+      this.paused = true;
+      this._handlers = {};
+    };
+    window.Audio.prototype.addEventListener = function (type, handler) {
+      if (!this._handlers[type]) {
+        this._handlers[type] = [];
+      }
+      this._handlers[type].push(handler);
+    };
+    window.Audio.prototype.play = function () {
+      this.paused = false;
+      (this._handlers.play || []).forEach((handler) => handler.call(this));
+      return Promise.resolve();
+    };
+    window.Audio.prototype.pause = function () {
+      if (this.paused) {
+        return;
+      }
+      this.paused = true;
+      (this._handlers.pause || []).forEach((handler) => handler.call(this));
+    };
     const analytics = JSON.parse(JSON.stringify(cfg.analytics || {}));
     jQuery.post = function (_url, request) {
       const deferred = jQuery.Deferred();
@@ -353,7 +382,7 @@ async function mountMobileProgressPage(page) {
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(2);
 }
 
-test('mobile progress words table keeps the star button inside its column and omits text-only thumbnails', async ({ page }) => {
+test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {
   await mountMobileProgressPage(page);
 
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeVisible();
@@ -367,6 +396,16 @@ test('mobile progress words table keeps the star button inside its column and om
 
   const secondWordCell = page.locator('[data-word-id="102"] td').nth(1);
   await expect(secondWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(1);
+  await expect(secondWordCell.locator('[data-ll-wordset-progress-word-audio]')).toHaveCount(0);
+
+  const firstAudioButton = firstWordCell.locator('[data-ll-wordset-progress-word-audio]');
+  await expect(firstAudioButton).toHaveCount(1);
+  await expect(firstAudioButton).toHaveAttribute('data-audio-url', /text-only-isolation\.mp3$/);
+
+  await firstAudioButton.click();
+  await expect(firstAudioButton).toHaveClass(/is-playing/);
+  await firstAudioButton.click();
+  await expect(firstAudioButton).not.toHaveClass(/is-playing/);
 
   const metrics = await page.evaluate(() => {
     const legend = document.querySelector('[data-ll-wordset-progress-mobile-legend]');
@@ -392,13 +431,20 @@ test('mobile progress words table keeps the star button inside its column and om
     const starCellRect = starCell.getBoundingClientRect();
     const wordCellRect = wordCell.getBoundingClientRect();
     const buttonRect = button.getBoundingClientRect();
+    const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
+    const wordsWrap = document.querySelector('[data-ll-wordset-progress-panel="words"] .ll-wordset-progress-table-wrap');
+    const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
 
     return {
       difficultyControlsDirection: window.getComputedStyle(difficultyControls).flexDirection,
       seenControlsDirection: window.getComputedStyle(seenControls).flexDirection,
       wrongControlsDirection: window.getComputedStyle(wrongControls).flexDirection,
+      headerPosition: headerCell ? window.getComputedStyle(headerCell).position : '',
+      headerTop: headerCell ? window.getComputedStyle(headerCell).top : '',
       legendTitleBottom: legendTitleRect.bottom,
       legendItemsTop: legendItemsRect.top,
+      wrapWidth: wordsWrap ? wordsWrap.getBoundingClientRect().width : 0,
+      tableWidth: wordsTable ? wordsTable.getBoundingClientRect().width : 0,
       starCellLeft: starCellRect.left,
       starCellRight: starCellRect.right,
       wordCellLeft: wordCellRect.left,
@@ -411,8 +457,24 @@ test('mobile progress words table keeps the star button inside its column and om
   expect(metrics.difficultyControlsDirection).toBe('column');
   expect(metrics.seenControlsDirection).toBe('column');
   expect(metrics.wrongControlsDirection).toBe('column');
+  expect(metrics.headerPosition).toBe('sticky');
+  expect(metrics.headerTop).toBe('0px');
   expect(metrics.legendItemsTop).toBeGreaterThanOrEqual(metrics.legendTitleBottom + 6);
+  expect(Math.abs(metrics.tableWidth - metrics.wrapWidth)).toBeLessThanOrEqual(2);
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);
+
+  await page.setViewportSize({ width: 430, height: 844 });
+  const resizedMetrics = await page.evaluate(() => {
+    const wordsWrap = document.querySelector('[data-ll-wordset-progress-panel="words"] .ll-wordset-progress-table-wrap');
+    const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
+    return {
+      wrapWidth: wordsWrap ? wordsWrap.getBoundingClientRect().width : 0,
+      tableWidth: wordsTable ? wordsTable.getBoundingClientRect().width : 0
+    };
+  });
+
+  expect(resizedMetrics.wrapWidth).toBeGreaterThan(metrics.wrapWidth);
+  expect(Math.abs(resizedMetrics.tableWidth - resizedMetrics.wrapWidth)).toBeLessThanOrEqual(2);
 });

@@ -523,6 +523,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'option-conflicts.js', 'll-tools-option-conflicts', [], true);
 
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery'], true);
     ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
@@ -533,7 +534,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio-visualizer.js', 'll-flc-audio-visualizer', ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'effects.js',   'll-flc-effects',   ['ll-flc-dom'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'cards.js',     'll-flc-cards',     ['ll-flc-dom', 'll-flc-state', 'll-flc-effects'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'selection.js', 'll-flc-selection', ['ll-flc-cards', 'll-tools-option-conflicts'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'results.js',   'll-flc-results',   ['ll-flc-state', 'll-flc-dom', 'll-flc-effects'], true);
 
     // New mode-specific modules (loaded after selection.js)

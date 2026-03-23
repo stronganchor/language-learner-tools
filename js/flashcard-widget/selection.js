@@ -1,6 +1,7 @@
 (function (root) {
     'use strict';
     const { Util, State } = root.LLFlashcards;
+    const OptionConflicts = root.LLToolsOptionConflicts || null;
     let genderFitResizeBound = false;
     const MINIMUM_QUIZ_OPTIONS = 2;
     const MINIMUM_OPTIONS_ERROR_CODE = 'LL_MINIMUM_OPTIONS_VIOLATION';
@@ -1120,6 +1121,9 @@
     }
 
     function getWordImageIdentity(word) {
+        if (OptionConflicts && typeof OptionConflicts.getWordImageIdentity === 'function') {
+            return OptionConflicts.getWordImageIdentity(word);
+        }
         if (!word || typeof word !== 'object' || !word.image) return '';
         const raw = String(word.image).trim();
         if (!raw) return '';
@@ -1133,6 +1137,9 @@
     }
 
     function wordHasBlockedId(word, otherId) {
+        if (OptionConflicts && typeof OptionConflicts.wordHasBlockedId === 'function') {
+            return OptionConflicts.wordHasBlockedId(word, otherId);
+        }
         if (!word || !otherId || !Array.isArray(word.option_blocked_ids)) return false;
         return word.option_blocked_ids.some(function (id) {
             return normalizeWordId(id) === otherId;
@@ -1140,6 +1147,9 @@
     }
 
     function wordsConflictForOptions(leftWord, rightWord) {
+        if (OptionConflicts && typeof OptionConflicts.wordsConflictForOptions === 'function') {
+            return OptionConflicts.wordsConflictForOptions(leftWord, rightWord);
+        }
         const leftId = normalizeWordId(leftWord && leftWord.id);
         const rightId = normalizeWordId(rightWord && rightWord.id);
         if (!leftId || !rightId || leftId === rightId) return false;
