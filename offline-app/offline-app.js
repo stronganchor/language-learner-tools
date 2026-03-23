@@ -30,14 +30,17 @@
         deselectAll: String(messages.offlineDeselectAll || 'Deselect All'),
         modePractice: String(messages.offlineModePractice || 'Practice'),
         modeLearning: String(messages.offlineModeLearning || 'Learn'),
-        practiceSelected: String(messages.offlinePracticeSelected || 'Practice Selected'),
-        learningSelected: String(messages.offlineLearningSelected || 'Learn Selected'),
+        modeListening: String(messages.offlineModeListening || 'Listen'),
+        modeGender: String(messages.offlineModeGender || 'Gender'),
+        modeSelfCheck: String(messages.offlineModeSelfCheck || 'Self check'),
         selectCategory: String(messages.offlineSelectCategory || 'Select category: %s'),
         modeCategoryLabel: String(messages.offlineModeCategoryLabel || '%1$s: %2$s'),
         learningUnavailable: String(messages.offlineLearningUnavailable || 'Learning mode is not available for this selection.'),
+        genderUnavailable: String(messages.offlineGenderUnavailable || 'Gender mode is not available for this selection.'),
         noCategoriesSelected: String(messages.noCategoriesSelected || 'Select at least one category.'),
         somethingWentWrong: String(messages.somethingWentWrong || 'Something went wrong')
     };
+    const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
 
     root.llToolsFlashcardsData = Object.assign({
         runtimeMode: 'offline',
@@ -63,7 +66,7 @@
             star_mode: 'normal',
             fast_transitions: false
         },
-        availableModes: ['practice', 'learning'],
+        availableModes: MODE_ORDER.slice(),
         offlineCategoryData: {}
     }, flashcards);
 
@@ -184,9 +187,14 @@
     }
 
     function getModeConfig(mode) {
-        const fallback = mode === 'learning'
-            ? { icon: '🎓', svg: '' }
-            : { icon: '❓', svg: '' };
+        const fallbacks = {
+            learning: { icon: '🎓', svg: '' },
+            practice: { icon: '❓', svg: '' },
+            listening: { icon: '🎧', svg: '' },
+            gender: { icon: '⚥', svg: '' },
+            'self-check': { icon: '✔✖', svg: '' }
+        };
+        const fallback = fallbacks[mode] || fallbacks.practice;
         const source = (modeUi[mode] && typeof modeUi[mode] === 'object') ? modeUi[mode] : {};
 
         return {
@@ -194,6 +202,98 @@
             svg: String(source.svg || fallback.svg || ''),
             className: String(source.className || (mode + '-mode'))
         };
+    }
+
+    function normalizeMode(mode) {
+        const normalized = String(mode || '').trim().toLowerCase();
+        return MODE_ORDER.indexOf(normalized) !== -1 ? normalized : 'practice';
+    }
+
+    function getModeLabel(mode) {
+        const normalizedMode = normalizeMode(mode);
+        const labelKeyMap = {
+            learning: 'modeLearning',
+            practice: 'modePractice',
+            listening: 'modeListening',
+            gender: 'modeGender',
+            'self-check': 'modeSelfCheck'
+        };
+        const launcherLabel = launcherMessages[labelKeyMap[normalizedMode] || 'modePractice'];
+        if (launcherLabel) {
+            return launcherLabel;
+        }
+        const modeConfig = (modeUi[normalizedMode] && typeof modeUi[normalizedMode] === 'object')
+            ? modeUi[normalizedMode]
+            : {};
+        const fallback = normalizedMode === 'self-check'
+            ? 'Self check'
+            : (normalizedMode.charAt(0).toUpperCase() + normalizedMode.slice(1));
+        return String(modeConfig.resultsButtonText || modeConfig.switchLabel || fallback);
+    }
+
+    function getConfiguredModes(flashData) {
+        const raw = (flashData && Array.isArray(flashData.availableModes)) ? flashData.availableModes : MODE_ORDER;
+        const normalized = [];
+        raw.forEach(function (mode) {
+            const nextMode = normalizeMode(mode);
+            if (normalized.indexOf(nextMode) === -1) {
+                normalized.push(nextMode);
+            }
+        });
+        return normalized.length ? normalized : MODE_ORDER.slice();
+    }
+
+    function isModeSupportedForCategory(mode, category, flashData) {
+        const normalizedMode = normalizeMode(mode);
+        const sourceCategory = (category && typeof category === 'object') ? category : {};
+        const data = (flashData && typeof flashData === 'object') ? flashData : {};
+        if (normalizedMode === 'learning') {
+            return !!sourceCategory.learning_supported;
+        }
+        if (normalizedMode === 'gender') {
+            return !!data.genderEnabled && !!sourceCategory.gender_supported;
+        }
+        return true;
+    }
+
+    function isModeSupportedForSelection(mode, selectedCategories, flashData) {
+        const categories = Array.isArray(selectedCategories) ? selectedCategories : [];
+        if (!categories.length) {
+            return false;
+        }
+        return categories.every(function (category) {
+            return isModeSupportedForCategory(mode, category, flashData);
+        });
+    }
+
+    function getCardModesForCategory(category, flashData) {
+        const configuredModes = getConfiguredModes(flashData);
+        const ordered = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+        return ordered.filter(function (mode) {
+            if (configuredModes.indexOf(mode) === -1) {
+                return false;
+            }
+            if (mode === 'gender') {
+                return isModeSupportedForCategory('gender', category, flashData);
+            }
+            return true;
+        });
+    }
+
+    function getSelectionModes(categories, flashData) {
+        const configuredModes = getConfiguredModes(flashData);
+        const hasGender = (Array.isArray(categories) ? categories : []).some(function (category) {
+            return !!(category && category.gender_supported);
+        });
+        return ['learning', 'practice', 'listening', 'gender', 'self-check'].filter(function (mode) {
+            if (configuredModes.indexOf(mode) === -1) {
+                return false;
+            }
+            if (mode === 'gender') {
+                return !!flashData.genderEnabled && hasGender;
+            }
+            return true;
+        });
     }
 
     function getModeIconMarkup(mode, className) {
@@ -288,18 +388,18 @@
         return markup.join('');
     }
 
-    function buildSelectionActionMarkup(mode, label) {
+    function buildSelectionActionMarkup(mode) {
+        const label = getModeLabel(mode);
         return getModeIconMarkup(mode, 'll-vocab-lesson-mode-icon') +
             '<span class="ll-vocab-lesson-mode-label">' + escapeHtml(label) + '</span>';
     }
 
-    function buildCategoryActionMarkup(mode, category) {
-        const label = mode === 'learning' ? launcherMessages.modeLearning : launcherMessages.modePractice;
+    function buildCategoryActionMarkup(mode, category, flashData) {
+        const label = getModeLabel(mode);
         const ariaLabel = formatMessage(launcherMessages.modeCategoryLabel, [label, category.name]);
-        const disabled = (mode === 'learning' && !category.learning_supported) ? ' disabled' : '';
+        const disabled = !isModeSupportedForCategory(mode, category, flashData) ? ' disabled' : '';
 
         return '<button class="ll-wordset-card__quiz-btn' +
-                (mode === 'learning' ? ' ll-wordset-card__quiz-btn--learning' : '') +
                 '" data-ll-offline-category-mode data-mode="' + mode + '" data-cat-id="' + category.id + '"' +
                 ' type="button" aria-label="' + escapeHtml(ariaLabel) + '"' + disabled + '>' +
                 getModeIconMarkup(mode, 'll-wordset-card__quiz-icon') +
@@ -307,7 +407,7 @@
     }
 
     function launchOfflineSelection(categoryIds, mode, categories, offlineCategoryData) {
-        const normalizedMode = mode === 'learning' ? 'learning' : 'practice';
+        const normalizedMode = normalizeMode(mode);
         const wantedLookup = {};
         const wantedIds = Array.isArray(categoryIds) ? categoryIds : [];
 
@@ -327,14 +427,14 @@
             return;
         }
 
-        if (normalizedMode === 'learning') {
-            const hasUnsupportedLearning = selectedCategories.some(function (category) {
-                return !category.learning_supported;
-            });
-            if (hasUnsupportedLearning) {
-                showAlert(launcherMessages.learningUnavailable);
-                return;
-            }
+        if (normalizedMode === 'learning' && !isModeSupportedForSelection('learning', selectedCategories, root.llToolsFlashcardsData)) {
+            showAlert(launcherMessages.learningUnavailable);
+            return;
+        }
+
+        if (normalizedMode === 'gender' && !isModeSupportedForSelection('gender', selectedCategories, root.llToolsFlashcardsData)) {
+            showAlert(launcherMessages.genderUnavailable);
+            return;
         }
 
         const firstCategory = selectedCategories[0];
@@ -350,6 +450,14 @@
         }).filter(function (categoryId) {
             return categoryId > 0;
         });
+        const prefs = (root.llToolsStudyPrefs && typeof root.llToolsStudyPrefs === 'object')
+            ? root.llToolsStudyPrefs
+            : {};
+        const starredWordIds = Array.isArray(prefs.starredWordIds)
+            ? prefs.starredWordIds.slice()
+            : (Array.isArray(flashData.starredWordIds) ? flashData.starredWordIds.slice() : []);
+        const starMode = String(prefs.starMode || prefs.star_mode || flashData.starMode || flashData.star_mode || 'normal');
+        const fastTransitions = !!(prefs.fastTransitions ?? prefs.fast_transitions ?? flashData.fastTransitions ?? flashData.fast_transitions ?? false);
 
         flashData.runtimeMode = 'offline';
         flashData.categories = selectedCategories.slice();
@@ -357,17 +465,36 @@
         flashData.firstCategoryName = String(firstCategory.name || '');
         flashData.firstCategoryData = firstRows;
         flashData.quiz_mode = normalizedMode;
-        flashData.availableModes = ['practice', 'learning'];
+        flashData.availableModes = getConfiguredModes(flashData);
         flashData.offlineCategoryData = offlineCategoryData;
-        flashData.userStudyState = flashData.userStudyState || {};
-        flashData.userStudyState.wordset_id = Array.isArray(flashData.wordsetIds) && flashData.wordsetIds.length
-            ? (parseInt(flashData.wordsetIds[0], 10) || 0)
-            : 0;
-        flashData.userStudyState.category_ids = selectedIds.slice();
-        flashData.userStudyState.starred_word_ids = [];
-        flashData.userStudyState.star_mode = 'normal';
-        flashData.userStudyState.fast_transitions = false;
+        flashData.userStudyState = Object.assign({}, flashData.userStudyState || {}, {
+            wordset_id: Array.isArray(flashData.wordsetIds) && flashData.wordsetIds.length
+                ? (parseInt(flashData.wordsetIds[0], 10) || 0)
+                : 0,
+            category_ids: selectedIds.slice(),
+            starred_word_ids: starredWordIds.slice(),
+            star_mode: starMode,
+            fast_transitions: fastTransitions
+        });
+        flashData.starredWordIds = starredWordIds.slice();
+        flashData.starred_word_ids = starredWordIds.slice();
+        flashData.starMode = starMode;
+        flashData.star_mode = starMode;
+        flashData.fastTransitions = fastTransitions;
+        flashData.fast_transitions = fastTransitions;
+        if (normalizedMode === 'gender') {
+            flashData.genderLaunchSource = 'direct';
+        }
         root.llToolsFlashcardsData = flashData;
+
+        if (root.llToolsStudyPrefs && typeof root.llToolsStudyPrefs === 'object') {
+            root.llToolsStudyPrefs.starredWordIds = starredWordIds.slice();
+            root.llToolsStudyPrefs.starred_word_ids = starredWordIds.slice();
+            root.llToolsStudyPrefs.starMode = starMode;
+            root.llToolsStudyPrefs.star_mode = starMode;
+            root.llToolsStudyPrefs.fastTransitions = fastTransitions;
+            root.llToolsStudyPrefs.fast_transitions = fastTransitions;
+        }
 
         const popup = documentRef ? documentRef.getElementById('ll-tools-flashcard-popup') : null;
         const quizPopup = documentRef ? documentRef.getElementById('ll-tools-flashcard-quiz-popup') : null;
@@ -423,11 +550,16 @@
         const selectionTextEl = documentRef.getElementById('ll-offline-selection-text');
         const selectAllButton = documentRef.getElementById('ll-offline-select-all');
         const selectAllWrap = selectAllButton ? selectAllButton.closest('.ll-wordset-grid-tools') : null;
-        const learningSelectedButton = documentRef.getElementById('ll-offline-launch-learning-selected');
-        const practiceSelectedButton = documentRef.getElementById('ll-offline-launch-practice-selected');
+        const selectionButtons = {
+            learning: documentRef.getElementById('ll-offline-launch-learning-selected'),
+            practice: documentRef.getElementById('ll-offline-launch-practice-selected'),
+            listening: documentRef.getElementById('ll-offline-launch-listening-selected'),
+            gender: documentRef.getElementById('ll-offline-launch-gender-selected'),
+            'self-check': documentRef.getElementById('ll-offline-launch-self-check-selected')
+        };
         const clearSelectionButton = documentRef.getElementById('ll-offline-selection-clear');
 
-        if (!rootEl || !launcherEl || !gridEl || !emptyEl || !selectionBarEl || !selectAllButton || !learningSelectedButton || !practiceSelectedButton || !clearSelectionButton) {
+        if (!rootEl || !launcherEl || !gridEl || !emptyEl || !selectionBarEl || !selectAllButton || !clearSelectionButton) {
             return;
         }
 
@@ -448,6 +580,23 @@
             buttonEl.disabled = !!disabled;
             buttonEl.setAttribute('aria-disabled', disabled ? 'true' : 'false');
             buttonEl.classList.toggle('is-disabled', !!disabled);
+        }
+
+        function syncSelectionButtons(selectedCategories) {
+            const modes = getSelectionModes(categories, flashData);
+            Object.keys(selectionButtons).forEach(function (mode) {
+                const buttonEl = selectionButtons[mode];
+                if (!buttonEl) {
+                    return;
+                }
+                const visible = modes.indexOf(mode) !== -1;
+                buttonEl.hidden = !visible;
+                if (!visible) {
+                    return;
+                }
+                buttonEl.innerHTML = buildSelectionActionMarkup(mode);
+                setModeButtonDisabled(buttonEl, !isModeSupportedForSelection(mode, selectedCategories, flashData));
+            });
         }
 
         function setSelectedIds(nextIds) {
@@ -496,9 +645,6 @@
             }, 0);
             const selectionActive = selectedCount > 0;
             const allSelected = categories.length > 0 && selectedCount === categories.length;
-            const learningAllowed = selectedCount > 0 && !selectedCategories.some(function (category) {
-                return !category.learning_supported;
-            });
 
             launcherEl.classList.toggle('ll-wordset-selection-active', selectionActive);
             rootEl.classList.toggle('ll-wordset-selection-active', selectionActive);
@@ -517,12 +663,7 @@
             selectAllButton.hidden = categories.length < 2;
             selectAllButton.disabled = categories.length < 1;
             selectAllButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
-
-            learningSelectedButton.innerHTML = buildSelectionActionMarkup('learning', launcherMessages.modeLearning);
-            setModeButtonDisabled(learningSelectedButton, !learningAllowed);
-
-            practiceSelectedButton.innerHTML = buildSelectionActionMarkup('practice', launcherMessages.modePractice);
-            setModeButtonDisabled(practiceSelectedButton, selectedCount < 1);
+            syncSelectionButtons(selectedCategories);
         }
 
         function renderCategoryCards() {
@@ -563,8 +704,9 @@
                             '</div>' +
                         '</div>' +
                         '<div class="ll-wordset-card__quiz-actions">' +
-                            buildCategoryActionMarkup('learning', category) +
-                            buildCategoryActionMarkup('practice', category) +
+                            getCardModesForCategory(category, flashData).map(function (mode) {
+                                return buildCategoryActionMarkup(mode, category, flashData);
+                            }).join('') +
                         '</div>' +
                     '</article>';
             }).join('');

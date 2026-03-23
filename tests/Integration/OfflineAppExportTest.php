@@ -100,6 +100,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             $this->assertFalse(is_wp_error($wordset_term));
             $this->assertIsArray($wordset_term);
             $wordset_id = (int) $wordset_term['term_id'];
+            update_term_meta($wordset_id, 'll_wordset_has_gender', '1');
 
             $category_term = wp_insert_term('Offline Bundle Category ' . wp_generate_password(6, false), 'word-category');
             $this->assertFalse(is_wp_error($category_term));
@@ -119,6 +120,16 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $recording_type_id = (int) $recording_term['term_id'];
             }
 
+            $part_of_speech_term = wp_insert_term('Noun', 'part_of_speech', ['slug' => 'noun']);
+            if (is_wp_error($part_of_speech_term)) {
+                $existing_pos = get_term_by('slug', 'noun', 'part_of_speech');
+                $this->assertInstanceOf(WP_Term::class, $existing_pos);
+                $part_of_speech_id = (int) $existing_pos->term_id;
+            } else {
+                $this->assertIsArray($part_of_speech_term);
+                $part_of_speech_id = (int) $part_of_speech_term['term_id'];
+            }
+
             $image_attachment_id = $this->create_image_attachment('offline-export-word-image.png');
 
             $word_id = self::factory()->post->create([
@@ -128,8 +139,10 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             ]);
             wp_set_post_terms($word_id, [$category_id], 'word-category', false);
             wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($word_id, [$part_of_speech_id], 'part_of_speech', false);
             set_post_thumbnail($word_id, $image_attachment_id);
             update_post_meta($word_id, 'word_translation', 'Offline Export Translation');
+            update_post_meta($word_id, 'll_grammatical_gender', 'masculine');
 
             $audio_path = $this->create_audio_upload_file('offline-export-word.mp3');
             $audio_post_id = self::factory()->post->create([
@@ -214,6 +227,14 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertNotFalse($zip->locateName('www/app/offline-app.js'));
                 $this->assertNotFalse($zip->locateName('www/vendor/jquery/jquery.min.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/loader.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/audio-visualizer.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/listening.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/self-check.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/gender.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/self-check-shared.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/css/flashcard/mode-listening.css'));
+                $this->assertNotFalse($zip->locateName('www/plugin/css/flashcard/mode-gender.css'));
+                $this->assertNotFalse($zip->locateName('www/plugin/css/self-check-shared.css'));
 
                 $entry_names = [];
                 for ($index = 0; $index < $zip->numFiles; $index++) {
@@ -226,13 +247,16 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $offline_data = $zip->getFromName('www/data/offline-data.js');
                 $this->assertIsString($offline_data);
                 $this->assertStringContainsString('"runtimeMode":"offline"', $offline_data);
-                $this->assertStringContainsString('"availableModes":["practice","learning"]', $offline_data);
+                $this->assertStringContainsString('"availableModes":["learning","practice","listening","self-check","gender"]', $offline_data);
                 $this->assertStringNotContainsString('admin-ajax.php', $offline_data);
                 $this->assertStringContainsString('./content/images/', $offline_data);
                 $this->assertStringContainsString('./content/audio/', $offline_data);
                 $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
                 $this->assertStringContainsString('"preview":[{"type":"image","url":"./content/images/', $offline_data);
                 $this->assertStringContainsString('"preview_aspect_ratio":"', $offline_data);
+                $this->assertStringContainsString('"genderEnabled":true', $offline_data);
+                $this->assertStringContainsString('"gender_supported":true', $offline_data);
+                $this->assertStringContainsString('"genderOptions":["', $offline_data);
 
                 $index_html = $zip->getFromName('www/index.html');
                 $this->assertIsString($index_html);
@@ -246,12 +270,19 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/wordset-pages.css"', $index_html);
+                $this->assertStringContainsString('href="./plugin/css/flashcard/mode-listening.css"', $index_html);
+                $this->assertStringContainsString('href="./plugin/css/flashcard/mode-gender.css"', $index_html);
                 $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
-                $this->assertStringNotContainsString('restart-self-check-mode', $index_html);
-                $this->assertStringNotContainsString('restart-listening-mode', $index_html);
-                $this->assertStringNotContainsString('restart-gender-mode', $index_html);
+                $this->assertStringContainsString('id="restart-self-check-mode"', $index_html);
+                $this->assertStringContainsString('id="restart-listening-mode"', $index_html);
+                $this->assertStringContainsString('id="restart-gender-mode"', $index_html);
+                $this->assertStringContainsString('id="ll-tools-settings-button"', $index_html);
+                $this->assertStringContainsString('id="ll-tools-settings-panel"', $index_html);
+                $this->assertStringContainsString('data-mode="listening"', $index_html);
+                $this->assertStringContainsString('data-mode="self-check"', $index_html);
+                $this->assertStringContainsString('data-mode="gender"', $index_html);
 
                 $has_image_asset = false;
                 $has_audio_asset = false;

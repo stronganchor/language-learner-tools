@@ -7,6 +7,29 @@ $styles = isset($styles) && is_array($styles) ? $styles : [];
 $scripts = isset($scripts) && is_array($scripts) ? $scripts : [];
 $warnings = isset($warnings) && is_array($warnings) ? array_values(array_filter(array_map('strval', $warnings))) : [];
 $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
+$mode_ui = isset($mode_ui) && is_array($mode_ui) ? $mode_ui : [];
+$practice_mode_ui = $mode_ui['practice'] ?? [];
+$learning_mode_ui = $mode_ui['learning'] ?? [];
+$self_check_mode_ui = $mode_ui['self-check'] ?? [];
+$listening_mode_ui = $mode_ui['listening'] ?? [];
+$gender_mode_ui = $mode_ui['gender'] ?? [];
+$ll_config = isset($ll_config) && is_array($ll_config) ? $ll_config : [];
+$ll_config_json = wp_json_encode($ll_config);
+$gender_options = isset($ll_config['genderOptions']) && is_array($ll_config['genderOptions'])
+  ? array_values(array_filter(array_map('strval', $ll_config['genderOptions']), static function ($option): bool {
+      return $option !== '';
+  }))
+  : [];
+$gender_mode_visible = !empty($ll_config['genderEnabled']) && count($gender_options) >= 2;
+$render_mode_icon = static function (array $cfg, string $fallback, string $class = 'mode-icon'): void {
+  if (!empty($cfg['svg'])) {
+    echo '<span class="' . esc_attr($class) . '" aria-hidden="true">' . $cfg['svg'] . '</span>';
+    return;
+  }
+
+  $icon = !empty($cfg['icon']) ? $cfg['icon'] : $fallback;
+  echo '<span class="' . esc_attr($class) . '" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
+};
 $escape_asset_url = static function ($asset): string {
   $asset = trim((string) $asset);
   if ($asset === '') {
@@ -434,7 +457,11 @@ $escape_asset_url = static function ($asset): string {
       </section>
     <?php endif; ?>
 
-    <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" data-wordset="" data-wordset-fallback="0">
+    <div id="ll-tools-flashcard-container"
+         class="ll-tools-flashcard-container"
+         data-wordset="<?php echo esc_attr((string) ($ll_config['wordset'] ?? '')); ?>"
+         data-wordset-fallback="<?php echo !empty($ll_config['wordsetFallback']) ? '1' : '0'; ?>"
+         data-ll-config="<?php echo esc_attr(is_string($ll_config_json) ? $ll_config_json : '{}'); ?>">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-grid-tools">
           <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
@@ -450,6 +477,15 @@ $escape_asset_url = static function ($asset): string {
             </button>
             <button id="ll-offline-launch-practice-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="practice" type="button" disabled>
               <?php esc_html_e('Practice', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-launch-listening-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="listening" type="button" hidden disabled>
+              <?php esc_html_e('Listen', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-launch-gender-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="gender" type="button" hidden disabled>
+              <?php esc_html_e('Gender', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-launch-self-check-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="self-check" type="button" hidden disabled>
+              <?php esc_html_e('Self check', 'll-tools-text-domain'); ?>
             </button>
           </div>
           <button id="ll-offline-selection-clear" type="button" class="ll-wordset-selection-bar__clear" aria-label="<?php echo esc_attr__('Clear selection', 'll-tools-text-domain'); ?>">
@@ -491,18 +527,66 @@ $escape_asset_url = static function ($asset): string {
             <audio controls class="hidden"></audio>
           </div>
 
+          <?php
+            $practice_switch_label = $practice_mode_ui['switchLabel'] ?? __('Switch to Practice Mode', 'll-tools-text-domain');
+            $learning_switch_label = $learning_mode_ui['switchLabel'] ?? __('Switch to Learning Mode', 'll-tools-text-domain');
+            $self_check_switch_label = $self_check_mode_ui['switchLabel'] ?? __('Open Self Check', 'll-tools-text-domain');
+            $listening_switch_label = $listening_mode_ui['switchLabel'] ?? __('Switch to Listening Mode', 'll-tools-text-domain');
+            $gender_switch_label = $gender_mode_ui['switchLabel'] ?? __('Switch to Gender Mode', 'll-tools-text-domain');
+          ?>
           <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
             <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-              <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr__('Switch to Learning Mode', 'll-tools-text-domain'); ?>" data-mode="learning" type="button">
-                <span class="mode-icon" aria-hidden="true" data-emoji="🎓"></span>
+              <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_switch_label); ?>" data-mode="learning" type="button">
+                <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
               </button>
-              <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr__('Switch to Practice Mode', 'll-tools-text-domain'); ?>" data-mode="practice" type="button">
-                <span class="mode-icon" aria-hidden="true" data-emoji="❓"></span>
+              <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_switch_label); ?>" data-mode="practice" type="button">
+                <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
+              </button>
+              <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_switch_label); ?>" data-mode="self-check" type="button">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
+              </button>
+              <button class="ll-tools-mode-option gender<?php echo $gender_mode_visible ? '' : ' hidden'; ?>" role="menuitemradio" aria-label="<?php echo esc_attr($gender_switch_label); ?>" data-mode="gender" type="button"<?php echo $gender_mode_visible ? '' : ' aria-hidden="true"'; ?>>
+                <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
+              </button>
+              <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_switch_label); ?>" data-mode="listening" type="button">
+                <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
               </button>
             </div>
             <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
               <span class="mode-icon" aria-hidden="true">⇄</span>
             </button>
+            <div id="ll-tools-settings-control" class="ll-tools-settings-control">
+              <button id="ll-tools-settings-button" class="ll-tools-settings-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>">
+                <span class="mode-icon" aria-hidden="true" data-emoji="⚙"></span>
+              </button>
+              <div id="ll-tools-settings-panel" class="ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>" aria-hidden="true">
+                <section class="ll-tools-settings-section" aria-label="<?php echo esc_attr__('Word priority', 'll-tools-text-domain'); ?>">
+                  <h3 class="ll-tools-settings-heading"><?php esc_html_e('Words', 'll-tools-text-domain'); ?></h3>
+                  <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Word priority', 'll-tools-text-domain'); ?>">
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="normal" aria-pressed="false">
+                      <?php esc_html_e('All', 'll-tools-text-domain'); ?>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="weighted" aria-pressed="false">
+                      <?php esc_html_e('Starred First', 'll-tools-text-domain'); ?>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="only" aria-pressed="false">
+                      <?php esc_html_e('Starred Only', 'll-tools-text-domain'); ?>
+                    </button>
+                  </div>
+                </section>
+                <section class="ll-tools-settings-section" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
+                  <h3 class="ll-tools-settings-heading"><?php esc_html_e('Speed', 'll-tools-text-domain'); ?></h3>
+                  <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-speed="slow" aria-pressed="false">
+                      <?php esc_html_e('Standard', 'll-tools-text-domain'); ?>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-speed="fast" aria-pressed="false">
+                      <?php esc_html_e('Faster', 'll-tools-text-domain'); ?>
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </div>
           </div>
 
           <div id="quiz-results" style="display:none;">
@@ -513,14 +597,53 @@ $escape_asset_url = static function ($asset): string {
               <span id="correct-count">0</span> / <span id="total-questions">0</span>
             </p>
             <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
+            <?php
+              $practice_results_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
+              $learning_results_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');
+              $self_check_results_label = $self_check_mode_ui['resultsButtonText'] ?? __('Self Check', 'll-tools-text-domain');
+              $listening_results_label = $listening_mode_ui['resultsButtonText'] ?? __('Listen', 'll-tools-text-domain');
+              $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender', 'll-tools-text-domain');
+            ?>
             <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
               <button id="restart-practice-mode" class="quiz-button quiz-mode-button" type="button">
-                <span class="button-icon" aria-hidden="true" data-emoji="❓"></span>
-                <?php esc_html_e('Practice Mode', 'll-tools-text-domain'); ?>
+                <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>
+                <?php echo esc_html($practice_results_label); ?>
               </button>
               <button id="restart-learning-mode" class="quiz-button quiz-mode-button" type="button">
-                <span class="button-icon" aria-hidden="true" data-emoji="🎓"></span>
-                <span class="ll-learning-results-label"><?php esc_html_e('Learning Mode', 'll-tools-text-domain'); ?></span>
+                <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
+                <span class="ll-learning-results-label"><?php echo esc_html($learning_results_label); ?></span>
+              </button>
+              <button id="restart-self-check-mode" class="quiz-button quiz-mode-button" type="button">
+                <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
+                <?php echo esc_html($self_check_results_label); ?>
+              </button>
+              <button id="restart-gender-mode" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
+                <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
+              </button>
+              <button id="restart-listening-mode" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
+                <?php echo esc_html($listening_results_label); ?>
+              </button>
+            </div>
+            <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
+              <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php esc_html_e('Next Gender Activity', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php esc_html_e('Next Set', 'll-tools-text-domain'); ?>
+              </button>
+            </div>
+            <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
+              <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
+              <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php esc_html_e('Repeat', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php esc_html_e('Categories', 'll-tools-text-domain'); ?>
+              </button>
+              <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
+                <?php esc_html_e('Recommended', 'll-tools-text-domain'); ?>
               </button>
             </div>
             <button id="restart-quiz" class="quiz-button" type="button" style="display:none;"><?php esc_html_e('Restart Quiz', 'll-tools-text-domain'); ?></button>
@@ -533,5 +656,21 @@ $escape_asset_url = static function ($asset): string {
   <?php foreach ($scripts as $src) : ?>
     <script src="<?php echo $escape_asset_url($src); ?>"></script>
   <?php endforeach; ?>
+  <script>
+  (function () {
+    function initPlayIcon() {
+      if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.setRepeatButton === 'function') {
+        window.LLFlashcards.Dom.setRepeatButton('play');
+      } else {
+        setTimeout(initPlayIcon, 50);
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPlayIcon);
+    } else {
+      initPlayIcon();
+    }
+  })();
+  </script>
 </body>
 </html>

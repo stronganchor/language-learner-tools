@@ -393,10 +393,14 @@ function ll_flashcards_get_messages(): array {
         'offlineSelectionWords'   => __('%d words', 'll-tools-text-domain'),
         'offlineModePractice'     => __('Practice', 'll-tools-text-domain'),
         'offlineModeLearning'     => __('Learn', 'll-tools-text-domain'),
+        'offlineModeListening'    => __('Listen', 'll-tools-text-domain'),
+        'offlineModeGender'       => __('Gender', 'll-tools-text-domain'),
+        'offlineModeSelfCheck'    => __('Self check', 'll-tools-text-domain'),
         'offlinePracticeSelected' => __('Practice Selected', 'll-tools-text-domain'),
         'offlineLearningSelected' => __('Learn Selected', 'll-tools-text-domain'),
         'offlineSelectCategory'   => __('Select category: %s', 'll-tools-text-domain'),
         'offlineLearningUnavailable' => __('Learning mode is not available for this selection.', 'll-tools-text-domain'),
+        'offlineGenderUnavailable' => __('Gender mode is not available for this selection.', 'll-tools-text-domain'),
         'offlineModeCategoryLabel' => __('%1$s: %2$s', 'll-tools-text-domain'),
     ];
 

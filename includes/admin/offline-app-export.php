@@ -179,7 +179,7 @@ function ll_tools_render_offline_app_export_page(): void {
                 </tbody>
             </table>
 
-            <p class="description"><?php esc_html_e('The MVP offline bundle includes Learning and Practice only. Progress tracking, login, Listening, Gender, and Self Check are intentionally excluded.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('The offline bundle exports the standalone APK shell plus bundled media for supported quiz modes. User accounts and server-backed study syncing stay out of the APK.', 'll-tools-text-domain'); ?></p>
             <p>
                 <button type="submit" class="button button-primary" id="ll-offline-export-submit" <?php disabled(empty($wordsets)); ?>>
                     <?php esc_html_e('Download Offline App Bundle (.zip)', 'll-tools-text-domain'); ?>
@@ -651,6 +651,27 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         'warnings'      => array_values(array_unique(array_filter(array_map('strval', $warnings)))),
     ];
 
+    $mode_ui_config = function_exists('ll_flashcards_get_mode_ui_config')
+        ? ll_flashcards_get_mode_ui_config()
+        : [];
+    $gender_runtime = ll_tools_offline_app_get_gender_runtime_config($wordset_id);
+    $has_gender_supported_category = false;
+    foreach ($categories as $category) {
+        if (!empty($category['gender_supported'])) {
+            $has_gender_supported_category = true;
+            break;
+        }
+    }
+    $available_modes = [
+        'learning',
+        'practice',
+        'listening',
+        'self-check',
+    ];
+    if (!empty($gender_runtime['enabled']) && $has_gender_supported_category) {
+        $available_modes[] = 'gender';
+    }
+
     $offline_payload = [
         'formatVersion' => 1,
         'flashcards'    => [
@@ -670,19 +691,27 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'firstCategoryName'   => $first_category_name,
             'imageSize'           => get_option('ll_flashcard_image_size', 'small'),
             'maxOptionsOverride'  => get_option('ll_max_options_override', 9),
-            'modeUi'              => [
-                'practice' => ll_flashcards_get_mode_ui_config()['practice'] ?? [],
-                'learning' => ll_flashcards_get_mode_ui_config()['learning'] ?? [],
-            ],
+            'modeUi'              => $mode_ui_config,
             'userStudyState'      => [
-                'wordset_id'       => 0,
+                'wordset_id'       => (int) $wordset->term_id,
                 'category_ids'     => [],
                 'starred_word_ids' => [],
                 'star_mode'        => 'normal',
                 'fast_transitions' => false,
             ],
+            'starredWordIds'      => [],
+            'starred_word_ids'    => [],
+            'starMode'            => 'normal',
+            'star_mode'           => 'normal',
+            'fastTransitions'     => false,
+            'fast_transitions'    => false,
             'userStudyNonce'      => '',
-            'availableModes'      => ['practice', 'learning'],
+            'availableModes'      => $available_modes,
+            'genderEnabled'       => !empty($gender_runtime['enabled']),
+            'genderWordsetId'     => !empty($gender_runtime['enabled']) ? (int) $wordset->term_id : 0,
+            'genderOptions'       => array_values((array) ($gender_runtime['options'] ?? [])),
+            'genderVisualConfig'  => (array) ($gender_runtime['visual_config'] ?? []),
+            'genderMinCount'      => (int) ($gender_runtime['min_count'] ?? $min_word_count),
             'preloadTuning'       => [
                 'categoryAjaxConcurrency'       => 1,
                 'categoryAjaxSpacingMs'         => 0,
@@ -694,6 +723,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
                 'categoryMediaChunkConcurrency' => 2,
             ],
             'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
+            'sortLocale'          => get_locale(),
             'offlineCategoryData' => $category_data,
         ],
         'messages'      => ll_flashcards_get_messages(),
@@ -763,7 +793,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         ),
         '',
         __('To build an APK, extract this zip and run the scripts in offline-app-builder from this plugin repository against the bundle zip or extracted folder.', 'll-tools-text-domain'),
-        __('This MVP contains Learning and Practice only, with no progress tracking or user accounts.', 'll-tools-text-domain'),
+        __('This bundle includes the offline quiz shell, bundled media, and local-only quiz runtime data. User accounts and server-backed study syncing are not included.', 'll-tools-text-domain'),
     ];
     if (!empty($warnings)) {
         $readme_lines[] = '';
@@ -794,24 +824,32 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         'css/wordset-pages.css',
         'css/ipa-fonts.css',
         'css/flashcard/base.css',
+        'css/self-check-shared.css',
         'css/flashcard/mode-practice.css',
         'css/flashcard/mode-learning.css',
+        'css/flashcard/mode-listening.css',
+        'css/flashcard/mode-gender.css',
     ];
     $script_files = [
         'js/flashcard-widget/audio.js',
         'js/flashcard-widget/loader.js',
         'js/flashcard-widget/options.js',
         'js/flashcard-widget/util.js',
+        'js/self-check-shared.js',
         'js/flashcard-widget/mode-config.js',
         'js/flashcard-widget/state.js',
         'js/flashcard-widget/progress-tracker.js',
         'js/flashcard-widget/dom.js',
+        'js/flashcard-widget/audio-visualizer.js',
         'js/flashcard-widget/effects.js',
         'js/flashcard-widget/cards.js',
         'js/flashcard-widget/selection.js',
         'js/flashcard-widget/results.js',
         'js/flashcard-widget/modes/practice.js',
         'js/flashcard-widget/modes/learning.js',
+        'js/flashcard-widget/modes/self-check.js',
+        'js/flashcard-widget/modes/listening.js',
+        'js/flashcard-widget/modes/gender.js',
         'js/flashcard-widget/main.js',
         'js/flashcard-widget/category-selection.js',
     ];
@@ -904,8 +942,11 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
             './plugin/css/language-learner-tools.css',
             './plugin/css/wordset-pages.css',
             './plugin/css/flashcard/base.css',
+            './plugin/css/self-check-shared.css',
             './plugin/css/flashcard/mode-practice.css',
             './plugin/css/flashcard/mode-learning.css',
+            './plugin/css/flashcard/mode-listening.css',
+            './plugin/css/flashcard/mode-gender.css',
         ],
         'scripts'          => [
             './vendor/jquery/jquery.min.js',
@@ -915,22 +956,34 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
             './plugin/js/flashcard-widget/loader.js',
             './plugin/js/flashcard-widget/options.js',
             './plugin/js/flashcard-widget/util.js',
+            './plugin/js/self-check-shared.js',
             './plugin/js/flashcard-widget/mode-config.js',
             './plugin/js/flashcard-widget/state.js',
             './plugin/js/flashcard-widget/progress-tracker.js',
             './plugin/js/flashcard-widget/dom.js',
+            './plugin/js/flashcard-widget/audio-visualizer.js',
             './plugin/js/flashcard-widget/effects.js',
             './plugin/js/flashcard-widget/cards.js',
             './plugin/js/flashcard-widget/selection.js',
             './plugin/js/flashcard-widget/results.js',
             './plugin/js/flashcard-widget/modes/practice.js',
             './plugin/js/flashcard-widget/modes/learning.js',
+            './plugin/js/flashcard-widget/modes/self-check.js',
+            './plugin/js/flashcard-widget/modes/listening.js',
+            './plugin/js/flashcard-widget/modes/gender.js',
             './plugin/js/flashcard-widget/main.js',
             './plugin/js/flashcard-widget/category-selection.js',
         ],
         'startup_mode'     => (string) ($flashcards['quiz_mode'] ?? 'practice'),
         'warnings'         => $warnings,
         'bundle_manifest'  => $bundle_manifest,
+        'mode_ui'          => is_array($flashcards['modeUi'] ?? null) ? (array) $flashcards['modeUi'] : [],
+        'll_config'        => [
+            'wordset'         => (string) ($flashcards['wordset'] ?? ''),
+            'wordsetFallback' => !empty($flashcards['wordsetFallback']),
+            'genderEnabled'   => !empty($flashcards['genderEnabled']),
+            'genderOptions'   => array_values((array) ($flashcards['genderOptions'] ?? [])),
+        ],
     ]);
 
     if ($html === '') {
@@ -1417,6 +1470,28 @@ function ll_tools_get_plugin_version_string(): string {
     return $version !== '' ? $version : '1.0.0';
 }
 
+function ll_tools_offline_app_get_gender_runtime_config(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    $enabled = ($wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
+        ? ll_tools_wordset_has_grammatical_gender($wordset_id)
+        : false;
+    $options = ($enabled && function_exists('ll_tools_wordset_get_gender_options'))
+        ? ll_tools_wordset_get_gender_options($wordset_id)
+        : [];
+    $visual_config = ($enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+        ? ll_tools_wordset_get_gender_visual_config($wordset_id)
+        : [];
+
+    return [
+        'enabled'       => (bool) $enabled,
+        'options'       => array_values(array_filter(array_map('strval', (array) $options), static function (string $option): bool {
+            return trim($option) !== '';
+        })),
+        'visual_config' => is_array($visual_config) ? $visual_config : [],
+        'min_count'     => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
+    ];
+}
+
 function ll_tools_offline_app_filter_words_to_wordset(array $words, int $wordset_id): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
@@ -1496,6 +1571,20 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
         return [];
     }
 
+    $gender_runtime = ll_tools_offline_app_get_gender_runtime_config($wordset_id);
+    $gender_enabled = !empty($gender_runtime['enabled']);
+    $gender_options = array_values((array) ($gender_runtime['options'] ?? []));
+    $gender_lookup = [];
+    foreach ($gender_options as $option) {
+        $normalized = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+            ? ll_tools_wordset_normalize_gender_value_for_options((string) $option, $gender_options)
+            : trim((string) $option);
+        $key = strtolower(trim((string) $normalized));
+        if ($key !== '') {
+            $gender_lookup[$key] = true;
+        }
+    }
+
     $categories = [];
     foreach ($all_terms as $term) {
         if (!($term instanceof WP_Term)) {
@@ -1509,13 +1598,20 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             ? ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, [$wordset_id])
             : ll_tools_get_category_quiz_config($term);
         $option_type = (string) ($config['option_type'] ?? 'image');
-        $words = ll_tools_offline_app_filter_words_to_wordset(
+        $words_in_mode = ll_tools_offline_app_filter_words_to_wordset(
             ll_get_words_by_category((string) $term->name, $option_type, [], $config),
             $wordset_id
         );
-        if (count($words) < $min_word_count) {
+        $word_count = count($words_in_mode);
+        if ($word_count < $min_word_count) {
             continue;
         }
+
+        $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
+        $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+        $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
 
         $translation = $use_translations
             ? (get_term_meta($term->term_id, 'term_translation', true) ?: $term->name)
@@ -1527,6 +1623,33 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             $aspect_bucket = 'no-image';
         }
 
+        $gender_word_count = 0;
+        if ($gender_enabled && !empty($words_in_mode)) {
+            foreach ($words_in_mode as $word) {
+                if (!is_array($word)) {
+                    continue;
+                }
+                $pos = $word['part_of_speech'] ?? [];
+                $pos = is_array($pos) ? $pos : [$pos];
+                $pos = array_map('strtolower', array_map('strval', $pos));
+                if (!in_array('noun', $pos, true)) {
+                    continue;
+                }
+                $gender_raw = (string) ($word['grammatical_gender'] ?? '');
+                $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+                    ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
+                    : trim($gender_raw);
+                $gender_key = strtolower(trim((string) $gender_label));
+                if ($gender_key === '' || (empty($gender_lookup) || !isset($gender_lookup[$gender_key]))) {
+                    continue;
+                }
+                if (($requires_image && empty($word['has_image'])) || ($requires_audio && empty($word['has_audio']))) {
+                    continue;
+                }
+                $gender_word_count++;
+            }
+        }
+
         $categories[] = [
             'id'                 => (int) $term->term_id,
             'slug'               => (string) $term->slug,
@@ -1534,12 +1657,12 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             'translation'        => html_entity_decode((string) $translation, ENT_QUOTES, 'UTF-8'),
             'mode'               => $option_type,
             'option_type'        => $option_type,
-            'prompt_type'        => (string) ($config['prompt_type'] ?? 'audio'),
+            'prompt_type'        => $prompt_type,
             'learning_supported' => !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']),
             'use_titles'         => !empty($config['use_titles']),
-            'word_count'         => count($words),
-            'gender_word_count'  => 0,
-            'gender_supported'   => false,
+            'word_count'         => $word_count,
+            'gender_word_count'  => $gender_word_count,
+            'gender_supported'   => ($gender_enabled && $gender_word_count >= $min_word_count),
             'aspect_bucket'      => $aspect_bucket,
         ];
     }

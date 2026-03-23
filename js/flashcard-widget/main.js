@@ -826,9 +826,95 @@
         return !!parseBool(data.isUserLoggedIn);
     }
 
+    function isOfflineRuntime() {
+        const data = root.llToolsFlashcardsData || {};
+        return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase() === 'offline';
+    }
+
+    function canUseStudyPrefsRuntime() {
+        return isUserLoggedIn() || isOfflineRuntime();
+    }
+
+    function normalizeStudyPrefIds(list) {
+        const seen = {};
+        const ids = Array.isArray(list) ? list : [];
+        return ids.map(function (id) {
+            return parseInt(id, 10) || 0;
+        }).filter(function (id) {
+            return id > 0 && !seen[id] && (seen[id] = true);
+        });
+    }
+
+    function getOfflineStudyPrefsStorageKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = (data.userStudyState && typeof data.userStudyState === 'object') ? data.userStudyState : {};
+        const wordsetId = parseInt(
+            userState.wordset_id || data.genderWordsetId || (Array.isArray(data.wordsetIds) ? data.wordsetIds[0] : 0),
+            10
+        ) || 0;
+        if (wordsetId > 0) {
+            return 'lltools_offline_study_prefs_v1::wordset:' + String(wordsetId);
+        }
+        const slug = String(data.wordset || '').trim().toLowerCase();
+        return slug ? ('lltools_offline_study_prefs_v1::slug:' + slug) : 'lltools_offline_study_prefs_v1::default';
+    }
+
+    function loadOfflineStudyPrefsState() {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return null;
+        }
+        try {
+            const raw = root.localStorage.getItem(getOfflineStudyPrefsStorageKey());
+            if (!raw) {
+                return null;
+            }
+            const decoded = JSON.parse(raw);
+            if (!decoded || typeof decoded !== 'object') {
+                return null;
+            }
+            return {
+                starred_word_ids: normalizeStudyPrefIds(decoded.starred_word_ids || decoded.starredWordIds || []),
+                star_mode: normalizeStarMode(decoded.star_mode || decoded.starMode || 'normal'),
+                fast_transitions: parseBool(decoded.fast_transitions ?? decoded.fastTransitions)
+            };
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function saveOfflineStudyPrefsState(rawState) {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return false;
+        }
+        const state = (rawState && typeof rawState === 'object') ? rawState : {};
+        const normalized = {
+            starred_word_ids: normalizeStudyPrefIds(state.starred_word_ids || state.starredWordIds || []),
+            star_mode: normalizeStarMode(state.star_mode || state.starMode || 'normal'),
+            fast_transitions: parseBool(state.fast_transitions ?? state.fastTransitions)
+        };
+        try {
+            root.localStorage.setItem(getOfflineStudyPrefsStorageKey(), JSON.stringify(normalized));
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
     function ensureStudyPrefs() {
         const payloadState = (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) || null;
         const flashState = root.llToolsFlashcardsData || {};
+        const offlineState = loadOfflineStudyPrefsState();
+
+        if (!root.llToolsStudyPrefs && offlineState) {
+            root.llToolsStudyPrefs = {
+                starredWordIds: offlineState.starred_word_ids.slice(),
+                starred_word_ids: offlineState.starred_word_ids.slice(),
+                starMode: offlineState.star_mode,
+                star_mode: offlineState.star_mode,
+                fastTransitions: parseBool(offlineState.fast_transitions),
+                fast_transitions: parseBool(offlineState.fast_transitions)
+            };
+        }
 
         if (!root.llToolsStudyPrefs && payloadState) {
             root.llToolsStudyPrefs = {
@@ -1662,7 +1748,7 @@
         }
 
         function applyStarChange(word, desiredState) {
-            if (!isUserLoggedIn()) return;
+            if (!canUseStudyPrefsRuntime()) return;
             const wordId = word && word.id ? parseInt(word.id, 10) : 0;
             if (!wordId) return;
             currentWord = word;
@@ -1706,7 +1792,7 @@
 
         function updateForWord(word, options) {
             currentWord = word || null;
-            if (!isUserLoggedIn()) {
+            if (!canUseStudyPrefsRuntime()) {
                 hide();
                 return;
             }
@@ -2391,6 +2477,12 @@
     }
 
     function queueStudyPrefsSave() {
+        if (isOfflineRuntime()) {
+            const payload = buildStudyPrefsPayload();
+            saveOfflineStudyPrefsState(payload);
+            applySavedStudyState(payload);
+            return;
+        }
         if (!isUserLoggedIn()) return;
         const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
         const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
@@ -2459,7 +2551,7 @@
         const { $wrap, $panel, $button } = getSettingsElements();
         if (!$wrap.length || !$button.length || !$panel.length) return;
 
-        if (!isUserLoggedIn()) {
+        if (!canUseStudyPrefsRuntime()) {
             $button.hide();
             $panel.hide();
             $(document).off('.llSettings');
