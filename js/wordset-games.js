@@ -235,7 +235,7 @@
             shipWidth: shipWidth,
             shipHeight: shipHeight,
             shipY: height - Math.max(44, shipHeight * 0.8),
-            bulletSpeed: clamp(height * 0.7, 360, 620),
+            bulletSpeed: clamp(height * 1.02, 520, 860),
             shipSpeed: clamp(width * 0.55, 220, 420)
         };
     }
@@ -674,10 +674,11 @@
         });
     }
 
-    function createCard(run, word, laneIndex, isTarget, offsetFactor) {
+    function createCard(run, word, laneIndex, isTarget, offsetFactor, promptId) {
         const baseOffset = Math.max(0, Number(offsetFactor) || 0);
         return {
             word: word,
+            promptId: toInt(promptId),
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
             y: -run.metrics.cardHeight * (0.58 + baseOffset + (Math.random() * 0.14)),
@@ -719,7 +720,7 @@
         return selected;
     }
 
-    function buildPromptCards(run, targetWord, words) {
+    function buildPromptCards(run, targetWord, words, promptId) {
         const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount);
         if (!selected) {
             return null;
@@ -729,7 +730,14 @@
         const laneOrder = shuffle([0, 1, 2, 3]);
         const stagger = shuffle([0.1, 0.38, 0.72, 1.02]);
         return shuffledWords.map(function (word, index) {
-            return createCard(run, word, laneOrder[index], toInt(word.id) === toInt(targetWord.id), stagger[index] || (index * 0.28));
+            return createCard(
+                run,
+                word,
+                laneOrder[index],
+                toInt(word.id) === toInt(targetWord.id),
+                stagger[index] || (index * 0.28),
+                promptId
+            );
         });
     }
 
@@ -857,6 +865,53 @@
         ctx.$controls.removeClass('is-active');
     }
 
+    function scrollStageIntoView(ctx) {
+        const stage = ctx && ctx.$stage ? ctx.$stage.get(0) : null;
+        if (!stage) {
+            return;
+        }
+
+        const performScroll = function () {
+            const currentScroll = Number(root.pageYOffset || root.scrollY || 0);
+            const targetTop = Math.max(0, Math.round(stage.getBoundingClientRect().top + currentScroll - 16));
+
+            if (typeof root.scrollTo === 'function') {
+                try {
+                    root.scrollTo({
+                        top: targetTop,
+                        behavior: 'smooth'
+                    });
+                    return;
+                } catch (_) { /* no-op */ }
+
+                try {
+                    root.scrollTo(0, targetTop);
+                    return;
+                } catch (_) { /* no-op */ }
+            }
+
+            if (typeof stage.scrollIntoView === 'function') {
+                try {
+                    stage.scrollIntoView({
+                        block: 'start',
+                        inline: 'nearest',
+                        behavior: 'smooth'
+                    });
+                    return;
+                } catch (_) { /* no-op */ }
+
+                stage.scrollIntoView(true);
+            }
+        };
+
+        if (typeof root.requestAnimationFrame === 'function') {
+            root.requestAnimationFrame(performScroll);
+            return;
+        }
+
+        root.setTimeout(performScroll, 0);
+    }
+
     function setControlState(ctx, control, isActive) {
         const run = ctx.run;
         if (!run || !run.controls || !Object.prototype.hasOwnProperty.call(run.controls, control)) {
@@ -894,14 +949,21 @@
         return null;
     }
 
+    function activePromptId(run) {
+        return toInt(run && run.prompt && run.prompt.promptId);
+    }
+
+    function isActivePromptCard(run, card) {
+        return !!card && activePromptId(run) > 0 && toInt(card.promptId) === activePromptId(run);
+    }
+
     function startNextPrompt(ctx) {
         const run = ctx.run;
         if (!run || run.ended) {
             return;
         }
 
-        run.cards = [];
-        run.pendingSpawns = [];
+        removeResolvedObjects(run, currentTimestamp());
         const maxAttempts = Math.max(1, run.playableTargets.length);
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -913,13 +975,16 @@
             if (!promptAudio.url) {
                 continue;
             }
-            const cards = buildPromptCards(run, targetWord, run.words);
+            const promptId = run.promptIdCounter + 1;
+            const cards = buildPromptCards(run, targetWord, run.words, promptId);
             if (!cards) {
                 continue;
             }
 
+            run.promptIdCounter = promptId;
             run.prompt = {
                 target: targetWord,
+                promptId: promptId,
                 audioUrl: promptAudio.url,
                 recordingType: promptAudio.recordingType,
                 hadWrongBefore: false,
@@ -927,7 +992,7 @@
                 exposureTracked: false,
                 resolved: false
             };
-            run.cards = cards;
+            run.cards = run.cards.concat(cards);
             playPromptAudio(ctx);
             return;
         }
@@ -951,69 +1016,6 @@
         });
     }
 
-    function getAvailableRefillWords(run, prompt, excludedIds) {
-        const currentIds = {};
-        (Array.isArray(excludedIds) ? excludedIds : []).forEach(function (id) {
-            currentIds[toInt(id)] = true;
-        });
-        run.cards.forEach(function (card) {
-            if (!card || card.exploding) {
-                return;
-            }
-            currentIds[toInt(card.word && card.word.id)] = true;
-        });
-
-        return run.words.filter(function (word) {
-            const wordId = toInt(word && word.id);
-            if (!wordId || currentIds[wordId]) {
-                return false;
-            }
-            if (!wordsCanShareRound(prompt.target, word)) {
-                return false;
-            }
-            const compatible = run.cards.every(function (card) {
-                if (!card || card.exploding) {
-                    return true;
-                }
-                return card.isTarget || wordsCanShareRound(card.word, word);
-            });
-            return compatible;
-        });
-    }
-
-    function queueRefill(run, laneIndex, removedWordId) {
-        run.pendingSpawns.push({
-            laneIndex: laneIndex,
-            removedWordId: toInt(removedWordId),
-            readyAt: currentTimestamp() + 160
-        });
-    }
-
-    function processPendingSpawns(run, now) {
-        if (!run.prompt || !run.pendingSpawns.length) {
-            return;
-        }
-
-        const remaining = [];
-        run.pendingSpawns.forEach(function (spawn) {
-            if (spawn.readyAt > now) {
-                remaining.push(spawn);
-                return;
-            }
-
-            const refillWords = shuffle(getAvailableRefillWords(run, run.prompt, [spawn.removedWordId]));
-            const refill = refillWords.length ? refillWords[0] : null;
-            if (!refill) {
-                spawn.readyAt = now + 80;
-                remaining.push(spawn);
-                return;
-            }
-
-            run.cards.push(createCard(run, refill, spawn.laneIndex, false, 0.18));
-        });
-        run.pendingSpawns = remaining;
-    }
-
     function fireBullet(run) {
         run.bullets.push({
             x: run.shipX,
@@ -1033,19 +1035,15 @@
         return true;
     }
 
-    function getResolvedPromptDelay(run, targetCard) {
-        let longestMs = 260;
+    function releaseResolvedPromptCards(run, targetCard) {
+        const targetPromptId = toInt(targetCard && targetCard.promptId);
         run.cards.forEach(function (entry) {
-            if (!entry || entry === targetCard || entry.exploding) {
+            if (!entry || entry === targetCard || entry.exploding || toInt(entry.promptId) !== targetPromptId) {
                 return;
             }
             entry.resolvedFalling = true;
             entry.speed = Math.max(entry.speed * 3.3, run.cardSpeed * 3.6);
-            const distance = Math.max(0, (run.height + entry.height) - entry.y);
-            const travelMs = (distance / Math.max(1, entry.speed)) * 1000;
-            longestMs = Math.max(longestMs, travelMs + 70);
         });
-        return clamp(Math.round(longestMs), 280, 980);
     }
 
     function handleCorrectHit(ctx, card) {
@@ -1074,8 +1072,8 @@
         });
 
         markPromptResolved(run);
-        run.pendingSpawns = [];
-        schedulePrompt(ctx, getResolvedPromptDelay(run, card));
+        releaseResolvedPromptCards(run, card);
+        startNextPrompt(ctx);
     }
 
     function handleWrongHit(ctx, card) {
@@ -1127,8 +1125,6 @@
             duration: 360,
             style: 'ring'
         });
-
-        queueRefill(run, card.laneIndex, card.word && card.word.id);
     }
 
     function handlePromptTimeout(ctx) {
@@ -1149,8 +1145,9 @@
         run.lives = Math.max(0, run.lives - Math.max(0, ctx.spaceShooter.timeoutLifePenalty));
         updateHud(ctx);
         markPromptResolved(run);
-        run.cards = [];
-        run.pendingSpawns = [];
+        run.cards = run.cards.filter(function (card) {
+            return !isActivePromptCard(run, card);
+        });
         if (run.lives <= 0) {
             run.ended = true;
             root.setTimeout(function () {
@@ -1163,7 +1160,7 @@
 
     function findTargetCard(run) {
         for (let index = 0; index < run.cards.length; index += 1) {
-            if (run.cards[index] && run.cards[index].isTarget && !run.cards[index].exploding) {
+            if (run.cards[index] && run.cards[index].isTarget && !run.cards[index].exploding && isActivePromptCard(run, run.cards[index])) {
                 return run.cards[index];
             }
         }
@@ -1210,7 +1207,7 @@
                 const bullet = run.bullets[bulletIndex];
                 for (let cardIndex = 0; cardIndex < run.cards.length; cardIndex += 1) {
                     const card = run.cards[cardIndex];
-                    if (!card || card.exploding) {
+                    if (!card || card.exploding || card.resolvedFalling || !isActivePromptCard(run, card)) {
                         continue;
                     }
                     const hit = bullet.x >= (card.x - (card.width / 2))
@@ -1237,7 +1234,6 @@
             handlePromptTimeout(ctx);
         }
 
-        processPendingSpawns(run, now);
         removeResolvedObjects(run, now);
     }
 
@@ -1347,7 +1343,6 @@
             cards: [],
             bullets: [],
             explosions: [],
-            pendingSpawns: [],
             controls: {
                 left: false,
                 right: false,
@@ -1367,6 +1362,7 @@
             stars: [],
             cardCount: ctx.spaceShooter.cardCount,
             cardSpeed: 86,
+            promptIdCounter: 0,
             promptTimer: 0,
             ended: false,
             rafId: 0
@@ -1378,6 +1374,7 @@
         ctx.run.stars = createStageStars(ctx.run);
         updateHud(ctx);
         setTrackerContext(ctx);
+        scrollStageIntoView(ctx);
         schedulePrompt(ctx, 0);
         ctx.run.rafId = root.requestAnimationFrame(function (timestamp) {
             runLoop(ctx, timestamp);
@@ -1672,10 +1669,15 @@
                 promptsResolved: run.promptsResolved,
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
+                promptId: activePromptId(run),
                 promptRecordingType: run.prompt ? String(run.prompt.recordingType || '') : '',
+                activeCardCount: run.cards.filter(function (card) {
+                    return isActivePromptCard(run, card) && !card.exploding;
+                }).length,
                 cardSnapshot: run.cards.map(function (card) {
                     return {
                         wordId: toInt(card.word && card.word.id),
+                        promptId: toInt(card.promptId),
                         y: Math.round(Number(card.y) || 0),
                         exploding: !!card.exploding,
                         resolvedFalling: !!card.resolvedFalling,
@@ -1706,7 +1708,7 @@
             }
             if (type === 'wrong') {
                 for (let index = 0; index < run.cards.length; index += 1) {
-                    if (!run.cards[index].isTarget && !run.cards[index].exploding) {
+                    if (!run.cards[index].isTarget && !run.cards[index].exploding && isActivePromptCard(run, run.cards[index])) {
                         handleWrongHit(ctx, run.cards[index]);
                         return true;
                     }
