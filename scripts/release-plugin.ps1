@@ -1,7 +1,7 @@
 param(
     [ValidateSet('auto', 'bump', 'publish')]
     [string]$Mode = 'auto',
-    [ValidateSet('patch', 'minor', 'major', 'custom')]
+    [ValidateSet('patch', 'minor', 'major', 'custom', 'none')]
     [string]$Bump = 'patch',
     [string]$Version = '',
     [string]$CommitSuffix = 'Release',
@@ -82,6 +82,10 @@ function Get-NextVersion {
         return $RequestedVersion.Trim()
     }
 
+    if ($RequestedBump -eq 'none') {
+        return $CurrentVersion
+    }
+
     $parts = $CurrentVersion.Split('.')
     if ($parts.Count -ne 3) {
         throw "Automatic version bumps require a three-part version like 5.8.0. Current version: $CurrentVersion"
@@ -116,7 +120,7 @@ function Prompt-ForBumpPlan {
     )
 
     Write-Host "Current plugin version: $CurrentVersion"
-    $choice = Read-Host 'Bump version [patch/minor/major/custom] (default: patch)'
+    $choice = Read-Host 'Bump version [patch/minor/major/custom/none] (default: patch)'
     if ([string]::IsNullOrWhiteSpace($choice)) {
         $choice = 'patch'
     }
@@ -150,6 +154,12 @@ function Prompt-ForBumpPlan {
             return @{
                 Bump = 'custom'
                 Version = $customVersion.Trim()
+            }
+        }
+        'none' {
+            return @{
+                Bump = 'none'
+                Version = ''
             }
         }
         default {
@@ -216,7 +226,9 @@ function Confirm-Bump {
         [Parameter(Mandatory = $true)]
         [string]$BranchName,
         [Parameter(Mandatory = $true)]
-        [string]$NewVersion
+        [string]$ReleaseVersion,
+        [Parameter(Mandatory = $true)]
+        [bool]$VersionChanged
     )
 
     $status = Get-GitStatusLines
@@ -228,14 +240,37 @@ function Confirm-Bump {
 
     Write-Host ''
     Write-Host "Branch: $BranchName"
-    Write-Host "New plugin version: $NewVersion"
-    Write-Host "Commit message: $NewVersion - $CommitSuffix"
+    if ($VersionChanged) {
+        Write-Host "New plugin version: $ReleaseVersion"
+    } else {
+        Write-Host "Plugin version: $ReleaseVersion (unchanged)"
+    }
+    Write-Host "Commit message: $(Get-ReleaseCommitMessage -ReleaseVersion $ReleaseVersion)"
     Write-Host ''
 
-    $confirmation = Read-Host 'Proceed with version bump, commit, and push? [Y/n]'
-    if (-not [string]::IsNullOrWhiteSpace($confirmation) -and $confirmation.Trim().ToLowerInvariant() -notin @('y', 'yes')) {
-        throw 'Version bump cancelled.'
+    $confirmationPrompt = if ($VersionChanged) {
+        'Proceed with version bump, commit, and push? [Y/n]'
+    } else {
+        'Proceed with commit and push without a version bump? [Y/n]'
     }
+
+    $confirmation = Read-Host $confirmationPrompt
+    if (-not [string]::IsNullOrWhiteSpace($confirmation) -and $confirmation.Trim().ToLowerInvariant() -notin @('y', 'yes')) {
+        throw 'Release cancelled.'
+    }
+}
+
+function Get-ReleaseCommitMessage {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ReleaseVersion
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommitSuffix)) {
+        return $ReleaseVersion
+    }
+
+    return "$ReleaseVersion - $CommitSuffix"
 }
 
 function Confirm-Publish {
@@ -456,37 +491,42 @@ function Invoke-BumpWorkflow {
     $versionData = Get-CurrentVersionData
     $currentVersion = $versionData.Version
     $currentContent = $versionData.Content
-    $newVersion = Get-NextVersion -CurrentVersion $currentVersion -RequestedBump $Bump -RequestedVersion $Version
-    if ($newVersion -eq $currentVersion) {
-        throw "The new version matches the current version ($currentVersion)."
-    }
+    $releaseVersion = Get-NextVersion -CurrentVersion $currentVersion -RequestedBump $Bump -RequestedVersion $Version
+    $versionChanged = ($releaseVersion -ne $currentVersion)
 
     $commitCreated = $false
-    Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $newVersion
+    if ($versionChanged) {
+        Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $releaseVersion
+    }
+
+    if ((Get-GitStatusLines).Count -eq 0) {
+        throw 'Nothing to release. Make changes first or choose a version bump.'
+    }
 
     try {
         if (-not $Yes) {
-            Confirm-Bump -BranchName $BranchName -NewVersion $newVersion
+            Confirm-Bump -BranchName $BranchName -ReleaseVersion $releaseVersion -VersionChanged $versionChanged
         }
 
         Invoke-Git -Arguments @('add', '-A') | Out-Null
 
-        $commitMessage = if ([string]::IsNullOrWhiteSpace($CommitSuffix)) {
-            $newVersion
-        } else {
-            "$newVersion - $CommitSuffix"
-        }
+        $commitMessage = Get-ReleaseCommitMessage -ReleaseVersion $releaseVersion
 
         Invoke-Git -Arguments @('commit', '-m', $commitMessage) | Out-Null
         $commitCreated = $true
         Invoke-Git -Arguments @('push', 'origin', $BranchName) | Out-Null
 
         Write-Host ''
-        Write-Host "Version bump pushed successfully on $BranchName."
-        Write-Host "New version: $newVersion"
+        if ($versionChanged) {
+            Write-Host "Version bump pushed successfully on $BranchName."
+            Write-Host "New version: $releaseVersion"
+        } else {
+            Write-Host "Release pushed successfully on $BranchName without a version bump."
+            Write-Host "Version unchanged: $releaseVersion"
+        }
     }
     catch {
-        if (-not $commitCreated) {
+        if (-not $commitCreated -and $versionChanged) {
             Restore-OriginalVersion -OriginalContent $currentContent
         }
 

@@ -20,10 +20,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
 
 The script is branch-aware in `auto` mode:
 
-- On `dev`, it bumps the plugin `Version:` header, stages current repo changes, commits with `x.y.z - Release`, and pushes `dev`.
+- On `dev`, it can either bump the plugin `Version:` header or keep the current version, then stages current repo changes, commits with `x.y.z - Release`, and pushes `dev`.
 - On `main`, it does not bump again. It publishes the current version already in `main`: pushes `main`, tags `vX.Y.Z`, builds `dist/language-learner-tools-x.y.z.zip`, creates or updates the GitHub release, and uploads the zip asset.
 
-The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, or a custom version.
+The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, use a custom version, or release with `none` to keep the current version.
 
 ## GitHub Token
 
@@ -47,10 +47,10 @@ Close and reopen the terminal or VS Code after setting it so Windows picks up th
 
 1. Check out `dev`.
 2. Run `release-plugin.bat`.
-3. Choose the bump type.
+3. Choose the bump type, or `none` to release without changing `Version:`.
 4. Confirm the commit and push.
 
-That updates the version header and makes the new `dev` version available to sites set to the `Dev` update channel.
+That either updates the version header or keeps it unchanged, then pushes the release commit to `dev`.
 
 ### Main branch
 
