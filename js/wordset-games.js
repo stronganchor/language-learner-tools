@@ -812,7 +812,7 @@
 
     function playPromptAudio(ctx) {
         const run = ctx.run;
-        if (!run || !run.prompt || !run.prompt.target) {
+        if (!run || run.paused || !run.prompt || !run.prompt.target) {
             return;
         }
 
@@ -851,6 +851,22 @@
         }
         ctx.$coins.text(String(run.coins));
         ctx.$lives.text(String(run.lives));
+    }
+
+    function updatePauseUi(ctx) {
+        const run = ctx.run;
+        const isPaused = !!(run && run.paused);
+        const pauseLabel = String(ctx.i18n.gamesPauseRun || 'Pause run');
+        const resumeLabel = String(ctx.i18n.gamesResumeRun || 'Resume');
+
+        if (ctx.$pauseButton && ctx.$pauseButton.length) {
+            ctx.$pauseButton
+                .toggleClass('is-paused', isPaused)
+                .attr('aria-label', isPaused ? resumeLabel : pauseLabel);
+        }
+        if (ctx.$pauseIcon && ctx.$pauseIcon.length) {
+            ctx.$pauseIcon.html(isPaused ? '&#9654;' : '&#10074;&#10074;');
+        }
     }
 
     function resetRunControls(run) {
@@ -912,11 +928,34 @@
 
     function setControlState(ctx, control, isActive) {
         const run = ctx.run;
-        if (!run || !run.controls || !Object.prototype.hasOwnProperty.call(run.controls, control)) {
+        if (!run || run.paused || !run.controls || !Object.prototype.hasOwnProperty.call(run.controls, control)) {
             return;
         }
         run.controls[control] = !!isActive;
         ctx.$controls.filter('[data-ll-wordset-game-control="' + control + '"]').toggleClass('is-active', !!isActive);
+    }
+
+    function clearPromptTimer(run, preserveRemaining) {
+        if (!run) {
+            return;
+        }
+
+        if (run.promptTimer) {
+            root.clearTimeout(run.promptTimer);
+            run.promptTimer = 0;
+        }
+
+        if (preserveRemaining) {
+            run.promptTimerRemainingMs = Math.max(
+                0,
+                run.promptTimerReadyAt > 0 ? run.promptTimerReadyAt - currentTimestamp() : run.promptTimerRemainingMs || 0
+            );
+            run.promptTimerReadyAt = 0;
+            return;
+        }
+
+        run.promptTimerReadyAt = 0;
+        run.promptTimerRemainingMs = 0;
     }
 
     function schedulePrompt(ctx, delayMs) {
@@ -924,14 +963,16 @@
         if (!run) {
             return;
         }
-        if (run.promptTimer) {
-            root.clearTimeout(run.promptTimer);
-            run.promptTimer = 0;
-        }
+
+        clearPromptTimer(run, false);
+        run.promptTimerRemainingMs = Math.max(0, delayMs || 0);
+        run.promptTimerReadyAt = currentTimestamp() + run.promptTimerRemainingMs;
         run.promptTimer = root.setTimeout(function () {
             run.promptTimer = 0;
+            run.promptTimerReadyAt = 0;
+            run.promptTimerRemainingMs = 0;
             startNextPrompt(ctx);
-        }, Math.max(0, delayMs || 0));
+        }, run.promptTimerRemainingMs);
     }
 
     function selectNextTarget(run) {
@@ -1245,6 +1286,15 @@
             run.lastFrameAt = timestamp;
         }
 
+        if (run.paused) {
+            renderRun(ctx, timestamp);
+            run.lastFrameAt = timestamp;
+            run.rafId = root.requestAnimationFrame(function (nextFrameAt) {
+                runLoop(ctx, nextFrameAt);
+            });
+            return;
+        }
+
         stepRun(ctx, timestamp, timestamp - run.lastFrameAt);
         renderRun(ctx, timestamp);
         run.lastFrameAt = timestamp;
@@ -1253,14 +1303,65 @@
         });
     }
 
-    function showOverlay(ctx, title, summary) {
+    function showOverlay(ctx, title, summary, options) {
+        const opts = options || {};
+        const summaryText = String(summary || '');
+
+        ctx.overlayMode = String(opts.mode || '');
         ctx.$overlayTitle.text(title);
-        ctx.$overlaySummary.text(summary);
+        ctx.$overlaySummary.text(summaryText).prop('hidden', summaryText === '');
+        if (ctx.$overlayPrimary && ctx.$overlayPrimary.length) {
+            ctx.$overlayPrimary.text(String(opts.primaryLabel || ctx.i18n.gamesReplayRun || 'Replay'));
+        }
+        if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
+            ctx.$overlaySecondary.text(String(opts.secondaryLabel || ctx.i18n.gamesBackToCatalog || 'Back to games'));
+        }
         ctx.$overlay.prop('hidden', false);
     }
 
     function hideOverlay(ctx) {
+        ctx.overlayMode = '';
         ctx.$overlay.prop('hidden', true);
+    }
+
+    function pauseRun(ctx) {
+        const run = ctx.run;
+        if (!run || run.ended || run.paused) {
+            return;
+        }
+
+        run.paused = true;
+        clearPromptTimer(run, true);
+        pausePromptAudio(ctx);
+        resetRunControls(run);
+        clearControlUi(ctx);
+        updatePauseUi(ctx);
+        showOverlay(ctx, String(ctx.i18n.gamesPaused || 'Paused'), '', {
+            mode: 'paused',
+            primaryLabel: String(ctx.i18n.gamesResumeRun || 'Resume'),
+            secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+        });
+    }
+
+    function resumeRun(ctx) {
+        const run = ctx.run;
+        if (!run || !run.paused) {
+            return;
+        }
+
+        run.paused = false;
+        run.lastFrameAt = 0;
+        hideOverlay(ctx);
+        updatePauseUi(ctx);
+
+        if (run.promptTimerRemainingMs > 0) {
+            schedulePrompt(ctx, run.promptTimerRemainingMs);
+            return;
+        }
+
+        if (run.prompt && !run.prompt.resolved) {
+            playPromptAudio(ctx);
+        }
     }
 
     function endRun(ctx) {
@@ -1274,13 +1375,12 @@
             root.cancelAnimationFrame(run.rafId);
             run.rafId = 0;
         }
-        if (run.promptTimer) {
-            root.clearTimeout(run.promptTimer);
-            run.promptTimer = 0;
-        }
+        run.paused = false;
+        clearPromptTimer(run, false);
         resetRunControls(run);
         clearControlUi(ctx);
         pausePromptAudio(ctx);
+        updatePauseUi(ctx);
         flushProgress(ctx);
 
         const summary = formatMessage(ctx.i18n.gamesSummary || 'Coins: %1$d · Prompts: %2$d', [
@@ -1290,7 +1390,12 @@
         showOverlay(
             ctx,
             String(ctx.i18n.gamesGameOver || 'Run Complete'),
-            summary
+            summary,
+            {
+                mode: 'game-over',
+                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
         );
     }
 
@@ -1305,10 +1410,8 @@
             root.cancelAnimationFrame(run.rafId);
             run.rafId = 0;
         }
-        if (run.promptTimer) {
-            root.clearTimeout(run.promptTimer);
-            run.promptTimer = 0;
-        }
+        run.paused = false;
+        clearPromptTimer(run, false);
         pausePromptAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
@@ -1316,6 +1419,7 @@
             flushProgress(ctx);
         }
         ctx.run = null;
+        updatePauseUi(ctx);
     }
 
     function showCatalog(ctx) {
@@ -1362,6 +1466,9 @@
             cardSpeed: 86,
             promptIdCounter: 0,
             promptTimer: 0,
+            promptTimerReadyAt: 0,
+            promptTimerRemainingMs: 0,
+            paused: false,
             ended: false,
             rafId: 0
         };
@@ -1371,6 +1478,7 @@
         ctx.run.shipY = ctx.run.metrics.shipY;
         ctx.run.stars = createStageStars(ctx.run);
         updateHud(ctx);
+        updatePauseUi(ctx);
         setTrackerContext(ctx);
         scrollStageIntoView(ctx);
         schedulePrompt(ctx, 0);
@@ -1434,7 +1542,7 @@
             syncCanvasSize(ctx);
         };
         ctx.onKeyDown = function (event) {
-            if (!ctx.run || ctx.$stage.prop('hidden')) {
+            if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden')) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -1449,7 +1557,7 @@
             }
         };
         ctx.onKeyUp = function (event) {
-            if (!ctx.run) {
+            if (!ctx.run || ctx.run.paused) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -1514,6 +1622,10 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay]', function (event) {
             event.preventDefault();
+            if (ctx.overlayMode === 'paused') {
+                resumeRun(ctx);
+                return;
+            }
             if (!ctx.catalogEntry || !ctx.catalogEntry.launchable) {
                 return;
             }
@@ -1526,16 +1638,34 @@
             playPromptAudio(ctx);
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-pause-toggle]', function (event) {
+            event.preventDefault();
+            if (!ctx.run) {
+                return;
+            }
+            if (ctx.run.paused) {
+                resumeRun(ctx);
+                return;
+            }
+            pauseRun(ctx);
+        });
+
         const pointerControls = 'pointerdown' + MODULE_NS + ' mousedown' + MODULE_NS + ' touchstart' + MODULE_NS;
         const pointerRelease = 'pointerup' + MODULE_NS + ' mouseup' + MODULE_NS + ' mouseleave' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS;
 
         ctx.$page.on(pointerControls, '[data-ll-wordset-game-control]', function (event) {
             event.preventDefault();
+            if (!ctx.run || ctx.run.paused) {
+                return;
+            }
             const control = String($(this).attr('data-ll-wordset-game-control') || '');
             setControlState(ctx, control, true);
         });
         ctx.$page.on(pointerRelease, '[data-ll-wordset-game-control]', function (event) {
             event.preventDefault();
+            if (!ctx.run || ctx.run.paused) {
+                return;
+            }
             const control = String($(this).attr('data-ll-wordset-game-control') || '');
             setControlState(ctx, control, false);
         });
@@ -1581,9 +1711,13 @@
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
             $overlayTitle: $gamesRoot.find('[data-ll-wordset-game-overlay-title]').first(),
             $overlaySummary: $gamesRoot.find('[data-ll-wordset-game-overlay-summary]').first(),
+            $overlayPrimary: $gamesRoot.find('[data-ll-wordset-game-replay]').first(),
+            $overlaySecondary: $gamesRoot.find('[data-ll-wordset-game-return]').first(),
             $coins: $gamesRoot.find('[data-ll-wordset-game-coins]').first(),
             $lives: $gamesRoot.find('[data-ll-wordset-game-lives]').first(),
             $controls: $gamesRoot.find('[data-ll-wordset-game-control]'),
+            $pauseButton: $gamesRoot.find('[data-ll-wordset-game-pause-toggle]').first(),
+            $pauseIcon: $gamesRoot.find('[data-ll-wordset-game-pause-icon]').first(),
             ajaxUrl: String(cfg.ajaxUrl || ''),
             nonce: String(cfg.nonce || ''),
             isLoggedIn: !!cfg.isLoggedIn,
@@ -1597,6 +1731,7 @@
             promptAudio: null,
             bootstrapRequest: null,
             run: null,
+            overlayMode: '',
             boundLifecycle: false,
             spaceShooter: {
                 lives: Math.max(1, toInt(spaceShooter.lives) || 3),
@@ -1665,6 +1800,7 @@
                 coins: run.coins,
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
+                paused: !!run.paused,
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
@@ -1688,6 +1824,17 @@
             if (api.__ctx && api.__ctx.catalogEntry && api.__ctx.catalogEntry.launchable) {
                 startRun(api.__ctx, api.__ctx.catalogEntry);
             }
+        },
+        togglePause: function () {
+            if (!api.__ctx || !api.__ctx.run) {
+                return false;
+            }
+            if (api.__ctx.run.paused) {
+                resumeRun(api.__ctx);
+                return true;
+            }
+            pauseRun(api.__ctx);
+            return true;
         },
         resolvePrompt: function (type) {
             const ctx = api.__ctx;

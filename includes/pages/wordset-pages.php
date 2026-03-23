@@ -3373,6 +3373,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesLocked' => __('Locked', 'll-tools-text-domain'),
             'gamesBack' => __('Games', 'll-tools-text-domain'),
             'gamesReplayAudio' => __('Replay prompt', 'll-tools-text-domain'),
+            'gamesPauseRun' => __('Pause run', 'll-tools-text-domain'),
+            'gamesResumeRun' => __('Resume', 'll-tools-text-domain'),
+            'gamesPaused' => __('Paused', 'll-tools-text-domain'),
             'gamesCoins' => __('Coins', 'll-tools-text-domain'),
             'gamesLives' => __('Lives', 'll-tools-text-domain'),
             'gamesControlLeft' => __('Move left', 'll-tools-text-domain'),
@@ -3886,13 +3889,22 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 <span data-ll-wordset-game-lives>3</span>
                             </span>
                         </div>
-                        <button
-                            type="button"
-                            class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay"
-                            data-ll-wordset-game-replay-audio
-                            aria-label="<?php echo esc_attr__('Replay prompt', 'll-tools-text-domain'); ?>">
-                            <span aria-hidden="true">&#9654;</span>
-                        </button>
+                        <div class="ll-wordset-game-stage__hud-actions">
+                            <button
+                                type="button"
+                                class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay"
+                                data-ll-wordset-game-replay-audio
+                                aria-label="<?php echo esc_attr__('Replay prompt', 'll-tools-text-domain'); ?>">
+                                <span aria-hidden="true">&#9654;</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause"
+                                data-ll-wordset-game-pause-toggle
+                                aria-label="<?php echo esc_attr__('Pause run', 'll-tools-text-domain'); ?>">
+                                <span aria-hidden="true" data-ll-wordset-game-pause-icon">&#10074;&#10074;</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="ll-wordset-game-stage__canvas-wrap">

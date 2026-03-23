@@ -40,12 +40,17 @@ function buildGamesMarkup() {
 
         <section class="ll-wordset-game-stage" data-ll-wordset-game-stage hidden>
           <div class="ll-wordset-game-stage__hud">
-            <button type="button" data-ll-wordset-game-close>Games</button>
+            <button type="button" class="ll-wordset-game-stage__nav" data-ll-wordset-game-close>Games</button>
             <div class="ll-wordset-game-stage__stats">
               <span data-ll-wordset-game-coins>0</span>
               <span data-ll-wordset-game-lives>3</span>
             </div>
-            <button type="button" data-ll-wordset-game-replay-audio>Replay</button>
+            <div class="ll-wordset-game-stage__hud-actions">
+              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay" data-ll-wordset-game-replay-audio>Replay</button>
+              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause" data-ll-wordset-game-pause-toggle aria-label="Pause run">
+                <span data-ll-wordset-game-pause-icon>||</span>
+              </button>
+            </div>
           </div>
           <div class="ll-wordset-game-stage__canvas-wrap">
             <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
@@ -463,6 +468,9 @@ function buildGamesConfig(isLoggedIn) {
       gamesLocked: 'Locked',
       gamesBack: 'Games',
       gamesReplayAudio: 'Replay prompt',
+      gamesPauseRun: 'Pause run',
+      gamesResumeRun: 'Resume',
+      gamesPaused: 'Paused',
       gamesCoins: 'Coins',
       gamesLives: 'Lives',
       gamesControlLeft: 'Move left',
@@ -635,6 +643,71 @@ test('space shooter launches with safe option mixes and records progress flows',
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
   expect(['question', 'isolation', 'introduction']).toContain(initialRun.promptRecordingType);
+
+  const pauseSnapshot = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const activeTarget = run && Array.isArray(run.cardSnapshot)
+      ? run.cardSnapshot.find((card) => card.isTarget && card.promptId === run.promptId && !card.exploding)
+      : null;
+    return {
+      promptId: run ? run.promptId : 0,
+      targetWordId: run ? run.targetWordId : 0,
+      targetY: activeTarget ? activeTarget.y : 0
+    };
+  });
+
+  await page.click('[data-ll-wordset-game-pause-toggle]');
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Paused');
+  await expect(page.locator('[data-ll-wordset-game-replay]')).toHaveText('Resume');
+  await expect(page.locator('[data-ll-wordset-game-pause-toggle]')).toHaveClass(/is-paused/);
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.paused);
+  });
+  const pausedBaseline = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const activeTarget = run && Array.isArray(run.cardSnapshot)
+      ? run.cardSnapshot.find((card) => card.isTarget && card.promptId === run.promptId && !card.exploding)
+      : null;
+    return {
+      paused: !!(run && run.paused),
+      promptId: run ? run.promptId : 0,
+      targetWordId: run ? run.targetWordId : 0,
+      targetY: activeTarget ? activeTarget.y : 0
+    };
+  });
+  await page.waitForTimeout(220);
+  const pausedRun = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const activeTarget = run && Array.isArray(run.cardSnapshot)
+      ? run.cardSnapshot.find((card) => card.isTarget && card.promptId === run.promptId && !card.exploding)
+      : null;
+    return {
+      paused: !!(run && run.paused),
+      promptId: run ? run.promptId : 0,
+      targetWordId: run ? run.targetWordId : 0,
+      targetY: activeTarget ? activeTarget.y : 0
+    };
+  });
+  expect(pausedBaseline.paused).toBe(true);
+  expect(pausedBaseline.promptId).toBe(pauseSnapshot.promptId);
+  expect(pausedBaseline.targetWordId).toBe(pauseSnapshot.targetWordId);
+  expect(pausedRun.paused).toBe(true);
+  expect(pausedRun.promptId).toBe(pausedBaseline.promptId);
+  expect(pausedRun.targetWordId).toBe(pausedBaseline.targetWordId);
+  expect(Math.abs(pausedRun.targetY - pausedBaseline.targetY)).toBeLessThanOrEqual(1);
+
+  await page.click('[data-ll-wordset-game-replay]');
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && !run.paused);
+  });
+
+  const resumedRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(resumedRun.promptId).toBe(pauseSnapshot.promptId);
+  expect(resumedRun.targetWordId).toBe(pauseSnapshot.targetWordId);
 
   const disallowedPairs = [
     [101, 102],

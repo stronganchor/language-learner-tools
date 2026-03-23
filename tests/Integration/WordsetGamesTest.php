@@ -98,7 +98,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
     public function test_space_shooter_pool_is_unavailable_below_minimum_count(): void
     {
-        $fixture = $this->createGamesFixture(4);
+        $fixture = $this->createGamesFixture(3);
         wp_set_current_user((int) $fixture['user_id']);
 
         $pool = ll_tools_wordset_games_build_space_shooter_pool((int) $fixture['wordset_id'], (int) $fixture['user_id']);
@@ -106,6 +106,172 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(4, (int) ($pool['available_word_count'] ?? 0));
         $this->assertFalse((bool) ($pool['launchable'] ?? true));
         $this->assertSame(5, (int) ($pool['minimum_word_count'] ?? 0));
+    }
+
+    public function test_space_shooter_pool_falls_back_to_mastered_words_when_studied_words_are_below_minimum_count(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Mastered Fallback ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Games Mastered Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+
+        $expectedIds = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Fallback Studied Word ' . $index,
+                'Fallback Studied Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Fallback studied ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 2,
+                'coverage_practice' => 2,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+            $expectedIds[] = $wordId;
+        }
+
+        for ($index = 1; $index <= 2; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Fallback Mastered Word ' . $index,
+                'Fallback Mastered Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['question' => 'Fallback mastered ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 6,
+                'coverage_practice' => 6,
+                'correct_clean' => 4,
+                'incorrect' => 0,
+                'lapse_count' => 0,
+                'stage' => 6,
+            ]);
+            $expectedIds[] = $wordId;
+        }
+
+        $newWordId = $this->createWordWithGameMedia(
+            'Fallback New Word',
+            'Fallback New Translation',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['introduction' => 'Fallback new']
+        );
+
+        wp_set_current_user($userId);
+        $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($pool['words'] ?? []))));
+
+        sort($expectedIds);
+        sort($returnedIds);
+
+        $this->assertSame('studied_mastered', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(5, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertTrue((bool) ($pool['launchable'] ?? false));
+        $this->assertSame($expectedIds, $returnedIds);
+        $this->assertNotContains($newWordId, $returnedIds);
+    }
+
+    public function test_space_shooter_pool_uses_lowest_frontier_categories_when_no_progress_exists(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Frontier Fallback ' . wp_generate_password(6, false), 'wordset');
+        $rootA = wp_insert_term('Games Frontier A ' . wp_generate_password(4, false), 'word-category');
+        $rootB = wp_insert_term('Games Frontier B ' . wp_generate_password(4, false), 'word-category');
+        $advanced = wp_insert_term('Games Frontier Advanced ' . wp_generate_password(4, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($rootA));
+        $this->assertFalse(is_wp_error($rootB));
+        $this->assertFalse(is_wp_error($advanced));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($rootA);
+        $this->assertIsArray($rootB);
+        $this->assertIsArray($advanced);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $rootAId = (int) $rootA['term_id'];
+        $rootBId = (int) $rootB['term_id'];
+        $advancedId = (int) $advanced['term_id'];
+
+        foreach ([$rootAId, $rootBId, $advancedId] as $categoryId) {
+            update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        }
+
+        update_term_meta($wordsetId, 'll_wordset_category_ordering_mode', 'prerequisite');
+        update_term_meta($wordsetId, 'll_wordset_category_prerequisites', [
+            $advancedId => [$rootAId],
+        ]);
+
+        $expectedIds = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $expectedIds[] = $this->createWordWithGameMedia(
+                'Frontier Root A Word ' . $index,
+                'Frontier Root A Translation ' . $index,
+                $rootAId,
+                $wordsetId,
+                true,
+                ['question' => 'Frontier root A ' . $index]
+            );
+        }
+        for ($index = 1; $index <= 2; $index++) {
+            $expectedIds[] = $this->createWordWithGameMedia(
+                'Frontier Root B Word ' . $index,
+                'Frontier Root B Translation ' . $index,
+                $rootBId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Frontier root B ' . $index]
+            );
+        }
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createWordWithGameMedia(
+                'Frontier Advanced Word ' . $index,
+                'Frontier Advanced Translation ' . $index,
+                $advancedId,
+                $wordsetId,
+                true,
+                ['introduction' => 'Frontier advanced ' . $index]
+            );
+        }
+
+        wp_set_current_user($userId);
+        $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($pool['words'] ?? []))));
+        $returnedCategoryIds = array_values(array_unique(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['category_id'] ?? 0) : 0;
+        }, (array) ($pool['words'] ?? [])))));
+
+        sort($expectedIds);
+        sort($returnedIds);
+        sort($returnedCategoryIds);
+
+        $this->assertSame('frontier_new', (string) ($pool['pool_source'] ?? ''));
+        $this->assertSame(5, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertTrue((bool) ($pool['launchable'] ?? false));
+        $this->assertSame($expectedIds, $returnedIds);
+        $this->assertSame([$rootAId, $rootBId], $returnedCategoryIds);
     }
 
     public function test_games_bootstrap_ajax_enforces_login_and_permission_and_returns_catalog(): void

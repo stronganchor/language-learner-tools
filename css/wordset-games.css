@@ -159,21 +159,41 @@
     margin-bottom: 12px;
 }
 
+.ll-wordset-game-stage__hud-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .ll-wordset-game-stage__nav {
     min-height: 42px;
     padding: 0 14px;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: #fff;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
     color: var(--ll-games-ink) !important;
     border-color: rgba(15, 23, 42, 0.12);
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    text-decoration: none !important;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .ll-wordset-game-stage__nav:hover,
-.ll-wordset-game-stage__nav:focus-visible {
+.ll-wordset-game-stage__nav:focus,
+.ll-wordset-game-stage__nav:focus-visible,
+.ll-wordset-game-stage__nav:active {
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    color: var(--ll-games-ink) !important;
     border-color: rgba(15, 23, 42, 0.24);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+    text-decoration: none !important;
     outline: none;
 }
 
@@ -181,6 +201,17 @@
     min-width: 42px;
     justify-content: center;
     padding: 0;
+}
+
+.ll-wordset-game-stage__nav--pause {
+    min-width: 42px;
+    justify-content: center;
+    padding: 0;
+}
+
+.ll-wordset-game-stage__nav--pause.is-paused {
+    color: var(--ll-games-accent-strong) !important;
+    border-color: rgba(15, 118, 110, 0.28);
 }
 
 .ll-wordset-game-stage__stats {
@@ -435,17 +466,17 @@
     .ll-wordset-game-stage__hud {
         grid-template-columns: 1fr auto;
         grid-template-areas:
-            "back replay"
+            "back actions"
             "stats stats";
     }
 
-    .ll-wordset-game-stage__nav:not(.ll-wordset-game-stage__nav--replay) {
+    .ll-wordset-game-stage__nav:not(.ll-wordset-game-stage__nav--replay):not(.ll-wordset-game-stage__nav--pause) {
         grid-area: back;
         justify-self: flex-start;
     }
 
-    .ll-wordset-game-stage__nav--replay {
-        grid-area: replay;
+    .ll-wordset-game-stage__hud-actions {
+        grid-area: actions;
         justify-self: flex-end;
     }
 
