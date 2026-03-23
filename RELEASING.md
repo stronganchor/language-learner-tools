@@ -18,25 +18,51 @@ For the local release-prep steps, you can double-click [release-plugin.bat](rele
 powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
 ```
 
-The script:
+The script is branch-aware in `auto` mode:
 
-- Bumps the plugin `Version:` header.
-- Stages all current repo changes.
-- Builds `dist/language-learner-tools-x.y.z.zip` from the staged tree.
-- Commits with `x.y.z - Release`.
-- Pushes the current branch.
+- On `dev`, it bumps the plugin `Version:` header, stages current repo changes, commits with `x.y.z - Release`, and pushes `dev`.
+- On `main`, it does not bump again. It publishes the current version already in `main`: pushes `main`, tags `vX.Y.Z`, builds `dist/language-learner-tools-x.y.z.zip`, creates or updates the GitHub release, and uploads the zip asset.
 
-The script prompts before it stages and commits. By default it asks whether to bump `patch`, `minor`, `major`, or a custom version.
+The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, or a custom version.
+
+## GitHub Token
+
+Stable publish on `main` needs a GitHub token in the Windows environment. Set either:
+
+```powershell
+setx LL_TOOLS_GITHUB_TOKEN "YOUR_TOKEN_HERE"
+```
+
+or:
+
+```powershell
+setx GITHUB_TOKEN "YOUR_TOKEN_HERE"
+```
+
+Close and reopen the terminal or VS Code after setting it so Windows picks up the new environment variable.
 
 ## Release Steps
 
-1. Finish the release changes.
-2. Run `release-plugin.bat` or `scripts/release-plugin.ps1`.
-3. Create and push a tag that matches the new version, for example `v5.8.1`.
-4. Use the generated zip in `dist/` as the GitHub release asset.
-5. Create a GitHub release for the same tag.
-6. Upload the generated zip from `dist/`, for example `dist/language-learner-tools-5.8.1.zip`.
-7. Publish the release.
+### Dev branch
+
+1. Check out `dev`.
+2. Run `release-plugin.bat`.
+3. Choose the bump type.
+4. Confirm the commit and push.
+
+That updates the version header and makes the new `dev` version available to sites set to the `Dev` update channel.
+
+### Main branch
+
+1. Merge `dev` into `main` so the same version header arrives in `main`.
+2. Check out `main`.
+3. Make sure the working tree is clean.
+4. Run `release-plugin.bat` again.
+5. Confirm the stable publish.
+
+That creates or updates the GitHub release for `vX.Y.Z` and uploads the packaged plugin zip for stable-site updates.
+
+Pulling `dev` into `main` by itself is not enough for stable updates. The `main` channel still needs the GitHub release asset upload step, and the script handles that when run on `main`.
 
 If you need to rebuild a release zip manually from a specific git ref or tag, use:
 
