@@ -388,12 +388,15 @@ function ll_flashcards_get_messages(): array {
         'offlineSelectCategories' => __('Select categories to study together', 'll-tools-text-domain'),
         'offlineNoCategories'     => __('No categories are available in this offline app.', 'll-tools-text-domain'),
         'offlineClearSelection'   => __('Clear Selection', 'll-tools-text-domain'),
+        'offlineSelectAll'        => __('Select All', 'll-tools-text-domain'),
+        'offlineDeselectAll'      => __('Deselect All', 'll-tools-text-domain'),
         'offlineModePractice'     => __('Practice', 'll-tools-text-domain'),
         'offlineModeLearning'     => __('Learn', 'll-tools-text-domain'),
         'offlinePracticeSelected' => __('Practice Selected', 'll-tools-text-domain'),
         'offlineLearningSelected' => __('Learn Selected', 'll-tools-text-domain'),
         'offlineSelectCategory'   => __('Select category: %s', 'll-tools-text-domain'),
         'offlineLearningUnavailable' => __('Learning mode is not available for this selection.', 'll-tools-text-domain'),
+        'offlineModeCategoryLabel' => __('%1$s: %2$s', 'll-tools-text-domain'),
     ];
 
     return $messages;

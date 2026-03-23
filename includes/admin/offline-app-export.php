@@ -611,6 +611,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     }
 
     $categories = $kept_categories;
+    $launcher_categories = ll_tools_offline_app_build_launcher_categories($categories, $category_data);
     $first_category_name = '';
     $first_category_data = [];
     foreach ($categories as $category) {
@@ -701,6 +702,10 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'versionName'  => $version_name,
             'versionCode'  => $version_code,
             'wordsetName'  => (string) $wordset->name,
+            'launcher'     => [
+                'categories'   => $launcher_categories,
+                'previewLimit' => 2,
+            ],
         ],
     ];
 
@@ -1123,6 +1128,93 @@ function ll_tools_offline_app_register_word_image_asset(int $word_id, array &$as
     }
 
     return './' . ltrim($relative_path, '/');
+}
+
+function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 2): array {
+    $limit = max(1, (int) $limit);
+    $preview = [];
+    $seen_image_urls = [];
+    $seen_text_labels = [];
+
+    foreach ($words as $word) {
+        if (count($preview) >= $limit || !is_array($word)) {
+            continue;
+        }
+
+        $image_url = isset($word['image']) ? trim((string) $word['image']) : '';
+        if ($image_url === '' || isset($seen_image_urls[$image_url])) {
+            continue;
+        }
+
+        $seen_image_urls[$image_url] = true;
+        $preview[] = [
+            'type' => 'image',
+            'url'  => $image_url,
+            'alt'  => (string) ($word['title'] ?? ''),
+        ];
+    }
+
+    foreach ($words as $word) {
+        if (count($preview) >= $limit || !is_array($word)) {
+            continue;
+        }
+
+        $label = trim((string) ($word['title'] ?? ''));
+        if ($label === '') {
+            $label = trim((string) ($word['translation'] ?? ''));
+        }
+        if ($label === '' || isset($seen_text_labels[$label])) {
+            continue;
+        }
+
+        $seen_text_labels[$label] = true;
+        $preview[] = [
+            'type'  => 'text',
+            'label' => $label,
+        ];
+    }
+
+    return array_values(array_slice($preview, 0, $limit));
+}
+
+function ll_tools_offline_app_build_launcher_categories(array $categories, array $category_data): array {
+    $launcher_categories = [];
+
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $category_name = isset($category['name']) ? trim((string) $category['name']) : '';
+        if ($category_name === '') {
+            continue;
+        }
+
+        $words = isset($category_data[$category_name]) && is_array($category_data[$category_name])
+            ? array_values($category_data[$category_name])
+            : [];
+        if (empty($words)) {
+            continue;
+        }
+
+        $preview = ll_tools_offline_app_build_launcher_preview($words, 2);
+        $has_images = false;
+        foreach ($preview as $preview_item) {
+            if (is_array($preview_item) && (($preview_item['type'] ?? '') === 'image')) {
+                $has_images = true;
+                break;
+            }
+        }
+
+        $launcher_category = $category;
+        $launcher_category['word_count'] = count($words);
+        $launcher_category['preview'] = $preview;
+        $launcher_category['preview_limit'] = 2;
+        $launcher_category['has_images'] = $has_images;
+        $launcher_categories[] = $launcher_category;
+    }
+
+    return array_values($launcher_categories);
 }
 
 function ll_tools_offline_app_copy_plugin_asset(string $relative_path, string $www_dir) {

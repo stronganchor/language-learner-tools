@@ -230,12 +230,15 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringNotContainsString('admin-ajax.php', $offline_data);
                 $this->assertStringContainsString('./content/images/', $offline_data);
                 $this->assertStringContainsString('./content/audio/', $offline_data);
+                $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
+                $this->assertStringContainsString('"preview":[{"type":"image","url":"./content/images/', $offline_data);
 
                 $index_html = $zip->getFromName('www/index.html');
                 $this->assertIsString($index_html);
                 $offline_app_js = $zip->getFromName('www/app/offline-app.js');
                 $this->assertIsString($offline_app_js);
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-launch-selected', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);

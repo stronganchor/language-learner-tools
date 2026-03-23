@@ -34,6 +34,9 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
     body {
       font-family: Georgia, "Times New Roman", serif;
     }
+    .ll-offline-app-shell [hidden] {
+      display: none !important;
+    }
     .ll-offline-app-shell {
       min-height: 100vh;
       padding: 18px 14px 28px;
@@ -128,6 +131,26 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       align-items: center;
       gap: 8px;
     }
+    .ll-offline-launcher__action-content {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .ll-offline-launcher__action-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.1em;
+      height: 1.1em;
+      line-height: 1;
+      font-size: 1em;
+    }
+    .ll-offline-launcher__action-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
     .ll-offline-launcher__action,
     .ll-offline-category-card__action {
       display: inline-flex;
@@ -167,7 +190,7 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       background: #184c3c;
       border-color: #184c3c;
     }
-    .ll-offline-launcher__action--clear {
+    .ll-offline-launcher__action--select-all {
       background: transparent;
     }
     .ll-offline-launcher__action[disabled],
@@ -191,6 +214,39 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       border: 1px solid var(--ll-offline-border);
       background: var(--ll-offline-soft);
       box-shadow: 0 10px 22px rgba(23,32,43,0.06);
+    }
+    .ll-offline-category-card__preview {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ll-offline-category-card__preview-item {
+      position: relative;
+      overflow: hidden;
+      min-height: 88px;
+      border-radius: 12px;
+      background: rgba(23,32,43,0.08);
+      border: 1px solid rgba(23,32,43,0.08);
+    }
+    .ll-offline-category-card__preview-item img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 88px;
+      object-fit: cover;
+    }
+    .ll-offline-category-card__preview-item--text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .ll-offline-category-card__preview-item--empty {
+      opacity: 0.5;
     }
     .ll-offline-category-card__header {
       display: flex;
@@ -234,9 +290,30 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       font-weight: 700;
     }
     .ll-offline-category-card__actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
       gap: 8px;
+    }
+    .ll-offline-category-card__action {
+      width: 44px;
+      min-width: 44px;
+      padding: 0;
+      border-radius: 999px;
+    }
+    .ll-offline-category-card__action-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      line-height: 1;
+      font-size: 1rem;
+    }
+    .ll-offline-category-card__action-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
     .ll-offline-launcher__empty {
       margin: 0;
@@ -258,9 +335,15 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
       .ll-offline-category-card__actions {
         width: 100%;
       }
-      .ll-offline-launcher__action,
-      .ll-offline-category-card__action {
+      .ll-offline-launcher__action {
         width: 100%;
+      }
+      .ll-offline-category-card__actions {
+        justify-content: stretch;
+      }
+      .ll-offline-category-card__action {
+        flex: 1 1 0;
+        width: auto;
       }
     }
   </style>
@@ -295,14 +378,14 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
             <span id="ll-offline-selection-count" class="ll-offline-launcher__selection-count" hidden>0</span>
           </div>
           <div class="ll-offline-launcher__selection-actions">
+            <button id="ll-offline-select-all" class="ll-offline-launcher__action ll-offline-launcher__action--select-all" type="button">
+              <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>
+            </button>
             <button id="ll-offline-launch-learning-selected" class="ll-offline-launcher__action ll-offline-launcher__action--learning" data-ll-offline-launch-selected data-mode="learning" type="button" disabled>
               <?php esc_html_e('Learn Selected', 'll-tools-text-domain'); ?>
             </button>
             <button id="ll-offline-launch-practice-selected" class="ll-offline-launcher__action" data-ll-offline-launch-selected data-mode="practice" type="button" disabled>
               <?php esc_html_e('Practice Selected', 'll-tools-text-domain'); ?>
-            </button>
-            <button id="ll-offline-clear-selection" class="ll-offline-launcher__action ll-offline-launcher__action--clear" type="button" hidden>
-              <?php esc_html_e('Clear Selection', 'll-tools-text-domain'); ?>
             </button>
           </div>
         </div>
