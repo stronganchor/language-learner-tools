@@ -46,7 +46,25 @@ function buildGamesMarkup() {
               <span data-ll-wordset-game-lives>3</span>
             </div>
             <div class="ll-wordset-game-stage__hud-actions">
-              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay" data-ll-wordset-game-replay-audio>Replay</button>
+              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay ll-prompt-audio-button" data-ll-wordset-game-replay-audio>
+                <span class="ll-repeat-audio-ui">
+                  <span class="ll-repeat-icon-wrap" aria-hidden="true">
+                    <span class="ll-audio-play-icon" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
+                        <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"></path>
+                      </svg>
+                    </span>
+                  </span>
+                  <span class="ll-audio-mini-visualizer" aria-hidden="true">
+                    <span class="bar" data-bar="1"></span>
+                    <span class="bar" data-bar="2"></span>
+                    <span class="bar" data-bar="3"></span>
+                    <span class="bar" data-bar="4"></span>
+                    <span class="bar" data-bar="5"></span>
+                    <span class="bar" data-bar="6"></span>
+                  </span>
+                </span>
+              </button>
               <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause" data-ll-wordset-game-pause-toggle aria-label="Pause run">
                 <span data-ll-wordset-game-pause-icon>||</span>
               </button>

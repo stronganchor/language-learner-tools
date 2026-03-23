@@ -802,12 +802,43 @@
         ctx.$card.toggleClass('is-loading', !!isLoading);
     }
 
+    function updateReplayAudioUi(ctx, isPlaying) {
+        if (!ctx || !ctx.$replayAudioButton || !ctx.$replayAudioButton.length) {
+            return;
+        }
+        ctx.$replayAudioButton.toggleClass('playing', !!isPlaying);
+        ctx.$replayAudioButton.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying);
+    }
+
+    function ensurePromptAudio(ctx) {
+        if (ctx.promptAudio) {
+            return ctx.promptAudio;
+        }
+
+        ctx.promptAudio = new Audio();
+        ctx.promptAudio.preload = 'auto';
+
+        ['playing', 'play'].forEach(function (eventName) {
+            ctx.promptAudio.addEventListener(eventName, function () {
+                updateReplayAudioUi(ctx, true);
+            });
+        });
+        ['pause', 'ended', 'error'].forEach(function (eventName) {
+            ctx.promptAudio.addEventListener(eventName, function () {
+                updateReplayAudioUi(ctx, false);
+            });
+        });
+
+        return ctx.promptAudio;
+    }
+
     function pausePromptAudio(ctx) {
         if (ctx.promptAudio && typeof ctx.promptAudio.pause === 'function') {
             try {
                 ctx.promptAudio.pause();
             } catch (_) { /* no-op */ }
         }
+        updateReplayAudioUi(ctx, false);
     }
 
     function playPromptAudio(ctx) {
@@ -821,27 +852,32 @@
             return;
         }
 
-        if (!ctx.promptAudio) {
-            ctx.promptAudio = new Audio();
-            ctx.promptAudio.preload = 'auto';
-        }
+        const promptAudio = ensurePromptAudio(ctx);
 
         try {
-            ctx.promptAudio.pause();
+            promptAudio.pause();
         } catch (_) { /* no-op */ }
 
         try {
-            ctx.promptAudio.currentTime = 0;
+            promptAudio.currentTime = 0;
         } catch (_) { /* no-op */ }
 
-        if (ctx.promptAudio.src !== source) {
-            ctx.promptAudio.src = source;
+        if (promptAudio.src !== source) {
+            promptAudio.src = source;
         }
 
-        const playAttempt = ctx.promptAudio.play();
+        updateReplayAudioUi(ctx, false);
+        const playAttempt = promptAudio.play();
         if (playAttempt && typeof playAttempt.catch === 'function') {
-            playAttempt.catch(function () { return false; });
+            playAttempt.then(function () {
+                updateReplayAudioUi(ctx, true);
+            }).catch(function () {
+                updateReplayAudioUi(ctx, false);
+                return false;
+            });
+            return;
         }
+        updateReplayAudioUi(ctx, true);
     }
 
     function updateHud(ctx) {
@@ -1716,6 +1752,7 @@
             $coins: $gamesRoot.find('[data-ll-wordset-game-coins]').first(),
             $lives: $gamesRoot.find('[data-ll-wordset-game-lives]').first(),
             $controls: $gamesRoot.find('[data-ll-wordset-game-control]'),
+            $replayAudioButton: $gamesRoot.find('[data-ll-wordset-game-replay-audio]').first(),
             $pauseButton: $gamesRoot.find('[data-ll-wordset-game-pause-toggle]').first(),
             $pauseIcon: $gamesRoot.find('[data-ll-wordset-game-pause-icon]').first(),
             ajaxUrl: String(cfg.ajaxUrl || ''),
