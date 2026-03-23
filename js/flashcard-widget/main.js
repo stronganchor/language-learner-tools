@@ -1327,6 +1327,9 @@
                     root.llToolsFlashcardsData.userStudyState.starred_word_ids = synced;
                 }
             }
+            if (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
+                root.llToolsStudyData.payload.state.starred_word_ids = prefs.starredWordIds.slice();
+            }
             return shouldStar;
         }
 
@@ -2315,6 +2318,16 @@
                 }
             }
         }
+        if (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
+            const state = root.llToolsStudyData.payload.state;
+            state.star_mode = prefs.starMode || state.star_mode;
+            state.fast_transitions = typeof prefs.fastTransitions !== 'undefined'
+                ? !!prefs.fastTransitions
+                : state.fast_transitions;
+            if (Array.isArray(prefs.starredWordIds)) {
+                state.starred_word_ids = prefs.starredWordIds.slice();
+            }
+        }
         return prefs;
     }
 
@@ -2367,6 +2380,13 @@
             root.llToolsFlashcardsData.star_mode = prefs.starMode;
             root.llToolsFlashcardsData.fastTransitions = !!prefs.fastTransitions;
             root.llToolsFlashcardsData.fast_transitions = !!prefs.fastTransitions;
+        }
+        if (root.llToolsStudyData && root.llToolsStudyData.payload) {
+            root.llToolsStudyData.payload.state = Object.assign(
+                {},
+                root.llToolsStudyData.payload.state || {},
+                savedState
+            );
         }
     }
 

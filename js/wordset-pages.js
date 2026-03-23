@@ -3486,8 +3486,16 @@
         window.llToolsStudyPrefs.fastTransitions = !!state.fast_transitions;
         window.llToolsStudyPrefs.fast_transitions = !!state.fast_transitions;
         window.llToolsStudyPrefs.starredWordIds = uniqueIntList(state.starred_word_ids || []);
+        window.llToolsStudyPrefs.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
 
         if (!window.llToolsFlashcardsData || typeof window.llToolsFlashcardsData !== 'object') {
+            if (window.llToolsStudyData && window.llToolsStudyData.payload && window.llToolsStudyData.payload.state) {
+                window.llToolsStudyData.payload.state.wordset_id = wordsetId;
+                window.llToolsStudyData.payload.state.category_ids = uniqueIntList(state.category_ids || []);
+                window.llToolsStudyData.payload.state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+                window.llToolsStudyData.payload.state.star_mode = state.star_mode;
+                window.llToolsStudyData.payload.state.fast_transitions = !!state.fast_transitions;
+            }
             return;
         }
         window.llToolsFlashcardsData.starMode = state.star_mode;
@@ -3502,6 +3510,56 @@
         userStudy.star_mode = state.star_mode;
         userStudy.fast_transitions = !!state.fast_transitions;
         window.llToolsFlashcardsData.userStudyState = userStudy;
+
+        if (window.llToolsStudyData && window.llToolsStudyData.payload && window.llToolsStudyData.payload.state) {
+            window.llToolsStudyData.payload.state.wordset_id = wordsetId;
+            window.llToolsStudyData.payload.state.category_ids = uniqueIntList(state.category_ids || []);
+            window.llToolsStudyData.payload.state.starred_word_ids = uniqueIntList(state.starred_word_ids || []);
+            window.llToolsStudyData.payload.state.star_mode = state.star_mode;
+            window.llToolsStudyData.payload.state.fast_transitions = !!state.fast_transitions;
+        }
+    }
+
+    function applyExternalStarChange(detail) {
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const wordId = parseInt(info.wordId || info.word_id, 10) || 0;
+        if (!wordId) {
+            return false;
+        }
+
+        const starred = !!info.starred;
+        const nextStarredIds = uniqueIntList(state.starred_word_ids || []);
+        const existingIndex = nextStarredIds.indexOf(wordId);
+        if (starred && existingIndex === -1) {
+            nextStarredIds.push(wordId);
+        } else if (!starred && existingIndex !== -1) {
+            nextStarredIds.splice(existingIndex, 1);
+        } else {
+            syncGlobalPrefs();
+            return false;
+        }
+
+        state.starred_word_ids = uniqueIntList(nextStarredIds);
+        syncGlobalPrefs();
+
+        if (view === 'main') {
+            renderSelectionBar();
+            renderNextCard();
+        } else if (view === 'progress') {
+            pruneProgressSelectionWordIfHidden(wordId);
+            renderProgressAnalytics();
+        }
+
+        if (isFlashcardOpen) {
+            pendingSummaryRefreshAfterClose = true;
+        } else {
+            refreshSummaryCounts({
+                animate: false,
+                deferVisibleCategoryProgress: true
+            });
+        }
+
+        return true;
     }
 
     function saveStateDebounced(options) {
@@ -8486,6 +8544,10 @@
                     stickyMiniWhenOffscreen: true
                 });
             }
+        });
+
+        $(document).on('lltools:star-changed.llWordsetPage', function (_evt, detail) {
+            applyExternalStarChange(detail);
         });
 
         $(document).on('lltools:progress-updated.llWordsetPage', function (_evt, detail) {
