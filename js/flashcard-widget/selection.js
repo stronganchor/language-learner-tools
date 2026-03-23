@@ -451,9 +451,11 @@
         if (!cardEl || typeof cardEl.querySelector !== 'function') return 0;
         const textEl = cardEl.querySelector('.quiz-text');
         if (!textEl) return { width: 0, height: 0 };
+        const horizontalSafetyInset = 28;
+        const verticalSafetyInset = 8;
         return {
-            width: Math.max(0, Math.floor(textEl.clientWidth || 0) - 4),
-            height: Math.max(0, Math.floor(textEl.clientHeight || 0) - 4)
+            width: Math.max(0, Math.floor(textEl.clientWidth || 0) - horizontalSafetyInset),
+            height: Math.max(0, Math.floor(textEl.clientHeight || 0) - verticalSafetyInset)
         };
     }
 

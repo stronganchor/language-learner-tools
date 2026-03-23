@@ -189,6 +189,8 @@
     font-size: 1em;
     line-height: 1;
     align-self: center;
+    transform: translateY(0.035em);
+    transform-origin: center center;
     flex: 0 0 auto;
     font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
     font-variant-emoji: text;

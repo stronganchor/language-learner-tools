@@ -164,9 +164,11 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
       const style = window.getComputedStyle(card);
       const rect = card.getBoundingClientRect();
       const textEl = card.querySelector('.quiz-text');
+      const innerEl = card.querySelector('.ll-gender-option-inner');
       const symbolEl = card.querySelector('.ll-gender-symbol');
       const labelEl = card.querySelector('.ll-gender-option-label');
       const textStyle = textEl ? window.getComputedStyle(textEl) : null;
+      const innerRect = innerEl ? innerEl.getBoundingClientRect() : null;
       const symbolRect = symbolEl ? symbolEl.getBoundingClientRect() : null;
       const labelRect = labelEl ? labelEl.getBoundingClientRect() : null;
       return {
@@ -176,6 +178,7 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
         width: rect.width,
         height: rect.height,
         fontSize: textStyle ? parseFloat(textStyle.fontSize || '0') : 0,
+        remainingX: textEl && innerRect ? (textEl.clientWidth - innerRect.width) : 0,
         symbolWidth: symbolRect ? symbolRect.width : 0,
         symbolHeight: symbolRect ? symbolRect.height : 0,
         symbolCenterY: symbolRect ? (symbolRect.top + (symbolRect.height / 2)) : 0,
@@ -197,6 +200,7 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   expect(genderCards).toHaveLength(2);
   expect(Math.abs(cards[0].fontSize - cards[1].fontSize)).toBeLessThan(0.5);
   expect(Math.abs(cards[0].fontSize - cards[2].fontSize)).toBeLessThan(0.5);
+  expect(cards[2].remainingX).toBeGreaterThan(10);
   expect(Math.abs(genderCards[0].symbolWidth - genderCards[1].symbolWidth)).toBeLessThan(0.75);
   expect(Math.abs(genderCards[0].symbolHeight - genderCards[1].symbolHeight)).toBeLessThan(0.75);
   genderCards.forEach((card) => {
