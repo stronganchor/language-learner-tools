@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.7.9
+Version: 5.8.0
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -30,6 +30,70 @@ function ll_tools_get_update_branch() {
     return ll_tools_normalize_update_branch($branch);
 }
 
+function ll_tools_get_release_asset_name_regex() {
+    return '/^language-learner-tools(?:-[0-9][0-9A-Za-z._-]*)?\.zip$/i';
+}
+
+/**
+ * Configure the GitHub update checker for the selected channel.
+ *
+ * Main/stable intentionally uses packaged release assets only so production
+ * sites never fall back to raw repository archives.
+ *
+ * @param object|null $update_checker Plugin Update Checker instance.
+ * @param string      $branch         Selected update branch.
+ * @return void
+ */
+function ll_tools_configure_update_checker($update_checker, $branch) {
+    if (!is_object($update_checker) || !method_exists($update_checker, 'setBranch')) {
+        return;
+    }
+
+    $update_checker->setBranch(ll_tools_normalize_update_branch($branch));
+
+    if (!method_exists($update_checker, 'getVcsApi')) {
+        return;
+    }
+
+    $vcs_api = $update_checker->getVcsApi();
+    if (!is_object($vcs_api) || !method_exists($vcs_api, 'enableReleaseAssets')) {
+        return;
+    }
+
+    $vcs_api->enableReleaseAssets(
+        ll_tools_get_release_asset_name_regex(),
+        \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::REQUIRE_RELEASE_ASSETS
+    );
+}
+
+/**
+ * Keep stable updates on GitHub release assets only.
+ *
+ * Dev remains branch-based for testing; main fails closed if a release asset
+ * is missing so live sites don't ingest repository source archives.
+ *
+ * @param array $strategies PUC strategy map.
+ * @return array
+ */
+function ll_tools_filter_update_detection_strategies($strategies) {
+    if (ll_tools_get_update_branch() !== 'main') {
+        return $strategies;
+    }
+
+    if (!is_array($strategies)) {
+        return [];
+    }
+
+    $release_strategy = \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::STRATEGY_LATEST_RELEASE;
+    if (empty($strategies[$release_strategy]) || !is_callable($strategies[$release_strategy])) {
+        return [];
+    }
+
+    return [
+        $release_strategy => $strategies[$release_strategy],
+    ];
+}
+
 /**
  * Only boot the plugin update checker where it is useful.
  *
@@ -54,6 +118,9 @@ function ll_tools_should_boot_update_checker() {
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+add_filter('puc_vcs_update_detection_strategies-language-learner-tools', 'll_tools_filter_update_detection_strategies');
+
 $ll_tools_update_checker = null;
 if (ll_tools_should_boot_update_checker()) {
     $ll_tools_update_branch = ll_tools_get_update_branch();
@@ -62,7 +129,7 @@ if (ll_tools_should_boot_update_checker()) {
         __FILE__,
         'language-learner-tools'
     );
-    $ll_tools_update_checker->setBranch($ll_tools_update_branch);
+    ll_tools_configure_update_checker($ll_tools_update_checker, $ll_tools_update_branch);
 }
 
 add_action('update_option_ll_update_branch', function ($old_value, $value, $option_name) {
@@ -71,7 +138,7 @@ add_action('update_option_ll_update_branch', function ($old_value, $value, $opti
         return;
     }
     $branch = ll_tools_normalize_update_branch($value);
-    $ll_tools_update_checker->setBranch($branch);
+    ll_tools_configure_update_checker($ll_tools_update_checker, $branch);
     $ll_tools_update_checker->resetUpdateState();
     $ll_tools_update_checker->checkForUpdates();
 }, 10, 3);

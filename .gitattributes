@@ -1,0 +1,12 @@
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/.vscode export-ignore
+/AGENTS.md export-ignore
+/CODEBASE_ARCHITECTURE.md export-ignore
+/MAINTENANCE_BACKLOG.md export-ignore
+/RELEASING.md export-ignore
+/offline-app-builder export-ignore
+/scripts export-ignore
+/test-results export-ignore
+/tests export-ignore
+/xampp-lltools.code-workspace export-ignore

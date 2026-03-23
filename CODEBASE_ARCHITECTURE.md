@@ -39,12 +39,12 @@ read_first:
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
-- Template override system and GitHub update checker (main/dev branch).
+- Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
 # Entry points and runtime flow
 - `language-learner-tools.php`
   - Defines `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, `LL_TOOLS_MAIN_FILE`, `LL_TOOLS_MIN_WORDS_PER_QUIZ`.
-  - Registers GitHub update checker (branch from `ll_update_branch` option).
+  - Registers GitHub update checker (`main` only accepts packaged GitHub release assets; `dev` stays branch-based).
   - Activation adds `view_ll_tools`, seeds default wordset and recording page via transients.
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
@@ -238,7 +238,7 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_flashcard_image_size` (small/medium/large).
 - `ll_hide_recording_titles` (recording UI).
 - `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
-- `ll_update_branch` (main/dev) for GitHub update checker.
+- `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
 
 # Public UI surfaces and routes
 ## Shortcodes (user-facing)

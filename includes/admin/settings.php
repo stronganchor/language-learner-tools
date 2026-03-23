@@ -466,7 +466,7 @@ function ll_render_settings_page() {
                             <option value="main" <?php selected($update_branch, 'main'); ?>><?php esc_html_e('Main (stable)', 'll-tools-text-domain'); ?></option>
                             <option value="dev" <?php selected($update_branch, 'dev'); ?>><?php esc_html_e('Dev (testing)', 'll-tools-text-domain'); ?></option>
                         </select>
-                        <p class="description"><?php esc_html_e('Switch to Dev to have this site pull plugin updates from the GitHub dev branch for testing. Use Main for normal production updates.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php esc_html_e('Use Main for packaged production releases. Switch to Dev only to pull the GitHub dev branch for testing.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <?php do_action('ll_tools_settings_after_translations'); ?>

@@ -56,7 +56,9 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `audio_recorder` – Dedicated role for audio recording contributors with limited admin access.
 
 - **Update checker**
-  - Uses Yahnis Elsts' Plugin Update Checker, tracking the GitHub repo.
+  - Uses Yahnis Elsts' Plugin Update Checker.
+  - `Main` pulls packaged GitHub release assets for production updates.
+  - `Dev` remains a GitHub branch-based testing channel.
 
 ---
 
@@ -269,7 +271,11 @@ The admin menu is trimmed for these roles to focus on LL Tools–related items.
 
 ## Update Checker
 
-The plugin includes the **Plugin Update Checker** library and points at this GitHub repository's `main` branch.
+The plugin includes the **Plugin Update Checker** library.
+
+- `Main` stable updates come from a packaged GitHub release asset zip, not the raw source archive.
+- `Dev` remains branch-based for testing and can include development-only repository files.
+- Maintainers should follow the release steps in [RELEASING.md](RELEASING.md).
 
 ---
 
