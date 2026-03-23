@@ -541,20 +541,16 @@
             drawRoundedRect(context, left + 8, top + 8, card.width - 16, card.height - 16, 14);
             context.clip();
             if (image && image.complete && image.naturalWidth > 0) {
-                const imageRatio = image.naturalWidth / image.naturalHeight;
-                const boxRatio = (card.width - 16) / (card.height - 16);
-                let drawWidth = card.width - 16;
-                let drawHeight = card.height - 16;
-                let drawX = left + 8;
-                let drawY = top + 8;
-
-                if (imageRatio > boxRatio) {
-                    drawWidth = drawHeight * imageRatio;
-                    drawX -= (drawWidth - (card.width - 16)) / 2;
-                } else {
-                    drawHeight = drawWidth / imageRatio;
-                    drawY -= (drawHeight - (card.height - 16)) / 2;
-                }
+                const availableWidth = card.width - 16;
+                const availableHeight = card.height - 16;
+                const imageScale = Math.min(
+                    availableWidth / Math.max(1, image.naturalWidth),
+                    availableHeight / Math.max(1, image.naturalHeight)
+                );
+                const drawWidth = image.naturalWidth * imageScale;
+                const drawHeight = image.naturalHeight * imageScale;
+                const drawX = left + 8 + ((availableWidth - drawWidth) / 2);
+                const drawY = top + 8 + ((availableHeight - drawHeight) / 2);
 
                 context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
             } else {
