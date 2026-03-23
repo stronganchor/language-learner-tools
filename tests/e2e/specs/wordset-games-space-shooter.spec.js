@@ -115,6 +115,14 @@ function buildGamesMarkup() {
   `;
 }
 
+function buildSvgImage(width, height, color) {
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="${width}" height="${height}" rx="18" fill="${color}"/>
+    </svg>`
+  )}`;
+}
+
 function buildSpaceShooterWords() {
   return [
     {
@@ -123,7 +131,7 @@ function buildSpaceShooterWords() {
       label: 'Sun',
       prompt_label: 'Sun',
       translation: 'Sun',
-      image: 'https://example.test/images/101.png',
+      image: buildSvgImage(240, 140, '#f59e0b'),
       audio: '',
       audio_files: [{ url: 'https://example.test/audio/101-question.mp3', recording_type: 'question' }],
       practice_recording_types: ['question'],
@@ -141,7 +149,7 @@ function buildSpaceShooterWords() {
       label: 'Moon',
       prompt_label: 'Moon',
       translation: 'Moon',
-      image: 'https://example.test/images/102.png',
+      image: buildSvgImage(140, 240, '#38bdf8'),
       audio: '',
       audio_files: [{ url: 'https://example.test/audio/102-isolation.mp3', recording_type: 'isolation' }],
       practice_recording_types: ['isolation'],
@@ -159,7 +167,7 @@ function buildSpaceShooterWords() {
       label: 'River',
       prompt_label: 'River',
       translation: 'River',
-      image: 'https://example.test/images/shared-a.png',
+      image: buildSvgImage(220, 140, '#10b981'),
       audio: '',
       audio_files: [{ url: 'https://example.test/audio/103-introduction.mp3', recording_type: 'introduction' }],
       practice_recording_types: ['introduction'],
@@ -177,7 +185,7 @@ function buildSpaceShooterWords() {
       label: 'Lake',
       prompt_label: 'Lake',
       translation: 'Lake',
-      image: 'https://example.test/images/shared-a.png',
+      image: buildSvgImage(220, 140, '#10b981'),
       audio: '',
       audio_files: [
         { url: 'https://example.test/audio/104-question.mp3', recording_type: 'question' },
@@ -198,7 +206,7 @@ function buildSpaceShooterWords() {
       label: 'Sword',
       prompt_label: 'Sword',
       translation: 'Sword',
-      image: 'https://example.test/images/105.png',
+      image: buildSvgImage(150, 240, '#ef4444'),
       audio: '',
       audio_files: [
         { url: 'https://example.test/audio/105-isolation.mp3', recording_type: 'isolation' },
@@ -219,7 +227,7 @@ function buildSpaceShooterWords() {
       label: 'Shield',
       prompt_label: 'Shield',
       translation: 'Shield',
-      image: 'https://example.test/images/106.png',
+      image: buildSvgImage(240, 150, '#8b5cf6'),
       audio: '',
       audio_files: [
         { url: 'https://example.test/audio/106-question.mp3', recording_type: 'question' },
@@ -240,7 +248,7 @@ function buildSpaceShooterWords() {
       label: 'Tree',
       prompt_label: 'Tree',
       translation: 'Tree',
-      image: 'https://example.test/images/107.png',
+      image: buildSvgImage(180, 180, '#0ea5e9'),
       audio: '',
       audio_files: [
         { url: 'https://example.test/audio/107-question.mp3', recording_type: 'question' },
@@ -657,10 +665,17 @@ test('space shooter launches with safe option mixes and records progress flows',
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.activeCardCount === 4);
   });
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && Array.isArray(run.cardSnapshot)
+      && run.cardSnapshot.some((card) => card.promptId === run.promptId && Math.abs(card.width - card.height) > 8));
+  });
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
   expect(['question', 'isolation', 'introduction']).toContain(initialRun.promptRecordingType);
+  expect(initialRun.cardSnapshot.some((card) => card.promptId === initialRun.promptId && Math.abs(card.width - card.height) > 8)).toBe(true);
 
   const pauseSnapshot = await page.evaluate(() => {
     const run = window.LLWordsetGames.__debug.getRunState();

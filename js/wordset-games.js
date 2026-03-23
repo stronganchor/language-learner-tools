@@ -5,6 +5,9 @@
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const MODULE_NS = '.llWordsetGames';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
+    const CARD_RATIO_MIN = 0.55;
+    const CARD_RATIO_MAX = 2.5;
+    const CARD_RATIO_DEFAULT = 1;
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -66,6 +69,14 @@
                 sequential += 1;
                 return String(value);
             });
+    }
+
+    function clampAspectRatio(value) {
+        const num = Number(value);
+        if (!num || !isFinite(num) || num <= 0) {
+            return null;
+        }
+        return Math.min(CARD_RATIO_MAX, Math.max(CARD_RATIO_MIN, num));
     }
 
     function shuffle(list) {
@@ -221,7 +232,7 @@
         const height = Math.max(360, run.height || 720);
         const laneCount = run.cardCount || 4;
         const cardWidth = clamp(width * 0.18, 84, 126);
-        const cardHeight = cardWidth * 1.12;
+        const cardHeight = clamp(cardWidth * 1.28, 112, 172);
         const laneWidth = width / laneCount;
         const shipWidth = clamp(width * 0.14, 54, 90);
         const shipHeight = shipWidth * 0.58;
@@ -293,9 +304,7 @@
         run.stars = createStageStars(run);
 
         run.cards.forEach(function (card) {
-            card.width = run.metrics.cardWidth;
-            card.height = run.metrics.cardHeight;
-            card.x = laneCenterX(run, card.laneIndex);
+            applyCardDimensions(ctx, run, card);
         });
         run.bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
@@ -404,6 +413,49 @@
         context.closePath();
     }
 
+    function getCardRadius(card) {
+        return Math.max(10, Math.min(18, Math.min(card.width, card.height) * 0.18));
+    }
+
+    function getCardDimensions(run, aspectRatio) {
+        const ratio = clampAspectRatio(aspectRatio) || CARD_RATIO_DEFAULT;
+        const maxWidth = Math.max(1, Number(run && run.metrics && run.metrics.cardWidth) || 1);
+        const maxHeight = Math.max(1, Number(run && run.metrics && run.metrics.cardHeight) || 1);
+
+        let width = maxWidth;
+        let height = width / ratio;
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = height * ratio;
+        }
+
+        return {
+            width: Math.round(width * 100) / 100,
+            height: Math.round(height * 100) / 100,
+            aspectRatio: ratio
+        };
+    }
+
+    function getWordImageAspectRatio(ctx, word) {
+        const image = loadWordImage(ctx, word);
+        if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+            return null;
+        }
+        return clampAspectRatio(image.naturalWidth / image.naturalHeight);
+    }
+
+    function applyCardDimensions(ctx, run, card) {
+        if (!run || !card) {
+            return;
+        }
+
+        const dimensions = getCardDimensions(run, getWordImageAspectRatio(ctx, card.word));
+        card.width = dimensions.width;
+        card.height = dimensions.height;
+        card.aspectRatio = dimensions.aspectRatio;
+        card.x = laneCenterX(run, card.laneIndex);
+    }
+
     function loadWordImage(ctx, word) {
         const url = String(word && word.image || '');
         if (!url) {
@@ -414,6 +466,17 @@
         }
         const image = new Image();
         image.decoding = 'async';
+        image.addEventListener('load', function () {
+            const run = ctx && ctx.run;
+            if (!run || !Array.isArray(run.cards)) {
+                return;
+            }
+            run.cards.forEach(function (card) {
+                if (toInt(card && card.word && card.word.id) === toInt(word && word.id)) {
+                    applyCardDimensions(ctx, run, card);
+                }
+            });
+        });
         image.src = url;
         ctx.imageCache[url] = image;
         return image;
@@ -527,7 +590,7 @@
             context.shadowColor = 'rgba(15, 23, 42, 0.22)';
             context.shadowBlur = 16;
             context.shadowOffsetY = 10;
-            drawRoundedRect(context, left, top, card.width, card.height, 18);
+            drawRoundedRect(context, left, top, card.width, card.height, getCardRadius(card));
             context.fillStyle = '#FFFFFF';
             context.fill();
             context.shadowBlur = 0;
@@ -535,17 +598,17 @@
 
             const image = loadWordImage(ctx, card.word);
             context.save();
-            drawRoundedRect(context, left, top, card.width, card.height, 18);
+            drawRoundedRect(context, left, top, card.width, card.height, getCardRadius(card));
             context.clip();
             if (image && image.complete && image.naturalWidth > 0) {
                 const availableWidth = card.width;
                 const availableHeight = card.height;
-                const coverScale = Math.max(
+                const containScale = Math.min(
                     availableWidth / Math.max(1, image.naturalWidth),
                     availableHeight / Math.max(1, image.naturalHeight)
                 );
-                const drawWidth = image.naturalWidth * coverScale;
-                const drawHeight = image.naturalHeight * coverScale;
+                const drawWidth = image.naturalWidth * containScale;
+                const drawHeight = image.naturalHeight * containScale;
                 const drawX = left + ((availableWidth - drawWidth) / 2);
                 const drawY = top + ((availableHeight - drawHeight) / 2);
 
@@ -566,7 +629,7 @@
 
             context.strokeStyle = 'rgba(15, 23, 42, 0.08)';
             context.lineWidth = 1.5;
-            drawRoundedRect(context, left, top, card.width, card.height, 18);
+            drawRoundedRect(context, left, top, card.width, card.height, getCardRadius(card));
             context.stroke();
 
             if (dramatic) {
@@ -584,7 +647,7 @@
                 context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.9)' : 'rgba(248, 113, 113, 0.92)';
                 context.lineWidth = dramatic ? 4 : 3;
                 context.beginPath();
-                context.arc(card.x, card.y, (card.width * 0.2) + (progress * card.width * (dramatic ? 0.82 : 0.55)), 0, Math.PI * 2);
+                context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.2) + (progress * Math.max(card.width, card.height) * (dramatic ? 0.82 : 0.55)), 0, Math.PI * 2);
                 context.stroke();
             }
             context.restore();
@@ -674,14 +737,16 @@
 
     function createCard(run, word, laneIndex, isTarget, offsetFactor, promptId) {
         const baseOffset = Math.max(0, Number(offsetFactor) || 0);
+        const dimensions = getCardDimensions(run, null);
         return {
             word: word,
             promptId: toInt(promptId),
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
-            y: -run.metrics.cardHeight * (0.58 + baseOffset + (Math.random() * 0.14)),
-            width: run.metrics.cardWidth,
-            height: run.metrics.cardHeight,
+            y: -dimensions.height * (0.58 + baseOffset + (Math.random() * 0.14)),
+            width: dimensions.width,
+            height: dimensions.height,
+            aspectRatio: dimensions.aspectRatio,
             speed: run.cardSpeed,
             isTarget: !!isTarget,
             resolvedFalling: false,
@@ -718,7 +783,7 @@
         return selected;
     }
 
-    function buildPromptCards(run, targetWord, words, promptId) {
+    function buildPromptCards(ctx, run, targetWord, words, promptId) {
         const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount);
         if (!selected) {
             return null;
@@ -728,7 +793,7 @@
         const laneOrder = shuffle([0, 1, 2, 3]);
         const stagger = shuffle([0.1, 0.38, 0.72, 1.02]);
         return shuffledWords.map(function (word, index) {
-            return createCard(
+            const card = createCard(
                 run,
                 word,
                 laneOrder[index],
@@ -736,6 +801,8 @@
                 stagger[index] || (index * 0.28),
                 promptId
             );
+            applyCardDimensions(ctx, run, card);
+            return card;
         });
     }
 
@@ -753,6 +820,9 @@
                 const audio = selectPromptAudio(word);
                 return word.id > 0 && word.image !== '' && audio.url !== '';
             });
+        words.forEach(function (word) {
+            loadWordImage(ctx, word);
+        });
         const playableTargets = findPlayableTargets(words, ctx.spaceShooter.cardCount);
         const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
         const prepared = $.extend({}, entry, {
@@ -1051,7 +1121,7 @@
                 continue;
             }
             const promptId = run.promptIdCounter + 1;
-            const cards = buildPromptCards(run, targetWord, run.words, promptId);
+            const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId);
             if (!cards) {
                 continue;
             }
@@ -1850,6 +1920,8 @@
                         wordId: toInt(card.word && card.word.id),
                         promptId: toInt(card.promptId),
                         y: Math.round(Number(card.y) || 0),
+                        width: Math.round(Number(card.width) || 0),
+                        height: Math.round(Number(card.height) || 0),
                         exploding: !!card.exploding,
                         resolvedFalling: !!card.resolvedFalling,
                         isTarget: !!card.isTarget
