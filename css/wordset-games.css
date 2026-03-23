@@ -46,8 +46,8 @@
 }
 
 .ll-wordset-game-card__icon-svg {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
 }
 
 .ll-wordset-game-card__body {
@@ -347,6 +347,13 @@
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
+    }
+}
+
+@media (min-width: 861px) {
+    .ll-wordset-games-catalog > .ll-wordset-game-card:only-child {
+        justify-self: start;
+        max-width: min(100%, 780px);
     }
 }
 

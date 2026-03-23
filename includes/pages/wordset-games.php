@@ -9,11 +9,12 @@ function ll_tools_wordset_games_min_word_count(): int {
 function ll_tools_wordset_games_render_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
-        . '<path d="M7.25 8.25h9.5a4 4 0 0 1 3.87 5.03l-1.05 3.96a2.5 2.5 0 0 1-2.41 1.86h-1.41a1.5 1.5 0 0 1-1.34-.83l-.8-1.58h-1.22l-.8 1.58a1.5 1.5 0 0 1-1.34.83H6.84a2.5 2.5 0 0 1-2.41-1.86l-1.05-3.96A4 4 0 0 1 7.25 8.25Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
-        . '<path d="M8.1 11.35v3.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
-        . '<path d="M6.55 12.9h3.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
-        . '<circle cx="15.95" cy="11.75" r="1.05" fill="currentColor"/>'
-        . '<circle cx="18.2" cy="14" r="1.05" fill="currentColor"/>'
+        . '<path d="M12 3.2L17.95 17.9L12 14.65L6.05 17.9L12 3.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>'
+        . '<path d="M12 6.55L14.15 11.9H9.85L12 6.55Z" fill="currentColor"/>'
+        . '<path d="M9.65 15.1C9.86 16.44 10.74 17.45 12 17.45C13.26 17.45 14.14 16.44 14.35 15.1H9.65Z" fill="currentColor"/>'
+        . '<path d="M9.25 14.1H14.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+        . '<path d="M8.15 18.05L6.35 20.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+        . '<path d="M15.85 18.05L17.65 20.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
         . '</svg>';
 }
 
