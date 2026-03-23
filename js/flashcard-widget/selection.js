@@ -346,6 +346,19 @@
         }
     }
 
+    function applyGenderUnknownOptionCard($card, label) {
+        if (!$card || !$card.length) return;
+        const displayLabel = String(label || '').trim();
+        const $label = $card.find('.quiz-text').first();
+        if (!$label.length) return;
+        $label.html(
+            '<span class="ll-gender-option-inner ll-gender-option-inner--unknown">'
+            + '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
+            + '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>'
+            + '</span>'
+        );
+    }
+
     function resetGenderOptionTextSizing($card) {
         if (!$card || !$card.length) return;
         $card.each(function () {
@@ -432,18 +445,39 @@
         });
     }
 
-    function cardGenderContentOverflows(cardEl) {
-        if (!cardEl || typeof cardEl.querySelector !== 'function') return false;
+    function getGenderCardMeasureElement(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return null;
+        return cardEl.querySelector('.ll-gender-option-inner') || cardEl.querySelector('.quiz-text');
+    }
+
+    function getGenderCardAvailableWidth(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return 0;
         const textEl = cardEl.querySelector('.quiz-text');
-        const innerEl = cardEl.querySelector('.ll-gender-option-inner');
-        if (!textEl) return false;
-        const available = Math.max(0, Math.floor(textEl.clientWidth) - 2);
-        if (!available) return false;
-        const measureEl = innerEl || textEl;
-        const neededWidth = Math.ceil(measureEl.scrollWidth || 0);
-        const availableHeight = Math.max(0, Math.floor(textEl.clientHeight) + 1);
-        const neededHeight = Math.ceil(measureEl.scrollHeight || 0);
-        return neededWidth > available || neededHeight > availableHeight;
+        if (!textEl) return 0;
+        return Math.max(0, Math.floor(textEl.clientWidth || 0) - 4);
+    }
+
+    function getGenderCardWidthRatio(cardEl) {
+        const measureEl = getGenderCardMeasureElement(cardEl);
+        const availableWidth = getGenderCardAvailableWidth(cardEl);
+        if (!measureEl || !availableWidth) return 1;
+        const measuredWidth = Math.max(
+            Math.ceil(measureEl.scrollWidth || 0),
+            Math.ceil((measureEl.getBoundingClientRect && measureEl.getBoundingClientRect().width) || 0)
+        );
+        if (!measuredWidth) return 1;
+        return Math.min(1, availableWidth / measuredWidth);
+    }
+
+    function cardGenderContentOverflows(cardEl) {
+        const measureEl = getGenderCardMeasureElement(cardEl);
+        const availableWidth = getGenderCardAvailableWidth(cardEl);
+        if (!measureEl || !availableWidth) return false;
+        const neededWidth = Math.max(
+            Math.ceil(measureEl.scrollWidth || 0),
+            Math.ceil((measureEl.getBoundingClientRect && measureEl.getBoundingClientRect().width) || 0)
+        );
+        return neededWidth > (availableWidth + 1);
     }
 
     function fitGenderOptionTextScale() {
@@ -454,8 +488,8 @@
         const $measureCards = $allCards;
 
         const MIN_SCALE = 0.56;
-        const SCALE_STEP = 0.03;
-        const MAX_PASSES = 16;
+        const SCALE_STEP = 0.02;
+        const MAX_PASSES = 4;
 
         const applyScale = function (scale) {
             const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
@@ -468,7 +502,13 @@
             return normalized;
         };
 
-        let scale = applyScale(1);
+        applyScale(1);
+        let targetScale = 1;
+        $measureCards.each(function () {
+            targetScale = Math.min(targetScale, getGenderCardWidthRatio(this));
+        });
+
+        let scale = applyScale(targetScale);
         for (let pass = 0; pass < MAX_PASSES; pass++) {
             let hasOverflow = false;
             $measureCards.each(function () {
@@ -1749,7 +1789,10 @@
             .attr('data-ll-gender-choice', '')
             .attr('data-ll-gender-correct', '0')
             .attr('data-ll-gender-unknown', '1')
-            .attr('data-ll-gender-role', 'unknown');
+            .attr('data-ll-gender-role', 'unknown')
+            .attr('aria-label', dontKnowLabel)
+            .attr('title', dontKnowLabel);
+        applyGenderUnknownOptionCard($unknownCard, dontKnowLabel);
         resetGenderOptionTextSizing($unknownCard);
         root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 

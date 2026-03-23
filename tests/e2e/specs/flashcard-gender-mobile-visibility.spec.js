@@ -184,7 +184,7 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     expect(card.visibility).toBe('visible');
     expect(card.width).toBeGreaterThan(0);
     expect(card.height).toBeGreaterThan(0);
-    expect(card.fontSize).toBeGreaterThan(0);
+    expect(card.fontSize).toBeGreaterThan(12);
   });
 
   const genderCards = cards.filter((card) => card.role === 'masculine' || card.role === 'feminine');
