@@ -55,9 +55,8 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
     </div>
 
     <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+      <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
       <div id="ll-tools-flashcard-header" style="display:none;">
-        <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
-
         <div id="ll-tools-learning-progress" style="display:none;"></div>
 
         <div id="ll-tools-category-stack" class="ll-tools-category-stack">

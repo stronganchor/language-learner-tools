@@ -652,10 +652,9 @@ function ll_qpg_print_flashcard_shell_once() {
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+          <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
 
           <div id="ll-tools-flashcard-header" style="display:none;">
-            <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
-
             <div id="ll-tools-learning-progress" style="display:none;"></div>
 
             <div id="ll-tools-category-stack" class="ll-tools-category-stack">

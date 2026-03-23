@@ -53,16 +53,21 @@ test('mobile quiz results stay near the top of the popup', async ({ page }) => {
   const metrics = await page.evaluate(() => {
     const results = document.querySelector('#quiz-results');
     const popup = document.querySelector('#ll-tools-flashcard-quiz-popup');
+    const close = document.querySelector('#ll-tools-close-flashcard');
     const buttons = Array.from(document.querySelectorAll('#quiz-mode-buttons .quiz-mode-button'));
-    if (!results || !popup || !buttons.length) {
+    if (!results || !popup || !close || !buttons.length) {
       return null;
     }
 
     const resultsRect = results.getBoundingClientRect();
     const popupRect = popup.getBoundingClientRect();
+    const closeRect = close.getBoundingClientRect();
     const lastButtonRect = buttons[buttons.length - 1].getBoundingClientRect();
 
     return {
+      closeTop: Math.round(closeRect.top - popupRect.top),
+      closeRightGap: Math.round(popupRect.right - closeRect.right),
+      closeBottom: Math.round(closeRect.bottom - popupRect.top),
       topOffset: Math.round(resultsRect.top - popupRect.top),
       lastButtonBottom: Math.round(lastButtonRect.bottom - popupRect.top),
       viewportHeight: window.innerHeight
@@ -70,6 +75,11 @@ test('mobile quiz results stay near the top of the popup', async ({ page }) => {
   });
 
   expect(metrics).not.toBeNull();
+  expect(metrics.closeTop).toBeGreaterThanOrEqual(8);
+  expect(metrics.closeTop).toBeLessThan(40);
+  expect(metrics.closeRightGap).toBeGreaterThanOrEqual(8);
+  expect(metrics.closeRightGap).toBeLessThan(40);
+  expect(metrics.closeBottom).toBeLessThan(metrics.topOffset);
   expect(metrics.topOffset).toBeGreaterThanOrEqual(40);
   expect(metrics.topOffset).toBeLessThan(180);
   expect(metrics.lastButtonBottom).toBeLessThanOrEqual(metrics.viewportHeight - 24);

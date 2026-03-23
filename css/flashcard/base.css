@@ -456,8 +456,8 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 #ll-tools-close-category-selection,
 #ll-tools-close-flashcard {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
     width: 48px;
     height: 48px;
     padding: 0;
@@ -466,11 +466,35 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    background: none;
-    border: none;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #d1d5db;
     font-size: 24px;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
-    color: black;
+    color: #111827;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+    z-index: 30;
+    appearance: none;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+#ll-tools-close-category-selection:hover,
+#ll-tools-close-category-selection:focus-visible,
+#ll-tools-close-flashcard:hover,
+#ll-tools-close-flashcard:focus-visible {
+    background: #ffffff;
+    border-color: #94a3b8;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+    transform: translateY(-1px);
+}
+
+#ll-tools-close-category-selection:focus-visible,
+#ll-tools-close-flashcard:focus-visible {
+    outline: 2px solid #1d4d99;
+    outline-offset: 2px;
 }
 
 /* Quiz Results Styles */

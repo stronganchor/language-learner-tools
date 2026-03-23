@@ -39,6 +39,11 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
 
             $this->assertStringContainsString('id="ll-tools-flashcard-container"', $output);
             $this->assertTrue(wp_script_is('ll-flc-main', 'enqueued'));
+            $close_pos = strpos($output, 'id="ll-tools-close-flashcard"');
+            $header_pos = strpos($output, 'id="ll-tools-flashcard-header"');
+            $this->assertNotFalse($close_pos);
+            $this->assertNotFalse($header_pos);
+            $this->assertLessThan($header_pos, $close_pos, 'Close button should render before the popup header so results do not depend on header visibility.');
 
             $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
             $this->assertIsString($localized_main);

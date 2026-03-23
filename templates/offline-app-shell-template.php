@@ -510,8 +510,8 @@ $escape_asset_url = static function ($asset): string {
         </div>
 
         <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+          <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
           <div id="ll-tools-flashcard-header" style="display:none;">
-            <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
             <div id="ll-tools-learning-progress" style="display:none;"></div>
             <div id="ll-tools-category-stack" class="ll-tools-category-stack">
               <span id="ll-tools-category-display" class="ll-tools-category-display"></span>
