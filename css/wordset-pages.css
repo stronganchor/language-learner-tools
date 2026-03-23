@@ -3315,6 +3315,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background-clip: padding-box;
 }
 
+.ll-wordset-progress-table th.ll-wordset-progress-filter-open {
+    z-index: 16;
+}
+
 .ll-wordset-progress-table tr.is-selected td {
     background: #f1f9ff;
 }
@@ -3518,7 +3522,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     position: absolute;
     top: calc(100% + 6px);
     left: 4px;
-    z-index: 9;
+    z-index: 24;
     min-width: 128px;
     padding: 8px;
     border: 1px solid #cdd5df;
@@ -3531,7 +3535,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 1200;
+    z-index: 1600;
 }
 
 .ll-wordset-progress-filter-pop--category {
@@ -3595,7 +3599,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-filter-option__label {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
     line-height: 1.25;
+}
+
+.ll-wordset-progress-filter-option__count {
+    color: var(--ll-wp-muted);
+    font-weight: 500;
 }
 
 .ll-wordset-progress-filter-option--hard-range {
