@@ -144,8 +144,8 @@ function printOutputHints(mode) {
 function buildDebug() {
   run(commandName('npx'), ['cap', 'sync', 'android']);
   const gradle = process.platform === 'win32'
-    ? path.join(ANDROID_DIR, 'gradlew.bat')
-    : path.join(ANDROID_DIR, 'gradlew');
+    ? 'gradlew.bat'
+    : './gradlew';
   run(gradle, ['assembleDebug'], { cwd: ANDROID_DIR });
   printOutputHints('debug');
 }
