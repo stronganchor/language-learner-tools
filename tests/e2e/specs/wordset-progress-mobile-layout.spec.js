@@ -33,6 +33,15 @@ function buildProgressAnalytics() {
       max_events: 0,
       window_days: 14
     },
+    gender_progress: {
+      enabled: false,
+      tracked_word_total: 0,
+      not_started_words: 0,
+      level_1_words: 0,
+      level_2_words: 0,
+      level_3_words: 0,
+      categories: []
+    },
     categories: [
       {
         id: 11,
@@ -150,6 +159,15 @@ function buildSkewedProgressAnalytics() {
       max_events: 0,
       window_days: 14
     },
+    gender_progress: {
+      enabled: false,
+      tracked_word_total: 0,
+      not_started_words: 0,
+      level_1_words: 0,
+      level_2_words: 0,
+      level_3_words: 0,
+      categories: []
+    },
     categories: [
       {
         id: 11,
@@ -238,7 +256,15 @@ function buildProgressPageConfig(overrides = {}) {
       analyticsStarred: 'Starred',
       analyticsHard: 'Hard',
       analyticsPlayAudio: 'Play audio',
-      analyticsPlayAudioFor: 'Play audio for %s'
+      analyticsPlayAudioFor: 'Play audio for %s',
+      analyticsGenderTitle: 'Gender',
+      analyticsGenderNote: 'Only words with marked gender are counted.',
+      analyticsGenderTrackedWords: '%d tracked words',
+      analyticsGenderNotStarted: 'Not started',
+      analyticsGenderLevel1: 'Level 1',
+      analyticsGenderLevel2: 'Level 2',
+      analyticsGenderLevel3: 'Level 3',
+      analyticsGenderLastPracticed: 'Last practiced'
     },
     gender: {
       enabled: false,
@@ -261,6 +287,17 @@ function buildProgressPageMarkup() {
         <div class="ll-wordset-progress-status" data-ll-wordset-progress-status></div>
         <div class="ll-wordset-progress-summary" data-ll-wordset-progress-summary></div>
         <div class="ll-wordset-progress-graph" data-ll-wordset-progress-graph></div>
+        <section class="ll-wordset-progress-gender" data-ll-wordset-progress-gender hidden>
+          <div class="ll-wordset-progress-gender__head">
+            <div class="ll-wordset-progress-gender__copy">
+              <h2 class="ll-wordset-progress-gender__title">Gender</h2>
+              <p class="ll-wordset-progress-gender__note">Only words with marked gender are counted.</p>
+            </div>
+          </div>
+          <div class="ll-wordset-progress-gender__cards" data-ll-wordset-progress-gender-cards></div>
+          <div class="ll-wordset-progress-gender__overview" data-ll-wordset-progress-gender-overview></div>
+          <div class="ll-wordset-progress-gender__categories" data-ll-wordset-progress-gender-categories></div>
+        </section>
 
         <div class="ll-wordset-progress-tabs" role="tablist" aria-label="Progress">
           <button type="button" class="ll-wordset-progress-tab active" data-ll-wordset-progress-tab="categories" aria-selected="true">Categories</button>
@@ -649,6 +686,47 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 
   expect(resizedMetrics.wrapWidth).toBeGreaterThan(metrics.wrapWidth);
   expect(Math.abs(resizedMetrics.tableWidth - resizedMetrics.wrapWidth)).toBeLessThanOrEqual(2);
+});
+
+test('progress view renders gender section with overview and category breakdown', async ({ page }) => {
+  const analytics = buildProgressAnalytics();
+  analytics.gender_progress = {
+    enabled: true,
+    tracked_word_total: 3,
+    not_started_words: 1,
+    level_1_words: 1,
+    level_2_words: 1,
+    level_3_words: 0,
+    categories: [
+      {
+        id: 11,
+        label: 'Cat A',
+        tracked_word_total: 3,
+        not_started_words: 1,
+        level_1_words: 1,
+        level_2_words: 1,
+        level_3_words: 0,
+        last_gender_seen_at: '2026-03-20 10:00:00'
+      }
+    ]
+  };
+
+  await mountProgressPage(page, { width: 390, height: 844 }, {
+    analytics,
+    gender: {
+      enabled: true,
+      options: ['masculine', 'feminine'],
+      min_count: 2
+    }
+  });
+
+  const section = page.locator('[data-ll-wordset-progress-gender]');
+  await expect(section).toBeVisible();
+  await expect(section).toContainText('Gender');
+  await expect(section).toContainText('Only words with marked gender are counted.');
+  await expect(section).toContainText('3 tracked words');
+  await expect(section.locator('.ll-wordset-progress-gender-card')).toHaveCount(4);
+  await expect(section).toContainText('Last practiced');
 });
 
 test('desktop progress words table sticky header respects the visible admin bar while scrolling', async ({ page }) => {

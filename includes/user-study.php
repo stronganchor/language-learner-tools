@@ -283,13 +283,25 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
             $progress_rows = ll_tools_get_user_word_progress_rows($uid, $word_ids);
         }
 
-        $result[$cid] = array_map(function ($w) use ($term, $progress_rows) {
+        $result[$cid] = array_map(function ($w) use ($term, $progress_rows, $wordset_id, $merged_config) {
             $word_id = (int) ($w['id'] ?? 0);
             $title = isset($w['title']) ? (string) $w['title'] : '';
             $translation = '';
             $progress = ($word_id > 0 && isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id]))
                 ? $progress_rows[$word_id]
                 : [];
+            $gender_support = function_exists('ll_tools_get_word_gender_support_snapshot')
+                ? ll_tools_get_word_gender_support_snapshot((array) $w, (int) $wordset_id, [
+                    'category_id' => (int) $term->term_id,
+                    'category_name' => (string) $term->name,
+                    'quiz_config' => (array) $merged_config,
+                ])
+                : [
+                    'normalized_gender' => '',
+                    'gender_marked' => false,
+                    'gender_progress_tracked' => false,
+                    'gender_eligible' => false,
+                ];
             if ($word_id > 0) {
                 $translation = trim((string) get_post_meta($word_id, 'word_translation', true));
                 if ($translation === '') {
@@ -311,6 +323,15 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'audio_files'    => isset($w['audio_files']) ? (array) $w['audio_files'] : [],
                 'preferred_speaker_user_id' => isset($w['preferred_speaker_user_id']) ? (int) $w['preferred_speaker_user_id'] : 0,
                 'all_categories' => isset($w['all_categories']) ? (array) $w['all_categories'] : [$term->name],
+                'part_of_speech' => isset($w['part_of_speech']) ? (array) $w['part_of_speech'] : [],
+                'grammatical_gender' => isset($w['grammatical_gender']) ? (string) $w['grammatical_gender'] : '',
+                'normalized_grammatical_gender' => (string) ($gender_support['normalized_gender'] ?? ''),
+                'gender_marked' => !empty($gender_support['gender_marked']),
+                'gender_progress_tracked' => !empty($gender_support['gender_progress_tracked']),
+                'gender_eligible' => !empty($gender_support['gender_eligible']),
+                'gender_progress' => function_exists('ll_tools_get_progress_row_gender_progress')
+                    ? ll_tools_get_progress_row_gender_progress($progress)
+                    : [],
                 'wordset_ids'    => isset($w['wordset_ids']) ? (array) $w['wordset_ids'] : [],
                 'progress_total_coverage' => max(0, (int) ($progress['total_coverage'] ?? 0)),
                 'progress_stage' => max(0, (int) ($progress['stage'] ?? 0)),

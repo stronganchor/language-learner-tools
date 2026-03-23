@@ -119,6 +119,7 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
           <span id="correct-count">0</span> / <span id="total-questions">0</span>
         </p>
         <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
+        <div id="ll-gender-results-progress" style="display:none; margin-top: 14px;"></div>
         <div id="quiz-mode-buttons" style="display:none; margin-top: 20px;">
           <?php
             $practice_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');

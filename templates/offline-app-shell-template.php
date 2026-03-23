@@ -565,6 +565,7 @@ $escape_asset_url = static function ($asset): string {
               <span id="correct-count">0</span> / <span id="total-questions">0</span>
             </p>
             <p id="quiz-results-categories" style="margin-top:10px;display:none;"></p>
+            <div id="ll-gender-results-progress" style="display:none; margin-top: 14px;"></div>
             <?php
               $practice_results_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice Mode', 'll-tools-text-domain');
               $learning_results_label = $learning_mode_ui['resultsButtonText'] ?? __('Learning Mode', 'll-tools-text-domain');

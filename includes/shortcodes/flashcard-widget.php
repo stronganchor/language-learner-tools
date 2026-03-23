@@ -351,6 +351,12 @@ function ll_flashcards_get_messages(): array {
         'genderResultsMessage'    => __('Keep training noun gender with the next activity.', 'll-tools-text-domain'),
         'genderNextActivity'      => __('Next Gender Activity', 'll-tools-text-domain'),
         'genderNextChunk'         => __('Next Recommended Set', 'll-tools-text-domain'),
+        'genderProgressTitle'     => __('Gender progress', 'll-tools-text-domain'),
+        'genderProgressCurrentSet'=> __('Current set', 'll-tools-text-domain'),
+        'genderProgressWords'     => __('%d words', 'll-tools-text-domain'),
+        'genderProgressLevel1'    => __('Level 1', 'll-tools-text-domain'),
+        'genderProgressLevel2'    => __('Level 2', 'll-tools-text-domain'),
+        'genderProgressLevel3'    => __('Level 3', 'll-tools-text-domain'),
         'genderNextRepeat'        => __('Repeat This Level', 'll-tools-text-domain'),
         'genderNextLevel2'        => __('Start Level 2', 'll-tools-text-domain'),
         'genderNextLevel3'        => __('Start Level 3', 'll-tools-text-domain'),
@@ -619,7 +625,28 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     }
 
     if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
-        $initial_words = ll_tools_attach_user_practice_progress_to_words((array) $initial_words, get_current_user_id());
+        $initial_category_context = [];
+        foreach ($categories as $category_row) {
+            if (!is_array($category_row) || (string) ($category_row['name'] ?? '') !== $firstCategoryName) {
+                continue;
+            }
+            $initial_category_context = [
+                'wordset_id' => $gender_wordset_id,
+                'category_id' => (int) ($category_row['id'] ?? 0),
+                'category_name' => $firstCategoryName,
+                'quiz_config' => [
+                    'prompt_type' => (string) ($category_row['prompt_type'] ?? 'audio'),
+                    'option_type' => (string) ($category_row['option_type'] ?? ($category_row['mode'] ?? 'image')),
+                ],
+            ];
+            break;
+        }
+
+        $initial_words = ll_tools_attach_user_practice_progress_to_words(
+            (array) $initial_words,
+            get_current_user_id(),
+            $initial_category_context
+        );
     }
 
     $launch_context = '';
@@ -1067,7 +1094,12 @@ function ll_get_words_by_category_ajax() {
     $words = ll_get_words_by_category($category, $base_config['option_type'], $wordset_ids, $base_config);
 
     if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
-        $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id());
+        $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id(), [
+            'wordset_id' => (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0,
+            'category_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
+            'category_name' => $category,
+            'quiz_config' => $base_config,
+        ]);
     }
 
     // Public endpoint should not expose internal user IDs.

@@ -2892,6 +2892,15 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options')) {
         $gender_options = ll_tools_wordset_get_gender_options($wordset_id);
     }
+    $gender_progress_analytics = (isset($analytics['gender_progress']) && is_array($analytics['gender_progress']))
+        ? $analytics['gender_progress']
+        : [];
+    $render_progress_gender_section = (
+        $view === 'progress'
+        && $is_study_user
+        && !empty($gender_progress_analytics['enabled'])
+        && max(0, (int) ($gender_progress_analytics['tracked_word_total'] ?? 0)) > 0
+    );
 
     $study_by_id = [];
     foreach ((array) $study_categories as $study_cat) {
@@ -3363,6 +3372,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsLast' => __('Last', 'll-tools-text-domain'),
             'analyticsNever' => __('Never', 'll-tools-text-domain'),
             'analyticsDayEvents' => __('%1$d events, %2$d words', 'll-tools-text-domain'),
+            'analyticsGenderTitle' => __('Gender', 'll-tools-text-domain'),
+            'analyticsGenderNote' => __('Only words with marked gender are counted.', 'll-tools-text-domain'),
+            'analyticsGenderTrackedWords' => __('%d tracked words', 'll-tools-text-domain'),
+            'analyticsGenderNotStarted' => __('Not started', 'll-tools-text-domain'),
+            'analyticsGenderLevel1' => __('Level 1', 'll-tools-text-domain'),
+            'analyticsGenderLevel2' => __('Level 2', 'll-tools-text-domain'),
+            'analyticsGenderLevel3' => __('Level 3', 'll-tools-text-domain'),
+            'analyticsGenderLastPracticed' => __('Last practiced', 'll-tools-text-domain'),
             'modePractice' => __('Practice', 'll-tools-text-domain'),
             'modeLearning' => __('Learn', 'll-tools-text-domain'),
             'modeListening' => __('Listen', 'll-tools-text-domain'),
@@ -3512,6 +3529,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-progress-kpi-label"><?php echo esc_html__('New', 'll-tools-text-domain'); ?></span>
                         </div>
                     </div>
+
+                    <?php if ($render_progress_gender_section) : ?>
+                        <section class="ll-wordset-progress-gender" data-ll-wordset-progress-gender>
+                            <div class="ll-wordset-progress-gender__head">
+                                <div class="ll-wordset-progress-gender__copy">
+                                    <h2 class="ll-wordset-progress-gender__title"><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></h2>
+                                    <p class="ll-wordset-progress-gender__note"><?php echo esc_html__('Only words with marked gender are counted.', 'll-tools-text-domain'); ?></p>
+                                </div>
+                            </div>
+                            <div class="ll-wordset-progress-gender__cards" data-ll-wordset-progress-gender-cards></div>
+                            <div class="ll-wordset-progress-gender__overview" data-ll-wordset-progress-gender-overview></div>
+                            <div class="ll-wordset-progress-gender__categories" data-ll-wordset-progress-gender-categories></div>
+                        </section>
+                    <?php endif; ?>
 
                     <div class="ll-wordset-progress-tabs" role="tablist" aria-label="<?php echo esc_attr__('Progress', 'll-tools-text-domain'); ?>">
                         <button type="button" class="ll-wordset-progress-tab active" data-ll-wordset-progress-tab="categories" aria-selected="true"><?php echo esc_html__('Categories', 'll-tools-text-domain'); ?></button>

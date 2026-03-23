@@ -2713,6 +2713,179 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 10px;
 }
 
+.ll-wordset-progress-gender {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--ll-wp-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.ll-wordset-progress-gender__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ll-wordset-progress-gender__copy {
+    display: grid;
+    gap: 4px;
+}
+
+.ll-wordset-progress-gender__title {
+    margin: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+    color: #0f172a !important;
+}
+
+.ll-wordset-progress-gender__note {
+    margin: 0 !important;
+    color: var(--ll-wp-muted) !important;
+    font-size: 0.84rem !important;
+    line-height: 1.35 !important;
+}
+
+.ll-wordset-progress-gender__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.ll-wordset-progress-gender-card {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: #ffffff;
+}
+
+.ll-wordset-progress-gender-card__value {
+    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.ll-wordset-progress-gender-card__label {
+    color: #526072;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.ll-wordset-progress-gender-card--not-started {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(100, 116, 139, 0.2);
+}
+
+.ll-wordset-progress-gender-card--level-1 {
+    background: rgba(30, 64, 175, 0.08);
+    border-color: rgba(30, 64, 175, 0.16);
+}
+
+.ll-wordset-progress-gender-card--level-2 {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: rgba(37, 99, 235, 0.18);
+}
+
+.ll-wordset-progress-gender-card--level-3 {
+    background: rgba(5, 150, 105, 0.12);
+    border-color: rgba(5, 150, 105, 0.2);
+}
+
+.ll-wordset-progress-gender__overview {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-progress-gender-overview__total {
+    color: #334155;
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.ll-wordset-progress-gender-bar {
+    display: flex;
+    width: 100%;
+    min-height: 14px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #e2e8f0;
+}
+
+.ll-wordset-progress-gender-bar.is-empty {
+    background: #e5e7eb;
+}
+
+.ll-wordset-progress-gender-bar__segment {
+    min-width: 0;
+    display: block;
+}
+
+.ll-wordset-progress-gender-bar__segment--not-started {
+    background: #94a3b8;
+}
+
+.ll-wordset-progress-gender-bar__segment--level-1 {
+    background: #1d4ed8;
+}
+
+.ll-wordset-progress-gender-bar__segment--level-2 {
+    background: #2563eb;
+}
+
+.ll-wordset-progress-gender-bar__segment--level-3 {
+    background: #059669;
+}
+
+.ll-wordset-progress-gender__categories {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-progress-gender-category {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+}
+
+.ll-wordset-progress-gender-category__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.ll-wordset-progress-gender-category__label {
+    min-width: 0;
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.ll-wordset-progress-gender-category__count {
+    color: #526072;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.ll-wordset-progress-gender-category__meta {
+    color: var(--ll-wp-muted);
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+
 .ll-wordset-progress-kpi {
     border: 1px solid #d9e2df;
     border-radius: 10px;
@@ -5026,6 +5199,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ll-wordset-progress-gender {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .ll-wordset-progress-gender__cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ll-wordset-progress-gender-category__head {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
 

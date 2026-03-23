@@ -280,6 +280,10 @@
     const $progressScope = $root.find('[data-ll-wordset-progress-scope]');
     const $progressStatus = $root.find('[data-ll-wordset-progress-status]');
     const $progressSummary = $root.find('[data-ll-wordset-progress-summary]');
+    const $progressGender = $root.find('[data-ll-wordset-progress-gender]');
+    const $progressGenderCards = $root.find('[data-ll-wordset-progress-gender-cards]');
+    const $progressGenderOverview = $root.find('[data-ll-wordset-progress-gender-overview]');
+    const $progressGenderCategories = $root.find('[data-ll-wordset-progress-gender-categories]');
     const $progressGraph = $root.find('[data-ll-wordset-progress-graph]');
     const $progressTabButtons = $root.find('[data-ll-wordset-progress-tab]');
     const $progressPanels = $root.find('[data-ll-wordset-progress-panel]');
@@ -633,7 +637,9 @@
         const scopeRaw = (src.scope && typeof src.scope === 'object') ? src.scope : {};
         const summaryRaw = (src.summary && typeof src.summary === 'object') ? src.summary : {};
         const dailyRaw = (src.daily_activity && typeof src.daily_activity === 'object') ? src.daily_activity : {};
+        const genderRaw = (src.gender_progress && typeof src.gender_progress === 'object') ? src.gender_progress : {};
         const categoriesRaw = Array.isArray(src.categories) ? src.categories : [];
+        const genderCategoriesRaw = Array.isArray(genderRaw.categories) ? genderRaw.categories : [];
         const wordsRaw = Array.isArray(src.words) ? src.words : [];
 
         const dailyDays = (Array.isArray(dailyRaw.days) ? dailyRaw.days : []).map(function (entry) {
@@ -670,6 +676,30 @@
         }).filter(function (row) {
             return row.id > 0;
         });
+
+        const genderProgress = {
+            enabled: !!genderRaw.enabled,
+            tracked_word_total: Math.max(0, parseInt(genderRaw.tracked_word_total, 10) || 0),
+            not_started_words: Math.max(0, parseInt(genderRaw.not_started_words, 10) || 0),
+            level_1_words: Math.max(0, parseInt(genderRaw.level_1_words, 10) || 0),
+            level_2_words: Math.max(0, parseInt(genderRaw.level_2_words, 10) || 0),
+            level_3_words: Math.max(0, parseInt(genderRaw.level_3_words, 10) || 0),
+            categories: genderCategoriesRaw.map(function (entry) {
+                const row = (entry && typeof entry === 'object') ? entry : {};
+                return {
+                    id: parseInt(row.id, 10) || 0,
+                    label: String(row.label || ''),
+                    tracked_word_total: Math.max(0, parseInt(row.tracked_word_total, 10) || 0),
+                    not_started_words: Math.max(0, parseInt(row.not_started_words, 10) || 0),
+                    level_1_words: Math.max(0, parseInt(row.level_1_words, 10) || 0),
+                    level_2_words: Math.max(0, parseInt(row.level_2_words, 10) || 0),
+                    level_3_words: Math.max(0, parseInt(row.level_3_words, 10) || 0),
+                    last_gender_seen_at: String(row.last_gender_seen_at || '')
+                };
+            }).filter(function (row) {
+                return row.id > 0 && row.tracked_word_total > 0;
+            })
+        };
 
         const words = wordsRaw.map(function (entry) {
             const row = (entry && typeof entry === 'object') ? entry : {};
@@ -718,6 +748,7 @@
                 max_events: Math.max(0, parseInt(dailyRaw.max_events, 10) || 0),
                 window_days: Math.max(0, parseInt(dailyRaw.window_days, 10) || dailyDays.length)
             },
+            gender_progress: genderProgress,
             categories: categories,
             words: words
         };
@@ -2566,6 +2597,141 @@
         });
     }
 
+    function buildGenderProgressBar(total, counts, className) {
+        const trackedTotal = Math.max(0, parseInt(total, 10) || 0);
+        const $bar = $('<div>', {
+            class: className || 'll-wordset-progress-gender-bar',
+            'aria-hidden': 'true'
+        });
+        if (!trackedTotal) {
+            $bar.addClass('is-empty');
+            return $bar;
+        }
+
+        const segments = [
+            {
+                key: 'not-started',
+                value: Math.max(0, parseInt(counts.not_started_words, 10) || 0),
+                label: i18n.analyticsGenderNotStarted || 'Not started'
+            },
+            {
+                key: 'level-1',
+                value: Math.max(0, parseInt(counts.level_1_words, 10) || 0),
+                label: i18n.analyticsGenderLevel1 || 'Level 1'
+            },
+            {
+                key: 'level-2',
+                value: Math.max(0, parseInt(counts.level_2_words, 10) || 0),
+                label: i18n.analyticsGenderLevel2 || 'Level 2'
+            },
+            {
+                key: 'level-3',
+                value: Math.max(0, parseInt(counts.level_3_words, 10) || 0),
+                label: i18n.analyticsGenderLevel3 || 'Level 3'
+            }
+        ];
+
+        segments.forEach(function (segment) {
+            if (!segment.value) {
+                return;
+            }
+            $('<span>', {
+                class: 'll-wordset-progress-gender-bar__segment ll-wordset-progress-gender-bar__segment--' + segment.key,
+                style: 'width:' + ((segment.value / trackedTotal) * 100).toFixed(3) + '%',
+                title: segment.label + ': ' + String(segment.value)
+            }).appendTo($bar);
+        });
+
+        return $bar;
+    }
+
+    function renderProgressGenderSection() {
+        if (!$progressGender.length) { return; }
+
+        const genderProgress = (analytics.gender_progress && typeof analytics.gender_progress === 'object')
+            ? analytics.gender_progress
+            : {};
+        const trackedTotal = Math.max(0, parseInt(genderProgress.tracked_word_total, 10) || 0);
+        const visible = !!genderProgress.enabled && trackedTotal > 0;
+
+        if (!visible) {
+            $progressGender.prop('hidden', true).hide();
+            $progressGenderCards.empty();
+            $progressGenderOverview.empty();
+            $progressGenderCategories.empty();
+            return;
+        }
+
+        $progressGender.prop('hidden', false).show();
+
+        const cards = [
+            { key: 'not-started', label: i18n.analyticsGenderNotStarted || 'Not started', value: genderProgress.not_started_words || 0 },
+            { key: 'level-1', label: i18n.analyticsGenderLevel1 || 'Level 1', value: genderProgress.level_1_words || 0 },
+            { key: 'level-2', label: i18n.analyticsGenderLevel2 || 'Level 2', value: genderProgress.level_2_words || 0 },
+            { key: 'level-3', label: i18n.analyticsGenderLevel3 || 'Level 3', value: genderProgress.level_3_words || 0 }
+        ];
+
+        $progressGenderCards.empty();
+        cards.forEach(function (card) {
+            const $card = $('<div>', {
+                class: 'll-wordset-progress-gender-card ll-wordset-progress-gender-card--' + card.key
+            });
+            $('<span>', {
+                class: 'll-wordset-progress-gender-card__value',
+                text: String(Math.max(0, parseInt(card.value, 10) || 0))
+            }).appendTo($card);
+            $('<span>', {
+                class: 'll-wordset-progress-gender-card__label',
+                text: card.label
+            }).appendTo($card);
+            $progressGenderCards.append($card);
+        });
+
+        $progressGenderOverview.empty();
+        $('<div>', {
+            class: 'll-wordset-progress-gender-overview__total',
+            text: formatTemplate(i18n.analyticsGenderTrackedWords || '%d tracked words', [trackedTotal])
+        }).appendTo($progressGenderOverview);
+        $progressGenderOverview.append(buildGenderProgressBar(trackedTotal, genderProgress, 'll-wordset-progress-gender-bar ll-wordset-progress-gender-bar--overview'));
+
+        const rows = Array.isArray(genderProgress.categories) ? genderProgress.categories.slice() : [];
+        $progressGenderCategories.empty();
+        if (!rows.length) {
+            $('<p>', {
+                class: 'll-wordset-progress-empty',
+                text: i18n.analyticsNoRows || 'No data yet.'
+            }).appendTo($progressGenderCategories);
+            return;
+        }
+
+        rows.forEach(function (row) {
+            const $item = $('<div>', {
+                class: 'll-wordset-progress-gender-category'
+            });
+            const $head = $('<div>', {
+                class: 'll-wordset-progress-gender-category__head'
+            }).appendTo($item);
+            $('<span>', {
+                class: 'll-wordset-progress-gender-category__label',
+                dir: 'auto',
+                text: String(row.label || '')
+            }).appendTo($head);
+            $('<span>', {
+                class: 'll-wordset-progress-gender-category__count',
+                text: formatTemplate(i18n.analyticsGenderTrackedWords || '%d tracked words', [row.tracked_word_total || 0])
+            }).appendTo($head);
+
+            $item.append(buildGenderProgressBar(row.tracked_word_total, row, 'll-wordset-progress-gender-bar'));
+
+            $('<div>', {
+                class: 'll-wordset-progress-gender-category__meta',
+                text: (i18n.analyticsGenderLastPracticed || 'Last practiced') + ': ' + formatAnalyticsLastSeen(row.last_gender_seen_at)
+            }).appendTo($item);
+
+            $progressGenderCategories.append($item);
+        });
+    }
+
     function renderProgressDailyGraph() {
         if (!$progressGraph.length) { return; }
         $progressGraph.empty();
@@ -3173,6 +3339,7 @@
         if (!$progressRoot.length) { return; }
         renderProgressScope();
         renderProgressSummary();
+        renderProgressGenderSection();
         renderProgressDailyGraph();
         renderProgressWordColumnFilterOptions();
         renderProgressCategoryFilterOptions();

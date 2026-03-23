@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.2.0');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.0');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
@@ -173,6 +173,277 @@ function ll_tools_encode_practice_recording_types(array $types): string {
     return is_string($encoded) ? $encoded : '';
 }
 
+function ll_tools_user_progress_normalize_gender_level($raw, int $fallback = 1): int {
+    $level = (int) $raw;
+    if ($level >= 1 && $level <= 3) {
+        return $level;
+    }
+
+    return ($fallback >= 1 && $fallback <= 3) ? $fallback : 1;
+}
+
+function ll_tools_user_progress_gender_default_state(): array {
+    return [
+        'level' => 1,
+        'confidence' => 0,
+        'intro_seen' => false,
+        'quick_correct_streak' => 0,
+        'level1_passes' => 0,
+        'level1_failures' => 0,
+        'level2_correct' => 0,
+        'level2_wrong' => 0,
+        'level3_correct' => 0,
+        'level3_wrong' => 0,
+        'dont_know_count' => 0,
+        'seen_total' => 0,
+        'category_name' => '',
+        'last_seen_at' => '',
+        'updated_at' => 0,
+    ];
+}
+
+function ll_tools_user_progress_datetime_to_millis($raw): int {
+    if (is_numeric($raw)) {
+        $value = (int) round((float) $raw);
+        if ($value <= 0) {
+            return 0;
+        }
+        return ($value > 100000000000) ? $value : ($value * 1000);
+    }
+
+    if (!is_string($raw)) {
+        return 0;
+    }
+
+    $value = trim($raw);
+    if ($value === '') {
+        return 0;
+    }
+
+    $timestamp = strtotime($value . ' UTC');
+    if ($timestamp === false || $timestamp <= 0) {
+        return 0;
+    }
+
+    return $timestamp * 1000;
+}
+
+function ll_tools_user_progress_normalize_gender_state($raw, array $fallback = []): array {
+    $defaults = ll_tools_user_progress_gender_default_state();
+    $base = array_merge($defaults, $fallback);
+    $src = is_array($raw) ? $raw : [];
+
+    $last_seen_at = isset($src['last_seen_at']) ? sanitize_text_field((string) $src['last_seen_at']) : sanitize_text_field((string) ($base['last_seen_at'] ?? ''));
+    $updated_at = ll_tools_user_progress_datetime_to_millis(
+        $src['updated_at'] ?? ($src['updated_at_ms'] ?? ($base['updated_at'] ?? 0))
+    );
+    if ($updated_at <= 0 && $last_seen_at !== '') {
+        $updated_at = ll_tools_user_progress_datetime_to_millis($last_seen_at);
+    }
+
+    return [
+        'level' => ll_tools_user_progress_normalize_gender_level(
+            $src['level'] ?? ($base['level'] ?? 1),
+            (int) ($base['level'] ?? 1)
+        ),
+        'confidence' => max(-8, min(12, (int) ($src['confidence'] ?? ($base['confidence'] ?? 0)))),
+        'intro_seen' => !empty($src['intro_seen'] ?? ($base['intro_seen'] ?? false)),
+        'quick_correct_streak' => max(0, (int) ($src['quick_correct_streak'] ?? ($base['quick_correct_streak'] ?? 0))),
+        'level1_passes' => max(0, (int) ($src['level1_passes'] ?? ($base['level1_passes'] ?? 0))),
+        'level1_failures' => max(0, (int) ($src['level1_failures'] ?? ($base['level1_failures'] ?? 0))),
+        'level2_correct' => max(0, (int) ($src['level2_correct'] ?? ($base['level2_correct'] ?? 0))),
+        'level2_wrong' => max(0, (int) ($src['level2_wrong'] ?? ($base['level2_wrong'] ?? 0))),
+        'level3_correct' => max(0, (int) ($src['level3_correct'] ?? ($base['level3_correct'] ?? 0))),
+        'level3_wrong' => max(0, (int) ($src['level3_wrong'] ?? ($base['level3_wrong'] ?? 0))),
+        'dont_know_count' => max(0, (int) ($src['dont_know_count'] ?? ($base['dont_know_count'] ?? 0))),
+        'seen_total' => max(0, (int) ($src['seen_total'] ?? ($base['seen_total'] ?? 0))),
+        'category_name' => sanitize_text_field((string) ($src['category_name'] ?? ($base['category_name'] ?? ''))),
+        'last_seen_at' => $last_seen_at,
+        'updated_at' => $updated_at,
+    ];
+}
+
+function ll_tools_encode_gender_progress_state(array $state): string {
+    $normalized = ll_tools_user_progress_normalize_gender_state($state);
+    $encoded = wp_json_encode($normalized);
+    return is_string($encoded) ? $encoded : '';
+}
+
+function ll_tools_decode_gender_progress_state($raw, array $fallback = []): array {
+    if (is_array($raw)) {
+        return ll_tools_user_progress_normalize_gender_state($raw, $fallback);
+    }
+
+    if (!is_string($raw)) {
+        return [];
+    }
+
+    $trimmed = trim($raw);
+    if ($trimmed === '') {
+        return [];
+    }
+
+    $decoded = json_decode($trimmed, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+        return [];
+    }
+
+    return ll_tools_user_progress_normalize_gender_state($decoded, $fallback);
+}
+
+function ll_tools_progress_row_has_gender_tracking(array $row): bool {
+    $level = max(0, (int) ($row['gender_level'] ?? 0));
+    $seen_total = max(0, (int) ($row['gender_seen_total'] ?? 0));
+    $last_seen_at = trim((string) ($row['gender_last_seen_at'] ?? ''));
+    $state_json = trim((string) ($row['gender_state_json'] ?? ''));
+
+    return ($level > 0) || ($seen_total > 0) || ($last_seen_at !== '') || ($state_json !== '');
+}
+
+function ll_tools_get_progress_row_gender_progress(array $row): array {
+    if (isset($row['gender_progress']) && is_array($row['gender_progress'])) {
+        return ll_tools_user_progress_normalize_gender_state((array) $row['gender_progress']);
+    }
+
+    if (!ll_tools_progress_row_has_gender_tracking($row)) {
+        return [];
+    }
+
+    $fallback_level = ll_tools_user_progress_normalize_gender_level($row['gender_level'] ?? 1);
+    $fallback = [
+        'level' => $fallback_level,
+        'seen_total' => max(0, (int) ($row['gender_seen_total'] ?? 0)),
+        'category_name' => sanitize_text_field((string) ($row['category_name'] ?? '')),
+        'last_seen_at' => sanitize_text_field((string) ($row['gender_last_seen_at'] ?? '')),
+        'updated_at' => ll_tools_user_progress_datetime_to_millis($row['gender_last_seen_at'] ?? ($row['updated_at'] ?? 0)),
+    ];
+
+    $state = ll_tools_decode_gender_progress_state($row['gender_state_json'] ?? '', $fallback);
+    if (empty($state)) {
+        $state = ll_tools_user_progress_normalize_gender_state($fallback, $fallback);
+    }
+
+    if ($state['last_seen_at'] === '' && !empty($fallback['last_seen_at'])) {
+        $state['last_seen_at'] = (string) $fallback['last_seen_at'];
+    }
+    if ($state['updated_at'] <= 0) {
+        $state['updated_at'] = (int) ($fallback['updated_at'] ?? 0);
+    }
+
+    return $state;
+}
+
+function ll_tools_word_is_blocked_from_prompt_rounds(array $word): bool {
+    if (array_key_exists('is_specific_wrong_answer_only', $word) && !empty($word['is_specific_wrong_answer_only'])) {
+        return true;
+    }
+
+    $owner_ids = array_values(array_filter(array_map('intval', (array) ($word['specific_wrong_answer_owner_ids'] ?? [])), static function (int $owner_id): bool {
+        return $owner_id > 0;
+    }));
+    if (empty($owner_ids)) {
+        return false;
+    }
+
+    $specific_ids = array_values(array_filter(array_map('intval', (array) ($word['specific_wrong_answer_ids'] ?? [])), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $specific_texts = array_values(array_filter(array_map(static function ($value): string {
+        return trim((string) $value);
+    }, (array) ($word['specific_wrong_answer_texts'] ?? [])), static function (string $value): bool {
+        return $value !== '';
+    }));
+
+    return empty($specific_ids) && empty($specific_texts);
+}
+
+function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id, array $context = []): array {
+    $defaults = [
+        'normalized_gender' => '',
+        'gender_marked' => false,
+        'gender_progress_tracked' => false,
+        'gender_eligible' => false,
+        'requires_audio' => false,
+        'requires_image' => false,
+    ];
+
+    if ($wordset_id <= 0
+        || !function_exists('ll_tools_wordset_has_grammatical_gender')
+        || !ll_tools_wordset_has_grammatical_gender($wordset_id)
+        || !function_exists('ll_tools_wordset_get_gender_options')
+        || !function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+    ) {
+        return $defaults;
+    }
+
+    $options = ll_tools_wordset_get_gender_options($wordset_id);
+    if (empty($options)) {
+        return $defaults;
+    }
+
+    $gender_lookup = [];
+    foreach ($options as $option) {
+        $option_key = strtolower(trim((string) $option));
+        if ($option_key !== '') {
+            $gender_lookup[$option_key] = true;
+        }
+    }
+
+    $raw_gender = trim((string) ($word['grammatical_gender'] ?? ''));
+    $normalized_gender = ll_tools_wordset_normalize_gender_value_for_options($raw_gender, $options);
+    $gender_key = strtolower(trim((string) $normalized_gender));
+    $gender_marked = ($gender_key !== '') && !empty($gender_lookup[$gender_key]);
+
+    $pos_values = (array) ($word['part_of_speech'] ?? []);
+    $is_noun = in_array('noun', array_values(array_filter(array_map('sanitize_key', array_map('strval', $pos_values)))), true);
+    $blocked_prompt = ll_tools_word_is_blocked_from_prompt_rounds($word);
+    $tracked = $gender_marked && $is_noun && !$blocked_prompt;
+
+    $quiz_config = (isset($context['quiz_config']) && is_array($context['quiz_config'])) ? $context['quiz_config'] : [];
+    if (empty($quiz_config)) {
+        $category_ref = 0;
+        if (!empty($context['category_id'])) {
+            $category_ref = (int) $context['category_id'];
+        } elseif (!empty($context['category_name'])) {
+            $term = get_term_by('name', sanitize_text_field((string) $context['category_name']), 'word-category');
+            if ($term instanceof WP_Term && !is_wp_error($term)) {
+                $category_ref = (int) $term->term_id;
+            }
+        }
+        if ($category_ref > 0 && function_exists('ll_tools_get_category_quiz_config')) {
+            $quiz_config = (array) ll_tools_get_category_quiz_config($category_ref);
+        }
+    }
+
+    $prompt_type = sanitize_key((string) ($quiz_config['prompt_type'] ?? 'audio'));
+    $option_type = sanitize_key((string) ($quiz_config['option_type'] ?? 'image'));
+    $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+        ? ll_tools_quiz_requires_audio(
+            [
+                'prompt_type' => $prompt_type,
+                'option_type' => $option_type,
+            ],
+            $option_type
+        )
+        : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+    $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+
+    $has_audio = !empty($word['has_audio']) || !empty($word['audio']);
+    $has_image = !empty($word['has_image']) || !empty($word['image']);
+    $eligible = $tracked
+        && (!$requires_audio || $has_audio)
+        && (!$requires_image || $has_image);
+
+    return [
+        'normalized_gender' => $gender_marked ? $normalized_gender : '',
+        'gender_marked' => $gender_marked,
+        'gender_progress_tracked' => $tracked,
+        'gender_eligible' => $eligible,
+        'requires_audio' => (bool) $requires_audio,
+        'requires_image' => (bool) $requires_image,
+    ];
+}
+
 function ll_tools_get_word_practice_recording_types_map(array $word_ids): array {
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
@@ -308,11 +579,16 @@ function ll_tools_get_progress_row_practice_required_recording_types(array $row)
     return ll_tools_get_word_practice_recording_types($word_id);
 }
 
-function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id = 0): array {
+function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id = 0, array $context = []): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     if (empty($words)) {
         return $words;
     }
+
+    $context_wordset_id = max(0, (int) ($context['wordset_id'] ?? 0));
+    $context_category_id = max(0, (int) ($context['category_id'] ?? 0));
+    $context_category_name = sanitize_text_field((string) ($context['category_name'] ?? ''));
+    $context_quiz_config = (isset($context['quiz_config']) && is_array($context['quiz_config'])) ? $context['quiz_config'] : [];
 
     $word_ids = array_values(array_unique(array_filter(array_map(static function ($word): int {
         return (is_array($word) && !empty($word['id'])) ? (int) $word['id'] : 0;
@@ -334,8 +610,38 @@ function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id 
             ? $progress_rows[$word_id]
             : [];
 
+        $resolved_wordset_id = $context_wordset_id;
+        if ($resolved_wordset_id <= 0) {
+            $wordset_ids = array_values(array_filter(array_map('intval', (array) ($word['wordset_ids'] ?? [])), static function (int $wordset_id): bool {
+                return $wordset_id > 0;
+            }));
+            $resolved_wordset_id = !empty($wordset_ids) ? (int) $wordset_ids[0] : 0;
+        }
+
+        $resolved_category_id = $context_category_id;
+        if ($resolved_category_id <= 0) {
+            $resolved_category_id = max(0, (int) ($word['category_id'] ?? 0));
+        }
+
+        $support = ll_tools_get_word_gender_support_snapshot($word, $resolved_wordset_id, [
+            'category_id' => $resolved_category_id,
+            'category_name' => $context_category_name,
+            'quiz_config' => $context_quiz_config,
+        ]);
+
         $words[$idx]['practice_correct_recording_types'] = ll_tools_get_progress_row_practice_correct_recording_types($row);
         $words[$idx]['practice_exposure_count'] = max(0, (int) ($row['coverage_practice'] ?? 0));
+        $words[$idx]['normalized_grammatical_gender'] = (string) ($support['normalized_gender'] ?? '');
+        $words[$idx]['gender_marked'] = !empty($support['gender_marked']);
+        $words[$idx]['gender_progress_tracked'] = !empty($support['gender_progress_tracked']);
+        $words[$idx]['gender_eligible'] = !empty($support['gender_eligible']);
+        $words[$idx]['gender_progress'] = ll_tools_get_progress_row_gender_progress($row);
+        if ($context_category_name !== '') {
+            $words[$idx]['__categoryName'] = $context_category_name;
+        }
+        if ($words[$idx]['normalized_grammatical_gender'] !== '') {
+            $words[$idx]['__gender_label'] = $words[$idx]['normalized_grammatical_gender'];
+        }
     }
 
     return $words;
@@ -364,6 +670,10 @@ function ll_tools_install_user_progress_schema(): void {
         coverage_listening int(10) unsigned NOT NULL DEFAULT 0,
         coverage_gender int(10) unsigned NOT NULL DEFAULT 0,
         coverage_self_check int(10) unsigned NOT NULL DEFAULT 0,
+        gender_level smallint(5) unsigned NOT NULL DEFAULT 0,
+        gender_seen_total int(10) unsigned NOT NULL DEFAULT 0,
+        gender_last_seen_at datetime NULL DEFAULT NULL,
+        gender_state_json longtext NULL,
         practice_required_recording_types longtext NULL,
         practice_correct_recording_types longtext NULL,
         correct_clean int(10) unsigned NOT NULL DEFAULT 0,
@@ -837,6 +1147,10 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         'coverage_listening'   => 0,
         'coverage_gender'      => 0,
         'coverage_self_check'  => 0,
+        'gender_level'         => 0,
+        'gender_seen_total'    => 0,
+        'gender_last_seen_at'  => null,
+        'gender_state_json'    => '',
         'practice_required_recording_types' => '',
         'practice_correct_recording_types' => '',
         'correct_clean'        => 0,
@@ -857,7 +1171,7 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
             }
             if (is_numeric($default_val)) {
                 $data[$key] = (int) $row[$key];
-            } elseif ($key === 'due_at') {
+            } elseif ($key === 'due_at' || $key === 'gender_last_seen_at') {
                 $data[$key] = !empty($row[$key]) ? (string) $row[$key] : null;
             } else {
                 $data[$key] = (string) $row[$key];
@@ -888,6 +1202,27 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         $practice_timing = ($mode === 'practice')
             ? ll_tools_user_progress_get_practice_audio_timing($payload)
             : ['ratio' => null, 'early' => false, 'very_fast' => false];
+        if ($mode === 'gender' && !empty($payload['gender']) && is_array($payload['gender'])) {
+            $gender_state = ll_tools_user_progress_normalize_gender_state($payload['gender'], [
+                'level' => ll_tools_user_progress_normalize_gender_level($data['gender_level'] ?? 1),
+                'seen_total' => max(0, (int) ($data['gender_seen_total'] ?? 0)),
+                'category_name' => sanitize_text_field((string) ($event['category_name'] ?? '')),
+                'last_seen_at' => $now_mysql,
+                'updated_at' => ll_tools_user_progress_datetime_to_millis($now_mysql),
+            ]);
+            $gender_state['last_seen_at'] = $now_mysql;
+            if ($gender_state['category_name'] === '' && !empty($event['category_name'])) {
+                $gender_state['category_name'] = sanitize_text_field((string) $event['category_name']);
+            }
+            if ($gender_state['updated_at'] <= 0) {
+                $gender_state['updated_at'] = ll_tools_user_progress_datetime_to_millis($now_mysql);
+            }
+
+            $data['gender_level'] = ll_tools_user_progress_normalize_gender_level($gender_state['level'] ?? 1);
+            $data['gender_seen_total'] = max(0, (int) ($gender_state['seen_total'] ?? 0));
+            $data['gender_last_seen_at'] = $now_mysql;
+            $data['gender_state_json'] = ll_tools_encode_gender_progress_state($gender_state);
+        }
         if ($mode === 'practice') {
             $required_types = ll_tools_decode_practice_recording_types($payload['available_recording_types'] ?? []);
             if (empty($required_types)) {
@@ -983,6 +1318,10 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         '%d', // coverage_listening
         '%d', // coverage_gender
         '%d', // coverage_self_check
+        '%d', // gender_level
+        '%d', // gender_seen_total
+        '%s', // gender_last_seen_at
+        '%s', // gender_state_json
         '%s', // practice_required_recording_types
         '%s', // practice_correct_recording_types
         '%d', // correct_clean
@@ -1134,6 +1473,8 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
             $out[$wid]['practice_required_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_required_recording_types'] ?? '');
             $out[$wid]['practice_correct_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_correct_recording_types'] ?? '');
             $out[$wid]['practice_required_recording_types_resolved'] = $required_types_map[(int) $wid] ?? [];
+            $out[$wid]['gender_state_json_raw'] = (string) ($row['gender_state_json'] ?? '');
+            $out[$wid]['gender_progress'] = ll_tools_get_progress_row_gender_progress($row);
         }
     }
 
@@ -1554,6 +1895,18 @@ function ll_tools_user_progress_get_word_audio_entry(array $audio_files, int $pr
     return [];
 }
 
+function ll_tools_user_progress_empty_gender_analytics(bool $enabled = false): array {
+    return [
+        'enabled' => $enabled,
+        'tracked_word_total' => 0,
+        'not_started_words' => 0,
+        'level_1_words' => 0,
+        'level_2_words' => 0,
+        'level_3_words' => 0,
+        'categories' => [],
+    ];
+}
+
 /**
  * Build analytics used by learner-facing study surfaces.
  *
@@ -1562,6 +1915,9 @@ function ll_tools_user_progress_get_word_audio_entry(array $audio_files, int $pr
 function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id = 0, $category_ids = [], $days = 14, bool $include_ignored = false): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     $scope_wordset_id = max(0, (int) $wordset_id);
+    $gender_enabled = ($scope_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
+        ? ll_tools_wordset_has_grammatical_gender($scope_wordset_id)
+        : false;
     if ($uid <= 0) {
         return [
             'scope' => [
@@ -1583,6 +1939,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                 'max_events' => 0,
                 'window_days' => 0,
             ],
+            'gender_progress' => ll_tools_user_progress_empty_gender_analytics($gender_enabled),
             'categories' => [],
             'words' => [],
             'generated_at' => gmdate('c'),
@@ -1646,6 +2003,10 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                     'audio_files' => isset($word['audio_files']) && is_array($word['audio_files']) ? array_values($word['audio_files']) : [],
                     'audio_files_count' => isset($word['audio_files']) && is_array($word['audio_files']) ? count($word['audio_files']) : 0,
                     'preferred_speaker_user_id' => isset($word['preferred_speaker_user_id']) ? (int) $word['preferred_speaker_user_id'] : 0,
+                    'normalized_grammatical_gender' => isset($word['normalized_grammatical_gender']) ? (string) $word['normalized_grammatical_gender'] : '',
+                    'gender_marked' => !empty($word['gender_marked']),
+                    'gender_progress_tracked' => !empty($word['gender_progress_tracked']),
+                    'gender_eligible' => !empty($word['gender_eligible']),
                     'category_ids' => [],
                 ];
             }
@@ -1681,9 +2042,13 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     $category_last_word_mode_seen = [];
     $category_mode_floor = [];
     $progress_modes = ll_tools_progress_modes();
+    $gender_progress = ll_tools_user_progress_empty_gender_analytics($gender_enabled);
+    $gender_category_totals = [];
+    $gender_category_last_seen = [];
 
     foreach ($word_map as $wid => $word) {
         $progress = isset($progress_rows[$wid]) && is_array($progress_rows[$wid]) ? $progress_rows[$wid] : [];
+        $gender_state = ll_tools_get_progress_row_gender_progress($progress);
         $status = ll_tools_user_progress_word_status($progress);
         $difficulty = ll_tools_user_progress_word_difficulty_score($progress);
         $coverage = max(0, (int) ($progress['total_coverage'] ?? 0));
@@ -1703,6 +2068,24 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         foreach ($progress_modes as $mode_key) {
             $mode_column = ll_tools_progress_mode_column($mode_key);
             $word_mode_coverage[$mode_key] = max(0, (int) ($progress[$mode_column] ?? 0));
+        }
+
+        $tracks_gender_progress = !empty($word['gender_progress_tracked']);
+        $gender_level = 0;
+        if ($tracks_gender_progress) {
+            $gender_progress['tracked_word_total']++;
+            if (empty($gender_state)) {
+                $gender_progress['not_started_words']++;
+            } else {
+                $gender_level = ll_tools_user_progress_normalize_gender_level($gender_state['level'] ?? 1);
+                if ($gender_level === 1) {
+                    $gender_progress['level_1_words']++;
+                } elseif ($gender_level === 2) {
+                    $gender_progress['level_2_words']++;
+                } else {
+                    $gender_progress['level_3_words']++;
+                }
+            }
         }
 
         $word_category_ids = array_values(array_filter(array_map('intval', array_keys((array) ($word['category_ids'] ?? []))), function ($id) {
@@ -1758,6 +2141,34 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                 $existing_floor = $category_mode_floor[$cid][$mode_key];
                 if ($existing_floor === null || $word_count_for_mode < (int) $existing_floor) {
                     $category_mode_floor[$cid][$mode_key] = $word_count_for_mode;
+                }
+            }
+
+            if ($tracks_gender_progress) {
+                if (!isset($gender_category_totals[$cid]) || !is_array($gender_category_totals[$cid])) {
+                    $gender_category_totals[$cid] = [
+                        'tracked_word_total' => 0,
+                        'not_started_words' => 0,
+                        'level_1_words' => 0,
+                        'level_2_words' => 0,
+                        'level_3_words' => 0,
+                    ];
+                }
+
+                $gender_category_totals[$cid]['tracked_word_total']++;
+                if (empty($gender_state)) {
+                    $gender_category_totals[$cid]['not_started_words']++;
+                } elseif ($gender_level === 1) {
+                    $gender_category_totals[$cid]['level_1_words']++;
+                } elseif ($gender_level === 2) {
+                    $gender_category_totals[$cid]['level_2_words']++;
+                } else {
+                    $gender_category_totals[$cid]['level_3_words']++;
+                }
+
+                $gender_last_seen_at = !empty($gender_state['last_seen_at']) ? (string) $gender_state['last_seen_at'] : '';
+                if ($gender_last_seen_at !== '' && (!isset($gender_category_last_seen[$cid]) || strcmp($gender_last_seen_at, (string) $gender_category_last_seen[$cid]) > 0)) {
+                    $gender_category_last_seen[$cid] = $gender_last_seen_at;
                 }
             }
         }
@@ -1891,6 +2302,44 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
     });
 
+    foreach ($scope_category_ids as $cid) {
+        $counts = isset($gender_category_totals[$cid]) && is_array($gender_category_totals[$cid])
+            ? $gender_category_totals[$cid]
+            : [];
+        $tracked_total = max(0, (int) ($counts['tracked_word_total'] ?? 0));
+        if ($tracked_total <= 0) {
+            continue;
+        }
+
+        $cat_meta = isset($category_lookup[$cid]) && is_array($category_lookup[$cid]) ? $category_lookup[$cid] : [];
+        $cat_label = isset($cat_meta['translation']) && (string) $cat_meta['translation'] !== ''
+            ? (string) $cat_meta['translation']
+            : (string) ($cat_meta['name'] ?? '');
+        if ($cat_label === '') {
+            $cat_label = (string) ll_tools_get_category_display_name($cid);
+        }
+
+        $gender_progress['categories'][] = [
+            'id' => $cid,
+            'label' => $cat_label,
+            'tracked_word_total' => $tracked_total,
+            'not_started_words' => max(0, (int) ($counts['not_started_words'] ?? 0)),
+            'level_1_words' => max(0, (int) ($counts['level_1_words'] ?? 0)),
+            'level_2_words' => max(0, (int) ($counts['level_2_words'] ?? 0)),
+            'level_3_words' => max(0, (int) ($counts['level_3_words'] ?? 0)),
+            'last_gender_seen_at' => isset($gender_category_last_seen[$cid]) ? (string) $gender_category_last_seen[$cid] : '',
+        ];
+    }
+
+    if (!empty($gender_progress['categories'])) {
+        usort($gender_progress['categories'], static function ($left, $right): int {
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                return ll_tools_locale_compare_strings((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+            }
+            return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+        });
+    }
+
     $daily_activity = ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, (int) $days);
 
     return [
@@ -1909,6 +2358,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'starred_words' => $summary_starred,
         ],
         'daily_activity' => $daily_activity,
+        'gender_progress' => $gender_progress,
         'categories' => $category_rows,
         'words' => $word_rows,
         'generated_at' => gmdate('c'),

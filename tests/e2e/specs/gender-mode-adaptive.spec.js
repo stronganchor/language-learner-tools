@@ -4,6 +4,7 @@ const path = require('path');
 
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
 const genderScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/gender.js');
+const resultsScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/results.js');
 const BASE_URL = process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local';
 
 function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
@@ -22,7 +23,20 @@ function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
 
 async function openHarnessPage(page) {
   const url = `${String(BASE_URL).replace(/\/$/, '')}/`;
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  let lastError = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'commit' });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      await page.waitForTimeout(1000);
+    }
+  }
+  if (lastError) {
+    throw lastError;
+  }
   await page.setContent('<!doctype html><html><head></head><body></body></html>');
 }
 
@@ -790,12 +804,22 @@ test('level-one does not introduce the next word immediately after the first cor
 
     const thirdWordId = Number(thirdIntroSelection[0] && thirdIntroSelection[0].id) || 0;
     Gender.handlePostSelection(thirdIntroSelection, { startQuizRound: function () {} });
-    await wait(2600);
+
+    let firstPickAfterThirdIntro = null;
+    for (let i = 0; i < 240; i++) {
+      const probe = Gender.selectTargetWord();
+      if (!Array.isArray(probe)) {
+        firstPickAfterThirdIntro = probe;
+        break;
+      }
+      await wait(50);
+    }
 
     let introducedTooSoon = false;
     let sawFirstCorrectForThirdWord = false;
     for (let i = 0; i < 30; i++) {
-      const pick = Gender.selectTargetWord();
+      const pick = firstPickAfterThirdIntro || Gender.selectTargetWord();
+      firstPickAfterThirdIntro = null;
       if (Array.isArray(pick)) {
         introducedTooSoon = true;
         break;
@@ -1174,4 +1198,234 @@ test('dashboard gender results always expose both actions and only return chunk 
   expect(result.categories).toContain('CatA');
   expect(result.categories).toContain('CatB');
   expect(result.categories).not.toContain('CatC');
+});
+
+test('gender mode merges newer local intro state with server-backed answered progress before planning', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 91,
+    categoryWords: {
+      CatA: [makeNounWord(911, 'CatA', 'masculine', {
+        normalized_grammatical_gender: 'masculine',
+        gender_progress: {
+          level: 3,
+          confidence: 7,
+          intro_seen: true,
+          quick_correct_streak: 2,
+          level1_passes: 3,
+          level1_failures: 0,
+          level2_correct: 4,
+          level2_wrong: 0,
+          level3_correct: 2,
+          level3_wrong: 0,
+          dont_know_count: 0,
+          seen_total: 9,
+          category_name: 'CatA',
+          last_seen_at: '2026-03-20 10:00:00',
+          updated_at: Date.parse('2026-03-20T10:00:00Z')
+        }
+      })]
+    },
+    preseedStore: {
+      words: {
+        '911': {
+          level: 1,
+          confidence: 0,
+          intro_seen: true,
+          quick_correct_streak: 0,
+          level1_passes: 0,
+          level1_failures: 0,
+          level2_correct: 0,
+          level2_wrong: 0,
+          level3_correct: 0,
+          level3_wrong: 0,
+          dont_know_count: 0,
+          seen_total: 2,
+          category_name: 'CatA',
+          updated_at: Date.parse('2026-03-21T10:00:00Z')
+        }
+      },
+      updated_at: Date.parse('2026-03-21T10:00:00Z')
+    }
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    const selection = Gender.selectTargetWord();
+    const saved = JSON.parse(
+      window.localStorage.getItem('lltools_gender_progress_v1::wordset:91') || '{}'
+    );
+    const entry = (saved.words && saved.words['911']) || {};
+    return {
+      selectionIsIntroBatch: Array.isArray(selection),
+      mergedLevel: Number(entry.level || 0),
+      mergedLevel2Correct: Number(entry.level2_correct || 0),
+      mergedSeenTotal: Number(entry.seen_total || 0)
+    };
+  });
+
+  expect(result.selectionIsIntroBatch).toBe(false);
+  expect(result.mergedLevel).toBe(3);
+  expect(result.mergedLevel2Correct).toBe(4);
+  expect(result.mergedSeenTotal).toBe(9);
+});
+
+test('gender results render chunk progress summary after completion', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <head></head>
+      <body>
+        <div id="ll-tools-prompt"></div>
+        <div id="ll-tools-flashcard"></div>
+        <div id="ll-quiz-star-row"></div>
+        <div id="ll-tools-listening-controls"></div>
+        <button id="ll-tools-repeat-flashcard" type="button"></button>
+        <div id="ll-tools-category-stack"></div>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-learning-progress"></div>
+        <div id="quiz-results" style="display:none;">
+          <h2 id="quiz-results-title"></h2>
+          <p id="quiz-results-message" style="display:none;"></p>
+          <p><strong>Correct:</strong> <span id="correct-count">0</span> / <span id="total-questions">0</span></p>
+          <p id="quiz-results-categories" style="display:none;"></p>
+          <div id="ll-gender-results-progress" style="display:none;"></div>
+          <div id="quiz-mode-buttons" style="display:none;">
+            <button id="restart-practice-mode" type="button"></button>
+            <button id="restart-learning-mode" type="button"><span class="ll-learning-results-label">Learning</span></button>
+            <button id="restart-self-check-mode" type="button"></button>
+            <button id="restart-gender-mode" type="button" style="display:none;"><span class="ll-gender-results-label">Gender</span></button>
+            <button id="restart-listening-mode" type="button" style="display:none;"></button>
+          </div>
+          <div id="ll-gender-results-actions" style="display:none;">
+            <button id="ll-gender-next-activity" type="button" style="display:none;"></button>
+            <button id="ll-gender-next-chunk" type="button" style="display:none;"></button>
+          </div>
+          <div id="ll-study-results-actions" style="display:none;">
+            <p id="ll-study-results-suggestion" style="display:none;"></p>
+            <button id="ll-study-results-same-chunk" type="button" style="display:none;"></button>
+            <button id="ll-study-results-different-chunk" type="button" style="display:none;"></button>
+            <button id="ll-study-results-next-chunk" type="button" style="display:none;"></button>
+          </div>
+          <button id="restart-quiz" type="button" style="display:none;"></button>
+        </div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 92,
+    categoryWords: {
+      CatA: [
+        makeNounWord(921, 'CatA', 'masculine'),
+        makeNounWord(922, 'CatA', 'feminine')
+      ]
+    },
+    sessionPlan: {
+      level: 2,
+      word_ids: [921, 922],
+      launch_source: 'dashboard',
+      reason_code: 'test_gender_results_progress_summary'
+    },
+    preseedStore: {
+      words: {
+        '921': {
+          level: 2,
+          confidence: 5,
+          intro_seen: true,
+          quick_correct_streak: 1,
+          level1_passes: 3,
+          level1_failures: 0,
+          level2_correct: 3,
+          level2_wrong: 0,
+          level3_correct: 0,
+          level3_wrong: 0,
+          dont_know_count: 0,
+          seen_total: 5,
+          category_name: 'CatA',
+          updated_at: Date.parse('2026-03-20T09:00:00Z')
+        },
+        '922': {
+          level: 2,
+          confidence: 0,
+          intro_seen: true,
+          quick_correct_streak: 0,
+          level1_passes: 3,
+          level1_failures: 0,
+          level2_correct: 1,
+          level2_wrong: 1,
+          level3_correct: 0,
+          level3_wrong: 0,
+          dont_know_count: 0,
+          seen_total: 5,
+          category_name: 'CatA',
+          updated_at: Date.parse('2026-03-20T09:00:00Z')
+        }
+      },
+      updated_at: Date.parse('2026-03-20T09:00:00Z')
+    }
+  });
+
+  await page.evaluate(() => {
+    window.llToolsFlashcardsMessages = {
+      genderProgressTitle: 'Gender progress',
+      genderProgressCurrentSet: 'Current set',
+      genderProgressWords: '%d words',
+      genderProgressLevel1: 'Level 1',
+      genderProgressLevel2: 'Level 2',
+      genderProgressLevel3: 'Level 3'
+    };
+    window.llToolsFlashcardsData = Object.assign({}, window.llToolsFlashcardsData || {}, {
+      modeUi: {}
+    });
+    window.LLFlashcards.Dom.hideLoading = function () {};
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  await page.addScriptTag({ content: fs.readFileSync(resultsScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const Results = window.LLFlashcards.Results;
+    Gender.initialize();
+
+    const first = Gender.selectTargetWord();
+    await Gender.handleAnswer({
+      targetWord: first,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const second = Gender.selectTargetWord();
+    await Gender.handleAnswer({
+      targetWord: second,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    Results.showResults();
+
+    const root = document.getElementById('ll-gender-results-progress');
+    const level2 = root ? root.querySelector('.ll-gender-results-progress-card__stat--level-2 .ll-gender-results-progress-card__stat-value') : null;
+    const level3 = root ? root.querySelector('.ll-gender-results-progress-card__stat--level-3 .ll-gender-results-progress-card__stat-value') : null;
+
+    return {
+      visible: !!root && window.getComputedStyle(root).display !== 'none',
+      text: root ? root.textContent.replace(/\s+/g, ' ').trim() : '',
+      level2Value: level2 ? level2.textContent.trim() : '',
+      level3Value: level3 ? level3.textContent.trim() : ''
+    };
+  });
+
+  expect(result.visible).toBe(true);
+  expect(result.text).toContain('Gender progress');
+  expect(result.text).toContain('Current set');
+  expect(result.text).toContain('2 words');
+  expect(result.level2Value).toBe('1');
+  expect(result.level3Value).toBe('1');
 });

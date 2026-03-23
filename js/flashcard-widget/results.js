@@ -112,11 +112,108 @@
 
     function formatTemplate(message, values) {
         let out = String(message || '');
-        (Array.isArray(values) ? values : []).forEach(function (value, idx) {
-            const token = '%' + String(idx + 1) + '$d';
-            out = out.split(token).join(String(value));
+        const list = Array.isArray(values) ? values : [];
+        list.forEach(function (value, idx) {
+            const safe = String(value);
+            out = out.split('%' + String(idx + 1) + '$d').join(safe);
+            out = out.split('%' + String(idx + 1) + '$s').join(safe);
         });
+        if (list.length) {
+            out = out.split('%d').join(String(list[0]));
+            out = out.split('%s').join(String(list[0]));
+        }
         return out;
+    }
+
+    function hideGenderResultsProgressSummary() {
+        const $summary = $('#ll-gender-results-progress');
+        if (!$summary.length) {
+            return;
+        }
+        $summary.hide().empty();
+    }
+
+    function renderGenderResultsProgressSummary(rawSummary) {
+        const $summary = $('#ll-gender-results-progress');
+        if (!$summary.length) {
+            return;
+        }
+
+        const summary = (rawSummary && typeof rawSummary === 'object') ? rawSummary : {};
+        const totalWords = Math.max(
+            0,
+            parseInt(summary.total_words || summary.total || 0, 10) || 0
+        );
+        if (!totalWords) {
+            hideGenderResultsProgressSummary();
+            return;
+        }
+
+        const msgs = root.llToolsFlashcardsMessages || {};
+        const stats = [
+            {
+                key: 'level-1',
+                label: msgs.genderProgressLevel1 || 'Level 1',
+                value: Math.max(0, parseInt(summary.level_1_words || summary.level1_words || 0, 10) || 0)
+            },
+            {
+                key: 'level-2',
+                label: msgs.genderProgressLevel2 || 'Level 2',
+                value: Math.max(0, parseInt(summary.level_2_words || summary.level2_words || 0, 10) || 0)
+            },
+            {
+                key: 'level-3',
+                label: msgs.genderProgressLevel3 || 'Level 3',
+                value: Math.max(0, parseInt(summary.level_3_words || summary.level3_words || 0, 10) || 0)
+            }
+        ];
+
+        $summary.empty();
+
+        const $card = $('<section>', {
+            class: 'll-gender-results-progress-card',
+            'aria-label': msgs.genderProgressTitle || 'Gender progress'
+        }).appendTo($summary);
+
+        const $head = $('<div>', {
+            class: 'll-gender-results-progress-card__head'
+        }).appendTo($card);
+
+        $('<span>', {
+            class: 'll-gender-results-progress-card__title',
+            text: msgs.genderProgressTitle || 'Gender progress'
+        }).appendTo($head);
+
+        $('<span>', {
+            class: 'll-gender-results-progress-card__scope',
+            text: msgs.genderProgressCurrentSet || 'Current set'
+        }).appendTo($head);
+
+        $('<span>', {
+            class: 'll-gender-results-progress-card__total',
+            text: formatTemplate(msgs.genderProgressWords || '%d words', [totalWords])
+        }).appendTo($head);
+
+        const $stats = $('<div>', {
+            class: 'll-gender-results-progress-card__stats'
+        }).appendTo($card);
+
+        stats.forEach(function (stat) {
+            const $pill = $('<div>', {
+                class: 'll-gender-results-progress-card__stat ll-gender-results-progress-card__stat--' + stat.key
+            });
+            $('<span>', {
+                class: 'll-gender-results-progress-card__stat-value',
+                text: String(stat.value)
+            }).appendTo($pill);
+            $('<span>', {
+                class: 'll-gender-results-progress-card__stat-label',
+                text: stat.label
+            }).appendTo($pill);
+            $stats.append($pill);
+        });
+
+        $summary.show();
     }
 
     function getDefaultLearningButtonLabel() {
@@ -441,6 +538,7 @@
         $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk')
             .hide()
             .off('click.llLessonResults');
+        hideGenderResultsProgressSummary();
         removeCompletionCheckmark();
         $('#ll-tools-flashcard').show();
         $('#quiz-results-categories').hide().empty();
@@ -502,6 +600,7 @@
         $('#ll-study-results-actions').hide();
         $('#ll-study-results-suggestion').hide().empty();
         $('#ll-study-results-same-chunk, #ll-study-results-different-chunk, #ll-study-results-next-chunk').hide();
+        hideGenderResultsProgressSummary();
 
         if (root.FlashcardAudio) {
             try {
@@ -606,6 +705,9 @@
             const actions = (genderMode && typeof genderMode.getResultsActions === 'function')
                 ? genderMode.getResultsActions()
                 : null;
+            const progressSummary = (genderMode && typeof genderMode.getResultsProgressSummary === 'function')
+                ? genderMode.getResultsProgressSummary()
+                : null;
             if (genderMode && typeof genderMode.getResultsCategoryNames === 'function') {
                 try {
                     const chunkCategories = genderMode.getResultsCategoryNames();
@@ -658,6 +760,7 @@
             $('#ll-tools-category-stack, #ll-tools-category-display').hide();
             $('#ll-tools-learning-progress').hide();
             renderCategories(true);
+            renderGenderResultsProgressSummary(progressSummary);
             renderVocabLessonResultsActions('gender', genderAllowed, categoriesForDisplay);
             emitResultsShown({ total: 0, correct: 0 });
             return;

@@ -110,6 +110,31 @@
         return Date.now();
     }
 
+    function currentIsoTimestamp() {
+        try {
+            return new Date(nowTs()).toISOString();
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function parseProgressTimestamp(raw) {
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+            return raw > 0 ? raw : 0;
+        }
+        if (typeof raw === 'string') {
+            const text = raw.trim();
+            if (!text) return 0;
+            if (/^\d+$/.test(text)) {
+                const numeric = parseInt(text, 10);
+                return numeric > 0 ? numeric : 0;
+            }
+            const parsed = Date.parse(text);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        }
+        return 0;
+    }
+
     function shuffle(list) {
         if (!Array.isArray(list)) return [];
         if (Util && typeof Util.randomlySort === 'function') {
@@ -176,6 +201,11 @@
 
     function normalizeWordProgress(raw) {
         const src = (raw && typeof raw === 'object') ? raw : {};
+        const updatedAt = Math.max(
+            parseProgressTimestamp(src.updated_at),
+            parseProgressTimestamp(src.last_seen_at),
+            nowTs()
+        );
         return {
             level: normalizeLevel(src.level),
             confidence: clamp(parseInt(src.confidence, 10) || 0, -8, 12),
@@ -190,7 +220,8 @@
             dont_know_count: Math.max(0, parseInt(src.dont_know_count, 10) || 0),
             seen_total: Math.max(0, parseInt(src.seen_total, 10) || 0),
             category_name: String(src.category_name || ''),
-            updated_at: Number(src.updated_at || nowTs())
+            last_seen_at: String(src.last_seen_at || ''),
+            updated_at: updatedAt
         };
     }
 
@@ -212,10 +243,130 @@
         if (!id) return normalizeWordProgress({});
         const store = loadStore();
         const key = String(id);
+        const timestamp = nowTs();
         store.words[key] = normalizeWordProgress(nextEntry);
-        store.words[key].updated_at = nowTs();
+        store.words[key].updated_at = timestamp;
+        store.words[key].last_seen_at = currentIsoTimestamp();
         saveStore();
         return store.words[key];
+    }
+
+    function hasAnsweredProgress(entry) {
+        const progress = normalizeWordProgress(entry);
+        return (
+            progress.level > LEVEL_ONE ||
+            progress.confidence !== 0 ||
+            progress.quick_correct_streak > 0 ||
+            progress.level1_passes > 0 ||
+            progress.level1_failures > 0 ||
+            progress.level2_correct > 0 ||
+            progress.level2_wrong > 0 ||
+            progress.level3_correct > 0 ||
+            progress.level3_wrong > 0 ||
+            progress.dont_know_count > 0
+        );
+    }
+
+    function progressEntriesEqual(left, right) {
+        const a = normalizeWordProgress(left);
+        const b = normalizeWordProgress(right);
+        const keys = [
+            'level',
+            'confidence',
+            'intro_seen',
+            'quick_correct_streak',
+            'level1_passes',
+            'level1_failures',
+            'level2_correct',
+            'level2_wrong',
+            'level3_correct',
+            'level3_wrong',
+            'dont_know_count',
+            'seen_total',
+            'category_name',
+            'last_seen_at',
+            'updated_at'
+        ];
+        return keys.every(function (key) {
+            return a[key] === b[key];
+        });
+    }
+
+    function getServerWordProgress(word) {
+        if (!word || typeof word !== 'object' || !word.gender_progress || typeof word.gender_progress !== 'object') {
+            return null;
+        }
+        const raw = word.gender_progress;
+        if (Array.isArray(raw) && !raw.length) {
+            return null;
+        }
+        if (!Array.isArray(raw) && !Object.keys(raw).length) {
+            return null;
+        }
+        return normalizeWordProgress(raw);
+    }
+
+    function mergeServerProgressIntoStore(words) {
+        const list = Array.isArray(words) ? words : [];
+        if (!list.length) {
+            return false;
+        }
+
+        const store = loadStore();
+        let changed = false;
+
+        list.forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (!wordId) return;
+
+            const serverEntry = getServerWordProgress(word);
+            if (!serverEntry) return;
+
+            const key = String(wordId);
+            const localEntry = store.words[key] ? normalizeWordProgress(store.words[key]) : null;
+            if (!localEntry) {
+                store.words[key] = serverEntry;
+                changed = true;
+                return;
+            }
+
+            const localAnswered = hasAnsweredProgress(localEntry);
+            const serverAnswered = hasAnsweredProgress(serverEntry);
+            const localTs = parseProgressTimestamp(localEntry.updated_at || localEntry.last_seen_at);
+            const serverTs = parseProgressTimestamp(serverEntry.updated_at || serverEntry.last_seen_at);
+
+            let nextEntry = localEntry;
+            if (serverAnswered && !localAnswered) {
+                nextEntry = serverEntry;
+            } else if ((serverAnswered && localAnswered) || (!serverAnswered && !localAnswered)) {
+                nextEntry = serverTs >= localTs ? serverEntry : localEntry;
+            } else if (!serverAnswered && localAnswered) {
+                nextEntry = localEntry;
+            }
+
+            if (nextEntry === localEntry) {
+                const merged = normalizeWordProgress(Object.assign({}, serverEntry, localEntry, {
+                    category_name: localEntry.category_name || serverEntry.category_name,
+                    last_seen_at: localEntry.last_seen_at || serverEntry.last_seen_at,
+                    updated_at: Math.max(localTs, serverTs)
+                }));
+                if (!progressEntriesEqual(localEntry, merged)) {
+                    store.words[key] = merged;
+                    changed = true;
+                }
+                return;
+            }
+
+            if (!progressEntriesEqual(localEntry, nextEntry)) {
+                store.words[key] = nextEntry;
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            saveStore();
+        }
+        return changed;
     }
 
     function getCategoryNameForWord(word) {
@@ -394,7 +545,10 @@
         if (requirements.requiresAudio && !(word.audio || word.has_audio)) return false;
         if (requirements.requiresImage && !(word.image || word.has_image)) return false;
 
-        const normalizedGender = normalizeGenderValue(word.grammatical_gender, genderOptions);
+        const normalizedGender = normalizeGenderValue(
+            word.normalized_grammatical_gender || word.__gender_label || word.grammatical_gender,
+            genderOptions
+        );
         if (!normalizedGender) return false;
         try { word.__gender_label = normalizedGender; } catch (_) { /* no-op */ }
         return true;
@@ -723,6 +877,7 @@
         if (!eligible.length) {
             return false;
         }
+        mergeServerProgressIntoStore(eligible);
         const pending = session.pendingPlan || consumePendingPlan();
         const plan = pending || buildDefaultPlan(eligible);
         if (!plan) return false;
@@ -2216,6 +2371,37 @@
         return names;
     }
 
+    function getResultsProgressSummary() {
+        const wordIds = Array.isArray(session.activeWordIds) ? session.activeWordIds : [];
+        if (!wordIds.length) {
+            return null;
+        }
+
+        const summary = {
+            total_words: 0,
+            level_1_words: 0,
+            level_2_words: 0,
+            level_3_words: 0
+        };
+
+        wordIds.forEach(function (wordId) {
+            const id = toInt(wordId);
+            if (!id) return;
+            const progress = getWordProgress(id);
+            const level = normalizeLevel(progress.level);
+            summary.total_words += 1;
+            if (level === LEVEL_ONE) {
+                summary.level_1_words += 1;
+            } else if (level === LEVEL_TWO) {
+                summary.level_2_words += 1;
+            } else {
+                summary.level_3_words += 1;
+            }
+        });
+
+        return summary.total_words > 0 ? summary : null;
+    }
+
     function buildDashboardSecondaryPlan(primaryLevel) {
         const fallbackLevel = normalizeLevel(primaryLevel || session.level);
         const currentLookup = {};
@@ -2647,12 +2833,7 @@
             isCorrect: isCorrect,
             hadWrongThisTurn: !isCorrect,
             progressPayload: {
-                gender: {
-                    level: normalizeLevel(updatedProgress.level),
-                    confidence: clamp(updatedProgress.confidence, -8, 12),
-                    quick_correct_streak: Math.max(0, parseInt(updatedProgress.quick_correct_streak, 10) || 0),
-                    seen_total: Math.max(0, parseInt(updatedProgress.seen_total, 10) || 0)
-                },
+                gender: normalizeWordProgress(updatedProgress),
                 gender_answer_timing: timing,
                 gender_dont_know: isDontKnow
             },
@@ -2677,6 +2858,7 @@
         handleAnswer,
         getResultsActions,
         getResultsCategoryNames,
+        getResultsProgressSummary,
         queueResultsAction
     };
 })(window);
