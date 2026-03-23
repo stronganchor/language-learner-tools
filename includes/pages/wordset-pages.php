@@ -2102,11 +2102,6 @@ function ll_tools_wordset_page_render_progress_icon(string $status, string $clas
 function ll_tools_wordset_page_render_progress_mobile_legend(): string {
     $items = [
         [
-            'key' => 'starred',
-            'icon' => ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-mobile-legend__icon'),
-            'label' => __('Starred', 'll-tools-text-domain'),
-        ],
-        [
             'key' => 'mastered',
             'icon' => ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-mobile-legend__icon'),
             'label' => __('Learned', 'll-tools-text-domain'),

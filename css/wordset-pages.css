@@ -3328,12 +3328,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-mobile-legend {
     display: none;
-    gap: 8px;
     margin-bottom: 10px;
-    padding: 10px 12px;
-    border: 1px solid var(--ll-wp-border);
-    border-radius: 12px;
-    background: #ffffff;
 }
 
 .ll-wordset-progress-mobile-legend__title {
@@ -3344,13 +3339,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     line-height: 1.1;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+    margin-bottom: 6px;
 }
 
 .ll-wordset-progress-mobile-legend__items {
     list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 14px;
+    row-gap: 6px;
     margin: 0;
     padding: 0;
 }
@@ -3358,62 +3355,23 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-progress-mobile-legend__item {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    min-height: 26px;
-    padding: 4px 8px;
-    border: 1px solid #d7dee7;
-    border-radius: 999px;
-    background: #f8fafc;
-    color: #334155;
+    gap: 7px;
+    min-width: 0;
+    color: var(--ll-wp-text);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
 }
 
-.ll-wordset-progress-mobile-legend__item--mastered {
-    background: var(--ll-wp-pill-green);
-    border-color: var(--ll-wp-pill-green-border);
-    color: var(--ll-wp-pill-green-text);
-}
-
-.ll-wordset-progress-mobile-legend__item--studied {
-    background: var(--ll-wp-pill-blue);
-    border-color: var(--ll-wp-pill-blue-border);
-    color: var(--ll-wp-pill-blue-text);
-}
-
-.ll-wordset-progress-mobile-legend__item--new {
-    background: var(--ll-wp-pill-slate);
-    border-color: var(--ll-wp-pill-slate-border);
-    color: var(--ll-wp-pill-slate-text);
-}
-
-.ll-wordset-progress-mobile-legend__item--starred {
-    background: var(--ll-wp-pill-gold);
-    border-color: var(--ll-wp-pill-gold-border);
-    color: var(--ll-wp-pill-gold-text);
-}
-
-.ll-wordset-progress-mobile-legend__item--hard {
-    background: var(--ll-wp-pill-red);
-    border-color: var(--ll-wp-pill-red-border);
-    color: var(--ll-wp-pill-red-text);
-}
-
-.ll-wordset-progress-mobile-legend__item--seen {
-    background: #eef4ff;
-    border-color: rgba(29, 77, 153, 0.18);
-    color: #2f537f;
-}
-
 .ll-wordset-progress-mobile-legend__icon {
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     line-height: 0;
     flex: 0 0 auto;
+    color: #475569;
 }
 
 .ll-wordset-progress-mobile-legend__icon svg {
@@ -3424,18 +3382,55 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     stroke: currentColor;
 }
 
-.ll-wordset-progress-mobile-legend__icon.ll-wordset-progress-star-glyph-icon {
-    font-size: 0;
-    line-height: 0;
+.ll-wordset-progress-mobile-legend__item--mastered .ll-wordset-progress-mobile-legend__icon,
+.ll-wordset-progress-mobile-legend__item--studied .ll-wordset-progress-mobile-legend__icon,
+.ll-wordset-progress-mobile-legend__item--new .ll-wordset-progress-mobile-legend__icon {
+    width: 18px;
+    height: 18px;
+    padding: 3px;
+    border: 1px solid transparent;
+    border-radius: 999px;
 }
 
-.ll-wordset-progress-mobile-legend__icon.ll-wordset-progress-star-glyph-icon::before {
-    width: 11px;
-    height: 11px;
+.ll-wordset-progress-mobile-legend__item--mastered .ll-wordset-progress-mobile-legend__icon {
+    background: var(--ll-wp-pill-green);
+    border-color: var(--ll-wp-pill-green-border);
+    color: var(--ll-wp-pill-green-text);
+}
+
+.ll-wordset-progress-mobile-legend__item--studied .ll-wordset-progress-mobile-legend__icon {
+    background: var(--ll-wp-pill-blue);
+    border-color: var(--ll-wp-pill-blue-border);
+    color: var(--ll-wp-pill-blue-text);
+}
+
+.ll-wordset-progress-mobile-legend__item--new .ll-wordset-progress-mobile-legend__icon {
+    background: var(--ll-wp-pill-slate);
+    border-color: var(--ll-wp-pill-slate-border);
+    color: var(--ll-wp-pill-slate-text);
+}
+
+.ll-wordset-progress-mobile-legend__item--hard .ll-wordset-progress-mobile-legend__icon,
+.ll-wordset-progress-mobile-legend__item--wrong .ll-wordset-progress-mobile-legend__icon {
+    color: #b91c1c;
+}
+
+.ll-wordset-progress-mobile-legend__item--seen .ll-wordset-progress-mobile-legend__icon {
+    color: #334155;
 }
 
 .ll-wordset-progress-mobile-legend__text {
     display: inline-block;
+    min-width: 0;
+}
+
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-mobile-header-icon,
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon-wrap,
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon,
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-mobile-header-icon,
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-sort-wrong-icon-wrap,
+.ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-sort-wrong-icon {
+    color: #b91c1c;
 }
 
 .ll-wordset-progress-filter-trigger {
@@ -5087,12 +5082,17 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-star {
-        width: 24px !important;
-        height: 24px !important;
-        min-width: 24px !important;
-        min-height: 24px !important;
-        border-radius: 7px !important;
-        font-size: 14px !important;
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px !important;
+        min-height: 22px !important;
+        border-radius: 6px !important;
+        font-size: 12px !important;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-star::before {
+        width: 13px !important;
+        height: 13px !important;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {
@@ -5335,14 +5335,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-star {
-        width: 20px !important;
-        height: 20px !important;
-        min-width: 20px !important;
-        min-height: 20px !important;
-        font-size: 11px !important;
-        border-radius: 5px !important;
+        width: 18px !important;
+        height: 18px !important;
+        min-width: 18px !important;
+        min-height: 18px !important;
+        font-size: 10px !important;
+        border-radius: 4px !important;
         display: block !important;
         margin: 0 auto !important;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-star::before {
+        width: 11px !important;
+        height: 11px !important;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {
@@ -5627,32 +5632,34 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-mobile-legend {
-        padding: 8px 10px;
-        gap: 7px;
+        margin-bottom: 8px;
     }
 
     .ll-wordset-progress-mobile-legend__title {
         font-size: 10px;
+        margin-bottom: 5px;
     }
 
     .ll-wordset-progress-mobile-legend__items {
-        gap: 5px;
+        column-gap: 12px;
+        row-gap: 5px;
     }
 
     .ll-wordset-progress-mobile-legend__item {
-        min-height: 24px;
-        padding: 3px 7px;
         font-size: 10px;
     }
 
     .ll-wordset-progress-mobile-legend__icon {
-        width: 12px;
-        height: 12px;
+        width: 15px;
+        height: 15px;
     }
 
-    .ll-wordset-progress-mobile-legend__icon.ll-wordset-progress-star-glyph-icon::before {
-        width: 10px;
-        height: 10px;
+    .ll-wordset-progress-mobile-legend__item--mastered .ll-wordset-progress-mobile-legend__icon,
+    .ll-wordset-progress-mobile-legend__item--studied .ll-wordset-progress-mobile-legend__icon,
+    .ll-wordset-progress-mobile-legend__item--new .ll-wordset-progress-mobile-legend__icon {
+        width: 17px;
+        height: 17px;
+        padding: 3px;
     }
 }
 

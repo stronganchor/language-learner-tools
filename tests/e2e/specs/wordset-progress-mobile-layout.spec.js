@@ -218,7 +218,6 @@ function buildProgressPageMarkup() {
           <div class="ll-wordset-progress-mobile-legend" data-ll-wordset-progress-mobile-legend aria-label="Word table key">
             <span class="ll-wordset-progress-mobile-legend__title">Key</span>
             <ul class="ll-wordset-progress-mobile-legend__items" role="list">
-              <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--starred"><span class="ll-wordset-progress-mobile-legend__icon ll-wordset-progress-star-glyph-icon" aria-hidden="true"></span><span class="ll-wordset-progress-mobile-legend__text">Starred</span></li>
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--mastered"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><polyline points="14,34 28,46 50,18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline></svg></span><span class="ll-wordset-progress-mobile-legend__text">Learned</span></li>
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--studied"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="6"></circle><path fill="currentColor" fill-rule="evenodd" d="M32 8 A24 24 0 1 1 31.999 8 Z M32 32 L32 8 A24 24 0 0 0 8 32 Z"></path></svg></span><span class="ll-wordset-progress-mobile-legend__text">In progress</span></li>
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--new"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span><span class="ll-wordset-progress-mobile-legend__text">New</span></li>
@@ -358,7 +357,7 @@ test('mobile progress words table keeps the star button inside its column and om
   await mountMobileProgressPage(page);
 
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeVisible();
-  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Starred');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).not.toContainText('Starred');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Seen');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Wrong');
 

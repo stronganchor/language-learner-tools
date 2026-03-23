@@ -32,13 +32,13 @@ final class WordsetProgressMobileLegendTest extends LL_Tools_TestCase
 
         $this->assertNotSame('', $html);
         $this->assertStringContainsString('data-ll-wordset-progress-mobile-legend', $html);
-        $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--starred', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--mastered', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--studied', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--new', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--hard', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--seen', $html);
         $this->assertStringContainsString('ll-wordset-progress-mobile-legend__item--wrong', $html);
+        $this->assertStringNotContainsString('ll-wordset-progress-mobile-legend__item--starred', $html);
         $this->assertStringContainsString('>Key<', $html);
     }
 
