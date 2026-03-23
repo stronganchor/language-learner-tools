@@ -2617,10 +2617,12 @@
             const primaryWord = String(row.title || '').trim();
             const secondaryWord = String(row.translation || '').trim();
             const $wordCell = $('<td>');
-            const $wordContent = $('<div>', { class: 'll-wordset-progress-word-cell' });
             const imageUrl = String(row.image || '').trim();
-            const $wordThumb = $('<span>', { class: 'll-wordset-progress-word-thumb' + (imageUrl ? '' : ' is-empty') });
+            const $wordContent = $('<div>', {
+                class: 'll-wordset-progress-word-cell' + (imageUrl ? ' ll-wordset-progress-word-cell--has-thumb' : ' ll-wordset-progress-word-cell--text-only')
+            });
             if (imageUrl) {
+                const $wordThumb = $('<span>', { class: 'll-wordset-progress-word-thumb' });
                 $('<img>', {
                     src: imageUrl,
                     alt: primaryWord || secondaryWord || '',
@@ -2628,13 +2630,12 @@
                     decoding: 'async',
                     fetchpriority: 'low'
                 }).appendTo($wordThumb);
-            } else {
-                $('<span>', { class: 'll-wordset-progress-word-thumb-fallback', 'aria-hidden': 'true' }).appendTo($wordThumb);
+                $wordContent.append($wordThumb);
             }
             const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
             $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
             $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
-            $wordContent.append($wordThumb).append($wordMain);
+            $wordContent.append($wordMain);
             $wordCell.append($wordContent).appendTo($tr);
 
             const $categoryCell = $('<td>');

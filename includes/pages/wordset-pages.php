@@ -2099,6 +2099,66 @@ function ll_tools_wordset_page_render_progress_icon(string $status, string $clas
     return '<span class="' . esc_attr($class) . '" aria-hidden="true">' . $svg . '</span>';
 }
 
+function ll_tools_wordset_page_render_progress_mobile_legend(): string {
+    $items = [
+        [
+            'key' => 'starred',
+            'icon' => ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('Starred', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'mastered',
+            'icon' => ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('Learned', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'studied',
+            'icon' => ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('In progress', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'new',
+            'icon' => ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('New', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'hard',
+            'icon' => ll_tools_wordset_page_render_progress_icon('hard', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('Hard', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'seen',
+            'icon' => ll_tools_wordset_page_render_unhide_icon('ll-wordset-progress-mobile-legend__icon'),
+            'label' => __('Seen', 'll-tools-text-domain'),
+        ],
+        [
+            'key' => 'wrong',
+            'icon' => ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-mobile-legend__icon'),
+            'label' => __('Wrong', 'll-tools-text-domain'),
+        ],
+    ];
+
+    ob_start();
+    ?>
+    <div
+        class="ll-wordset-progress-mobile-legend"
+        data-ll-wordset-progress-mobile-legend
+        aria-label="<?php echo esc_attr__('Word table key', 'll-tools-text-domain'); ?>">
+        <span class="ll-wordset-progress-mobile-legend__title"><?php echo esc_html__('Key', 'll-tools-text-domain'); ?></span>
+        <ul class="ll-wordset-progress-mobile-legend__items" role="list">
+            <?php foreach ($items as $item) : ?>
+                <li class="<?php echo esc_attr('ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--' . $item['key']); ?>">
+                    <?php echo $item['icon']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <span class="ll-wordset-progress-mobile-legend__text"><?php echo esc_html($item['label']); ?></span>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_render_priority_focus_icon(string $focus, string $class = 'll-wordset-priority-option__icon'): string {
     $focus = sanitize_key($focus);
     if ($focus === 'new') {
@@ -3479,6 +3539,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 <?php echo esc_html__('Clear filters', 'll-tools-text-domain'); ?>
                             </button>
                         </div>
+                        <?php echo ll_tools_wordset_page_render_progress_mobile_legend(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                         <div class="ll-wordset-progress-table-wrap">
                             <table class="ll-wordset-progress-table ll-wordset-progress-table--words">
                                 <thead>
