@@ -338,11 +338,9 @@
         const labelHtml = showTextLabel
             ? '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
             : '';
-        const srText = '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>';
-
         const $label = $card.find('.quiz-text').first();
         if ($label.length) {
-            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + srText + '</span>');
+            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + '</span>');
         }
     }
 
@@ -354,7 +352,6 @@
         $label.html(
             '<span class="ll-gender-option-inner ll-gender-option-inner--unknown">'
             + '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
-            + '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>'
             + '</span>'
         );
     }
@@ -450,34 +447,37 @@
         return cardEl.querySelector('.ll-gender-option-inner') || cardEl.querySelector('.quiz-text');
     }
 
-    function getGenderCardAvailableWidth(cardEl) {
+    function getGenderCardAvailableSize(cardEl) {
         if (!cardEl || typeof cardEl.querySelector !== 'function') return 0;
         const textEl = cardEl.querySelector('.quiz-text');
-        if (!textEl) return 0;
-        return Math.max(0, Math.floor(textEl.clientWidth || 0) - 4);
+        if (!textEl) return { width: 0, height: 0 };
+        return {
+            width: Math.max(0, Math.floor(textEl.clientWidth || 0) - 4),
+            height: Math.max(0, Math.floor(textEl.clientHeight || 0) - 4)
+        };
     }
 
-    function getGenderCardWidthRatio(cardEl) {
+    function getGenderCardFitRatio(cardEl) {
         const measureEl = getGenderCardMeasureElement(cardEl);
-        const availableWidth = getGenderCardAvailableWidth(cardEl);
-        if (!measureEl || !availableWidth) return 1;
+        const availableSize = getGenderCardAvailableSize(cardEl);
+        if (!measureEl || !availableSize.width || !availableSize.height) return 1;
+        const bounds = (measureEl.getBoundingClientRect && measureEl.getBoundingClientRect()) || null;
         const measuredWidth = Math.max(
             Math.ceil(measureEl.scrollWidth || 0),
-            Math.ceil((measureEl.getBoundingClientRect && measureEl.getBoundingClientRect().width) || 0)
+            Math.ceil((bounds && bounds.width) || 0)
         );
-        if (!measuredWidth) return 1;
-        return Math.min(1, availableWidth / measuredWidth);
+        const measuredHeight = Math.max(
+            Math.ceil(measureEl.scrollHeight || 0),
+            Math.ceil((bounds && bounds.height) || 0)
+        );
+        if (!measuredWidth || !measuredHeight) return 1;
+        const widthRatio = availableSize.width / measuredWidth;
+        const heightRatio = availableSize.height / measuredHeight;
+        return Math.min(1, widthRatio, heightRatio);
     }
 
     function cardGenderContentOverflows(cardEl) {
-        const measureEl = getGenderCardMeasureElement(cardEl);
-        const availableWidth = getGenderCardAvailableWidth(cardEl);
-        if (!measureEl || !availableWidth) return false;
-        const neededWidth = Math.max(
-            Math.ceil(measureEl.scrollWidth || 0),
-            Math.ceil((measureEl.getBoundingClientRect && measureEl.getBoundingClientRect().width) || 0)
-        );
-        return neededWidth > (availableWidth + 1);
+        return getGenderCardFitRatio(cardEl) < 0.995;
     }
 
     function fitGenderOptionTextScale() {
@@ -485,11 +485,8 @@
         if (!$) return;
         const $allCards = $('#ll-tools-flashcard .ll-gender-option');
         if (!$allCards.length) return;
-        const $measureCards = $allCards;
-
-        const MIN_SCALE = 0.56;
-        const SCALE_STEP = 0.02;
-        const MAX_PASSES = 4;
+        const MIN_SCALE = 0.24;
+        const MAX_PASSES = 6;
 
         const applyScale = function (scale) {
             const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
@@ -502,28 +499,27 @@
             return normalized;
         };
 
-        applyScale(1);
-        let targetScale = 1;
-        $measureCards.each(function () {
-            targetScale = Math.min(targetScale, getGenderCardWidthRatio(this));
+        let scale = applyScale(1);
+        $allCards.each(function () {
+            scale = Math.min(scale, getGenderCardFitRatio(this));
         });
-
-        let scale = applyScale(targetScale);
+        scale = applyScale(scale);
         for (let pass = 0; pass < MAX_PASSES; pass++) {
+            let tightestRatio = 1;
             let hasOverflow = false;
-            $measureCards.each(function () {
+            $allCards.each(function () {
+                tightestRatio = Math.min(tightestRatio, getGenderCardFitRatio(this));
                 if (cardGenderContentOverflows(this)) {
                     hasOverflow = true;
-                    return false;
                 }
             });
             if (!hasOverflow || scale <= MIN_SCALE) break;
-            scale = applyScale(scale - SCALE_STEP);
+            const nextScale = Math.max(MIN_SCALE, scale * Math.min(1, tightestRatio));
+            if (Math.abs(nextScale - scale) < 0.001) {
+                break;
+            }
+            scale = applyScale(nextScale);
         }
-    }
-
-    function syncGenderUnknownTextSize() {
-        return;
     }
 
     function getGenderSafeBottomInset() {
@@ -579,7 +575,6 @@
 
         let layoutScale = applyLayoutScale(1);
         fitGenderOptionTextScale();
-        syncGenderUnknownTextSize();
 
         for (let pass = 0; pass < MAX_PASSES; pass++) {
             const allowedHeight = Math.max(0, contentEl.clientHeight || 0);
@@ -592,7 +587,6 @@
             if (layoutScale <= MIN_LAYOUT_SCALE) break;
             layoutScale = applyLayoutScale(layoutScale - SCALE_STEP);
             fitGenderOptionTextScale();
-            syncGenderUnknownTextSize();
         }
 
         if (contentEl.classList && typeof contentEl.classList.toggle === 'function') {

@@ -36,7 +36,9 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   `);
 
   await page.addScriptTag({ content: jquerySource });
-  await page.addStyleTag({ content: `${baseCssSource}\n${genderCssSource}` });
+  await page.addStyleTag({
+    content: `${baseCssSource}\n${genderCssSource}\n.screen-reader-text{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0,0,0,0) !important;white-space:nowrap !important;border:0 !important;}`
+  });
 
   await page.evaluate(() => {
     const masculineSvg = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="30" y="18" width="16" height="64" rx="6" fill="currentColor"/><circle cx="38" cy="12" r="8" fill="currentColor"/></svg>';
@@ -163,8 +165,10 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
       const rect = card.getBoundingClientRect();
       const textEl = card.querySelector('.quiz-text');
       const symbolEl = card.querySelector('.ll-gender-symbol');
+      const labelEl = card.querySelector('.ll-gender-option-label');
       const textStyle = textEl ? window.getComputedStyle(textEl) : null;
       const symbolRect = symbolEl ? symbolEl.getBoundingClientRect() : null;
+      const labelRect = labelEl ? labelEl.getBoundingClientRect() : null;
       return {
         role: card.getAttribute('data-ll-gender-role') || '',
         display: style.display,
@@ -173,7 +177,9 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
         height: rect.height,
         fontSize: textStyle ? parseFloat(textStyle.fontSize || '0') : 0,
         symbolWidth: symbolRect ? symbolRect.width : 0,
-        symbolHeight: symbolRect ? symbolRect.height : 0
+        symbolHeight: symbolRect ? symbolRect.height : 0,
+        symbolCenterY: symbolRect ? (symbolRect.top + (symbolRect.height / 2)) : 0,
+        labelCenterY: labelRect ? (labelRect.top + (labelRect.height / 2)) : 0
       };
     });
   });
@@ -184,7 +190,7 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     expect(card.visibility).toBe('visible');
     expect(card.width).toBeGreaterThan(0);
     expect(card.height).toBeGreaterThan(0);
-    expect(card.fontSize).toBeGreaterThan(12);
+    expect(card.fontSize).toBeGreaterThan(18);
   });
 
   const genderCards = cards.filter((card) => card.role === 'masculine' || card.role === 'feminine');
@@ -193,4 +199,7 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   expect(Math.abs(cards[0].fontSize - cards[2].fontSize)).toBeLessThan(0.5);
   expect(Math.abs(genderCards[0].symbolWidth - genderCards[1].symbolWidth)).toBeLessThan(0.75);
   expect(Math.abs(genderCards[0].symbolHeight - genderCards[1].symbolHeight)).toBeLessThan(0.75);
+  genderCards.forEach((card) => {
+    expect(Math.abs(card.symbolCenterY - card.labelCenterY)).toBeLessThan(2);
+  });
 });
