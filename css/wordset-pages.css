@@ -3616,6 +3616,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-filter-option__count {
+    display: inline-block;
+    margin-left: 0.18em;
     color: var(--ll-wp-muted);
     font-weight: 500;
 }
