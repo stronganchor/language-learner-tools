@@ -312,7 +312,7 @@ async function mountMobileProgressPage(page) {
   page.on('pageerror', (error) => {
     pageErrors.push(String(error && error.message ? error.message : error));
   });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 344, height: 844 });
   await page.goto(process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local/');
   await page.setContent(buildProgressPageMarkup());
   await page.addStyleTag({ content: wordsetCssSource });
@@ -369,8 +369,11 @@ test('mobile progress words table keeps the star button inside its column and om
   await expect(secondWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(1);
 
   const metrics = await page.evaluate(() => {
+    const legend = document.querySelector('[data-ll-wordset-progress-mobile-legend]');
+    const legendTitle = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__title') : null;
+    const legendItems = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__items') : null;
     const row = document.querySelector('tr[data-word-id="101"]');
-    if (!row) {
+    if (!row || !legendTitle || !legendItems) {
       return null;
     }
 
@@ -381,11 +384,15 @@ test('mobile progress words table keeps the star button inside its column and om
       return null;
     }
 
+    const legendTitleRect = legendTitle.getBoundingClientRect();
+    const legendItemsRect = legendItems.getBoundingClientRect();
     const starCellRect = starCell.getBoundingClientRect();
     const wordCellRect = wordCell.getBoundingClientRect();
     const buttonRect = button.getBoundingClientRect();
 
     return {
+      legendTitleBottom: legendTitleRect.bottom,
+      legendItemsTop: legendItemsRect.top,
       starCellLeft: starCellRect.left,
       starCellRight: starCellRect.right,
       wordCellLeft: wordCellRect.left,
@@ -395,6 +402,7 @@ test('mobile progress words table keeps the star button inside its column and om
   });
 
   expect(metrics).not.toBeNull();
+  expect(metrics.legendItemsTop).toBeGreaterThanOrEqual(metrics.legendTitleBottom + 6);
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);

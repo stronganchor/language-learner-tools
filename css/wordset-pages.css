@@ -3307,6 +3307,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-mobile-legend {
     display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
     margin-bottom: 10px;
 }
 
@@ -3318,7 +3321,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     line-height: 1.1;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    margin: 0;
 }
 
 .ll-wordset-progress-mobile-legend__items {
@@ -3327,6 +3330,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 14px;
     row-gap: 6px;
+    width: 100%;
     margin: 0;
     padding: 0;
 }
@@ -4740,7 +4744,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 @media (max-width: 600px) {
     .ll-wordset-page {
-        --ll-wp-page-padding-inline: 14px;
+        --ll-wp-page-padding-inline: 12px;
         padding: 20px var(--ll-wp-page-padding-inline) 32px;
     }
 
@@ -4926,7 +4930,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-table--words th,
     .ll-wordset-progress-table--words td {
-        padding: 6px 5px;
+        padding: 6px 4px;
         font-size: 11px;
         vertical-align: top;
     }
@@ -5273,7 +5277,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-table--words th:nth-child(1),
     .ll-wordset-progress-table--words td:nth-child(1) {
-        width: 8% !important;
+        width: 9% !important;
         text-align: center;
         vertical-align: top;
         padding-left: 1px;
@@ -5293,7 +5297,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-table--words th:nth-child(4),
     .ll-wordset-progress-table--words td:nth-child(4) {
-        width: 14% !important;
+        width: 13% !important;
         text-align: center;
     }
 
@@ -5303,13 +5307,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-progress-table--words td:nth-child(6),
     .ll-wordset-progress-table--words th:nth-child(7),
     .ll-wordset-progress-table--words td:nth-child(7) {
-        width: 12.5% !important;
+        width: 12% !important;
         text-align: center;
     }
 
     .ll-wordset-progress-table--words th:nth-child(8),
     .ll-wordset-progress-table--words td:nth-child(8) {
-        width: 8.5% !important;
+        width: 10% !important;
         text-align: center;
     }
 
@@ -5502,6 +5506,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 @media (max-width: 520px) {
+    .ll-wordset-page {
+        --ll-wp-page-padding-inline: 10px;
+    }
+
     .ll-wordset-progress-table--words th:nth-child(8),
     .ll-wordset-progress-table--words td:nth-child(8),
     .ll-wordset-progress-table--categories th:nth-child(4),
@@ -5511,19 +5519,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-table--words th:nth-child(1),
     .ll-wordset-progress-table--words td:nth-child(1) {
-        width: 8% !important;
+        width: 10% !important;
         padding-left: 1px;
         padding-right: 1px;
     }
 
     .ll-wordset-progress-table--words th:nth-child(2),
     .ll-wordset-progress-table--words td:nth-child(2) {
-        width: 16% !important;
+        width: 15% !important;
     }
 
     .ll-wordset-progress-table--words th:nth-child(3),
     .ll-wordset-progress-table--words td:nth-child(3) {
-        width: 17% !important;
+        width: 16% !important;
     }
 
     .ll-wordset-progress-table--words th:nth-child(4),
@@ -5538,6 +5546,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-progress-table--words th:nth-child(7),
     .ll-wordset-progress-table--words td:nth-child(7) {
         width: 15% !important;
+    }
+
+    .ll-wordset-progress-table--words th,
+    .ll-wordset-progress-table--words td {
+        padding: 4px 2px;
     }
 
     .ll-wordset-progress-table--categories th:nth-child(1),
@@ -5612,11 +5625,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-mobile-legend {
         margin-bottom: 8px;
+        gap: 8px;
     }
 
     .ll-wordset-progress-mobile-legend__title {
         font-size: 10px;
-        margin-bottom: 5px;
+        margin: 0;
     }
 
     .ll-wordset-progress-mobile-legend__items {
