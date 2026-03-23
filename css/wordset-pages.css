@@ -880,6 +880,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     flex: 0 0 auto;
 }
 
+.ll-wordset-next-card__preview--text-only {
+    gap: 0;
+}
+
 .ll-wordset-next-thumb {
     width: var(--ll-wp-recommendation-thumb-size);
     height: var(--ll-wp-recommendation-thumb-size);
@@ -915,23 +919,42 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-next-thumb--text {
+    --ll-wordset-text-preview-base-font-size: 13px;
+    --ll-wordset-text-preview-min-font-size: 9px;
+    --ll-wordset-text-preview-line-height: 1.12;
+    --ll-wordset-text-preview-max-lines: 2;
     background: #f4f6f8;
     color: #303944;
-    padding: 5px;
+    padding: 0;
+}
+
+.ll-wordset-next-thumb--text.ll-wordset-next-thumb--text-only {
+    width: clamp(78px, 13vw, 98px);
+    height: calc(var(--ll-wp-recommendation-thumb-size) + 12px);
+    border-radius: 12px;
+    --ll-wordset-text-preview-base-font-size: 16px;
+    --ll-wordset-text-preview-min-font-size: 10px;
 }
 
 .ll-wordset-page .ll-wordset-next-thumb__text {
-    font-size: 11px;
-    line-height: 1.15;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    font-size: var(--ll-wordset-text-preview-base-font-size, 13px);
+    line-height: var(--ll-wordset-text-preview-line-height, 1.12);
     font-weight: 700;
     font-family: inherit !important;
     letter-spacing: normal !important;
     text-transform: none !important;
     text-align: center;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    display: block;
     overflow: hidden;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: none;
 }
 
 .ll-wordset-next-thumb--empty {
@@ -1746,6 +1769,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     position: relative;
 }
 
+.ll-wordset-card__preview.has-text {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ll-wordset-card__preview.has-text .ll-wordset-preview-item {
+    min-height: clamp(84px, 16vw, 104px);
+    aspect-ratio: 2.18 / 1;
+}
+
 .ll-wordset-card__starred-pill {
     position: absolute;
     top: 7px;
@@ -1797,23 +1829,35 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-preview-item--text {
+    --ll-wordset-text-preview-base-font-size: 22px;
+    --ll-wordset-text-preview-min-font-size: 11px;
+    --ll-wordset-text-preview-line-height: 1.12;
+    --ll-wordset-text-preview-max-lines: 2;
     background: #ffffff !important;
     color: #111827 !important;
-    padding: 8px;
+    padding: 0;
     text-align: center;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ll-wordset-preview-text {
-    font-size: 0.78rem;
-    line-height: 1.2;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    font-size: var(--ll-wordset-text-preview-base-font-size, 22px);
+    line-height: var(--ll-wordset-text-preview-line-height, 1.12);
     font-weight: 600;
     color: inherit !important;
     letter-spacing: 0.01em;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
+    display: block;
     overflow: hidden;
+    text-align: center;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: none;
 }
 
 .ll-wordset-preview-item--empty {

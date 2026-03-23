@@ -715,7 +715,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
 
         $image_preview_limit = max(1, (int) $preview_limit);
-        $text_preview_limit = max(4, $image_preview_limit);
+        $text_preview_limit = 1;
         $preview_limit_for_category = $requires_images ? $image_preview_limit : $text_preview_limit;
 
         $preview = ll_tools_get_wordset_category_preview(
@@ -4514,14 +4514,16 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                             <span class="ll-wordset-progress-pill__value ll-wordset-card__starred-value"><?php echo (int) $card_starred_count; ?></span>
                                         </span>
                                     <?php endif; ?>
+                                    <?php
+                                    $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
+                                    if ($current_preview_limit < 1) {
+                                        $current_preview_limit = 1;
+                                    }
+                                    ?>
                                     <?php if (!empty($cat['preview'])) : ?>
                                         <?php
                                         $preview_items = array_values((array) $cat['preview']);
                                         $preview_count = count($preview_items);
-                                        $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
-                                        if ($current_preview_limit < 1) {
-                                            $current_preview_limit = 1;
-                                        }
                                         $displayed_count = min($preview_count, $current_preview_limit);
                                         ?>
                                         <?php foreach (array_slice($preview_items, 0, $current_preview_limit) as $preview) : ?>
@@ -4542,7 +4544,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 </span>
                                             <?php else : ?>
                                                 <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                                                    <span class="ll-wordset-preview-text"><?php echo esc_html($preview['label'] ?? ''); ?></span>
+                                                    <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html($preview['label'] ?? ''); ?></span>
                                                 </span>
                                             <?php endif; ?>
                                         <?php endforeach; ?>
@@ -4550,7 +4552,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                             <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
                                         <?php endfor; ?>
                                     <?php else : ?>
-                                        <?php for ($i = 0; $i < 2; $i++) : ?>
+                                        <?php for ($i = 0; $i < $current_preview_limit; $i++) : ?>
                                             <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
                                         <?php endfor; ?>
                                     <?php endif; ?>

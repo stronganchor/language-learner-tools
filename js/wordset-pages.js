@@ -94,6 +94,7 @@
     let progressMiniStickyReleaseTimer = 0;
     let progressMiniStickyReleaseFinalize = null;
     let progressMiniStickySession = null;
+    let wordsetTextPreviewFitTimer = null;
 
     function protectMaqafNoBreak(value) {
         const text = (value === null || value === undefined) ? '' : String(value);
@@ -281,6 +282,136 @@
     }
 
     initWordsetThumbImageLoadingState();
+
+    const WORDSET_TEXT_PREVIEW_SELECTOR = [
+        '.ll-wordset-card__preview.has-text .ll-wordset-preview-text',
+        '.ll-wordset-next-thumb--text .ll-wordset-next-thumb__text'
+    ].join(', ');
+
+    function clampNumber(value, min, max, fallback) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.max(min, Math.min(max, parsed));
+    }
+
+    function getWordsetTextPreviewSlot(textEl) {
+        if (!textEl || !textEl.closest) {
+            return null;
+        }
+        return textEl.closest('.ll-wordset-preview-item--text, .ll-wordset-next-thumb--text');
+    }
+
+    function getWordsetTextPreviewConfig(textEl) {
+        const slotEl = getWordsetTextPreviewSlot(textEl);
+        const style = (slotEl && window.getComputedStyle) ? window.getComputedStyle(slotEl) : null;
+        const baseFontSize = style ? parseFloat(style.getPropertyValue('--ll-wordset-text-preview-base-font-size')) : NaN;
+        const minFontSize = style ? parseFloat(style.getPropertyValue('--ll-wordset-text-preview-min-font-size')) : NaN;
+        const lineHeightRatio = style ? parseFloat(style.getPropertyValue('--ll-wordset-text-preview-line-height')) : NaN;
+        const maxLines = style ? parseInt(style.getPropertyValue('--ll-wordset-text-preview-max-lines'), 10) : NaN;
+
+        return {
+            baseFontSize: clampNumber(baseFontSize, 10, 36, 16),
+            minFontSize: clampNumber(minFontSize, 8, 24, 10),
+            lineHeightRatio: clampNumber(lineHeightRatio, 1.05, 1.6, 1.14),
+            maxLines: Math.max(1, Math.min(3, Number.isFinite(maxLines) ? maxLines : 2))
+        };
+    }
+
+    function applyWordsetTextPreviewSize(textEl, fontSizePx, lineHeightRatio) {
+        if (!textEl) { return; }
+        const lineHeightPx = Math.round(fontSizePx * lineHeightRatio * 100) / 100;
+        textEl.style.fontSize = String(fontSizePx) + 'px';
+        textEl.style.lineHeight = String(lineHeightPx) + 'px';
+    }
+
+    function wordsetTextPreviewFits(textEl, maxLines) {
+        const slotEl = getWordsetTextPreviewSlot(textEl);
+        if (!slotEl) {
+            return false;
+        }
+
+        const computed = window.getComputedStyle ? window.getComputedStyle(textEl) : null;
+        const paddingY = computed
+            ? (parseFloat(computed.paddingTop || '0') + parseFloat(computed.paddingBottom || '0'))
+            : 0;
+        const lineHeight = computed ? parseFloat(computed.lineHeight || '0') : 0;
+        const clientWidth = Math.max(0, Math.ceil(textEl.clientWidth || 0));
+        const scrollWidth = Math.max(0, Math.ceil(textEl.scrollWidth || 0));
+        const contentHeight = Math.max(0, Math.ceil((textEl.scrollHeight || 0) - paddingY));
+        const slotHeight = Math.max(0, Math.ceil(slotEl.clientHeight || 0));
+        const maxContentHeight = Math.max(0, Math.ceil(lineHeight * maxLines) + 1);
+
+        if (clientWidth <= 0 || lineHeight <= 0 || slotHeight <= 0) {
+            return false;
+        }
+
+        return scrollWidth <= clientWidth + 1
+            && contentHeight <= maxContentHeight
+            && Math.ceil(textEl.scrollHeight || 0) <= slotHeight + 1;
+    }
+
+    function refitWordsetTextPreview(textEl) {
+        const slotEl = getWordsetTextPreviewSlot(textEl);
+        if (!slotEl || !textEl) {
+            return;
+        }
+
+        const textValue = String(textEl.textContent || '').trim();
+        if (!textValue) {
+            return;
+        }
+
+        const cfg = getWordsetTextPreviewConfig(textEl);
+        const availableWidth = Math.max(0, Math.floor(slotEl.clientWidth || 0));
+        const availableHeight = Math.max(0, Math.floor(slotEl.clientHeight || 0));
+        if (availableWidth < 40 || availableHeight < 18) {
+            return;
+        }
+
+        textEl.style.whiteSpace = 'normal';
+        textEl.style.wordBreak = 'normal';
+        textEl.style.overflowWrap = 'normal';
+        textEl.style.hyphens = 'none';
+
+        let fontSize = cfg.baseFontSize;
+        applyWordsetTextPreviewSize(textEl, fontSize, cfg.lineHeightRatio);
+
+        if (wordsetTextPreviewFits(textEl, cfg.maxLines)) {
+            return;
+        }
+
+        while (fontSize > cfg.minFontSize) {
+            fontSize = Math.max(cfg.minFontSize, Math.round((fontSize - 0.25) * 100) / 100);
+            applyWordsetTextPreviewSize(textEl, fontSize, cfg.lineHeightRatio);
+            if (wordsetTextPreviewFits(textEl, cfg.maxLines) || fontSize === cfg.minFontSize) {
+                break;
+            }
+        }
+    }
+
+    function refitWordsetTextPreviews(rootNode) {
+        const scope = (rootNode && rootNode.nodeType === 1) ? rootNode : document;
+        const elements = [];
+        if (scope.matches && scope.matches(WORDSET_TEXT_PREVIEW_SELECTOR)) {
+            elements.push(scope);
+        }
+        if (scope.querySelectorAll) {
+            scope.querySelectorAll(WORDSET_TEXT_PREVIEW_SELECTOR).forEach(function (node) {
+                elements.push(node);
+            });
+        }
+        elements.forEach(refitWordsetTextPreview);
+    }
+
+    function scheduleWordsetTextPreviewRefit(delayMs, rootNode) {
+        clearTimeout(wordsetTextPreviewFitTimer);
+        wordsetTextPreviewFitTimer = window.setTimeout(function () {
+            wordsetTextPreviewFitTimer = null;
+            refitWordsetTextPreviews(rootNode || $root[0]);
+        }, Math.max(0, parseInt(delayMs, 10) || 0));
+    }
 
     function normalizeCategories(raw) {
         return (Array.isArray(raw) ? raw : []).map(function (cat) {
@@ -2830,6 +2961,34 @@
             }
         }
         return null;
+    }
+
+    function categoryUsesTextPreview(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const preview = Array.isArray(cat.preview) ? cat.preview : [];
+        if (preview.length) {
+            return !preview.some(function (item) {
+                return String(item && item.type || '').toLowerCase() === 'image'
+                    && String(item && item.url || '').trim() !== '';
+            });
+        }
+
+        const promptType = String(cat.prompt_type || '').trim().toLowerCase();
+        const optionType = String(cat.option_type || '').trim().toLowerCase();
+        return promptType.indexOf('text') === 0
+            || optionType.indexOf('text') === 0
+            || !cat.has_images;
+    }
+
+    function getPreviewSlotCountForCategoryIds(categoryIds, fallbackCount) {
+        const fallback = Math.max(1, parseInt(fallbackCount, 10) || 2);
+        const ids = uniqueIntList(categoryIds || []);
+        if (!ids.length) { return fallback; }
+
+        const relevantCategories = ids.map(getCategoryById).filter(Boolean);
+        if (!relevantCategories.length) { return fallback; }
+
+        return relevantCategories.every(categoryUsesTextPreview) ? 1 : fallback;
     }
 
     function getCategoryAspectBucket(catId) {
@@ -5385,8 +5544,12 @@
     function renderNextPreview(next) {
         if (!$nextPreview.length) { return; }
 
-        const preview = getRecommendedPreviewItems(next, 2);
+        const previewSlotCount = getPreviewSlotCountForCategoryIds(next && next.category_ids, 2);
+        const textOnlyLayout = previewSlotCount === 1;
+        const preview = getRecommendedPreviewItems(next, previewSlotCount);
         const slots = [];
+
+        $nextPreview.toggleClass('ll-wordset-next-card__preview--text-only', textOnlyLayout);
 
         preview.forEach(function (item) {
             const source = (item && typeof item === 'object') ? item : {};
@@ -5402,7 +5565,9 @@
             const label = String(source.label || '').trim();
             if (label) {
                 slots.push(
-                    '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--text">'
+                    '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--text'
+                    + (textOnlyLayout ? ' ll-wordset-next-thumb--text-only' : '')
+                    + '">'
                     + '<span class="ll-wordset-next-thumb__text" dir="auto">' + escapeHtml(label) + '</span>'
                     + '</span>'
                 );
@@ -5410,6 +5575,7 @@
         });
 
         $nextPreview.html(slots.join(''));
+        scheduleWordsetTextPreviewRefit(0, $nextPreview[0]);
     }
 
     function setNextCardText(primaryText, secondaryText) {
@@ -5667,6 +5833,7 @@
             $nextIcon.html(getLoadingModeIconMarkup('ll-vocab-lesson-mode-icon'));
         }
         if ($nextPreview.length) {
+            $nextPreview.removeClass('ll-wordset-next-card__preview--text-only');
             $nextPreview.html(buildLoadingNextPreviewMarkup());
         }
         if ($nextCount.length) {
@@ -8836,6 +9003,19 @@
         } else {
             refreshProgressAnalyticsNow();
         }
+    }
+
+    $(window).off('resize.llWordsetTextPreviewFit').on('resize.llWordsetTextPreviewFit', function () {
+        scheduleWordsetTextPreviewRefit(80);
+    });
+
+    scheduleWordsetTextPreviewRefit(0);
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+        document.fonts.ready
+            .then(function () {
+                scheduleWordsetTextPreviewRefit(0);
+            })
+            .catch(function () { /* no-op */ });
     }
 
     if (view === 'main') {
