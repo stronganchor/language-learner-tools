@@ -373,6 +373,7 @@ function buildGamesConfig(isLoggedIn) {
         slug: 'space-shooter',
         lives: 3,
         cardCount: 4,
+        maxLoadedWords: 6,
         fireIntervalMs: 165,
         timeoutCoinPenalty: 1
       }
@@ -485,6 +486,7 @@ function buildGamesConfig(isLoggedIn) {
       progressResetCategoryConfirm: '',
       progressResetCategoryAria: '',
       gamesLoading: 'Checking game availability...',
+      gamesPreparingRun: 'Preparing game...',
       gamesLoginRequired: 'Sign in to play with your in-progress words.',
       gamesLoadError: 'Unable to load games right now.',
       gamesReadyCount: '%d words ready',
@@ -510,16 +512,17 @@ function buildGamesConfig(isLoggedIn) {
   };
 }
 
-async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords() }) {
+async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords(), audioLoadDelayMs = 60 } = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords }) => {
+    ({ config, gameWords, audioLoadDelay }) => {
       window.llWordsetPageData = config;
       window.__gameBootstrapWords = gameWords;
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
       window.__scrollCalls = [];
+      window.__audioLoadDelay = Number(audioLoadDelay || 0);
 
       window.scrollTo = function (leftOrOptions, top) {
         if (typeof leftOrOptions === 'object' && leftOrOptions !== null) {
@@ -550,6 +553,68 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
             }
           }
           return String(word && word.audio || '');
+        }
+      };
+
+      window.Audio = class FakeAudio extends EventTarget {
+        constructor() {
+          super();
+          this._src = '';
+          this.currentTime = 0;
+          this.preload = 'auto';
+          this.readyState = 0;
+          this.paused = true;
+          this._loadTimer = 0;
+        }
+
+        get src() {
+          return this._src;
+        }
+
+        set src(value) {
+          this._src = String(value || '');
+          this.readyState = 0;
+          this._queueReady();
+        }
+
+        load() {
+          this._queueReady();
+        }
+
+        play() {
+          this._queueReady();
+          return new Promise((resolve) => {
+            window.setTimeout(() => {
+              this.paused = false;
+              this.dispatchEvent(new Event('play'));
+              this.dispatchEvent(new Event('playing'));
+              resolve();
+            }, 0);
+          });
+        }
+
+        pause() {
+          this.paused = true;
+          this.dispatchEvent(new Event('pause'));
+        }
+
+        _queueReady() {
+          if (!this._src) {
+            return;
+          }
+          if (this._loadTimer) {
+            window.clearTimeout(this._loadTimer);
+          }
+          const expectedSrc = this._src;
+          this._loadTimer = window.setTimeout(() => {
+            if (this._src !== expectedSrc) {
+              return;
+            }
+            this.readyState = 4;
+            this.dispatchEvent(new Event('loadeddata'));
+            this.dispatchEvent(new Event('canplay'));
+            this.dispatchEvent(new Event('canplaythrough'));
+          }, Math.max(0, Number(window.__audioLoadDelay || 0)));
         }
       };
 
@@ -592,6 +657,11 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
                   description: 'Hear the word. Blast the matching picture.',
                   minimum_word_count: 5,
                   available_word_count: window.__gameBootstrapWords.length,
+                  launch_word_cap: Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6),
+                  launch_word_count: Math.min(
+                    window.__gameBootstrapWords.length,
+                    Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6)
+                  ),
                   launchable: true,
                   category_ids: [11, 22],
                   words: window.__gameBootstrapWords
@@ -605,7 +675,7 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
         return deferred.promise();
       };
     },
-    { config: buildGamesConfig(isLoggedIn), gameWords: words }
+    { config: buildGamesConfig(isLoggedIn), gameWords: words, audioLoadDelay: audioLoadDelayMs }
   );
   await page.addStyleTag({ content: wordsetGamesStyles });
   await page.addScriptTag({ content: optionConflictsSource });
@@ -627,6 +697,10 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   await expect(page.locator('[data-ll-wordset-game-launch]')).toBeEnabled();
   await expect(page.locator('[data-ll-wordset-game-status]')).toHaveText('7 words ready');
+  const catalogContext = await page.evaluate(() => window.LLWordsetGames.__debug.getContext());
+  expect(catalogContext.availableWordCount).toBe(7);
+  expect(catalogContext.launchWordCap).toBe(6);
+  expect(catalogContext.launchWordCount).toBe(6);
 
   const catalogDimensions = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
@@ -644,9 +718,14 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
-  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Preparing game...');
   await expect(page.locator('[data-ll-wordset-game-fire-keycap]')).toBeVisible();
   await page.waitForFunction(() => Array.isArray(window.__scrollCalls) && window.__scrollCalls.length > 0);
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.awaitingPrompt && !run.targetWordId);
+  });
   const stageDimensions = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
     const stage = document.querySelector('[data-ll-wordset-game-stage]');
@@ -657,25 +736,75 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
   expect(stageDimensions.stageWidth).toBeGreaterThan(0);
   expect(stageDimensions.rootWidth - stageDimensions.stageWidth).toBeGreaterThan(80);
-  await page.keyboard.down('Space');
-  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).toHaveClass(/is-active/);
-  await page.keyboard.up('Space');
-  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).not.toHaveClass(/is-active/);
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
-    return !!(run && run.targetWordId && run.activeCardCount === 4);
+    return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);
   });
-  await page.waitForFunction(() => {
-    const run = window.LLWordsetGames.__debug.getRunState();
-    return !!(run
-      && Array.isArray(run.cardSnapshot)
-      && run.cardSnapshot.some((card) => card.promptId === run.promptId && Math.abs(card.width - card.height) > 8));
-  });
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
   expect(['question', 'isolation', 'introduction']).toContain(initialRun.promptRecordingType);
-  expect(initialRun.cardSnapshot.some((card) => card.promptId === initialRun.promptId && Math.abs(card.width - card.height) > 8)).toBe(true);
+  expect(new Set(initialRun.cardWordIds).size).toBeLessThanOrEqual(6);
+
+  const disallowedPairs = [
+    [101, 102],
+    [103, 104],
+    [105, 106]
+  ];
+  disallowedPairs.forEach(([left, right]) => {
+    expect(initialRun.cardWordIds).not.toEqual(expect.arrayContaining([left, right]));
+  });
+  const wrongResolved = await page.evaluate(() => window.LLWordsetGames.__debug.resolvePrompt('wrong'));
+  expect(wrongResolved).toBe(true);
+  await page.waitForFunction((targetWordId) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run || run.targetWordId !== targetWordId) {
+      return false;
+    }
+    return run.activeCardCount === 3
+      && Array.isArray(run.cardSnapshot)
+      && run.cardSnapshot.filter((card) => card.promptId === run.promptId && !card.exploding).length === 3;
+  }, initialRun.targetWordId);
+
+  let progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  expect(progressEvents).toHaveLength(2);
+  expect(progressEvents[0].type).toBe('word_exposure');
+  expect(progressEvents[1].type).toBe('word_outcome');
+  expect(progressEvents[1].entry.isCorrect).toBe(false);
+  expect(progressEvents[1].entry.hadWrongBefore).toBe(false);
+  expect(progressEvents[1].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
+  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('3');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.resolvePrompt('correct');
+  });
+  await page.waitForFunction((priorPromptId, priorTargetWordId) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.promptsResolved === 1
+      && run.promptId !== priorPromptId
+      && run.targetWordId !== priorTargetWordId
+      && run.activeCardCount === 4
+      && Array.isArray(run.cardSnapshot)
+      && run.cardSnapshot.length > 4
+      && run.cardSnapshot.some((card) => card.promptId === priorPromptId && card.resolvedFalling && !card.exploding));
+  }, initialRun.promptId, initialRun.targetWordId);
+
+  let resolvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(resolvedState.cardSnapshot.some((card) => card.promptId === initialRun.promptId && card.resolvedFalling && !card.exploding)).toBe(true);
+
+  progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
+  expect(progressEvents).toHaveLength(3);
+  expect(progressEvents[2].entry.isCorrect).toBe(true);
+  expect(progressEvents[2].entry.hadWrongBefore).toBe(true);
+  expect(progressEvents[2].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
+  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('2');
+
+  await page.keyboard.down('Space');
+  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).toHaveClass(/is-active/);
+  await page.keyboard.up('Space');
+  await expect(page.locator('[data-ll-wordset-game-control="fire"]')).not.toHaveClass(/is-active/);
 
   const pauseSnapshot = await page.evaluate(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
@@ -741,62 +870,6 @@ test('space shooter launches with safe option mixes and records progress flows',
   const resumedRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(resumedRun.promptId).toBe(pauseSnapshot.promptId);
   expect(resumedRun.targetWordId).toBe(pauseSnapshot.targetWordId);
-
-  const disallowedPairs = [
-    [101, 102],
-    [103, 104],
-    [105, 106]
-  ];
-  disallowedPairs.forEach(([left, right]) => {
-    expect(initialRun.cardWordIds).not.toEqual(expect.arrayContaining([left, right]));
-  });
-
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.resolvePrompt('wrong');
-  });
-  await page.waitForFunction((targetWordId) => {
-    const run = window.LLWordsetGames.__debug.getRunState();
-    if (!run || run.targetWordId !== targetWordId) {
-      return false;
-    }
-    return run.activeCardCount === 3
-      && Array.isArray(run.cardSnapshot)
-      && run.cardSnapshot.filter((card) => card.promptId === run.promptId && !card.exploding).length === 3;
-  }, initialRun.targetWordId);
-
-  let progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
-  expect(progressEvents).toHaveLength(2);
-  expect(progressEvents[0].type).toBe('word_exposure');
-  expect(progressEvents[1].type).toBe('word_outcome');
-  expect(progressEvents[1].entry.isCorrect).toBe(false);
-  expect(progressEvents[1].entry.hadWrongBefore).toBe(false);
-  expect(progressEvents[1].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
-  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('3');
-
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.resolvePrompt('correct');
-  });
-  await page.waitForFunction((priorPromptId, priorTargetWordId) => {
-    const run = window.LLWordsetGames.__debug.getRunState();
-    return !!(run
-      && run.promptsResolved === 1
-      && run.promptId !== priorPromptId
-      && run.targetWordId !== priorTargetWordId
-      && run.activeCardCount === 4
-      && Array.isArray(run.cardSnapshot)
-      && run.cardSnapshot.length > 4
-      && run.cardSnapshot.some((card) => card.promptId === priorPromptId && card.resolvedFalling && !card.exploding));
-  }, initialRun.promptId, initialRun.targetWordId);
-
-  let resolvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
-  expect(resolvedState.cardSnapshot.some((card) => card.promptId === initialRun.promptId && card.resolvedFalling && !card.exploding)).toBe(true);
-
-  progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
-  expect(progressEvents).toHaveLength(3);
-  expect(progressEvents[2].entry.isCorrect).toBe(true);
-  expect(progressEvents[2].entry.hadWrongBefore).toBe(true);
-  expect(progressEvents[2].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
-  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('2');
 
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.resolvePrompt('timeout');

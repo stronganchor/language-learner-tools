@@ -6,6 +6,11 @@ function ll_tools_wordset_games_min_word_count(): int {
     return max(5, (int) apply_filters('ll_tools_wordset_games_min_word_count', 5));
 }
 
+function ll_tools_wordset_games_space_shooter_launch_word_cap(): int {
+    $minimum = ll_tools_wordset_games_min_word_count();
+    return max($minimum, (int) apply_filters('ll_tools_wordset_games_space_shooter_launch_word_cap', 60));
+}
+
 function ll_tools_wordset_games_render_page_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 256 256" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'
@@ -458,6 +463,85 @@ function ll_tools_wordset_games_expand_pool_by_category_order(array $words, arra
     return $selected;
 }
 
+function ll_tools_wordset_games_limit_launch_words(array $words, int $word_cap): array {
+    $word_cap = max(1, $word_cap);
+    $words = array_values(array_filter($words, 'is_array'));
+    if (count($words) <= $word_cap) {
+        return $words;
+    }
+
+    $groups = [];
+    $group_order = [];
+    foreach ($words as $word) {
+        $category_id = 0;
+        if (!empty($word['category_id'])) {
+            $category_id = (int) $word['category_id'];
+        } elseif (!empty($word['category_ids']) && is_array($word['category_ids'])) {
+            $category_id = (int) reset($word['category_ids']);
+        }
+
+        $group_key = $category_id > 0 ? (string) $category_id : 'default';
+        if (!isset($groups[$group_key])) {
+            $groups[$group_key] = [];
+            $group_order[] = $group_key;
+        }
+        $groups[$group_key][] = $word;
+    }
+
+    $selected = [];
+    $selected_lookup = [];
+    while (count($selected) < $word_cap) {
+        $added_this_pass = false;
+        foreach ($group_order as $group_key) {
+            if (empty($groups[$group_key])) {
+                continue;
+            }
+
+            $word = array_shift($groups[$group_key]);
+            $word_id = (int) ($word['id'] ?? 0);
+            if ($word_id > 0 && !empty($selected_lookup[$word_id])) {
+                continue;
+            }
+
+            $selected[] = $word;
+            if ($word_id > 0) {
+                $selected_lookup[$word_id] = true;
+            }
+            $added_this_pass = true;
+
+            if (count($selected) >= $word_cap) {
+                break;
+            }
+        }
+
+        if (!$added_this_pass) {
+            break;
+        }
+    }
+
+    if (count($selected) >= $word_cap) {
+        return array_slice($selected, 0, $word_cap);
+    }
+
+    foreach ($words as $word) {
+        $word_id = (int) ($word['id'] ?? 0);
+        if ($word_id > 0 && !empty($selected_lookup[$word_id])) {
+            continue;
+        }
+
+        $selected[] = $word;
+        if ($word_id > 0) {
+            $selected_lookup[$word_id] = true;
+        }
+
+        if (count($selected) >= $word_cap) {
+            break;
+        }
+    }
+
+    return array_slice($selected, 0, $word_cap);
+}
+
 function ll_tools_wordset_games_build_space_shooter_pool(int $wordset_id, int $user_id = 0): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     $collected = ll_tools_wordset_games_collect_visible_words($wordset_id, $uid);
@@ -542,14 +626,20 @@ function ll_tools_wordset_games_build_space_shooter_pool(int $wordset_id, int $u
         $pool = ll_tools_attach_user_practice_progress_to_words($pool, $uid);
     }
 
+    $available_word_count = count($pool);
+    $launch_word_cap = ll_tools_wordset_games_space_shooter_launch_word_cap();
+    $launch_words = ll_tools_wordset_games_limit_launch_words($pool, $launch_word_cap);
+
     return [
         'slug' => 'space-shooter',
         'minimum_word_count' => $minimum_word_count,
-        'available_word_count' => count($pool),
-        'launchable' => count($pool) >= $minimum_word_count,
+        'available_word_count' => $available_word_count,
+        'launch_word_cap' => $launch_word_cap,
+        'launch_word_count' => count($launch_words),
+        'launchable' => $available_word_count >= $minimum_word_count,
         'pool_source' => $pool_source,
         'category_ids' => isset($collected['category_ids']) && is_array($collected['category_ids']) ? $collected['category_ids'] : [],
-        'words' => array_values($pool),
+        'words' => array_values($launch_words),
     ];
 }
 
@@ -562,6 +652,8 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
     $catalog['space-shooter'] = array_merge($catalog['space-shooter'], [
         'minimum_word_count' => $minimum,
         'available_word_count' => $available,
+        'launch_word_cap' => (int) ($space_shooter['launch_word_cap'] ?? ll_tools_wordset_games_space_shooter_launch_word_cap()),
+        'launch_word_count' => (int) ($space_shooter['launch_word_count'] ?? 0),
         'launchable' => !empty($space_shooter['launchable']),
         'reason_code' => $available >= $minimum ? '' : 'not_enough_words',
         'category_ids' => isset($space_shooter['category_ids']) && is_array($space_shooter['category_ids']) ? $space_shooter['category_ids'] : [],

@@ -3257,6 +3257,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'slug' => 'space-shooter',
                 'lives' => 3,
                 'cardCount' => 4,
+                'maxLoadedWords' => function_exists('ll_tools_wordset_games_space_shooter_launch_word_cap')
+                    ? ll_tools_wordset_games_space_shooter_launch_word_cap()
+                    : 60,
                 'fireIntervalMs' => 165,
                 'correctCoinReward' => 2,
                 'wrongHitCoinPenalty' => 0,
@@ -3364,6 +3367,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'modeGender' => __('Gender', 'll-tools-text-domain'),
             'modeSelfCheck' => __('Self Check', 'll-tools-text-domain'),
             'gamesLoading' => __('Checking game availability...', 'll-tools-text-domain'),
+            'gamesPreparingRun' => __('Preparing game...', 'll-tools-text-domain'),
             'gamesLoginRequired' => __('Sign in to play with your in-progress words.', 'll-tools-text-domain'),
             'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
             'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),

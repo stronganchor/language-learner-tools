@@ -108,6 +108,40 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(5, (int) ($pool['minimum_word_count'] ?? 0));
     }
 
+    public function test_space_shooter_pool_caps_launch_words_but_preserves_full_available_count(): void
+    {
+        $fixture = $this->createGamesFixture(10);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $capFilter = static function (): int {
+            return 6;
+        };
+        add_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
+
+        try {
+            $pool = ll_tools_wordset_games_build_space_shooter_pool((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        } finally {
+            remove_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
+        }
+
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($pool['words'] ?? []))));
+        $expectedLaunchIds = array_values(array_intersect(
+            array_map('intval', $fixture['eligible_word_ids']),
+            $returnedIds
+        ));
+        sort($returnedIds);
+        sort($expectedLaunchIds);
+
+        $this->assertSame(10, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertSame(6, (int) ($pool['launch_word_cap'] ?? 0));
+        $this->assertSame(6, (int) ($pool['launch_word_count'] ?? 0));
+        $this->assertCount(6, (array) ($pool['words'] ?? []));
+        $this->assertTrue((bool) ($pool['launchable'] ?? false));
+        $this->assertSame($expectedLaunchIds, $returnedIds);
+    }
+
     public function test_space_shooter_pool_falls_back_to_mastered_words_when_studied_words_are_below_minimum_count(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
@@ -330,6 +364,11 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         ];
         $_REQUEST = $_POST;
 
+        $capFilter = static function (): int {
+            return 5;
+        };
+        add_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
+
         try {
             $allowed = $this->runJsonEndpoint(static function (): void {
                 ll_tools_wordset_games_bootstrap_ajax();
@@ -337,12 +376,16 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         } finally {
             $_POST = [];
             $_REQUEST = [];
+            remove_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
         }
 
         $this->assertTrue((bool) ($allowed['success'] ?? false));
         $this->assertSame((int) $fixture['wordset_id'], (int) ($allowed['data']['wordset_id'] ?? 0));
         $this->assertIsArray($allowed['data']['games']['space-shooter'] ?? null);
         $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['launch_word_cap'] ?? 0));
+        $this->assertSame(5, (int) ($allowed['data']['games']['space-shooter']['launch_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($allowed['data']['games']['space-shooter']['words'] ?? []));
         $this->assertTrue((bool) ($allowed['data']['games']['space-shooter']['launchable'] ?? false));
     }
 

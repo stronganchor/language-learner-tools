@@ -8,6 +8,7 @@
     const CARD_RATIO_MIN = 0.55;
     const CARD_RATIO_MAX = 2.5;
     const CARD_RATIO_DEFAULT = 1;
+    const ASSET_PRELOAD_TIMEOUT_MS = 8000;
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -88,6 +89,78 @@
             copy[swapIndex] = temp;
         }
         return copy;
+    }
+
+    function getWordCategoryKey(word) {
+        const categoryId = toInt(word && word.category_id)
+            || toInt(Array.isArray(word && word.category_ids) ? word.category_ids[0] : 0);
+        return categoryId > 0 ? String(categoryId) : 'default';
+    }
+
+    function limitLaunchWords(words, wordCap) {
+        const list = Array.isArray(words) ? words.slice() : [];
+        const cap = Math.max(1, toInt(wordCap) || list.length || 1);
+        if (list.length <= cap) {
+            return list;
+        }
+
+        const groups = {};
+        const groupOrder = [];
+        list.forEach(function (word) {
+            const key = getWordCategoryKey(word);
+            if (!groups[key]) {
+                groups[key] = [];
+                groupOrder.push(key);
+            }
+            groups[key].push(word);
+        });
+
+        const selected = [];
+        const selectedIds = {};
+        while (selected.length < cap) {
+            let added = false;
+            groupOrder.forEach(function (key) {
+                if (selected.length >= cap || !groups[key] || !groups[key].length) {
+                    return;
+                }
+
+                const word = groups[key].shift();
+                const wordId = toInt(word && word.id);
+                if (wordId && selectedIds[wordId]) {
+                    return;
+                }
+
+                selected.push(word);
+                if (wordId) {
+                    selectedIds[wordId] = true;
+                }
+                added = true;
+            });
+
+            if (!added) {
+                break;
+            }
+        }
+
+        if (selected.length >= cap) {
+            return selected.slice(0, cap);
+        }
+
+        list.forEach(function (word) {
+            if (selected.length >= cap) {
+                return;
+            }
+            const wordId = toInt(word && word.id);
+            if (wordId && selectedIds[wordId]) {
+                return;
+            }
+            selected.push(word);
+            if (wordId) {
+                selectedIds[wordId] = true;
+            }
+        });
+
+        return selected.slice(0, cap);
     }
 
     function getOptionConflicts() {
@@ -456,7 +529,7 @@
         card.x = laneCenterX(run, card.laneIndex);
     }
 
-    function loadWordImage(ctx, word) {
+    function getImageResource(ctx, word) {
         const url = String(word && word.image || '');
         if (!url) {
             return null;
@@ -464,22 +537,163 @@
         if (ctx.imageCache[url]) {
             return ctx.imageCache[url];
         }
+
         const image = new Image();
+        const resource = {
+            image: image,
+            status: 'loading',
+            promise: null
+        };
+
         image.decoding = 'async';
-        image.addEventListener('load', function () {
-            const run = ctx && ctx.run;
-            if (!run || !Array.isArray(run.cards)) {
-                return;
-            }
-            run.cards.forEach(function (card) {
-                if (toInt(card && card.word && card.word.id) === toInt(word && word.id)) {
-                    applyCardDimensions(ctx, run, card);
+        resource.promise = new Promise(function (resolve) {
+            let settled = false;
+            let timeoutId = 0;
+
+            const cleanup = function () {
+                image.removeEventListener('load', onLoad);
+                image.removeEventListener('error', onError);
+                if (timeoutId) {
+                    root.clearTimeout(timeoutId);
+                    timeoutId = 0;
                 }
-            });
+            };
+
+            const finish = function (isLoaded) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                resource.status = isLoaded ? 'loaded' : 'error';
+                cleanup();
+                resolve(!!isLoaded);
+            };
+
+            const onLoad = function () {
+                const run = ctx && ctx.run;
+                if (run && Array.isArray(run.cards)) {
+                    run.cards.forEach(function (card) {
+                        if (toInt(card && card.word && card.word.id) === toInt(word && word.id)) {
+                            applyCardDimensions(ctx, run, card);
+                        }
+                    });
+                }
+                finish(image.naturalWidth > 0 && image.naturalHeight > 0);
+            };
+
+            const onError = function () {
+                finish(false);
+            };
+
+            image.addEventListener('load', onLoad);
+            image.addEventListener('error', onError);
+            timeoutId = root.setTimeout(function () {
+                finish(false);
+            }, Math.max(1000, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS));
+
+            try {
+                image.src = url;
+                if (image.complete) {
+                    onLoad();
+                }
+            } catch (_) {
+                onError();
+            }
         });
-        image.src = url;
-        ctx.imageCache[url] = image;
-        return image;
+
+        ctx.imageCache[url] = resource;
+        return resource;
+    }
+
+    function loadWordImage(ctx, word) {
+        const resource = getImageResource(ctx, word);
+        return resource ? resource.image : null;
+    }
+
+    function ensureWordImageLoaded(ctx, word) {
+        const resource = getImageResource(ctx, word);
+        return resource ? resource.promise : Promise.resolve(false);
+    }
+
+    function getAudioPreloadResource(ctx, url) {
+        const source = String(url || '');
+        if (!source) {
+            return null;
+        }
+        if (ctx.audioPreloadCache[source]) {
+            return ctx.audioPreloadCache[source];
+        }
+
+        const audio = new Audio();
+        const resource = {
+            audio: audio,
+            status: 'loading',
+            promise: null
+        };
+
+        audio.preload = 'auto';
+        resource.promise = new Promise(function (resolve) {
+            let settled = false;
+            let timeoutId = 0;
+
+            const cleanup = function () {
+                audio.removeEventListener('canplaythrough', onReady);
+                audio.removeEventListener('canplay', onReady);
+                audio.removeEventListener('loadeddata', onReady);
+                audio.removeEventListener('error', onError);
+                if (timeoutId) {
+                    root.clearTimeout(timeoutId);
+                    timeoutId = 0;
+                }
+            };
+
+            const finish = function (isLoaded) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                resource.status = isLoaded ? 'loaded' : 'error';
+                cleanup();
+                resolve(!!isLoaded);
+            };
+
+            const onReady = function () {
+                finish(true);
+            };
+
+            const onError = function () {
+                finish(false);
+            };
+
+            audio.addEventListener('canplaythrough', onReady);
+            audio.addEventListener('canplay', onReady);
+            audio.addEventListener('loadeddata', onReady);
+            audio.addEventListener('error', onError);
+            timeoutId = root.setTimeout(function () {
+                finish(false);
+            }, Math.max(1000, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS));
+
+            try {
+                audio.src = source;
+                if (audio.readyState >= 2) {
+                    onReady();
+                    return;
+                }
+                if (typeof audio.load === 'function') {
+                    audio.load();
+                }
+            } catch (_) {
+                onError();
+            }
+        });
+
+        ctx.audioPreloadCache[source] = resource;
+        return resource;
+    }
+
+    function ensureAudioLoaded(ctx, url) {
+        const resource = getAudioPreloadResource(ctx, url);
+        return resource ? resource.promise : Promise.resolve(false);
     }
 
     function renderBackground(ctx, run) {
@@ -814,21 +1028,27 @@
 
     function buildPreparedEntry(ctx, rawEntry) {
         const entry = $.extend({}, rawEntry || {});
-        const words = (Array.isArray(entry.words) ? entry.words : [])
+        const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
+        const maxLoadedWords = Math.max(
+            minimumCount,
+            toInt(entry.launch_word_cap)
+                || toInt(ctx.spaceShooter.maxLoadedWords)
+                || minimumCount
+        );
+        const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
             .map(normalizeWord)
             .filter(function (word) {
                 const audio = selectPromptAudio(word);
                 return word.id > 0 && word.image !== '' && audio.url !== '';
             });
-        words.forEach(function (word) {
-            loadWordImage(ctx, word);
-        });
+        const words = limitLaunchWords(eligibleWords, maxLoadedWords);
         const playableTargets = findPlayableTargets(words, ctx.spaceShooter.cardCount);
-        const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
         const prepared = $.extend({}, entry, {
             words: words,
             playableTargets: playableTargets,
-            available_word_count: toInt(entry.available_word_count) || words.length,
+            available_word_count: toInt(entry.available_word_count) || eligibleWords.length,
+            launch_word_cap: maxLoadedWords,
+            launch_word_count: words.length,
             launchable: !!entry.launchable && words.length >= minimumCount && playableTargets.length > 0,
             minimum_word_count: minimumCount,
             category_ids: uniqueIntList(entry.category_ids || [])
@@ -1094,6 +1314,183 @@
         return null;
     }
 
+    function refreshRunPlayableTargets(run) {
+        if (!run) {
+            return;
+        }
+        run.playableTargets = findPlayableTargets(run.words, run.cardCount);
+        const playableLookup = {};
+        run.playableTargets.forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (wordId) {
+                playableLookup[wordId] = true;
+            }
+        });
+        run.promptDeck = run.promptDeck.filter(function (word) {
+            return !!playableLookup[toInt(word && word.id)];
+        });
+        if (run.nextPreparedPrompt && !playableLookup[toInt(run.nextPreparedPrompt.target && run.nextPreparedPrompt.target.id)]) {
+            run.nextPreparedPrompt = null;
+        }
+    }
+
+    function removeWordFromRun(run, wordId) {
+        const targetId = toInt(wordId);
+        if (!run || !targetId) {
+            return;
+        }
+
+        run.words = run.words.filter(function (word) {
+            return toInt(word && word.id) !== targetId;
+        });
+        run.promptDeck = run.promptDeck.filter(function (word) {
+            return toInt(word && word.id) !== targetId;
+        });
+        refreshRunPlayableTargets(run);
+    }
+
+    function buildPromptCandidate(ctx, run, targetWord) {
+        const promptAudio = selectPromptAudio(targetWord, shuffle(getGamePromptRecordingTypes(targetWord)));
+        if (!promptAudio.url) {
+            return null;
+        }
+
+        const promptId = run.promptIdCounter + 1;
+        const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId);
+        if (!cards) {
+            return null;
+        }
+
+        return {
+            target: targetWord,
+            promptId: promptId,
+            audioUrl: promptAudio.url,
+            recordingType: promptAudio.recordingType,
+            cards: cards
+        };
+    }
+
+    function preloadPromptCandidate(ctx, candidate) {
+        if (!candidate || !candidate.target || !candidate.audioUrl) {
+            return Promise.resolve({
+                ready: false,
+                failedWordIds: [],
+                failedAudio: false
+            });
+        }
+
+        const imageWords = candidate.cards.map(function (card) {
+            return card.word;
+        });
+
+        return Promise.all([
+            ensureAudioLoaded(ctx, candidate.audioUrl),
+            Promise.all(imageWords.map(function (word) {
+                return ensureWordImageLoaded(ctx, word).then(function (loaded) {
+                    return {
+                        wordId: toInt(word && word.id),
+                        loaded: !!loaded
+                    };
+                });
+            }))
+        ]).then(function (results) {
+            const audioReady = !!results[0];
+            const imageResults = Array.isArray(results[1]) ? results[1] : [];
+            const failedWordIds = imageResults.filter(function (entry) {
+                return !entry.loaded && entry.wordId > 0;
+            }).map(function (entry) {
+                return entry.wordId;
+            });
+
+            return {
+                ready: audioReady && failedWordIds.length === 0,
+                failedWordIds: failedWordIds,
+                failedAudio: !audioReady
+            };
+        });
+    }
+
+    function preparePromptCandidate(ctx, run) {
+        const maxAttempts = Math.max(1, run.playableTargets.length);
+        let chain = Promise.resolve(null);
+
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            chain = chain.then(function (candidate) {
+                if (candidate || !ctx.run || ctx.run !== run || run.ended) {
+                    return candidate;
+                }
+
+                const targetWord = selectNextTarget(run);
+                if (!targetWord) {
+                    return null;
+                }
+
+                const nextCandidate = buildPromptCandidate(ctx, run, targetWord);
+                if (!nextCandidate) {
+                    return null;
+                }
+
+                return preloadPromptCandidate(ctx, nextCandidate).then(function (preload) {
+                    if (preload.ready) {
+                        return nextCandidate;
+                    }
+
+                    preload.failedWordIds.forEach(function (wordId) {
+                        removeWordFromRun(run, wordId);
+                    });
+                    if (preload.failedAudio) {
+                        removeWordFromRun(run, toInt(targetWord && targetWord.id));
+                    }
+                    return null;
+                });
+            });
+        }
+
+        return chain;
+    }
+
+    function queueNextPreparedPrompt(ctx, run) {
+        if (!run || run.ended || run.nextPreparedPrompt || run.nextPromptPromise) {
+            return null;
+        }
+
+        run.nextPromptPromise = preparePromptCandidate(ctx, run).then(function (candidate) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return null;
+            }
+            run.nextPreparedPrompt = candidate;
+            return candidate;
+        }).finally(function () {
+            if (ctx.run === run) {
+                run.nextPromptPromise = null;
+            }
+        });
+
+        return run.nextPromptPromise;
+    }
+
+    function applyPreparedPrompt(ctx, run, candidate) {
+        if (!run || !candidate || !candidate.target) {
+            return false;
+        }
+
+        run.promptIdCounter = candidate.promptId;
+        run.prompt = {
+            target: candidate.target,
+            promptId: candidate.promptId,
+            audioUrl: candidate.audioUrl,
+            recordingType: candidate.recordingType,
+            hadWrongBefore: false,
+            wrongCount: 0,
+            exposureTracked: false,
+            resolved: false
+        };
+        run.cards = run.cards.concat(candidate.cards);
+        playPromptAudio(ctx);
+        queueNextPreparedPrompt(ctx, run);
+        return true;
+    }
+
     function activePromptId(run) {
         return toInt(run && run.prompt && run.prompt.promptId);
     }
@@ -1104,45 +1501,38 @@
 
     function startNextPrompt(ctx) {
         const run = ctx.run;
-        if (!run || run.ended) {
+        if (!run || run.ended || run.awaitingPrompt) {
             return;
         }
 
+        run.awaitingPrompt = true;
         removeResolvedObjects(run, currentTimestamp());
-        const maxAttempts = Math.max(1, run.playableTargets.length);
+        const preparedPromptPromise = run.nextPreparedPrompt
+            ? Promise.resolve(run.nextPreparedPrompt)
+            : (run.nextPromptPromise || preparePromptCandidate(ctx, run));
 
-        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            const targetWord = selectNextTarget(run);
-            if (!targetWord) {
-                break;
-            }
-            const promptAudio = selectPromptAudio(targetWord, shuffle(getGamePromptRecordingTypes(targetWord)));
-            if (!promptAudio.url) {
-                continue;
-            }
-            const promptId = run.promptIdCounter + 1;
-            const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId);
-            if (!cards) {
-                continue;
+        preparedPromptPromise.then(function (candidate) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
             }
 
-            run.promptIdCounter = promptId;
-            run.prompt = {
-                target: targetWord,
-                promptId: promptId,
-                audioUrl: promptAudio.url,
-                recordingType: promptAudio.recordingType,
-                hadWrongBefore: false,
-                wrongCount: 0,
-                exposureTracked: false,
-                resolved: false
-            };
-            run.cards = run.cards.concat(cards);
-            playPromptAudio(ctx);
-            return;
-        }
+            run.awaitingPrompt = false;
+            run.nextPreparedPrompt = null;
 
-        endRun(ctx);
+            if (applyPreparedPrompt(ctx, run, candidate)) {
+                hideOverlay(ctx);
+                return;
+            }
+
+            endRun(ctx);
+        }).catch(function () {
+            if (!ctx.run || ctx.run !== run) {
+                return;
+            }
+            run.awaitingPrompt = false;
+            run.nextPreparedPrompt = null;
+            endRun(ctx);
+        });
     }
 
     function currentTimestamp() {
@@ -1412,21 +1802,33 @@
     function showOverlay(ctx, title, summary, options) {
         const opts = options || {};
         const summaryText = String(summary || '');
+        const primaryLabel = Object.prototype.hasOwnProperty.call(opts, 'primaryLabel')
+            ? String(opts.primaryLabel || '')
+            : String(ctx.i18n.gamesReplayRun || 'Replay');
+        const secondaryLabel = Object.prototype.hasOwnProperty.call(opts, 'secondaryLabel')
+            ? String(opts.secondaryLabel || '')
+            : String(ctx.i18n.gamesBackToCatalog || 'Back to games');
 
         ctx.overlayMode = String(opts.mode || '');
         ctx.$overlayTitle.text(title);
         ctx.$overlaySummary.text(summaryText).prop('hidden', summaryText === '');
         if (ctx.$overlayPrimary && ctx.$overlayPrimary.length) {
-            ctx.$overlayPrimary.text(String(opts.primaryLabel || ctx.i18n.gamesReplayRun || 'Replay'));
+            ctx.$overlayPrimary.text(primaryLabel).prop('hidden', primaryLabel === '');
         }
         if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
-            ctx.$overlaySecondary.text(String(opts.secondaryLabel || ctx.i18n.gamesBackToCatalog || 'Back to games'));
+            ctx.$overlaySecondary.text(secondaryLabel).prop('hidden', secondaryLabel === '');
         }
         ctx.$overlay.prop('hidden', false);
     }
 
     function hideOverlay(ctx) {
         ctx.overlayMode = '';
+        if (ctx.$overlayPrimary && ctx.$overlayPrimary.length) {
+            ctx.$overlayPrimary.prop('hidden', false);
+        }
+        if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
+            ctx.$overlaySecondary.prop('hidden', false);
+        }
         ctx.$overlay.prop('hidden', true);
     }
 
@@ -1477,6 +1879,9 @@
         }
 
         run.ended = true;
+        run.awaitingPrompt = false;
+        run.nextPreparedPrompt = null;
+        run.nextPromptPromise = null;
         if (run.rafId) {
             root.cancelAnimationFrame(run.rafId);
             run.rafId = 0;
@@ -1517,6 +1922,9 @@
             run.rafId = 0;
         }
         run.paused = false;
+        run.awaitingPrompt = false;
+        run.nextPreparedPrompt = null;
+        run.nextPromptPromise = null;
         clearPromptTimer(run, false);
         pausePromptAudio(ctx);
         resetRunControls(run);
@@ -1540,7 +1948,11 @@
         showCatalog(ctx);
         ctx.$catalog.prop('hidden', true);
         ctx.$stage.prop('hidden', false);
-        hideOverlay(ctx);
+        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+            mode: 'loading',
+            primaryLabel: '',
+            secondaryLabel: ''
+        });
 
         ctx.run = {
             slug: DEFAULT_GAME_SLUG,
@@ -1574,6 +1986,9 @@
             promptTimer: 0,
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
+            awaitingPrompt: false,
+            nextPreparedPrompt: null,
+            nextPromptPromise: null,
             paused: false,
             ended: false,
             rafId: 0
@@ -1587,7 +2002,7 @@
         updatePauseUi(ctx);
         setTrackerContext(ctx);
         scrollStageIntoView(ctx);
-        schedulePrompt(ctx, 0);
+        startNextPrompt(ctx);
         ctx.run.rafId = root.requestAnimationFrame(function (timestamp) {
             runLoop(ctx, timestamp);
         });
@@ -1835,6 +2250,7 @@
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
             catalogEntry: null,
             imageCache: {},
+            audioPreloadCache: {},
             promptAudio: null,
             bootstrapRequest: null,
             run: null,
@@ -1843,11 +2259,13 @@
             spaceShooter: {
                 lives: Math.max(1, toInt(spaceShooter.lives) || 3),
                 cardCount: Math.max(2, toInt(spaceShooter.cardCount) || 4),
+                maxLoadedWords: Math.max(5, toInt(spaceShooter.maxLoadedWords) || 60),
                 fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
                 correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 2),
                 wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
-                timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1)
+                timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
+                assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS)
             }
         };
     }
@@ -1893,6 +2311,8 @@
                 hasCatalogEntry: !!ctx.catalogEntry,
                 launchable: !!(ctx.catalogEntry && ctx.catalogEntry.launchable),
                 availableWordCount: ctx.catalogEntry ? toInt(ctx.catalogEntry.available_word_count) : 0,
+                launchWordCount: ctx.catalogEntry ? toInt(ctx.catalogEntry.launch_word_count) : 0,
+                launchWordCap: ctx.catalogEntry ? toInt(ctx.catalogEntry.launch_word_cap) : 0,
                 stageHidden: !!ctx.$stage.prop('hidden'),
                 gameRunning: !!ctx.run
             };
@@ -1908,6 +2328,7 @@
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
                 paused: !!run.paused,
+                awaitingPrompt: !!run.awaitingPrompt,
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
