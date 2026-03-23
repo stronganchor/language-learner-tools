@@ -729,6 +729,43 @@ test('desktop progress words table sticky header respects the visible admin bar 
   expect(afterScroll.top).toBeLessThanOrEqual(34);
 });
 
+test('progress filter trigger stays neutral after closing under theme button focus styles', async ({ page }) => {
+  await mountProgressPage(page, { width: 1280, height: 900 });
+  await page.addStyleTag({
+    content: `
+      .ll-wordset-page button:hover,
+      .ll-wordset-page button:focus,
+      .ll-wordset-page button:active {
+        background: #0b67c2 !important;
+        background-color: #0b67c2 !important;
+        color: #ffffff !important;
+        box-shadow: inset 0 0 0 999px #0b67c2 !important;
+      }
+    `
+  });
+
+  const trigger = page.locator('[data-ll-wordset-progress-filter-trigger="seen"]');
+  const filterPop = page.locator('[data-ll-wordset-progress-filter-pop="seen"]');
+
+  await trigger.click();
+  await expect(filterPop).toBeVisible();
+  await trigger.click();
+  await expect(filterPop).toBeHidden();
+
+  const styles = await trigger.evaluate((element) => {
+    const computed = window.getComputedStyle(element);
+    return {
+      expanded: element.getAttribute('aria-expanded'),
+      backgroundColor: computed.backgroundColor,
+      color: computed.color
+    };
+  });
+
+  expect(styles.expanded).toBe('false');
+  expect(styles.backgroundColor).toBe('rgb(255, 255, 255)');
+  expect(styles.color).not.toBe('rgb(255, 255, 255)');
+});
+
 test('progress word filters split skewed numeric ranges and show option counts', async ({ page }) => {
   const analytics = buildSkewedProgressAnalytics();
   await mountProgressPage(page, { width: 390, height: 844 }, {

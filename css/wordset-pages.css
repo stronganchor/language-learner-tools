@@ -4437,6 +4437,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-page button.ll-wordset-card__quiz-btn,
 .ll-wordset-page button.ll-wordset-hidden-item__btn,
 .ll-wordset-page button.ll-wordset-progress-star,
+.ll-wordset-page button.ll-wordset-progress-filter-trigger,
+.ll-wordset-page button.ll-wordset-progress-sort,
 .ll-wordset-page button.ll-wordset-progress-kpi,
 .ll-wordset-page button.ll-wordset-progress-clear-filters,
 .ll-wordset-page button.ll-wordset-selection-bar__clear {
@@ -4450,6 +4452,74 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     margin: 0 !important;
     text-shadow: none !important;
     text-transform: none !important;
+}
+
+/* Theme-resistant hardening for progress table header controls. */
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:hover,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus-visible,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:active,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.is-active,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger[aria-expanded="true"],
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger[aria-expanded="false"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: #667488 !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:hover,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus-visible,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:active,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.is-active,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger[aria-expanded="true"] {
+    border-color: #647488 !important;
+    color: #3f4a5a !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.has-filter,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.has-filter:hover,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.has-filter:focus,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.has-filter:focus-visible,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger.has-filter:active {
+    border-color: #5f7086 !important;
+    color: #2f3b4d !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus {
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-filter-trigger:focus-visible {
+    outline: 2px solid #0f172a !important;
+    outline-offset: 2px !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:hover,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:focus,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:focus-visible,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:active,
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort.is-active {
+    background: var(--ll-wordset-progress-sort-bg) !important;
+    background-color: var(--ll-wordset-progress-sort-bg) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:focus {
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-progress-table th button.ll-wordset-progress-sort:focus-visible {
+    outline: 2px solid #0f172a !important;
+    outline-offset: 2px !important;
 }
 
 /* Theme-resistant hardening for top progress KPI filter buttons (hover/active colors + motion). */
