@@ -372,8 +372,11 @@ test('mobile progress words table keeps the star button inside its column and om
     const legend = document.querySelector('[data-ll-wordset-progress-mobile-legend]');
     const legendTitle = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__title') : null;
     const legendItems = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__items') : null;
+    const difficultyControls = document.querySelector('th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-th-controls');
+    const seenControls = document.querySelector('th[data-ll-wordset-progress-sort-th="seen"] .ll-wordset-progress-th-controls');
+    const wrongControls = document.querySelector('th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-th-controls');
     const row = document.querySelector('tr[data-word-id="101"]');
-    if (!row || !legendTitle || !legendItems) {
+    if (!row || !legendTitle || !legendItems || !difficultyControls || !seenControls || !wrongControls) {
       return null;
     }
 
@@ -391,6 +394,9 @@ test('mobile progress words table keeps the star button inside its column and om
     const buttonRect = button.getBoundingClientRect();
 
     return {
+      difficultyControlsDirection: window.getComputedStyle(difficultyControls).flexDirection,
+      seenControlsDirection: window.getComputedStyle(seenControls).flexDirection,
+      wrongControlsDirection: window.getComputedStyle(wrongControls).flexDirection,
       legendTitleBottom: legendTitleRect.bottom,
       legendItemsTop: legendItemsRect.top,
       starCellLeft: starCellRect.left,
@@ -402,6 +408,9 @@ test('mobile progress words table keeps the star button inside its column and om
   });
 
   expect(metrics).not.toBeNull();
+  expect(metrics.difficultyControlsDirection).toBe('column');
+  expect(metrics.seenControlsDirection).toBe('column');
+  expect(metrics.wrongControlsDirection).toBe('column');
   expect(metrics.legendItemsTop).toBeGreaterThanOrEqual(metrics.legendTitleBottom + 6);
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
