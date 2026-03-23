@@ -311,12 +311,43 @@ function buildProgressPageMarkup() {
   `;
 }
 
-async function mountMobileProgressPage(page) {
+async function waitForLayoutFrame(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  }));
+}
+
+async function addVisibleAdminBar(page, height) {
+  await page.evaluate((barHeight) => {
+    let adminBar = document.getElementById('wpadminbar');
+    if (!adminBar) {
+      adminBar = document.createElement('div');
+      adminBar.id = 'wpadminbar';
+      document.body.prepend(adminBar);
+    }
+    Object.assign(adminBar.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      right: '0',
+      height: `${barHeight}px`,
+      display: 'block',
+      visibility: 'visible',
+      zIndex: '99999'
+    });
+    window.dispatchEvent(new Event('resize'));
+  }, height);
+  await waitForLayoutFrame(page);
+}
+
+async function mountProgressPage(page, viewport = { width: 344, height: 844 }) {
   const pageErrors = [];
   page.on('pageerror', (error) => {
     pageErrors.push(String(error && error.message ? error.message : error));
   });
-  await page.setViewportSize({ width: 344, height: 844 });
+  await page.setViewportSize(viewport);
   await page.goto(process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local/');
   await page.setContent(buildProgressPageMarkup());
   await page.addStyleTag({ content: wordsetCssSource });
@@ -383,10 +414,7 @@ async function mountMobileProgressPage(page) {
 }
 
 test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {
-  await mountMobileProgressPage(page);
-  await page.evaluate(() => {
-    document.body.classList.add('admin-bar');
-  });
+  await mountProgressPage(page);
 
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).not.toContainText('Starred');
@@ -469,7 +497,7 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   expect(metrics.wrongControlsDirection).toBe('column');
   expect(metrics.wordBodyDirection).toBe('column');
   expect(metrics.headerPosition).toBe('sticky');
-  expect(metrics.headerTop).toBe('46px');
+  expect(metrics.headerTop).toBe('0px');
   expect(metrics.legendItemsTop).toBeGreaterThanOrEqual(metrics.legendTitleBottom + 6);
   expect(Math.abs(metrics.tableWidth - metrics.wrapWidth)).toBeLessThanOrEqual(2);
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
@@ -490,4 +518,82 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 
   expect(resizedMetrics.wrapWidth).toBeGreaterThan(metrics.wrapWidth);
   expect(Math.abs(resizedMetrics.tableWidth - resizedMetrics.wrapWidth)).toBeLessThanOrEqual(2);
+});
+
+test('desktop progress words table sticky header respects the visible admin bar while scrolling', async ({ page }) => {
+  await mountProgressPage(page, { width: 1280, height: 900 });
+  await addVisibleAdminBar(page, 32);
+
+  await page.evaluate(() => {
+    const root = document.querySelector('[data-ll-wordset-page]');
+    if (!root || !root.parentNode) {
+      return;
+    }
+    let topSpacer = document.querySelector('[data-test-progress-sticky-spacer="top"]');
+    if (!topSpacer) {
+      topSpacer = document.createElement('div');
+      topSpacer.setAttribute('data-test-progress-sticky-spacer', 'top');
+      topSpacer.style.height = '720px';
+      root.parentNode.insertBefore(topSpacer, root);
+    }
+    let bottomSpacer = document.querySelector('[data-test-progress-sticky-spacer="bottom"]');
+    if (!bottomSpacer) {
+      bottomSpacer = document.createElement('div');
+      bottomSpacer.setAttribute('data-test-progress-sticky-spacer', 'bottom');
+      bottomSpacer.style.height = '960px';
+      if (root.nextSibling) {
+        root.parentNode.insertBefore(bottomSpacer, root.nextSibling);
+      } else {
+        root.parentNode.appendChild(bottomSpacer);
+      }
+    }
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event('scroll'));
+  });
+  await waitForLayoutFrame(page);
+
+  const beforeScroll = await page.evaluate(() => {
+    const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
+    if (!headerCell) {
+      return null;
+    }
+    const rect = headerCell.getBoundingClientRect();
+    return {
+      position: window.getComputedStyle(headerCell).position,
+      topStyle: window.getComputedStyle(headerCell).top,
+      top: rect.top
+    };
+  });
+
+  expect(beforeScroll).not.toBeNull();
+  expect(beforeScroll.position).toBe('sticky');
+  expect(beforeScroll.topStyle).toBe('32px');
+  expect(beforeScroll.top).toBeGreaterThan(200);
+
+  await page.evaluate(() => {
+    const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
+    if (!headerCell) {
+      return;
+    }
+    const rect = headerCell.getBoundingClientRect();
+    const targetScrollY = Math.max(0, window.scrollY + rect.top - 32 + 24);
+    window.scrollTo(0, targetScrollY);
+    window.dispatchEvent(new Event('scroll'));
+  });
+  await waitForLayoutFrame(page);
+
+  const afterScroll = await page.evaluate(() => {
+    const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
+    if (!headerCell) {
+      return null;
+    }
+    const rect = headerCell.getBoundingClientRect();
+    return {
+      top: rect.top
+    };
+  });
+
+  expect(afterScroll).not.toBeNull();
+  expect(afterScroll.top).toBeGreaterThanOrEqual(31);
+  expect(afterScroll.top).toBeLessThanOrEqual(34);
 });

@@ -94,6 +94,7 @@
     let progressMiniStickyReleaseTimer = 0;
     let progressMiniStickyReleaseFinalize = null;
     let progressMiniStickySession = null;
+    let progressTableStickyOffsetRaf = 0;
     let wordsetTextPreviewFitTimer = null;
     let progressWordAudio = null;
     let progressWordAudioButton = null;
@@ -4041,6 +4042,32 @@
 
     function getProgressMiniStickyAdminOffsetPx() {
         return getViewportTopOcclusionOffsetPx();
+    }
+
+    function applyProgressTableStickyHeaderOffset() {
+        if (!$root.length) {
+            return;
+        }
+        const offsetPx = getViewportTopOcclusionOffsetPx();
+        $root.each(function () {
+            if (!this || !this.style) {
+                return;
+            }
+            this.style.setProperty('--ll-wordset-progress-sticky-top', offsetPx + 'px');
+        });
+    }
+
+    function scheduleProgressTableStickyHeaderOffsetUpdate() {
+        if (!$root.length || progressTableStickyOffsetRaf) {
+            return;
+        }
+        const raf = window.requestAnimationFrame || function (callback) {
+            return window.setTimeout(callback, 16);
+        };
+        progressTableStickyOffsetRaf = raf(function () {
+            progressTableStickyOffsetRaf = 0;
+            applyProgressTableStickyHeaderOffset();
+        });
     }
 
     function isRectMeaningfullyVisibleToUser(rect) {
@@ -9085,6 +9112,12 @@
                 positionOpenProgressFilterPop();
             });
 
+        $(window)
+            .off('load.llWordsetProgressStickyHeader resize.llWordsetProgressStickyHeader scroll.llWordsetProgressStickyHeader orientationchange.llWordsetProgressStickyHeader')
+            .on('load.llWordsetProgressStickyHeader resize.llWordsetProgressStickyHeader scroll.llWordsetProgressStickyHeader orientationchange.llWordsetProgressStickyHeader', function () {
+                scheduleProgressTableStickyHeaderOffsetUpdate();
+            });
+
         if ($progressTableWraps.length) {
             $progressTableWraps
                 .off('scroll.llWordsetProgressFiltersPosition')
@@ -9129,6 +9162,7 @@
 
         const hasBootstrapAnalytics = (Array.isArray(analytics.words) && analytics.words.length > 0)
             || (Array.isArray(analytics.categories) && analytics.categories.length > 0);
+        scheduleProgressTableStickyHeaderOffsetUpdate();
         if (hasBootstrapAnalytics) {
             scheduleProgressAnalyticsRefresh(120, { silent: true });
         } else {
