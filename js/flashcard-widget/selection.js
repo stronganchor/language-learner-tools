@@ -325,6 +325,11 @@
         return true;
     }
 
+    function shouldUseCompactGenderOptionLabel(label) {
+        const compact = String(label || '').replace(/\s+/g, '');
+        return compact.length > 0 && compact.length <= 2;
+    }
+
     function applyGenderVisualToOptionCard($card, visual) {
         if (!$card || !$card.length) return;
         const role = normalizeGenderRole(visual && visual.role);
@@ -335,8 +340,11 @@
         const displayLabel = String((visual && visual.label) || '').trim();
         const symbolHtml = buildGenderSymbolMarkup(visual, displayLabel);
         const showTextLabel = shouldShowGenderOptionLabel(visual);
+        const compactLabelClass = shouldUseCompactGenderOptionLabel(displayLabel)
+            ? ' ll-gender-option-label--compact'
+            : '';
         const labelHtml = showTextLabel
-            ? '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
+            ? '<span class="ll-gender-option-label' + compactLabelClass + '" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
             : '';
         const srText = '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>';
 
@@ -1683,6 +1691,18 @@
             .attr('data-ll-gender-role', 'unknown');
         root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 
+        let optionsReadyResolved = false;
+        let resolveOptionsReady = function () {};
+        const optionsReadyPromise = new Promise(function (resolve) {
+            resolveOptionsReady = function (status) {
+                if (optionsReadyResolved) {
+                    return;
+                }
+                optionsReadyResolved = true;
+                resolve(status);
+            };
+        });
+
         const publishOptionsReady = function () {
             $(document).trigger('ll-tools-options-ready');
         };
@@ -1698,21 +1718,37 @@
             refitTextOptionCards();
             return Promise.resolve();
         };
+        const finalizeGenderOptionReveal = function ($cards) {
+            fitGenderLayoutToViewport();
+            const revealNow = function () {
+                fitGenderLayoutToViewport();
+                $cards.css('visibility', 'visible');
+                scheduleGenderOptionTextScaleFit();
+                publishOptionsReady();
+                resolveOptionsReady({ ready: true });
+            };
+            if (typeof root.requestAnimationFrame === 'function') {
+                root.requestAnimationFrame(function () {
+                    root.requestAnimationFrame(revealNow);
+                });
+                return;
+            }
+            setTimeout(revealNow, 0);
+        };
         const revealGenderOptions = function () {
-            $('#ll-tools-flashcard .flashcard-container').css({ display: '', visibility: 'visible' });
+            const $cards = $('#ll-tools-flashcard .flashcard-container');
+            $cards.css({ display: '', visibility: 'hidden' });
             prepareTextOptionCards().then(function () {
                 syncPromptTextFontSize(promptType, 'text');
-                scheduleGenderOptionTextScaleFit();
-                publishOptionsReady();
+                finalizeGenderOptionReveal($cards);
             }).catch(function () {
-                scheduleGenderOptionTextScaleFit();
-                publishOptionsReady();
+                finalizeGenderOptionReveal($cards);
             });
         };
 
         ensureGenderOptionFitResizeHandler();
         revealGenderOptions();
-        return true;
+        return optionsReadyPromise;
     }
 
     function fillQuizOptions(targetWord) {
@@ -1737,8 +1773,11 @@
         }
 
         const config = getCategoryConfig(targetCategoryName);
-        if (State.isGenderMode && fillGenderQuizOptions(targetWord, config, targetCategoryName)) {
-            return;
+        if (State.isGenderMode) {
+            const genderFill = fillGenderQuizOptions(targetWord, config, targetCategoryName);
+            if (genderFill) {
+                return genderFill;
+            }
         }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
         const promptType = getCategoryPromptType(targetCategoryName);

@@ -66,6 +66,9 @@
         if (State && State.isFirstRound) {
             return true;
         }
+        if (State && State.isGenderMode) {
+            return true;
+        }
         if (current && (current === states.LOADING || current === states.SWITCHING_MODE)) {
             return true;
         }

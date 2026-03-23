@@ -66,7 +66,7 @@
                 beforeIntroCorrect: 0,
                 afterIntroCorrect: 0
             },
-            progressMaxPassedCount: 0,
+            progressMaxAnsweredCount: 0,
             resultsActions: null
         };
     }
@@ -1634,6 +1634,20 @@
         });
     }
 
+    function countAnsweredWords() {
+        if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
+            return 0;
+        }
+        let count = 0;
+        session.activeWordIds.forEach(function (wordId) {
+            const state = getWordState(wordId);
+            if (Math.max(0, parseInt(state && state.answers, 10) || 0) > 0) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
     function countPassedWords() {
         if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
             return 0;
@@ -1650,15 +1664,17 @@
     function updateSessionProgressBar() {
         const total = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
         if (!total) return;
+        const answeredCount = countAnsweredWords();
         const passedCount = countPassedWords();
-        session.progressMaxPassedCount = Math.max(
+        session.progressMaxAnsweredCount = Math.max(
             0,
-            parseInt(session.progressMaxPassedCount, 10) || 0,
+            parseInt(session.progressMaxAnsweredCount, 10) || 0,
+            answeredCount,
             passedCount
         );
         if (Dom && typeof Dom.updateSimpleProgress === 'function') {
             try {
-                Dom.updateSimpleProgress(session.progressMaxPassedCount, total);
+                Dom.updateSimpleProgress(session.progressMaxAnsweredCount, total);
             } catch (_) { /* no-op */ }
         }
     }

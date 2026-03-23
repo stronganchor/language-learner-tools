@@ -110,8 +110,8 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   await page.addScriptTag({ content: cardsScriptSource });
   await page.addScriptTag({ content: selectionScriptSource });
 
-  await page.evaluate(() => {
-    window.LLFlashcards.Selection.fillQuizOptions(window.__llGenderTargetWord);
+  await page.evaluate(async () => {
+    await Promise.resolve(window.LLFlashcards.Selection.fillQuizOptions(window.__llGenderTargetWord));
   });
 
   await page.waitForFunction(() => {
@@ -119,7 +119,10 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     if (cards.length !== 3) {
       return false;
     }
-    return cards.every((card) => window.getComputedStyle(card).display !== 'none');
+    return cards.every((card) => {
+      const style = window.getComputedStyle(card);
+      return style.display !== 'none' && style.visibility === 'visible';
+    });
   });
 
   const cards = await page.evaluate(() => {

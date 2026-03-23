@@ -83,6 +83,11 @@
     font-size: 0.8em;
     font-weight: 700;
     line-height: 1;
+    flex: 0 0 auto;
+}
+
+.ll-gender-option .ll-gender-option-label--compact {
+    font-size: 1em;
 }
 
 #ll-tools-flashcard.ll-gender-options-layout {
@@ -170,7 +175,19 @@
     margin-bottom: calc(8px * var(--ll-gender-layout-scale));
 }
 
-.ll-gender-option .ll-gender-symbol,
+.ll-gender-option .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.2em;
+    min-height: 1.2em;
+    font-size: 1em;
+    line-height: 1;
+    flex: 0 0 auto;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+}
+
 .ll-gender-intro-badge .ll-gender-symbol {
     display: inline-flex;
     align-items: center;
@@ -195,7 +212,12 @@
     white-space: nowrap;
 }
 
-.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-option .ll-gender-symbol--svg svg {
+    display: block;
+    width: 1em;
+    height: 1em;
+}
+
 .ll-gender-intro-badge .ll-gender-symbol--svg svg {
     display: block;
     width: 1.15em;
