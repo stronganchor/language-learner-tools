@@ -3485,21 +3485,31 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     justify-content: center;
     padding: 0;
     cursor: pointer;
+    box-shadow: none;
+    text-shadow: none;
+    background-image: none;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .ll-wordset-progress-filter-trigger:hover,
-.ll-wordset-progress-filter-trigger:focus-visible,
+.ll-wordset-progress-filter-trigger:active,
 .ll-wordset-progress-filter-trigger.is-active {
     border-color: #647488;
     color: #3f4a5a;
-    background: #f4f7fa;
-    outline: none;
+    background: #ffffff;
 }
 
 .ll-wordset-progress-filter-trigger.has-filter {
     border-color: #5f7086;
     color: #2f3b4d;
-    background: #edf2f8;
+    background: #ffffff;
+}
+
+.ll-wordset-progress-filter-trigger:focus-visible {
+    outline: 2px solid #0f172a;
+    outline-offset: 2px;
 }
 
 .ll-wordset-progress-filter-trigger__icon {
@@ -3636,6 +3646,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-transform: inherit;
     letter-spacing: inherit;
     cursor: pointer;
+    --ll-wordset-progress-sort-bg: transparent;
+    background: var(--ll-wordset-progress-sort-bg);
+    box-shadow: none;
+    text-shadow: none;
+    background-image: none;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ll-wordset-progress-sort:hover,
+.ll-wordset-progress-sort:active,
+.ll-wordset-progress-sort.is-active {
+    background: var(--ll-wordset-progress-sort-bg);
 }
 
 .ll-wordset-progress-sort-difficulty-icon-wrap {
@@ -5180,6 +5204,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-sort {
+        --ll-wordset-progress-sort-bg: #ffffff;
         min-height: 22px;
         min-width: 24px;
         padding: 2px 4px;
