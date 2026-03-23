@@ -791,6 +791,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
 function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_payload, array $asset_entries, array $warnings, array $bundle_manifest) {
     $style_files = [
         'css/language-learner-tools.css',
+        'css/wordset-pages.css',
         'css/ipa-fonts.css',
         'css/flashcard/base.css',
         'css/flashcard/mode-practice.css',
@@ -901,6 +902,7 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         'wordset_name'     => (string) ($app_config['wordsetName'] ?? ''),
         'styles'           => [
             './plugin/css/language-learner-tools.css',
+            './plugin/css/wordset-pages.css',
             './plugin/css/flashcard/base.css',
             './plugin/css/flashcard/mode-practice.css',
             './plugin/css/flashcard/mode-learning.css',
@@ -1147,10 +1149,23 @@ function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 
         }
 
         $seen_image_urls[$image_url] = true;
+        $dimensions = [
+            'ratio' => '',
+            'width' => 0,
+            'height' => 0,
+        ];
+        $attachment_id = get_post_thumbnail_id((int) ($word['id'] ?? 0));
+        if ($attachment_id > 0 && function_exists('ll_tools_get_image_dimensions_for_size')) {
+            $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, 'medium');
+        }
+
         $preview[] = [
-            'type' => 'image',
-            'url'  => $image_url,
-            'alt'  => (string) ($word['title'] ?? ''),
+            'type'   => 'image',
+            'url'    => $image_url,
+            'alt'    => (string) ($word['title'] ?? ''),
+            'ratio'  => (string) ($dimensions['ratio'] ?? ''),
+            'width'  => (int) ($dimensions['width'] ?? 0),
+            'height' => (int) ($dimensions['height'] ?? 0),
         ];
     }
 
@@ -1197,11 +1212,24 @@ function ll_tools_offline_app_build_launcher_categories(array $categories, array
             continue;
         }
 
-        $preview = ll_tools_offline_app_build_launcher_preview($words, 2);
+        $has_image_words = false;
+        foreach ($words as $word) {
+            if (is_array($word) && !empty($word['image'])) {
+                $has_image_words = true;
+                break;
+            }
+        }
+
+        $preview_limit = $has_image_words ? 2 : 1;
+        $preview = ll_tools_offline_app_build_launcher_preview($words, $preview_limit);
         $has_images = false;
+        $preview_aspect_ratio = '';
         foreach ($preview as $preview_item) {
             if (is_array($preview_item) && (($preview_item['type'] ?? '') === 'image')) {
                 $has_images = true;
+                if ($preview_aspect_ratio === '') {
+                    $preview_aspect_ratio = (string) ($preview_item['ratio'] ?? '');
+                }
                 break;
             }
         }
@@ -1209,8 +1237,9 @@ function ll_tools_offline_app_build_launcher_categories(array $categories, array
         $launcher_category = $category;
         $launcher_category['word_count'] = count($words);
         $launcher_category['preview'] = $preview;
-        $launcher_category['preview_limit'] = 2;
+        $launcher_category['preview_limit'] = $preview_limit;
         $launcher_category['has_images'] = $has_images;
+        $launcher_category['preview_aspect_ratio'] = $preview_aspect_ratio;
         $launcher_categories[] = $launcher_category;
     }
 

@@ -390,6 +390,7 @@ function ll_flashcards_get_messages(): array {
         'offlineClearSelection'   => __('Clear Selection', 'll-tools-text-domain'),
         'offlineSelectAll'        => __('Select All', 'll-tools-text-domain'),
         'offlineDeselectAll'      => __('Deselect All', 'll-tools-text-domain'),
+        'offlineSelectionWords'   => __('%d words', 'll-tools-text-domain'),
         'offlineModePractice'     => __('Practice', 'll-tools-text-domain'),
         'offlineModeLearning'     => __('Learn', 'll-tools-text-domain'),
         'offlinePracticeSelected' => __('Practice Selected', 'll-tools-text-domain'),

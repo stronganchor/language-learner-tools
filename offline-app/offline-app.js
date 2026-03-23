@@ -23,6 +23,7 @@
 
     const launcherMessages = {
         selectionLabel: String(messages.offlineSelectCategories || 'Select categories to study together'),
+        selectionWords: String(messages.offlineSelectionWords || '%d words'),
         noCategories: String(messages.offlineNoCategories || 'No categories are available in this offline app.'),
         clearSelection: String(messages.offlineClearSelection || 'Clear Selection'),
         selectAll: String(messages.offlineSelectAll || 'Select All'),
@@ -76,7 +77,10 @@
             return {
                 type: 'image',
                 url: String(source.url || ''),
-                alt: String(source.alt || '')
+                alt: String(source.alt || ''),
+                ratio: String(source.ratio || ''),
+                width: Math.max(0, parseInt(source.width, 10) || 0),
+                height: Math.max(0, parseInt(source.height, 10) || 0)
             };
         }
 
@@ -107,6 +111,7 @@
             learning_supported: !!source.learning_supported,
             gender_supported: !!source.gender_supported,
             aspect_bucket: String(source.aspect_bucket || 'no-image'),
+            preview_aspect_ratio: String(source.preview_aspect_ratio || ''),
             preview: preview,
             preview_limit: Math.max(1, parseInt(source.preview_limit, 10) || 2),
             has_images: !!source.has_images
@@ -131,7 +136,9 @@
         replacements.forEach(function (value, index) {
             const replacement = String(value);
             output = output.replace(new RegExp('%' + (index + 1) + '\\$s', 'g'), replacement);
+            output = output.replace(new RegExp('%' + (index + 1) + '\\$d', 'g'), replacement);
             output = output.replace('%s', replacement);
+            output = output.replace('%d', replacement);
         });
 
         return output;
@@ -189,15 +196,15 @@
         };
     }
 
-    function getModeIconMarkup(mode, extraClassName) {
+    function getModeIconMarkup(mode, className) {
         const cfg = getModeConfig(mode);
-        const className = extraClassName ? ' ' + extraClassName : '';
+        const safeClassName = escapeHtml(String(className || 'll-offline-mode-icon'));
 
         if (cfg.svg) {
-            return '<span class="ll-offline-mode-icon' + className + '" aria-hidden="true">' + cfg.svg + '</span>';
+            return '<span class="' + safeClassName + '" aria-hidden="true">' + cfg.svg + '</span>';
         }
 
-        return '<span class="ll-offline-mode-icon' + className + '" aria-hidden="true">' + escapeHtml(cfg.icon || '') + '</span>';
+        return '<span class="' + safeClassName + '" aria-hidden="true">' + escapeHtml(cfg.icon || '') + '</span>';
     }
 
     function getLauncherCategories(flashData) {
@@ -252,9 +259,14 @@
 
         previewItems.forEach(function (previewItem) {
             if (previewItem.type === 'image' && previewItem.url) {
+                const ratioStyle = previewItem.ratio
+                    ? ' style="aspect-ratio: ' + escapeHtml(previewItem.ratio) + ' !important;"'
+                    : '';
+                const widthAttr = previewItem.width > 0 ? ' width="' + previewItem.width + '"' : '';
+                const heightAttr = previewItem.height > 0 ? ' height="' + previewItem.height + '"' : '';
                 markup.push(
-                    '<span class="ll-offline-category-card__preview-item ll-offline-category-card__preview-item--image">' +
-                        '<img src="' + escapeHtml(previewItem.url) + '" alt="' + escapeHtml(previewItem.alt || '') + '" loading="lazy" decoding="async">' +
+                    '<span class="ll-wordset-preview-item ll-wordset-preview-item--image"' + ratioStyle + '>' +
+                        '<img src="' + escapeHtml(previewItem.url) + '" alt="' + escapeHtml(previewItem.alt || '') + '"' + widthAttr + heightAttr + ' loading="lazy" decoding="async">' +
                     '</span>'
                 );
                 return;
@@ -262,25 +274,23 @@
 
             if (previewItem.type === 'text' && previewItem.label) {
                 markup.push(
-                    '<span class="ll-offline-category-card__preview-item ll-offline-category-card__preview-item--text">' +
-                        '<span>' + escapeHtml(previewItem.label) + '</span>' +
+                    '<span class="ll-wordset-preview-item ll-wordset-preview-item--text">' +
+                        '<span class="ll-wordset-preview-text" dir="auto">' + escapeHtml(previewItem.label) + '</span>' +
                     '</span>'
                 );
             }
         });
 
         while (markup.length < limit) {
-            markup.push('<span class="ll-offline-category-card__preview-item ll-offline-category-card__preview-item--empty" aria-hidden="true"></span>');
+            markup.push('<span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>');
         }
 
         return markup.join('');
     }
 
     function buildSelectionActionMarkup(mode, label) {
-        return '<span class="ll-offline-launcher__action-content">' +
-            getModeIconMarkup(mode, 'll-offline-launcher__action-icon') +
-            '<span class="ll-offline-launcher__action-label">' + escapeHtml(label) + '</span>' +
-        '</span>';
+        return getModeIconMarkup(mode, 'll-vocab-lesson-mode-icon') +
+            '<span class="ll-vocab-lesson-mode-label">' + escapeHtml(label) + '</span>';
     }
 
     function buildCategoryActionMarkup(mode, category) {
@@ -288,11 +298,11 @@
         const ariaLabel = formatMessage(launcherMessages.modeCategoryLabel, [label, category.name]);
         const disabled = (mode === 'learning' && !category.learning_supported) ? ' disabled' : '';
 
-        return '<button class="ll-offline-category-card__action' +
-                (mode === 'learning' ? ' ll-offline-category-card__action--learning' : '') +
+        return '<button class="ll-wordset-card__quiz-btn' +
+                (mode === 'learning' ? ' ll-wordset-card__quiz-btn--learning' : '') +
                 '" data-ll-offline-category-mode data-mode="' + mode + '" data-cat-id="' + category.id + '"' +
                 ' type="button" aria-label="' + escapeHtml(ariaLabel) + '"' + disabled + '>' +
-                getModeIconMarkup(mode, 'll-offline-category-card__action-icon') +
+                getModeIconMarkup(mode, 'll-wordset-card__quiz-icon') +
             '</button>';
     }
 
@@ -409,13 +419,15 @@
         const launcherEl = documentRef.getElementById('ll-offline-launcher');
         const gridEl = documentRef.getElementById('ll-offline-category-grid');
         const emptyEl = documentRef.getElementById('ll-offline-category-empty');
-        const selectionCountEl = documentRef.getElementById('ll-offline-selection-count');
+        const selectionBarEl = documentRef.getElementById('ll-offline-selection-bar');
         const selectionTextEl = documentRef.getElementById('ll-offline-selection-text');
         const selectAllButton = documentRef.getElementById('ll-offline-select-all');
+        const selectAllWrap = selectAllButton ? selectAllButton.closest('.ll-wordset-grid-tools') : null;
         const learningSelectedButton = documentRef.getElementById('ll-offline-launch-learning-selected');
         const practiceSelectedButton = documentRef.getElementById('ll-offline-launch-practice-selected');
+        const clearSelectionButton = documentRef.getElementById('ll-offline-selection-clear');
 
-        if (!rootEl || !launcherEl || !gridEl || !emptyEl || !selectAllButton || !learningSelectedButton || !practiceSelectedButton) {
+        if (!rootEl || !launcherEl || !gridEl || !emptyEl || !selectionBarEl || !selectAllButton || !learningSelectedButton || !practiceSelectedButton || !clearSelectionButton) {
             return;
         }
 
@@ -427,6 +439,37 @@
             ? flashData.offlineCategoryData
             : {};
         let selectedIds = [];
+
+        function setModeButtonDisabled(buttonEl, disabled) {
+            if (!buttonEl) {
+                return;
+            }
+
+            buttonEl.disabled = !!disabled;
+            buttonEl.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            buttonEl.classList.toggle('is-disabled', !!disabled);
+        }
+
+        function setSelectedIds(nextIds) {
+            const nextLookup = {};
+            (Array.isArray(nextIds) ? nextIds : []).forEach(function (categoryId) {
+                const normalizedId = parseInt(categoryId, 10) || 0;
+                if (normalizedId > 0) {
+                    nextLookup[normalizedId] = true;
+                }
+            });
+
+            selectedIds = categories.map(function (category) {
+                return category.id;
+            }).filter(function (categoryId) {
+                return !!nextLookup[categoryId];
+            });
+
+            Array.prototype.forEach.call(launcherEl.querySelectorAll('[data-ll-offline-category-select]'), function (input) {
+                const categoryId = parseInt(input.getAttribute('data-cat-id') || '', 10) || 0;
+                input.checked = !!nextLookup[categoryId];
+            });
+        }
 
         function getSelectedCategories() {
             const selectedLookup = {};
@@ -440,37 +483,46 @@
         }
 
         function setAllSelections(checked) {
-            selectedIds = checked
+            setSelectedIds(checked
                 ? categories.map(function (category) { return category.id; })
-                : [];
-
-            Array.prototype.forEach.call(launcherEl.querySelectorAll('[data-ll-offline-category-select]'), function (input) {
-                input.checked = !!checked;
-            });
+                : []);
         }
 
         function syncSelectionUi() {
             const selectedCategories = getSelectedCategories();
             const selectedCount = selectedCategories.length;
+            const selectedWordCount = selectedCategories.reduce(function (total, category) {
+                return total + Math.max(0, parseInt(category.word_count, 10) || 0);
+            }, 0);
+            const selectionActive = selectedCount > 0;
             const allSelected = categories.length > 0 && selectedCount === categories.length;
             const learningAllowed = selectedCount > 0 && !selectedCategories.some(function (category) {
                 return !category.learning_supported;
             });
 
+            launcherEl.classList.toggle('ll-wordset-selection-active', selectionActive);
+            rootEl.classList.toggle('ll-wordset-selection-active', selectionActive);
+            selectionBarEl.hidden = !selectionActive;
+
             if (selectionTextEl) {
-                selectionTextEl.textContent = launcherMessages.selectionLabel;
-            }
-            if (selectionCountEl) {
-                selectionCountEl.textContent = String(selectedCount);
-                selectionCountEl.hidden = selectedCount < 1;
+                selectionTextEl.textContent = selectionActive
+                    ? formatMessage(launcherMessages.selectionWords, [selectedWordCount])
+                    : launcherMessages.selectionLabel;
             }
 
             selectAllButton.textContent = allSelected ? launcherMessages.deselectAll : launcherMessages.selectAll;
+            if (selectAllWrap) {
+                selectAllWrap.hidden = categories.length < 2;
+            }
+            selectAllButton.hidden = categories.length < 2;
             selectAllButton.disabled = categories.length < 1;
-            learningSelectedButton.innerHTML = buildSelectionActionMarkup('learning', launcherMessages.learningSelected);
-            learningSelectedButton.disabled = !learningAllowed;
-            practiceSelectedButton.innerHTML = buildSelectionActionMarkup('practice', launcherMessages.practiceSelected);
-            practiceSelectedButton.disabled = selectedCount < 1;
+            selectAllButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+
+            learningSelectedButton.innerHTML = buildSelectionActionMarkup('learning', launcherMessages.modeLearning);
+            setModeButtonDisabled(learningSelectedButton, !learningAllowed);
+
+            practiceSelectedButton.innerHTML = buildSelectionActionMarkup('practice', launcherMessages.modePractice);
+            setModeButtonDisabled(practiceSelectedButton, selectedCount < 1);
         }
 
         function renderCategoryCards() {
@@ -478,29 +530,39 @@
                 emptyEl.hidden = false;
                 emptyEl.textContent = launcherMessages.noCategories;
                 gridEl.innerHTML = '';
+                if (selectAllWrap) {
+                    selectAllWrap.hidden = true;
+                }
+                selectAllButton.hidden = true;
                 syncSelectionUi();
                 return;
             }
 
             emptyEl.hidden = true;
             gridEl.innerHTML = categories.map(function (category) {
-                const translation = category.translation && category.translation !== category.name
-                    ? '<p class="ll-offline-category-card__translation">' + escapeHtml(category.translation) + '</p>'
-                    : '';
                 const selectLabel = formatMessage(launcherMessages.selectCategory, [category.name]);
+                const previewStyle = category.preview_aspect_ratio
+                    ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(category.preview_aspect_ratio) + ';"'
+                    : '';
 
                 return '' +
-                    '<article class="ll-offline-category-card" data-category-id="' + category.id + '">' +
-                        '<div class="ll-offline-category-card__preview">' + renderPreviewMarkup(category) + '</div>' +
-                        '<div class="ll-offline-category-card__header">' +
-                            '<input class="ll-offline-category-card__toggle" type="checkbox" data-ll-offline-category-select data-cat-id="' + category.id + '" aria-label="' + escapeHtml(selectLabel) + '">' +
-                            '<div class="ll-offline-category-card__header-main">' +
-                                '<h2 class="ll-offline-category-card__title">' + escapeHtml(category.name) + '</h2>' +
-                                translation +
+                    '<article class="ll-wordset-card" role="listitem" data-category-id="' + category.id + '" data-cat-id="' + category.id + '" data-word-count="' + category.word_count + '">' +
+                        '<div class="ll-wordset-card__top">' +
+                            '<label class="ll-wordset-card__select" aria-label="' + escapeHtml(selectLabel) + '">' +
+                                '<input type="checkbox" value="' + category.id + '" data-ll-offline-category-select data-cat-id="' + category.id + '">' +
+                                '<span class="ll-wordset-card__select-box" aria-hidden="true"></span>' +
+                            '</label>' +
+                            '<div class="ll-wordset-card__heading">' +
+                                '<h2 class="ll-wordset-card__title">' + escapeHtml(category.name) + '</h2>' +
                             '</div>' +
-                            '<span class="ll-offline-category-card__count">' + category.word_count + '</span>' +
+                            '<span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>' +
                         '</div>' +
-                        '<div class="ll-offline-category-card__actions">' +
+                        '<div class="ll-wordset-card__lesson-link">' +
+                            '<div class="ll-wordset-card__preview ' + (category.has_images ? 'has-images' : 'has-text') + '"' + previewStyle + '>' +
+                                renderPreviewMarkup(category) +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="ll-wordset-card__quiz-actions">' +
                             buildCategoryActionMarkup('learning', category) +
                             buildCategoryActionMarkup('practice', category) +
                         '</div>' +
@@ -531,6 +593,8 @@
                 });
             }
 
+            setSelectedIds(selectedIds);
+
             syncSelectionUi();
         });
 
@@ -554,6 +618,12 @@
             const selectedModeButton = target.closest('[data-ll-offline-launch-selected]');
             if (selectedModeButton) {
                 launchOfflineSelection(selectedIds.slice(), selectedModeButton.getAttribute('data-mode') || 'practice', categories, offlineCategoryData);
+                return;
+            }
+
+            if (target.closest('#ll-offline-selection-clear')) {
+                setAllSelections(false);
+                syncSelectionUi();
                 return;
             }
 

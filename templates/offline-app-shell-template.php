@@ -51,6 +51,44 @@ $escape_asset_url = static function ($asset): string {
     body {
       font-family: Georgia, "Times New Roman", serif;
     }
+    .ll-wordset-page.ll-wordset-page--offline {
+      --ll-wp-main-shell-max-width: 960px;
+      min-height: 100vh;
+      background: transparent;
+    }
+    .ll-wordset-page.ll-wordset-page--offline #ll-tools-flashcard-container {
+      max-width: none;
+      margin: 0;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-offline-app-header,
+    .ll-wordset-page.ll-wordset-page--offline .ll-offline-warning-list,
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid-tools,
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid,
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-empty {
+      max-width: var(--ll-wp-main-shell-max-width);
+      margin-inline: auto;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-card__heading {
+      pointer-events: none;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-card__lesson-link {
+      cursor: default;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-card__hide-spacer {
+      visibility: hidden;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar {
+      left: 50%;
+      right: auto;
+      width: min(calc(100vw - 32px), var(--ll-wp-main-shell-max-width));
+      transform: translateX(-50%);
+      flex-wrap: wrap;
+    }
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar__text {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ll-wp-text);
+    }
     .ll-offline-app-shell [hidden] {
       display: none !important;
     }
@@ -348,6 +386,15 @@ $escape_asset_url = static function ($asset): string {
       font-weight: 700;
     }
     @media (max-width: 640px) {
+      .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar {
+        left: 16px;
+        right: 16px;
+        width: auto;
+        transform: none;
+      }
+      .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar__text {
+        width: 100%;
+      }
       .ll-offline-launcher__selection-actions,
       .ll-offline-category-card__actions {
         width: 100%;
@@ -366,7 +413,7 @@ $escape_asset_url = static function ($asset): string {
   </style>
 </head>
 <body data-ll-offline-app="1" data-ll-startup-mode="<?php echo esc_attr($startup_mode); ?>">
-  <main class="ll-offline-app-shell">
+  <main class="ll-offline-app-shell ll-wordset-page ll-wordset-page--offline">
     <header class="ll-offline-app-header">
       <div>
         <h1 class="ll-offline-app-title"><?php echo esc_html($app_title); ?></h1>
@@ -389,25 +436,27 @@ $escape_asset_url = static function ($asset): string {
 
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" data-wordset="" data-wordset-fallback="0">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
-        <div class="ll-offline-launcher__selection-bar">
-          <div class="ll-offline-launcher__selection-copy">
-            <p id="ll-offline-selection-text" class="ll-offline-launcher__selection-text"><?php esc_html_e('Select categories to study together', 'll-tools-text-domain'); ?></p>
-            <span id="ll-offline-selection-count" class="ll-offline-launcher__selection-count" hidden>0</span>
-          </div>
-          <div class="ll-offline-launcher__selection-actions">
-            <button id="ll-offline-select-all" class="ll-offline-launcher__action ll-offline-launcher__action--select-all" type="button">
-              <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>
-            </button>
-            <button id="ll-offline-launch-learning-selected" class="ll-offline-launcher__action ll-offline-launcher__action--learning" data-ll-offline-launch-selected data-mode="learning" type="button" disabled>
-              <?php esc_html_e('Learn Selected', 'll-tools-text-domain'); ?>
-            </button>
-            <button id="ll-offline-launch-practice-selected" class="ll-offline-launcher__action" data-ll-offline-launch-selected data-mode="practice" type="button" disabled>
-              <?php esc_html_e('Practice Selected', 'll-tools-text-domain'); ?>
-            </button>
-          </div>
+        <div class="ll-wordset-grid-tools">
+          <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
+            <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>
+          </button>
         </div>
-        <div id="ll-offline-category-grid" class="ll-offline-category-grid" aria-live="polite"></div>
-        <p id="ll-offline-category-empty" class="ll-offline-launcher__empty" hidden><?php esc_html_e('No categories are available in this offline app.', 'll-tools-text-domain'); ?></p>
+        <div id="ll-offline-category-grid" class="ll-wordset-grid" role="list" aria-live="polite"></div>
+        <div id="ll-offline-selection-bar" class="ll-wordset-selection-bar" hidden>
+          <span id="ll-offline-selection-text" class="ll-wordset-selection-bar__text"><?php esc_html_e('Select categories to study together', 'll-tools-text-domain'); ?></span>
+          <div class="ll-wordset-selection-bar__actions">
+            <button id="ll-offline-launch-learning-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="learning" type="button" disabled>
+              <?php esc_html_e('Learn', 'll-tools-text-domain'); ?>
+            </button>
+            <button id="ll-offline-launch-practice-selected" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-offline-launch-selected data-mode="practice" type="button" disabled>
+              <?php esc_html_e('Practice', 'll-tools-text-domain'); ?>
+            </button>
+          </div>
+          <button id="ll-offline-selection-clear" type="button" class="ll-wordset-selection-bar__clear" aria-label="<?php echo esc_attr__('Clear selection', 'll-tools-text-domain'); ?>">
+            <span class="ll-wordset-selection-bar__clear-icon" aria-hidden="true">x</span>
+          </button>
+        </div>
+        <div id="ll-offline-category-empty" class="ll-wordset-empty" hidden><?php esc_html_e('No categories are available in this offline app.', 'll-tools-text-domain'); ?></div>
       </section>
 
       <div id="ll-tools-flashcard-popup" style="display:none;">

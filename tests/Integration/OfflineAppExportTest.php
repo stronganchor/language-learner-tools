@@ -232,16 +232,20 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('./content/audio/', $offline_data);
                 $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
                 $this->assertStringContainsString('"preview":[{"type":"image","url":"./content/images/', $offline_data);
+                $this->assertStringContainsString('"preview_aspect_ratio":"', $offline_data);
 
                 $index_html = $zip->getFromName('www/index.html');
                 $this->assertIsString($index_html);
                 $offline_app_js = $zip->getFromName('www/app/offline-app.js');
                 $this->assertIsString($offline_app_js);
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
+                $this->assertStringContainsString('class="ll-wordset-grid"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-selection-bar"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-launch-selected', $index_html);
                 $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
+                $this->assertStringContainsString('href="./plugin/css/wordset-pages.css"', $index_html);
                 $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
