@@ -499,11 +499,11 @@ function Invoke-BumpWorkflow {
         Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $releaseVersion
     }
 
-    if ((Get-GitStatusLines).Count -eq 0) {
-        throw 'Nothing to release. Make changes first or choose a version bump.'
-    }
-
     try {
+        if ((Get-GitStatusLines).Count -eq 0) {
+            throw 'Nothing to release. Make changes first or choose a version bump.'
+        }
+
         if (-not $Yes) {
             Confirm-Bump -BranchName $BranchName -ReleaseVersion $releaseVersion -VersionChanged $versionChanged
         }
