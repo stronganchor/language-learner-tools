@@ -284,7 +284,6 @@
     initWordsetThumbImageLoadingState();
 
     const WORDSET_TEXT_PREVIEW_SELECTOR = [
-        '.ll-wordset-card__preview.has-text .ll-wordset-preview-text',
         '.ll-wordset-next-thumb--text .ll-wordset-next-thumb__text'
     ].join(', ');
 

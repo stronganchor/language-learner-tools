@@ -55,7 +55,10 @@ function buildMarkup() {
           <a class="ll-wordset-card__lesson-link" href="#" aria-label="Aile">
             <div class="ll-wordset-card__preview has-text">
               <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                <span class="ll-wordset-preview-text" dir="auto">Hala oglu ve hala kizi</span>
+                <span class="ll-wordset-preview-text" dir="auto">Hala oglu</span>
+              </span>
+              <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                <span class="ll-wordset-preview-text" dir="auto">Hala kizi</span>
               </span>
             </div>
           </a>
@@ -250,7 +253,7 @@ async function mountWordsetPreviewHarness(page) {
   await page.addScriptTag({ content: wordsetScriptSource });
 }
 
-test('text-based wordset previews render as one rectangular card and shrink text without splitting words', async ({ page }) => {
+test('text-based recommendation preview is single and rectangular while category cards keep their standard grid', async ({ page }) => {
   await mountWordsetPreviewHarness(page);
 
   await expect.poll(async () => {
@@ -258,7 +261,7 @@ test('text-based wordset previews render as one rectangular card and shrink text
   }).toBe(1);
 
   const metrics = await page.evaluate(() => {
-    function collect(selector, textSelector) {
+    function collectNext(selector, textSelector) {
       const slot = document.querySelector(selector);
       const text = slot ? slot.querySelector(textSelector) : null;
       if (!slot || !text) {
@@ -285,34 +288,34 @@ test('text-based wordset previews render as one rectangular card and shrink text
       };
     }
 
+    const categoryPreview = document.querySelector('.ll-wordset-card__preview');
+    const categoryItems = categoryPreview ? categoryPreview.querySelectorAll('.ll-wordset-preview-item--text') : [];
+
     return {
       nextPreviewClassName: document.querySelector('[data-ll-wordset-next-preview]')?.className || '',
-      next: collect('.ll-wordset-next-thumb--text', '.ll-wordset-next-thumb__text'),
-      card: collect('.ll-wordset-preview-item--text', '.ll-wordset-preview-text')
+      next: collectNext('.ll-wordset-next-thumb--text', '.ll-wordset-next-thumb__text'),
+      category: categoryPreview ? {
+        itemCount: categoryItems.length,
+        gridTemplateColumns: window.getComputedStyle(categoryPreview).gridTemplateColumns || ''
+      } : null
     };
   });
 
   expect(metrics.nextPreviewClassName).toContain('ll-wordset-next-card__preview--text-only');
   expect(metrics.next).not.toBeNull();
-  expect(metrics.card).not.toBeNull();
+  expect(metrics.category).not.toBeNull();
 
   expect(metrics.next.slotWidth).toBeGreaterThan(metrics.next.slotHeight);
-  expect(metrics.card.slotWidth).toBeGreaterThan(metrics.card.slotHeight);
+  expect(metrics.category.itemCount).toBe(2);
+  expect(metrics.category.gridTemplateColumns.trim().split(/\s+/).length).toBeGreaterThanOrEqual(2);
 
   expect(metrics.next.whiteSpace).toBe('normal');
-  expect(metrics.card.whiteSpace).toBe('normal');
   expect(metrics.next.wordBreak).toBe('normal');
-  expect(metrics.card.wordBreak).toBe('normal');
   expect(metrics.next.overflowWrap).toBe('normal');
-  expect(metrics.card.overflowWrap).toBe('normal');
 
   expect(metrics.next.fontSize).toBeLessThan(16);
   expect(metrics.next.fontSize).toBeGreaterThan(9);
-  expect(metrics.card.fontSize).toBeLessThanOrEqual(22);
-  expect(metrics.card.fontSize).toBeGreaterThan(10);
 
   expect(metrics.next.scrollWidth).toBeLessThanOrEqual(metrics.next.clientWidth + 1);
-  expect(metrics.card.scrollWidth).toBeLessThanOrEqual(metrics.card.clientWidth + 1);
   expect(metrics.next.actualContentHeight).toBeLessThanOrEqual(metrics.next.maxContentHeight);
-  expect(metrics.card.actualContentHeight).toBeLessThanOrEqual(metrics.card.maxContentHeight);
 });

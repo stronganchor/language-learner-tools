@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
 {
-    public function test_text_based_categories_use_a_single_preview_slot_on_the_main_wordset_page(): void
+    public function test_text_based_categories_keep_multi_slot_previews_on_the_main_wordset_page(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($user_id);
@@ -25,8 +25,8 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         }
 
         $this->assertIsArray($category);
-        $this->assertSame(1, (int) ($category['preview_limit'] ?? 0));
-        $this->assertCount(1, (array) ($category['preview'] ?? []));
+        $this->assertSame(4, (int) ($category['preview_limit'] ?? 0));
+        $this->assertCount(4, (array) ($category['preview'] ?? []));
         $this->assertSame('text', (string) (($category['preview'][0]['type'] ?? '')));
 
         $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
@@ -61,7 +61,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
 
         $card_markup = $this->extractCategoryCardMarkup($html, $category_id);
         $this->assertStringContainsString('ll-wordset-card__preview has-text', $card_markup);
-        $this->assertSame(1, substr_count($card_markup, 'll-wordset-preview-item--text'));
+        $this->assertSame(4, substr_count($card_markup, 'll-wordset-preview-item--text'));
         $this->assertSame(0, substr_count($card_markup, 'll-wordset-preview-item--empty'));
     }
 

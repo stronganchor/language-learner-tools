@@ -715,7 +715,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
 
         $image_preview_limit = max(1, (int) $preview_limit);
-        $text_preview_limit = 1;
+        $text_preview_limit = max(4, $image_preview_limit);
         $preview_limit_for_category = $requires_images ? $image_preview_limit : $text_preview_limit;
 
         $preview = ll_tools_get_wordset_category_preview(
