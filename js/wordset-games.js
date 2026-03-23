@@ -235,8 +235,8 @@
             shipWidth: shipWidth,
             shipHeight: shipHeight,
             shipY: height - Math.max(44, shipHeight * 0.8),
-            bulletSpeed: clamp(height * 1.02, 520, 860),
-            shipSpeed: clamp(width * 0.55, 220, 420)
+            bulletSpeed: clamp(height * 1.2, 640, 1020),
+            shipSpeed: clamp(width * 0.68, 280, 520)
         };
     }
 
