@@ -2,7 +2,7 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.1.0');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.2.0');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
@@ -368,6 +368,8 @@ function ll_tools_install_user_progress_schema(): void {
         practice_correct_recording_types longtext NULL,
         correct_clean int(10) unsigned NOT NULL DEFAULT 0,
         correct_after_retry int(10) unsigned NOT NULL DEFAULT 0,
+        current_correct_streak int(10) unsigned NOT NULL DEFAULT 0,
+        mastery_unlocked tinyint(1) unsigned NOT NULL DEFAULT 0,
         incorrect int(10) unsigned NOT NULL DEFAULT 0,
         lapse_count int(10) unsigned NOT NULL DEFAULT 0,
         stage smallint(5) unsigned NOT NULL DEFAULT 0,
@@ -761,6 +763,39 @@ function ll_tools_is_soft_space_shooter_incorrect_event(array $event): bool {
     return strtolower(trim((string) ($payload['event_source'] ?? ''))) === 'space_shooter';
 }
 
+function ll_tools_user_progress_get_practice_audio_timing(array $payload): array {
+    $ratio = null;
+    if (isset($payload['audio_progress_ratio']) && is_numeric($payload['audio_progress_ratio'])) {
+        $ratio = (float) $payload['audio_progress_ratio'];
+        if (!is_finite($ratio)) {
+            $ratio = null;
+        }
+    }
+
+    if ($ratio !== null) {
+        $ratio = max(0.0, min(1.0, $ratio));
+    }
+
+    $answered_before_end = filter_var(
+        $payload['answered_before_audio_end'] ?? false,
+        FILTER_VALIDATE_BOOLEAN
+    );
+
+    if ($ratio === null && !$answered_before_end) {
+        return [
+            'ratio' => null,
+            'early' => false,
+            'very_fast' => false,
+        ];
+    }
+
+    return [
+        'ratio' => $ratio,
+        'early' => $answered_before_end || ($ratio !== null && $ratio < 0.98),
+        'very_fast' => $ratio !== null && $ratio <= 0.45,
+    ];
+}
+
 function ll_tools_apply_word_progress_event(int $user_id, array $event, string $now_mysql): bool {
     global $wpdb;
     $tables = ll_tools_user_progress_table_names();
@@ -806,6 +841,8 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         'practice_correct_recording_types' => '',
         'correct_clean'        => 0,
         'correct_after_retry'  => 0,
+        'current_correct_streak' => 0,
+        'mastery_unlocked'     => 0,
         'incorrect'            => 0,
         'lapse_count'          => 0,
         'stage'                => 0,
@@ -848,6 +885,9 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
 
     if ($event_type === 'word_outcome') {
         $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        $practice_timing = ($mode === 'practice')
+            ? ll_tools_user_progress_get_practice_audio_timing($payload)
+            : ['ratio' => null, 'early' => false, 'very_fast' => false];
         if ($mode === 'practice') {
             $required_types = ll_tools_decode_practice_recording_types($payload['available_recording_types'] ?? []);
             if (empty($required_types)) {
@@ -879,22 +919,53 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
             $is_correct = $event['is_correct'];
             $had_wrong_before = !empty($event['had_wrong_before']);
             if ($is_correct === true) {
+                $stage_bonus = ($mode === 'practice' && !empty($practice_timing['very_fast'])) ? 1 : 0;
                 if ($had_wrong_before) {
                     $data['correct_after_retry'] = max(0, (int) $data['correct_after_retry']) + 1;
-                    $data['stage'] = max(1, min(6, (int) $data['stage']));
+                    $data['stage'] = max(1, min(6, (int) $data['stage'] + $stage_bonus));
                 } else {
                     $data['correct_clean'] = max(0, (int) $data['correct_clean']) + 1;
-                    $data['stage'] = max(0, min(6, (int) $data['stage'] + 1));
+                    $data['stage'] = max(0, min(6, (int) $data['stage'] + 1 + $stage_bonus));
                 }
                 $data['due_at'] = ll_tools_progress_due_at_for_stage((int) $data['stage'], $base_ts);
             } elseif ($is_correct === false) {
                 $data['incorrect'] = max(0, (int) $data['incorrect']) + 1;
                 if (!ll_tools_is_soft_space_shooter_incorrect_event($event)) {
-                    $data['lapse_count'] = max(0, (int) $data['lapse_count']) + 1;
-                    $data['stage'] = max(0, min(6, (int) $data['stage'] - 1));
+                    $apply_lapse = true;
+                    $apply_stage_drop = true;
+                    if ($mode === 'practice') {
+                        if (!empty($practice_timing['very_fast'])) {
+                            $apply_lapse = false;
+                            $apply_stage_drop = false;
+                        } elseif (!empty($practice_timing['early'])) {
+                            $apply_stage_drop = false;
+                        }
+                    }
+
+                    if ($apply_lapse) {
+                        $data['lapse_count'] = max(0, (int) $data['lapse_count']) + 1;
+                    }
+                    if ($apply_stage_drop) {
+                        $data['stage'] = max(0, min(6, (int) $data['stage'] - 1));
+                    }
                     $data['due_at'] = gmdate('Y-m-d H:i:s', $base_ts + (12 * HOUR_IN_SECONDS));
                 }
             }
+        }
+
+        $is_correct = $event['is_correct'];
+        if ($is_correct === true) {
+            $streak_increment = 1;
+            if ($mode === 'practice' && !empty($practice_timing['early'])) {
+                $streak_increment++;
+            }
+            $data['current_correct_streak'] = max(0, (int) $data['current_correct_streak']) + $streak_increment;
+        } elseif ($is_correct === false) {
+            $data['current_correct_streak'] = 0;
+        }
+
+        if (ll_tools_user_progress_row_meets_mastery_requirements($data)) {
+            $data['mastery_unlocked'] = 1;
         }
     }
 
@@ -916,6 +987,8 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         '%s', // practice_correct_recording_types
         '%d', // correct_clean
         '%d', // correct_after_retry
+        '%d', // current_correct_streak
+        '%d', // mastery_unlocked
         '%d', // incorrect
         '%d', // lapse_count
         '%d', // stage
@@ -1075,18 +1148,25 @@ function ll_tools_user_progress_mastered_clean_threshold(): int {
     return max(1, (int) apply_filters('ll_tools_user_progress_mastered_clean_threshold', 3));
 }
 
-function ll_tools_user_progress_word_is_studied(array $row): bool {
-    $coverage = max(0, (int) ($row['total_coverage'] ?? 0));
-    $correct_clean = max(0, (int) ($row['correct_clean'] ?? 0));
-    $correct_retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
-    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
-    return ($coverage > 0) || ($correct_clean > 0) || ($correct_retry > 0) || ($incorrect > 0);
+function ll_tools_user_progress_hard_difficulty_threshold(): int {
+    return max(1, (int) apply_filters('ll_tools_user_progress_hard_difficulty_threshold', 4));
 }
 
-function ll_tools_user_progress_word_is_mastered(array $row): bool {
+function ll_tools_user_progress_streak_difficulty_relief(int $streak): int {
+    $streak = max(0, $streak);
+    if ($streak <= 0) {
+        return 0;
+    }
+
+    $relief = intdiv($streak * ($streak + 1), 2);
+    return max(0, (int) apply_filters('ll_tools_user_progress_streak_difficulty_relief', $relief, $streak));
+}
+
+function ll_tools_user_progress_row_meets_mastery_requirements(array $row): bool {
     if (!ll_tools_user_progress_word_is_studied($row)) {
         return false;
     }
+
     $stage_threshold = ll_tools_user_progress_mastered_stage_threshold();
     $stage = max(0, (int) ($row['stage'] ?? 0));
     if ($stage < $stage_threshold) {
@@ -1096,14 +1176,70 @@ function ll_tools_user_progress_word_is_mastered(array $row): bool {
     if (ll_tools_progress_row_has_practice_recording_tracking($row)) {
         $required_types = ll_tools_get_progress_row_practice_required_recording_types($row);
         $correct_types = ll_tools_get_progress_row_practice_correct_recording_types($row);
-        if (!empty($required_types)) {
-            return empty(array_diff($required_types, $correct_types));
+        if (!empty($required_types) && !empty(array_diff($required_types, $correct_types))) {
+            return false;
         }
     }
 
     $clean_threshold = ll_tools_user_progress_mastered_clean_threshold();
     $clean = max(0, (int) ($row['correct_clean'] ?? 0));
     return $clean >= $clean_threshold;
+}
+
+function ll_tools_user_progress_row_has_mastery_unlock(array $row): bool {
+    if (!empty($row['mastery_unlocked'])) {
+        return true;
+    }
+
+    return ll_tools_user_progress_row_meets_mastery_requirements($row);
+}
+
+function ll_tools_user_progress_word_is_studied(array $row): bool {
+    $coverage = max(0, (int) ($row['total_coverage'] ?? 0));
+    $correct_clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    $correct_retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
+    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+    return ($coverage > 0) || ($correct_clean > 0) || ($correct_retry > 0) || ($incorrect > 0);
+}
+
+function ll_tools_user_progress_word_difficulty_score(array $row): int {
+    if (!ll_tools_user_progress_word_is_studied($row)) {
+        return -1000;
+    }
+
+    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+    $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
+    $clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    $retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
+    $stage = max(0, (int) ($row['stage'] ?? 0));
+    $streak = max(0, (int) ($row['current_correct_streak'] ?? 0));
+
+    return ($incorrect * 3)
+        + ($lapses * 2)
+        + max(0, 2 - $stage)
+        - min(4, $clean)
+        - min(2, $retry)
+        - ll_tools_user_progress_streak_difficulty_relief($streak);
+}
+
+function ll_tools_user_progress_word_is_hard(array $row): bool {
+    if (!ll_tools_user_progress_word_is_studied($row)) {
+        return false;
+    }
+
+    return ll_tools_user_progress_word_difficulty_score($row) >= ll_tools_user_progress_hard_difficulty_threshold();
+}
+
+function ll_tools_user_progress_word_is_mastered(array $row): bool {
+    if (!ll_tools_user_progress_word_is_studied($row)) {
+        return false;
+    }
+
+    if (ll_tools_user_progress_word_is_hard($row)) {
+        return false;
+    }
+
+    return ll_tools_user_progress_row_has_mastery_unlock($row);
 }
 
 function ll_tools_user_progress_word_status(array $row): string {
@@ -1114,23 +1250,6 @@ function ll_tools_user_progress_word_status(array $row): string {
         return 'studied';
     }
     return 'new';
-}
-
-function ll_tools_user_progress_word_difficulty_score(array $row): int {
-    if (!ll_tools_user_progress_word_is_studied($row)) {
-        return -1000;
-    }
-    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
-    $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
-    $clean = max(0, (int) ($row['correct_clean'] ?? 0));
-    $retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
-    $stage = max(0, (int) ($row['stage'] ?? 0));
-
-    return ($incorrect * 3)
-        + ($lapses * 2)
-        + max(0, 2 - $stage)
-        - min(4, $clean)
-        - min(2, $retry);
 }
 
 function ll_tools_user_progress_category_ids_in_scope(array $categories_payload, array $requested_category_ids, array $goals, bool $include_ignored = false): array {
@@ -1678,7 +1797,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         if ($status === 'mastered') {
             $summary_mastered++;
         }
-        if ($status === 'studied' && $difficulty >= 4) {
+        if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
         if (!empty($starred_lookup[$wid])) {
@@ -2519,10 +2638,7 @@ function ll_tools_user_study_word_matches_priority_focus(int $word_id, ?array $p
         if (empty($row) || $status === 'new') {
             return false;
         }
-        $difficulty = max(0, ll_tools_user_progress_word_difficulty_score($row));
-        $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
-        $lapses = max(0, (int) ($row['lapse_count'] ?? 0));
-        return $difficulty >= 4 || $incorrect > 0 || $lapses > 0;
+        return ll_tools_user_progress_word_is_hard($row);
     }
     return false;
 }
@@ -2577,7 +2693,7 @@ function ll_tools_user_study_word_priority_score(int $word_id, ?array $progress_
         $score += 10;
     }
 
-    if (!empty($flags['prefer_hard']) && !$is_new) {
+    if (!empty($flags['prefer_hard']) && !$is_new && ll_tools_user_progress_word_is_hard($row)) {
         $difficulty = max(0, ll_tools_user_progress_word_difficulty_score($row));
         $score += min(10, $difficulty);
     }

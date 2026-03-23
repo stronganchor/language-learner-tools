@@ -3270,7 +3270,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'summaryCounts' => $summary_counts,
         'summaryCountsDeferred' => $summary_counts_deferred,
         'learningMinChunkSize' => 8,
-        'hardWordDifficultyThreshold' => 4,
+        'hardWordDifficultyThreshold' => function_exists('ll_tools_user_progress_hard_difficulty_threshold')
+            ? ll_tools_user_progress_hard_difficulty_threshold()
+            : 4,
         'i18n' => [
             'nextNone' => __('Loading next recommendation...', 'll-tools-text-domain'),
             'nextLoading' => __('Loading next recommendation...', 'll-tools-text-domain'),

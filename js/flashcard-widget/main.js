@@ -2197,6 +2197,32 @@
         });
     }
 
+    function getPracticeAudioTimingForProgress() {
+        const audioApi = root.FlashcardAudio;
+        if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
+            return {};
+        }
+
+        const audio = audioApi.getCurrentTargetAudio();
+        if (!audio) {
+            return {};
+        }
+
+        const duration = (typeof audio.duration === 'number' && isFinite(audio.duration) && audio.duration > 0)
+            ? audio.duration
+            : 0;
+        const currentTime = Math.max(0, (typeof audio.currentTime === 'number' && isFinite(audio.currentTime)) ? audio.currentTime : 0);
+        const ratio = (duration > 0)
+            ? Math.max(0, Math.min(1, currentTime / duration))
+            : (audio.ended ? 1 : 0);
+        const answeredBeforeAudioEnd = !audio.ended && (duration <= 0 || currentTime < (duration - 0.02));
+
+        return {
+            audio_progress_ratio: Number(ratio.toFixed(3)),
+            answered_before_audio_end: answeredBeforeAudioEnd
+        };
+    }
+
     function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
         const tracker = getProgressTracker();
         if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
@@ -2213,6 +2239,7 @@
             if (availableRecordingTypes.length) {
                 nextPayload.available_recording_types = availableRecordingTypes.slice();
             }
+            Object.assign(nextPayload, getPracticeAudioTimingForProgress());
         }
         tracker.trackWordOutcome({
             mode: getCurrentModeKey(),

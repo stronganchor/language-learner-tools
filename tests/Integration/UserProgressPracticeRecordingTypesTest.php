@@ -190,7 +190,6 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
             'due_at' => $now,
             'practice_required_recording_types' => ll_tools_encode_practice_recording_types(['question', 'isolation', 'introduction']),
             'practice_correct_recording_types' => ll_tools_encode_practice_recording_types(['question']),
-            'created_at' => $now,
             'updated_at' => $now,
         ]);
         $this->assertNotFalse($inserted);
@@ -224,6 +223,207 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         $this->assertSame(3, (int) ($row['stage'] ?? 0));
         $this->assertSame(['question', 'isolation', 'introduction'], $row['practice_required_recording_types_resolved'] ?? []);
         $this->assertSame(['question'], $row['practice_correct_recording_types'] ?? []);
+    }
+
+    public function test_mastery_unlock_returns_after_hard_state_clears_without_remeeting_threshold(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        [$word_id, $category_id, $wordset_id] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+        ]);
+
+        $stage_filter = static function (): int {
+            return 3;
+        };
+        $clean_filter = static function (): int {
+            return 1;
+        };
+
+        add_filter('ll_tools_user_progress_mastered_stage_threshold', $stage_filter);
+        add_filter('ll_tools_user_progress_mastered_clean_threshold', $clean_filter);
+
+        try {
+            $base_payload = [
+                'recording_type' => 'question',
+                'available_recording_types' => ['question'],
+            ];
+
+            $mastery_events = [];
+            for ($i = 0; $i < 3; $i++) {
+                $mastery_events[] = $this->buildPracticeOutcomeEvent(
+                    $word_id,
+                    $category_id,
+                    $wordset_id,
+                    true,
+                    false,
+                    $base_payload
+                );
+            }
+            $stats = ll_tools_process_progress_events_batch($user_id, $mastery_events);
+            $this->assertSame(3, (int) ($stats['processed'] ?? 0));
+
+            $rows = ll_tools_get_user_word_progress_rows($user_id, [$word_id]);
+            $this->assertArrayHasKey($word_id, $rows);
+            $mastered = $rows[$word_id];
+            $this->assertSame('mastered', ll_tools_user_progress_word_status($mastered));
+            $this->assertSame(1, (int) ($mastered['mastery_unlocked'] ?? 0));
+
+            $hardening_events = [
+                $this->buildPracticeOutcomeEvent($word_id, $category_id, $wordset_id, false, false, $base_payload),
+                $this->buildPracticeOutcomeEvent($word_id, $category_id, $wordset_id, false, false, $base_payload),
+            ];
+            $stats = ll_tools_process_progress_events_batch($user_id, $hardening_events);
+            $this->assertSame(2, (int) ($stats['processed'] ?? 0));
+
+            $rows = ll_tools_get_user_word_progress_rows($user_id, [$word_id]);
+            $this->assertArrayHasKey($word_id, $rows);
+            $hard = $rows[$word_id];
+            $this->assertTrue(ll_tools_user_progress_word_is_hard($hard));
+            $this->assertSame('studied', ll_tools_user_progress_word_status($hard));
+            $this->assertSame(1, (int) ($hard['mastery_unlocked'] ?? 0));
+
+            $recovery_events = [
+                $this->buildPracticeOutcomeEvent($word_id, $category_id, $wordset_id, true, true, $base_payload),
+                $this->buildPracticeOutcomeEvent($word_id, $category_id, $wordset_id, true, true, $base_payload),
+            ];
+            $stats = ll_tools_process_progress_events_batch($user_id, $recovery_events);
+            $this->assertSame(2, (int) ($stats['processed'] ?? 0));
+
+            $rows = ll_tools_get_user_word_progress_rows($user_id, [$word_id]);
+            $this->assertArrayHasKey($word_id, $rows);
+            $recovered = $rows[$word_id];
+            $this->assertSame(1, (int) ($recovered['stage'] ?? 0));
+            $this->assertFalse(ll_tools_user_progress_row_meets_mastery_requirements($recovered));
+            $this->assertFalse(ll_tools_user_progress_word_is_hard($recovered));
+            $this->assertSame('mastered', ll_tools_user_progress_word_status($recovered));
+        } finally {
+            remove_filter('ll_tools_user_progress_mastered_stage_threshold', $stage_filter);
+            remove_filter('ll_tools_user_progress_mastered_clean_threshold', $clean_filter);
+        }
+    }
+
+    public function test_long_correct_streak_can_offset_deep_error_history_in_difficulty_score(): void
+    {
+        $base_row = [
+            'total_coverage' => 1,
+            'incorrect' => 8,
+            'lapse_count' => 8,
+            'correct_clean' => 0,
+            'correct_after_retry' => 0,
+            'stage' => 0,
+            'current_correct_streak' => 0,
+        ];
+        $recovered_row = $base_row;
+        $recovered_row['current_correct_streak'] = 9;
+
+        $hard_threshold = ll_tools_user_progress_hard_difficulty_threshold();
+
+        $this->assertGreaterThanOrEqual($hard_threshold, ll_tools_user_progress_word_difficulty_score($base_row));
+        $this->assertLessThan($hard_threshold, ll_tools_user_progress_word_difficulty_score($recovered_row));
+    }
+
+    public function test_practice_audio_timing_rewards_early_corrects_and_softens_early_wrongs(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        [$fast_correct_word, $fast_correct_category, $fast_correct_wordset] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+        ]);
+        [$normal_correct_word, $normal_correct_category, $normal_correct_wordset] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+        ]);
+        [$fast_wrong_word, $fast_wrong_category, $fast_wrong_wordset] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+        ]);
+        [$normal_wrong_word, $normal_wrong_category, $normal_wrong_wordset] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+        ]);
+
+        $base_payload = [
+            'recording_type' => 'question',
+            'available_recording_types' => ['question'],
+        ];
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [
+            $this->buildPracticeOutcomeEvent(
+                $fast_correct_word,
+                $fast_correct_category,
+                $fast_correct_wordset,
+                true,
+                false,
+                array_merge($base_payload, [
+                    'audio_progress_ratio' => 0.25,
+                    'answered_before_audio_end' => true,
+                ])
+            ),
+            $this->buildPracticeOutcomeEvent(
+                $normal_correct_word,
+                $normal_correct_category,
+                $normal_correct_wordset,
+                true,
+                false,
+                array_merge($base_payload, [
+                    'audio_progress_ratio' => 1.0,
+                    'answered_before_audio_end' => false,
+                ])
+            ),
+        ]);
+        $this->assertSame(2, (int) ($stats['processed'] ?? 0));
+
+        $rows = ll_tools_get_user_word_progress_rows($user_id, [$fast_correct_word, $normal_correct_word]);
+        $fast_correct = $rows[$fast_correct_word] ?? [];
+        $normal_correct = $rows[$normal_correct_word] ?? [];
+
+        $this->assertSame(2, (int) ($fast_correct['current_correct_streak'] ?? 0));
+        $this->assertSame(1, (int) ($normal_correct['current_correct_streak'] ?? 0));
+        $this->assertSame(2, (int) ($fast_correct['stage'] ?? 0));
+        $this->assertSame(1, (int) ($normal_correct['stage'] ?? 0));
+
+        $seed_stats = ll_tools_process_progress_events_batch($user_id, [
+            $this->buildPracticeOutcomeEvent($fast_wrong_word, $fast_wrong_category, $fast_wrong_wordset, true, false, $base_payload),
+            $this->buildPracticeOutcomeEvent($fast_wrong_word, $fast_wrong_category, $fast_wrong_wordset, true, false, $base_payload),
+            $this->buildPracticeOutcomeEvent($normal_wrong_word, $normal_wrong_category, $normal_wrong_wordset, true, false, $base_payload),
+            $this->buildPracticeOutcomeEvent($normal_wrong_word, $normal_wrong_category, $normal_wrong_wordset, true, false, $base_payload),
+        ]);
+        $this->assertSame(4, (int) ($seed_stats['processed'] ?? 0));
+
+        $wrong_stats = ll_tools_process_progress_events_batch($user_id, [
+            $this->buildPracticeOutcomeEvent(
+                $fast_wrong_word,
+                $fast_wrong_category,
+                $fast_wrong_wordset,
+                false,
+                false,
+                array_merge($base_payload, [
+                    'audio_progress_ratio' => 0.20,
+                    'answered_before_audio_end' => true,
+                ])
+            ),
+            $this->buildPracticeOutcomeEvent(
+                $normal_wrong_word,
+                $normal_wrong_category,
+                $normal_wrong_wordset,
+                false,
+                false,
+                array_merge($base_payload, [
+                    'audio_progress_ratio' => 1.0,
+                    'answered_before_audio_end' => false,
+                ])
+            ),
+        ]);
+        $this->assertSame(2, (int) ($wrong_stats['processed'] ?? 0));
+
+        $rows = ll_tools_get_user_word_progress_rows($user_id, [$fast_wrong_word, $normal_wrong_word]);
+        $fast_wrong = $rows[$fast_wrong_word] ?? [];
+        $normal_wrong = $rows[$normal_wrong_word] ?? [];
+
+        $this->assertSame(1, (int) ($fast_wrong['incorrect'] ?? 0));
+        $this->assertSame(1, (int) ($normal_wrong['incorrect'] ?? 0));
+        $this->assertSame(0, (int) ($fast_wrong['lapse_count'] ?? 0));
+        $this->assertSame(1, (int) ($normal_wrong['lapse_count'] ?? 0));
+        $this->assertSame(2, (int) ($fast_wrong['stage'] ?? 0));
+        $this->assertSame(1, (int) ($normal_wrong['stage'] ?? 0));
+        $this->assertSame(0, (int) ($fast_wrong['current_correct_streak'] ?? 0));
+        $this->assertSame(0, (int) ($normal_wrong['current_correct_streak'] ?? 0));
     }
 
     public function test_attach_user_practice_progress_to_words_includes_exposure_count(): void
@@ -332,5 +532,26 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         }
 
         return [$word_id, $category_id, $wordset_id];
+    }
+
+    private function buildPracticeOutcomeEvent(
+        int $word_id,
+        int $category_id,
+        int $wordset_id,
+        bool $is_correct,
+        bool $had_wrong_before,
+        array $payload
+    ): array {
+        return [
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_outcome',
+            'mode' => 'practice',
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'is_correct' => $is_correct,
+            'had_wrong_before' => $had_wrong_before,
+            'payload' => $payload,
+        ];
     }
 }
