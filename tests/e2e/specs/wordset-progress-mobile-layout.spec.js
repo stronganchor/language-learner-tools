@@ -21,9 +21,9 @@ function buildProgressAnalytics() {
       mode: 'all'
     },
     summary: {
-      total_words: 2,
+      total_words: 3,
       mastered_words: 0,
-      studied_words: 1,
+      studied_words: 2,
       new_words: 1,
       hard_words: 1,
       starred_words: 1
@@ -37,13 +37,13 @@ function buildProgressAnalytics() {
       {
         id: 11,
         label: 'Cat A',
-        word_count: 2,
+        word_count: 3,
         mastered_words: 0,
-        studied_words: 1,
+        studied_words: 2,
         new_words: 1,
-        exposure_total: 2,
+        exposure_total: 3,
         exposure_by_mode: {
-          learning: 1,
+          learning: 2,
           practice: 1,
           listening: 0,
           gender: 0,
@@ -76,6 +76,23 @@ function buildProgressAnalytics() {
         title: 'With Image',
         translation: 'Has image',
         image: 'https://example.com/test-word.jpg',
+        audio_url: 'https://example.com/audio/with-image-isolation.mp3',
+        audio_recording_type: 'isolation',
+        category_id: 11,
+        category_label: 'Cat A',
+        category_ids: [11],
+        category_labels: ['Cat A'],
+        status: 'studied',
+        difficulty_score: 2,
+        total_coverage: 5,
+        incorrect: 0,
+        last_seen_at: '2026-03-19 08:30:00'
+      },
+      {
+        id: 103,
+        title: 'Image Without Audio',
+        translation: 'Image only',
+        image: 'https://example.com/test-word-2.jpg',
         category_id: 11,
         category_label: 'Cat A',
         category_ids: [11],
@@ -113,7 +130,7 @@ function buildProgressPageConfig() {
         slug: 'cat-a',
         name: 'Cat A',
         translation: 'Cat A',
-        count: 2,
+        count: 3,
         url: '#',
         mode: 'image',
         prompt_type: 'audio',
@@ -410,7 +427,7 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }) {
   await page.addScriptTag({ content: wordsetScriptSource });
   expect(pageErrors).toEqual([]);
   await page.locator('[data-ll-wordset-progress-tab="words"]').click();
-  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(2);
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(3);
 }
 
 test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {
@@ -425,9 +442,13 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   await expect(firstWordCell.locator('.ll-wordset-progress-word-cell--text-only')).toHaveCount(1);
   await expect(firstWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(0);
 
-  const secondWordCell = page.locator('[data-word-id="102"] td').nth(1);
-  await expect(secondWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(1);
-  await expect(secondWordCell.locator('[data-ll-wordset-progress-word-audio]')).toHaveCount(0);
+  const imageAudioWordCell = page.locator('[data-word-id="102"] td').nth(1);
+  await expect(imageAudioWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(1);
+  await expect(imageAudioWordCell.locator('[data-ll-wordset-progress-word-audio]')).toHaveCount(1);
+
+  const noAudioWordCell = page.locator('[data-word-id="103"] td').nth(1);
+  await expect(noAudioWordCell.locator('.ll-wordset-progress-word-thumb')).toHaveCount(1);
+  await expect(noAudioWordCell.locator('[data-ll-wordset-progress-word-audio]')).toHaveCount(0);
 
   const firstAudioButton = firstWordCell.locator('[data-ll-wordset-progress-word-audio]');
   await expect(firstAudioButton).toHaveCount(1);
@@ -446,7 +467,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const seenControls = document.querySelector('th[data-ll-wordset-progress-sort-th="seen"] .ll-wordset-progress-th-controls');
     const wrongControls = document.querySelector('th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-th-controls');
     const row = document.querySelector('tr[data-word-id="101"]');
-    if (!row || !legendTitle || !legendItems || !difficultyControls || !seenControls || !wrongControls) {
+    const imageAudioRow = document.querySelector('tr[data-word-id="102"]');
+    if (!row || !imageAudioRow || !legendTitle || !legendItems || !difficultyControls || !seenControls || !wrongControls) {
       return null;
     }
 
@@ -467,6 +489,10 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const buttonRect = button.getBoundingClientRect();
     const audioButtonRect = audioButton ? audioButton.getBoundingClientRect() : null;
     const wordMainRect = wordMain ? wordMain.getBoundingClientRect() : null;
+    const imageThumb = imageAudioRow.querySelector('.ll-wordset-progress-word-thumb');
+    const imageAudioButton = imageAudioRow.querySelector('[data-ll-wordset-progress-word-audio]');
+    const imageThumbRect = imageThumb ? imageThumb.getBoundingClientRect() : null;
+    const imageAudioButtonRect = imageAudioButton ? imageAudioButton.getBoundingClientRect() : null;
     const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
     const wordsWrap = document.querySelector('[data-ll-wordset-progress-panel="words"] .ll-wordset-progress-table-wrap');
     const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
@@ -487,7 +513,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
       wordCellLeft: wordCellRect.left,
       buttonLeft: buttonRect.left,
       buttonRight: buttonRect.right,
-      audioGap: audioButtonRect && wordMainRect ? audioButtonRect.top - wordMainRect.bottom : null
+      audioGap: audioButtonRect && wordMainRect ? audioButtonRect.top - wordMainRect.bottom : null,
+      imageAudioBelowThumb: imageAudioButtonRect && imageThumbRect ? imageAudioButtonRect.top - imageThumbRect.bottom : null
     };
   });
 
@@ -505,6 +532,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);
   expect(metrics.audioGap).not.toBeNull();
   expect(metrics.audioGap).toBeLessThanOrEqual(4);
+  expect(metrics.imageAudioBelowThumb).not.toBeNull();
+  expect(metrics.imageAudioBelowThumb).toBeGreaterThanOrEqual(-0.5);
 
   await page.setViewportSize({ width: 430, height: 844 });
   const resizedMetrics = await page.evaluate(() => {

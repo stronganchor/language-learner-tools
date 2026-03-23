@@ -3243,7 +3243,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-progress-table-wrap {
     position: relative;
     border: 0;
-    border-radius: 14px;
+    border-radius: 0;
     background: #fff;
     overflow: visible;
     background-clip: padding-box;
@@ -3313,14 +3313,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     top: var(--ll-wordset-progress-sticky-top, 0px);
     z-index: 4;
     background-clip: padding-box;
-}
-
-.ll-wordset-progress-table thead th:first-child {
-    border-top-left-radius: 14px;
-}
-
-.ll-wordset-progress-table thead th:last-child {
-    border-top-right-radius: 14px;
 }
 
 .ll-wordset-progress-table tr.is-selected td {
@@ -3724,27 +3716,37 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-word-cell {
     display: flex;
-    align-items: center;
-    gap: 9px;
+    align-items: flex-start;
+    column-gap: 9px;
+    row-gap: 3px;
+    flex-wrap: wrap;
     min-width: 0;
 }
 
 .ll-wordset-progress-word-cell--text-only {
     align-items: flex-start;
-    gap: 0;
+    row-gap: 2px;
+    column-gap: 0;
 }
 
 .ll-wordset-progress-word-body {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 0;
     flex: 1 1 auto;
     min-width: 0;
-    flex-wrap: wrap;
 }
 
 .ll-wordset-progress-word-cell--text-only .ll-wordset-progress-word-body {
     width: 100%;
+}
+
+.ll-wordset-progress-word-audio-row {
+    display: flex;
+    flex: 0 0 100%;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
 }
 
 .ll-wordset-progress-word-thumb {
@@ -3827,7 +3829,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-transform: none !important;
     -webkit-appearance: none !important;
     appearance: none !important;
-    margin-inline-start: auto !important;
+    margin-inline-start: 0 !important;
     flex: 0 0 auto !important;
 }
 
@@ -5256,14 +5258,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {
         align-items: flex-start;
-        gap: 5px;
+        column-gap: 5px;
+        row-gap: 2px;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-body {
-        width: 100%;
+        width: auto;
         flex-direction: column;
         align-items: flex-start;
         gap: 2px;
+        flex: 1 1 0;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-word-cell--text-only .ll-wordset-progress-word-body {
+        width: 100%;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-thumb {
@@ -5291,8 +5299,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-audio {
-        margin-inline-start: 0 !important;
-        align-self: flex-start;
         height: 24px !important;
         min-height: 24px !important;
         min-width: 54px !important;
@@ -5562,7 +5568,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-cell {
-        gap: 2px;
+        column-gap: 2px;
+        row-gap: 1px;
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-body {
@@ -5588,7 +5595,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-progress-table--words .ll-wordset-progress-word-audio {
-        align-self: flex-start;
         min-width: 48px !important;
         height: 22px !important;
         min-height: 22px !important;

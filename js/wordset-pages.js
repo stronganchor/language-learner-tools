@@ -2885,11 +2885,13 @@
             $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
             $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
             $wordBody.append($wordMain);
+            $wordContent.append($wordBody);
             const $audioButton = buildProgressWordAudioButton(row);
             if ($audioButton.length) {
-                $wordBody.append($audioButton);
+                $('<div>', { class: 'll-wordset-progress-word-audio-row' })
+                    .append($audioButton)
+                    .appendTo($wordContent);
             }
-            $wordContent.append($wordBody);
             $wordCell.append($wordContent).appendTo($tr);
 
             const $categoryCell = $('<td>');
